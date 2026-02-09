@@ -73,6 +73,16 @@ MacParakeet processes everything locally. Your audio is never:
 | **Free** | $0 | 15 min/day, basic dictation |
 | **Pro** | $49 (one-time) | Unlimited, command mode, all exports, custom words |
 
+## Development Philosophy
+
+MacParakeet is built for **fast feedback loops**. AI agents make mistakes — but they're good at fixing them if they can detect them. So every component is designed to be verifiable without manual interaction:
+
+- **Tests** — Unit and integration tests for all core logic (`swift test`)
+- **CLI** — Headless interface to core services (transcribe files, test the pipeline) so changes can be verified without launching the GUI
+- **Protocol-based services** — Mockable boundaries make isolated testing straightforward
+
+The faster the feedback loop, the faster the agent self-corrects. If you can't confirm a change works by running a command, the change isn't done.
+
 ## Support
 
 - Email: support@macparakeet.com

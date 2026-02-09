@@ -298,6 +298,7 @@ Code (Sources/)
 4. **UI philosophy** -- Minimal during dictation, rich for transcription results
 5. **Local-first** -- Audio never leaves device. Period. No cloud option.
 6. **Simplicity is the product** -- Resist feature creep. MacParakeet does two things well.
+7. **Fast feedback loops for agents** -- AI agents make mistakes, but they're good at fixing them *if they can detect them*. Design everything so the agent can verify its own work: tests for logic, CLI for headless smoke-testing of core services, build errors that surface immediately. The faster the feedback loop, the faster the agent self-corrects. If an agent can't confirm its own change works, the change is incomplete.
 
 ## Documentation Hygiene
 
