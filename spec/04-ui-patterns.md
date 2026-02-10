@@ -19,141 +19,140 @@ Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutt
 ### Layout
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  MacParakeet                                     ─ □ ✕  │
-├──────────────────┬──────────────────────────────────────┤
-│  Sidebar         │  Content                             │
-│  ────────────    │  ──────────────────────────────────  │
-│                  │                                      │
-│  DICTATIONS (32) │  [Depends on sidebar selection]      │
-│  ──────────────  │                                      │
-│  ▸ Today         │  - Dictation history list            │
-│  ▸ Yesterday     │  - Transcription detail              │
-│  ▸ This Week     │  - File drop zone                   │
-│  ▸ Older         │  - Settings panes                   │
-│                  │                                      │
-│  TRANSCRIPTIONS  │                                      │
-│  ──────────────  │                                      │
-│  (5)             │                                      │
-│                  │                                      │
-│  ──────────────  │                                      │
-│  ⚙ Settings      │                                      │
-│                  │                                      │
-└──────────────────┴──────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  MacParakeet                                          ─ □ ✕  │
+├──────────────────┬───────────────────────────────────────────┤
+│  Sidebar         │  Content                                  │
+│  ────────────    │  ───────────────────────────────────────  │
+│                  │                                           │
+│  🎤 Transcribe   │  [Depends on sidebar selection]           │
+│  🕒 Dictations   │                                           │
+│  ⚙ Settings      │  - Transcribe: Drop zone + recent list   │
+│                  │  - Dictations: History list + detail      │
+│                  │  - Settings: Grouped form                 │
+│                  │                                           │
+└──────────────────┴───────────────────────────────────────────┘
 ```
+
+Minimum window width: 800pt.
 
 ### Sidebar
 
-The sidebar uses NavigationSplitView with three sections:
+The sidebar uses NavigationSplitView with three flat items (icon + label):
 
-**Dictations section** -- Shows count badge. Selecting opens the dictation history list in the content area. Date-grouped sublists (Today, Yesterday, This Week, Older) expand inline.
+- **Transcribe** (`waveform`) -- Drop zone and recent transcriptions
+- **Dictations** (`clock.arrow.circlepath`) -- History list + detail split pane
+- **Settings** (`gearshape`) -- Grouped form settings
 
-**Transcriptions section** -- Shows count badge. Selecting opens the transcription list. Each row shows filename, date, duration, status badge.
+Column width: `min: 160, ideal: 180, max: 220`. Window minimum width: 800pt.
 
-**Settings** -- Fixed at bottom. Opens settings panes in content area.
-
-### Sidebar Item Styles
-
-```
-┌──────────────────────────────────────┐
-│  DICTATIONS                    (32)  │   ← Uppercase label, count badge
-│  ────────────────────────────────    │
-│  ▸ Today                       (5)  │   ← Expandable date group
-│  ▸ Yesterday                   (8)  │
-│  ▸ This Week                  (12)  │
-│  ▸ Older                       (7)  │
-└──────────────────────────────────────┘
-```
+Content transitions between tabs use `DesignSystem.Animation.contentSwap` (0.2s easeInOut).
 
 ---
 
 ## Dictation History (v0.1)
 
+### Layout
+
+Split pane: list on the left (260–420pt), divider, detail on the right (fills remaining space). Content transitions use `DesignSystem.Animation.contentSwap`.
+
 ### List View
 
-Date-grouped list of dictation records. Each row shows essential info with hover actions.
+Date-grouped list (`List(selection:)`) with searchable header. Each group is a `Section` with date header ("Today", "Yesterday", etc.). Empty state shows `MeditativeMerkabaView(size: 56)` with contextual message.
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│  🔍 Search dictations...                                  │
-├───────────────────────────────────────────────────────────┤
-│                                                           │
-│  TODAY                                                    │
-│  ─────────────────────────────────────────────────────    │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │  2:34 PM  ·  12s  ·  Slack                         │  │
-│  │  "Can we move the standup to 3pm tomorrow? I have   │  │
-│  │  a conflict with the design review..."              │  │
-│  │                                          [▶] [⎘] [⌫]│  │  ← Hover actions
-│  └─────────────────────────────────────────────────────┘  │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │  11:02 AM  ·  8s  ·  Notes                         │  │
-│  │  "Remember to update the API documentation for the  │  │
-│  │  new endpoints before Friday."                      │  │
-│  └─────────────────────────────────────────────────────┘  │
-│                                                           │
-│  YESTERDAY                                                │
-│  ─────────────────────────────────────────────────────    │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │  5:15 PM  ·  23s  ·  Mail                          │  │
-│  │  "Hi Sarah, following up on our conversation about  │  │
-│  │  the Q3 budget allocation..."                       │  │
-│  └─────────────────────────────────────────────────────┘  │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│  🔍 Search dictations...                      │
+├──────────────────────────────────────────────┤
+│                                              │
+│  TODAY                                       │
+│  ┌────────────────────────────────────────┐  │
+│  │▌ 2:34 PM                    ╭─12s─╮   │  │  ← accent bar + duration pill
+│  │▌ "Can we move the standup   ╰─────╯   │  │
+│  │▌ to 3pm tomorrow..."                  │  │
+│  │▌                      [▶ Play] [Copy]  │  │  ← hover-reveal actions
+│  └────────────────────────────────────────┘  │
+│  ┌────────────────────────────────────────┐  │
+│  │  11:02 AM                   ╭─8s──╮   │  │
+│  │  "Remember to update the    ╰─────╯   │  │
+│  │  API documentation..."                │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
+│  YESTERDAY                                   │
+│  ┌────────────────────────────────────────┐  │
+│  │  5:15 PM                    ╭─23s─╮   │  │
+│  │  "Hi Sarah, following up    ╰─────╯   │  │
+│  │  on our conversation..."              │  │
+│  └────────────────────────────────────────┘  │
+│                                              │
+└──────────────────────────────────────────────┘
 ```
 
 ### Row Anatomy
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│  {time}  ·  {duration}  ·  {pasted_to_app}             │
-│  "{transcript preview, 2 lines max, truncated...}"     │
-│                                                [▶] [⎘] [⌫] │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────┐
+│▌ {time}                      ╭─{duration}─╮  │  ← leading accent bar (selected)
+│▌ "{transcript, 2 lines max}" ╰────────────╯  │
+│▌                         [▶ Play]  [📋 Copy]  │  ← hover-reveal actions
+└──────────────────────────────────────────────┘
 
-- Time: 12-hour format (2:34 PM)
-- Duration: Compact (8s, 1m 23s)
-- App: Display name of pasted_to_app (Slack, Notes, Mail)
-- Transcript: clean_transcript if available, else raw_transcript
-- Hover actions:
-  - [▶] Play audio (if retained)
-  - [⎘] Copy transcript to clipboard
-  - [⌫] Delete with confirmation
+Components:
+- Leading accent bar: 3pt wide, accentColor, visible when row is selected
+- Time: 12-hour format (2:34 PM) — monospaced digit font
+- Duration pill: Capsule with faint background (primary 5%)
+- Transcript: rawTranscript, 2-line limit, skipped if empty
+- Hover actions: Play (if audio retained) + Copy — appear with opacity+move transition
+- Hover background: subtle tint (primary 4%) on non-selected rows
+- Context menu: Copy (⌘C), Delete (⌘⌫)
+- Selection: uses `DesignSystem.Animation.selectionChange` (0.15s)
 ```
 
 ### Dictation Detail (v0.1)
 
-Clicking a dictation row expands or navigates to a detail view.
+Inline detail pane (right side of split view). Shows selected dictation with playback, transcript, and actions.
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│  ← Back                                                   │
-│                                                           │
-│  February 8, 2026  ·  2:34 PM  ·  12 seconds            │
-│  Pasted to: Slack                                        │
-│  Mode: Clean                                             │
-│                                                           │
-│  ─────────────────────────────────────────────────────    │
-│                                                           │
-│  CLEAN TRANSCRIPT                                        │
-│  Can we move the standup to 3pm tomorrow? I have a       │
-│  conflict with the design review, so it would be great   │
-│  if we could shift it by an hour.                        │
-│                                                           │
-│  ─────────────────────────────────────────────────────    │
-│                                                           │
-│  RAW TRANSCRIPT                                  [Show ▾] │
-│  can we move the standup to 3 pm tomorrow i have a       │
-│  conflict with the design review so it would be great    │
-│  if we could shift it by an hour                         │
-│                                                           │
-│  ─────────────────────────────────────────────────────    │
-│                                                           │
-│  [▶ Play Audio]          [Copy Clean]    [Delete]        │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  Today at 2:34 PM                         ╭─12s──╮  │  ← relative date + duration pill
+│                                           ╰──────╯  │
+│  ┌──────────────────────────────────────────────┐   │
+│  │  [▶]  ═══════════════░░░░░░░░░  0:03 / 0:12 │   │  ← playback card
+│  └──────────────────────────────────────────────┘   │
+│                                                      │
+│  ─────────────◇───────────                          │  ← sacred geometry divider
+│                                                      │
+│  Transcript                                          │
+│  Can we move the standup to 3pm tomorrow? I have    │
+│  a conflict with the design review, so it would be  │
+│  great if we could shift it by an hour.             │
+│                                                      │
+│  ──────────────────────────────────────────────────  │
+│  [📋 Copy]                              [🗑 Delete]  │
+└──────────────────────────────────────────────────────┘
+
+Header:
+- Relative date: "Today at 2:34 PM", "Yesterday at 5:15 PM", or "Feb 8, 2026 at 2:34 PM"
+- Duration pill: Capsule, fixedSize to prevent compression
+
+Playback card (if audio retained):
+- Accent-filled 32pt circle with white play/pause icon
+- 6pt capsule progress bar (track: primary 8%, fill: accentColor)
+- Monospaced time display, fixedSize, right-aligned (min 80pt)
+- Card: cardCornerRadius (10pt) with subtleBorder (primary 8%) strokeBorder
+
+Transcript section:
+- SacredGeometryDivider above
+- "Transcript" section header (subheadline.semibold, secondary)
+- Selectable text with lineSpacing(3), fixedSize(horizontal: false, vertical: true)
+
+Actions:
+- Copy (bordered) + Delete (plain, secondary, with confirmation alert)
 ```
+
+### Detail Empty State
+
+When no dictation is selected, shows `MeditativeMerkabaView(size: 48, revolutionDuration: 8.0)` centered with "Select a dictation to view details" caption.
 
 ---
 
@@ -408,92 +407,125 @@ panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
 
 ### Drop Zone (Empty State)
 
-```
-┌───────────────────────────────────────────────────────────┐
-│                                                           │
-│                                                           │
-│              ┌───────────────────────────┐                │
-│              │                           │                │
-│              │     ↓                     │                │
-│              │                           │                │
-│              │   Drop audio or video     │                │
-│              │   file here to transcribe │                │
-│              │                           │                │
-│              │    or click to browse      │                │
-│              │                           │                │
-│              └───────────────────────────┘                │
-│                                                           │
-│              Supported: MP3, WAV, M4A, MP4, MOV...       │
-│                                                           │
-│                     [Browse Files]                        │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+Premium double-border treatment with `MeditativeMerkabaView` centerpiece. Drag-over accelerates the merkaba and adds accent glow.
 
-- Dashed border on the drop zone, 2px, secondary color
-- Drag-hover: border turns accent blue, background tints blue at 5% opacity
-- Down arrow icon: SF Symbol arrow.down.doc
+```
+┌──────────────────────────────────────────────────────────┐
+│                                                          │
+│           ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐      │
+│          ┌┤                                       ├┐     │  ← double border
+│          │╎         [merkaba spinner]              ╎│     │
+│          │╎                                       ╎│     │
+│          │╎    Drop audio or video file here      ╎│     │
+│          │╎    MP3, WAV, M4A, FLAC, MP4, MOV, MKV╎│     │
+│          └┤                                       ├┘     │
+│           └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘      │
+│                                                          │
+│                     [Browse Files]                       │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+
+Drop zone components:
+- Outer thin solid border: 0.5pt, primary 6% (accent 30% on drag-over)
+- Inner dashed border: 1.5pt, dash [8, 4], primary 15% (accentColor on drag-over)
+- Accent glow fill: accentColor 4% (on drag-over only)
+- MeditativeMerkabaView(size: 48): 6s revolution idle, 2s revolution on drag-over, tintColor switches to .accentColor on drag
+- "Browse Files" button: .borderedProminent style
+- Supported formats text: caption, tertiary
+- Drop zone height: 200pt (DesignSystem.Layout.dropZoneHeight)
 ```
 
 ### Processing State
 
-```
-┌───────────────────────────────────────────────────────────┐
-│                                                           │
-│  interview.mp3                                           │
-│  24.3 MB  ·  45:12 duration                              │
-│                                                           │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │  ████████████████░░░░░░░░░░░░░░░░░░░  42%          │  │
-│  └─────────────────────────────────────────────────────┘  │
-│                                                           │
-│  Transcribing... (estimated 8s remaining)                │
-│                                                           │
-│                     [Cancel]                              │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+Uses `SpinnerRingView` (merkaba spinner) instead of generic system ProgressView.
 
-- Progress bar: accent blue fill, rounded corners
-- Percentage and ETA update live
-- Cancel stops the Parakeet daemon request
+```
+┌──────────────────────────────────────────────────────────┐
+│                                                          │
+│                    [merkaba spinner]                     │
+│                                                          │
+│                   "Transcribing..."                      │
+│                                                          │
+│                    [error if any]                        │
+│                                                          │
+└──────────────────────────────────────────────────────────┘
+
+- SpinnerRingView(size: 40, revolutionDuration: 2.5, tintColor: .accentColor)
+- Progress text: body font, secondary color
+- Error text: caption, red (if present)
 ```
 
 ### Result Display
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│                                                           │
-│  interview.mp3                                 [✓ Done]  │
-│  24.3 MB  ·  45:12  ·  Transcribed in 8.2s              │
-│                                                           │
-│  ─────────────────────────────────────────────────────    │
-│                                                           │
-│  TRANSCRIPT                                              │
-│  ┌─────────────────────────────────────────────────────┐  │
-│  │  Welcome everyone to today's product review. We     │  │
-│  │  have three items on the agenda. First, let's look  │  │
-│  │  at the Q3 metrics dashboard. Sarah, could you      │  │
-│  │  walk us through the highlights?                    │  │
-│  │                                                     │  │
-│  │  Sure. So the main thing to note is that our DAU    │  │
-│  │  increased by 23% compared to last quarter...       │  │
-│  │                                                     │  │
-│  │  [scrollable text view]                             │  │
-│  └─────────────────────────────────────────────────────┘  │
-│                                                           │
-│  WORD TIMESTAMPS                                 [Show ▾] │
-│                                                           │
-│  ─────────────────────────────────────────────────────    │
-│                                                           │
-│  [Copy Text]    [Export .txt]    [Transcribe Another]    │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│  [←]  interview.mp3                        ╭─45:12─╮    │  ← hover back button + duration pill
+│                                            ╰───────╯    │
+│  ─────────────◇───────────                              │  ← sacred geometry divider
+│                                                          │
+│  ┌──────┐                                                │
+│  │00:00 │  Welcome everyone to today's product review.  │  ← timestamp with faint bg
+│  └──────┘  We have three items on the agenda.           │
+│  ┌──────┐                                                │
+│  │00:08 │  First, let's look at the Q3 metrics          │
+│  └──────┘  dashboard.                                   │
+│                                                          │
+│  [scrollable, selectable text with lineSpacing(3)]      │
+│                                                          │
+│  ──────────────────────────────────────────────────────  │
+│  [Export .txt]  [Copy]                                  │
+└──────────────────────────────────────────────────────────┘
 
-- Transcript in a scrollable, selectable text view
-- Word timestamps collapsible (hidden by default)
-- Action buttons at bottom:
-  - Copy Text: copies to clipboard, button shows "Copied!" briefly
-  - Export .txt: save dialog
-  - Transcribe Another: returns to drop zone
+Header:
+- Back button: chevron.left in 24pt circle, hover effect (primary 8% bg, foreground brightens)
+- Filename: headline font
+- Duration pill: Capsule (primary 5%), fixedSize
+
+Transcript:
+- SacredGeometryDivider between header and content
+- Timestamped segments: grouped by gaps (>500ms) or word count (15)
+- Timestamp column: faint RoundedRectangle background (primary 3%), monospaced digit font
+- Text: body font, selectable, lineSpacing(3)
+
+Export bar:
+- Export .txt + Copy buttons, bordered style
+```
+
+### Recent Transcriptions List
+
+Appears below the drop zone when transcription history exists. Section header includes count badge.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Recent Transcriptions  (3)                              │  ← section header + count badge
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ [🎵]  interview.mp3          ╭─Done ✓─╮           │  │  ← status-tinted icon + status pill
+│  │       2 min ago · 24 MB · 45:12   ╰────────╯      │  │
+│  ├────────────────────────────────────────────────────┤  │
+│  │ [⚠️]  podcast.m4a            ╭─Failed ✗─╮          │  │
+│  │       1h ago · 108 MB         ╰─────────╯          │  │
+│  │                                Timeout err...      │  │  ← truncated error message
+│  ├────────────────────────────────────────────────────┤  │
+│  │ [🎵]  lecture.wav             ╭─Done ✓─╮           │  │
+│  │       3d ago · 12 MB · 1:02:15 ╰───────╯          │  │
+│  └────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
+
+Row anatomy:
+- Status-tinted icon square: 32×32pt rounded rect (cornerRadius 6) with tinted fill
+  - Completed: waveform icon, successGreen 10% bg / successGreen fg
+  - Processing: rotating arrows, accentColor 10% bg / accentColor fg + SpinnerRingView in pill
+  - Error: exclamationmark.triangle, statusDenied 10% bg / statusDenied fg
+  - Cancelled: xmark, primary 5% bg / secondary fg
+- Two-line content: filename (body, primary) + metadata (relative time · file size · duration)
+- Status pill: Capsule with tinted fill (color 10%) + icon + label
+  - "Done" (checkmark, successGreen), "Processing" (merkaba spinner, accentColor),
+    "Failed" (xmark, statusDenied), "Cancelled" (minus, secondary)
+  - Error rows show truncated errorMessage (9pt, tertiary) below pill
+- Hover: subtle background tint (rowHoverBackground)
+- Row separators: hidden
+- List maxHeight: 260pt
+- Clicking a row navigates to TranscriptResultView
 ```
 
 ---
@@ -652,109 +684,104 @@ Settings open in the content area when "Settings" is selected in the sidebar. Ta
 └───────────────────────────────────────────────────────────┘
 ```
 
-### About (v0.1)
+### Permissions (v0.1)
+
+Permission badges use pill-shaped capsules with tinted fill, matching the onboarding style:
 
 ```
-┌───────────────────────────────────────────────────────────┐
-│  ABOUT                                                    │
-│  ─────────────────────────────────────────────────────    │
-│                                                           │
-│                     [Parrot Icon]                         │
-│                   MacParakeet v0.1                        │
-│                   Build 1 (2026.02)                       │
-│                                                           │
-│  The fastest, most private transcription app for Mac.    │
-│                                                           │
-│  Parakeet TDT 0.6B-v3  ·  100% local  ·  zero cloud    │
-│                                                           │
-│  [Website]    [Privacy Policy]    [Acknowledgments]      │
-│                                                           │
-└───────────────────────────────────────────────────────────┘
+Microphone          ╭─✓ Granted─╮    ← green tinted capsule
+                    ╰───────────╯
+Accessibility       ╭─✗ Not Granted─╮  ← red tinted capsule
+                    ╰───────────────╯
+
+Pill anatomy:
+- Icon: checkmark.circle.fill (granted) or xmark.circle.fill (not granted), 10pt
+- Text: "Granted" or "Not Granted", caption2
+- Color: statusGranted (green) or statusDenied (red)
+- Background: Capsule with color at 10% opacity
 ```
+
+### Version Footer
+
+Centered at the bottom of the settings form:
+- `SpinnerRingView(size: 16, revolutionDuration: 8.0, tintColor: .secondary)` at 50% opacity
+- "MacParakeet {version}" in caption, tertiary color
+
+### Onboarding
+
+Button to re-run onboarding flow: "Run Onboarding Again..."
 
 ---
 
 ## Design System
 
+All design tokens are centralized in `DesignSystem.swift` (`Views/Components/DesignSystem.swift`).
+
 ### Colors
 
-| Token | Light | Dark | Usage |
-|-------|-------|------|-------|
-| `background` | `.white` | `Color(.windowBackgroundColor)` | Main window background |
-| `secondaryBackground` | `.gray.opacity(0.05)` | `.gray.opacity(0.1)` | Cards, grouped sections |
-| `pillBackground` | -- | `#1C1C1E` at 95% opacity | Dictation overlay |
-| `accent` | `.accentColor` | `.accentColor` | Buttons, links, progress |
-| `textPrimary` | `.primary` | `.primary` | Body text |
-| `textSecondary` | `.secondary` | `.secondary` | Metadata, labels |
-| `destructive` | `.red` | `.red` | Delete actions |
-| `success` | `.green` | `.green` | Success states |
-| `warning` | `.yellow` | `.yellow` | Error/warning states |
+| Token | Value | Usage |
+|-------|-------|-------|
+| `pillBackground` | `black 90%` | Dictation overlay / idle pill |
+| `pillBorder` | `white 10%` | Pill border stroke |
+| `recordingRed` | `.red` | Recording indicator |
+| `successGreen` | `.green` | Success states, completed status |
+| `warningYellow` | `.yellow` | Warning states |
+| `warningOrange` | `.orange` | Warning highlights |
+| `statusGranted` | `.green` | Permission granted badges |
+| `statusDenied` | `.red` | Permission denied badges |
+| `sidebarBackground` | `NSColor.controlBackgroundColor` | Sidebar pane |
+| `contentBackground` | `NSColor.textBackgroundColor` | Content pane |
+| `rowHoverBackground` | `primary 4%` | List row hover highlight |
+| `subtleBorder` | `primary 8%` | Card borders, dividers |
+| `playbackTrack` | `primary 8%` | Playback bar track |
+| `playbackFill` | `.accentColor` | Playback bar filled portion |
 
 ### Typography
 
 | Token | Style | Usage |
 |-------|-------|-------|
-| `titleLarge` | `.title2.bold()` | View titles |
-| `titleMedium` | `.headline` | Section headers |
-| `sectionLabel` | `.caption.uppercaseSmallCaps()` | Sidebar section labels (DICTATIONS, TRANSCRIPTIONS) |
-| `body` | `.body` | Transcript text, descriptions |
-| `bodySecondary` | `.body.foregroundStyle(.secondary)` | Metadata, timestamps |
 | `caption` | `.caption` | Hints, small labels |
-| `mono` | `.body.monospaced()` | Timestamps, technical values |
+| `body` | `.body` | Transcript text, descriptions |
+| `headline` | `.headline` | Section titles, filenames |
+| `title` | `.title2` | View-level titles |
+| `largeTitle` | `.largeTitle` | Onboarding headers |
+| `timestamp` | `.caption.monospacedDigit()` | Times, monospaced numbers |
+| `duration` | `.caption2.monospacedDigit()` | Duration pills, file sizes |
+| `sectionHeader` | `.subheadline.weight(.semibold)` | Section headers (Today, Transcript, etc.) |
 
 ### Spacing
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `xs` | 4pt | Inline element gaps |
+| `xs` | 4pt | Inline element gaps, row vertical padding |
 | `sm` | 8pt | Related element spacing |
 | `md` | 12pt | Standard content padding |
-| `lg` | 16pt | Section gaps |
-| `xl` | 24pt | Major section separation |
-| `xxl` | 32pt | View-level padding |
+| `lg` | 16pt | Section gaps, content padding |
+| `xl` | 24pt | Major section separation, drop zone padding |
+| `xxl` | 40pt | Large visual spacing |
 
-### Button Styles
-
-**Primary Action**
-```swift
-.buttonStyle(.borderedProminent)
-// Used for: Copy, Export, Browse Files
-```
-
-**Secondary Action**
-```swift
-.buttonStyle(.bordered)
-// Used for: Cancel, Transcribe Another
-```
-
-**Destructive Action**
-```swift
-.buttonStyle(.bordered)
-.tint(.red)
-// Used for: Delete, Clear All
-```
-
-**Toolbar Icon**
-```swift
-// Custom ToolbarIconButtonStyle
-// 28x28pt hit target, subtle hover background
-// Used for: hover actions on list rows (play, copy, delete)
-```
-
-### Dimensions
+### Layout
 
 | Token | Value | Usage |
 |-------|-------|-------|
-| `sidebarWidth` | 200pt (min), 240pt (ideal) | NavigationSplitView sidebar |
-| `pillHeight` | 36pt | Dictation overlay |
-| `pillCornerRadius` | 18pt | Dictation overlay |
-| `pillBottomOffset` | 48pt | Distance from screen bottom |
-| `iconSize` | 16pt | Standard SF Symbol size |
-| `iconSizeLarge` | 20pt | Emphasized SF Symbols |
-| `rowMinHeight` | 56pt | List row minimum height |
-| `dropZoneMinHeight` | 300pt | File drop zone |
+| `sidebarMinWidth` | 180pt | NavigationSplitView sidebar |
+| `contentMinWidth` | 400pt | Content pane minimum |
+| `windowMinHeight` | 500pt | Main window minimum height |
+| `cornerRadius` | 12pt | Standard card/drop zone corners |
+| `dropZoneHeight` | 200pt | File drop zone target height |
+| `playbackBarHeight` | 6pt | Audio playback progress bar |
+| `cardCornerRadius` | 10pt | Playback cards, detail cards |
+| `rowCornerRadius` | 8pt | List row hover backgrounds |
 
 ### Animation
+
+| Token | Duration | Curve | Usage |
+|-------|----------|-------|-------|
+| `selectionChange` | 0.15s | `.easeInOut` | List row selection, accent bar |
+| `hoverTransition` | 0.12s | `.easeInOut` | Row hover, button hover effects |
+| `contentSwap` | 0.2s | `.easeInOut` | Tab transitions, detail pane changes |
+
+**Overlay-specific animations** (in DictationOverlayView / IdlePillView):
 
 | Animation | Duration | Curve | Usage |
 |-----------|----------|-------|-------|
@@ -763,11 +790,34 @@ Settings open in the content area when "Settings" is selected in the sidebar. Ta
 | State cross-fade | 0.3s | `.easeInOut` | Pill state changes (opacity transition) |
 | Waveform | 0.05s | `.linear` | Audio bars (tied to amplitude) |
 | Success appear | 0.5s | `.spring(response: 0.4, dampingFraction: 0.7)` | Scale 0.8→1.0 + opacity |
-| Merkaba rotation | 3.0s | `.linear` (repeating) | Two counter-rotating triangles |
-| Merkaba vertex pulse | 1.5s | `.easeInOut` (repeating) | Vertex dot glow 0.6→1.0 |
-| Merkaba center pulse | 2.0s | `.easeInOut` (repeating) | Center nexus glow 0.3→0.7 |
 | Button hover | 0.15s | `.easeInOut` | Cancel brighten / stop red glow |
-| Progress bar | 0.1s | `.linear` | Transcription progress |
+
+### Sacred Geometry Components
+
+Shared components in `Views/Components/SacredGeometry.swift`:
+
+| Component | Description | Usage |
+|-----------|-------------|-------|
+| `TriangleShape` | Equilateral triangle inscribed in circle | Building block for merkaba |
+| `SpinnerRingView` | Compact merkaba spinner (two counter-rotating triangles, glowing vertices, center nexus) | Dictation processing, transcription processing, settings footer |
+| `MeditativeMerkabaView` | Larger, slower merkaba for empty states (softer opacity, primary-tinted) | Drop zone centerpiece, empty states |
+| `SacredGeometryDivider` | Thin line with centered diamond ornament (Canvas) | Section dividers in detail views |
+
+**SpinnerRingView parameters:**
+- `size`: Default 26pt (overlay), 40pt (transcription), 16pt (settings), 10pt (row pills)
+- `revolutionDuration`: Default 3.0s (overlay), 2.0–2.5s (processing), 8.0s (decorative)
+- `tintColor`: Default `.white` (overlay), `.accentColor` (main window), `.secondary` (decorative)
+
+**MeditativeMerkabaView parameters:**
+- `size`: Default 64pt, typically 48–56pt for empty states
+- `revolutionDuration`: Default 6.0s, 8.0s for background, 2.0s for drag-over acceleration
+- `tintColor`: Default nil (uses `.primary`), `.accentColor` on drag-over
+
+| Animation | Duration | Curve | Usage |
+|-----------|----------|-------|-------|
+| Merkaba rotation | configurable | `.linear` (repeating) | Two counter-rotating triangles |
+| Merkaba vertex pulse | 1.0–1.6s | `.easeInOut` (repeating) | Vertex dot glow |
+| Merkaba center pulse | 1.4–2.0s | `.easeInOut` (repeating) | Center nexus glow |
 
 ---
 
@@ -829,4 +879,4 @@ MacParakeet follows standard macOS patterns:
 
 ---
 
-*Last updated: 2026-02-08*
+*Last updated: 2026-02-10*

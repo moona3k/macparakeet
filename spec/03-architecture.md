@@ -95,9 +95,19 @@ The UI layer. Thin shell over MacParakeetCore. No business logic lives here.
 **Responsibility:** Primary interface for file transcription. Accepts drag-and-drop, displays transcripts, provides export controls.
 
 **Key Types:**
-- `MainWindowView` — Drop zone + transcript display + recent files list
-- `TranscriptView` — Scrollable text with optional word-level timestamps
-- `ProgressView` — Transcription progress indicator with cancel
+- `MainWindowView` — Sidebar (Transcribe / Dictations / Settings) + content pane
+- `TranscribeView` — Drop zone + recent transcriptions list
+- `TranscriptResultView` — Scrollable text with optional word-level timestamps
+- `DictationHistoryView` — Split pane: list + detail
+- `DictationDetailView` — Playback card, transcript, actions
+
+**Shared Components** (`Views/Components/`):
+- `DesignSystem` — Centralized design tokens (Colors, Typography, Spacing, Layout, Animation)
+- `SacredGeometry` — Shared sacred geometry components:
+  - `TriangleShape` — Equilateral triangle Shape
+  - `SpinnerRingView` — Compact merkaba spinner
+  - `MeditativeMerkabaView` — Large, slow merkaba for empty states
+  - `SacredGeometryDivider` — Thin line with centered diamond ornament
 
 **Dependencies:** `TranscriptionService`, `ExportService`
 
@@ -1319,4 +1329,4 @@ open Package.swift
 
 ---
 
-*Last updated: 2026-02-08*
+*Last updated: 2026-02-10*
