@@ -13,7 +13,6 @@ enum DesignSystem {
         static let warningOrange = Color.orange
         static let statusGranted = Color.green
         static let statusDenied = Color.red
-        static let accentTeal = Color(nsColor: NSColor(red: 0.0, green: 0.8, blue: 0.75, alpha: 1.0))
 
         static let sidebarBackground = Color(nsColor: .controlBackgroundColor)
         static let contentBackground = Color(nsColor: .textBackgroundColor)

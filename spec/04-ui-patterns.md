@@ -163,8 +163,8 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 ### Dimensions
 
-- **Collapsed:** 64×30pt dark capsule
-- **Expanded (hover):** 148×30pt dark capsule with dots
+- **Collapsed:** 48×10pt dark grey capsule (subtle nub)
+- **Expanded (hover):** 148×30pt dark capsule with dots + tooltip above
 - **Position:** Bottom-center, 12pt above dock (same location as dictation overlay)
 - **Panel:** NSPanel, `.nonactivatingPanel`, `.borderless`, `.floating` level
 
@@ -174,35 +174,32 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 ```
 ┌────────────────────────────┐
-│    ╭────────────────╮      │
-│    │                │      │
-│    │    ═══         │      │  ← teal accent line (24px)
-│    ╰────────────────╯      │
+│         ╭──────╮           │
+│         ╰──────╯           │  ← subtle dark grey nub
 └────────────────────────────┘
 
-- 64×30pt dark capsule (black 85% opacity)
-- Subtle inner capsule stroke (white 10%)
-- Teal accent line at bottom (24px wide, 2.5px tall)
+- 48×10pt dark grey capsule (25% white, 90% opacity)
+- Subtle inner capsule stroke (white 6%)
+- No accent line — minimal footprint
 ```
 
 **2. Expanded (Hover)**
 
 ```
-        Click or hold fn to start dictating
-                     ↑ tooltip
+  ╭────────────────────────────────────────────╮
+  │  Click or hold fn to start dictating       │  ← tooltip bubble
+  ╰────────────────────────────────────────────╯
 ┌──────────────────────────────────────────┐
 │    ╭──────────────────────────────╮      │
 │    │  · · · · · · · · · · · ·    │      │  ← 12 small dots
-│    │         ══════════           │      │  ← teal accent line (60px)
 │    ╰──────────────────────────────╯      │
 └──────────────────────────────────────────┘
 
-- 148×30pt expanded capsule
+- 148×30pt expanded dark capsule (black 85%)
 - 12 small dots (3pt, white 25%) inside pill
-- Teal accent line widens to 60px
 - Tooltip bubble above: "Click or hold fn to start dictating"
-  - "fn" in pink/magenta (0.85, 0.35, 0.65)
-  - Dark capsule background with white 10% stroke
+  - "fn" in pink (0.85, 0.55, 0.75)
+  - Dark capsule background (black 90%) with white 10% stroke
 ```
 
 ### Behavior
