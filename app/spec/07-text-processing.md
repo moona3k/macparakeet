@@ -169,7 +169,8 @@ Stores user-defined vocabulary anchors and corrections.
 |--------|------|-------------|
 | id | UUID | Primary key |
 | word | TEXT | The word/phrase to match (case-insensitive) |
-| replacement | TEXT | The corrected word/phrase |
+| replacement | TEXT | The corrected word/phrase (nullable = vocabulary anchor) |
+| source | TEXT | `.manual` (user-created) or `.learned` (auto-detected, future) |
 | isEnabled | BOOLEAN | Whether this word is active |
 | createdAt | DATETIME | When created |
 | updatedAt | DATETIME | When last modified |

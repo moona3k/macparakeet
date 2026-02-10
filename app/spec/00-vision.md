@@ -450,7 +450,6 @@ The foundation. Dictation works. File transcription works. It is fast.
 - Parakeet STT integration (Python daemon via JSON-RPC)
 - System-wide dictation (Fn trigger, floating overlay)
 - File transcription (drag-and-drop, common audio/video formats)
-- Clean text pipeline (capitalization, punctuation, numbers)
 - Basic UI (menu bar app, transcription window)
 - Settings (audio input selection, output preferences)
 

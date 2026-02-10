@@ -94,16 +94,20 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**v0.1 MVP** -- Planned
+**v0.1 MVP** -- Implemented (175 tests, 21 suites, `swift test` + `xcodebuild` green)
 
-### v0.1 MVP (Planned)
-- [ ] System-wide dictation: Fn double-tap (persistent) + hold-to-talk
-- [ ] File transcription: Drag-drop audio/video files
-- [ ] Compact dark pill overlay (modeled after OatFlow)
-- [ ] Auto-paste with clipboard restore
-- [ ] Basic settings + dictation history
-- [ ] Menu bar app with status indicator
-- [ ] Basic export (plain text, copy to clipboard)
+### v0.1 MVP (Implemented)
+- [x] System-wide dictation: Fn double-tap (persistent) + hold-to-talk
+- [x] File transcription: Drag-drop audio/video files
+- [x] Compact dark pill overlay with recording timer + waveform
+- [x] Auto-paste with clipboard save/restore
+- [x] Settings (hotkey display, silence auto-stop, storage, permissions)
+- [x] Dictation history (date-grouped, searchable, detail view with split pane)
+- [x] Menu bar app with main window + sidebar navigation
+- [x] Basic export (plain text .txt, copy to clipboard)
+- [x] SQLite database (GRDB, dictations + transcriptions + FTS5 search)
+- [x] CLI tool: `macparakeet transcribe`, `history`, `health`
+- [x] Python STT daemon (JSON-RPC over stdin/stdout)
 
 ### v0.2 Clean Pipeline + AI
 - [ ] Clean text pipeline (filler removal, custom words, snippets) -- deterministic, no LLM
@@ -161,10 +165,9 @@ Both modes share the same Parakeet STT backend but have different UI flows and d
   "result": {
     "text": "Hello world",
     "words": [
-      {"word": "Hello", "start": 0.0, "end": 0.5, "confidence": 0.98},
-      {"word": "world", "start": 0.6, "end": 1.0, "confidence": 0.97}
-    ],
-    "duration": 1.0
+      {"word": "Hello", "start_ms": 0, "end_ms": 500, "confidence": 0.98},
+      {"word": "world", "start_ms": 600, "end_ms": 1000, "confidence": 0.97}
+    ]
   },
   "id": 1
 }
@@ -262,13 +265,14 @@ macparakeet/app/
 │   └── completed/      # Done plans (archived, not deleted)
 ├── Sources/
 │   ├── MacParakeet/        # GUI app (SwiftUI, imports MacParakeetCore)
+│   ├── CLI/                # CLI tool (ArgumentParser, imports MacParakeetCore)
 │   └── MacParakeetCore/    # Shared library (no UI deps)
 ├── Tests/
-│   └── MacParakeetTests/   # Unit, database, and integration tests
-├── Assets/             # App icons and images
+│   └── MacParakeetTests/   # Unit, database, and integration tests (175 tests)
+├── Assets/             # App icons and images (placeholder)
 ├── python/             # STT daemon (Parakeet via uv)
 │   └── macparakeet_stt/
-└── scripts/            # Build, test, and release scripts
+└── scripts/            # Build, test, and release scripts (placeholder)
 ```
 
 ### Document Hierarchy
@@ -292,13 +296,14 @@ Code (Sources/)
 
 ## Implementation Guidelines
 
-1. **Specs are authoritative** -- Don't second-guess locked decisions
-2. **Version order matters** -- v0.1 features first, not v0.3
-3. **Never lose user data** -- Graceful degradation for dictation history and transcriptions
-4. **UI philosophy** -- Minimal during dictation, rich for transcription results
-5. **Local-first** -- Audio never leaves device. Period. No cloud option.
-6. **Simplicity is the product** -- Resist feature creep. MacParakeet does two things well.
-7. **Fast feedback loops for agents** -- AI agents make mistakes, but they're good at fixing them *if they can detect them*. Design everything so the agent can verify its own work: tests for logic, CLI for headless smoke-testing of core services, build errors that surface immediately. The faster the feedback loop, the faster the agent self-corrects. If an agent can't confirm its own change works, the change is incomplete.
+1. **Specs are the source of truth** -- All code is generated from and must align with the specs in `spec/`. If code and spec disagree, the spec is correct -- fix the code. When specs are updated, code must follow. When code reveals a spec gap, update the spec first, then implement. Specs drive implementation, not the reverse.
+2. **ADRs are locked** -- Don't second-guess architectural decisions in `spec/adr/`.
+3. **Version order matters** -- v0.1 features first, not v0.3
+4. **Never lose user data** -- Graceful degradation for dictation history and transcriptions
+5. **UI philosophy** -- Minimal during dictation, rich for transcription results
+6. **Local-first** -- Audio never leaves device. Period. No cloud option.
+7. **Simplicity is the product** -- Resist feature creep. MacParakeet does two things well.
+8. **Fast feedback loops for agents** -- AI agents make mistakes, but they're good at fixing them *if they can detect them*. Design everything so the agent can verify its own work: tests for logic, CLI for headless smoke-testing of core services, build errors that surface immediately. The faster the feedback loop, the faster the agent self-corrects. If an agent can't confirm its own change works, the change is incomplete.
 
 ## Documentation Hygiene
 
@@ -407,8 +412,7 @@ Step-by-step guides for frequent development tasks.
 2. Implement service conforming to protocol
 3. Add tests in `Tests/MacParakeetTests/`
 4. Look at existing services for patterns:
-   - AI services: `Sources/MacParakeetCore/AI/` (AIService, MLXClient)
-   - Domain services: `Sources/MacParakeetCore/Services/` (TranscriptionService, DictationService)
+   - Domain services: `Sources/MacParakeetCore/Services/` (TranscriptionService, DictationService, ExportService, ClipboardService)
 
 ### Fix a bug
 
@@ -474,14 +478,20 @@ MLX_TESTS=1 swift test --filter MLXIntegrationTests
 
 MLX-Swift requires Metal shaders. **`swift build` cannot compile Metal shaders** -- it will build but crash at runtime with "Failed to load the default metallib".
 
-### Build and Run
+### Build & Run
 
 ```bash
-# Build GUI app (Metal shaders need xcodebuild)
+# Build GUI app (uses local .build/xcode for derived data)
 xcodebuild build -scheme MacParakeet -destination 'platform=OS X' -derivedDataPath .build/xcode
 
 # Run GUI app
-.build/xcode/Build/Products/Debug/MacParakeet.app/Contents/MacOS/MacParakeet
+.build/xcode/Build/Products/Debug/MacParakeet
+
+# Build and run CLI
+swift build --target CLI
+swift run macparakeet --help
+swift run macparakeet transcribe /path/to/audio.mp3
+swift run macparakeet health
 
 # Run tests (swift test works -- tests don't need Metal shaders)
 swift test
@@ -509,7 +519,7 @@ After building, quick smoke test:
 
 ```bash
 # Run the app
-.build/xcode/Build/Products/Debug/MacParakeet.app/Contents/MacOS/MacParakeet
+.build/xcode/Build/Products/Debug/MacParakeet
 
 # Run tests
 swift test
@@ -556,16 +566,19 @@ These patterns are proven from OatFlow development in Oatmeal. Apply them here.
 | In-memory SQLite for tests | Fast, isolated, no cleanup needed | Use GRDB's `DatabaseQueue(configuration:)` with in-memory config |
 | Protocol-based services | Makes mocking easy for tests | Define `TranscriptionServiceProtocol`, implement concrete + mock |
 | GRDB repositories (one per table) | Clean separation, consistent CRUD | `DictationRepository`, `TranscriptionRepository` |
-| KeyablePanel for floating panels | Borderless NSPanel can't become key by default | Subclass with `canBecomeKey -> true` for text field focus |
+| KeylessPanel for non-activating overlays | NSPanel that never steals focus | Subclass with `canBecomeKey -> false` for dictation overlay |
 | Timer in .common run-loop mode | `.default` mode pauses during UI tracking (slider drag) | `RunLoop.main.add(timer, forMode: .common)` |
 | DesignSystem tokens | Consistent styling, easy to change globally | Centralize spacing, typography, colors in `DesignSystem.swift` |
 | TextProcessingPipeline as pure function | No side effects, easy to test | Input text -> output text, no state mutation |
-| Cache computed values with signature check | Avoid O(n) work every frame | Check meeting ID + word count + timestamps before rebuilding |
+| Cache computed values with signature check | Avoid O(n) work every frame | Check record ID + word count + timestamps before rebuilding |
 
 ### Architecture Patterns
 
 | Pattern | Description |
 |---------|-------------|
+| Manual NSApplication.run() | No SwiftUI `App` protocol — manual `NSApplication.shared.run()` for reliable CLI execution without .app bundle. Same pattern as Oatmeal. |
+| NSStatusItem for menu bar | Menu bar via `NSStatusBar.system.statusItem()`, not SwiftUI `MenuBarExtra` |
+| NSWindow + NSHostingView | Main window created programmatically, SwiftUI content hosted via `NSHostingView` |
 | Core library has no UI deps | `MacParakeetCore` imports Foundation + GRDB + MLX, never SwiftUI |
 | Views organized by feature | `Views/Dictation/`, `Views/Transcription/`, not flat |
 | Observable ViewModels | SwiftUI views observe `@Observable` or `@ObservableObject` classes |
@@ -594,7 +607,7 @@ These are hard-won lessons. Don't repeat them.
 ### Database Gotchas
 
 - **Raw SQL UPDATE with UUID -- use GRDB's `fetchOne(key:)` + `update()` pattern** -- GRDB stores UUID values via Codable encoding, which may differ from `id.uuidString`. Never use raw SQL `WHERE id = ?` with `uuidString`.
-- **`PermissionManager` is not a singleton** -- Instantiate it (`PermissionManager()`), don't use `.shared`. `PermissionStatus` is nested: `PermissionManager.PermissionStatus`.
+- **`PermissionService` is not a singleton** -- Instantiate it (`PermissionService()`), don't use `.shared`.
 
 ### General
 

@@ -47,26 +47,28 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 
 | Version | Name | Focus | Status |
 |---------|------|-------|--------|
-| v0.1 | Core MVP | Dictation + transcription + history + settings | Planned |
+| v0.1 | Core MVP | Dictation + transcription + history + settings | **Implemented** |
 | v0.2 | AI & Text Processing | Clean pipeline, AI refinement, custom words | Planned |
 | v0.3 | Command Mode & Export | Voice commands, YouTube, full export formats | Planned |
 | v0.4 | Polish & Launch | Diarization, batch processing, App Store | Planned |
 
 ## Version Progress
 
-### v0.1 Core MVP (Planned)
+### v0.1 Core MVP (Implemented)
 
 Dictation + transcription + history + settings. Get audio in, text out, pasted into any app.
 
-- [ ] System-wide dictation: Fn double-tap (persistent) + hold-to-talk
-- [ ] File transcription: Drag-drop audio/video files
-- [ ] Compact dark pill overlay (modeled after OatFlow)
-- [ ] Auto-paste with clipboard restore
-- [ ] Dictation history (date-grouped, searchable, audio playback)
-- [ ] Settings (hotkey, stop mode, storage)
-- [ ] Menu bar app with status indicator
-- [ ] Basic export (plain text, copy to clipboard)
-- [ ] SQLite database (GRDB, dictations + transcriptions)
+- [x] System-wide dictation: Fn double-tap (persistent) + hold-to-talk
+- [x] File transcription: Drag-drop audio/video files
+- [x] Compact dark pill overlay with recording timer + waveform
+- [x] Auto-paste with clipboard save/restore
+- [x] Dictation history (date-grouped, searchable, detail view)
+- [x] Settings (hotkey display, silence auto-stop, storage, permissions)
+- [x] Menu bar app with main window
+- [x] Basic export (plain text, copy to clipboard)
+- [x] SQLite database (GRDB, dictations + transcriptions + FTS5)
+- [x] CLI tool (`macparakeet transcribe`, `history`, `health`)
+- [x] 175 tests passing (21 test suites)
 
 ### v0.2 AI & Text Processing (Planned)
 

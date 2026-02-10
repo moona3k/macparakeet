@@ -175,12 +175,13 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 
 ```
 ┌──────────────────────────────────────────┐
-│  [✕]  |||||||||||||||  [■]              │
-│        ← waveform →                     │
+│  [✕]  |||||||||||||||  0:03  [■]        │
+│        ← waveform →   timer              │
 └──────────────────────────────────────────┘
 
 - [✕] Cancel button (SF Symbol: xmark.circle.fill, red tint)
 - Waveform: 12 bars, animating to audio amplitude, white
+- Timer: Recording duration (e.g., "0:03"), updates every second
 - [■] Stop button (SF Symbol: stop.circle.fill, white)
 - Tooltip on [✕]: "Cancel (Esc)"
 - Tooltip on [■]: "Stop Recording"

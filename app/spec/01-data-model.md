@@ -40,34 +40,34 @@ Stores every voice dictation captured via the system-wide hotkey.
 
 ```sql
 CREATE TABLE dictations (
-    id TEXT PRIMARY KEY,                          -- UUID string
-    created_at TEXT NOT NULL,                      -- ISO 8601 timestamp
-    duration_ms INTEGER NOT NULL,                  -- Recording duration in milliseconds
-    raw_transcript TEXT NOT NULL,                   -- Unprocessed STT output
-    clean_transcript TEXT,                          -- Post-processed text (nullable if mode=raw)
-    audio_path TEXT,                                -- Path to saved audio file (nullable if not retained)
-    pasted_to_app TEXT,                             -- Bundle ID of app text was pasted into
-    processing_mode TEXT NOT NULL DEFAULT 'raw',     -- 'raw' (v0.1) or 'clean' (v0.2 default)
-    status TEXT NOT NULL DEFAULT 'completed',       -- 'recording', 'processing', 'completed', 'error'
-    error_message TEXT,                             -- Error details if status='error'
-    updated_at TEXT NOT NULL                        -- ISO 8601 timestamp
+    id TEXT PRIMARY KEY,                            -- UUID string
+    createdAt TEXT NOT NULL,                         -- ISO 8601 timestamp
+    durationMs INTEGER NOT NULL,                     -- Recording duration in milliseconds
+    rawTranscript TEXT NOT NULL,                      -- Unprocessed STT output
+    cleanTranscript TEXT,                             -- Post-processed text (nullable if mode=raw)
+    audioPath TEXT,                                   -- Path to saved audio file (nullable if not retained)
+    pastedToApp TEXT,                                 -- Bundle ID of app text was pasted into
+    processingMode TEXT NOT NULL DEFAULT 'raw',        -- 'raw' (v0.1) or 'clean' (v0.2 default)
+    status TEXT NOT NULL DEFAULT 'completed',          -- 'recording', 'processing', 'completed', 'error'
+    errorMessage TEXT,                                -- Error details if status='error'
+    updatedAt TEXT NOT NULL                           -- ISO 8601 timestamp
 );
 
-CREATE INDEX idx_dictations_created_at ON dictations(created_at DESC);
+CREATE INDEX idx_dictations_created_at ON dictations(createdAt DESC);
 
 -- Full-text search across both transcript variants
 CREATE VIRTUAL TABLE dictations_fts USING fts5(
-    raw_transcript,
-    clean_transcript,
+    rawTranscript,
+    cleanTranscript,
     content='dictations',
     content_rowid='rowid'
 );
 ```
 
 **Notes:**
-- `audio_path` is nullable because audio retention is configurable (Settings > Storage).
-- `pasted_to_app` captures the frontmost app's bundle ID at paste time (e.g., `com.apple.TextEdit`). Useful for history context.
-- `processing_mode` records which mode was active when the dictation was captured.
+- `audioPath` is nullable because audio retention is configurable (Settings > Storage).
+- `pastedToApp` captures the frontmost app's bundle ID at paste time (e.g., `com.apple.TextEdit`). Useful for history context.
+- `processingMode` records which mode was active when the dictation was captured.
 - FTS5 content-sync table enables fast search across dictation history.
 
 **FTS5 Sync Triggers:**
@@ -75,20 +75,20 @@ CREATE VIRTUAL TABLE dictations_fts USING fts5(
 ```sql
 -- Keep FTS in sync with dictations table
 CREATE TRIGGER dictations_ai AFTER INSERT ON dictations BEGIN
-    INSERT INTO dictations_fts(rowid, raw_transcript, clean_transcript)
-    VALUES (new.rowid, new.raw_transcript, new.clean_transcript);
+    INSERT INTO dictations_fts(rowid, rawTranscript, cleanTranscript)
+    VALUES (new.rowid, new.rawTranscript, new.cleanTranscript);
 END;
 
 CREATE TRIGGER dictations_ad AFTER DELETE ON dictations BEGIN
-    INSERT INTO dictations_fts(dictations_fts, rowid, raw_transcript, clean_transcript)
-    VALUES ('delete', old.rowid, old.raw_transcript, old.clean_transcript);
+    INSERT INTO dictations_fts(dictations_fts, rowid, rawTranscript, cleanTranscript)
+    VALUES ('delete', old.rowid, old.rawTranscript, old.cleanTranscript);
 END;
 
 CREATE TRIGGER dictations_au AFTER UPDATE ON dictations BEGIN
-    INSERT INTO dictations_fts(dictations_fts, rowid, raw_transcript, clean_transcript)
-    VALUES ('delete', old.rowid, old.raw_transcript, old.clean_transcript);
-    INSERT INTO dictations_fts(rowid, raw_transcript, clean_transcript)
-    VALUES (new.rowid, new.raw_transcript, new.clean_transcript);
+    INSERT INTO dictations_fts(dictations_fts, rowid, rawTranscript, cleanTranscript)
+    VALUES ('delete', old.rowid, old.rawTranscript, old.cleanTranscript);
+    INSERT INTO dictations_fts(rowid, rawTranscript, cleanTranscript)
+    VALUES (new.rowid, new.rawTranscript, new.cleanTranscript);
 END;
 ```
 
@@ -100,31 +100,31 @@ Stores file transcription records. Separate from dictations because the data sha
 
 ```sql
 CREATE TABLE transcriptions (
-    id TEXT PRIMARY KEY,                            -- UUID string
-    created_at TEXT NOT NULL,                        -- ISO 8601 timestamp
-    file_name TEXT NOT NULL,                         -- Original filename (e.g., "interview.mp3")
-    file_path TEXT,                                  -- Original file path (nullable, may be moved/deleted)
-    file_size_bytes INTEGER,                         -- Original file size
-    duration_ms INTEGER,                             -- Audio/video duration in milliseconds
-    raw_transcript TEXT,                              -- Unprocessed STT output (nullable while processing)
-    clean_transcript TEXT,                            -- Post-processed text
-    word_timestamps TEXT,                             -- JSON: [{"word":"Hello","start":0.0,"end":0.5,"confidence":0.98}]
-    language TEXT DEFAULT 'en',                       -- Detected or specified language code
-    speaker_count INTEGER,                           -- Number of detected speakers (v0.4 diarization)
-    speakers TEXT,                                    -- JSON: ["Speaker 1","Speaker 2"] (v0.4 diarization)
-    status TEXT NOT NULL DEFAULT 'processing',        -- 'processing', 'completed', 'error', 'cancelled'
-    error_message TEXT,                               -- Error details if status='error'
-    export_path TEXT,                                 -- Path to last export (nullable)
-    updated_at TEXT NOT NULL                          -- ISO 8601 timestamp
+    id TEXT PRIMARY KEY,                              -- UUID string
+    createdAt TEXT NOT NULL,                           -- ISO 8601 timestamp
+    fileName TEXT NOT NULL,                            -- Original filename (e.g., "interview.mp3")
+    filePath TEXT,                                     -- Original file path (nullable, may be moved/deleted)
+    fileSizeBytes INTEGER,                             -- Original file size
+    durationMs INTEGER,                                -- Audio/video duration in milliseconds
+    rawTranscript TEXT,                                 -- Unprocessed STT output (nullable while processing)
+    cleanTranscript TEXT,                               -- Post-processed text
+    wordTimestamps TEXT,                                -- JSON: [{"word":"Hello","startMs":0,"endMs":500,"confidence":0.98}]
+    language TEXT DEFAULT 'en',                         -- Detected or specified language code
+    speakerCount INTEGER,                              -- Number of detected speakers (v0.4 diarization)
+    speakers TEXT,                                      -- JSON: ["Speaker 1","Speaker 2"] (v0.4 diarization)
+    status TEXT NOT NULL DEFAULT 'processing',          -- 'processing', 'completed', 'error', 'cancelled'
+    errorMessage TEXT,                                  -- Error details if status='error'
+    exportPath TEXT,                                    -- Path to last export (nullable)
+    updatedAt TEXT NOT NULL                             -- ISO 8601 timestamp
 );
 
-CREATE INDEX idx_transcriptions_created_at ON transcriptions(created_at DESC);
+CREATE INDEX idx_transcriptions_created_at ON transcriptions(createdAt DESC);
 ```
 
 **Notes:**
-- `word_timestamps` is a JSON text column, not a separate table. One transcription = one blob of timestamps. GRDB can decode this via `Codable`.
-- `speaker_count` and `speakers` are nullable, populated only when diarization is available (v0.4).
-- `file_path` is nullable because the original file may be moved or deleted after transcription.
+- `wordTimestamps` is a JSON text column, not a separate table. One transcription = one blob of timestamps. GRDB can decode this via `Codable`.
+- `speakerCount` and `speakers` are nullable, populated only when diarization is available (v0.4).
+- `filePath` is nullable because the original file may be moved or deleted after transcription.
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
 
 ---
@@ -135,13 +135,13 @@ User-defined vocabulary corrections. When Parakeet outputs "para keet", a custom
 
 ```sql
 CREATE TABLE custom_words (
-    id TEXT PRIMARY KEY,                            -- UUID string
-    word TEXT NOT NULL,                              -- The word/phrase to match in STT output
-    replacement TEXT,                                -- What to replace it with (nullable = vocabulary anchor)
-    source TEXT NOT NULL DEFAULT 'manual',            -- 'manual' or 'learned' (future)
-    is_enabled INTEGER NOT NULL DEFAULT 1,           -- Toggle without deleting
-    created_at TEXT NOT NULL,                        -- ISO 8601 timestamp
-    updated_at TEXT NOT NULL                         -- ISO 8601 timestamp
+    id TEXT PRIMARY KEY,                              -- UUID string
+    word TEXT NOT NULL,                                -- The word/phrase to match in STT output
+    replacement TEXT,                                  -- What to replace it with (nullable = vocabulary anchor)
+    source TEXT NOT NULL DEFAULT 'manual',              -- 'manual' or 'learned' (future)
+    isEnabled INTEGER NOT NULL DEFAULT 1,              -- Toggle without deleting
+    createdAt TEXT NOT NULL,                           -- ISO 8601 timestamp
+    updatedAt TEXT NOT NULL                            -- ISO 8601 timestamp
 );
 
 CREATE UNIQUE INDEX idx_custom_words_word ON custom_words(word COLLATE NOCASE);
@@ -160,13 +160,13 @@ Trigger-based text expansion. Type a short trigger, get a full expansion. Applie
 
 ```sql
 CREATE TABLE text_snippets (
-    id TEXT PRIMARY KEY,                            -- UUID string
-    trigger TEXT NOT NULL,                           -- Short trigger text (e.g., "addr1")
-    expansion TEXT NOT NULL,                         -- Full expansion text
-    is_enabled INTEGER NOT NULL DEFAULT 1,           -- Toggle without deleting
-    use_count INTEGER NOT NULL DEFAULT 0,            -- Track usage for sorting/display
-    created_at TEXT NOT NULL,                        -- ISO 8601 timestamp
-    updated_at TEXT NOT NULL                         -- ISO 8601 timestamp
+    id TEXT PRIMARY KEY,                              -- UUID string
+    trigger TEXT NOT NULL,                             -- Short trigger text (e.g., "addr1")
+    expansion TEXT NOT NULL,                           -- Full expansion text
+    isEnabled INTEGER NOT NULL DEFAULT 1,              -- Toggle without deleting
+    useCount INTEGER NOT NULL DEFAULT 0,               -- Track usage for sorting/display
+    createdAt TEXT NOT NULL,                           -- ISO 8601 timestamp
+    updatedAt TEXT NOT NULL                            -- ISO 8601 timestamp
 );
 
 CREATE UNIQUE INDEX idx_text_snippets_trigger ON text_snippets(trigger COLLATE NOCASE);
@@ -250,8 +250,8 @@ struct Transcription: Codable, Identifiable {
 
     struct WordTimestamp: Codable {
         var word: String
-        var start: Double
-        var end: Double
+        var startMs: Int
+        var endMs: Int
         var confidence: Double
     }
 
@@ -433,7 +433,7 @@ migrator.registerMigration("v0.2-text-snippets") { db in
 These might be needed someday but are explicitly deferred:
 
 - **`settings`** -- Use `UserDefaults` / plist. No need for a settings table.
-- **`exports`** -- Track via `export_path` on `transcriptions`. No separate table.
+- **`exports`** -- Track via `exportPath` on `transcriptions`. No separate table.
 - **`speakers`** -- Speaker labels live as JSON on `transcriptions`. Normalize only if diarization becomes a first-class feature.
 - **`usage_stats`** -- Derive from existing tables via queries. No separate tracking table.
 
@@ -453,12 +453,12 @@ Audio saved to temp dir
 STT processes audio
     │
     ├── Storage = "keep all"  ──► Move to ~/Library/Application Support/MacParakeet/dictations/{id}.m4a
-    │                             Set audio_path on dictation record
+    │                             Set audioPath on dictation record
     │
     ├── Storage = "keep 7 days" ─► Same, but background job prunes after 7 days
     │
     └── Storage = "never keep" ──► Delete temp file immediately
-                                   audio_path stays null
+                                   audioPath stays null
 ```
 
 ### Transcription Files

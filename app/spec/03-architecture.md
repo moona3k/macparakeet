@@ -46,7 +46,7 @@
 │  │         │                    │                                             │  │
 │  │  ┌──────▼───────┐  ┌────────▼──────────────────────────────────────────┐ │  │
 │  │  │ExportService │  │               Data Layer                          │ │  │
-│  │  │(TXT,SRT,VTT) │  │  Models: Dictation, Transcription,               │ │  │
+│  │  │(TXT)         │  │  Models: Dictation, Transcription,               │ │  │
 │  │  └──────────────┘  │          CustomWord, TextSnippet                  │ │  │
 │  │                     │  Repos:  DictationRepository,                     │ │  │
 │  │                     │          TranscriptionRepository,                 │ │  │
@@ -103,7 +103,7 @@ The UI layer. Thin shell over MacParakeetCore. No business logic lives here.
 
 **Data Flow:**
 ```
-File dropped → MainWindowView → TranscriptionService.transcribe(file:)
+File dropped → MainWindowView → TranscriptionService.transcribe(fileURL:)
                                        │
                                        ▼
                               Transcript displayed
@@ -114,8 +114,7 @@ File dropped → MainWindowView → TranscriptionService.transcribe(file:)
 **Responsibility:** Always-visible status indicator. Quick access to dictation, recent files, and settings.
 
 **Key Types:**
-- `MenuBarController` — NSStatusItem management
-- `MenuBarView` — SwiftUI menu content
+- `AppDelegate` — NSStatusItem setup + NSMenu, main window lifecycle (NSWindow + NSHostingView)
 
 **Dependencies:** `DictationService`, app state
 
@@ -131,7 +130,7 @@ File dropped → MainWindowView → TranscriptionService.transcribe(file:)
 
 **Design Notes:**
 - Uses `NSPanel` with `.nonactivatingPanel` collection behavior so it never steals keyboard focus
-- Subclass `NSPanel` as `KeylessPanel` with `canBecomeKey → false`
+- Subclass `NSPanel` as `KeylessPanel` with `canBecomeKey → false` (overlay should never steal focus)
 - Audio level visualization driven by `DictationService` publishing amplitude values
 
 #### Settings View
@@ -159,31 +158,25 @@ The shared core. All business logic, all data access, all service orchestration.
 
 **Key Types/Protocols:**
 ```swift
-protocol DictationServiceProtocol {
-    var state: DictationState { get }           // .idle, .recording, .processing, .done, .error
-    var audioLevel: Float { get }               // 0.0–1.0, published for overlay waveform
+protocol DictationServiceProtocol: Sendable {
+    var state: DictationState { get async }     // .idle, .recording, .processing, .success, .error
+    var audioLevel: Float { get async }         // 0.0–1.0, published for overlay waveform
     func startRecording() async throws
-    func stopRecording() async throws -> DictationResult
-    func cancel()
+    func stopRecording() async throws -> Dictation
+    func cancelRecording() async
 }
 
-enum DictationState {
+enum DictationState: Sendable {
     case idle
-    case recording(duration: TimeInterval)
+    case recording
     case processing
-    case done(DictationResult)
-    case error(DictationError)
-}
-
-struct DictationResult {
-    let rawTranscript: String
-    let cleanTranscript: String?
-    let duration: TimeInterval
-    let audioPath: URL?
+    case success(Dictation)
+    case cancelled
+    case error(String)
 }
 ```
 
-**Dependencies:** `AudioProcessor`, `STTClient`, `TextProcessingPipeline`, `DictationRepository`
+**Dependencies:** `AudioProcessor`, `STTClient`, `DictationRepository`, `ClipboardService`
 
 **Data Flow:**
 ```
@@ -216,51 +209,28 @@ DictationResult returned
 
 **Key Types/Protocols:**
 ```swift
-protocol TranscriptionServiceProtocol {
-    func transcribe(file: URL, options: TranscriptionOptions) async throws -> TranscriptionResult
-    func cancel()
-    var progress: TranscriptionProgress { get }
-}
-
-struct TranscriptionOptions {
-    let language: String?           // nil = auto-detect
-    let includeTimestamps: Bool     // word-level timestamps
-    let refinementLevel: RefinementLevel  // .none, .clean, .formal
-}
-
-struct TranscriptionResult {
-    let transcript: String
-    let words: [TimestampedWord]?
-    let duration: TimeInterval
-    let language: String
-}
-
-struct TranscriptionProgress {
-    let stage: Stage                // .converting, .transcribing, .refining
-    let fraction: Double            // 0.0–1.0
+protocol TranscriptionServiceProtocol: Sendable {
+    func transcribe(fileURL: URL) async throws -> Transcription
 }
 ```
 
-**Dependencies:** `AudioProcessor`, `STTClient`, `AIService` (optional), `TranscriptionRepository`
+**Dependencies:** `AudioProcessor`, `STTClient`, `TranscriptionRepository`
 
 **Data Flow:**
 ```
 File URL
     │
     ▼
-AudioProcessor.convert(file:) → 16kHz mono WAV in temp dir
+AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
     │
     ▼
 STTClient.transcribe(audioPath:) → raw transcript + word timestamps
     │
     ▼
-AIService.refine(text:, level:) → refined transcript (if requested)
-    │
-    ▼
 TranscriptionRepository.save() → persisted to database
     │
     ▼
-TranscriptionResult returned to UI
+Transcription returned to UI
 ```
 
 #### 2.3 TextProcessingPipeline
@@ -327,11 +297,12 @@ Replace selection via NSPasteboard + CGEvent (Cmd+V)
 
 **Key Types/Protocols:**
 ```swift
-protocol AudioProcessorProtocol {
-    func convert(file: URL) async throws -> URL       // → 16kHz mono WAV
-    func startCapture() throws                         // mic recording
-    func stopCapture() throws -> URL                   // → saved WAV
-    var audioLevel: Float { get }                      // current amplitude
+protocol AudioProcessorProtocol: Sendable {
+    func convert(fileURL: URL) async throws -> URL   // → 16kHz mono WAV
+    func startCapture() async throws                  // mic recording
+    func stopCapture() async throws -> URL            // → saved WAV
+    var audioLevel: Float { get async }               // current amplitude (0.0–1.0)
+    var isRecording: Bool { get async }               // capture state
 }
 ```
 
@@ -350,23 +321,23 @@ protocol AudioProcessorProtocol {
 
 **Key Types/Protocols:**
 ```swift
-protocol STTClientProtocol {
-    func transcribe(audioPath: URL, language: String?) async throws -> STTResult
+protocol STTClientProtocol: Sendable {
+    func transcribe(audioPath: String) async throws -> STTResult
     func isReady() async -> Bool
     func warmUp() async throws
+    func shutdown() async
 }
 
-struct STTResult {
+struct STTResult: Sendable {
     let text: String
     let words: [TimestampedWord]
-    let duration: TimeInterval
 }
 
-struct TimestampedWord {
+struct TimestampedWord: Sendable {
     let word: String
-    let start: TimeInterval
-    let end: TimeInterval
-    let confidence: Float
+    let startMs: Int          // milliseconds
+    let endMs: Int            // milliseconds
+    let confidence: Double
 }
 ```
 
@@ -402,10 +373,9 @@ struct TimestampedWord {
   "result": {
     "text": "Hello world",
     "words": [
-      {"word": "Hello", "start": 0.0, "end": 0.5, "confidence": 0.98},
-      {"word": "world", "start": 0.6, "end": 1.0, "confidence": 0.97}
-    ],
-    "duration": 1.0
+      {"word": "Hello", "start_ms": 0, "end_ms": 500, "confidence": 0.98},
+      {"word": "world", "start_ms": 600, "end_ms": 1000, "confidence": 0.97}
+    ]
   },
   "id": 1
 }
@@ -427,7 +397,7 @@ STTClient.warmUp() called (lazy, on first use)
     │                  ├── No ──► Run bundled `uv` to create venv
     │                  │          Install parakeet-mlx + dependencies
     │                  │
-    │                  └── Yes ─► Start daemon: `python -m parakeet_daemon`
+    │                  └── Yes ─► Start daemon: `python -m macparakeet_stt`
     │                              Wait for "ready" message on stdout
     │
     ▼
@@ -487,17 +457,12 @@ enum RefinementLevel {
 
 **Key Types/Protocols:**
 ```swift
-protocol ExportServiceProtocol {
-    func export(_ transcription: Transcription, format: ExportFormat, to: URL) throws
-    func exportToClipboard(_ transcription: Transcription, format: ExportFormat)
+protocol ExportServiceProtocol: Sendable {
+    func exportToTxt(transcription: Transcription, url: URL) throws
+    func formatForClipboard(transcription: Transcription) -> String
 }
 
-enum ExportFormat {
-    case plainText      // .txt
-    case srt            // .srt (SubRip subtitles)
-    case vtt            // .vtt (WebVTT subtitles)
-    case json           // .json (structured data with timestamps)
-}
+// v0.1: .txt only. SRT/VTT/JSON added in v0.3.
 ```
 
 **Dependencies:** Foundation (file I/O), `NSPasteboard` (clipboard)
@@ -507,9 +472,9 @@ enum ExportFormat {
 Transcription (from DB or in-memory)
     │
     ▼
-ExportService.export(transcription, format: .srt, to: outputURL)
-    │ ── Reads word timestamps from transcription
-    │ ── Formats into target format (SRT, VTT, etc.)
+ExportService.exportToTxt(transcription:, url: outputURL)
+    │ ── Formats header (filename, duration)
+    │ ── Appends transcript text
     │ ── Writes to file
     │
     ▼
@@ -521,34 +486,40 @@ File saved at outputURL
 All models conform to GRDB's `Codable` + `FetchableRecord` + `PersistableRecord` protocols.
 
 ```swift
-struct Dictation: Codable, Identifiable {
-    let id: UUID
-    let createdAt: Date
-    let durationMs: Int
-    let rawTranscript: String
-    let cleanTranscript: String?
-    let audioPath: String?
-    let pastedToApp: String?        // bundle ID of target app
-    let processingMode: ProcessingMode
-    let status: DictationStatus     // .recording, .processing, .completed, .error
-    let errorMessage: String?
+struct Dictation: Codable, Identifiable, Sendable {
+    var id: UUID
+    var createdAt: Date
+    var durationMs: Int
+    var rawTranscript: String
+    var cleanTranscript: String?
+    var audioPath: String?
+    var pastedToApp: String?        // bundle ID of target app
+    var processingMode: ProcessingMode  // .raw, .clean
+    var status: DictationStatus     // .recording, .processing, .completed, .error
+    var errorMessage: String?
     var updatedAt: Date
 }
 
-struct Transcription: Codable, Identifiable {
-    let id: UUID
-    let createdAt: Date
-    let fileName: String
-    let filePath: String?
-    let durationMs: Int?
-    let rawTranscript: String?
-    let cleanTranscript: String?
-    let wordTimestamps: [WordTimestamp]?
-    let status: TranscriptionStatus
-    let errorMessage: String?
+struct Transcription: Codable, Identifiable, Sendable {
+    var id: UUID
+    var createdAt: Date
+    var fileName: String
+    var filePath: String?
+    var fileSizeBytes: Int?
+    var durationMs: Int?
+    var rawTranscript: String?
+    var cleanTranscript: String?
+    var wordTimestamps: [WordTimestamp]?  // JSON-encoded in DB
+    var language: String?
+    var speakerCount: Int?
+    var speakers: [String]?
+    var status: TranscriptionStatus  // .processing, .completed, .error, .cancelled
+    var errorMessage: String?
+    var exportPath: String?
     var updatedAt: Date
 }
 
+// CustomWord and TextSnippet models are v0.2+
 struct CustomWord: Codable, Identifiable {
     let id: UUID
     var word: String                // what to match (case-insensitive)
@@ -576,19 +547,26 @@ One repository per table. All use GRDB and follow the same pattern.
 
 ```swift
 // Canonical pattern (DictationRepository shown):
-protocol DictationRepositoryProtocol {
-    func save(_ dictation: Dictation) async throws
-    func fetch(id: UUID) async throws -> Dictation?
-    func fetchAll(limit: Int, offset: Int) async throws -> [Dictation]
-    func search(query: String) async throws -> [Dictation]
-    func delete(id: UUID) async throws
-    func stats() async throws -> DictationStats
+protocol DictationRepositoryProtocol: Sendable {
+    func save(_ dictation: Dictation) throws
+    func fetch(id: UUID) throws -> Dictation?
+    func fetchAll(limit: Int?) throws -> [Dictation]
+    func search(query: String, limit: Int?) throws -> [Dictation]
+    func delete(id: UUID) throws -> Bool
+    func deleteAll() throws
+    func stats() throws -> DictationStats
 }
 
-// Same pattern for:
-// - TranscriptionRepository
-// - CustomWordRepository
-// - TextSnippetRepository
+protocol TranscriptionRepositoryProtocol: Sendable {
+    func save(_ transcription: Transcription) throws
+    func fetch(id: UUID) throws -> Transcription?
+    func fetchAll(limit: Int?) throws -> [Transcription]
+    func delete(id: UUID) throws -> Bool
+    func deleteAll() throws
+    func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws
+}
+
+// CustomWordRepository and TextSnippetRepository follow the same pattern (v0.2+)
 ```
 
 **Dependencies:** GRDB (`DatabaseQueue`)
@@ -596,7 +574,7 @@ protocol DictationRepositoryProtocol {
 **Design Notes:**
 - All repositories take a `DatabaseQueue` via init (dependency injection)
 - Tests use in-memory SQLite: `DatabaseQueue()` with no path
-- Repositories are `actor`-isolated for thread safety
+- Repositories are `final class` (synchronous GRDB calls, thread safety via DatabaseQueue)
 - Migrations run inline on app startup (no migration files)
 
 ---
@@ -623,9 +601,10 @@ External Python process managed by `STTClient`.
 
 ```
 ~/Library/Application Support/MacParakeet/python/
-    ├── .venv/              # Isolated Python environment
-    ├── parakeet_daemon.py  # JSON-RPC server script
-    └── requirements.txt    # parakeet-mlx, mlx
+    └── .venv/              # Isolated Python environment (created by uv)
+
+# Daemon source lives in the app repo at python/macparakeet_stt/
+# Bundled with the app, run via: python -m macparakeet_stt
 ```
 
 **Methods:**
@@ -720,7 +699,7 @@ Runs in the Swift process via MLX-Swift framework. Not a separate daemon.
        │                       │                        │
        │  File dropped         │                        │
        │ ────────────────────> │                        │
-       │                       │  convert(file)         │
+       │                       │  convert(fileURL:)      │
        │                       │ ─────────────────────> │
        │                       │                        │ ── FFmpeg subprocess
        │                       │  16kHz mono WAV        │    input → WAV
@@ -840,57 +819,55 @@ Single SQLite file via GRDB. All data in one place. No external database process
 
 ```sql
 -- Dictation history (voice-to-text sessions)
+-- Note: GRDB Codable uses camelCase column names by default
 CREATE TABLE dictations (
     id              TEXT PRIMARY KEY,       -- UUID
-    created_at      TEXT NOT NULL,          -- ISO 8601
-    duration_ms     INTEGER NOT NULL,       -- recording duration
-    raw_transcript  TEXT NOT NULL,          -- exact STT output
-    clean_transcript TEXT,                  -- after TextProcessingPipeline
-    audio_path      TEXT,                   -- relative path to saved audio (nullable)
-    pasted_to_app   TEXT,                   -- bundle ID of target app
-    processing_mode TEXT NOT NULL,          -- 'raw' | 'clean'
-    status          TEXT NOT NULL,          -- 'completed' | 'failed' | 'cancelled'
-    error_message   TEXT                    -- non-null if status == 'failed'
+    createdAt       TEXT NOT NULL,          -- ISO 8601
+    durationMs      INTEGER NOT NULL,       -- recording duration in milliseconds
+    rawTranscript   TEXT NOT NULL,          -- exact STT output
+    cleanTranscript TEXT,                   -- after TextProcessingPipeline (v0.2+)
+    audioPath       TEXT,                   -- relative path to saved audio (nullable)
+    pastedToApp     TEXT,                   -- bundle ID of target app
+    processingMode  TEXT NOT NULL DEFAULT 'raw', -- 'raw' | 'clean'
+    status          TEXT NOT NULL DEFAULT 'completed', -- 'recording' | 'processing' | 'completed' | 'error'
+    errorMessage    TEXT,                   -- non-null if status == 'error'
+    updatedAt       TEXT NOT NULL
 );
-CREATE INDEX idx_dictations_created_at ON dictations(created_at);
-CREATE INDEX idx_dictations_status ON dictations(status);
+CREATE INDEX idx_dictations_created_at ON dictations(createdAt);
+
+-- FTS5 external content table for full-text search
+CREATE VIRTUAL TABLE dictations_fts USING fts5(
+    rawTranscript, cleanTranscript,
+    content='dictations', content_rowid='rowid'
+);
+-- + sync triggers (INSERT, DELETE, UPDATE)
 
 -- File transcription history
 CREATE TABLE transcriptions (
-    id                   TEXT PRIMARY KEY,  -- UUID
-    created_at           TEXT NOT NULL,     -- ISO 8601
-    file_name            TEXT NOT NULL,     -- original file name
-    file_path            TEXT NOT NULL,     -- original file path
-    duration_ms          INTEGER NOT NULL,  -- audio duration
-    transcript           TEXT NOT NULL,     -- final transcript text
-    word_timestamps_json TEXT,              -- JSON: [{"word":...,"start":...,"end":...,"confidence":...}]
-    status               TEXT NOT NULL      -- 'completed' | 'failed' | 'processing'
+    id              TEXT PRIMARY KEY,       -- UUID
+    createdAt       TEXT NOT NULL,          -- ISO 8601
+    fileName        TEXT NOT NULL,          -- original file name
+    filePath        TEXT,                   -- original file path
+    fileSizeBytes   INTEGER,               -- original file size
+    durationMs      INTEGER,               -- audio duration in milliseconds
+    rawTranscript   TEXT,                   -- exact STT output
+    cleanTranscript TEXT,                   -- after TextProcessingPipeline (v0.2+)
+    wordTimestamps  TEXT,                   -- JSON: [{"word":...,"startMs":...,"endMs":...,"confidence":...}]
+    language        TEXT DEFAULT 'en',      -- detected language
+    speakerCount    INTEGER,               -- number of speakers (v0.4+)
+    speakers        TEXT,                   -- JSON: ["Speaker 1", ...] (v0.4+)
+    status          TEXT NOT NULL DEFAULT 'processing', -- 'processing' | 'completed' | 'error' | 'cancelled'
+    errorMessage    TEXT,                   -- non-null if status == 'error'
+    exportPath      TEXT,                   -- path to exported file
+    updatedAt       TEXT NOT NULL
 );
-CREATE INDEX idx_transcriptions_created_at ON transcriptions(created_at);
+CREATE INDEX idx_transcriptions_created_at ON transcriptions(createdAt);
 
--- Custom word corrections (vocabulary anchors)
-CREATE TABLE custom_words (
-    id          TEXT PRIMARY KEY,           -- UUID
-    word        TEXT NOT NULL,              -- match target (case-insensitive)
-    replacement TEXT,                       -- replacement text (nullable = vocabulary anchor)
-    source      TEXT NOT NULL DEFAULT 'manual', -- 'manual' | 'learned'
-    is_enabled  INTEGER NOT NULL DEFAULT 1,
-    created_at  TEXT NOT NULL,
-    updated_at  TEXT NOT NULL
-);
-CREATE UNIQUE INDEX idx_custom_words_word ON custom_words(word);
+-- Custom word corrections (v0.2+ — table not yet created)
+-- CREATE TABLE custom_words ( ... )
 
--- Text snippet expansion (trigger → expansion)
-CREATE TABLE text_snippets (
-    id          TEXT PRIMARY KEY,           -- UUID
-    trigger     TEXT NOT NULL,              -- trigger text (e.g., "addr")
-    expansion   TEXT NOT NULL,              -- expanded text
-    is_enabled  INTEGER NOT NULL DEFAULT 1,
-    use_count   INTEGER NOT NULL DEFAULT 0,
-    created_at  TEXT NOT NULL,
-    updated_at  TEXT NOT NULL
-);
-CREATE UNIQUE INDEX idx_text_snippets_trigger ON text_snippets(trigger);
+-- Text snippet expansion (v0.2+ — table not yet created)
+-- CREATE TABLE text_snippets ( ... )
 ```
 
 ### Migrations
@@ -900,24 +877,26 @@ Migrations run inline on app startup (not separate files). Pattern:
 ```swift
 var migrator = DatabaseMigrator()
 
-migrator.registerMigration("v1_initial") { db in
+migrator.registerMigration("v0.1-dictations") { db in
     try db.create(table: "dictations") { t in
         t.column("id", .text).primaryKey()
-        t.column("created_at", .text).notNull()
-        t.column("duration_ms", .integer).notNull()
-        t.column("raw_transcript", .text).notNull()
-        t.column("clean_transcript", .text)
-        t.column("audio_path", .text)
-        t.column("pasted_to_app", .text)
-        t.column("processing_mode", .text).notNull()
-        t.column("status", .text).notNull()
-        t.column("error_message", .text)
+        t.column("createdAt", .text).notNull()
+        t.column("durationMs", .integer).notNull()
+        t.column("rawTranscript", .text).notNull()
+        t.column("cleanTranscript", .text)
+        t.column("audioPath", .text)
+        t.column("pastedToApp", .text)
+        t.column("processingMode", .text).notNull().defaults(to: "raw")
+        t.column("status", .text).notNull().defaults(to: "completed")
+        t.column("errorMessage", .text)
+        t.column("updatedAt", .text).notNull()
     }
-    // ... other tables
+    // + FTS5 table + sync triggers
 }
 
-// Future migrations append here:
-// migrator.registerMigration("v2_add_language") { ... }
+migrator.registerMigration("v0.1-transcriptions") { db in
+    try db.create(table: "transcriptions") { ... }
+}
 
 try migrator.migrate(dbQueue)
 ```
@@ -929,28 +908,37 @@ try migrator.migrate(dbQueue)
 │   dictations    │     (standalone — no foreign keys)
 ├─────────────────┤
 │ id              │
-│ created_at      │
-│ duration_ms     │
-│ raw_transcript  │
-│ clean_transcript│
-│ audio_path      │
-│ pasted_to_app   │
-│ processing_mode │
+│ createdAt       │
+│ durationMs      │
+│ rawTranscript   │
+│ cleanTranscript │
+│ audioPath       │
+│ pastedToApp     │
+│ processingMode  │
 │ status          │
-│ error_message   │
+│ errorMessage    │
+│ updatedAt       │
 └─────────────────┘
 
 ┌─────────────────┐
 │ transcriptions  │     (standalone — no foreign keys)
 ├─────────────────┤
 │ id              │
-│ created_at      │
-│ file_name       │
-│ file_path       │
-│ duration_ms     │
-│ transcript      │
-│ word_timestamps │
+│ createdAt       │
+│ fileName        │
+│ filePath        │
+│ fileSizeBytes   │
+│ durationMs      │
+│ rawTranscript   │
+│ cleanTranscript │
+│ wordTimestamps  │
+│ language        │
+│ speakerCount    │
+│ speakers        │
 │ status          │
+│ errorMessage    │
+│ exportPath      │
+│ updatedAt       │
 └─────────────────┘
 
 ┌─────────────────┐
@@ -960,9 +948,9 @@ try migrator.migrate(dbQueue)
 │ word            │──── unique index
 │ replacement     │
 │ source          │
-│ is_enabled      │
-│ created_at      │
-│ updated_at      │
+│ isEnabled       │
+│ createdAt       │
+│ updatedAt       │
 └─────────────────┘
 
 ┌─────────────────┐
@@ -971,10 +959,10 @@ try migrator.migrate(dbQueue)
 │ id              │
 │ trigger         │──── unique index
 │ expansion       │
-│ is_enabled      │
-│ use_count       │
-│ created_at      │
-│ updated_at      │
+│ isEnabled       │
+│ useCount        │
+│ createdAt       │
+│ updatedAt       │
 └─────────────────┘
 ```
 
@@ -1002,14 +990,11 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 ~/Library/Application Support/MacParakeet/
     ├── macparakeet.db              # SQLite database (all app data)
     ├── dictations/                 # Saved dictation audio files
-    │   ├── {uuid}.m4a
+    │   ├── {uuid}.m4a              # Flat storage, no date subdirectories
     │   └── ...
-    ├── transcriptions/             # Exported transcripts (user-saved)
     ├── python/                     # Parakeet STT daemon
-    │   ├── .venv/                  # Isolated Python env (created by uv)
-    │   ├── parakeet_daemon.py      # JSON-RPC server
-    │   └── requirements.txt
-    └── models/                     # Downloaded ML models
+    │   └── .venv/                  # Isolated Python env (created by uv)
+    └── models/                     # Downloaded ML models (v0.2+)
         └── Qwen3-4B-4bit/          # LLM model files
 ```
 
@@ -1023,7 +1008,7 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 |---------|--------|---------|-------|
 | mlx-swift-lm | `MLXLLM`, `MLXLMCommon` | LLM inference (Qwen3-4B) | v2.29.0+, Apple Silicon Metal acceleration |
 | GRDB.swift | `GRDB` | SQLite database | v6.29.0+, single-file storage, migrations, Codable records |
-| swift-argument-parser | `ArgumentParser` | CLI (optional, future) | Thin CLI over MacParakeetCore |
+| swift-argument-parser | `ArgumentParser` | CLI (implemented) | `macparakeet transcribe`, `history`, `health` |
 
 ### Python (Daemon)
 
@@ -1227,7 +1212,7 @@ MacParakeet has a small surface area compared to Oatmeal. Focus testing on the c
 - **TextProcessingPipeline** — Every stage, edge cases, custom word matching, snippet expansion
 - **Models** — Codable round-trip, validation, edge cases
 - **Repositories** — CRUD operations, search queries, migration correctness
-- **ExportService** — Format generation (SRT, VTT, TXT, JSON)
+- **ExportService** — Format generation (TXT in v0.1; SRT, VTT, JSON in v0.3)
 - **STTClient** — JSON-RPC serialization/deserialization (mock the daemon)
 - **AudioProcessor** — Format detection, conversion parameter correctness (mock FFmpeg)
 
@@ -1253,14 +1238,22 @@ func makeTestDatabase() throws -> DatabaseQueue {
 }
 
 // Protocol-based mocking:
-class MockSTTClient: STTClientProtocol {
+actor MockSTTClient: STTClientProtocol {
     var transcribeResult: STTResult?
-    func transcribe(audioPath: URL, language: String?) async throws -> STTResult {
-        guard let result = transcribeResult else {
-            throw STTError.notReady
-        }
+    var transcribeError: Error?
+    var ready = true
+
+    func configure(result: STTResult) { transcribeResult = result; transcribeError = nil }
+    func configure(error: Error) { transcribeError = error; transcribeResult = nil }
+
+    func transcribe(audioPath: String) async throws -> STTResult {
+        if let error = transcribeError { throw error }
+        guard let result = transcribeResult else { throw STTError.daemonNotRunning }
         return result
     }
+    func warmUp() async throws {}
+    func isReady() async -> Bool { ready }
+    func shutdown() async {}
 }
 ```
 

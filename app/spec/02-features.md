@@ -202,7 +202,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
    - X button: white icon on dark circle (0.2 opacity background), triggers soft cancel (Esc)
    - Waveform: 12 white bars, 3px wide, max 20px tall, center-peaking wave pattern, updates in real-time from audio level
    - Stop button: white square (10x10, cornerRadius 3) inside red circle, triggers stop (Fn)
-   - No timer text, no instructions -- hover tooltips provide guidance
+   - Recording timer displayed (e.g., "0:03") -- hover tooltips provide additional guidance
 
 2. **Cancelled** -- `[countdown ring] [Undo button]` (~140px)
    - Countdown ring: circular progress indicator (accent color, depletes over 5 seconds) with remaining seconds number in center
@@ -498,31 +498,31 @@ The app lives primarily in the menu bar. Click the icon for quick actions, or op
 ```sql
 CREATE TABLE dictations (
     id TEXT PRIMARY KEY,
-    created_at TEXT NOT NULL,
-    duration_ms INTEGER NOT NULL,
+    createdAt TEXT NOT NULL,
+    durationMs INTEGER NOT NULL,
 
     -- Transcript
-    raw_transcript TEXT NOT NULL,
-    clean_transcript TEXT,           -- populated in v0.2 (clean pipeline)
+    rawTranscript TEXT NOT NULL,
+    cleanTranscript TEXT,             -- populated in v0.2 (clean pipeline)
 
     -- Audio
-    audio_path TEXT,                 -- optional override; default: dictations/{id}.m4a
+    audioPath TEXT,                   -- optional override; default: dictations/{id}.m4a
 
     -- Metadata
-    pasted_to_app TEXT,              -- "Slack", "Chrome", etc. (if detectable)
+    pastedToApp TEXT,                 -- "Slack", "Chrome", etc. (if detectable)
 
     -- Settings at time of dictation
-    processing_mode TEXT NOT NULL DEFAULT 'raw',  -- 'raw' in v0.1, 'clean' default in v0.2
+    processingMode TEXT NOT NULL DEFAULT 'raw',  -- 'raw' in v0.1, 'clean' default in v0.2
 
     -- Status
-    status TEXT NOT NULL DEFAULT 'completed',     -- completed | failed
-    error_message TEXT,              -- set when status = failed
+    status TEXT NOT NULL DEFAULT 'completed',     -- recording | processing | completed | error
+    errorMessage TEXT,                -- set when status = error
 
     -- Timestamps
-    updated_at TEXT NOT NULL
+    updatedAt TEXT NOT NULL
 );
 
-CREATE INDEX idx_dictations_created_at ON dictations(created_at DESC);
+CREATE INDEX idx_dictations_created_at ON dictations(createdAt DESC);
 ```
 
 **Audio storage:**
@@ -707,19 +707,19 @@ CREATE TABLE custom_words (
     word TEXT NOT NULL,
     replacement TEXT,
     source TEXT NOT NULL DEFAULT 'manual',
-    is_enabled INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    isEnabled INTEGER NOT NULL DEFAULT 1,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
 );
 
 CREATE TABLE text_snippets (
     id TEXT PRIMARY KEY,
-    trigger_text TEXT NOT NULL UNIQUE,
-    expansion_text TEXT NOT NULL,
-    use_count INTEGER NOT NULL DEFAULT 0,
-    is_enabled INTEGER NOT NULL DEFAULT 1,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    trigger TEXT NOT NULL UNIQUE,
+    expansion TEXT NOT NULL,
+    useCount INTEGER NOT NULL DEFAULT 0,
+    isEnabled INTEGER NOT NULL DEFAULT 1,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
 );
 ```
 
