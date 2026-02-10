@@ -70,13 +70,14 @@ During active recording, audio is continuously written to a temporary ring buffe
 
 ## Error States in UI
 
-### Overlay Error Display
+### Overlay Error Card
 
-- Max message length: 35 characters (truncate with ellipsis)
-- Auto-dismiss after 3 seconds
-- Red accent color for errors, amber for warnings
-- Tap to dismiss immediately
-- If actionable, show a single button (e.g., "Retry", "Open Settings")
+Errors in the dictation overlay use a wider rounded-rectangle card (not the compact pill). See `04-ui-patterns.md` for full visual spec.
+
+- Two-line text: bold title + actionable subtitle (no truncation needed)
+- Auto-dismiss after 5 seconds, Dismiss button for immediate close
+- Red icon in tinted circle
+- Technical errors mapped to 6 friendly categories with contextual hints
 
 ### Error Display Hierarchy
 

@@ -224,17 +224,37 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 - Auto-dismisses after 1.5 seconds
 ```
 
-**5. Error**
+**5. Error Card**
+
+Errors use a wider rounded-rectangle card instead of the compact pill — distinct shape signals a different kind of information.
 
 ```
 ┌──────────────────────────────────────────┐
-│  [⚠]  Transcription failed              │
+│                                          │
+│  (⚠)  Speech Engine Not Ready           │
+│       Check that Python and              │
+│       dependencies are installed.        │
+│                                          │
+│                            [ Dismiss ]   │
+│                                          │
 └──────────────────────────────────────────┘
 
-- [⚠] Warning triangle (SF Symbol: exclamationmark.triangle.fill, yellow tint)
-- Error message, truncated to one line
-- Auto-dismisses after 3 seconds
-- Click to open main window with error details
+- Shape: RoundedRectangle (14px radius), not Capsule
+- Width: 260px content (wider than pill)
+- Icon: exclamationmark.triangle.fill in red, inside a tinted circle (red 15%)
+- Two-line text hierarchy:
+  - Title: 13pt semibold white (e.g., "Speech Engine Not Ready")
+  - Subtitle: 11pt regular white 50% opacity (actionable hint)
+- Dismiss button: capsule, white 10% fill, right-aligned
+- Auto-dismisses after 5 seconds (no visible countdown)
+- Dismiss button allows immediate dismissal
+- Error messages mapped from technical to user-friendly categories:
+  STT/daemon/python → "Speech Engine Not Ready"
+  Microphone/audio  → "Microphone Unavailable"
+  Permission/access → "Permission Required"
+  Timeout           → "Transcription Timed Out"
+  Memory/OOM        → "Out of Memory"
+  Fallback          → "Something Went Wrong"
 ```
 
 ### Hover Tooltips

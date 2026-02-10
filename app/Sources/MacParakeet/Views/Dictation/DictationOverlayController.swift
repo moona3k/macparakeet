@@ -18,10 +18,14 @@ final class DictationOverlayController {
 
         let view = DictationOverlayView(viewModel: overlayViewModel)
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 180, height: 70)
+
+        // Start with generous size — SwiftUI content sizes itself, panel background is clear
+        let panelWidth: CGFloat = 300
+        let panelHeight: CGFloat = 160
+        hosting.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
 
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 180, height: 70),
+            contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
@@ -36,7 +40,7 @@ final class DictationOverlayController {
         // Position at bottom-center, 40px above screen edge
         if let screen = NSScreen.main {
             let screenFrame = screen.visibleFrame
-            let x = screenFrame.midX - panel.frame.width / 2
+            let x = screenFrame.midX - panelWidth / 2
             let y = screenFrame.origin.y + 40
             panel.setFrameOrigin(NSPoint(x: x, y: y))
         }
@@ -80,6 +84,7 @@ final class DictationOverlayViewModel {
     var onCancel: (() -> Void)?
     var onStop: (() -> Void)?
     var onUndo: (() -> Void)?
+    var onDismiss: (() -> Void)?
 
     private var timerTask: Task<Void, Never>?
 

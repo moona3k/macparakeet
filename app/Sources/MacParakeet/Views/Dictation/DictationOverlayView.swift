@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The dictation overlay pill — compact dark capsule shown during dictation.
+/// The dictation overlay — compact dark capsule during dictation, wider card for errors.
 struct DictationOverlayView: View {
     @Bindable var viewModel: DictationOverlayViewModel
 
@@ -13,7 +13,18 @@ struct DictationOverlayView: View {
                 .opacity(0) // Hidden by default, shown on hover via overlay
                 .frame(height: 20)
 
-            // Main pill
+            // Content with state-appropriate shape
+            overlayContent
+        }
+    }
+
+    @ViewBuilder
+    private var overlayContent: some View {
+        switch viewModel.state {
+        case .error(let message):
+            errorCard(message: message)
+
+        default:
             pillContent
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
@@ -43,8 +54,8 @@ struct DictationOverlayView: View {
         case .success:
             successContent
 
-        case .error(let message):
-            errorContent(message: message)
+        case .error:
+            EmptyView()
         }
     }
 
@@ -140,43 +151,96 @@ struct DictationOverlayView: View {
             .foregroundStyle(.green)
     }
 
-    // MARK: - Error State
+    // MARK: - Error Card
 
-    private func errorContent(message: String) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 14))
-                .foregroundStyle(.yellow)
+    private func errorCard(message: String) -> some View {
+        let info = errorInfo(message)
 
-            Text(friendlyErrorMessage(message))
-                .font(.system(size: 11))
-                .foregroundStyle(.white)
-                .lineLimit(1)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                // Icon in tinted circle
+                ZStack {
+                    Circle()
+                        .fill(Color.red.opacity(0.15))
+                        .frame(width: 32, height: 32)
+
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.red)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(info.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+
+                    Text(info.subtitle)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.5))
+                        .lineLimit(2)
+                }
+            }
+
+            // Dismiss button
+            HStack {
+                Spacer()
+
+                Button(action: { viewModel.onDismiss?() }) {
+                    Text("Dismiss")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.7))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        .background(
+                            Capsule()
+                                .fill(Color.white.opacity(0.1))
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.top, 10)
         }
+        .padding(16)
+        .frame(width: 260)
+        .background(
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.black.opacity(0.9))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
+                )
+        )
     }
 
-    /// Convert technical error messages into short user-friendly text
-    private func friendlyErrorMessage(_ message: String) -> String {
+    /// Map technical error messages to user-friendly title + actionable subtitle
+    private func errorInfo(_ message: String) -> (title: String, subtitle: String) {
         let lower = message.lowercased()
+
         if lower.contains("stt") || lower.contains("daemon") || lower.contains("python")
             || lower.contains("failed to start") {
-            return "STT not ready"
+            return ("Speech Engine Not Ready", "Check that Python and dependencies are installed.")
         }
         if lower.contains("microphone") || lower.contains("audio input")
             || lower.contains("recording") {
-            return "Mic unavailable"
+            return ("Microphone Unavailable", "Check your mic connection or select a different input.")
         }
         if lower.contains("permission") || lower.contains("access") {
-            return "Permission needed"
+            return ("Permission Required", "Grant access in System Settings > Privacy & Security.")
         }
         if lower.contains("not recording") {
-            return "Not recording"
+            return ("Not Recording", "Press Fn to start recording first.")
         }
-        // Fallback: truncate to fit pill
-        if message.count > 20 {
-            return String(message.prefix(17)) + "..."
+        if lower.contains("timeout") || lower.contains("timed out") {
+            return ("Transcription Timed Out", "Try a shorter recording or restart the app.")
         }
-        return message
+        if lower.contains("memory") || lower.contains("oom") {
+            return ("Out of Memory", "Close other apps to free memory and try again.")
+        }
+
+        // Fallback: use the raw message as subtitle
+        let title = "Something Went Wrong"
+        let subtitle = message.count > 60 ? String(message.prefix(57)) + "..." : message
+        return (title, subtitle)
     }
 
     private var tooltipText: String {
@@ -219,7 +283,13 @@ struct DictationOverlayView: View {
 
         DictationOverlayView(viewModel: {
             let vm = DictationOverlayViewModel()
-            vm.state = .error("Couldn't hear you — check mic")
+            vm.state = .error("Failed to start STT daemon: Python environment not found")
+            return vm
+        }())
+
+        DictationOverlayView(viewModel: {
+            let vm = DictationOverlayViewModel()
+            vm.state = .error("Microphone access denied")
             return vm
         }())
     }

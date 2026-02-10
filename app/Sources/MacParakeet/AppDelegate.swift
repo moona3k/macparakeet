@@ -148,6 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         vm.onCancel = { [weak self] in self?.cancelDictation() }
         vm.onStop = { [weak self] in self?.stopDictation() }
         vm.onUndo = { [weak self] in self?.undoCancelDictation() }
+        vm.onDismiss = { [weak self] in self?.dismissOverlay() }
         vm.state = .recording
         vm.startTimer()
         overlayViewModel = vm
@@ -170,10 +171,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 await MainActor.run {
                     vm.state = .error(error.localizedDescription)
                 }
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(5))
                 await MainActor.run {
-                    self.overlayController?.hide()
-                    self.overlayController = nil
+                    self.dismissOverlay()
                 }
             }
         }
@@ -196,7 +196,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 await MainActor.run {
                     vm.state = .error(error.localizedDescription)
                 }
-                try? await Task.sleep(for: .seconds(3))
+                try? await Task.sleep(for: .seconds(5))
             }
 
             await MainActor.run {
@@ -249,6 +249,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Restart dictation in persistent mode
         startDictation(mode: .persistent)
+    }
+
+    private func dismissOverlay() {
+        overlayController?.hide()
+        overlayController = nil
+        overlayViewModel = nil
     }
 
     // MARK: - Window Management
