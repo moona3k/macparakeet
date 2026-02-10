@@ -50,14 +50,22 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
     func close() {
         window?.close()
-        window = nil
-        // Return to menu-bar-only behavior if no other windows are open.
-        NSApp.setActivationPolicy(.accessory)
     }
 
     func windowWillClose(_ notification: Notification) {
         // User clicked the close button.
+        let closing = notification.object as? NSWindow
         window = nil
-        NSApp.setActivationPolicy(.accessory)
+        restoreAccessoryIfNoVisibleWindows(excluding: closing)
+    }
+
+    private func restoreAccessoryIfNoVisibleWindows(excluding closing: NSWindow?) {
+        let otherVisibleWindows = NSApp.windows.filter { w in
+            if let closing, w === closing { return false }
+            return w.isVisible && !w.isMiniaturized
+        }
+        if otherVisibleWindows.isEmpty {
+            NSApp.setActivationPolicy(.accessory)
+        }
     }
 }

@@ -49,6 +49,7 @@ public final class OnboardingViewModel {
     private let sttClient: STTClientProtocol
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
+    private var engineGeneration: Int = 0
 
     public static let onboardingCompletedKey = "onboarding.completedAtISO"
 
@@ -153,6 +154,8 @@ public final class OnboardingViewModel {
 
     public func startEngineWarmUp(isFirstRun: Bool) {
         guard case .idle = engineState else { return }
+        engineGeneration += 1
+        let generation = engineGeneration
         isBusy = true
         let message = isFirstRun
             ? "Setting up local speech engine (first run can take a few minutes)..."
@@ -163,11 +166,15 @@ public final class OnboardingViewModel {
             do {
                 try await sttClient.warmUp()
                 await MainActor.run {
+                    guard self.engineGeneration == generation else { return }
+                    if case .skipped = self.engineState { return }
                     self.engineState = .ready
                     self.isBusy = false
                 }
             } catch {
                 await MainActor.run {
+                    guard self.engineGeneration == generation else { return }
+                    if case .skipped = self.engineState { return }
                     self.engineState = .failed(message: error.localizedDescription)
                     self.isBusy = false
                 }
@@ -181,6 +188,9 @@ public final class OnboardingViewModel {
     }
 
     public func skipEngineWarmUp() {
+        // Ignore any in-flight warmup completion.
+        engineGeneration += 1
         engineState = .skipped
+        isBusy = false
     }
 }
