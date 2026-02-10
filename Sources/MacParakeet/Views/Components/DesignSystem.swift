@@ -16,6 +16,11 @@ enum DesignSystem {
 
         static let sidebarBackground = Color(nsColor: .controlBackgroundColor)
         static let contentBackground = Color(nsColor: .textBackgroundColor)
+
+        static let rowHoverBackground = Color.primary.opacity(0.04)
+        static let subtleBorder = Color.primary.opacity(0.08)
+        static let playbackTrack = Color.primary.opacity(0.08)
+        static let playbackFill = Color.accentColor
     }
 
     // MARK: - Spacing
@@ -37,6 +42,9 @@ enum DesignSystem {
         static let headline = Font.headline
         static let title = Font.title2
         static let largeTitle = Font.largeTitle
+        static let timestamp = Font.caption.monospacedDigit()
+        static let duration = Font.caption2.monospacedDigit()
+        static let sectionHeader = Font.subheadline.weight(.semibold)
     }
 
     // MARK: - Layout
@@ -47,5 +55,16 @@ enum DesignSystem {
         static let windowMinHeight: CGFloat = 500
         static let cornerRadius: CGFloat = 12
         static let dropZoneHeight: CGFloat = 200
+        static let playbackBarHeight: CGFloat = 6
+        static let cardCornerRadius: CGFloat = 10
+        static let rowCornerRadius: CGFloat = 8
+    }
+
+    // MARK: - Animation
+
+    enum Animation {
+        static let selectionChange: SwiftUI.Animation = .easeInOut(duration: 0.15)
+        static let hoverTransition: SwiftUI.Animation = .easeInOut(duration: 0.12)
+        static let contentSwap: SwiftUI.Animation = .easeInOut(duration: 0.2)
     }
 }

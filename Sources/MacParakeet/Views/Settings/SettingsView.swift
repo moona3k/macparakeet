@@ -117,13 +117,13 @@ struct SettingsView: View {
                 HStack {
                     Text("Microphone")
                     Spacer()
-                    permissionBadge(granted: viewModel.microphoneGranted)
+                    permissionPill(granted: viewModel.microphoneGranted)
                 }
 
                 HStack {
                     Text("Accessibility")
                     Spacer()
-                    permissionBadge(granted: viewModel.accessibilityGranted)
+                    permissionPill(granted: viewModel.accessibilityGranted)
                 }
 
                 if !viewModel.accessibilityGranted {
@@ -133,12 +133,17 @@ struct SettingsView: View {
                 }
             }
 
+            // Version footer with merkaba ornament
             Section {
                 HStack {
                     Spacer()
-                    Text("MacParakeet \(appVersion)")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
+                    VStack(spacing: DesignSystem.Spacing.sm) {
+                        SpinnerRingView(size: 16, revolutionDuration: 8.0, tintColor: .secondary)
+                            .opacity(0.5)
+                        Text("MacParakeet \(appVersion)")
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
                     Spacer()
                 }
             }
@@ -155,17 +160,23 @@ struct SettingsView: View {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
     }
 
+    // MARK: - Permission Pill
+
     @ViewBuilder
-    private func permissionBadge(granted: Bool) -> some View {
-        if granted {
-            Label("Granted", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(DesignSystem.Colors.statusGranted)
-                .font(.caption)
-        } else {
-            Label("Not Granted", systemImage: "xmark.circle.fill")
-                .foregroundStyle(DesignSystem.Colors.statusDenied)
-                .font(.caption)
+    private func permissionPill(granted: Bool) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: granted ? "checkmark.circle.fill" : "xmark.circle.fill")
+                .font(.system(size: 10))
+            Text(granted ? "Granted" : "Not Granted")
+                .font(.caption2)
         }
+        .foregroundStyle(granted ? DesignSystem.Colors.statusGranted : DesignSystem.Colors.statusDenied)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(granted ? DesignSystem.Colors.statusGranted.opacity(0.1) : DesignSystem.Colors.statusDenied.opacity(0.1))
+        )
     }
 
     private func openAccessibilitySettings() {

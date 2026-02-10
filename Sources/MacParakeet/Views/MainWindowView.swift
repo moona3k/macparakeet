@@ -32,19 +32,22 @@ struct MainWindowView: View {
                     .tag(item)
             }
             .listStyle(.sidebar)
-            .frame(minWidth: DesignSystem.Layout.sidebarMinWidth)
+            .navigationSplitViewColumnWidth(min: 160, ideal: 180, max: 220)
         } detail: {
-            switch state.selectedItem {
-            case .transcribe:
-                TranscribeView(viewModel: transcriptionViewModel)
-            case .dictations:
-                DictationHistoryView(viewModel: historyViewModel)
-            case .settings:
-                SettingsView(viewModel: settingsViewModel)
+            Group {
+                switch state.selectedItem {
+                case .transcribe:
+                    TranscribeView(viewModel: transcriptionViewModel)
+                case .dictations:
+                    DictationHistoryView(viewModel: historyViewModel)
+                case .settings:
+                    SettingsView(viewModel: settingsViewModel)
+                }
             }
+            .animation(DesignSystem.Animation.contentSwap, value: state.selectedItem)
         }
         .frame(
-            minWidth: DesignSystem.Layout.sidebarMinWidth + DesignSystem.Layout.contentMinWidth,
+            minWidth: 800,
             minHeight: DesignSystem.Layout.windowMinHeight
         )
     }

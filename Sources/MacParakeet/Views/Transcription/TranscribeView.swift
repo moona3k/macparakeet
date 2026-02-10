@@ -32,27 +32,49 @@ struct TranscribeView: View {
         VStack(spacing: DesignSystem.Spacing.lg) {
             Spacer()
 
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius)
-                .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8]))
-                .foregroundStyle(viewModel.isDragging ? Color.accentColor : .secondary)
-                .frame(height: DesignSystem.Layout.dropZoneHeight)
-                .overlay {
-                    VStack(spacing: DesignSystem.Spacing.sm) {
-                        Image(systemName: "arrow.down.doc")
-                            .font(.system(size: 36))
-                            .foregroundStyle(viewModel.isDragging ? Color.accentColor : .secondary)
-                        Text("Drop audio or video file here")
-                            .font(DesignSystem.Typography.headline)
-                            .foregroundStyle(.secondary)
-                        Text("MP3, WAV, M4A, FLAC, MP4, MOV, MKV")
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                    }
+            // Premium drop zone with double-border treatment
+            ZStack {
+                // Outer thin solid border
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius + 2)
+                    .strokeBorder(
+                        viewModel.isDragging ? Color.accentColor.opacity(0.3) : Color.primary.opacity(0.06),
+                        lineWidth: 0.5
+                    )
+                    .padding(-4)
+
+                // Inner dashed border
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius)
+                    .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [8, 4]))
+                    .foregroundStyle(viewModel.isDragging ? Color.accentColor : Color.primary.opacity(0.15))
+
+                // Accent glow on drag-over
+                if viewModel.isDragging {
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius)
+                        .fill(Color.accentColor.opacity(0.04))
                 }
-                .onDrop(of: [.fileURL], isTargeted: $viewModel.isDragging) { providers in
-                    viewModel.handleFileDrop(providers: providers)
+
+                VStack(spacing: DesignSystem.Spacing.md) {
+                    MeditativeMerkabaView(
+                        size: 48,
+                        revolutionDuration: viewModel.isDragging ? 2.0 : 6.0,
+                        tintColor: viewModel.isDragging ? .accentColor : nil
+                    )
+                    .animation(.easeInOut(duration: 0.3), value: viewModel.isDragging)
+
+                    Text("Drop audio or video file here")
+                        .font(DesignSystem.Typography.headline)
+                        .foregroundStyle(viewModel.isDragging ? Color.accentColor : .secondary)
+
+                    Text("MP3, WAV, M4A, FLAC, MP4, MOV, MKV")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
                 }
-                .padding(.horizontal, DesignSystem.Spacing.xl)
+            }
+            .frame(height: DesignSystem.Layout.dropZoneHeight)
+            .onDrop(of: [.fileURL], isTargeted: $viewModel.isDragging) { providers in
+                viewModel.handleFileDrop(providers: providers)
+            }
+            .padding(.horizontal, DesignSystem.Spacing.xl)
 
             Button("Browse Files") {
                 openFilePicker()
@@ -70,8 +92,7 @@ struct TranscribeView: View {
         VStack(spacing: DesignSystem.Spacing.lg) {
             Spacer()
 
-            ProgressView()
-                .controlSize(.large)
+            SpinnerRingView(size: 40, revolutionDuration: 2.5, tintColor: .accentColor)
 
             Text(viewModel.progress)
                 .font(DesignSystem.Typography.body)
@@ -92,7 +113,7 @@ struct TranscribeView: View {
     private var recentTranscriptionsList: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("Recent Transcriptions")
-                .font(.caption)
+                .font(DesignSystem.Typography.sectionHeader)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, DesignSystem.Spacing.lg)
                 .padding(.top, DesignSystem.Spacing.sm)
@@ -101,19 +122,7 @@ struct TranscribeView: View {
                 Button {
                     viewModel.currentTranscription = transcription
                 } label: {
-                    HStack {
-                        Image(systemName: "doc.text")
-                            .foregroundStyle(.secondary)
-                        Text(transcription.fileName)
-                            .lineLimit(1)
-                        Spacer()
-                        if let duration = transcription.durationMs {
-                            Text(duration.formattedDuration)
-                                .font(.caption)
-                                .foregroundStyle(.tertiary)
-                        }
-                        statusBadge(for: transcription.status)
-                    }
+                    RecentTranscriptionRow(transcription: transcription)
                 }
                 .buttonStyle(.plain)
             }
@@ -136,17 +145,49 @@ struct TranscribeView: View {
             viewModel.transcribeFile(url: url)
         }
     }
+}
+
+// MARK: - Recent Transcription Row
+
+private struct RecentTranscriptionRow: View {
+    let transcription: Transcription
+    @State private var isHovered = false
+
+    var body: some View {
+        HStack {
+            Image(systemName: "doc.text")
+                .foregroundStyle(.secondary)
+            Text(transcription.fileName)
+                .lineLimit(1)
+            Spacer()
+            if let duration = transcription.durationMs {
+                Text(duration.formattedDuration)
+                    .font(DesignSystem.Typography.duration)
+                    .foregroundStyle(.tertiary)
+            }
+            statusBadge
+        }
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(isHovered ? DesignSystem.Colors.rowHoverBackground : .clear)
+        )
+        .onHover { hovering in
+            withAnimation(DesignSystem.Animation.hoverTransition) {
+                isHovered = hovering
+            }
+        }
+    }
 
     @ViewBuilder
-    private func statusBadge(for status: Transcription.TranscriptionStatus) -> some View {
-        switch status {
+    private var statusBadge: some View {
+        switch transcription.status {
         case .completed:
             Image(systemName: "checkmark.circle.fill")
                 .foregroundStyle(DesignSystem.Colors.successGreen)
                 .font(.caption)
         case .processing:
-            ProgressView()
-                .controlSize(.mini)
+            SpinnerRingView(size: 14, revolutionDuration: 2.0, tintColor: .secondary)
         case .error:
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(DesignSystem.Colors.statusDenied)

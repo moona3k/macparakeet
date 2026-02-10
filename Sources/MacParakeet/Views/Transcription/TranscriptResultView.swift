@@ -6,16 +6,29 @@ struct TranscriptResultView: View {
     var onBack: (() -> Void)?
 
     @State private var showExportDialog = false
+    @State private var backHovered = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header
-            HStack {
+            HStack(spacing: DesignSystem.Spacing.sm) {
                 if let onBack {
                     Button(action: onBack) {
                         Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(backHovered ? .primary : .secondary)
+                            .frame(width: 24, height: 24)
+                            .background(
+                                Circle()
+                                    .fill(backHovered ? Color.primary.opacity(0.08) : .clear)
+                            )
                     }
                     .buttonStyle(.plain)
+                    .onHover { hovering in
+                        withAnimation(DesignSystem.Animation.hoverTransition) {
+                            backHovered = hovering
+                        }
+                    }
                 }
 
                 Text(transcription.fileName)
@@ -25,13 +38,20 @@ struct TranscriptResultView: View {
 
                 if let durationMs = transcription.durationMs {
                     Text(durationMs.formattedDuration)
-                        .font(.caption)
+                        .font(DesignSystem.Typography.duration)
                         .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(
+                            Capsule()
+                                .fill(Color.primary.opacity(0.05))
+                        )
                 }
             }
             .padding(DesignSystem.Spacing.lg)
 
-            Divider()
+            SacredGeometryDivider()
+                .padding(.horizontal, DesignSystem.Spacing.lg)
 
             // Transcript with timestamps
             ScrollView {
@@ -42,6 +62,7 @@ struct TranscriptResultView: View {
                         Text(text)
                             .font(DesignSystem.Typography.body)
                             .textSelection(.enabled)
+                            .lineSpacing(3)
                     } else {
                         Text("No transcript available")
                             .foregroundStyle(.secondary)
@@ -74,18 +95,24 @@ struct TranscriptResultView: View {
 
     @ViewBuilder
     private func timestampedView(words: [WordTimestamp]) -> some View {
-        // Group words into segments (roughly sentence-level)
         let segments = groupIntoSegments(words: words)
         ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
             HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
                 Text("[\(formatTimestamp(ms: segment.startMs))]")
-                    .font(.caption.monospaced())
+                    .font(DesignSystem.Typography.timestamp)
                     .foregroundStyle(.tertiary)
                     .frame(width: 60, alignment: .leading)
+                    .padding(.vertical, 2)
+                    .padding(.horizontal, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.primary.opacity(0.03))
+                    )
 
                 Text(segment.text)
                     .font(DesignSystem.Typography.body)
                     .textSelection(.enabled)
+                    .lineSpacing(3)
             }
         }
     }
@@ -105,7 +132,6 @@ struct TranscriptResultView: View {
         for (i, word) in words.enumerated() {
             currentWords.append(word.word)
 
-            // Split on significant pauses (>500ms) or every ~15 words
             let isLast = i == words.count - 1
             let hasGap = i + 1 < words.count && (words[i + 1].startMs - word.endMs) > 500
             let tooLong = currentWords.count >= 15
