@@ -240,7 +240,7 @@ View files organized by feature in `Sources/MacParakeet/Views/`:
 ## Folder Structure
 
 ```
-macparakeet/app/
+macparakeet/
 ├── CLAUDE.md           # This file (AI assistant context)
 ├── README.md           # Public-facing readme
 ├── Package.swift       # Swift package manifest

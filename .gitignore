@@ -1,22 +1,52 @@
+# Xcode
+.build/
+DerivedData/
+dist/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# Swift Package Manager
+.swiftpm/
+Package.resolved
+
+# Python
+python/.venv/
+__pycache__/
+*.pyc
+*.pyo
+.Python
+
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
 ._*
 
 # IDE
 .idea/
-.vscode/
 *.swp
 *.swo
+.vscode/
+
+# Build artifacts
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Database
+*.db
+*.db-shm
+*.db-wal
 
 # Environment
 .env
 .env.local
 
-# SwiftPM / build artifacts
-.build/
-app/.build/
-app/dist/
-app/.swiftpm/
+# Logs
+*.log
+logs/
 
-# Xcode / DerivedData (if used locally)
-DerivedData/
+# Test artifacts
+test-results/
+coverage/

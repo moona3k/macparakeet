@@ -75,8 +75,10 @@ final class DictationHistoryViewModelTests: XCTestCase {
     }
 
     func testMultipleDictationsSameDayGroupedTogether() {
-        let now = Date()
-        let earlier = now.addingTimeInterval(-3600) // 1 hour ago
+        // Use noon today to avoid midnight boundary issues
+        let noon = Calendar.current.date(bySettingHour: 12, minute: 0, second: 0, of: Date())!
+        let now = noon
+        let earlier = noon.addingTimeInterval(-3600) // 11 AM same day
 
         mockRepo.dictations = [
             Dictation(createdAt: now, durationMs: 1000, rawTranscript: "First"),
