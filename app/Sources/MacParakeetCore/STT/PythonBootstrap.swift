@@ -145,9 +145,18 @@ public final class PythonBootstrap: Sendable {
 
     private func findUV() throws -> String {
         // Check bundled uv first
-        if let bundledPath = Bundle.main.resourcePath?.appending("/uv"),
-           FileManager.default.fileExists(atPath: bundledPath) {
-            return bundledPath
+        if let resourcePath = Bundle.main.resourcePath {
+            let fm = FileManager.default
+            let direct = resourcePath.appending("/uv")
+            if fm.fileExists(atPath: direct) { return direct }
+
+            // Universal app bundles may ship arch-specific uv binaries.
+            #if arch(arm64)
+            let archSpecific = resourcePath.appending("/uv-arm64")
+            #else
+            let archSpecific = resourcePath.appending("/uv-x86_64")
+            #endif
+            if fm.fileExists(atPath: archSpecific) { return archSpecific }
         }
 
         // Check common install paths

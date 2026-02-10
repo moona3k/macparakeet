@@ -11,3 +11,12 @@
 # Environment
 .env
 .env.local
+
+# SwiftPM / build artifacts
+.build/
+app/.build/
+app/dist/
+app/.swiftpm/
+
+# Xcode / DerivedData (if used locally)
+DerivedData/
