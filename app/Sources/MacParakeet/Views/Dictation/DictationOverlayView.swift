@@ -158,18 +158,23 @@ struct DictationOverlayView: View {
     /// Convert technical error messages into short user-friendly text
     private func friendlyErrorMessage(_ message: String) -> String {
         let lower = message.lowercased()
-        if lower.contains("stt") || lower.contains("daemon") || lower.contains("python") {
+        if lower.contains("stt") || lower.contains("daemon") || lower.contains("python")
+            || lower.contains("failed to start") {
             return "STT not ready"
         }
-        if lower.contains("microphone") || lower.contains("audio input") {
-            return "No microphone"
+        if lower.contains("microphone") || lower.contains("audio input")
+            || lower.contains("recording") {
+            return "Mic unavailable"
         }
         if lower.contains("permission") || lower.contains("access") {
             return "Permission needed"
         }
+        if lower.contains("not recording") {
+            return "Not recording"
+        }
         // Fallback: truncate to fit pill
-        if message.count > 25 {
-            return String(message.prefix(22)) + "..."
+        if message.count > 20 {
+            return String(message.prefix(17)) + "..."
         }
         return message
     }

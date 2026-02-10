@@ -13,21 +13,17 @@ _model = None
 
 
 def _load_model():
-    """Load Parakeet model on first use.
+    """Load Parakeet TDT model on first use via parakeet_mlx.from_pretrained().
 
-    Imports parakeet_mlx and preloads the model weights so the first
-    transcription doesn't pay the full load cost.
+    Downloads the model on first run (~600MB) and caches it in HuggingFace cache.
     """
     global _model
     if _model is not None:
         return _model
     try:
         import parakeet_mlx
-        # Preload the model weights — without this, import alone doesn't load
-        # the actual model and the first transcribe() call is much slower.
-        if hasattr(parakeet_mlx, "load_model"):
-            parakeet_mlx.load_model()
-        _model = parakeet_mlx
+
+        _model = parakeet_mlx.from_pretrained("mlx-community/parakeet-tdt-0.6b-v3")
         return _model
     except ImportError as e:
         raise RuntimeError(f"Failed to import parakeet_mlx: {e}")

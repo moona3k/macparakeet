@@ -29,31 +29,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - App Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        let log = { (msg: String) in
-            let entry = "\(Date()): \(msg)\n"
-            if let data = entry.data(using: .utf8) {
-                let path = "/tmp/macparakeet-debug.log"
-                if FileManager.default.fileExists(atPath: path) {
-                    if let handle = FileHandle(forWritingAtPath: path) {
-                        handle.seekToEndOfFile()
-                        handle.write(data)
-                        handle.closeFile()
-                    } else {
-                        FileManager.default.createFile(atPath: path, contents: data)
-                    }
-                } else {
-                    FileManager.default.createFile(atPath: path, contents: data)
-                }
-            }
-        }
-
-        log("applicationDidFinishLaunching")
         setupMenuBar()
-        log("setupMenuBar done, statusItem=\(statusItem != nil), button=\(statusItem?.button != nil)")
         setupEnvironment()
-        log("setupEnvironment done, env=\(appEnvironment != nil)")
         setupHotkey()
-        log("setupHotkey done, hotkeyManager=\(hotkeyManager != nil)")
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -73,10 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
-        guard let button = statusItem?.button else {
-            print("[MenuBar] Failed to get status item button")
-            return
-        }
+        guard let button = statusItem?.button else { return }
 
         if let image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "MacParakeet") {
             image.isTemplate = true
@@ -84,8 +59,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             button.title = "MP"
         }
-
-        print("[MenuBar] Status item created successfully")
 
         let menu = NSMenu()
 
