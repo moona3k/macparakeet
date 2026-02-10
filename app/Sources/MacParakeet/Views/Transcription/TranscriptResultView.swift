@@ -24,15 +24,10 @@ struct TranscriptResultView: View {
                 Spacer()
 
                 if let durationMs = transcription.durationMs {
-                    Text(formatDuration(ms: durationMs))
+                    Text(durationMs.formattedDuration)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
-
-                Button("Copy All") {
-                    copyToClipboard()
-                }
-                .buttonStyle(.bordered)
             }
             .padding(DesignSystem.Spacing.lg)
 
@@ -148,17 +143,6 @@ struct TranscriptResultView: View {
             let exportService = ExportService()
             try? exportService.exportToTxt(transcription: transcription, url: url)
         }
-    }
-
-    private func formatDuration(ms: Int) -> String {
-        let totalSeconds = ms / 1000
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let seconds = totalSeconds % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        }
-        return String(format: "%d:%02d", minutes, seconds)
     }
 
     private func formatTimestamp(ms: Int) -> String {

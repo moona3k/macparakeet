@@ -3,8 +3,14 @@ import MacParakeetCore
 
 struct DictationDetailView: View {
     let dictation: Dictation
+    var isPlaying: Bool = false
+    var playbackProgress: Double = 0
+    var playbackTimeString: String?
+    var onTogglePlayback: (() -> Void)?
     var onDelete: (() -> Void)?
     var onCopy: (() -> Void)?
+
+    @State private var showDeleteAlert = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -13,7 +19,7 @@ struct DictationDetailView: View {
                 Text(formatDate(dictation.createdAt))
                     .font(DesignSystem.Typography.headline)
                 Spacer()
-                Text(formatDuration(ms: dictation.durationMs))
+                Text(dictation.durationMs.formattedDuration)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -24,17 +30,26 @@ struct DictationDetailView: View {
             // Audio playback (if audio exists)
             if dictation.audioPath != nil {
                 HStack {
-                    Button {} label: {
-                        Image(systemName: "play.fill")
+                    Button {
+                        onTogglePlayback?()
+                    } label: {
+                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                     }
                     .buttonStyle(.bordered)
 
-                    // Placeholder waveform/scrubber
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(Color.secondary.opacity(0.2))
-                        .frame(height: 4)
+                    // Progress bar
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.secondary.opacity(0.2))
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.accentColor)
+                                .frame(width: geo.size.width * playbackProgress)
+                        }
+                    }
+                    .frame(height: 4)
 
-                    Text(formatDuration(ms: dictation.durationMs))
+                    Text(playbackTimeString ?? dictation.durationMs.formattedDuration)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -68,11 +83,19 @@ struct DictationDetailView: View {
 
                 Spacer()
 
-                Button(role: .destructive, action: { onDelete?() }) {
+                Button(role: .destructive, action: { showDeleteAlert = true }) {
                     Label("Delete Dictation", systemImage: "trash")
                 }
                 .buttonStyle(.bordered)
                 .tint(.red)
+                .alert("Delete Dictation?", isPresented: $showDeleteAlert) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Delete", role: .destructive) {
+                        onDelete?()
+                    }
+                } message: {
+                    Text("This dictation and its audio file will be permanently deleted.")
+                }
             }
             .padding(DesignSystem.Spacing.md)
         }
@@ -83,12 +106,5 @@ struct DictationDetailView: View {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return formatter.string(from: date)
-    }
-
-    private func formatDuration(ms: Int) -> String {
-        let totalSeconds = ms / 1000
-        let minutes = totalSeconds / 60
-        let seconds = totalSeconds % 60
-        return String(format: "%02d:%02d", minutes, seconds)
     }
 }

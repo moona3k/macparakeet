@@ -28,8 +28,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // Header
         lines.append(transcription.fileName)
         if let durationMs = transcription.durationMs {
-            let duration = formatDuration(ms: durationMs)
-            lines.append("Duration: \(duration)")
+            lines.append("Duration: \(durationMs.formattedDuration)")
         }
         lines.append("")
 
@@ -41,16 +40,4 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return lines.joined(separator: "\n")
     }
 
-    private func formatDuration(ms: Int) -> String {
-        let totalSeconds = ms / 1000
-        let hours = totalSeconds / 3600
-        let minutes = (totalSeconds % 3600) / 60
-        let seconds = totalSeconds % 60
-
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            return String(format: "%d:%02d", minutes, seconds)
-        }
-    }
 }

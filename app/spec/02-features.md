@@ -552,13 +552,13 @@ CREATE INDEX idx_dictations_created_at ON dictations(createdAt DESC);
 Audio path is computed from ID by default. Files stored as M4A (AAC). User can disable storage in settings (audio discarded after transcription).
 
 **Acceptance criteria:**
-- [ ] Dictation history shows all past dictations grouped by date
-- [ ] Search filters dictations by transcript content in real-time
-- [ ] Can play audio inline from history list
-- [ ] Can copy transcript text to clipboard
-- [ ] Can delete individual dictations (with confirmation)
-- [ ] Click expands to detail view with full transcript and playback
-- [ ] History persists across app restarts (SQLite via GRDB)
+- [x] Dictation history shows all past dictations grouped by date
+- [x] Search filters dictations by transcript content in real-time
+- [x] Can play audio inline from history list
+- [x] Can copy transcript text to clipboard
+- [x] Can delete individual dictations (with confirmation)
+- [x] Click expands to detail view with full transcript and playback
+- [x] History persists across app restarts (SQLite via GRDB)
 
 ---
 

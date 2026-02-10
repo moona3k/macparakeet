@@ -9,7 +9,7 @@ private struct AnimatedCheckmarkView: View {
     @State private var checkTrim: CGFloat = 0
 
     private let lineWidth: CGFloat = 1.5
-    private let color = Color.green
+    private let color = DesignSystem.Colors.successGreen
 
     var body: some View {
         ZStack {

@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import Foundation
 import MacParakeetCore
 
@@ -9,9 +10,36 @@ public final class DictationHistoryViewModel {
     public var searchText: String = "" {
         didSet { loadDictations() }
     }
-    public var selectedDictation: Dictation?
+    public var selectedDictation: Dictation? {
+        didSet {
+            if selectedDictation?.id != oldValue?.id {
+                stopPlayback()
+            }
+        }
+    }
+
+    // MARK: - Playback State
+
+    public var isPlaying: Bool = false
+    public var playingDictationId: UUID?
+    public var playbackCurrentTime: TimeInterval = 0
+    public var playbackDuration: TimeInterval = 0
+
+    public var playbackProgress: Double {
+        guard playbackDuration > 0 else { return 0 }
+        return playbackCurrentTime / playbackDuration
+    }
+
+    public var playbackTimeString: String {
+        let currentMs = Int(playbackCurrentTime * 1000)
+        let durationMs = Int(playbackDuration * 1000)
+        return "\(currentMs.formattedDuration) / \(durationMs.formattedDuration)"
+    }
 
     private var dictationRepo: DictationRepositoryProtocol?
+    private var audioPlayer: AVAudioPlayer?
+    private var playbackDelegate: PlaybackDelegate?
+    private var playbackTimerTask: Task<Void, Never>?
 
     public init() {}
 
@@ -43,6 +71,9 @@ public final class DictationHistoryViewModel {
 
     public func deleteDictation(_ dictation: Dictation) {
         guard let repo = dictationRepo else { return }
+        if playingDictationId == dictation.id {
+            stopPlayback()
+        }
         if let path = dictation.audioPath {
             try? FileManager.default.removeItem(atPath: path)
         }
@@ -59,7 +90,85 @@ public final class DictationHistoryViewModel {
         NSPasteboard.general.setString(text, forType: .string)
     }
 
+    // MARK: - Playback
+
+    public func togglePlayback(for dictation: Dictation) {
+        guard let audioPath = dictation.audioPath else { return }
+
+        // If already playing this dictation, pause
+        if playingDictationId == dictation.id, isPlaying {
+            pausePlayback()
+            return
+        }
+
+        // If paused on the same dictation, resume
+        if playingDictationId == dictation.id, !isPlaying, audioPlayer != nil {
+            audioPlayer?.play()
+            isPlaying = true
+            startPlaybackTimer()
+            return
+        }
+
+        // Stop any current playback and start new
+        stopPlayback()
+
+        let url = URL(fileURLWithPath: audioPath)
+        guard FileManager.default.fileExists(atPath: audioPath) else { return }
+
+        do {
+            let player = try AVAudioPlayer(contentsOf: url)
+            let delegate = PlaybackDelegate { [weak self] in
+                Task { @MainActor in
+                    self?.stopPlayback()
+                }
+            }
+            player.delegate = delegate
+            player.play()
+
+            audioPlayer = player
+            playbackDelegate = delegate
+            playingDictationId = dictation.id
+            isPlaying = true
+            playbackDuration = player.duration
+            playbackCurrentTime = 0
+            startPlaybackTimer()
+        } catch {
+            stopPlayback()
+        }
+    }
+
+    public func pausePlayback() {
+        audioPlayer?.pause()
+        isPlaying = false
+        playbackTimerTask?.cancel()
+        playbackTimerTask = nil
+    }
+
+    public func stopPlayback() {
+        playbackTimerTask?.cancel()
+        playbackTimerTask = nil
+        audioPlayer?.stop()
+        audioPlayer = nil
+        playbackDelegate = nil
+        isPlaying = false
+        playingDictationId = nil
+        playbackCurrentTime = 0
+        playbackDuration = 0
+    }
+
     // MARK: - Private
+
+    private func startPlaybackTimer() {
+        playbackTimerTask?.cancel()
+        playbackTimerTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { break }
+                guard let self, let player = self.audioPlayer else { break }
+                self.playbackCurrentTime = player.currentTime
+            }
+        }
+    }
 
     private func formatDateHeader(_ date: Date) -> String {
         let calendar = Calendar.current
@@ -73,5 +182,19 @@ public final class DictationHistoryViewModel {
             formatter.timeStyle = .none
             return formatter.string(from: date)
         }
+    }
+}
+
+// MARK: - PlaybackDelegate
+
+private final class PlaybackDelegate: NSObject, AVAudioPlayerDelegate, @unchecked Sendable {
+    private let onFinish: () -> Void
+
+    init(onFinish: @escaping () -> Void) {
+        self.onFinish = onFinish
+    }
+
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        onFinish()
     }
 }

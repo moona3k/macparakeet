@@ -17,16 +17,7 @@ struct OnboardingFlowView: View {
             content
         }
         .frame(width: windowWidth, height: windowHeight)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(nsColor: .windowBackgroundColor),
-                    Color(nsColor: .windowBackgroundColor).opacity(0.92),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .background(Color(nsColor: .windowBackgroundColor))
         .onAppear { viewModel.refresh() }
         // When the user grants permissions in System Settings, they return to the app.
         // Refresh so badges and "Continue" enablement update immediately.
@@ -155,6 +146,12 @@ struct OnboardingFlowView: View {
                 .padding(.horizontal, 28)
                 .padding(.vertical, 22)
             }
+            .id(viewModel.step)
+            .transition(.asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            ))
+            .animation(.easeInOut(duration: 0.25), value: viewModel.step)
 
             Divider()
 
@@ -200,14 +197,14 @@ struct OnboardingFlowView: View {
         case .welcome:
             VStack(alignment: .leading, spacing: 12) {
                 featureRow(
-                    icon: "waveform.and.mic",
+                    icon: "mic.fill",
                     title: "Dictate anywhere",
                     detail: "Double-tap Fn to start. Press Fn again to stop and paste."
                 )
                 featureRow(
                     icon: "bolt.fill",
                     title: "Fast loop",
-                    detail: "You’ll get text where your cursor is, without switching apps."
+                    detail: "You'll get text where your cursor is, without switching apps."
                 )
                 featureRow(
                     icon: "lock.shield.fill",
@@ -267,7 +264,7 @@ struct OnboardingFlowView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                Text("Tip: If your keyboard doesn’t send Fn events, you can still use file transcription from the main app window.")
+                Text("Tip: If your keyboard doesn't send Fn events, you can still use file transcription from the main app window.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -285,7 +282,7 @@ struct OnboardingFlowView: View {
             VStack(alignment: .leading, spacing: 12) {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
-                        Text("You’re ready.")
+                        Text("You're ready.")
                             .font(.system(size: 15, weight: .semibold))
                         Text("Double-tap Fn to start dictation. The transcript will paste into your active app.")
                             .foregroundStyle(.secondary)
@@ -309,10 +306,10 @@ struct OnboardingFlowView: View {
                         switch viewModel.engineState {
                         case .ready:
                             Image(systemName: "checkmark.seal.fill")
-                                .foregroundStyle(.green)
+                                .foregroundStyle(DesignSystem.Colors.statusGranted)
                         case .failed:
                             Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(DesignSystem.Colors.warningOrange)
                         case .skipped:
                             Image(systemName: "clock.fill")
                                 .foregroundStyle(.secondary)
@@ -380,11 +377,16 @@ struct OnboardingFlowView: View {
     private func featureRow(icon: String, title: String, detail: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: icon)
+                .font(.system(size: 16))
                 .foregroundStyle(Color.accentColor)
-                .frame(width: 20)
+                .frame(width: 36, height: 36)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.accentColor.opacity(0.1))
+                )
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 14, weight: .semibold))
                 Text(detail)
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
@@ -415,9 +417,9 @@ struct OnboardingFlowView: View {
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         .background(
-                            Capsule().fill(statusStyle == .ok ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
+                            Capsule().fill(statusStyle == .ok ? DesignSystem.Colors.statusGranted.opacity(0.15) : DesignSystem.Colors.warningOrange.opacity(0.15))
                         )
-                        .foregroundStyle(statusStyle == .ok ? Color.green : Color.orange)
+                        .foregroundStyle(statusStyle == .ok ? DesignSystem.Colors.statusGranted : DesignSystem.Colors.warningOrange)
                 }
 
                 Text(detail)
@@ -435,11 +437,11 @@ struct OnboardingFlowView: View {
     private func titleForStep(_ step: OnboardingViewModel.Step) -> String {
         switch step {
         case .welcome: return "Welcome to MacParakeet"
-        case .microphone: return "Enable microphone access"
+        case .microphone: return "Enable Microphone Access"
         case .accessibility: return "Enable Accessibility"
-        case .hotkey: return "Learn the hotkey"
-        case .engine: return "Prepare local speech engine"
-        case .done: return "All set"
+        case .hotkey: return "Learn the Hotkey"
+        case .engine: return "Prepare Local Speech Engine"
+        case .done: return "All Set"
         }
     }
 
@@ -456,7 +458,7 @@ struct OnboardingFlowView: View {
         case .engine:
             return "First run may install dependencies. After this, startup is fast."
         case .done:
-            return "You’re ready to dictate and transcribe locally on your Mac."
+            return "You're ready to dictate and transcribe locally on your Mac."
         }
     }
 
@@ -499,7 +501,7 @@ struct OnboardingFlowView: View {
     private func engineDetail(_ state: OnboardingViewModel.EngineState) -> String {
         switch state {
         case .idle:
-            return "We’ll start the speech engine now."
+            return "We'll start the speech engine now."
         case .working:
             return "This can take a few minutes on first run. Keep this window open."
         case .ready:

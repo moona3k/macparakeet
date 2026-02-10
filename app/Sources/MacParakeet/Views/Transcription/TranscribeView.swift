@@ -32,24 +32,18 @@ struct TranscribeView: View {
         VStack(spacing: DesignSystem.Spacing.lg) {
             Spacer()
 
-            Image(systemName: "waveform.circle.fill")
-                .resizable()
-                .frame(width: 60, height: 60)
-                .foregroundStyle(.blue)
-
-            Text("Drop audio or video file here")
-                .font(DesignSystem.Typography.headline)
-                .foregroundStyle(.secondary)
-
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius)
                 .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [8]))
-                .foregroundStyle(viewModel.isDragging ? .blue : .secondary)
+                .foregroundStyle(viewModel.isDragging ? Color.accentColor : .secondary)
                 .frame(height: DesignSystem.Layout.dropZoneHeight)
                 .overlay {
                     VStack(spacing: DesignSystem.Spacing.sm) {
                         Image(systemName: "arrow.down.doc")
                             .font(.system(size: 36))
-                            .foregroundStyle(viewModel.isDragging ? .blue : .secondary)
+                            .foregroundStyle(viewModel.isDragging ? Color.accentColor : .secondary)
+                        Text("Drop audio or video file here")
+                            .font(DesignSystem.Typography.headline)
+                            .foregroundStyle(.secondary)
                         Text("MP3, WAV, M4A, FLAC, MP4, MOV, MKV")
                             .font(.caption)
                             .foregroundStyle(.tertiary)
@@ -114,7 +108,7 @@ struct TranscribeView: View {
                             .lineLimit(1)
                         Spacer()
                         if let duration = transcription.durationMs {
-                            Text(formatDuration(ms: duration))
+                            Text(duration.formattedDuration)
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }
@@ -143,26 +137,19 @@ struct TranscribeView: View {
         }
     }
 
-    private func formatDuration(ms: Int) -> String {
-        let totalSeconds = ms / 1000
-        let minutes = totalSeconds / 60
-        let seconds = totalSeconds % 60
-        return String(format: "%d:%02d", minutes, seconds)
-    }
-
     @ViewBuilder
     private func statusBadge(for status: Transcription.TranscriptionStatus) -> some View {
         switch status {
         case .completed:
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(DesignSystem.Colors.successGreen)
                 .font(.caption)
         case .processing:
             ProgressView()
                 .controlSize(.mini)
         case .error:
             Image(systemName: "exclamationmark.circle.fill")
-                .foregroundStyle(.red)
+                .foregroundStyle(DesignSystem.Colors.statusDenied)
                 .font(.caption)
         case .cancelled:
             Image(systemName: "xmark.circle.fill")

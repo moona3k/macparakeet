@@ -191,6 +191,97 @@ final class DictationHistoryViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.groupedDictations.isEmpty)
     }
 
+    // MARK: - Playback State
+
+    func testStopPlaybackResetsState() {
+        viewModel.configure(dictationRepo: mockRepo)
+
+        // Manually set playback state as if playing
+        viewModel.isPlaying = true
+        viewModel.playingDictationId = UUID()
+        viewModel.playbackCurrentTime = 5.0
+        viewModel.playbackDuration = 10.0
+
+        viewModel.stopPlayback()
+
+        XCTAssertFalse(viewModel.isPlaying)
+        XCTAssertNil(viewModel.playingDictationId)
+        XCTAssertEqual(viewModel.playbackCurrentTime, 0)
+        XCTAssertEqual(viewModel.playbackDuration, 0)
+    }
+
+    func testTogglePlaybackWithNoAudioPathIsNoOp() {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "No audio")
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+
+        viewModel.togglePlayback(for: dictation)
+
+        XCTAssertFalse(viewModel.isPlaying, "Should not play when no audio path")
+        XCTAssertNil(viewModel.playingDictationId)
+    }
+
+    func testTogglePlaybackWithNonexistentFileIsNoOp() {
+        let dictation = Dictation(
+            durationMs: 1000,
+            rawTranscript: "Has path",
+            audioPath: "/nonexistent/path/audio.m4a"
+        )
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+
+        viewModel.togglePlayback(for: dictation)
+
+        XCTAssertFalse(viewModel.isPlaying, "Should not play when file doesn't exist")
+    }
+
+    func testDeleteClearsPlaybackForThatDictation() {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "Playing")
+        mockRepo.dictations = [dictation]
+        viewModel.configure(dictationRepo: mockRepo)
+
+        // Simulate playing state
+        viewModel.isPlaying = true
+        viewModel.playingDictationId = dictation.id
+
+        viewModel.deleteDictation(dictation)
+
+        XCTAssertFalse(viewModel.isPlaying, "Deleting playing dictation should stop playback")
+        XCTAssertNil(viewModel.playingDictationId)
+    }
+
+    func testSelectionChangeStopsPlayback() {
+        let dictation1 = Dictation(durationMs: 1000, rawTranscript: "First")
+        let dictation2 = Dictation(durationMs: 2000, rawTranscript: "Second")
+        mockRepo.dictations = [dictation1, dictation2]
+        viewModel.configure(dictationRepo: mockRepo)
+
+        // Simulate playing state
+        viewModel.isPlaying = true
+        viewModel.playingDictationId = dictation1.id
+        viewModel.selectedDictation = dictation1
+
+        // Change selection
+        viewModel.selectedDictation = dictation2
+
+        XCTAssertFalse(viewModel.isPlaying, "Changing selection should stop playback")
+        XCTAssertNil(viewModel.playingDictationId)
+    }
+
+    func testPlaybackProgressZeroWhenDurationZero() {
+        viewModel.configure(dictationRepo: mockRepo)
+        XCTAssertEqual(viewModel.playbackProgress, 0, "Progress should be 0 when duration is 0")
+    }
+
+    func testPausePlaybackSetsNotPlaying() {
+        viewModel.configure(dictationRepo: mockRepo)
+        viewModel.isPlaying = true
+
+        viewModel.pausePlayback()
+
+        XCTAssertFalse(viewModel.isPlaying)
+    }
+
     // MARK: - Helpers
 
     private func totalDictationCount() -> Int {

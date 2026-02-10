@@ -5,19 +5,21 @@ import MacParakeetViewModels
 struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
 
+    @State private var showClearAllAlert = false
+
     var body: some View {
         Form {
-            Section("Plan") {
+            Section("License") {
                 HStack {
                     Text(viewModel.entitlementsSummary)
                         .font(.headline)
                     Spacer()
                     if viewModel.isUnlocked {
                         Label("Unlocked", systemImage: "checkmark.seal.fill")
-                            .foregroundStyle(.green)
+                            .foregroundStyle(DesignSystem.Colors.statusGranted)
                             .font(.caption)
                     } else {
-                        Label("Not Unlocked", systemImage: "lock.fill")
+                        Label("Trial", systemImage: "lock.fill")
                             .foregroundStyle(.secondary)
                             .font(.caption)
                     }
@@ -58,12 +60,6 @@ struct SettingsView: View {
                 }
             }
 
-            // General
-            Section("General") {
-                Toggle("Launch at login (Coming soon)", isOn: $viewModel.launchAtLogin)
-                    .disabled(true)
-            }
-
             // Dictation
             Section("Dictation") {
                 HStack {
@@ -93,12 +89,20 @@ struct SettingsView: View {
                 HStack {
                     Text("Dictations")
                     Spacer()
-                    Text("\(viewModel.dictationCount) recordings")
+                    Text("\(viewModel.dictationCount) \(viewModel.dictationCount == 1 ? "dictation" : "dictations")")
                         .foregroundStyle(.secondary)
                 }
 
                 Button("Clear All Dictations...", role: .destructive) {
-                    viewModel.clearAllDictations()
+                    showClearAllAlert = true
+                }
+                .alert("Clear All Dictations?", isPresented: $showClearAllAlert) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Clear All", role: .destructive) {
+                        viewModel.clearAllDictations()
+                    }
+                } message: {
+                    Text("This will permanently delete all \(viewModel.dictationCount) dictation\(viewModel.dictationCount == 1 ? "" : "s") and their audio files. This cannot be undone.")
                 }
             }
 
@@ -128,6 +132,16 @@ struct SettingsView: View {
                     }
                 }
             }
+
+            Section {
+                HStack {
+                    Spacer()
+                    Text("MacParakeet \(appVersion)")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear {
@@ -137,15 +151,19 @@ struct SettingsView: View {
         }
     }
 
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
+    }
+
     @ViewBuilder
     private func permissionBadge(granted: Bool) -> some View {
         if granted {
             Label("Granted", systemImage: "checkmark.circle.fill")
-                .foregroundStyle(.green)
+                .foregroundStyle(DesignSystem.Colors.statusGranted)
                 .font(.caption)
         } else {
             Label("Not Granted", systemImage: "xmark.circle.fill")
-                .foregroundStyle(.red)
+                .foregroundStyle(DesignSystem.Colors.statusDenied)
                 .font(.caption)
         }
     }

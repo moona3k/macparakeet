@@ -10,6 +10,9 @@ enum DesignSystem {
         static let recordingRed = Color.red
         static let successGreen = Color.green
         static let warningYellow = Color.yellow
+        static let warningOrange = Color.orange
+        static let statusGranted = Color.green
+        static let statusDenied = Color.red
 
         static let sidebarBackground = Color(nsColor: .controlBackgroundColor)
         static let contentBackground = Color(nsColor: .textBackgroundColor)

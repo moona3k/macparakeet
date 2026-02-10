@@ -94,7 +94,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**v0.1 MVP** -- Implemented (177 tests, 21 suites, `swift test` + `xcodebuild` green)
+**v0.1 MVP** -- Implemented (188 tests, 21 suites, `swift test` + `xcodebuild` green)
 
 ### v0.1 MVP (Implemented)
 - [x] System-wide dictation: Fn double-tap (persistent) + hold-to-talk
@@ -102,7 +102,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] Compact dark pill overlay with recording timer + waveform
 - [x] Auto-paste with clipboard save/restore
 - [x] Settings (hotkey display, silence auto-stop, storage, permissions)
-- [x] Dictation history (date-grouped, searchable, detail view with split pane)
+- [x] Dictation history (date-grouped, searchable, detail view with split pane, audio playback)
 - [x] Menu bar app with main window + sidebar navigation
 - [x] Basic export (plain text .txt, copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + FTS5 search)
@@ -268,7 +268,7 @@ macparakeet/app/
 │   ├── CLI/                # CLI tool (ArgumentParser, imports MacParakeetCore)
 │   └── MacParakeetCore/    # Shared library (no UI deps)
 ├── Tests/
-│   └── MacParakeetTests/   # Unit, database, and integration tests (177 tests)
+│   └── MacParakeetTests/   # Unit, database, and integration tests (188 tests)
 ├── Assets/             # App icons and images (placeholder)
 ├── python/             # STT daemon (Parakeet via uv)
 │   └── macparakeet_stt/

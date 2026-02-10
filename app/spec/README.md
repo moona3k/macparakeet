@@ -62,13 +62,13 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] File transcription: Drag-drop audio/video files
 - [x] Compact dark pill overlay with recording timer + waveform
 - [x] Auto-paste with clipboard save/restore
-- [x] Dictation history (date-grouped, searchable, detail view)
+- [x] Dictation history (date-grouped, searchable, detail view, audio playback)
 - [x] Settings (hotkey display, silence auto-stop, storage, permissions)
 - [x] Menu bar app with main window
 - [x] Basic export (plain text, copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + FTS5)
 - [x] CLI tool (`macparakeet transcribe`, `history`, `health`)
-- [x] 175 tests passing (21 test suites)
+- [x] 188 tests passing (21 test suites)
 
 ### v0.2 AI & Text Processing (Planned)
 

@@ -7,40 +7,24 @@ struct DictationHistoryView: View {
 
     var body: some View {
         HSplitView {
-            VStack(spacing: 0) {
-                // Search bar
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundStyle(.secondary)
-                    TextField("Search dictations...", text: $viewModel.searchText)
-                        .textFieldStyle(.plain)
-                    if !viewModel.searchText.isEmpty {
-                        Button {
-                            viewModel.searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(DesignSystem.Spacing.md)
-                .background(Color(nsColor: .controlBackgroundColor))
-
-                Divider()
-
+            NavigationStack {
                 if viewModel.groupedDictations.isEmpty {
                     emptyState
                 } else {
                     dictationList
                 }
             }
+            .searchable(text: $viewModel.searchText, prompt: "Search dictations...")
             .frame(minWidth: 260)
 
             // Detail pane
             if let selected = viewModel.selectedDictation {
                 DictationDetailView(
                     dictation: selected,
+                    isPlaying: viewModel.playingDictationId == selected.id && viewModel.isPlaying,
+                    playbackProgress: viewModel.playingDictationId == selected.id ? viewModel.playbackProgress : 0,
+                    playbackTimeString: viewModel.playingDictationId == selected.id ? viewModel.playbackTimeString : nil,
+                    onTogglePlayback: { viewModel.togglePlayback(for: selected) },
                     onDelete: {
                         viewModel.deleteDictation(selected)
                     },
@@ -87,7 +71,9 @@ struct DictationHistoryView: View {
                         DictationRowView(
                             dictation: dictation,
                             isSelected: viewModel.selectedDictation?.id == dictation.id,
+                            isPlayingThis: viewModel.playingDictationId == dictation.id && viewModel.isPlaying,
                             onSelect: { viewModel.selectedDictation = dictation },
+                            onTogglePlayback: { viewModel.togglePlayback(for: dictation) },
                             onCopy: { viewModel.copyToClipboard(dictation) },
                             onDelete: { viewModel.deleteDictation(dictation) }
                         )
@@ -102,7 +88,9 @@ struct DictationHistoryView: View {
 struct DictationRowView: View {
     let dictation: Dictation
     let isSelected: Bool
+    var isPlayingThis: Bool = false
     var onSelect: () -> Void
+    var onTogglePlayback: (() -> Void)?
     var onCopy: () -> Void
     var onDelete: () -> Void
 
@@ -116,7 +104,7 @@ struct DictationRowView: View {
 
                     Spacer()
 
-                    Text(formatDuration(ms: dictation.durationMs))
+                    Text(dictation.durationMs.formattedDuration)
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }
@@ -127,12 +115,17 @@ struct DictationRowView: View {
 
                 HStack {
                     if dictation.audioPath != nil {
-                        Button {} label: {
-                            Label("Play", systemImage: "play.fill")
-                                .font(.caption)
+                        Button {
+                            onTogglePlayback?()
+                        } label: {
+                            Label(
+                                isPlayingThis ? "Pause" : "Play",
+                                systemImage: isPlayingThis ? "pause.fill" : "play.fill"
+                            )
+                            .font(.caption)
                         }
                         .buttonStyle(.plain)
-                        .foregroundStyle(.blue)
+                        .foregroundStyle(Color.accentColor)
                     }
 
                     Spacer()
@@ -163,10 +156,4 @@ struct DictationRowView: View {
         return formatter.string(from: date)
     }
 
-    private func formatDuration(ms: Int) -> String {
-        let totalSeconds = ms / 1000
-        let minutes = totalSeconds / 60
-        let seconds = totalSeconds % 60
-        return String(format: "%02d:%02d", minutes, seconds)
-    }
 }
