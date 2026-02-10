@@ -17,17 +17,16 @@ Mic Input → AVAudioEngine tap → Sample Rate Conversion → Ring Buffer → W
 - **AVAudioEngine** with tap on input node
 - **Sample rate conversion**: arbitrary input sample rate → 16kHz mono Float32 (required by Parakeet)
 - **Ring buffer** for crash recovery — if the app crashes mid-recording, the ring buffer preserves audio data that can be recovered on next launch
-- **Output format**: saved as WAV (temporary), then converted to M4A via `AVAssetExportSession` for long-term storage
+- **Output format**: saved as WAV (16kHz mono, same format Parakeet expects)
 - **Minimum sample threshold**: 81 samples required before sending to STT. Parakeet's Metal allocator crashes on header-only WAVs (files with valid headers but near-zero audio data). This guard prevents that failure mode.
 
 ### Storage
 
 ```
-~/Library/Application Support/MacParakeet/dictations/{uuid}.m4a
+~/Library/Application Support/MacParakeet/dictations/{uuid}.wav
 ```
 
-- Each dictation gets a UUID-named M4A file
-- Temporary WAV files are cleaned up after successful M4A conversion
+- Each dictation gets a UUID-named WAV file
 - Storage preferences (keep audio, auto-delete after N days) are user-configurable
 
 ### Recording Lifecycle
@@ -43,8 +42,8 @@ User triggers dictation
     → Flush ring buffer to temp WAV
     → Validate sample count >= 81
     → Send WAV to STT daemon
-    → Convert WAV to M4A for storage
-    → Clean up temp WAV
+    → Move WAV to dictations/ for storage (if enabled)
+    → Clean up temp WAV (if storage disabled)
 ```
 
 ---
@@ -111,5 +110,5 @@ User selects file
 | Mic capture | Platform native | Varies | Mono | Float32 |
 | After conversion | WAV | 16kHz | Mono | Float32 |
 | STT input | WAV | 16kHz | Mono | Float32 |
-| Long-term storage | M4A (AAC) | 44.1kHz | Mono | 16-bit |
+| Long-term storage | WAV | 16kHz | Mono | Float32 |
 | File import (temp) | WAV | 16kHz | Mono | Float32 |

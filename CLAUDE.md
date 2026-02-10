@@ -415,7 +415,8 @@ Step-by-step guides for frequent development tasks.
 2. Implement service conforming to protocol
 3. Add tests in `Tests/MacParakeetTests/`
 4. Look at existing services for patterns:
-   - Domain services: `Sources/MacParakeetCore/Services/` (TranscriptionService, DictationService, ExportService, ClipboardService)
+   - Domain services: `Sources/MacParakeetCore/Services/` (TranscriptionService, DictationService, ExportService, ClipboardService, PermissionService)
+   - Licensing: `Sources/MacParakeetCore/Licensing/` (EntitlementsService, LemonSqueezyLicenseAPI, KeychainKeyValueStore)
 
 ### Fix a bug
 
@@ -583,8 +584,9 @@ These patterns are proven from OatFlow development in Oatmeal. Apply them here.
 | NSStatusItem for menu bar | Menu bar via `NSStatusBar.system.statusItem()`, not SwiftUI `MenuBarExtra` |
 | NSWindow + NSHostingView | Main window created programmatically, SwiftUI content hosted via `NSHostingView` |
 | Core library has no UI deps | `MacParakeetCore` imports Foundation + GRDB + MLX, never SwiftUI |
+| ViewModels in separate target | `MacParakeetViewModels/` — testable without GUI, depends only on Core |
 | Views organized by feature | `Views/Dictation/`, `Views/Transcription/`, not flat |
-| Observable ViewModels | SwiftUI views observe `@Observable` or `@ObservableObject` classes |
+| Observable ViewModels | `@MainActor @Observable` on all ViewModels |
 | Async/await for all I/O | No completion handlers, no Combine for new code |
 
 ---

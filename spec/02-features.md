@@ -523,7 +523,7 @@ CREATE TABLE dictations (
     cleanTranscript TEXT,             -- populated in v0.2 (clean pipeline)
 
     -- Audio
-    audioPath TEXT,                   -- optional override; default: dictations/{id}.m4a
+    audioPath TEXT,                   -- optional override; default: dictations/{id}.wav
 
     -- Metadata
     pastedToApp TEXT,                 -- "Slack", "Chrome", etc. (if detectable)
@@ -546,10 +546,10 @@ CREATE INDEX idx_dictations_created_at ON dictations(createdAt DESC);
 
 ```
 ~/Library/Application Support/MacParakeet/dictations/
-└── {uuid}.m4a          # Audio file (metadata in database)
+└── {uuid}.wav          # Audio file (metadata in database)
 ```
 
-Audio path is computed from ID by default. Files stored as M4A (AAC). User can disable storage in settings (audio discarded after transcription).
+Audio path is computed from ID by default. Files stored as WAV (16kHz mono). User can disable storage in settings (audio discarded after transcription).
 
 **Acceptance criteria:**
 - [x] Dictation history shows all past dictations grouped by date

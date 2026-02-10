@@ -990,7 +990,7 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 ~/Library/Application Support/MacParakeet/
     ├── macparakeet.db              # SQLite database (all app data)
     ├── dictations/                 # Saved dictation audio files
-    │   ├── {uuid}.m4a              # Flat storage, no date subdirectories
+    │   ├── {uuid}.wav              # Flat storage, no date subdirectories
     │   └── ...
     ├── python/                     # Parakeet STT daemon
     │   └── .venv/                  # Isolated Python env (created by uv)
