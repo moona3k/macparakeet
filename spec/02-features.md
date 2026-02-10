@@ -693,15 +693,18 @@ Each custom word is a `(word, replacement)` pair with an enabled/disabled toggle
 
 **Step 3: Snippet expansion**
 
-Trigger phrases that expand into longer text:
+Natural language trigger phrases that expand into longer text. Triggers are spoken phrases (not abbreviations) because Parakeet STT outputs natural speech — users say "my address" not "addr".
 
 ```
-"sig" → "Best regards,\nDavid"
-"addr" → "123 Main Street, San Francisco, CA 94102"
-"standup" → "What I did yesterday:\n\nWhat I'm doing today:\n\nBlockers:"
+"my signature" → "Best regards,\nDavid"
+"my address" → "123 Main Street, San Francisco, CA 94102"
+"standup template" → "What I did yesterday:\n\nWhat I'm doing today:\n\nBlockers:"
+"my LinkedIn" → "https://www.linkedin.com/in/john-doe/"
+"my calendly" → "https://calendly.com/you/30min"
+"intro email" → "Hey, would love to find some time to chat later..."
 ```
 
-Each snippet has a trigger string, expansion text, and use count for tracking.
+Each snippet has a trigger phrase, expansion text, and use count for tracking.
 
 **Step 4: Whitespace cleanup**
 
@@ -830,14 +833,18 @@ Modes stack: Formal/Email/Code always run the clean pipeline first, then apply L
 │ Text Snippets                                        [+ Add]    │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
-│  "sig"      →  "Best regards, David"        (used 23x) [X]     │
-│  "addr"     →  "123 Main St, SF 94102"      (used 5x)  [X]     │
-│  "standup"  →  "What I did yesterday:..."   (used 41x) [X]     │
+│  "my signature"  →  "Best regards, David"   (used 23x) [X]     │
+│  "my address"    →  "123 Main St, SF 94102" (used 5x)  [X]     │
+│  "my LinkedIn"   →  "linkedin.com/in/john"  (used 41x) [X]     │
+│  "intro email"   →  "Hey, would love to..." (used 12x) [X]     │
 │                                                                  │
 │  ──────────────────────────────────────────────────────────────  │
 │  Add Snippet:                                                    │
-│  Trigger: [________]  Expansion: [________________________]      │
+│  Say: [________________]  Expands to: [__________________]      │
 │  [Add]                                                           │
+│                                                                  │
+│  Tip: Use natural phrases you'd actually say, like              │
+│  "my email" or "intro email" — not abbreviations.               │
 │                                                                  │
 └─────────────────────────────────────────────────────────────────┘
 ```

@@ -156,12 +156,12 @@ CREATE UNIQUE INDEX idx_custom_words_word ON custom_words(word COLLATE NOCASE);
 
 ### `text_snippets` (v0.2)
 
-Trigger-based text expansion. Type a short trigger, get a full expansion. Applied during clean text processing.
+Natural language trigger phrase expansion. Say a trigger phrase during dictation, get a full expansion. Applied during clean text processing. Triggers are natural phrases (not abbreviations) because STT outputs natural speech.
 
 ```sql
 CREATE TABLE text_snippets (
     id TEXT PRIMARY KEY,                              -- UUID string
-    trigger TEXT NOT NULL,                             -- Short trigger text (e.g., "addr1")
+    trigger TEXT NOT NULL,                             -- Natural language trigger phrase (e.g., "my address")
     expansion TEXT NOT NULL,                           -- Full expansion text
     isEnabled INTEGER NOT NULL DEFAULT 1,              -- Toggle without deleting
     useCount INTEGER NOT NULL DEFAULT 0,               -- Track usage for sorting/display

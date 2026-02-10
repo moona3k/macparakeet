@@ -11,7 +11,7 @@ Raw STT output -- even from a high-quality model like Parakeet TDT 0.6B-v3 -- be
 - Minor casing errors (proper nouns, sentence starts after pauses)
 - Abbreviation handling ("API" vs "a p i", "SQL" vs "sequel")
 - Domain-specific vocabulary (product names, technical terms)
-- Text expansion needs (custom snippets like "addr" to full address)
+- Text expansion needs (custom snippets like "my address" to full address)
 
 Two approaches exist for this cleanup:
 
@@ -28,7 +28,7 @@ Use a **deterministic 4-step pipeline** for the default "clean" processing mode.
 |------|-------------|---------|
 | 1. Filler removal | Strip filler words and phrases | "um so like the API" -> "the API" |
 | 2. Custom word replacement | User-defined vocabulary anchors and corrections | "kube" -> "Kubernetes", "mac parakeet" -> "MacParakeet" |
-| 3. Snippet expansion | Trigger-based text expansion | "addr" -> "123 Main St, Springfield, IL 62704" |
+| 3. Snippet expansion | Trigger phrase text expansion | "my address" -> "123 Main St, Springfield, IL 62704" |
 | 4. Whitespace cleanup | Collapse spaces, fix punctuation spacing, capitalize | "hello   world ." -> "Hello world." |
 
 ### Processing Modes
@@ -77,7 +77,7 @@ The deterministic pipeline runs in under 5ms. LLM-based refinement adds 2-5 seco
 The deterministic pipeline includes two user-configurable features:
 
 - **Custom words**: Users define vocabulary anchors (ensure "PostgreSQL" not "post gress q l") and corrections (always replace "kube" with "Kubernetes"). These are predictable and immediate.
-- **Text snippets**: Users define trigger-expansion pairs ("addr" expands to their full address). These are instant and deterministic.
+- **Text snippets**: Users define natural language trigger phrases ("my address" expands to their full address, "my signature" expands to their email sign-off). Triggers are spoken phrases — not abbreviations — because STT outputs natural speech. These are instant and deterministic.
 
 An LLM-based approach would require prompt engineering to respect user-defined words and snippets, with no guarantee of compliance.
 

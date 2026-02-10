@@ -46,11 +46,13 @@ Two categories:
 
 ### Step 3: Snippet Expansion
 
-Trigger strings are replaced with their full expansion text.
+Trigger phrases are replaced with their full expansion text.
 
+- **Triggers are natural language phrases**, not abbreviations — because Parakeet STT outputs natural speech, users will say "my signature" not "sig". Triggers must match what the STT actually produces.
 - Snippets are **sorted by trigger length descending** (longest first) to prevent partial matches when one trigger is a prefix of another
+- Matching is **case-insensitive** with **whole-phrase boundaries**
 - Expanded snippet IDs are tracked so use counts can be updated after processing
-- Example: `"sig"` → `"Best regards, David"`
+- Example: `"my signature"` → `"Best regards, David"`
 
 ### Step 4: Whitespace Cleanup
 
@@ -182,7 +184,7 @@ Stores trigger-to-expansion mappings.
 | Column | Type | Description |
 |--------|------|-------------|
 | id | UUID | Primary key |
-| trigger | TEXT | The short trigger string |
+| trigger | TEXT | Natural language trigger phrase (e.g., "my address") |
 | expansion | TEXT | The full expansion text |
 | useCount | INTEGER | Number of times expanded |
 | isEnabled | BOOLEAN | Whether this snippet is active |
@@ -230,8 +232,8 @@ macparakeet flow words delete <id>
 # List all snippets
 macparakeet flow snippets list
 
-# Add a snippet
-macparakeet flow snippets add "sig" "Best regards, David"
+# Add a snippet (trigger is a natural phrase, not an abbreviation)
+macparakeet flow snippets add "my signature" "Best regards, David"
 
 # Delete a snippet
 macparakeet flow snippets delete <id>

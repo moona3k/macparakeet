@@ -82,7 +82,7 @@ struct MockTranscriptionService: TranscriptionService {
 - `transcribe <file>` returns valid JSON with transcript and timestamps
 - `flow process "text"` applies clean pipeline correctly
 - `flow words list` returns valid JSON array of custom words
-- `flow snippets add "trigger" "expansion"` creates a snippet
+- `flow snippets add "my signature" "Best regards, David"` creates a snippet
 
 ## What We Skip
 
