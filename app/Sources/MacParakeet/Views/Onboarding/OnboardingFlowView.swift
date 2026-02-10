@@ -28,6 +28,11 @@ struct OnboardingFlowView: View {
             )
         )
         .onAppear { viewModel.refresh() }
+        // When the user grants permissions in System Settings, they return to the app.
+        // Refresh so badges and "Continue" enablement update immediately.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            viewModel.refresh()
+        }
     }
 
     private var sidebar: some View {
