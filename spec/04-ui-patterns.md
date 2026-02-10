@@ -4,10 +4,11 @@
 
 ## Overview
 
-MacParakeet has three UI surfaces:
+MacParakeet has four UI surfaces:
 1. **Main Window** -- Sidebar + content area for history and transcriptions
-2. **Dictation Overlay** -- Compact pill for recording state
-3. **Menu Bar** -- Quick access and status
+2. **Idle Pill** -- Persistent floating indicator, always visible when not dictating
+3. **Dictation Overlay** -- Compact pill for recording state
+4. **Menu Bar** -- Quick access and status
 
 Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutter. The app should feel like part of macOS, not a web app in a wrapper.
 
@@ -153,6 +154,74 @@ Clicking a dictation row expands or navigates to a detail view.
 │                                                           │
 └───────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## Idle Pill (v0.1)
+
+Persistent floating pill at the bottom-center of the screen, always visible when the app is running and not actively dictating. Provides a visual anchor so users always know MacParakeet is ready.
+
+### Dimensions
+
+- **Collapsed:** 64×30pt dark capsule
+- **Expanded (hover):** 148×30pt dark capsule with dots
+- **Position:** Bottom-center, 12pt above dock (same location as dictation overlay)
+- **Panel:** NSPanel, `.nonactivatingPanel`, `.borderless`, `.floating` level
+
+### States
+
+**1. Collapsed (Idle)**
+
+```
+┌────────────────────────────┐
+│    ╭────────────────╮      │
+│    │                │      │
+│    │    ═══         │      │  ← teal accent line (24px)
+│    ╰────────────────╯      │
+└────────────────────────────┘
+
+- 64×30pt dark capsule (black 85% opacity)
+- Subtle inner capsule stroke (white 10%)
+- Teal accent line at bottom (24px wide, 2.5px tall)
+```
+
+**2. Expanded (Hover)**
+
+```
+        Click or hold fn to start dictating
+                     ↑ tooltip
+┌──────────────────────────────────────────┐
+│    ╭──────────────────────────────╮      │
+│    │  · · · · · · · · · · · ·    │      │  ← 12 small dots
+│    │         ══════════           │      │  ← teal accent line (60px)
+│    ╰──────────────────────────────╯      │
+└──────────────────────────────────────────┘
+
+- 148×30pt expanded capsule
+- 12 small dots (3pt, white 25%) inside pill
+- Teal accent line widens to 60px
+- Tooltip bubble above: "Click or hold fn to start dictating"
+  - "fn" in pink/magenta (0.85, 0.35, 0.65)
+  - Dark capsule background with white 10% stroke
+```
+
+### Behavior
+
+- **Show:** On app launch and after every dictation exit (stop, cancel, error, dismiss)
+- **Hide:** When dictation starts
+- **Click:** Starts persistent dictation (same as double-tap Fn)
+- **Hover:** Expands pill, shows tooltip
+- **Mouse exit:** Collapses pill, hides tooltip
+- **Focus:** Never steals focus (non-activating panel)
+- **Spaces:** Visible on all spaces and fullscreen apps
+
+### Animation
+
+| Animation | Duration | Curve | Usage |
+|-----------|----------|-------|-------|
+| Pill expand/collapse | 0.35s | `.spring(dampingFraction: 0.8)` | Hover state change |
+| Tooltip appear | 0.2s | `.easeOut` + scale 0.9→1.0 | Show on hover |
+| Accent line width | 0.35s | `.spring(dampingFraction: 0.8)` | Expands with pill |
 
 ---
 

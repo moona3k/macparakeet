@@ -19,6 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var hotkeyManager: HotkeyManager?
     private var overlayController: DictationOverlayController?
     private var overlayViewModel: DictationOverlayViewModel?
+    private var idlePillController: IdlePillController?
+    private var idlePillViewModel: IdlePillViewModel?
 
     // MARK: - ViewModels
 
@@ -36,9 +38,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupEnvironment()
         setupHotkey()
         observeOpenOnboarding()
+        showIdlePill()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        hideIdlePill()
         hotkeyManager?.stop()
         if let onboardingObserver { NotificationCenter.default.removeObserver(onboardingObserver) }
         Task {
@@ -58,7 +62,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         guard let button = statusItem?.button else { return }
 
-        if let image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "MacParakeet") {
+        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .bold)
+        if let image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "MacParakeet")?
+            .withSymbolConfiguration(config) {
             image.isTemplate = true
             button.image = image
         } else {
@@ -197,17 +203,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         )
     }
 
+    // MARK: - Idle Pill
+
+    private func showIdlePill() {
+        guard idlePillController == nil else { return }
+        let vm = IdlePillViewModel()
+        vm.onStartDictation = { [weak self] in
+            self?.startDictation(mode: .persistent)
+        }
+        idlePillViewModel = vm
+
+        let controller = IdlePillController(viewModel: vm)
+        controller.show()
+        idlePillController = controller
+    }
+
+    private func hideIdlePill() {
+        idlePillController?.hide()
+        idlePillController = nil
+        idlePillViewModel = nil
+    }
+
     // MARK: - Dictation Flow
 
     private func startDictation(mode: FnKeyStateMachine.RecordingMode) {
         guard let env = appEnvironment else { return }
+
+        hideIdlePill()
 
         Task {
             do {
                 // Avoid showing the overlay if the user isn't entitled (trial expired).
                 try await env.entitlementsService.assertCanTranscribe(now: Date())
             } catch {
-                await MainActor.run { self.presentEntitlementsAlert(error) }
+                await MainActor.run {
+                    self.showIdlePill()
+                    self.presentEntitlementsAlert(error)
+                }
                 return
             }
 
@@ -291,6 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             await MainActor.run {
                 self.overlayController?.hide()
                 self.overlayController = nil
+                self.showIdlePill()
             }
         }
     }
@@ -327,6 +360,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self.hotkeyManager?.resetToIdle()
                 self.overlayController?.hide()
                 self.overlayController = nil
+                self.showIdlePill()
             }
         }
     }
@@ -349,6 +383,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         overlayController?.hide()
         overlayController = nil
         overlayViewModel = nil
+        showIdlePill()
     }
 
     // MARK: - Window Management

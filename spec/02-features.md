@@ -17,6 +17,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 │  "Dictation + Transcription — fast, private, done"              │
 ├─────────────────────────────────────────────────────────────────┤
 │  • System-wide dictation (Fn key: double-tap + hold-to-talk)    │
+│  • Persistent idle pill (always-visible click-to-dictate pill)  │
 │  • File transcription (drag-and-drop audio/video)               │
 │  • Menu bar app with main window                                │
 │  • Dictation history (date-grouped, searchable, audio playback) │

@@ -101,6 +101,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] System-wide dictation: Fn double-tap (persistent) + hold-to-talk
 - [x] File transcription: Drag-drop audio/video files
 - [x] Compact dark pill overlay with recording timer + waveform
+- [x] Persistent idle pill (always-visible, click-to-dictate)
 - [x] Auto-paste with clipboard save/restore
 - [x] Settings (hotkey display, silence auto-stop, storage, permissions)
 - [x] Dictation history (date-grouped, searchable, detail view with split pane, audio playback)
@@ -203,7 +204,7 @@ Both modes share the same Parakeet STT backend but have different UI flows and d
 
 ### GUI Structure
 
-MacParakeet is a **menu bar app** with three UI surfaces:
+MacParakeet is a **menu bar app** with four UI surfaces:
 
 ```
 Menu Bar Icon (always visible)
@@ -213,6 +214,11 @@ Menu Bar Icon (always visible)
     |   +-- Transcript display
     |   +-- Export controls
     |   +-- Recent transcriptions list
+    |
+    +-- Idle Pill (persistent floating indicator)
+    |   +-- Always visible when not dictating
+    |   +-- Click or hover to start dictating
+    |   +-- Hides during active dictation
     |
     +-- Dictation Overlay (compact dark pill)
     |   +-- Recording state indicator
