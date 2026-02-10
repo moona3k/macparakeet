@@ -14,6 +14,8 @@ final class AppEnvironment {
     let clipboardService: ClipboardService
     let exportService: ExportService
     let permissionService: PermissionService
+    let entitlementsService: EntitlementsService
+    let checkoutURL: URL?
 
     init() throws {
         // Database
@@ -35,17 +37,34 @@ final class AppEnvironment {
         exportService = ExportService()
         permissionService = PermissionService()
 
+        // Licensing / entitlements (basic guards: 7-day trial + license unlock).
+        // TODO: Set these before release:
+        // - checkoutURL: your Lemon Squeezy checkout link
+        // - expectedVariantID: the Lemon Squeezy Variant ID for MacParakeet
+        checkoutURL = URL(string: ProcessInfo.processInfo.environment["MACPARAKEET_CHECKOUT_URL"] ?? "")
+        let expectedVariantID = Int(ProcessInfo.processInfo.environment["MACPARAKEET_LS_VARIANT_ID"] ?? "")
+        let licensingConfig = LicensingConfig(checkoutURL: checkoutURL, expectedVariantID: expectedVariantID)
+        let serviceName = Bundle.main.bundleIdentifier ?? "com.macparakeet"
+        let keychain = KeychainKeyValueStore(service: serviceName)
+        entitlementsService = EntitlementsService(
+            config: licensingConfig,
+            store: keychain,
+            api: LemonSqueezyLicenseAPI()
+        )
+
         dictationService = DictationService(
             audioProcessor: audioProcessor,
             sttClient: sttClient,
             dictationRepo: dictationRepo,
-            clipboardService: clipboardService
+            clipboardService: clipboardService,
+            entitlements: entitlementsService
         )
 
         transcriptionService = TranscriptionService(
             audioProcessor: audioProcessor,
             sttClient: sttClient,
-            transcriptionRepo: transcriptionRepo
+            transcriptionRepo: transcriptionRepo,
+            entitlements: entitlementsService
         )
     }
 }

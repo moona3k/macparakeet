@@ -7,6 +7,57 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
+            Section("Plan") {
+                HStack {
+                    Text(viewModel.entitlementsSummary)
+                        .font(.headline)
+                    Spacer()
+                    if viewModel.isUnlocked {
+                        Label("Unlocked", systemImage: "checkmark.seal.fill")
+                            .foregroundStyle(.green)
+                            .font(.caption)
+                    } else {
+                        Label("Not Unlocked", systemImage: "lock.fill")
+                            .foregroundStyle(.secondary)
+                            .font(.caption)
+                    }
+                }
+
+                if !viewModel.entitlementsDetail.isEmpty {
+                    Text(viewModel.entitlementsDetail)
+                        .foregroundStyle(.secondary)
+                        .font(.caption)
+                }
+
+                if let err = viewModel.licensingError, !err.isEmpty {
+                    Text(err)
+                        .foregroundStyle(.red)
+                        .font(.caption)
+                }
+
+                if !viewModel.isUnlocked {
+                    HStack {
+                        TextField("License key", text: $viewModel.licenseKeyInput)
+                            .textFieldStyle(.roundedBorder)
+                        Button(viewModel.licensingBusy ? "Activating..." : "Activate") {
+                            viewModel.activateLicense()
+                        }
+                        .disabled(viewModel.licensingBusy || viewModel.licenseKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+
+                    if let url = viewModel.checkoutURL {
+                        Button("Buy License...") {
+                            NSWorkspace.shared.open(url)
+                        }
+                    }
+                } else {
+                    Button("Deactivate on This Mac...") {
+                        viewModel.deactivateLicense()
+                    }
+                    .disabled(viewModel.licensingBusy)
+                }
+            }
+
             // General
             Section("General") {
                 Toggle("Launch at login", isOn: $viewModel.launchAtLogin)
@@ -75,6 +126,7 @@ struct SettingsView: View {
         .onAppear {
             viewModel.refreshPermissions()
             viewModel.refreshStats()
+            viewModel.refreshEntitlements()
         }
     }
 

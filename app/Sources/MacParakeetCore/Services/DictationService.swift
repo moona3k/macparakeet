@@ -22,6 +22,7 @@ public actor DictationService: DictationServiceProtocol {
     private let sttClient: STTClientProtocol
     private let dictationRepo: DictationRepositoryProtocol
     private let clipboardService: ClipboardServiceProtocol
+    private let entitlements: EntitlementsChecking?
 
     private var _state: DictationState = .idle
     private var cancelResetTask: Task<Void, Never>?
@@ -39,15 +40,21 @@ public actor DictationService: DictationServiceProtocol {
         audioProcessor: AudioProcessorProtocol,
         sttClient: STTClientProtocol,
         dictationRepo: DictationRepositoryProtocol,
-        clipboardService: ClipboardServiceProtocol
+        clipboardService: ClipboardServiceProtocol,
+        entitlements: EntitlementsChecking? = nil
     ) {
         self.audioProcessor = audioProcessor
         self.sttClient = sttClient
         self.dictationRepo = dictationRepo
         self.clipboardService = clipboardService
+        self.entitlements = entitlements
     }
 
     public func startRecording() async throws {
+        if let entitlements {
+            try await entitlements.assertCanTranscribe(now: Date())
+        }
+
         // Allow starting a new recording from idle or during the cancel window (Undo flow).
         switch _state {
         case .idle, .cancelled:

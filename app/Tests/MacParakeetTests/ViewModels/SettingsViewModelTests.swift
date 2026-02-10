@@ -8,6 +8,7 @@ final class SettingsViewModelTests: XCTestCase {
     var mockRepo: MockDictationRepository!
     var mockPermissions: MockPermissionService!
     var testDefaults: UserDefaults!
+    var entitlements: EntitlementsService!
 
     override func setUp() {
         mockRepo = MockDictationRepository()
@@ -18,6 +19,12 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults = UserDefaults(suiteName: suiteName)!
 
         viewModel = SettingsViewModel(defaults: testDefaults)
+
+        entitlements = EntitlementsService(
+            config: LicensingConfig(checkoutURL: nil, expectedVariantID: nil),
+            store: InMemoryKeyValueStore(),
+            api: StubLicenseAPI()
+        )
     }
 
     override func tearDown() {
@@ -90,7 +97,12 @@ final class SettingsViewModelTests: XCTestCase {
         mockPermissions.microphonePermission = .granted
         mockPermissions.accessibilityPermission = true
 
-        viewModel.configure(permissionService: mockPermissions, dictationRepo: mockRepo)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
 
         // refreshPermissions uses Task internally, wait for it
         try await Task.sleep(for: .milliseconds(100))
@@ -103,7 +115,12 @@ final class SettingsViewModelTests: XCTestCase {
         mockPermissions.microphonePermission = .denied
         mockPermissions.accessibilityPermission = false
 
-        viewModel.configure(permissionService: mockPermissions, dictationRepo: mockRepo)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
 
         // refreshPermissions uses Task internally, wait for it
         try await Task.sleep(for: .milliseconds(100))
@@ -115,7 +132,12 @@ final class SettingsViewModelTests: XCTestCase {
     func testMicrophoneNotDeterminedIsNotGranted() async throws {
         mockPermissions.microphonePermission = .notDetermined
 
-        viewModel.configure(permissionService: mockPermissions, dictationRepo: mockRepo)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
 
         try await Task.sleep(for: .milliseconds(100))
 
@@ -131,13 +153,23 @@ final class SettingsViewModelTests: XCTestCase {
             Dictation(durationMs: 3000, rawTranscript: "Three"),
         ]
 
-        viewModel.configure(permissionService: mockPermissions, dictationRepo: mockRepo)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
 
         XCTAssertEqual(viewModel.dictationCount, 3)
     }
 
     func testRefreshStatsEmptyRepo() {
-        viewModel.configure(permissionService: mockPermissions, dictationRepo: mockRepo)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
 
         XCTAssertEqual(viewModel.dictationCount, 0)
     }
@@ -150,7 +182,12 @@ final class SettingsViewModelTests: XCTestCase {
             Dictation(durationMs: 2000, rawTranscript: "Two"),
         ]
 
-        viewModel.configure(permissionService: mockPermissions, dictationRepo: mockRepo)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
         XCTAssertEqual(viewModel.dictationCount, 2)
 
         viewModel.clearAllDictations()
@@ -164,7 +201,12 @@ final class SettingsViewModelTests: XCTestCase {
             Dictation(durationMs: 1000, rawTranscript: "Test"),
         ]
 
-        viewModel.configure(permissionService: mockPermissions, dictationRepo: mockRepo)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
         XCTAssertEqual(viewModel.dictationCount, 1)
 
         viewModel.clearAllDictations()

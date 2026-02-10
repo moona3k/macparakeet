@@ -8,18 +8,25 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     private let audioProcessor: AudioProcessorProtocol
     private let sttClient: STTClientProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
+    private let entitlements: EntitlementsChecking?
 
     public init(
         audioProcessor: AudioProcessorProtocol,
         sttClient: STTClientProtocol,
-        transcriptionRepo: TranscriptionRepositoryProtocol
+        transcriptionRepo: TranscriptionRepositoryProtocol,
+        entitlements: EntitlementsChecking? = nil
     ) {
         self.audioProcessor = audioProcessor
         self.sttClient = sttClient
         self.transcriptionRepo = transcriptionRepo
+        self.entitlements = entitlements
     }
 
     public func transcribe(fileURL: URL) async throws -> Transcription {
+        if let entitlements {
+            try await entitlements.assertCanTranscribe(now: Date())
+        }
+
         let fileName = fileURL.lastPathComponent
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int).flatMap { $0 }
 

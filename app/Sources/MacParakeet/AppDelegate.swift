@@ -25,6 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let transcriptionViewModel = TranscriptionViewModel()
     private let historyViewModel = DictationHistoryViewModel()
     private let settingsViewModel = SettingsViewModel()
+    private let mainWindowState = MainWindowState()
 
     // MARK: - App Lifecycle
 
@@ -102,6 +103,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let env = try AppEnvironment()
             appEnvironment = env
 
+            Task {
+                await env.entitlementsService.bootstrapTrialIfNeeded()
+                await env.entitlementsService.refreshValidationIfNeeded()
+            }
+
             // Configure view models
             transcriptionViewModel.configure(
                 transcriptionService: env.transcriptionService,
@@ -110,7 +116,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             historyViewModel.configure(dictationRepo: env.dictationRepo)
             settingsViewModel.configure(
                 permissionService: env.permissionService,
-                dictationRepo: env.dictationRepo
+                dictationRepo: env.dictationRepo,
+                entitlementsService: env.entitlementsService,
+                checkoutURL: env.checkoutURL
             )
         } catch {
             print("Failed to initialize app: \(error)")
@@ -144,20 +152,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func startDictation(mode: FnKeyStateMachine.RecordingMode) {
         guard let env = appEnvironment else { return }
 
-        let vm = DictationOverlayViewModel()
-        vm.onCancel = { [weak self] in self?.cancelDictation() }
-        vm.onStop = { [weak self] in self?.stopDictation() }
-        vm.onUndo = { [weak self] in self?.undoCancelDictation() }
-        vm.onDismiss = { [weak self] in self?.dismissOverlay() }
-        vm.state = .recording
-        vm.startTimer()
-        overlayViewModel = vm
-
-        let controller = DictationOverlayController(viewModel: vm)
-        controller.show()
-        overlayController = controller
-
         Task {
+            do {
+                // Avoid showing the overlay if the user isn't entitled (trial expired).
+                try await env.entitlementsService.assertCanTranscribe(now: Date())
+            } catch {
+                await MainActor.run { self.presentEntitlementsAlert(error) }
+                return
+            }
+
+            let vm = DictationOverlayViewModel()
+            vm.onCancel = { [weak self] in self?.cancelDictation() }
+            vm.onStop = { [weak self] in self?.stopDictation() }
+            vm.onUndo = { [weak self] in self?.undoCancelDictation() }
+            vm.onDismiss = { [weak self] in self?.dismissOverlay() }
+            vm.state = .recording
+            vm.startTimer()
+            overlayViewModel = vm
+
+            let controller = DictationOverlayController(viewModel: vm)
+            controller.show()
+            overlayController = controller
+
             do {
                 try await env.dictationService.startRecording()
 
@@ -191,7 +207,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             do {
                 let _ = try await env.dictationService.stopRecording()
                 await MainActor.run { vm.state = .success }
-                try? await Task.sleep(for: .milliseconds(500))
+                try? await Task.sleep(for: .seconds(1))
             } catch {
                 await MainActor.run {
                     vm.state = .error(error.localizedDescription)
@@ -269,8 +285,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     @objc private func openMainWindowToSettings() {
+        mainWindowState.selectedItem = .settings
         openMainWindow()
-        // TODO: Switch sidebar to settings tab
     }
 
     // NSWindowDelegate
@@ -285,6 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func createMainWindow() {
         let contentView = MainWindowView(
+            state: mainWindowState,
             transcriptionViewModel: transcriptionViewModel,
             historyViewModel: historyViewModel,
             settingsViewModel: settingsViewModel
@@ -316,5 +333,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func quitApp() {
         NSApp.terminate(nil)
+    }
+
+    // MARK: - Alerts
+
+    private func presentEntitlementsAlert(_ error: Error) {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Unlock Required"
+        alert.informativeText = error.localizedDescription
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Not Now")
+
+        let resp = alert.runModal()
+        if resp == .alertFirstButtonReturn {
+            openMainWindowToSettings()
+        }
     }
 }

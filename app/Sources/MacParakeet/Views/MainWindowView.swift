@@ -19,7 +19,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
 }
 
 struct MainWindowView: View {
-    @State private var selectedItem: SidebarItem = .transcribe
+    @Bindable var state: MainWindowState
 
     let transcriptionViewModel: TranscriptionViewModel
     let historyViewModel: DictationHistoryViewModel
@@ -27,14 +27,14 @@ struct MainWindowView: View {
 
     var body: some View {
         NavigationSplitView {
-            List(SidebarItem.allCases, selection: $selectedItem) { item in
+            List(SidebarItem.allCases, selection: $state.selectedItem) { item in
                 Label(item.rawValue, systemImage: item.icon)
                     .tag(item)
             }
             .listStyle(.sidebar)
             .frame(minWidth: DesignSystem.Layout.sidebarMinWidth)
         } detail: {
-            switch selectedItem {
+            switch state.selectedItem {
             case .transcribe:
                 TranscribeView(viewModel: transcriptionViewModel)
             case .dictations:
