@@ -119,18 +119,26 @@ struct DictationOverlayView: View {
 
     // MARK: - Recording State
 
+    private var isCancelHovered: Bool {
+        viewModel.hoverTooltip?.contains("Cancel") == true
+    }
+
+    private var isStopHovered: Bool {
+        viewModel.hoverTooltip?.contains("Stop") == true
+    }
+
     private var recordingContent: some View {
         HStack(spacing: 12) {
             // Cancel button
             Button(action: { viewModel.onCancel?() }) {
                 Image(systemName: "xmark")
                     .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.8))
+                    .foregroundStyle(.white.opacity(isCancelHovered ? 1.0 : 0.8))
                     .frame(width: 22, height: 22)
-                    .background(Circle().fill(Color.white.opacity(0.12)))
+                    .background(Circle().fill(Color.white.opacity(isCancelHovered ? 0.25 : 0.12)))
             }
             .buttonStyle(.plain)
-            // .help() doesn't work on non-activating NSPanel; tooltip shown via NSTrackingArea
+            .animation(.easeInOut(duration: 0.15), value: isCancelHovered)
 
             // Recording timer
             Text(viewModel.formattedElapsed)
@@ -148,10 +156,14 @@ struct DictationOverlayView: View {
                     .fill(Color.white)
                     .frame(width: 9, height: 9)
                     .padding(7)
-                    .background(Circle().fill(Color.red))
+                    .background(
+                        Circle().fill(isStopHovered ? Color.red.opacity(1.0) : Color.red.opacity(0.85))
+                            .shadow(color: isStopHovered ? .red.opacity(0.5) : .clear, radius: 6)
+                    )
             }
             .buttonStyle(.plain)
-            // Tooltip via NSTrackingArea hover
+            .scaleEffect(isStopHovered ? 1.1 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: isStopHovered)
         }
     }
 
