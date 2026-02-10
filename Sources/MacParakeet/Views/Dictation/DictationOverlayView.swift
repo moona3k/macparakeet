@@ -65,7 +65,7 @@ struct DictationOverlayView: View {
                 .opacity(viewModel.isHovered && viewModel.hoverTooltip != nil ? 1 : 0)
                 .animation(.easeInOut(duration: 0.15), value: viewModel.isHovered)
                 .animation(.easeInOut(duration: 0.1), value: viewModel.hoverTooltip)
-                .frame(height: 24)
+                .frame(height: 36)
 
             // Content with state-appropriate shape
             overlayContent
@@ -317,30 +317,30 @@ struct DictationOverlayView: View {
                    let parenEnd = tooltip.firstIndex(of: ")") {
                     let action = String(tooltip[tooltip.startIndex..<parenStart])
                     let key = String(tooltip[tooltip.index(after: parenStart)..<parenEnd])
-                    HStack(spacing: 3) {
+                    HStack(spacing: 4) {
                         Text(action.trimmingCharacters(in: .whitespaces))
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.85))
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.9))
                         Text(key)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color(nsColor: NSColor(red: 0.4, green: 0.7, blue: 1.0, alpha: 1.0)))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(Color(nsColor: NSColor(red: 0.85, green: 0.55, blue: 0.75, alpha: 1.0)))
                     }
                 } else {
                     Text(tooltip)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.85))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
             .background(
                 Capsule()
-                    .fill(Color.black.opacity(0.85))
+                    .fill(Color.black.opacity(0.9))
                     .overlay(
                         Capsule()
                             .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
                     )
-                    .shadow(color: .black.opacity(0.25), radius: 4, y: 2)
+                    .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
             )
         }
     }

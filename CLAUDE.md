@@ -492,7 +492,9 @@ MLX-Swift requires Metal shaders. **`swift build` cannot compile Metal shaders**
 
 ```bash
 # Build GUI app (uses local .build/xcode for derived data)
-xcodebuild build -scheme MacParakeet -destination 'platform=OS X' -derivedDataPath .build/xcode
+# Signing ensures Keychain remembers the app across rebuilds (no repeated password prompts)
+xcodebuild build -scheme MacParakeet -destination 'platform=OS X' -derivedDataPath .build/xcode \
+  CODE_SIGN_IDENTITY="Apple Development" DEVELOPMENT_TEAM=FYAF2ZD7RM
 
 # Run GUI app
 .build/xcode/Build/Products/Debug/MacParakeet
