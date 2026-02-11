@@ -17,6 +17,13 @@ public final class SettingsViewModel {
         didSet { defaults.set(silenceDelay, forKey: "silenceDelay") }
     }
 
+    // Processing
+    public var processingMode: String {
+        didSet { defaults.set(processingMode, forKey: "processingMode") }
+    }
+    public var customWordCount: Int = 0
+    public var snippetCount: Int = 0
+
     // Storage
     public var saveAudioRecordings: Bool {
         didSet { defaults.set(saveAudioRecordings, forKey: "saveAudioRecordings") }
@@ -41,6 +48,8 @@ public final class SettingsViewModel {
 
     private var permissionService: PermissionServiceProtocol?
     private var dictationRepo: DictationRepositoryProtocol?
+    private var customWordRepo: CustomWordRepositoryProtocol?
+    private var snippetRepo: TextSnippetRepositoryProtocol?
     private var entitlementsService: EntitlementsService?
     private let defaults: UserDefaults
 
@@ -50,6 +59,7 @@ public final class SettingsViewModel {
         silenceAutoStop = defaults.bool(forKey: "silenceAutoStop")
         let delay = defaults.double(forKey: "silenceDelay")
         silenceDelay = delay == 0 ? 2.0 : delay
+        processingMode = defaults.string(forKey: "processingMode") ?? "clean"
         saveAudioRecordings = defaults.object(forKey: "saveAudioRecordings") as? Bool ?? true
     }
 
@@ -57,12 +67,16 @@ public final class SettingsViewModel {
         permissionService: PermissionServiceProtocol,
         dictationRepo: DictationRepositoryProtocol,
         entitlementsService: EntitlementsService,
-        checkoutURL: URL?
+        checkoutURL: URL?,
+        customWordRepo: CustomWordRepositoryProtocol? = nil,
+        snippetRepo: TextSnippetRepositoryProtocol? = nil
     ) {
         self.permissionService = permissionService
         self.dictationRepo = dictationRepo
         self.entitlementsService = entitlementsService
         self.checkoutURL = checkoutURL
+        self.customWordRepo = customWordRepo
+        self.snippetRepo = snippetRepo
         refreshPermissions()
         refreshStats()
         refreshEntitlements()
@@ -84,6 +98,8 @@ public final class SettingsViewModel {
         if let stats = try? repo.stats() {
             dictationCount = stats.totalCount
         }
+        customWordCount = (try? customWordRepo?.fetchAll().count) ?? 0
+        snippetCount = (try? snippetRepo?.fetchAll().count) ?? 0
     }
 
     public func refreshEntitlements() {

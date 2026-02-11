@@ -24,6 +24,8 @@ struct MainWindowView: View {
     let transcriptionViewModel: TranscriptionViewModel
     let historyViewModel: DictationHistoryViewModel
     let settingsViewModel: SettingsViewModel
+    let customWordsViewModel: CustomWordsViewModel
+    let textSnippetsViewModel: TextSnippetsViewModel
 
     var body: some View {
         NavigationSplitView {
@@ -41,7 +43,11 @@ struct MainWindowView: View {
                 case .dictations:
                     DictationHistoryView(viewModel: historyViewModel)
                 case .settings:
-                    SettingsView(viewModel: settingsViewModel)
+                    SettingsView(
+                        viewModel: settingsViewModel,
+                        customWordsViewModel: customWordsViewModel,
+                        textSnippetsViewModel: textSnippetsViewModel
+                    )
                 }
             }
             .animation(DesignSystem.Animation.contentSwap, value: state.selectedItem)

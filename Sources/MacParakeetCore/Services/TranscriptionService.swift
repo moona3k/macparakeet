@@ -9,17 +9,26 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     private let sttClient: STTClientProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
     private let entitlements: EntitlementsChecking?
+    private let customWordRepo: CustomWordRepositoryProtocol?
+    private let snippetRepo: TextSnippetRepositoryProtocol?
+    private let processingMode: @Sendable () -> Dictation.ProcessingMode
 
     public init(
         audioProcessor: AudioProcessorProtocol,
         sttClient: STTClientProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
-        entitlements: EntitlementsChecking? = nil
+        entitlements: EntitlementsChecking? = nil,
+        customWordRepo: CustomWordRepositoryProtocol? = nil,
+        snippetRepo: TextSnippetRepositoryProtocol? = nil,
+        processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil
     ) {
         self.audioProcessor = audioProcessor
         self.sttClient = sttClient
         self.transcriptionRepo = transcriptionRepo
         self.entitlements = entitlements
+        self.customWordRepo = customWordRepo
+        self.snippetRepo = snippetRepo
+        self.processingMode = processingMode ?? { .raw }
     }
 
     public func transcribe(fileURL: URL) async throws -> Transcription {
@@ -63,6 +72,24 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             transcription.rawTranscript = result.text
             transcription.wordTimestamps = words
             transcription.durationMs = result.words.last?.endMs
+
+            // Run pipeline if not raw mode
+            let mode = processingMode()
+            if mode != .raw {
+                let customWords = (try? customWordRepo?.fetchEnabled()) ?? []
+                let snippets = (try? snippetRepo?.fetchEnabled()) ?? []
+                let pipeline = TextProcessingPipeline()
+                let pipelineResult = pipeline.process(
+                    text: result.text,
+                    customWords: customWords,
+                    snippets: snippets
+                )
+                transcription.cleanTranscript = pipelineResult.text
+                if !pipelineResult.expandedSnippetIDs.isEmpty {
+                    try? snippetRepo?.incrementUseCount(ids: pipelineResult.expandedSnippetIDs)
+                }
+            }
+
             transcription.status = .completed
             transcription.updatedAt = Date()
             try transcriptionRepo.save(transcription)

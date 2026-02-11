@@ -107,6 +107,40 @@ public final class DatabaseManager: Sendable {
             )
         }
 
+        // v0.2 — Custom words table
+        migrator.registerMigration("v0.2-custom-words") { db in
+            try db.create(table: "custom_words") { t in
+                t.column("id", .text).primaryKey()
+                t.column("word", .text).notNull()
+                t.column("replacement", .text)
+                t.column("source", .text).notNull().defaults(to: "manual")
+                t.column("isEnabled", .boolean).notNull().defaults(to: true)
+                t.column("createdAt", .text).notNull()
+                t.column("updatedAt", .text).notNull()
+            }
+            try db.execute(sql: """
+                CREATE UNIQUE INDEX idx_custom_words_word
+                ON custom_words(word COLLATE NOCASE)
+            """)
+        }
+
+        // v0.2 — Text snippets table
+        migrator.registerMigration("v0.2-text-snippets") { db in
+            try db.create(table: "text_snippets") { t in
+                t.column("id", .text).primaryKey()
+                t.column("trigger", .text).notNull()
+                t.column("expansion", .text).notNull()
+                t.column("isEnabled", .boolean).notNull().defaults(to: true)
+                t.column("useCount", .integer).notNull().defaults(to: 0)
+                t.column("createdAt", .text).notNull()
+                t.column("updatedAt", .text).notNull()
+            }
+            try db.execute(sql: """
+                CREATE UNIQUE INDEX idx_text_snippets_trigger
+                ON text_snippets("trigger" COLLATE NOCASE)
+            """)
+        }
+
         try migrator.migrate(dbQueue)
     }
 }

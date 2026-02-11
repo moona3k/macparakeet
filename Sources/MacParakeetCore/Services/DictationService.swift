@@ -24,6 +24,9 @@ public actor DictationService: DictationServiceProtocol {
     private let clipboardService: ClipboardServiceProtocol
     private let shouldSaveAudio: (@Sendable () -> Bool)?
     private let entitlements: EntitlementsChecking?
+    private let customWordRepo: CustomWordRepositoryProtocol?
+    private let snippetRepo: TextSnippetRepositoryProtocol?
+    private let processingMode: @Sendable () -> Dictation.ProcessingMode
 
     private var _state: DictationState = .idle
     private var cancelResetTask: Task<Void, Never>?
@@ -43,7 +46,10 @@ public actor DictationService: DictationServiceProtocol {
         dictationRepo: DictationRepositoryProtocol,
         clipboardService: ClipboardServiceProtocol,
         shouldSaveAudio: (@Sendable () -> Bool)? = nil,
-        entitlements: EntitlementsChecking? = nil
+        entitlements: EntitlementsChecking? = nil,
+        customWordRepo: CustomWordRepositoryProtocol? = nil,
+        snippetRepo: TextSnippetRepositoryProtocol? = nil,
+        processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil
     ) {
         self.audioProcessor = audioProcessor
         self.sttClient = sttClient
@@ -51,6 +57,9 @@ public actor DictationService: DictationServiceProtocol {
         self.clipboardService = clipboardService
         self.shouldSaveAudio = shouldSaveAudio
         self.entitlements = entitlements
+        self.customWordRepo = customWordRepo
+        self.snippetRepo = snippetRepo
+        self.processingMode = processingMode ?? { .raw }
     }
 
     public func startRecording() async throws {
@@ -91,11 +100,30 @@ public actor DictationService: DictationServiceProtocol {
             // Transcribe
             let result = try await sttClient.transcribe(audioPath: audioURL.path)
 
+            // Run pipeline if not raw mode
+            let mode = processingMode()
+            var cleanTranscript: String? = nil
+            var expandedSnippetIDs = Set<UUID>()
+
+            if mode != .raw {
+                let words = (try? customWordRepo?.fetchEnabled()) ?? []
+                let snippets = (try? snippetRepo?.fetchEnabled()) ?? []
+                let pipeline = TextProcessingPipeline()
+                let pipelineResult = pipeline.process(
+                    text: result.text,
+                    customWords: words,
+                    snippets: snippets
+                )
+                cleanTranscript = pipelineResult.text
+                expandedSnippetIDs = pipelineResult.expandedSnippetIDs
+            }
+
             // Create dictation record
             var dictation = Dictation(
                 durationMs: computeDurationMs(from: result),
                 rawTranscript: result.text,
-                processingMode: .raw,
+                cleanTranscript: cleanTranscript,
+                processingMode: mode,
                 status: .completed
             )
 
@@ -124,6 +152,11 @@ public actor DictationService: DictationServiceProtocol {
 
             // Save to database
             try dictationRepo.save(dictation)
+
+            // Update snippet use counts
+            if !expandedSnippetIDs.isEmpty {
+                try? snippetRepo?.incrementUseCount(ids: expandedSnippetIDs)
+            }
 
             _state = .success(dictation)
 

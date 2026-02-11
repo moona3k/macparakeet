@@ -7,6 +7,8 @@ final class AppEnvironment {
     let databaseManager: DatabaseManager
     let dictationRepo: DictationRepository
     let transcriptionRepo: TranscriptionRepository
+    let customWordRepo: CustomWordRepository
+    let snippetRepo: TextSnippetRepository
     let sttClient: STTClient
     let audioProcessor: AudioProcessor
     let dictationService: DictationService
@@ -28,9 +30,12 @@ final class AppEnvironment {
         // Repositories
         dictationRepo = DictationRepository(dbQueue: databaseManager.dbQueue)
         transcriptionRepo = TranscriptionRepository(dbQueue: databaseManager.dbQueue)
+        customWordRepo = CustomWordRepository(dbQueue: databaseManager.dbQueue)
+        snippetRepo = TextSnippetRepository(dbQueue: databaseManager.dbQueue)
 
-        // One-time cleanup: remove empty dictations (accidental hotkey presses)
+        // One-time cleanup on launch
         _ = try? dictationRepo.deleteEmpty()
+        try? dictationRepo.clearMissingAudioPaths()
 
         // Services
         sttClient = STTClient()
@@ -54,6 +59,11 @@ final class AppEnvironment {
             api: LemonSqueezyLicenseAPI()
         )
 
+        let processingModeClosure: @Sendable () -> Dictation.ProcessingMode = {
+            let raw = UserDefaults.standard.string(forKey: "processingMode")
+            return Dictation.ProcessingMode(rawValue: raw ?? "clean") ?? .clean
+        }
+
         dictationService = DictationService(
             audioProcessor: audioProcessor,
             sttClient: sttClient,
@@ -63,14 +73,20 @@ final class AppEnvironment {
                 // Defaults to true if unset (matches Settings UI default).
                 UserDefaults.standard.object(forKey: "saveAudioRecordings") as? Bool ?? true
             },
-            entitlements: entitlementsService
+            entitlements: entitlementsService,
+            customWordRepo: customWordRepo,
+            snippetRepo: snippetRepo,
+            processingMode: processingModeClosure
         )
 
         transcriptionService = TranscriptionService(
             audioProcessor: audioProcessor,
             sttClient: sttClient,
             transcriptionRepo: transcriptionRepo,
-            entitlements: entitlementsService
+            entitlements: entitlementsService,
+            customWordRepo: customWordRepo,
+            snippetRepo: snippetRepo,
+            processingMode: processingModeClosure
         )
     }
 }

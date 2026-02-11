@@ -50,6 +50,10 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
         dictations.removeAll()
     }
 
+    func clearMissingAudioPaths() throws {
+        // No-op in mock
+    }
+
     func deleteEmpty() throws -> Int {
         let before = dictations.count
         dictations.removeAll { $0.rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
@@ -139,6 +143,90 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
             rawTranscript: "Mock transcription",
             status: .completed
         )
+    }
+}
+
+// MARK: - MockCustomWordRepository
+
+final class MockCustomWordRepository: CustomWordRepositoryProtocol, @unchecked Sendable {
+    var words: [CustomWord] = []
+
+    func save(_ word: CustomWord) throws {
+        if let idx = words.firstIndex(where: { $0.id == word.id }) {
+            words[idx] = word
+        } else {
+            words.append(word)
+        }
+    }
+
+    func fetch(id: UUID) throws -> CustomWord? {
+        words.first(where: { $0.id == id })
+    }
+
+    func fetchAll() throws -> [CustomWord] {
+        words.sorted { $0.word.localizedCaseInsensitiveCompare($1.word) == .orderedAscending }
+    }
+
+    func fetchEnabled() throws -> [CustomWord] {
+        words.filter { $0.isEnabled }
+            .sorted { $0.word.localizedCaseInsensitiveCompare($1.word) == .orderedAscending }
+    }
+
+    func delete(id: UUID) throws -> Bool {
+        let before = words.count
+        words.removeAll { $0.id == id }
+        return words.count < before
+    }
+
+    func deleteAll() throws {
+        words.removeAll()
+    }
+}
+
+// MARK: - MockTextSnippetRepository
+
+final class MockTextSnippetRepository: TextSnippetRepositoryProtocol, @unchecked Sendable {
+    var snippets: [TextSnippet] = []
+    var incrementedIDs: [Set<UUID>] = []
+
+    func save(_ snippet: TextSnippet) throws {
+        if let idx = snippets.firstIndex(where: { $0.id == snippet.id }) {
+            snippets[idx] = snippet
+        } else {
+            snippets.append(snippet)
+        }
+    }
+
+    func fetch(id: UUID) throws -> TextSnippet? {
+        snippets.first(where: { $0.id == id })
+    }
+
+    func fetchAll() throws -> [TextSnippet] {
+        snippets.sorted { $0.trigger.localizedCaseInsensitiveCompare($1.trigger) == .orderedAscending }
+    }
+
+    func fetchEnabled() throws -> [TextSnippet] {
+        snippets.filter { $0.isEnabled }
+            .sorted { $0.trigger.localizedCaseInsensitiveCompare($1.trigger) == .orderedAscending }
+    }
+
+    func delete(id: UUID) throws -> Bool {
+        let before = snippets.count
+        snippets.removeAll { $0.id == id }
+        return snippets.count < before
+    }
+
+    func deleteAll() throws {
+        snippets.removeAll()
+    }
+
+    func incrementUseCount(ids: Set<UUID>) throws {
+        incrementedIDs.append(ids)
+        for id in ids {
+            if let idx = snippets.firstIndex(where: { $0.id == id }) {
+                snippets[idx].useCount += 1
+            }
+        }
     }
 }
 

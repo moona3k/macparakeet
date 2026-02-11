@@ -4,8 +4,12 @@ import MacParakeetViewModels
 
 struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
+    @Bindable var customWordsViewModel: CustomWordsViewModel
+    @Bindable var textSnippetsViewModel: TextSnippetsViewModel
 
     @State private var showClearAllAlert = false
+    @State private var showCustomWords = false
+    @State private var showTextSnippets = false
 
     var body: some View {
         Form {
@@ -58,6 +62,50 @@ struct SettingsView: View {
                     }
                     .disabled(viewModel.licensingBusy)
                 }
+            }
+
+            // Processing
+            Section("Processing") {
+                Picker("Mode", selection: $viewModel.processingMode) {
+                    Text("Raw (no processing)").tag("raw")
+                    Text("Clean (fillers removed)").tag("clean")
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+
+                HStack {
+                    Text("Custom Words")
+                    Spacer()
+                    Text("\(viewModel.customWordCount)")
+                        .foregroundStyle(.secondary)
+                    Button("Manage...") {
+                        customWordsViewModel.loadWords()
+                        showCustomWords = true
+                    }
+                }
+
+                HStack {
+                    Text("Text Snippets")
+                    Spacer()
+                    Text("\(viewModel.snippetCount)")
+                        .foregroundStyle(.secondary)
+                    Button("Manage...") {
+                        textSnippetsViewModel.loadSnippets()
+                        showTextSnippets = true
+                    }
+                }
+            }
+            .sheet(isPresented: $showCustomWords) {
+                viewModel.refreshStats()
+            } content: {
+                CustomWordsView(viewModel: customWordsViewModel)
+                    .frame(minWidth: 500, minHeight: 400)
+            }
+            .sheet(isPresented: $showTextSnippets) {
+                viewModel.refreshStats()
+            } content: {
+                TextSnippetsView(viewModel: textSnippetsViewModel)
+                    .frame(minWidth: 500, minHeight: 400)
             }
 
             // Dictation

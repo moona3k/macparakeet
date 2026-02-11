@@ -8,6 +8,7 @@ public protocol DictationRepositoryProtocol: Sendable {
     func search(query: String, limit: Int?) throws -> [Dictation]
     func delete(id: UUID) throws -> Bool
     func deleteAll() throws
+    func clearMissingAudioPaths() throws
     func deleteEmpty() throws -> Int
     func stats() throws -> DictationStats
 }
@@ -88,6 +89,21 @@ public final class DictationRepository: DictationRepositoryProtocol {
     public func deleteAll() throws {
         try dbQueue.write { db in
             _ = try Dictation.deleteAll(db)
+        }
+    }
+
+    public func clearMissingAudioPaths() throws {
+        try dbQueue.write { db in
+            let dictations = try Dictation
+                .filter(Dictation.Columns.audioPath != nil)
+                .fetchAll(db)
+
+            for var dictation in dictations {
+                guard let path = dictation.audioPath,
+                      !FileManager.default.fileExists(atPath: path) else { continue }
+                dictation.audioPath = nil
+                try dictation.update(db)
+            }
         }
     }
 

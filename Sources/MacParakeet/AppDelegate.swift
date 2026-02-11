@@ -27,6 +27,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let transcriptionViewModel = TranscriptionViewModel()
     private let historyViewModel = DictationHistoryViewModel()
     private let settingsViewModel = SettingsViewModel()
+    private let customWordsViewModel = CustomWordsViewModel()
+    private let textSnippetsViewModel = TextSnippetsViewModel()
     private let mainWindowState = MainWindowState()
     private let onboardingWindowController = OnboardingWindowController()
     private var onboardingObserver: Any?
@@ -157,8 +159,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 permissionService: env.permissionService,
                 dictationRepo: env.dictationRepo,
                 entitlementsService: env.entitlementsService,
-                checkoutURL: env.checkoutURL
+                checkoutURL: env.checkoutURL,
+                customWordRepo: env.customWordRepo,
+                snippetRepo: env.snippetRepo
             )
+            customWordsViewModel.configure(repo: env.customWordRepo)
+            textSnippetsViewModel.configure(repo: env.snippetRepo)
 
             maybeShowOnboarding()
         } catch {
@@ -340,7 +346,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 await MainActor.run { vm.state = .success }
                 // Brief pause so user sees the checkmark before paste
                 try? await Task.sleep(for: .milliseconds(200))
-                try? await env.clipboardService.pasteText(dictation.rawTranscript)
+                try? await env.clipboardService.pasteText(dictation.cleanTranscript ?? dictation.rawTranscript)
                 try? await Task.sleep(for: .milliseconds(800))
             } catch {
                 await MainActor.run {
@@ -447,7 +453,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             state: mainWindowState,
             transcriptionViewModel: transcriptionViewModel,
             historyViewModel: historyViewModel,
-            settingsViewModel: settingsViewModel
+            settingsViewModel: settingsViewModel,
+            customWordsViewModel: customWordsViewModel,
+            textSnippetsViewModel: textSnippetsViewModel
         )
 
         let window = NSWindow(
