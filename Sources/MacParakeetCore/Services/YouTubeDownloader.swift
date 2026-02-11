@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 public enum YouTubeDownloadError: Error, LocalizedError {
     case invalidURL
@@ -17,7 +18,13 @@ public enum YouTubeDownloadError: Error, LocalizedError {
 }
 
 public protocol YouTubeDownloading: Sendable {
-    func download(url: String) async throws -> YouTubeDownloader.DownloadResult
+    func download(url: String, onProgress: (@Sendable (Int) -> Void)?) async throws -> YouTubeDownloader.DownloadResult
+}
+
+extension YouTubeDownloading {
+    public func download(url: String) async throws -> YouTubeDownloader.DownloadResult {
+        try await download(url: url, onProgress: nil)
+    }
 }
 
 public actor YouTubeDownloader {
@@ -40,7 +47,7 @@ public actor YouTubeDownloader {
     }
 
     /// Download audio from a YouTube URL.
-    public func download(url: String) async throws -> DownloadResult {
+    public func download(url: String, onProgress: (@Sendable (Int) -> Void)? = nil) async throws -> DownloadResult {
         guard YouTubeURLValidator.isYouTubeURL(url) else {
             throw YouTubeDownloadError.invalidURL
         }
@@ -51,7 +58,7 @@ public actor YouTubeDownloader {
         let metadata = try await fetchMetadata(ytDlpPath: ytDlpPath, url: url)
 
         // Step 2: Download audio
-        let audioURL = try await downloadAudio(ytDlpPath: ytDlpPath, url: url)
+        let audioURL = try await downloadAudio(ytDlpPath: ytDlpPath, url: url, onProgress: onProgress)
 
         return DownloadResult(
             audioFileURL: audioURL,
@@ -116,7 +123,11 @@ public actor YouTubeDownloader {
         return VideoMetadata(title: title, durationSeconds: duration)
     }
 
-    private func downloadAudio(ytDlpPath: String, url: String) async throws -> URL {
+    private func downloadAudio(
+        ytDlpPath: String,
+        url: String,
+        onProgress: (@Sendable (Int) -> Void)?
+    ) async throws -> URL {
         let tempDir = AppPaths.youtubeDownloadsDir
         let fm = FileManager.default
         if !fm.fileExists(atPath: tempDir) {
@@ -126,16 +137,77 @@ public actor YouTubeDownloader {
         let uuid = UUID().uuidString
         let outputTemplate = "\(tempDir)/\(uuid).%(ext)s"
 
-        let result = try runYtDlp(
-            ytDlpPath: ytDlpPath,
-            arguments: [
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ytDlpPath)
+        process.arguments = [
             "-f", "bestaudio/best",
             "--no-playlist",
             "--retries", "3",
             "--concurrent-fragments", "4",
+            "--newline",
             "-o", outputTemplate,
             url,
         ]
+        process.standardOutput = FileHandle.nullDevice
+
+        let stderrPipe = Pipe()
+        let stderrHandle = stderrPipe.fileHandleForReading
+        process.standardError = stderrPipe
+
+        let stderrAll = OSAllocatedUnfairLock(initialState: Data())
+        let stderrBuffer = OSAllocatedUnfairLock(initialState: Data())
+        let lastProgress = OSAllocatedUnfairLock(initialState: -1)
+
+        @Sendable func emitProgress(_ percent: Int) {
+            let clamped = max(0, min(percent, 100))
+            let shouldEmit = lastProgress.withLock { last -> Bool in
+                guard clamped != last else { return false }
+                last = clamped
+                return true
+            }
+            if shouldEmit {
+                onProgress?(clamped)
+            }
+        }
+
+        stderrHandle.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            stderrAll.withLock { $0.append(chunk) }
+            let lines = stderrBuffer.withLock { buffer in
+                Self.extractLines(from: &buffer, appending: chunk)
+            }
+            for line in lines {
+                if let pct = Self.parseDownloadProgressPercent(from: line) {
+                    emitProgress(pct)
+                }
+            }
+        }
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            stderrHandle.readabilityHandler = nil
+            throw error
+        }
+
+        stderrHandle.readabilityHandler = nil
+        let tailData = stderrHandle.readDataToEndOfFile()
+        stderrAll.withLock { $0.append(tailData) }
+        let tailLines = stderrBuffer.withLock { buffer in
+            Self.extractLines(from: &buffer, appending: tailData, consumeTrailingLine: true)
+        }
+        for line in tailLines {
+            if let pct = Self.parseDownloadProgressPercent(from: line) {
+                emitProgress(pct)
+            }
+        }
+
+        let result = YtDlpResult(
+            terminationStatus: process.terminationStatus,
+            stdout: "",
+            stderr: String(data: stderrAll.withLock { $0 }, encoding: .utf8) ?? ""
         )
 
         guard result.terminationStatus == 0 else {
@@ -150,6 +222,47 @@ public actor YouTubeDownloader {
         }
 
         return URL(fileURLWithPath: "\(tempDir)/\(downloadedFile)")
+    }
+
+    nonisolated static func parseDownloadProgressPercent(from line: String) -> Int? {
+        guard line.localizedCaseInsensitiveContains("[download]"),
+              let match = line.range(of: #"([0-9]+(?:\.[0-9]+)?)%"#, options: .regularExpression)
+        else {
+            return nil
+        }
+        let pctString = line[match].dropLast()
+        guard let raw = Double(pctString) else { return nil }
+        return max(0, min(Int(raw.rounded()), 100))
+    }
+
+    private nonisolated static func extractLines(
+        from buffer: inout Data,
+        appending chunk: Data,
+        consumeTrailingLine: Bool = false
+    ) -> [String] {
+        buffer.append(chunk)
+        var lines: [String] = []
+
+        while let newlineIdx = buffer.firstIndex(of: 0x0A) {
+            let lineData = buffer.prefix(upTo: newlineIdx)
+            buffer.removeSubrange(..<buffer.index(after: newlineIdx))
+            if let line = String(data: Data(lineData), encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !line.isEmpty {
+                lines.append(line)
+            }
+        }
+
+        if consumeTrailingLine, !buffer.isEmpty {
+            if let line = String(data: buffer, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               !line.isEmpty {
+                lines.append(line)
+            }
+            buffer.removeAll(keepingCapacity: true)
+        }
+
+        return lines
     }
 
     private struct YtDlpResult {

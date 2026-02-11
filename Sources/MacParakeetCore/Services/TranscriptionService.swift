@@ -72,8 +72,11 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             try await entitlements.assertCanTranscribe(now: Date())
         }
 
-        onProgress?("Downloading audio...")
-        let downloadResult = try await downloader.download(url: urlString)
+        onProgress?("Downloading audio... 0%")
+        let downloadResult = try await downloader.download(url: urlString) { percent in
+            onProgress?("Downloading audio... \(percent)%")
+        }
+        onProgress?("Downloading audio... 100%")
         let keepDownloadedAudio = shouldKeepDownloadedAudio()
 
         var transcription = Transcription(

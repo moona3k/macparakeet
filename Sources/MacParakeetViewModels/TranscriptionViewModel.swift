@@ -76,12 +76,12 @@ public final class TranscriptionViewModel {
                 let result = try await service.transcribeURL(urlString: url) { [weak self] phase in
                     DispatchQueue.main.async {
                         self?.progress = phase
-                        // Parse percentage from "Transcribing... XX%" for visual progress bar
+                        // Parse percentage from phase text (e.g. "Downloading... XX%")
                         if phase.hasSuffix("%"),
                            let pctStr = phase.split(separator: " ").last?.dropLast(),
                            let pct = Double(pctStr) {
                             self?.transcriptionProgress = pct / 100.0
-                        } else if phase.contains("Downloading") {
+                        } else {
                             self?.transcriptionProgress = nil
                         }
                     }

@@ -1,18 +1,24 @@
 import XCTest
 @testable import MacParakeetCore
+import os
 
 private actor MockYouTubeDownloader: YouTubeDownloading {
     var downloadCallCount = 0
     var lastURL: String?
     private let result: YouTubeDownloader.DownloadResult
+    private let progressUpdates: [Int]
 
-    init(result: YouTubeDownloader.DownloadResult) {
+    init(result: YouTubeDownloader.DownloadResult, progressUpdates: [Int] = []) {
         self.result = result
+        self.progressUpdates = progressUpdates
     }
 
-    func download(url: String) async throws -> YouTubeDownloader.DownloadResult {
+    func download(url: String, onProgress: (@Sendable (Int) -> Void)?) async throws -> YouTubeDownloader.DownloadResult {
         downloadCallCount += 1
         lastURL = url
+        for pct in progressUpdates {
+            onProgress?(pct)
+        }
         return result
     }
 }
@@ -166,6 +172,41 @@ final class TranscriptionServiceTests: XCTestCase {
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: downloadedURL.path))
         XCTAssertNil(result.filePath)
+    }
+
+    func testTranscribeURLForwardsDownloadProgressToPhaseCallback() async throws {
+        let downloadedURL = try makeTempDownloadedAudio()
+        defer { try? FileManager.default.removeItem(at: downloadedURL) }
+
+        let downloader = MockYouTubeDownloader(
+            result: YouTubeDownloader.DownloadResult(
+                audioFileURL: downloadedURL,
+                title: "Video",
+                durationSeconds: 120
+            ),
+            progressUpdates: [7, 42, 100]
+        )
+
+        await mockSTT.configure(result: STTResult(text: "Downloaded transcript"))
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttClient: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            youtubeDownloader: downloader
+        )
+
+        let phasesLock = OSAllocatedUnfairLock(initialState: [String]())
+        _ = try await service.transcribeURL(urlString: "https://youtu.be/dQw4w9WgXcQ") { phase in
+            phasesLock.withLock { $0.append(phase) }
+        }
+        let phases = phasesLock.withLock { $0 }
+
+        XCTAssertTrue(phases.contains("Downloading audio... 0%"))
+        XCTAssertTrue(phases.contains("Downloading audio... 7%"))
+        XCTAssertTrue(phases.contains("Downloading audio... 42%"))
+        XCTAssertTrue(phases.contains("Downloading audio... 100%"))
+        XCTAssertTrue(phases.contains("Transcribing..."))
     }
 
     private func makeTempDownloadedAudio() throws -> URL {

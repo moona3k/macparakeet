@@ -129,6 +129,8 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
     var lastFileURL: URL?
     var transcribeURLCallCount = 0
     var lastURLString: String?
+    var transcribeURLProgressPhases: [String] = []
+    var transcribeURLDelayMs: UInt64 = 0
 
     func configure(result: Transcription) {
         self.transcribeResult = result
@@ -138,6 +140,14 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
     func configure(error: Error) {
         self.transcribeError = error
         self.transcribeResult = nil
+    }
+
+    func configureURLProgress(phases: [String]) {
+        self.transcribeURLProgressPhases = phases
+    }
+
+    func configureURLDelay(milliseconds: UInt64) {
+        self.transcribeURLDelayMs = milliseconds
     }
 
     func transcribe(fileURL: URL) async throws -> Transcription {
@@ -158,6 +168,14 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
     func transcribeURL(urlString: String, onProgress: (@Sendable (String) -> Void)? = nil) async throws -> Transcription {
         transcribeURLCallCount += 1
         lastURLString = urlString
+
+        for phase in transcribeURLProgressPhases {
+            onProgress?(phase)
+        }
+
+        if transcribeURLDelayMs > 0 {
+            try? await Task.sleep(nanoseconds: transcribeURLDelayMs * 1_000_000)
+        }
 
         if let error = transcribeError {
             throw error
