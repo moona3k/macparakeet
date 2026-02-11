@@ -323,6 +323,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             await MainActor.run {
                 self.overlayController?.hide()
                 self.overlayController = nil
+                self.historyViewModel.loadDictations()
                 self.showIdlePill()
             }
         }

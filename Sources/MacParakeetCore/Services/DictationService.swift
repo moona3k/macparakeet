@@ -116,6 +116,12 @@ public actor DictationService: DictationServiceProtocol {
                 try? FileManager.default.removeItem(at: audioURL)
             }
 
+            // Skip saving empty transcripts (accidental hotkey presses with no speech)
+            guard !result.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                _state = .idle
+                return dictation
+            }
+
             // Save to database
             try dictationRepo.save(dictation)
 

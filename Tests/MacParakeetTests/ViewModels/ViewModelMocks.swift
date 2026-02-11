@@ -50,6 +50,12 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
         dictations.removeAll()
     }
 
+    func deleteEmpty() throws -> Int {
+        let before = dictations.count
+        dictations.removeAll { $0.rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        return before - dictations.count
+    }
+
     func stats() throws -> DictationStats {
         DictationStats(
             totalCount: dictations.count,

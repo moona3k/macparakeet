@@ -8,6 +8,7 @@ public protocol DictationRepositoryProtocol: Sendable {
     func search(query: String, limit: Int?) throws -> [Dictation]
     func delete(id: UUID) throws -> Bool
     func deleteAll() throws
+    func deleteEmpty() throws -> Int
     func stats() throws -> DictationStats
 }
 
@@ -87,6 +88,15 @@ public final class DictationRepository: DictationRepositoryProtocol {
     public func deleteAll() throws {
         try dbQueue.write { db in
             _ = try Dictation.deleteAll(db)
+        }
+    }
+
+    public func deleteEmpty() throws -> Int {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM dictations WHERE TRIM(rawTranscript) = '' OR rawTranscript IS NULL"
+            )
+            return db.changesCount
         }
     }
 

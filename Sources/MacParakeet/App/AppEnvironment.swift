@@ -29,6 +29,9 @@ final class AppEnvironment {
         dictationRepo = DictationRepository(dbQueue: databaseManager.dbQueue)
         transcriptionRepo = TranscriptionRepository(dbQueue: databaseManager.dbQueue)
 
+        // One-time cleanup: remove empty dictations (accidental hotkey presses)
+        _ = try? dictationRepo.deleteEmpty()
+
         // Services
         sttClient = STTClient()
         audioProcessor = AudioProcessor()
