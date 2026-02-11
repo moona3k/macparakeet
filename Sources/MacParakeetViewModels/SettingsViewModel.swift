@@ -38,7 +38,6 @@ public final class SettingsViewModel {
 
     // Stats
     public var dictationCount = 0
-    public var dictationStorageMB: Double = 0
     public var youtubeDownloadCount = 0
     public var youtubeDownloadStorageMB: Double = 0
 

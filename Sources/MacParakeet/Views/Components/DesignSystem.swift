@@ -37,6 +37,7 @@ enum DesignSystem {
                                         dark: .init(red: 0.98, green: 0.75, blue: 0.14))
         static let errorRed = Color(light: .init(red: 0.90, green: 0.30, blue: 0.26),
                                     dark: .init(red: 0.97, green: 0.44, blue: 0.44))
+        static let onAccent = Color.white
 
         // Borders & dividers
         static let border = Color(light: .init(red: 0.91, green: 0.91, blue: 0.88),

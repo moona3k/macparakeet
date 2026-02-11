@@ -42,7 +42,9 @@ struct TranscribeView: View {
                 PortalDropZone(
                     isDragging: $viewModel.isDragging,
                     onDrop: { providers in
-                        viewModel.handleFileDrop(providers: providers)
+                        viewModel.handleFileDrop(providers: providers) {
+                            SoundManager.shared.play(.fileDropped)
+                        }
                     },
                     onBrowse: { openFilePicker() }
                 )
@@ -95,6 +97,8 @@ struct TranscribeView: View {
                         }
                         .buttonStyle(.plain)
                         .help("Paste from clipboard")
+                        .accessibilityLabel("Paste URL from clipboard")
+                        .accessibilityHint("Pastes clipboard text into the YouTube link field")
                     }
                 }
                 .padding(.horizontal, 12)
@@ -120,6 +124,8 @@ struct TranscribeView: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!viewModel.isValidURL)
+                .accessibilityLabel("Start transcription")
+                .accessibilityHint("Starts transcribing the YouTube link")
             }
         }
     }
@@ -251,6 +257,7 @@ struct TranscribeView: View {
         }
 
         if panel.runModal() == .OK, let url = panel.url {
+            SoundManager.shared.play(.fileDropped)
             viewModel.transcribeFile(url: url)
         }
     }

@@ -96,7 +96,7 @@ struct CustomWordsView: View {
                 if let error = viewModel.errorMessage {
                     Text(error)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(DesignSystem.Colors.errorRed)
                 }
 
                 HStack {

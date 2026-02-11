@@ -6,6 +6,7 @@ public enum YouTubeDownloadError: Error, LocalizedError {
     case videoNotFound
     case downloadFailed(String)
     case ytDlpNotFound
+    case timedOut
 
     public var errorDescription: String? {
         switch self {
@@ -13,6 +14,7 @@ public enum YouTubeDownloadError: Error, LocalizedError {
         case .videoNotFound: return "Video not found or is private"
         case .downloadFailed(let reason): return "Download failed: \(reason)"
         case .ytDlpNotFound: return "yt-dlp not found. Run the app once to install dependencies."
+        case .timedOut: return "Download timed out — the connection may have stalled"
         }
     }
 }
@@ -92,7 +94,7 @@ public actor YouTubeDownloader {
     }
 
     private func fetchMetadata(ytDlpPath: String, url: String) async throws -> VideoMetadata {
-        let result = try runYtDlp(
+        let result = try await runYtDlp(
             ytDlpPath: ytDlpPath,
             arguments: [
             "--skip-download",
@@ -186,7 +188,7 @@ public actor YouTubeDownloader {
 
         do {
             try process.run()
-            process.waitUntilExit()
+            try await waitForProcess(process, timeout: 600)
         } catch {
             stderrHandle.readabilityHandler = nil
             throw error
@@ -275,7 +277,7 @@ public actor YouTubeDownloader {
         ytDlpPath: String,
         arguments: [String],
         captureStdout: Bool = false
-    ) throws -> YtDlpResult {
+    ) async throws -> YtDlpResult {
         let fm = FileManager.default
         let tempDir = AppPaths.tempDir
         if !fm.fileExists(atPath: tempDir) {
@@ -311,7 +313,7 @@ public actor YouTubeDownloader {
         process.standardError = stderrHandle
 
         try process.run()
-        process.waitUntilExit()
+        try await waitForProcess(process, timeout: 30)
 
         stderrHandle.synchronizeFile()
         stdoutHandle?.synchronizeFile()
@@ -324,6 +326,46 @@ public actor YouTubeDownloader {
             stdout: stdout,
             stderr: stderr
         )
+    }
+
+    private func waitForProcess(_ process: Process, timeout: TimeInterval) async throws {
+        let resumed = OSAllocatedUnfairLock(initialState: false)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            process.terminationHandler = { _ in
+                let shouldResume = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                if shouldResume {
+                    continuation.resume()
+                }
+            }
+
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                let shouldResume = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                if shouldResume {
+                    process.terminate()
+                    continuation.resume(throwing: YouTubeDownloadError.timedOut)
+                }
+            }
+
+            // Handle race: process may have exited before terminationHandler was set
+            if !process.isRunning {
+                let shouldResume = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                if shouldResume {
+                    continuation.resume()
+                }
+            }
+        }
     }
 }
 

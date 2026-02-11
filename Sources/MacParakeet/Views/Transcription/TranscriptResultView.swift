@@ -11,6 +11,8 @@ struct TranscriptResultView: View {
     @State private var showExportConfirmation = false
     @State private var lastExportedURL: URL?
     @State private var lastExportedFormat: String?
+    @State private var exportErrorMessage: String?
+    @State private var copiedResetTask: Task<Void, Never>?
     @State private var dismissTask: Task<Void, Never>?
 
     var body: some View {
@@ -35,6 +37,7 @@ struct TranscriptResultView: View {
                                 backHovered = hovering
                             }
                         }
+                        .accessibilityLabel("Back")
                     }
 
                     Spacer()
@@ -182,6 +185,25 @@ struct TranscriptResultView: View {
             }
             .padding(DesignSystem.Spacing.md)
         }
+        .alert(
+            "Export Failed",
+            isPresented: Binding(
+                get: { exportErrorMessage != nil },
+                set: { if !$0 { exportErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                exportErrorMessage = nil
+            }
+        } message: {
+            Text(exportErrorMessage ?? "Unable to export transcript.")
+        }
+        .onDisappear {
+            copiedResetTask?.cancel()
+            copiedResetTask = nil
+            dismissTask?.cancel()
+            dismissTask = nil
+        }
     }
 
     // MARK: - Mandala Data
@@ -263,9 +285,11 @@ struct TranscriptResultView: View {
         NSPasteboard.general.setString(text, forType: .string)
         SoundManager.shared.play(.copyClick)
 
+        copiedResetTask?.cancel()
         withAnimation(DesignSystem.Animation.hoverTransition) { copied = true }
-        Task {
+        copiedResetTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
             withAnimation(DesignSystem.Animation.hoverTransition) { copied = false }
         }
     }
@@ -301,6 +325,8 @@ struct TranscriptResultView: View {
                 Spacer(minLength: 4)
 
                 Button {
+                    dismissTask?.cancel()
+                    dismissTask = nil
                     showExportConfirmation = false
                 } label: {
                     Image(systemName: "xmark")
@@ -308,11 +334,15 @@ struct TranscriptResultView: View {
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close export confirmation")
+                .accessibilityHint("Dismisses the export confirmation popover")
             }
 
             if let url = lastExportedURL {
                 Button {
                     NSWorkspace.shared.activateFileViewerSelecting([url])
+                    dismissTask?.cancel()
+                    dismissTask = nil
                     showExportConfirmation = false
                 } label: {
                     Label("Show in Finder", systemImage: "folder")
@@ -326,8 +356,12 @@ struct TranscriptResultView: View {
     }
 
     private func exportToDownloads(format: ExportFormat) {
-        let stem = (transcription.fileName as NSString).deletingPathExtension
-        let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+        let stem = sanitizedExportStem(from: transcription.fileName)
+        guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
+            exportErrorMessage = "Your Downloads folder could not be found."
+            SoundManager.shared.play(.errorSoft)
+            return
+        }
         var fileURL = downloadsURL.appendingPathComponent("\(stem).\(format.rawValue)")
 
         // Avoid overwriting — append (1), (2), etc.
@@ -346,9 +380,12 @@ struct TranscriptResultView: View {
             case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
             }
         } catch {
+            exportErrorMessage = error.localizedDescription
+            SoundManager.shared.play(.errorSoft)
             return
         }
 
+        exportErrorMessage = nil
         SoundManager.shared.play(.transcriptionComplete)
 
         // Cancel any pending auto-dismiss from a previous export
@@ -359,11 +396,19 @@ struct TranscriptResultView: View {
         showExportConfirmation = true
 
         // Auto-dismiss after 5 seconds
-        dismissTask = Task {
+        dismissTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(5.0))
             guard !Task.isCancelled else { return }
             showExportConfirmation = false
         }
+    }
+
+    private func sanitizedExportStem(from fileName: String) -> String {
+        let rawStem = (fileName as NSString).deletingPathExtension
+        let disallowed = CharacterSet(charactersIn: "/:\\\0")
+        let parts = rawStem.components(separatedBy: disallowed)
+        let normalized = parts.joined(separator: " ").trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalized.isEmpty ? "transcript" : normalized
     }
 
     private func formatTimestamp(ms: Int) -> String {

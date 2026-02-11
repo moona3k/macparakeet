@@ -1,5 +1,4 @@
 import SwiftUI
-import MacParakeetCore
 import MacParakeetViewModels
 
 enum SidebarItem: String, CaseIterable, Identifiable {

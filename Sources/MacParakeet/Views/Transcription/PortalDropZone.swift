@@ -1,5 +1,4 @@
 import SwiftUI
-import MacParakeetCore
 
 /// The hero interaction — a warm card with merkaba that responds to file dragging.
 /// "Portal" effect: lifts, glows, particles drift on hover; contracts on file drop.
@@ -60,6 +59,8 @@ struct PortalDropZone: View {
                         .underline(browseHovered, color: .secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Browse files")
+                .accessibilityHint("Opens a file picker to choose audio or video files")
                 .onHover { hovering in
                     browseHovered = hovering
                     if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
@@ -72,5 +73,7 @@ struct PortalDropZone: View {
             onDrop(providers)
         }
         .animation(DesignSystem.Animation.portalLift, value: isDragging)
+        .accessibilityLabel("File drop zone")
+        .accessibilityHint("Drop an audio or video file to start transcription")
     }
 }

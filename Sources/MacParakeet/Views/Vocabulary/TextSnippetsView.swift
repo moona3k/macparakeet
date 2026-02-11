@@ -35,7 +35,7 @@ struct TextSnippetsView: View {
             // Tip
             HStack {
                 Image(systemName: "lightbulb.fill")
-                    .foregroundStyle(.yellow)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
                     .font(.caption)
                 Text("Triggers are natural phrases (e.g. \"my signature\"), not abbreviations, because Parakeet outputs natural speech.")
                     .font(.caption)
@@ -124,7 +124,7 @@ struct TextSnippetsView: View {
                 if let error = viewModel.errorMessage {
                     Text(error)
                         .font(.caption)
-                        .foregroundStyle(.red)
+                        .foregroundStyle(DesignSystem.Colors.errorRed)
                 }
 
                 HStack {

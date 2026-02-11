@@ -246,7 +246,6 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         // Should start fresh transcription since existing one failed
         XCTAssertTrue(viewModel.isTranscribing)
-        let callCount = await mockService.transcribeURLCallCount
 
         try await Task.sleep(for: .milliseconds(200))
         let finalCount = await mockService.transcribeURLCallCount
@@ -333,6 +332,56 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         XCTAssertNotNil(viewModel.currentTranscription)
         XCTAssertEqual(viewModel.currentTranscription?.id, t1.id)
+    }
+
+    // MARK: - File Drop
+
+    func testHandleFileDropReturnsFalseWhenAlreadyTranscribing() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.isTranscribing = true
+        let handled = viewModel.handleFileDrop(providers: [])
+        XCTAssertFalse(handled)
+    }
+
+    func testHandleFileDropSkipsUnsupportedAndUsesSupportedProvider() async throws {
+        let expectedResult = Transcription(
+            fileName: "clip.wav",
+            rawTranscript: "Dropped transcript",
+            status: .completed
+        )
+        await mockService.configure(result: expectedResult)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        let tempDir = FileManager.default.temporaryDirectory
+        let unsupportedURL = tempDir.appendingPathComponent("drop-\(UUID().uuidString).txt")
+        let supportedURL = tempDir.appendingPathComponent("drop-\(UUID().uuidString).wav")
+        try "text".write(to: unsupportedURL, atomically: true, encoding: .utf8)
+        try Data([0, 1, 2]).write(to: supportedURL)
+        defer {
+            try? FileManager.default.removeItem(at: unsupportedURL)
+            try? FileManager.default.removeItem(at: supportedURL)
+        }
+
+        let unsupportedProvider = NSItemProvider(contentsOf: unsupportedURL)
+        let supportedProvider = NSItemProvider(contentsOf: supportedURL)
+        XCTAssertNotNil(unsupportedProvider)
+        XCTAssertNotNil(supportedProvider)
+
+        var accepted = false
+        let handled = viewModel.handleFileDrop(
+            providers: [unsupportedProvider!, supportedProvider!],
+            onAccepted: { accepted = true }
+        )
+        XCTAssertTrue(handled)
+
+        try await Task.sleep(for: .milliseconds(300))
+
+        let callCount = await mockService.transcribeCallCount
+        let lastFileURL = await mockService.lastFileURL
+        XCTAssertEqual(callCount, 1)
+        XCTAssertEqual(lastFileURL?.pathExtension.lowercased(), "wav")
+        XCTAssertTrue(accepted)
+        XCTAssertNil(viewModel.errorMessage)
     }
 
     // MARK: - Load

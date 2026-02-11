@@ -50,6 +50,7 @@ public final class OnboardingViewModel {
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
     private var engineGeneration: Int = 0
+    private var refreshTask: Task<Void, Never>?
 
     public static let onboardingCompletedKey = "onboarding.completedAtISO"
 
@@ -82,12 +83,15 @@ public final class OnboardingViewModel {
     }
 
     public func refresh() {
-        Task {
+        refreshTask?.cancel()
+        refreshTask = Task {
             let mic = await permissionService.checkMicrophonePermission()
             let ax = permissionService.checkAccessibilityPermission()
+            guard !Task.isCancelled else { return }
             await MainActor.run {
                 self.micStatus = mic
                 self.accessibilityGranted = ax
+                self.refreshTask = nil
             }
         }
     }

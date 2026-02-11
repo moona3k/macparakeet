@@ -6,6 +6,7 @@ import AVFoundation
 /// when custom assets aren't bundled yet. Respects macOS sound settings.
 final class SoundManager {
     static let shared = SoundManager()
+    private static let uiAudioEnabledKey = "com.apple.sound.uiaudio.enabled"
 
     private var players: [AppSound: AVAudioPlayer] = [:]
     private let volume: Float = 0.3
@@ -17,7 +18,7 @@ final class SoundManager {
     /// Play a sound effect.
     func play(_ sound: AppSound) {
         // Respect macOS "Play sound effects" setting
-        guard UserDefaults.standard.bool(forKey: "com.apple.sound.uiaudio.enabled") != false else { return }
+        guard Self.isSystemSoundEffectsEnabled else { return }
 
         if let player = players[sound] {
             player.currentTime = 0
@@ -25,6 +26,17 @@ final class SoundManager {
         } else if let systemName = sound.systemSoundFallback {
             NSSound(named: systemName)?.play()
         }
+    }
+
+    private static var isSystemSoundEffectsEnabled: Bool {
+        if let value = UserDefaults.standard.persistentDomain(forName: UserDefaults.globalDomain)?[uiAudioEnabledKey] as? Bool {
+            return value
+        }
+        if let value = UserDefaults.standard.object(forKey: uiAudioEnabledKey) as? Bool {
+            return value
+        }
+        // Default to enabled when the preference key is absent.
+        return true
     }
 
     private func preloadSounds() {

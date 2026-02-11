@@ -20,6 +20,9 @@ public final class TranscriptionViewModel {
 
     private var transcriptionService: TranscriptionServiceProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
+    private var activeDropRequestID: UUID?
+    private var dropPendingCount = 0
+    private var dropAccepted = false
 
     public init() {}
 
@@ -121,21 +124,61 @@ public final class TranscriptionViewModel {
         }
     }
 
-    public func handleFileDrop(providers: [NSItemProvider]) -> Bool {
-        for provider in providers {
-            provider.loadItem(forTypeIdentifier: "public.file-url") { item, _ in
-                guard let data = item as? Data,
-                      let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
+    public func handleFileDrop(
+        providers: [NSItemProvider],
+        onAccepted: (() -> Void)? = nil
+    ) -> Bool {
+        guard !isTranscribing else { return false }
+        let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier("public.file-url") }
+        guard !fileProviders.isEmpty else { return false }
 
-                let ext = url.pathExtension.lowercased()
-                guard AudioFileConverter.supportedExtensions.contains(ext) else { return }
+        let requestID = UUID()
+        activeDropRequestID = requestID
+        dropPendingCount = fileProviders.count
+        dropAccepted = false
+
+        for provider in fileProviders {
+            provider.loadItem(forTypeIdentifier: "public.file-url") { item, _ in
+                let droppedURL: URL?
+                if let data = item as? Data {
+                    droppedURL = URL(dataRepresentation: data, relativeTo: nil)
+                } else {
+                    droppedURL = nil
+                }
 
                 Task { @MainActor in
-                    self.transcribeFile(url: url)
+                    guard self.activeDropRequestID == requestID else { return }
+                    defer {
+                        self.dropPendingCount -= 1
+                        if self.dropPendingCount == 0 {
+                            if !self.dropAccepted {
+                                self.errorMessage = self.unsupportedDropMessage
+                            }
+                            self.activeDropRequestID = nil
+                        }
+                    }
+
+                    guard let droppedURL else { return }
+                    let ext = droppedURL.pathExtension.lowercased()
+                    guard AudioFileConverter.supportedExtensions.contains(ext) else { return }
+                    guard !self.dropAccepted, !self.isTranscribing else { return }
+
+                    self.dropAccepted = true
+                    self.errorMessage = nil
+                    onAccepted?()
+                    self.transcribeFile(url: droppedURL)
                 }
             }
         }
         return true
+    }
+
+    private var unsupportedDropMessage: String {
+        let formats = AudioFileConverter.supportedExtensions
+            .sorted()
+            .map { $0.uppercased() }
+            .joined(separator: ", ")
+        return "Unsupported file type. Supported formats: \(formats)."
     }
 
     public func retranscribe(_ original: Transcription) {
