@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <!-- MacParakeet "Breath Wave" Logo — Dark on transparent (for light backgrounds) -->
+  <!-- MacParakeet "Cursive P" Logo — Dark on transparent (for light backgrounds) -->
 
-  <path d="M 16 64 C 16 20, 64 20, 64 64 C 64 108, 112 108, 112 64"
+  <circle cx="68" cy="34" r="26" fill="none" stroke="#1a1a1a" stroke-width="7"/>
+  <path d="M 42 34 L 42 82 C 42 100, 30 110, 18 112 C 6 114, 2 106, 8 98 C 14 90, 30 88, 42 92"
         fill="none" stroke="#1a1a1a" stroke-width="7" stroke-linecap="round"/>
-  <circle cx="40" cy="72" r="7" fill="#1a1a1a"/>
-  <circle cx="88" cy="56" r="7" fill="#1a1a1a"/>
+  <circle cx="68" cy="34" r="6" fill="#1a1a1a"/>
 </svg>

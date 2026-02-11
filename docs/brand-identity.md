@@ -2,47 +2,50 @@
 
 > Status: **ACTIVE**
 
-## Logo: Breath Wave
+## Logo: Cursive P
 
-A sinuous S-wave with two yin-yang dots — one below-left, one above-right.
+An enclosed circular bowl with a centered dot and a cursive loop tail — P for Parakeet.
 
 ### Philosophy
 
-The Breath Wave is rooted in Daoist aesthetics: simplicity, balance, and flow.
+The Cursive P is rooted in Daoist simplicity and calligraphic warmth.
 
-- **The S-wave** represents breath — voice flowing in, text flowing out
-- **Two dots** represent the duality of MacParakeet's two co-equal modes: dictation (voice in) and transcription (text out)
-- **Yin-yang balance** — input and output are complementary forces, not opposites
-- **No containing circle** — the logo is open and free-flowing, suggesting movement and possibility
+- **The enclosed bowl** is a complete circle — wholeness, a bird's head in profile
+- **The dot** is the bird's eye — alive, watching, aware
+- **The cursive loop tail** echoes the bowl's circular rhythm — two circles in harmony
+- **Handwritten feel** — warm, personal, not corporate. Like signing your name.
 
 ### Design Principles
 
-1. **Ultra-minimal** — Three elements only (one curve, two dots)
+1. **Ultra-minimal** — Three elements only (circle, dot, tail)
 2. **Scalable** — Reads clearly from 18px menu bar to 512px app icon
 3. **Template-ready** — Monochrome design adapts to any background via macOS template rendering
 4. **Timeless** — No trendy gradients, no 3D effects, no sharp corners
 
 ### Canonical Geometry
 
-The logo is defined on a 128×128 viewBox:
+The logo is defined on a 128x128 viewBox:
 
 ```
 Viewbox: 0 0 128 128
 
-S-wave path:
-  M 16,64 C 16,20 64,20 64,64 C 64,108 112,108 112,64
-  Stroke: round cap, width 7 (standard) / 9-10 (small sizes)
+Bowl: circle cx=68, cy=34, r=26
+Dot:  circle cx=68, cy=34, r=6
 
-Dot 1 (below-left):  cx=40, cy=72, r=7
-Dot 2 (above-right): cx=88, cy=56, r=7
+Stem + cursive loop tail:
+  M 42,34 L 42,82
+  C 42,100 30,110 18,112
+  C 6,114 2,106 8,98
+  C 14,90 30,88 42,92
+  Stroke: round cap, width 7 (standard) / 10 (small sizes)
 ```
 
 At small sizes (menu bar, favicons), stroke width and dot radius are increased for legibility:
 
 | Context | Stroke Width | Dot Radius |
 |---------|-------------|-----------|
-| Standard (48px+) | 7 | 7 |
-| Small (18-32px) | 9-10 | 8 |
+| Standard (48px+) | 7 | 6 |
+| Small (18-32px) | 9-10 | 7-8 |
 | Menu bar (18px) | 10 | 8 |
 
 ### Color Variants
