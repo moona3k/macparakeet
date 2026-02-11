@@ -48,16 +48,26 @@ public final class AudioFileConverter: Sendable {
             outputURL.path
         ]
 
-        let stderrPipe = Pipe()
+        // Use temp file for stderr to avoid pipe buffer deadlock on long files.
+        // ffmpeg writes verbose progress to stderr; if it exceeds the 64KB pipe
+        // buffer, both ffmpeg and waitUntilExit() block permanently.
+        let stderrURL = tempDir.appendingPathComponent("ffmpeg-stderr-\(UUID().uuidString).log")
+        FileManager.default.createFile(atPath: stderrURL.path, contents: Data())
+        let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+        defer {
+            stderrHandle.closeFile()
+            try? FileManager.default.removeItem(at: stderrURL)
+        }
+
         process.standardOutput = FileHandle.nullDevice
-        process.standardError = stderrPipe
+        process.standardError = stderrHandle
 
         try process.run()
         process.waitUntilExit()
 
         if process.terminationStatus != 0 {
-            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
-            let stderrStr = String(data: stderrData, encoding: .utf8) ?? "Unknown error"
+            stderrHandle.synchronizeFile()
+            let stderrStr = (try? String(contentsOf: stderrURL, encoding: .utf8)) ?? "Unknown error"
             throw AudioProcessorError.conversionFailed(stderrStr)
         }
 
