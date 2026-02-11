@@ -69,7 +69,7 @@ struct DictationHistoryView: View {
                         .padding(.top, DesignSystem.Spacing.md)
                         .padding(.bottom, DesignSystem.Spacing.xs)
 
-                    ForEach(dictations) { dictation in
+                    ForEach(Array(dictations.enumerated()), id: \.element.id) { index, dictation in
                         DictationRowView(
                             dictation: dictation,
                             isPlayingThis: viewModel.playingDictationId == dictation.id && viewModel.isPlaying,
@@ -80,6 +80,12 @@ struct DictationHistoryView: View {
                             },
                             onDownloadAudio: { viewModel.downloadAudio(for: dictation) }
                         )
+
+                        if index < dictations.count - 1 {
+                            Divider()
+                                .padding(.leading, 56 + DesignSystem.Spacing.sm + DesignSystem.Spacing.lg)
+                                .padding(.trailing, DesignSystem.Spacing.lg)
+                        }
                     }
                 }
             }
@@ -185,7 +191,6 @@ struct DictationRowView: View {
             Text(dictation.cleanTranscript ?? dictation.rawTranscript)
                 .font(.body)
                 .foregroundStyle(.primary)
-                .textSelection(.enabled)
                 .frame(maxWidth: .infinity, alignment: .leading)
 
             // Hover actions
@@ -235,7 +240,8 @@ struct DictationRowView: View {
             }
         }
         .padding(.horizontal, DesignSystem.Spacing.lg)
-        .padding(.vertical, DesignSystem.Spacing.sm)
+        .padding(.vertical, DesignSystem.Spacing.md)
+        .contentShape(Rectangle())
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .fill(isPlayingThis
