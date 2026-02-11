@@ -141,6 +141,13 @@ public final class DatabaseManager: Sendable {
             """)
         }
 
+        // v0.3 — Add sourceURL to transcriptions (YouTube URL tracking)
+        migrator.registerMigration("v0.3-transcription-source-url") { db in
+            try db.alter(table: "transcriptions") { t in
+                t.add(column: "sourceURL", .text)
+            }
+        }
+
         try migrator.migrate(dbQueue)
     }
 }

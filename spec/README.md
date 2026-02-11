@@ -70,7 +70,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Basic export (plain text, copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + substring search)
 - [x] CLI tool (`macparakeet transcribe`, `history`, `health`)
-- [x] 269 tests passing (29 test suites)
+- [x] 292 tests passing (32 test suites)
 
 ### v0.2 AI & Text Processing (In Progress)
 
@@ -83,7 +83,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 ### v0.3 Command Mode & Export (Planned)
 
 - [ ] Command Mode: select text -> speak command -> LLM edits in-place
-- [ ] YouTube URL transcription (yt-dlp + Parakeet)
+- [x] YouTube URL transcription (yt-dlp + Parakeet)
 - [ ] Full export (.txt, .srt, .vtt, .docx, .pdf, .json)
 
 ### v0.4 Polish & Launch (Planned)

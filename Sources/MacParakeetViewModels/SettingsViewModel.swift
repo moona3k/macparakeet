@@ -28,6 +28,9 @@ public final class SettingsViewModel {
     public var saveAudioRecordings: Bool {
         didSet { defaults.set(saveAudioRecordings, forKey: "saveAudioRecordings") }
     }
+    public var saveTranscriptionAudio: Bool {
+        didSet { defaults.set(saveTranscriptionAudio, forKey: "saveTranscriptionAudio") }
+    }
 
     // Permission status
     public var microphoneGranted = false
@@ -61,6 +64,7 @@ public final class SettingsViewModel {
         silenceDelay = delay == 0 ? 2.0 : delay
         processingMode = defaults.string(forKey: "processingMode") ?? "clean"
         saveAudioRecordings = defaults.object(forKey: "saveAudioRecordings") as? Bool ?? true
+        saveTranscriptionAudio = defaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? false
     }
 
     public func configure(

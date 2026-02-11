@@ -119,6 +119,8 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
     var transcribeError: Error?
     var transcribeCallCount = 0
     var lastFileURL: URL?
+    var transcribeURLCallCount = 0
+    var lastURLString: String?
 
     func configure(result: Transcription) {
         self.transcribeResult = result
@@ -142,6 +144,22 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
             fileName: fileURL.lastPathComponent,
             rawTranscript: "Mock transcription",
             status: .completed
+        )
+    }
+
+    func transcribeURL(urlString: String) async throws -> Transcription {
+        transcribeURLCallCount += 1
+        lastURLString = urlString
+
+        if let error = transcribeError {
+            throw error
+        }
+
+        return transcribeResult ?? Transcription(
+            fileName: "YouTube Video",
+            rawTranscript: "Mock transcription",
+            status: .completed,
+            sourceURL: urlString
         )
     }
 }

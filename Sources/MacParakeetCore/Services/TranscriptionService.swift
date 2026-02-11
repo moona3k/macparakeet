@@ -2,6 +2,7 @@ import Foundation
 
 public protocol TranscriptionServiceProtocol: Sendable {
     func transcribe(fileURL: URL) async throws -> Transcription
+    func transcribeURL(urlString: String) async throws -> Transcription
 }
 
 public actor TranscriptionService: TranscriptionServiceProtocol {
@@ -12,6 +13,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     private let customWordRepo: CustomWordRepositoryProtocol?
     private let snippetRepo: TextSnippetRepositoryProtocol?
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
+    private let youtubeDownloader: YouTubeDownloader?
 
     public init(
         audioProcessor: AudioProcessorProtocol,
@@ -20,7 +22,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
-        processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil
+        processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        youtubeDownloader: YouTubeDownloader? = nil
     ) {
         self.audioProcessor = audioProcessor
         self.sttClient = sttClient
@@ -29,6 +32,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.processingMode = processingMode ?? { .raw }
+        self.youtubeDownloader = youtubeDownloader
     }
 
     public func transcribe(fileURL: URL) async throws -> Transcription {
@@ -39,7 +43,6 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         let fileName = fileURL.lastPathComponent
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int).flatMap { $0 }
 
-        // Create initial record
         var transcription = Transcription(
             fileName: fileName,
             filePath: fileURL.path,
@@ -48,18 +51,50 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         )
         try transcriptionRepo.save(transcription)
 
+        return try await transcribeAudio(fileURL: fileURL, transcription: &transcription, tempFiles: [])
+    }
+
+    public func transcribeURL(urlString: String) async throws -> Transcription {
+        guard let downloader = youtubeDownloader else {
+            throw YouTubeDownloadError.ytDlpNotFound
+        }
+
+        if let entitlements {
+            try await entitlements.assertCanTranscribe(now: Date())
+        }
+
+        let downloadResult = try await downloader.download(url: urlString)
+
+        var transcription = Transcription(
+            fileName: downloadResult.title,
+            status: .processing,
+            sourceURL: urlString
+        )
+        try transcriptionRepo.save(transcription)
+
+        return try await transcribeAudio(
+            fileURL: downloadResult.audioFileURL,
+            transcription: &transcription,
+            tempFiles: [downloadResult.audioFileURL]
+        )
+    }
+
+    // MARK: - Private
+
+    private func transcribeAudio(
+        fileURL: URL,
+        transcription: inout Transcription,
+        tempFiles: [URL]
+    ) async throws -> Transcription {
         var wavURL: URL?
         do {
-            // Convert to WAV
             wavURL = try await audioProcessor.convert(fileURL: fileURL)
 
-            // Transcribe
             guard let wavURL else {
                 throw AudioProcessorError.conversionFailed("Failed to produce WAV output")
             }
             let result = try await sttClient.transcribe(audioPath: wavURL.path)
 
-            // Update record
             let words = result.words.map { word in
                 WordTimestamp(
                     word: word.word,
@@ -73,7 +108,6 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             transcription.wordTimestamps = words
             transcription.durationMs = result.words.last?.endMs
 
-            // Run pipeline if not raw mode
             let mode = processingMode()
             if mode != .raw {
                 let customWords = (try? customWordRepo?.fetchEnabled()) ?? []
@@ -94,15 +128,19 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             transcription.updatedAt = Date()
             try transcriptionRepo.save(transcription)
 
-            // Clean up temp WAV
+            // Clean up temp files
             try? FileManager.default.removeItem(at: wavURL)
+            for tempFile in tempFiles {
+                try? FileManager.default.removeItem(at: tempFile)
+            }
 
             return transcription
         } catch {
-            // Clean up temp WAV on error
             if let wavURL { try? FileManager.default.removeItem(at: wavURL) }
+            for tempFile in tempFiles {
+                try? FileManager.default.removeItem(at: tempFile)
+            }
 
-            // Update record with error
             try? transcriptionRepo.updateStatus(
                 id: transcription.id,
                 status: .error,

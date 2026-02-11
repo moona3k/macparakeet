@@ -11,6 +11,11 @@ public final class TranscriptionViewModel {
     public var progress: String = ""
     public var errorMessage: String?
     public var isDragging = false
+    public var urlInput: String = ""
+
+    public var isValidURL: Bool {
+        YouTubeURLValidator.isYouTubeURL(urlInput)
+    }
 
     private var transcriptionService: TranscriptionServiceProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
@@ -41,6 +46,33 @@ public final class TranscriptionViewModel {
             do {
                 progress = "Transcribing \(url.lastPathComponent)..."
                 let result = try await service.transcribe(fileURL: url)
+                currentTranscription = result
+                isTranscribing = false
+                progress = ""
+                loadTranscriptions()
+            } catch {
+                errorMessage = error.localizedDescription
+                isTranscribing = false
+                progress = ""
+                loadTranscriptions()
+            }
+        }
+    }
+
+    public func transcribeURL() {
+        guard let service = transcriptionService else { return }
+        let url = urlInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard YouTubeURLValidator.isYouTubeURL(url) else { return }
+
+        isTranscribing = true
+        progress = "Downloading audio..."
+        errorMessage = nil
+        urlInput = ""
+
+        Task {
+            do {
+                progress = "Transcribing..."
+                let result = try await service.transcribeURL(urlString: url)
                 currentTranscription = result
                 isTranscribing = false
                 progress = ""

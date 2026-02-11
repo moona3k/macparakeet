@@ -71,6 +71,20 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(all[0].status, .error)
     }
 
+    func testTranscribeURLWithoutDownloaderThrows() async throws {
+        // Service without youtubeDownloader should throw
+        do {
+            _ = try await service.transcribeURL(urlString: "https://youtu.be/dQw4w9WgXcQ")
+            XCTFail("Should have thrown")
+        } catch let error as YouTubeDownloadError {
+            if case .ytDlpNotFound = error {
+                // Expected — no YouTubeDownloader configured
+            } else {
+                XCTFail("Expected ytDlpNotFound, got \(error)")
+            }
+        }
+    }
+
     func testConvertCalledBeforeSTT() async throws {
         let expectedResult = STTResult(text: "Hello")
         await mockSTT.configure(result: expectedResult)

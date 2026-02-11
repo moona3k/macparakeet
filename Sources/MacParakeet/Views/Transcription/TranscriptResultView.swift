@@ -33,8 +33,34 @@ struct TranscriptResultView: View {
                     }
                 }
 
-                Text(transcription.fileName)
-                    .font(DesignSystem.Typography.headline)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(transcription.fileName)
+                        .font(DesignSystem.Typography.headline)
+
+                    if let sourceURL = transcription.sourceURL,
+                       let url = URL(string: sourceURL) {
+                        Button {
+                            NSWorkspace.shared.open(url)
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: "play.rectangle.fill")
+                                    .font(.system(size: 10))
+                                Text(sourceURL.count > 50 ? String(sourceURL.prefix(47)) + "..." : sourceURL)
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { hovering in
+                            if hovering {
+                                NSCursor.pointingHand.push()
+                            } else {
+                                NSCursor.pop()
+                            }
+                        }
+                    }
+                }
 
                 Spacer()
 

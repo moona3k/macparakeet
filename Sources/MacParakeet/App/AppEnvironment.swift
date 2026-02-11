@@ -13,6 +13,7 @@ final class AppEnvironment {
     let audioProcessor: AudioProcessor
     let dictationService: DictationService
     let transcriptionService: TranscriptionService
+    let youtubeDownloader: YouTubeDownloader
     let clipboardService: ClipboardService
     let exportService: ExportService
     let permissionService: PermissionService
@@ -81,6 +82,9 @@ final class AppEnvironment {
             return Dictation.ProcessingMode(rawValue: raw ?? "clean") ?? .clean
         }
 
+        let pythonBootstrap = PythonBootstrap()
+        youtubeDownloader = YouTubeDownloader(pythonBootstrap: pythonBootstrap)
+
         dictationService = DictationService(
             audioProcessor: audioProcessor,
             sttClient: sttClient,
@@ -103,7 +107,8 @@ final class AppEnvironment {
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
-            processingMode: processingModeClosure
+            processingMode: processingModeClosure,
+            youtubeDownloader: youtubeDownloader
         )
     }
 }

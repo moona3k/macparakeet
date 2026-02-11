@@ -95,7 +95,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**v0.2 In Progress** -- Clean pipeline + management UI implemented (269 tests, 29 suites, `swift test` green)
+**v0.2 In Progress** -- Clean pipeline + management UI implemented (292 tests, 32 suites, `swift test` green)
 
 ### v0.1 MVP (Implemented)
 - [x] System-wide dictation: Fn double-tap (persistent) + hold-to-talk
@@ -120,7 +120,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ### v0.3 Command Mode + Import
 - [ ] Command Mode (highlight text + voice command -> LLM edits in-place, like WisprFlow Pro)
-- [ ] YouTube URL transcription
+- [x] YouTube URL transcription (yt-dlp + Parakeet, single video)
 - [ ] Export formats (TXT, SRT, VTT, DOCX)
 
 ### v0.4 Polish + Launch
@@ -284,7 +284,7 @@ macparakeet/
 │   ├── MacParakeetCore/        # Shared library (no UI deps)
 │   └── MacParakeetViewModels/  # ViewModels (testable, depends on Core)
 ├── Tests/
-│   └── MacParakeetTests/   # Unit, database, and integration tests (269 tests, 29 suites)
+│   └── MacParakeetTests/   # Unit, database, and integration tests (292 tests, 32 suites)
 ├── Assets/             # App icons and images (placeholder)
 ├── python/             # STT daemon (Parakeet via uv)
 │   └── macparakeet_stt/

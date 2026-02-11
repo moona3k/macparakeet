@@ -29,6 +29,15 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testSourceURLColumnExists() throws {
+        let manager = try DatabaseManager()
+        try manager.dbQueue.read { db in
+            let columns = try db.columns(in: "transcriptions")
+            let columnNames = columns.map(\.name)
+            XCTAssertTrue(columnNames.contains("sourceURL"), "transcriptions should have sourceURL column")
+        }
+    }
+
     func testMigrationsAreIdempotent() throws {
         // Running migrations twice on the SAME database file should not error
         let tempDir = FileManager.default.temporaryDirectory

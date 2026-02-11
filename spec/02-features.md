@@ -1012,12 +1012,12 @@ Display result (same view as file transcription)
 - Download for personal use only (noted in UI)
 
 **Acceptance criteria:**
-- [ ] Paste YouTube URL into text field and click "Go" to start
-- [ ] Progress shown during download and transcription
-- [ ] Result displayed same as file transcription
-- [ ] Handles invalid URLs gracefully (error message)
-- [ ] Handles private/restricted videos with clear error
-- [ ] Playlist URLs supported (batch transcription)
+- [x] Paste YouTube URL into text field and click "Transcribe" to start
+- [x] Progress shown during download and transcription
+- [x] Result displayed same as file transcription
+- [x] Handles invalid URLs gracefully (error message)
+- [x] Handles private/restricted videos with clear error
+- [ ] Playlist URLs supported (batch transcription) — deferred to v0.4
 
 ---
 

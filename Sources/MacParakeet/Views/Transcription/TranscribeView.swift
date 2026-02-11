@@ -81,6 +81,39 @@ struct TranscribeView: View {
             }
             .buttonStyle(.borderedProminent)
 
+            // YouTube URL input
+            VStack(spacing: DesignSystem.Spacing.sm) {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.1))
+                        .frame(height: 0.5)
+                    Text("or")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.1))
+                        .frame(height: 0.5)
+                }
+                .padding(.horizontal, DesignSystem.Spacing.xl)
+
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    TextField("Paste YouTube URL...", text: $viewModel.urlInput)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit {
+                            if viewModel.isValidURL {
+                                viewModel.transcribeURL()
+                            }
+                        }
+
+                    Button("Transcribe") {
+                        viewModel.transcribeURL()
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!viewModel.isValidURL)
+                }
+                .padding(.horizontal, DesignSystem.Spacing.xl)
+            }
+
             Spacer()
         }
         .padding(DesignSystem.Spacing.xl)
@@ -222,6 +255,9 @@ private struct RecentTranscriptionRow: View {
     // MARK: - Icon
 
     private var iconName: String {
+        if transcription.sourceURL != nil && transcription.status == .completed {
+            return "play.rectangle.fill"
+        }
         switch transcription.status {
         case .completed: return "waveform"
         case .processing: return "arrow.trianglehead.2.clockwise"

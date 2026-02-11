@@ -17,6 +17,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var status: TranscriptionStatus
     public var errorMessage: String?
     public var exportPath: String?
+    public var sourceURL: String?
     public var updatedAt: Date
 
     public enum TranscriptionStatus: String, Codable, Sendable {
@@ -42,6 +43,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         status: TranscriptionStatus = .processing,
         errorMessage: String? = nil,
         exportPath: String? = nil,
+        sourceURL: String? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
@@ -59,6 +61,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.status = status
         self.errorMessage = errorMessage
         self.exportPath = exportPath
+        self.sourceURL = sourceURL
         self.updatedAt = updatedAt
     }
 }
@@ -83,6 +86,6 @@ extension Transcription: FetchableRecord, PersistableRecord {
     public enum Columns: String, ColumnExpression {
         case id, createdAt, fileName, filePath, fileSizeBytes, durationMs
         case rawTranscript, cleanTranscript, wordTimestamps, language
-        case speakerCount, speakers, status, errorMessage, exportPath, updatedAt
+        case speakerCount, speakers, status, errorMessage, exportPath, sourceURL, updatedAt
     }
 }

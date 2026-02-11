@@ -1,2 +1,3 @@
 parakeet-mlx>=0.4.0
 mlx>=0.22.0
+yt-dlp>=2025.1.0

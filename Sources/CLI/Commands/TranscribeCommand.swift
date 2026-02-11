@@ -5,43 +5,52 @@ import MacParakeetCore
 struct TranscribeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "transcribe",
-        abstract: "Transcribe an audio or video file."
+        abstract: "Transcribe an audio/video file or YouTube URL."
     )
 
-    @Argument(help: "Path to audio/video file to transcribe.")
-    var filePath: String
+    @Argument(help: "Path to audio/video file or YouTube URL to transcribe.")
+    var input: String
 
     @Option(name: .shortAndLong, help: "Output format: text, json.")
     var format: String = "text"
 
     func run() async throws {
-        let url = URL(fileURLWithPath: filePath)
-
-        guard FileManager.default.fileExists(atPath: filePath) else {
-            throw CLIError.fileNotFound(filePath)
-        }
-
-        let ext = url.pathExtension.lowercased()
-        guard AudioFileConverter.supportedExtensions.contains(ext) else {
-            throw CLIError.unsupportedFormat(ext)
-        }
-
         // Set up services
         try AppPaths.ensureDirectories()
         let dbManager = try DatabaseManager(path: AppPaths.databasePath)
         let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-        let sttClient = STTClient()
+        let pythonBootstrap = PythonBootstrap()
+        let sttClient = STTClient(pythonBootstrap: pythonBootstrap)
         let audioProcessor = AudioProcessor()
+        let youtubeDownloader = YouTubeDownloader(pythonBootstrap: pythonBootstrap)
 
         let service = TranscriptionService(
             audioProcessor: audioProcessor,
             sttClient: sttClient,
-            transcriptionRepo: transcriptionRepo
+            transcriptionRepo: transcriptionRepo,
+            youtubeDownloader: youtubeDownloader
         )
 
-        print("Transcribing \(url.lastPathComponent)...")
+        let result: Transcription
 
-        let result = try await service.transcribe(fileURL: url)
+        if YouTubeURLValidator.isYouTubeURL(input) {
+            print("Downloading and transcribing YouTube video...")
+            result = try await service.transcribeURL(urlString: input)
+        } else {
+            let url = URL(fileURLWithPath: input)
+
+            guard FileManager.default.fileExists(atPath: input) else {
+                throw CLIError.fileNotFound(input)
+            }
+
+            let ext = url.pathExtension.lowercased()
+            guard AudioFileConverter.supportedExtensions.contains(ext) else {
+                throw CLIError.unsupportedFormat(ext)
+            }
+
+            print("Transcribing \(url.lastPathComponent)...")
+            result = try await service.transcribe(fileURL: url)
+        }
 
         switch format {
         case "json":

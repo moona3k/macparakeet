@@ -85,6 +85,7 @@ struct SettingsView: View {
             // Storage
             Section("Storage") {
                 Toggle("Save audio recordings", isOn: $viewModel.saveAudioRecordings)
+                Toggle("Save transcription audio", isOn: $viewModel.saveTranscriptionAudio)
 
                 HStack {
                     Text("Dictations")
