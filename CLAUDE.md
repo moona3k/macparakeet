@@ -95,7 +95,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**v0.2 In Progress** -- Clean pipeline + management UI implemented (292 tests, 32 suites, `swift test` green)
+**v0.2 In Progress** -- Clean pipeline + management UI implemented (312 tests, `swift test` green)
 
 ### v0.1 MVP (Implemented)
 - [x] System-wide dictation: Fn double-tap (persistent) + hold-to-talk
@@ -118,7 +118,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [ ] Context modes (raw, clean, formal, email, code) -- raw + clean done, AI modes pending
 - [ ] AI text refinement via Qwen3-4B
 
-### v0.3 Command Mode + Import
+### v0.3 Command Mode + Export
 - [ ] Command Mode (highlight text + voice command -> LLM edits in-place, like WisprFlow Pro)
 - [x] YouTube URL transcription (yt-dlp + Parakeet, single video)
 - [ ] Export formats (TXT, SRT, VTT, DOCX)
@@ -284,7 +284,7 @@ macparakeet/
 │   ├── MacParakeetCore/        # Shared library (no UI deps)
 │   └── MacParakeetViewModels/  # ViewModels (testable, depends on Core)
 ├── Tests/
-│   └── MacParakeetTests/   # Unit, database, and integration tests (292 tests, 32 suites)
+│   └── MacParakeetTests/   # Unit, database, and integration tests (312 tests)
 ├── Assets/             # App icons and images (placeholder)
 ├── python/             # STT daemon (Parakeet via uv)
 │   └── macparakeet_stt/

@@ -104,6 +104,16 @@ All communication uses JSON-RPC 2.0 over stdin/stdout. One request at a time (no
 
 **Note:** Word timestamps are in milliseconds (matching Oatmeal's convention). The daemon extracts these from parakeet-mlx's `AlignedResult.sentences[].tokens[]` objects, aggregating BPE tokens into words at space boundaries.
 
+### Progress Side-Channel
+
+In addition to JSON-RPC responses on stdout, the daemon emits chunk progress lines on stderr:
+
+```
+PROGRESS:<current>/<total>
+```
+
+`STTClient` reads stderr incrementally, buffers partial lines, and parses complete `PROGRESS:` updates before forwarding them to the app (`onProgress(current, total)`). Buffering avoids dropped updates when a progress line is split across pipe reads.
+
 ### Warm-Up Request
 
 Warm-up is used during onboarding to ensure the daemon is running and the model is loaded (so the first real dictation/transcription isn't the one that pays the download cost).

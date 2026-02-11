@@ -592,12 +592,14 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 | Stop mode | Auto-stop after silence / Manual | Manual |
 | Silence delay | 1s, 1.5s, 2s, 3s, 5s | 2s |
 | Save audio recordings | On / Off | On |
+| Keep downloaded YouTube audio | On / Off | On |
 
 **Acceptance criteria:**
 - [x] All settings persist across app restarts (UserDefaults or GRDB)
 - [ ] Hotkey can be changed to alternative keys
 - [x] Stop mode switch works correctly for both modes
 - [x] Storage toggle controls whether audio files are saved
+- [x] YouTube storage toggle controls whether downloaded URL audio is kept after transcription
 - [x] "Clear All" requires confirmation, deletes audio files and database entries
 - [x] Permission status shown with current grant state
 
@@ -966,7 +968,7 @@ User pastes YouTube URL
            ▼
 ┌──────────────────────┐
 │  yt-dlp download     │ ── Download audio track (best quality)
-│                      │    Progress indicator shown
+│                      │    Emits determinate progress: 0–100%
 └──────────┬───────────┘
            │
            ▼
@@ -977,6 +979,7 @@ User pastes YouTube URL
            ▼
 ┌──────────────────────┐
 │  Parakeet STT        │ ── Transcribe with word timestamps
+│                      │    Emits chunk progress updates
 └──────────┬───────────┘
            │
            ▼
@@ -1002,21 +1005,25 @@ Display result (same view as file transcription)
 
 **Technical requirements:**
 - yt-dlp (bundled or user-installed) for YouTube audio download
-- Supports standard YouTube URLs, shortened youtu.be links, playlist URLs
+- Supports standard YouTube URL forms (`youtube.com/watch`, `youtu.be`, `youtube.com/shorts`, `youtube.com/embed`, `youtube.com/v`)
+- Playlist pages are processed in single-video mode (`--no-playlist`); full playlist batch transcription is deferred
 - Audio-only download (no video, saves bandwidth and time)
+- Downloaded YouTube audio is retained by default and can be auto-deleted via Settings > Storage
 
 **Limitations:**
 - Age-restricted videos may fail (requires auth cookies)
 - Live streams not supported
-- Very long videos (6+ hours) may require progress updates
+- Very long videos (6+ hours) can take significant time to download/transcribe even with progress updates
 - Download for personal use only (noted in UI)
 
 **Acceptance criteria:**
 - [x] Paste YouTube URL into text field and click "Transcribe" to start
-- [x] Progress shown during download and transcription
+- [x] Download phase emits determinate percent progress (`Downloading audio... X%`)
+- [x] Transcription phase emits chunk progress updates (`Transcribing... X%`)
 - [x] Result displayed same as file transcription
 - [x] Handles invalid URLs gracefully (error message)
 - [x] Handles private/restricted videos with clear error
+- [x] Downloaded YouTube audio is kept by default, with a Settings toggle to auto-delete after transcription
 - [ ] Playlist URLs supported (batch transcription) — deferred to v0.4
 
 ---

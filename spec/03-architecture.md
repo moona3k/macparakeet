@@ -214,30 +214,49 @@ DictationResult returned
 
 #### 2.2 TranscriptionService
 
-**Responsibility:** Orchestrates file-based transcription: audio preprocessing, STT, optional AI refinement, progress reporting.
+**Responsibility:** Orchestrates file and URL transcription: download/convert audio, run STT, apply optional deterministic cleanup, persist results, and emit UI progress phases.
 
 **Key Types/Protocols:**
 ```swift
 protocol TranscriptionServiceProtocol: Sendable {
     func transcribe(fileURL: URL) async throws -> Transcription
-    func transcribeURL(urlString: String) async throws -> Transcription  // YouTube URL (v0.3)
+    func transcribeURL(urlString: String, onProgress: (@Sendable (String) -> Void)?) async throws -> Transcription
 }
 ```
 
-**Dependencies:** `AudioProcessor`, `STTClient`, `TranscriptionRepository`, `YouTubeDownloader`
+**Dependencies:** `AudioProcessor`, `STTClient`, `TranscriptionRepository`, `YouTubeDownloader`, storage prefs (`saveTranscriptionAudio`)
 
 **Data Flow:**
 ```
+File transcription:
 File URL
     │
     ▼
 AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
     │
     ▼
-STTClient.transcribe(audioPath:) → raw transcript + word timestamps
+STTClient.transcribe(audioPath:, onProgress:) → raw transcript + word timestamps
     │
     ▼
 TranscriptionRepository.save() → persisted to database
+    │
+    ▼
+Transcription returned to UI
+
+YouTube URL transcription:
+YouTube URL
+    │
+    ▼
+YouTubeDownloader.download(url:, onProgress:) → emits download %
+    │
+    ▼
+AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
+    │
+    ▼
+STTClient.transcribe(audioPath:, onProgress:) → emits chunk %
+    │
+    ▼
+TranscriptionRepository.save() with sourceURL (+ filePath when retention enabled)
     │
     ▼
 Transcription returned to UI
@@ -332,7 +351,7 @@ protocol AudioProcessorProtocol: Sendable {
 **Key Types/Protocols:**
 ```swift
 protocol STTClientProtocol: Sendable {
-    func transcribe(audioPath: String) async throws -> STTResult
+    func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult
     func isReady() async -> Bool
     func warmUp() async throws
     func shutdown() async
@@ -351,7 +370,7 @@ struct TimestampedWord: Sendable {
 }
 ```
 
-**Dependencies:** Foundation (`Process`, `Pipe` for stdin/stdout IPC)
+**Dependencies:** Foundation (`Process`, `Pipe` for stdin/stdout/stderr IPC)
 
 **Protocol (JSON-RPC 2.0 over stdin/stdout):**
 ```
@@ -1259,7 +1278,7 @@ actor MockSTTClient: STTClientProtocol {
     func configure(result: STTResult) { transcribeResult = result; transcribeError = nil }
     func configure(error: Error) { transcribeError = error; transcribeResult = nil }
 
-    func transcribe(audioPath: String) async throws -> STTResult {
+    func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)? = nil) async throws -> STTResult {
         if let error = transcribeError { throw error }
         guard let result = transcribeResult else { throw STTError.daemonNotRunning }
         return result

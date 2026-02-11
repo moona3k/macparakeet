@@ -50,7 +50,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 |---------|------|-------|--------|
 | v0.1 | Core MVP | Dictation + transcription + history + settings | **Implemented** |
 | v0.2 | AI & Text Processing | Clean pipeline, AI refinement, custom words | **In Progress** |
-| v0.3 | Command Mode & Export | Voice commands, YouTube, full export formats | Planned |
+| v0.3 | Command Mode & Export | Voice commands, YouTube, full export formats | **In Progress** |
 | v0.4 | Polish & Launch | Diarization, batch processing, App Store | Planned |
 
 ## Version Progress
@@ -70,7 +70,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Basic export (plain text, copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + substring search)
 - [x] CLI tool (`macparakeet transcribe`, `history`, `health`)
-- [x] 292 tests passing (32 test suites)
+- [x] 312 tests passing (`swift test` green)
 
 ### v0.2 AI & Text Processing (In Progress)
 
@@ -80,7 +80,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [ ] Personal dictionary (auto-learns vocabulary)
 - [x] CLI commands (`macparakeet flow process/words/snippets`)
 
-### v0.3 Command Mode & Export (Planned)
+### v0.3 Command Mode & Export (In Progress)
 
 - [ ] Command Mode: select text -> speak command -> LLM edits in-place
 - [x] YouTube URL transcription (yt-dlp + Parakeet)

@@ -70,7 +70,7 @@ Input File → FFmpeg → 16kHz mono WAV → STT Daemon → Transcript
 
 - **Max file size**: 4 hours of audio (configurable)
 - **Temp file management**: intermediate WAV files are automatically cleaned up after transcription completes (success or failure)
-- FFmpeg runs as a subprocess; progress is reported back to the UI
+- FFmpeg runs as a subprocess; phase updates are reported to the UI (download/transcribe progress where available)
 
 ### Conversion Flow
 
@@ -82,6 +82,42 @@ User selects file
     → Send WAV to STT daemon
     → Return transcript
     → Clean up temp WAV
+```
+
+---
+
+## YouTube URL Input (Transcription)
+
+### Download + Conversion Pipeline
+
+```
+YouTube URL → yt-dlp (audio only) → downloaded audio file → FFmpeg → 16kHz mono WAV → STT Daemon → Transcript
+```
+
+- `yt-dlp` is used with `--no-playlist` for single-video processing
+- Download progress is parsed from yt-dlp output and surfaced as percent updates
+- Downloaded files are written to:
+
+```
+~/Library/Application Support/MacParakeet/youtube-downloads/
+```
+
+### Retention Policy
+
+- **Default:** keep downloaded YouTube audio (`saveTranscriptionAudio = true`)
+- If disabled in Settings, downloaded YouTube audio is deleted after transcription
+- Users can manually clear retained YouTube downloads from Settings > Storage
+
+### URL Transcription Flow
+
+```
+User pastes YouTube URL
+    → Validate URL format (single video)
+    → Download audio via yt-dlp (emit "Downloading audio... X%")
+    → Convert to 16kHz mono WAV via FFmpeg
+    → Send WAV to STT daemon (emit "Transcribing... X%")
+    → Save transcription (sourceURL set, filePath set only if retention enabled)
+    → Clean up temp WAV (always)
 ```
 
 ---

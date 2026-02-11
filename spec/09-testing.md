@@ -69,8 +69,18 @@ struct MockTranscriptionService: TranscriptionService {
 **Examples:**
 - Dictation flow (record -> STT -> pipeline -> paste)
 - Import pipeline (file read -> convert -> transcribe -> store)
+- YouTube URL pipeline (download -> convert -> transcribe -> store)
 - Text processing pipeline (raw text -> clean text through all stages)
 - Export pipeline (transcription -> format -> file)
+
+### Progress Regression Coverage
+
+The suite includes targeted regressions for progress behavior in URL transcription:
+
+- `STTClientTests`: split stderr chunks (`PROGRESS:x/y`) are buffered and parsed correctly
+- `YouTubeDownloaderTests`: yt-dlp download percent line parsing
+- `TranscriptionServiceTests`: download-phase percentages are forwarded to `onProgress`
+- `TranscriptionViewModelTests`: phase text percent parsing updates UI progress and resets on non-percent phases
 
 ### CLI Tests
 

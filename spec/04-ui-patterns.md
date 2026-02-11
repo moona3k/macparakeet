@@ -408,21 +408,27 @@ Drop zone components:
 
 ### Processing State
 
-Uses `SpinnerRingView` (merkaba spinner) instead of generic system ProgressView.
+Uses `SpinnerRingView` plus phase-aware progress feedback.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
 │                                                          │
 │                    [merkaba spinner]                     │
 │                                                          │
-│                   "Transcribing..."                      │
+│               "Downloading audio... 42%"                │
+│                     [linear 42% bar]                     │
 │                                                          │
 │                    [error if any]                        │
 │                                                          │
 └──────────────────────────────────────────────────────────┘
 
-- SpinnerRingView(size: 40, revolutionDuration: 2.5, tintColor: .accentColor)
-- Progress text: body font, secondary color
+- SpinnerRingView(size: 48, tintColor: .accentColor)
+- Phase icon behind spinner:
+  - Download phase (`"download"` in phase text): `arrow.down.circle`
+  - Transcription phase: `waveform`
+- Progress text: body font, secondary color (`viewModel.progress`)
+- Determinate progress bar shown when phase text ends with `%` (parsed from phase string)
+- During download phases without parsable percent, show indeterminate linear bar + helper text
 - Error text: caption, red (if present)
 ```
 
@@ -636,30 +642,33 @@ Note: How It Works, Tips, Custom Words, and Text Snippets sections are only visi
 - Same enable/disable and delete patterns as Custom Words
 ```
 
-### Storage (v0.1)
+### Storage (v0.1 + v0.3)
 
 ```
 ┌───────────────────────────────────────────────────────────┐
 │  STORAGE                                                  │
 │  ─────────────────────────────────────────────────────    │
 │                                                           │
-│  Audio retention              [● Keep all]               │
-│                               [  Keep 7 days]            │
-│                               [  Never keep]             │
+│  [x] Save audio recordings                               │
 │  (Controls whether dictation audio is saved to disk)     │
+│                                                           │
+│  [x] Keep downloaded YouTube audio                        │
+│  (Enabled by default. If off, URL audio is deleted        │
+│   after transcription completes.)                         │
 │                                                           │
 │  ─────────────────────────────────────────────────────    │
 │                                                           │
 │  STATISTICS                                              │
 │  Total dictations:            32                         │
 │  Total transcriptions:        5                          │
+│  YouTube downloads:           4 files • 182.1 MB         │
 │  Audio storage used:          48.2 MB                    │
 │  Database size:               1.2 MB                     │
 │                                                           │
 │  ─────────────────────────────────────────────────────    │
 │                                                           │
 │  [Clear All Dictation History]                           │
-│  [Clear All Transcription History]                       │
+│  [Clear Downloaded YouTube Audio]                        │
 │  (These actions cannot be undone)                        │
 │                                                           │
 └───────────────────────────────────────────────────────────┘
@@ -821,9 +830,10 @@ All UI listed above is v0.1 except where noted:
 - Text Snippets management view (sheet from Vocabulary)
 - Context mode selector in dictation (raw/clean badge on overlay)
 
-### v0.3 (Import & Export)
+### v0.3 (Import & Export, In Progress)
 
 - YouTube URL input field in transcription view
+- YouTube download phase text + determinate percent bar in transcription processing UI
 - Batch processing queue view
 - Export format picker (TXT, SRT, VTT, DOCX, PDF, JSON)
 - Export history on transcription detail
@@ -860,4 +870,4 @@ MacParakeet follows standard macOS patterns:
 
 ---
 
-*Last updated: 2026-02-10*
+*Last updated: 2026-02-11*

@@ -15,7 +15,7 @@ Meanwhile, local-only alternatives (MacWhisper, VoiceInk, BetterDictation) have 
 
 ## Decision
 
-**100% local processing.** No audio, text, or user data is sent to any server, ever. The only network call the app makes is user-initiated YouTube URL downloads (for file transcription), which fetches a public video -- not user data.
+**100% local processing.** No audio, text, or user data is sent to any server, ever. The only network call the app makes is user-initiated YouTube URL downloads (for file transcription), which fetches a public video -- not user data. Downloaded YouTube audio is stored locally only (retained by default, user-configurable cleanup).
 
 This applies to:
 
