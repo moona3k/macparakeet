@@ -107,7 +107,10 @@ struct DictationHistoryView: View {
                             isPlayingThis: viewModel.playingDictationId == dictation.id && viewModel.isPlaying,
                             isCopied: viewModel.copiedDictationId == dictation.id,
                             onTogglePlayback: { viewModel.togglePlayback(for: dictation) },
-                            onCopy: { viewModel.copyToClipboard(dictation) },
+                            onCopy: {
+                                viewModel.copyToClipboard(dictation)
+                                SoundManager.shared.play(.copyClick)
+                            },
                             onDelete: {
                                 viewModel.pendingDeleteDictation = dictation
                             },

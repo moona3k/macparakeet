@@ -1,7 +1,9 @@
+import AppKit
 import AVFoundation
 
 /// Audio feedback system for MacParakeet.
-/// Preloads sounds for zero-latency playback. Respects macOS sound settings.
+/// Preloads custom sounds for zero-latency playback. Falls back to macOS system sounds
+/// when custom assets aren't bundled yet. Respects macOS sound settings.
 final class SoundManager {
     static let shared = SoundManager()
 
@@ -17,9 +19,12 @@ final class SoundManager {
         // Respect macOS "Play sound effects" setting
         guard UserDefaults.standard.bool(forKey: "com.apple.sound.uiaudio.enabled") != false else { return }
 
-        guard let player = players[sound] else { return }
-        player.currentTime = 0
-        player.play()
+        if let player = players[sound] {
+            player.currentTime = 0
+            player.play()
+        } else if let systemName = sound.systemSoundFallback {
+            NSSound(named: systemName)?.play()
+        }
     }
 
     private func preloadSounds() {
@@ -34,14 +39,14 @@ final class SoundManager {
                 player.prepareToPlay()
                 players[sound] = player
             } catch {
-                // Sound assets not yet bundled — this is expected until assets are created
+                // Fall through to system sound fallback at play time
             }
         }
     }
 }
 
 /// Named sound effects for MacParakeet.
-/// Assets will be bundled as .aif files in the app resources.
+/// Custom assets will be bundled as .aif files. Until then, system sounds are used.
 enum AppSound: String, CaseIterable {
     case recordStart = "record_start"
     case recordStop = "record_stop"
@@ -49,4 +54,16 @@ enum AppSound: String, CaseIterable {
     case fileDropped = "file_dropped"
     case errorSoft = "error_soft"
     case copyClick = "copy_click"
+
+    /// macOS system sound fallback when custom asset isn't bundled.
+    var systemSoundFallback: NSSound.Name? {
+        switch self {
+        case .recordStart: return "Tink"
+        case .recordStop: return "Pop"
+        case .transcriptionComplete: return "Glass"
+        case .fileDropped: return "Pop"
+        case .errorSoft: return "Basso"
+        case .copyClick: return "Tink"
+        }
+    }
 }

@@ -478,6 +478,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             width: DesignSystem.Layout.sidebarMinWidth + DesignSystem.Layout.contentMinWidth,
             height: DesignSystem.Layout.windowMinHeight
         )
+        window.titlebarAppearsTransparent = true
         window.contentView = NSHostingView(rootView: contentView)
         window.delegate = self
         window.isReleasedWhenClosed = false

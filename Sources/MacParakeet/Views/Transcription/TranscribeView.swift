@@ -82,6 +82,20 @@ struct TranscribeView: View {
                                 viewModel.transcribeURL()
                             }
                         }
+
+                    if viewModel.urlInput.isEmpty {
+                        Button {
+                            if let clip = NSPasteboard.general.string(forType: .string) {
+                                viewModel.urlInput = clip.trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        } label: {
+                            Image(systemName: "doc.on.clipboard")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Paste from clipboard")
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -256,7 +270,7 @@ private struct RecentTranscriptionRow: View {
             // Content: filename + metadata
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
-                    Text(transcription.fileName)
+                    Text(displayName)
                         .font(DesignSystem.Typography.body)
                         .lineLimit(1)
                         .foregroundStyle(.primary)
@@ -309,6 +323,19 @@ private struct RecentTranscriptionRow: View {
                 isHovered = hovering
             }
         }
+    }
+
+    // MARK: - Display Name
+
+    private var displayName: String {
+        let name = transcription.fileName
+        // If filename looks like a UUID (with or without extension), show transcript preview instead
+        let stem = (name as NSString).deletingPathExtension
+        if UUID(uuidString: stem) != nil, let text = transcription.rawTranscript, !text.isEmpty {
+            let preview = String(text.prefix(60)).replacingOccurrences(of: "\n", with: " ")
+            return preview
+        }
+        return name
     }
 
     // MARK: - Icon Thumbnail

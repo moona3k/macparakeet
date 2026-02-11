@@ -36,6 +36,7 @@ struct MainWindowView: View {
                     .tag(item)
             }
             .listStyle(.sidebar)
+            .tint(DesignSystem.Colors.accent)
             .navigationSplitViewColumnWidth(min: 170, ideal: DesignSystem.Layout.sidebarMinWidth, max: 240)
         } detail: {
             Group {

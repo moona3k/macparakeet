@@ -240,6 +240,7 @@ struct TranscriptResultView: View {
         let text = transcription.rawTranscript ?? transcription.cleanTranscript ?? ""
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        SoundManager.shared.play(.copyClick)
 
         withAnimation(DesignSystem.Animation.hoverTransition) { copied = true }
         Task {
