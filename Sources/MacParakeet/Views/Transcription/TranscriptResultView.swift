@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import MacParakeetCore
 
 struct TranscriptResultView: View {
@@ -127,15 +128,36 @@ struct TranscriptResultView: View {
 
             // Export bar
             HStack(spacing: DesignSystem.Spacing.sm) {
-                Button {
-                    exportTxt()
+                Menu {
+                    Button {
+                        exportFile(format: .txt)
+                    } label: {
+                        Label("Plain Text (.txt)", systemImage: "doc.text")
+                    }
+
+                    if hasTimestamps {
+                        Divider()
+
+                        Button {
+                            exportFile(format: .srt)
+                        } label: {
+                            Label("Subtitles (.srt)", systemImage: "captions.bubble")
+                        }
+
+                        Button {
+                            exportFile(format: .vtt)
+                        } label: {
+                            Label("Web Subtitles (.vtt)", systemImage: "captions.bubble.fill")
+                        }
+                    }
                 } label: {
                     Label(
-                        exported ? "Exported!" : "Export .txt",
+                        exported ? "Exported!" : "Export",
                         systemImage: exported ? "checkmark" : "arrow.down.doc"
                     )
                 }
-                .buttonStyle(.bordered)
+                .menuStyle(.borderlessButton)
+                .frame(width: exported ? 110 : 85)
 
                 Button {
                     copyToClipboard()
@@ -249,15 +271,49 @@ struct TranscriptResultView: View {
         }
     }
 
-    private func exportTxt() {
+    private var hasTimestamps: Bool {
+        guard let words = transcription.wordTimestamps else { return false }
+        return !words.isEmpty
+    }
+
+    private enum ExportFormat {
+        case txt, srt, vtt
+
+        var fileExtension: String {
+            switch self {
+            case .txt: return "txt"
+            case .srt: return "srt"
+            case .vtt: return "vtt"
+            }
+        }
+
+        var contentType: UTType {
+            switch self {
+            case .txt: return .plainText
+            case .srt: return UTType(filenameExtension: "srt") ?? .plainText
+            case .vtt: return UTType(filenameExtension: "vtt") ?? .plainText
+            }
+        }
+    }
+
+    private func exportFile(format: ExportFormat) {
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.plainText]
-        panel.nameFieldStringValue = transcription.fileName
-            .replacingOccurrences(of: ".\(URL(fileURLWithPath: transcription.fileName).pathExtension)", with: ".txt")
+        panel.allowedContentTypes = [format.contentType]
+
+        let stem = (transcription.fileName as NSString).deletingPathExtension
+        panel.nameFieldStringValue = "\(stem).\(format.fileExtension)"
 
         if panel.runModal() == .OK, let url = panel.url {
             let exportService = ExportService()
-            try? exportService.exportToTxt(transcription: transcription, url: url)
+            do {
+                switch format {
+                case .txt: try exportService.exportToTxt(transcription: transcription, url: url)
+                case .srt: try exportService.exportToSRT(transcription: transcription, url: url)
+                case .vtt: try exportService.exportToVTT(transcription: transcription, url: url)
+                }
+            } catch {
+                return
+            }
 
             withAnimation(DesignSystem.Animation.hoverTransition) { exported = true }
             Task {
