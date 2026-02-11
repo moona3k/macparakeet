@@ -9,6 +9,7 @@ public final class CustomWordsViewModel {
     public var newWord: String = ""
     public var newReplacement: String = ""
     public var errorMessage: String?
+    public var pendingDeleteWord: CustomWord?
 
     private var repo: CustomWordRepositoryProtocol?
 
@@ -76,6 +77,12 @@ public final class CustomWordsViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    public func confirmDelete() {
+        guard let word = pendingDeleteWord else { return }
+        pendingDeleteWord = nil
+        deleteWord(word)
     }
 
     public func deleteWord(_ word: CustomWord) {

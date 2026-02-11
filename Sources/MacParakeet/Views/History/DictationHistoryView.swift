@@ -13,6 +13,24 @@ struct DictationHistoryView: View {
                 dictationList
             }
 
+            // Playback error bar
+            if let error = viewModel.playbackError {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12))
+                        .foregroundStyle(DesignSystem.Colors.warningOrange)
+                    Text(error)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, DesignSystem.Spacing.lg)
+                .padding(.vertical, DesignSystem.Spacing.sm)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .overlay(alignment: .top) { Divider() }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+
             // Bottom bar player
             if let playing = viewModel.playingDictation {
                 bottomBarPlayer(playing)
@@ -21,6 +39,7 @@ struct DictationHistoryView: View {
         }
         .searchable(text: $viewModel.searchText, prompt: "Search dictations...")
         .animation(DesignSystem.Animation.contentSwap, value: viewModel.playingDictationId)
+        .animation(DesignSystem.Animation.contentSwap, value: viewModel.playbackError != nil)
         .alert(
             "Delete Dictation?",
             isPresented: Binding(
@@ -74,6 +93,7 @@ struct DictationHistoryView: View {
                             dictation: dictation,
                             searchText: viewModel.searchText,
                             isPlayingThis: viewModel.playingDictationId == dictation.id && viewModel.isPlaying,
+                            isCopied: viewModel.copiedDictationId == dictation.id,
                             onTogglePlayback: { viewModel.togglePlayback(for: dictation) },
                             onCopy: { viewModel.copyToClipboard(dictation) },
                             onDelete: {
@@ -169,6 +189,7 @@ struct DictationRowView: View {
     let dictation: Dictation
     var searchText: String = ""
     var isPlayingThis: Bool = false
+    var isCopied: Bool = false
     var onTogglePlayback: (() -> Void)?
     var onCopy: () -> Void
     var onDelete: () -> Void
@@ -190,57 +211,11 @@ struct DictationRowView: View {
             }
             .frame(width: 56, alignment: .trailing)
 
-            // Transcript text — full, no line limit, with search highlight
+            // Transcript text — full width, no line limit, with search highlight
             Text(highlightedTranscript)
                 .font(.body)
                 .foregroundStyle(.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Hover actions
-            if isHovered {
-                HStack(spacing: DesignSystem.Spacing.xs) {
-                    if dictation.audioPath != nil {
-                        Button {
-                            onTogglePlayback?()
-                        } label: {
-                            Image(systemName: isPlayingThis ? "pause.fill" : "play.fill")
-                                .font(.system(size: 12))
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(Color.accentColor)
-                    }
-
-                    Button(action: onCopy) {
-                        Image(systemName: "doc.on.clipboard")
-                            .font(.system(size: 12))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-
-                    Menu {
-                        if dictation.audioPath != nil {
-                            Button {
-                                onDownloadAudio?()
-                            } label: {
-                                Label("Download Audio", systemImage: "arrow.down.circle")
-                            }
-                        }
-                        Divider()
-                        Button(role: .destructive) {
-                            onDelete()
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis")
-                            .font(.system(size: 12))
-                            .frame(width: 16, height: 16)
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
-                .transition(.opacity)
-            }
         }
         .padding(.horizontal, DesignSystem.Spacing.lg)
         .padding(.vertical, DesignSystem.Spacing.md)
@@ -253,6 +228,69 @@ struct DictationRowView: View {
                         ? DesignSystem.Colors.rowHoverBackground
                         : .clear)
         )
+        // Hover actions — overlaid on the right with a gradient fade, no layout shift
+        .overlay(alignment: .topTrailing) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                if dictation.audioPath != nil {
+                    Button {
+                        onTogglePlayback?()
+                    } label: {
+                        Image(systemName: isPlayingThis ? "pause.fill" : "play.fill")
+                            .font(.system(size: 14))
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(Color.accentColor)
+                }
+
+                Button(action: onCopy) {
+                    Image(systemName: isCopied ? "checkmark" : "doc.on.clipboard")
+                        .font(.system(size: 14, weight: isCopied ? .semibold : .regular))
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(isCopied ? DesignSystem.Colors.successGreen : .secondary)
+                .animation(DesignSystem.Animation.hoverTransition, value: isCopied)
+
+                Menu {
+                    if dictation.audioPath != nil {
+                        Button {
+                            onDownloadAudio?()
+                        } label: {
+                            Label("Download Audio", systemImage: "arrow.down.circle")
+                        }
+                    }
+                    Divider()
+                    Button(role: .destructive) {
+                        onDelete()
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 14))
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+            .padding(.trailing, DesignSystem.Spacing.lg)
+            .padding(.top, DesignSystem.Spacing.md - 2)
+            .padding(.leading, DesignSystem.Spacing.xxl)
+            .background(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: Color(nsColor: .textBackgroundColor), location: 0.25)
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .opacity(isHovered ? 1 : 0)
+            .allowsHitTesting(isHovered)
+            .animation(DesignSystem.Animation.hoverTransition, value: isHovered)
+        }
         .onHover { hovering in
             withAnimation(DesignSystem.Animation.hoverTransition) {
                 isHovered = hovering

@@ -444,9 +444,9 @@ The app lives primarily in the menu bar. Click the icon for quick actions, or op
 
 ### F4: Dictation History
 
-**What:** Searchable, date-grouped history of all dictations with audio playback and copy/delete actions.
+**What:** Searchable, date-grouped flat list of all dictations with hover actions, bottom bar audio player, and copy/delete support.
 
-**History view:**
+**History view (flat list + bottom bar player):**
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -456,60 +456,35 @@ The app lives primarily in the menu bar. Click the icon for quick actions, or op
 │ Transcribe       │ [Search dictations...]                       │
 │ ▸ Dictations     │                                               │
 │ Settings         │ TODAY                                         │
-│                  │ ┌─────────────────────────────────────────┐  │
-│                  │ │ 10:45 AM                         00:05  │  │
-│                  │ │ I need to email Sarah about the budget. │  │
-│                  │ │ ▶ Play                           [Copy] │  │
-│                  │ └─────────────────────────────────────────┘  │
-│                  │ ┌─────────────────────────────────────────┐  │
-│                  │ │ 10:32 AM                         00:08  │  │
-│                  │ │ Remind me to review the Q1 report...    │  │
-│                  │ │ ▶ Play                           [Copy] │  │
-│                  │ └─────────────────────────────────────────┘  │
+│                  │ 10:45 AM  I need to email Sarah about the    │
+│                  │   00:05   budget. Can you send me the latest  │
+│                  │           numbers by Friday?    [▶][📋][…]   │
+│                  │ ─────────────────────────────────────────── │
+│                  │ 10:32 AM  Remind me to review the Q1 report  │
+│                  │   00:08   before the meeting tomorrow.        │
 │                  │                                               │
 │                  │ YESTERDAY                                     │
-│                  │ ┌─────────────────────────────────────────┐  │
-│                  │ │ 4:15 PM                          00:12  │  │
-│                  │ │ The API deadline is March 15th...        │  │
-│                  │ │ ▶ Play                           [Copy] │  │
-│                  │ └─────────────────────────────────────────┘  │
+│                  │ 4:15 PM   The API deadline is March 15th and  │
+│                  │   00:12   we need to finish the integration.  │
 │                  │                                               │
+│                  │ ┌───────────────────────────────────────────┐ │
+│                  │ │ [▶] Transcript snippet...  ═══░░ 0:15  ✕ │ │
+│                  │ └───────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 **Features:**
+- Full-width flat chronological list (no split pane, no detail view)
 - Grouped by date (Today, Yesterday, specific dates)
-- Each entry shows: time, duration, transcript preview (2 lines max)
-- Inline audio playback (play/pause button)
-- Copy text to clipboard
-- Click row to expand to detail view
-- Search bar filters by transcript content
-- Context menu: Copy, Delete
-- Keyboard shortcut: Cmd+Backspace to delete selected
-
-**Dictation detail view (expanded):**
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Dictation - Jan 20, 2026 10:45 AM                       [...]  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│ ▶ ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 00:05            │
-│                                                                  │
-│ ──────────────────────────────────────────────────────────────── │
-│                                                                  │
-│ Transcript                                                       │
-│ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ I need to email Sarah about the budget.                      │ │
-│ └──────────────────────────────────────────────────────────────┘ │
-│                                                         [Copy]   │
-│                                                                  │
-│ ──────────────────────────────────────────────────────────────── │
-│                                                                  │
-│ [Delete Dictation]                                               │
-│                                                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+- Each entry shows: time, duration, full transcript text (no line limit)
+- Hover actions: Play/Pause, Copy (with checkmark confirmation), three-dot menu (Download Audio, Delete)
+- Currently-playing row has subtle accent tint background
+- Bottom bar audio player (Spotify-style): play/pause, transcript snippet, progress bar, time, close
+- Search bar filters by transcript content (substring match, case-insensitive)
+- Context menu: Play/Pause, Copy, Download Audio, Delete
+- Keyboard shortcut: Cmd+Backspace to delete
+- Text selection enabled on transcript text
+- Delete confirmation dialog before permanent removal
 
 **Database schema:**
 
@@ -553,12 +528,13 @@ CREATE INDEX idx_dictations_created_at ON dictations(createdAt DESC);
 Audio path is computed from ID by default. Files stored as WAV (16kHz mono). User can disable storage in settings (audio discarded after transcription).
 
 **Acceptance criteria:**
-- [x] Dictation history shows all past dictations grouped by date
-- [x] Search filters dictations by transcript content in real-time
-- [x] Can play audio inline from history list
-- [x] Can copy transcript text to clipboard
-- [x] Can delete individual dictations (with confirmation)
-- [x] Click expands to detail view with full transcript and playback
+- [x] Dictation history shows all past dictations grouped by date in flat list
+- [x] Search filters dictations by transcript content in real-time (substring match)
+- [x] Can play audio via bottom bar player (Spotify-style progress bar)
+- [x] Can copy transcript text to clipboard (with checkmark confirmation)
+- [x] Can delete individual dictations (with confirmation dialog)
+- [x] Can download audio files via three-dot menu
+- [x] Hover actions appear without layout shift (overlay pattern)
 - [x] History persists across app restarts (SQLite via GRDB)
 
 ---
@@ -747,15 +723,15 @@ CREATE TABLE text_snippets (
 **Performance target:** <1ms for entire pipeline (no LLM, pure string operations).
 
 **Acceptance criteria:**
-- [ ] Filler words removed from Parakeet output
-- [ ] Multi-word fillers handled correctly (checked before single-word)
-- [ ] Sentence-start-only fillers preserved mid-sentence
-- [ ] Custom word replacements applied (case-insensitive matching)
-- [ ] Snippet triggers expanded to full text
-- [ ] Whitespace normalized and punctuation fixed
-- [ ] Processing completes in sub-millisecond
-- [ ] Raw mode bypasses all processing
-- [ ] Clean mode is the default for new dictations
+- [x] Filler words removed from Parakeet output
+- [x] Multi-word fillers handled correctly (checked before single-word)
+- [x] Sentence-start-only fillers preserved mid-sentence
+- [x] Custom word replacements applied (case-insensitive matching)
+- [x] Snippet triggers expanded to full text
+- [x] Whitespace normalized and punctuation fixed
+- [x] Processing completes in sub-millisecond
+- [x] Raw mode bypasses all processing
+- [x] Clean mode is the default for new dictations
 
 ---
 
@@ -869,12 +845,12 @@ Modes stack: Formal/Email/Code always run the clean pipeline first, then apply L
 ```
 
 **Acceptance criteria:**
-- [ ] Can add/edit/delete/toggle custom words
-- [ ] Can add/delete text snippets
-- [ ] Use count displayed and updated for snippets
-- [ ] Changes take effect immediately for next dictation
-- [ ] Settings link opens management views
-- [ ] Default processing mode configurable
+- [x] Can add/edit/delete/toggle custom words
+- [x] Can add/delete text snippets
+- [x] Use count displayed and updated for snippets
+- [x] Changes take effect immediately for next dictation
+- [x] Settings link opens management views
+- [x] Default processing mode configurable
 
 ---
 

@@ -93,14 +93,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         guard let button = statusItem?.button else { return }
 
-        let config = NSImage.SymbolConfiguration(pointSize: 14, weight: .bold)
-        if let image = NSImage(systemSymbolName: "waveform", accessibilityDescription: "MacParakeet")?
-            .withSymbolConfiguration(config) {
-            image.isTemplate = true
-            button.image = image
-        } else {
-            button.title = "MP"
-        }
+        button.image = BreathWaveIcon.menuBarIcon(pointSize: 18)
 
         let menu = NSMenu()
 

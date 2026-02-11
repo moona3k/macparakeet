@@ -5,6 +5,7 @@ import MacParakeetViewModels
 enum SidebarItem: String, CaseIterable, Identifiable {
     case transcribe = "Transcribe"
     case dictations = "Dictations"
+    case vocabulary = "Vocabulary"
     case settings = "Settings"
 
     var id: String { rawValue }
@@ -13,6 +14,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         switch self {
         case .transcribe: return "waveform"
         case .dictations: return "clock.arrow.circlepath"
+        case .vocabulary: return "book.fill"
         case .settings: return "gearshape"
         }
     }
@@ -42,12 +44,14 @@ struct MainWindowView: View {
                     TranscribeView(viewModel: transcriptionViewModel)
                 case .dictations:
                     DictationHistoryView(viewModel: historyViewModel)
-                case .settings:
-                    SettingsView(
-                        viewModel: settingsViewModel,
+                case .vocabulary:
+                    VocabularyView(
+                        settingsViewModel: settingsViewModel,
                         customWordsViewModel: customWordsViewModel,
                         textSnippetsViewModel: textSnippetsViewModel
                     )
+                case .settings:
+                    SettingsView(viewModel: settingsViewModel)
                 }
             }
             .animation(DesignSystem.Animation.contentSwap, value: state.selectedItem)

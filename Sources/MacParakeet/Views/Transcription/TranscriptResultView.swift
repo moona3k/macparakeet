@@ -7,6 +7,8 @@ struct TranscriptResultView: View {
 
     @State private var showExportDialog = false
     @State private var backHovered = false
+    @State private var copied = false
+    @State private var exported = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -74,14 +76,24 @@ struct TranscriptResultView: View {
             Divider()
 
             // Export bar
-            HStack {
-                Button("Export .txt") {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Button {
                     exportTxt()
+                } label: {
+                    Label(
+                        exported ? "Exported!" : "Export .txt",
+                        systemImage: exported ? "checkmark" : "arrow.down.doc"
+                    )
                 }
                 .buttonStyle(.bordered)
 
-                Button("Copy") {
+                Button {
                     copyToClipboard()
+                } label: {
+                    Label(
+                        copied ? "Copied!" : "Copy",
+                        systemImage: copied ? "checkmark" : "doc.on.clipboard"
+                    )
                 }
                 .buttonStyle(.bordered)
 
@@ -157,6 +169,12 @@ struct TranscriptResultView: View {
         let text = transcription.rawTranscript ?? transcription.cleanTranscript ?? ""
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+
+        withAnimation(DesignSystem.Animation.hoverTransition) { copied = true }
+        Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            withAnimation(DesignSystem.Animation.hoverTransition) { copied = false }
+        }
     }
 
     private func exportTxt() {
@@ -168,6 +186,12 @@ struct TranscriptResultView: View {
         if panel.runModal() == .OK, let url = panel.url {
             let exportService = ExportService()
             try? exportService.exportToTxt(transcription: transcription, url: url)
+
+            withAnimation(DesignSystem.Animation.hoverTransition) { exported = true }
+            Task {
+                try? await Task.sleep(for: .seconds(1.5))
+                withAnimation(DesignSystem.Animation.hoverTransition) { exported = false }
+            }
         }
     }
 

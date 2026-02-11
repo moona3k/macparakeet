@@ -34,6 +34,16 @@ public final class DictationHistoryViewModel {
         return groupedDictations.flatMap(\.1).first { $0.id == id }
     }
 
+    // MARK: - Copy Confirmation
+
+    public var copiedDictationId: UUID?
+    private var copiedResetTask: Task<Void, Never>?
+
+    // MARK: - Playback Error
+
+    public var playbackError: String?
+    private var playbackErrorResetTask: Task<Void, Never>?
+
     // MARK: - Delete Confirmation
 
     public var pendingDeleteDictation: Dictation?
@@ -104,6 +114,14 @@ public final class DictationHistoryViewModel {
         let text = dictation.cleanTranscript ?? dictation.rawTranscript
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+
+        copiedResetTask?.cancel()
+        copiedDictationId = dictation.id
+        copiedResetTask = Task {
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            self.copiedDictationId = nil
+        }
     }
 
     // MARK: - Playback
@@ -129,7 +147,10 @@ public final class DictationHistoryViewModel {
         stopPlayback()
 
         let url = URL(fileURLWithPath: audioPath)
-        guard FileManager.default.fileExists(atPath: audioPath) else { return }
+        guard FileManager.default.fileExists(atPath: audioPath) else {
+            showPlaybackError("Audio file no longer exists")
+            return
+        }
 
         do {
             let player = try AVAudioPlayer(contentsOf: url)
@@ -149,7 +170,7 @@ public final class DictationHistoryViewModel {
             playbackCurrentTime = 0
             startPlaybackTimer()
         } catch {
-            stopPlayback()
+            showPlaybackError("Unable to play audio")
         }
     }
 
@@ -173,6 +194,16 @@ public final class DictationHistoryViewModel {
     }
 
     // MARK: - Private
+
+    private func showPlaybackError(_ message: String) {
+        playbackErrorResetTask?.cancel()
+        playbackError = message
+        playbackErrorResetTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            self.playbackError = nil
+        }
+    }
 
     private func startPlaybackTimer() {
         playbackTimerTask?.cancel()

@@ -106,7 +106,7 @@ struct TextSnippetsView: View {
                             }
 
                             Button(role: .destructive) {
-                                viewModel.deleteSnippet(snippet)
+                                viewModel.pendingDeleteSnippet = snippet
                             } label: {
                                 Image(systemName: "trash")
                                     .foregroundStyle(.secondary)
@@ -142,6 +142,24 @@ struct TextSnippetsView: View {
                 }
             }
             .padding()
+        }
+        .alert(
+            "Delete Snippet?",
+            isPresented: Binding(
+                get: { viewModel.pendingDeleteSnippet != nil },
+                set: { if !$0 { viewModel.pendingDeleteSnippet = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                viewModel.pendingDeleteSnippet = nil
+            }
+            Button("Delete", role: .destructive) {
+                viewModel.confirmDelete()
+            }
+        } message: {
+            if let snippet = viewModel.pendingDeleteSnippet {
+                Text("Delete \"\(snippet.trigger)\"? This cannot be undone.")
+            }
         }
     }
 }

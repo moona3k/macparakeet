@@ -95,7 +95,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**v0.1 MVP** -- Implemented (191 tests, 22 suites, `swift test` + `xcodebuild` green)
+**v0.2 In Progress** -- Clean pipeline + management UI implemented (269 tests, 29 suites, `swift test` green)
 
 ### v0.1 MVP (Implemented)
 - [x] System-wide dictation: Fn double-tap (persistent) + hold-to-talk
@@ -104,24 +104,24 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] Persistent idle pill (always-visible, click-to-dictate)
 - [x] Auto-paste with clipboard save/restore
 - [x] Settings (hotkey display, silence auto-stop, storage, permissions)
-- [x] Dictation history (date-grouped, searchable, detail view with split pane, audio playback)
+- [x] Dictation history (date-grouped, searchable, flat list with bottom bar player, audio playback)
 - [x] Menu bar app with main window + sidebar navigation
 - [x] Basic export (plain text .txt, copy to clipboard)
-- [x] SQLite database (GRDB, dictations + transcriptions + FTS5 search)
+- [x] SQLite database (GRDB, dictations + transcriptions + substring search)
 - [x] CLI tool: `macparakeet transcribe`, `history`, `health`
 - [x] Python STT daemon (JSON-RPC over stdin/stdout)
 
 ### v0.2 Clean Pipeline + AI
-- [ ] Clean text pipeline (filler removal, custom words, snippets) -- deterministic, no LLM
-- [ ] Context modes (raw, clean, formal, email, code)
+- [x] Clean text pipeline (filler removal, custom words, snippets) -- deterministic, no LLM
+- [x] Custom words & snippets management UI (sheets from Settings)
+- [x] CLI commands: `macparakeet flow process/words/snippets`
+- [ ] Context modes (raw, clean, formal, email, code) -- raw + clean done, AI modes pending
 - [ ] AI text refinement via Qwen3-4B
-- [ ] Custom words vocabulary
 
 ### v0.3 Command Mode + Import
 - [ ] Command Mode (highlight text + voice command -> LLM edits in-place, like WisprFlow Pro)
 - [ ] YouTube URL transcription
 - [ ] Export formats (TXT, SRT, VTT, DOCX)
-- [ ] Text snippets (trigger -> expansion)
 
 ### v0.4 Polish + Launch
 - [ ] Speaker diarization
@@ -277,7 +277,7 @@ macparakeet/
 │   ├── MacParakeetCore/        # Shared library (no UI deps)
 │   └── MacParakeetViewModels/  # ViewModels (testable, depends on Core)
 ├── Tests/
-│   └── MacParakeetTests/   # Unit, database, and integration tests (191 tests, 22 suites)
+│   └── MacParakeetTests/   # Unit, database, and integration tests (269 tests, 29 suites)
 ├── Assets/             # App icons and images (placeholder)
 ├── python/             # STT daemon (Parakeet via uv)
 │   └── macparakeet_stt/

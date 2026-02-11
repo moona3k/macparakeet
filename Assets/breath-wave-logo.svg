@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- MacParakeet "Breath Wave" Logo
+       A sinuous S-wave with two yin-yang dots.
+       Represents dictation (voice in) + transcription (text out).
+       Daoist-inspired: breath flowing, balance, duality. -->
+
+  <!-- S-curve wave -->
+  <path d="M 16 64 C 16 20, 64 20, 64 64 C 64 108, 112 108, 112 64"
+        fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round"/>
+
+  <!-- Dot 1 — below-left (voice/dictation) -->
+  <circle cx="40" cy="72" r="7" fill="currentColor"/>
+
+  <!-- Dot 2 — above-right (text/transcription) -->
+  <circle cx="88" cy="56" r="7" fill="currentColor"/>
+</svg>

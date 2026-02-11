@@ -49,7 +49,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | Version | Name | Focus | Status |
 |---------|------|-------|--------|
 | v0.1 | Core MVP | Dictation + transcription + history + settings | **Implemented** |
-| v0.2 | AI & Text Processing | Clean pipeline, AI refinement, custom words | Planned |
+| v0.2 | AI & Text Processing | Clean pipeline, AI refinement, custom words | **In Progress** |
 | v0.3 | Command Mode & Export | Voice commands, YouTube, full export formats | Planned |
 | v0.4 | Polish & Launch | Diarization, batch processing, App Store | Planned |
 
@@ -64,20 +64,21 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Compact dark pill overlay with recording timer + waveform
 - [x] Persistent idle pill (always-visible, click-to-dictate)
 - [x] Auto-paste with clipboard save/restore
-- [x] Dictation history (date-grouped, searchable, detail view, audio playback)
+- [x] Dictation history (date-grouped, searchable, flat list with bottom bar player)
 - [x] Settings (hotkey display, silence auto-stop, storage, permissions)
 - [x] Menu bar app with main window
 - [x] Basic export (plain text, copy to clipboard)
-- [x] SQLite database (GRDB, dictations + transcriptions + FTS5)
+- [x] SQLite database (GRDB, dictations + transcriptions + substring search)
 - [x] CLI tool (`macparakeet transcribe`, `history`, `health`)
-- [x] 191 tests passing (22 test suites)
+- [x] 269 tests passing (29 test suites)
 
-### v0.2 AI & Text Processing (Planned)
+### v0.2 AI & Text Processing (In Progress)
 
-- [ ] Clean text pipeline (deterministic: fillers, custom words, snippets)
+- [x] Clean text pipeline (deterministic: fillers, custom words, snippets)
 - [ ] AI text refinement (Qwen3-4B: formal, email, code modes)
-- [ ] Custom words & snippets management UI
+- [x] Custom words & snippets management UI
 - [ ] Personal dictionary (auto-learns vocabulary)
+- [x] CLI commands (`macparakeet flow process/words/snippets`)
 
 ### v0.3 Command Mode & Export (Planned)
 

@@ -9,6 +9,7 @@ public final class TextSnippetsViewModel {
     public var newTrigger: String = ""
     public var newExpansion: String = ""
     public var errorMessage: String?
+    public var pendingDeleteSnippet: TextSnippet?
 
     private var repo: TextSnippetRepositoryProtocol?
 
@@ -73,6 +74,12 @@ public final class TextSnippetsViewModel {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    public func confirmDelete() {
+        guard let snippet = pendingDeleteSnippet else { return }
+        pendingDeleteSnippet = nil
+        deleteSnippet(snippet)
     }
 
     public func deleteSnippet(_ snippet: TextSnippet) {

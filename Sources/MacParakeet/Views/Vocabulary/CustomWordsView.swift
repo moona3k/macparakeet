@@ -78,7 +78,7 @@ struct CustomWordsView: View {
                             Spacer()
 
                             Button(role: .destructive) {
-                                viewModel.deleteWord(word)
+                                viewModel.pendingDeleteWord = word
                             } label: {
                                 Image(systemName: "trash")
                                     .foregroundStyle(.secondary)
@@ -111,6 +111,24 @@ struct CustomWordsView: View {
                 }
             }
             .padding()
+        }
+        .alert(
+            "Delete Word?",
+            isPresented: Binding(
+                get: { viewModel.pendingDeleteWord != nil },
+                set: { if !$0 { viewModel.pendingDeleteWord = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                viewModel.pendingDeleteWord = nil
+            }
+            Button("Delete", role: .destructive) {
+                viewModel.confirmDelete()
+            }
+        } message: {
+            if let word = viewModel.pendingDeleteWord {
+                Text("Delete \"\(word.word)\"? This cannot be undone.")
+            }
         }
     }
 }

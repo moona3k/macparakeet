@@ -32,20 +32,23 @@ Drag any audio or video file → get a transcript in seconds.
 
 ## Features
 
-### Implemented (v0.1)
+### Implemented (v0.1 + v0.2)
 
 - **Blazing Fast** — Parakeet TDT STT, fully local
 - **100% Private** — Audio never leaves your Mac. No accounts. No tracking.
 - **System-Wide Dictation** — Fn double-tap (persistent) + hold-to-talk
 - **File Transcription** — Drag-drop audio/video files, word timestamps
+- **Smart Cleanup** — Deterministic 4-step pipeline (filler removal, custom words, snippets, whitespace)
+- **Custom Words** — Domain vocabulary corrections and proper noun casing
+- **Text Snippets** — Natural language triggers expand into longer text
 - **Export** — Plain text export (`.txt`) + copy to clipboard
-- **History** — Dictation + transcription history stored locally (SQLite + FTS search)
+- **History** — Dictation + transcription history stored locally (SQLite, searchable)
+- **CLI** — `macparakeet transcribe`, `history`, `health`, `flow process/words/snippets`
 
 ### Planned (v0.2+)
 
-- **Smart Cleanup** — Deterministic cleanup pipeline (filler removal, casing, snippets)
-- **Command Mode** — Local LLM edits (Qwen3-4B) for command-mode workflows
-- **Custom Words** — Vocabulary + pronunciation hints
+- **AI Refinement** — Qwen3-4B for formal, email, and code modes
+- **Command Mode** — Local LLM edits for command-mode workflows
 - **More Exports** — SRT/VTT/DOCX and other formats
 
 ## Requirements
