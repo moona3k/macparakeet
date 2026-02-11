@@ -116,6 +116,46 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.errorMessage, "Error should be cleared when starting new transcription")
     }
 
+    // MARK: - Transcribe URL
+
+    func testTranscribeURLUpdatesState() async throws {
+        let expectedResult = Transcription(
+            fileName: "YouTube Video",
+            rawTranscript: "URL transcript",
+            status: .completed,
+            sourceURL: "https://youtu.be/dQw4w9WgXcQ"
+        )
+        await mockService.configure(result: expectedResult)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "https://youtu.be/dQw4w9WgXcQ"
+
+        viewModel.transcribeURL()
+
+        XCTAssertTrue(viewModel.isTranscribing)
+        XCTAssertEqual(viewModel.progress, "Preparing...")
+        XCTAssertEqual(viewModel.urlInput, "")
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertFalse(viewModel.isTranscribing)
+        XCTAssertEqual(viewModel.progress, "")
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "URL transcript")
+        let callCount = await mockService.transcribeURLCallCount
+        XCTAssertEqual(callCount, 1)
+    }
+
+    func testTranscribeURLInvalidInputNoOp() async {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.urlInput = "https://notyoutube.com/watch?v=dQw4w9WgXcQ"
+
+        viewModel.transcribeURL()
+
+        XCTAssertFalse(viewModel.isTranscribing)
+        let callCount = await mockService.transcribeURLCallCount
+        XCTAssertEqual(callCount, 0)
+    }
+
     // MARK: - Delete
 
     func testDeleteTranscription() {

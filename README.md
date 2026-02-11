@@ -45,6 +45,7 @@ Drag any audio or video file → get a transcript in seconds.
 - **History** — Dictation + transcription history stored locally (SQLite, searchable)
 - **CLI** — `macparakeet transcribe`, `history`, `health`, `flow process/words/snippets`
 - **YouTube Transcription** — Paste a YouTube URL, auto-download audio via yt-dlp, transcribe with Parakeet
+- **YouTube Audio Retention** — Downloaded YouTube audio is kept by default (configurable in Settings > Storage)
 
 ### Planned
 

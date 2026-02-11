@@ -85,6 +85,32 @@ struct TranscribeView: View {
             }
             .buttonStyle(.borderedProminent)
 
+            // Error banner
+            if let error = viewModel.errorMessage {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 12))
+                    Text(error)
+                        .font(.caption)
+                        .lineLimit(2)
+                    Spacer()
+                    Button {
+                        viewModel.errorMessage = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .foregroundStyle(DesignSystem.Colors.statusDenied)
+                .padding(DesignSystem.Spacing.sm)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(DesignSystem.Colors.statusDenied.opacity(0.08))
+                )
+                .padding(.horizontal, DesignSystem.Spacing.xl)
+            }
+
             // YouTube URL input
             VStack(spacing: DesignSystem.Spacing.md) {
                 HStack(spacing: DesignSystem.Spacing.sm) {

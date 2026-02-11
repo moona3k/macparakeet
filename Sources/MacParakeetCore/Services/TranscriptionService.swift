@@ -19,7 +19,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     private let customWordRepo: CustomWordRepositoryProtocol?
     private let snippetRepo: TextSnippetRepositoryProtocol?
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
-    private let youtubeDownloader: YouTubeDownloader?
+    private let shouldKeepDownloadedAudio: @Sendable () -> Bool
+    private let youtubeDownloader: YouTubeDownloading?
 
     public init(
         audioProcessor: AudioProcessorProtocol,
@@ -29,7 +30,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
-        youtubeDownloader: YouTubeDownloader? = nil
+        shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
+        youtubeDownloader: YouTubeDownloading? = nil
     ) {
         self.audioProcessor = audioProcessor
         self.sttClient = sttClient
@@ -38,6 +40,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.processingMode = processingMode ?? { .raw }
+        self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
         self.youtubeDownloader = youtubeDownloader
     }
 
@@ -83,7 +86,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         return try await transcribeAudio(
             fileURL: downloadResult.audioFileURL,
             transcription: &transcription,
-            tempFiles: [downloadResult.audioFileURL]
+            tempFiles: [downloadResult.audioFileURL],
+            cleanUpDownloadedFiles: !shouldKeepDownloadedAudio()
         )
     }
 
@@ -92,7 +96,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     private func transcribeAudio(
         fileURL: URL,
         transcription: inout Transcription,
-        tempFiles: [URL]
+        tempFiles: [URL],
+        cleanUpDownloadedFiles: Bool = true
     ) async throws -> Transcription {
         var wavURL: URL?
         do {
@@ -138,15 +143,19 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
             // Clean up temp files
             try? FileManager.default.removeItem(at: wavURL)
-            for tempFile in tempFiles {
-                try? FileManager.default.removeItem(at: tempFile)
+            if cleanUpDownloadedFiles {
+                for tempFile in tempFiles {
+                    try? FileManager.default.removeItem(at: tempFile)
+                }
             }
 
             return transcription
         } catch {
             if let wavURL { try? FileManager.default.removeItem(at: wavURL) }
-            for tempFile in tempFiles {
-                try? FileManager.default.removeItem(at: tempFile)
+            if cleanUpDownloadedFiles {
+                for tempFile in tempFiles {
+                    try? FileManager.default.removeItem(at: tempFile)
+                }
             }
 
             try? transcriptionRepo.updateStatus(

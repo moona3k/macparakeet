@@ -64,7 +64,7 @@ public final class SettingsViewModel {
         silenceDelay = delay == 0 ? 2.0 : delay
         processingMode = defaults.string(forKey: "processingMode") ?? "clean"
         saveAudioRecordings = defaults.object(forKey: "saveAudioRecordings") as? Bool ?? true
-        saveTranscriptionAudio = defaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? false
+        saveTranscriptionAudio = defaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
     }
 
     public func configure(

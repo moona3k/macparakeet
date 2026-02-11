@@ -15,6 +15,8 @@ struct TranscribeCommand: AsyncParsableCommand {
     var format: String = "text"
 
     func run() async throws {
+        let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
+
         // Set up services
         try AppPaths.ensureDirectories()
         let dbManager = try DatabaseManager(path: AppPaths.databasePath)
@@ -33,8 +35,8 @@ struct TranscribeCommand: AsyncParsableCommand {
 
         let result: Transcription
 
-        if YouTubeURLValidator.isYouTubeURL(input) {
-            result = try await service.transcribeURL(urlString: input) { phase in
+        if YouTubeURLValidator.isYouTubeURL(trimmedInput) {
+            result = try await service.transcribeURL(urlString: trimmedInput) { phase in
                 print(phase)
             }
         } else {

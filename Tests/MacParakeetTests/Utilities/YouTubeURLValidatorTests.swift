@@ -91,6 +91,21 @@ final class YouTubeURLValidatorTests: XCTestCase {
         XCTAssertFalse(YouTubeURLValidator.isYouTubeURL("/Users/test/video.mp4"))
     }
 
+    func testNonYouTubeHostContainingYouTubePath() {
+        XCTAssertFalse(YouTubeURLValidator.isYouTubeURL("https://notyoutube.com/watch?v=dQw4w9WgXcQ"))
+        XCTAssertNil(YouTubeURLValidator.extractVideoID("https://notyoutube.com/watch?v=dQw4w9WgXcQ"))
+    }
+
+    func testSubdomainOfShortHostIsRejected() {
+        XCTAssertFalse(YouTubeURLValidator.isYouTubeURL("https://foo.youtu.be/dQw4w9WgXcQ"))
+        XCTAssertNil(YouTubeURLValidator.extractVideoID("https://foo.youtu.be/dQw4w9WgXcQ"))
+    }
+
+    func testTrailingTextAfterURLIsRejected() {
+        XCTAssertFalse(YouTubeURLValidator.isYouTubeURL("https://youtu.be/dQw4w9WgXcQ hello"))
+        XCTAssertNil(YouTubeURLValidator.extractVideoID("https://youtu.be/dQw4w9WgXcQ hello"))
+    }
+
     // MARK: - Whitespace handling
 
     func testURLWithLeadingTrailingWhitespace() {

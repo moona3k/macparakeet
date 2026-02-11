@@ -87,8 +87,8 @@ struct SettingsView: View {
                 Toggle("Save audio recordings", isOn: $viewModel.saveAudioRecordings)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Toggle("Save transcription audio", isOn: $viewModel.saveTranscriptionAudio)
-                    Text("Keep downloaded audio from YouTube transcriptions")
+                    Toggle("Keep downloaded YouTube audio", isOn: $viewModel.saveTranscriptionAudio)
+                    Text("Enabled by default. Turn off to auto-delete downloaded YouTube audio after transcription.")
                         .font(.caption)
                         .foregroundStyle(.tertiary)
                 }

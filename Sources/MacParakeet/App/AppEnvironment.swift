@@ -108,6 +108,10 @@ final class AppEnvironment {
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: processingModeClosure,
+            shouldKeepDownloadedAudio: {
+                // Defaults to true if unset (matches Settings UI default).
+                UserDefaults.standard.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
+            },
             youtubeDownloader: youtubeDownloader
         )
     }

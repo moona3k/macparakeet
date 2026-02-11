@@ -16,6 +16,10 @@ public enum YouTubeDownloadError: Error, LocalizedError {
     }
 }
 
+public protocol YouTubeDownloading: Sendable {
+    func download(url: String) async throws -> YouTubeDownloader.DownloadResult
+}
+
 public actor YouTubeDownloader {
     public struct DownloadResult: Sendable {
         public let audioFileURL: URL
@@ -69,8 +73,9 @@ public actor YouTubeDownloader {
             return venvBin
         }
 
-        // Try to install by ensuring the environment (installs requirements.txt)
-        _ = try await pythonBootstrap.ensureEnvironment()
+        // Venv may exist but yt-dlp wasn't installed yet (added after initial bootstrap).
+        // Re-run requirements install to pick up new dependencies.
+        try await pythonBootstrap.installRequirements()
 
         if FileManager.default.fileExists(atPath: venvBin) {
             return venvBin
@@ -80,36 +85,27 @@ public actor YouTubeDownloader {
     }
 
     private func fetchMetadata(ytDlpPath: String, url: String) async throws -> VideoMetadata {
-        let process = Process()
-        let stdout = Pipe()
-        let stderr = Pipe()
-
-        process.executableURL = URL(fileURLWithPath: ytDlpPath)
-        process.arguments = [
+        let result = try runYtDlp(
+            ytDlpPath: ytDlpPath,
+            arguments: [
             "--skip-download",
             "--dump-json",
             "--no-playlist",
             url,
-        ]
-        process.standardOutput = stdout
-        process.standardError = stderr
+        ],
+            captureStdout: true
+        )
 
-        try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let errorOutput = String(
-                data: stderr.fileHandleForReading.readDataToEndOfFile(),
-                encoding: .utf8
-            ) ?? "Unknown error"
-
-            if errorOutput.contains("Video unavailable") || errorOutput.contains("Private video") {
+        guard result.terminationStatus == 0 else {
+            let errorOutput = result.stderr.isEmpty ? "Unknown error" : result.stderr
+            let normalized = errorOutput.lowercased()
+            if normalized.contains("video unavailable") || normalized.contains("private video") {
                 throw YouTubeDownloadError.videoNotFound
             }
             throw YouTubeDownloadError.downloadFailed(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))
         }
 
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        let data = Data(result.stdout.utf8)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw YouTubeDownloadError.downloadFailed("Failed to parse video metadata")
         }
@@ -130,11 +126,9 @@ public actor YouTubeDownloader {
         let uuid = UUID().uuidString
         let outputTemplate = "\(tempDir)/\(uuid).%(ext)s"
 
-        let process = Process()
-        let stderr = Pipe()
-
-        process.executableURL = URL(fileURLWithPath: ytDlpPath)
-        process.arguments = [
+        let result = try runYtDlp(
+            ytDlpPath: ytDlpPath,
+            arguments: [
             "-f", "bestaudio/best",
             "--no-playlist",
             "--retries", "3",
@@ -142,17 +136,10 @@ public actor YouTubeDownloader {
             "-o", outputTemplate,
             url,
         ]
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = stderr
+        )
 
-        try process.run()
-        process.waitUntilExit()
-
-        guard process.terminationStatus == 0 else {
-            let errorOutput = String(
-                data: stderr.fileHandleForReading.readDataToEndOfFile(),
-                encoding: .utf8
-            ) ?? "Unknown error"
+        guard result.terminationStatus == 0 else {
+            let errorOutput = result.stderr.isEmpty ? "Unknown error" : result.stderr
             throw YouTubeDownloadError.downloadFailed(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))
         }
 
@@ -164,4 +151,67 @@ public actor YouTubeDownloader {
 
         return URL(fileURLWithPath: "\(tempDir)/\(downloadedFile)")
     }
+
+    private struct YtDlpResult {
+        let terminationStatus: Int32
+        let stdout: String
+        let stderr: String
+    }
+
+    private func runYtDlp(
+        ytDlpPath: String,
+        arguments: [String],
+        captureStdout: Bool = false
+    ) throws -> YtDlpResult {
+        let fm = FileManager.default
+        let tempDir = AppPaths.tempDir
+        if !fm.fileExists(atPath: tempDir) {
+            try fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
+        }
+
+        let stderrURL = URL(fileURLWithPath: tempDir)
+            .appendingPathComponent("yt-dlp-stderr-\(UUID().uuidString).log")
+        let stdoutURL = URL(fileURLWithPath: tempDir)
+            .appendingPathComponent("yt-dlp-stdout-\(UUID().uuidString).log")
+
+        _ = fm.createFile(atPath: stderrURL.path, contents: Data())
+        if captureStdout {
+            _ = fm.createFile(atPath: stdoutURL.path, contents: Data())
+        }
+
+        let stderrHandle = try FileHandle(forWritingTo: stderrURL)
+        let stdoutHandle = captureStdout ? try FileHandle(forWritingTo: stdoutURL) : nil
+
+        defer {
+            stderrHandle.closeFile()
+            stdoutHandle?.closeFile()
+            try? fm.removeItem(at: stderrURL)
+            if captureStdout {
+                try? fm.removeItem(at: stdoutURL)
+            }
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ytDlpPath)
+        process.arguments = arguments
+        process.standardOutput = captureStdout ? stdoutHandle : FileHandle.nullDevice
+        process.standardError = stderrHandle
+
+        try process.run()
+        process.waitUntilExit()
+
+        stderrHandle.synchronizeFile()
+        stdoutHandle?.synchronizeFile()
+
+        let stderr = (try? String(contentsOf: stderrURL, encoding: .utf8)) ?? ""
+        let stdout = captureStdout ? ((try? String(contentsOf: stdoutURL, encoding: .utf8)) ?? "") : ""
+
+        return YtDlpResult(
+            terminationStatus: process.terminationStatus,
+            stdout: stdout,
+            stderr: stderr
+        )
+    }
 }
+
+extension YouTubeDownloader: YouTubeDownloading {}

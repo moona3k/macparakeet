@@ -1,6 +1,22 @@
 import XCTest
 @testable import MacParakeetCore
 
+private actor MockYouTubeDownloader: YouTubeDownloading {
+    var downloadCallCount = 0
+    var lastURL: String?
+    private let result: YouTubeDownloader.DownloadResult
+
+    init(result: YouTubeDownloader.DownloadResult) {
+        self.result = result
+    }
+
+    func download(url: String) async throws -> YouTubeDownloader.DownloadResult {
+        downloadCallCount += 1
+        lastURL = url
+        return result
+    }
+}
+
 final class TranscriptionServiceTests: XCTestCase {
     var service: TranscriptionService!
     var mockAudio: MockAudioProcessor!
@@ -97,5 +113,65 @@ final class TranscriptionServiceTests: XCTestCase {
 
         let lastURL = await mockAudio.lastConvertURL
         XCTAssertEqual(lastURL?.path, "/tmp/test.mp3")
+    }
+
+    func testTranscribeURLKeepsDownloadedAudioByDefault() async throws {
+        let downloadedURL = try makeTempDownloadedAudio()
+        defer { try? FileManager.default.removeItem(at: downloadedURL) }
+
+        let downloader = MockYouTubeDownloader(result: YouTubeDownloader.DownloadResult(
+            audioFileURL: downloadedURL,
+            title: "Video",
+            durationSeconds: 120
+        ))
+
+        let expectedResult = STTResult(text: "Downloaded transcript")
+        await mockSTT.configure(result: expectedResult)
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttClient: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            youtubeDownloader: downloader
+        )
+
+        _ = try await service.transcribeURL(urlString: "https://youtu.be/dQw4w9WgXcQ")
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: downloadedURL.path))
+    }
+
+    func testTranscribeURLDeletesDownloadedAudioWhenDisabled() async throws {
+        let downloadedURL = try makeTempDownloadedAudio()
+        defer { try? FileManager.default.removeItem(at: downloadedURL) }
+
+        let downloader = MockYouTubeDownloader(result: YouTubeDownloader.DownloadResult(
+            audioFileURL: downloadedURL,
+            title: "Video",
+            durationSeconds: 120
+        ))
+
+        let expectedResult = STTResult(text: "Downloaded transcript")
+        await mockSTT.configure(result: expectedResult)
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttClient: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            shouldKeepDownloadedAudio: { false },
+            youtubeDownloader: downloader
+        )
+
+        _ = try await service.transcribeURL(urlString: "https://youtu.be/dQw4w9WgXcQ")
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: downloadedURL.path))
+    }
+
+    private func makeTempDownloadedAudio() throws -> URL {
+        try AppPaths.ensureDirectories()
+        let url = URL(fileURLWithPath: AppPaths.tempDir)
+            .appendingPathComponent("downloaded-\(UUID().uuidString).m4a")
+        let created = FileManager.default.createFile(atPath: url.path, contents: Data("audio".utf8))
+        XCTAssertTrue(created)
+        return url
     }
 }
