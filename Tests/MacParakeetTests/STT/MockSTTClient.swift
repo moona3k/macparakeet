@@ -21,7 +21,7 @@ public actor MockSTTClient: STTClientProtocol {
         self.transcribeResult = nil
     }
 
-    public func transcribe(audioPath: String) async throws -> STTResult {
+    public func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)? = nil) async throws -> STTResult {
         transcribeCallCount += 1
         lastAudioPath = audioPath
 

@@ -9,6 +9,7 @@ public final class TranscriptionViewModel {
     public var currentTranscription: Transcription?
     public var isTranscribing = false
     public var progress: String = ""
+    public var transcriptionProgress: Double?
     public var errorMessage: String?
     public var isDragging = false
     public var urlInput: String = ""
@@ -66,6 +67,7 @@ public final class TranscriptionViewModel {
 
         isTranscribing = true
         progress = "Preparing..."
+        transcriptionProgress = nil
         errorMessage = nil
         urlInput = ""
 
@@ -74,16 +76,26 @@ public final class TranscriptionViewModel {
                 let result = try await service.transcribeURL(urlString: url) { [weak self] phase in
                     Task { @MainActor in
                         self?.progress = phase
+                        // Parse percentage from "Transcribing... XX%" for visual progress bar
+                        if phase.hasSuffix("%"),
+                           let pctStr = phase.split(separator: " ").last?.dropLast(),
+                           let pct = Double(pctStr) {
+                            self?.transcriptionProgress = pct / 100.0
+                        } else if phase.contains("Downloading") {
+                            self?.transcriptionProgress = nil
+                        }
                     }
                 }
                 currentTranscription = result
                 isTranscribing = false
                 progress = ""
+                transcriptionProgress = nil
                 loadTranscriptions()
             } catch {
                 errorMessage = error.localizedDescription
                 isTranscribing = false
                 progress = ""
+                transcriptionProgress = nil
                 loadTranscriptions()
             }
         }

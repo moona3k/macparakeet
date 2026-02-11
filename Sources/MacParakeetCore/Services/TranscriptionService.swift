@@ -89,7 +89,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             fileURL: downloadResult.audioFileURL,
             transcription: &transcription,
             tempFiles: [downloadResult.audioFileURL],
-            cleanUpDownloadedFiles: !keepDownloadedAudio
+            cleanUpDownloadedFiles: !keepDownloadedAudio,
+            onProgress: onProgress
         )
     }
 
@@ -99,7 +100,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         fileURL: URL,
         transcription: inout Transcription,
         tempFiles: [URL],
-        cleanUpDownloadedFiles: Bool = true
+        cleanUpDownloadedFiles: Bool = true,
+        onProgress: (@Sendable (String) -> Void)? = nil
     ) async throws -> Transcription {
         var wavURL: URL?
         do {
@@ -108,7 +110,13 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             guard let wavURL else {
                 throw AudioProcessorError.conversionFailed("Failed to produce WAV output")
             }
-            let result = try await sttClient.transcribe(audioPath: wavURL.path)
+            let sttProgress: (@Sendable (Int, Int) -> Void)? = onProgress.map { callback in
+                { current, total in
+                    let pct = total > 0 ? Int(Double(current) / Double(total) * 100) : 0
+                    callback("Transcribing... \(min(pct, 99))%")
+                }
+            }
+            let result = try await sttClient.transcribe(audioPath: wavURL.path, onProgress: sttProgress)
 
             let words = result.words.map { word in
                 WordTimestamp(

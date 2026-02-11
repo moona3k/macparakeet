@@ -2,7 +2,7 @@ import Foundation
 
 public protocol STTClientProtocol: Sendable {
     /// Transcribe an audio file at the given path
-    func transcribe(audioPath: String) async throws -> STTResult
+    func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult
 
     /// Warm up the STT engine (start daemon, load model)
     func warmUp() async throws
@@ -12,6 +12,12 @@ public protocol STTClientProtocol: Sendable {
 
     /// Shut down the daemon
     func shutdown() async
+}
+
+extension STTClientProtocol {
+    public func transcribe(audioPath: String) async throws -> STTResult {
+        try await transcribe(audioPath: audioPath, onProgress: nil)
+    }
 }
 
 public enum STTError: Error, LocalizedError {

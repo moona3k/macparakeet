@@ -200,7 +200,12 @@ struct TranscribeView: View {
                     .contentTransition(.numericText())
                     .animation(.easeInOut(duration: 0.3), value: viewModel.progress)
 
-                if isDownloadPhase {
+                if let fraction = viewModel.transcriptionProgress {
+                    ProgressView(value: fraction)
+                        .tint(.accentColor)
+                        .frame(width: 180)
+                        .animation(.easeInOut(duration: 0.3), value: fraction)
+                } else if isDownloadPhase {
                     Text("This may take a moment for longer videos")
                         .font(.caption)
                         .foregroundStyle(.quaternary)

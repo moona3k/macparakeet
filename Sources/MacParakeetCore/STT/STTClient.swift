@@ -19,8 +19,33 @@ public actor STTClient: STTClientProtocol {
         self.pythonBootstrap = pythonBootstrap
     }
 
-    public func transcribe(audioPath: String) async throws -> STTResult {
+    public func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)? = nil) async throws -> STTResult {
         try await ensureRunning()
+
+        // Monitor stderr for PROGRESS lines from chunk_callback
+        if let onProgress, let stderrPipe {
+            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                guard !data.isEmpty, let str = String(data: data, encoding: .utf8) else { return }
+                for line in str.split(separator: "\n") {
+                    if line.hasPrefix("PROGRESS:") {
+                        let payload = line.dropFirst("PROGRESS:".count)
+                        let parts = payload.split(separator: "/")
+                        if parts.count == 2,
+                           let current = Int(parts[0]),
+                           let total = Int(parts[1]) {
+                            onProgress(current, total)
+                        }
+                    }
+                }
+            }
+        }
+
+        defer {
+            if onProgress != nil {
+                stderrPipe?.fileHandleForReading.readabilityHandler = nil
+            }
+        }
 
         requestId += 1
         let request = JSONRPCRequest(

@@ -89,10 +89,16 @@ def handle_transcribe(params, request_id):
         # parakeet-mlx handles splitting, per-chunk inference, and merging.
         chunk_duration = params.get("chunk_duration", 300.0)
         overlap_duration = params.get("overlap_duration", 15.0)
+
+        def _chunk_progress(current_pos, total_pos):
+            sys.stderr.write(f"PROGRESS:{current_pos}/{total_pos}\n")
+            sys.stderr.flush()
+
         result = model.transcribe(
             audio_path,
             chunk_duration=chunk_duration,
             overlap_duration=overlap_duration,
+            chunk_callback=_chunk_progress,
         )
 
         # Extract text and word-level timestamps from AlignedResult
