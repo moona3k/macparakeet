@@ -84,7 +84,16 @@ def handle_transcribe(params, request_id):
         return _make_error(-32001, str(e), request_id)
 
     try:
-        result = model.transcribe(audio_path)
+        # Use chunking for long audio to avoid Metal OOM errors.
+        # chunk_duration=300 (5 min chunks), overlap_duration=15s for context.
+        # parakeet-mlx handles splitting, per-chunk inference, and merging.
+        chunk_duration = params.get("chunk_duration", 300.0)
+        overlap_duration = params.get("overlap_duration", 15.0)
+        result = model.transcribe(
+            audio_path,
+            chunk_duration=chunk_duration,
+            overlap_duration=overlap_duration,
+        )
 
         # Extract text and word-level timestamps from AlignedResult
         text = result.text if hasattr(result, "text") else str(result)
