@@ -4,7 +4,7 @@ import SwiftUI
 /// Thin, airy bars with subtle opacity — premium feel without visual weight.
 struct WaveformView: View {
     let audioLevel: Float
-    let barCount: Int = 14
+    var barCount: Int = 14
 
     var body: some View {
         HStack(spacing: 2.5) {

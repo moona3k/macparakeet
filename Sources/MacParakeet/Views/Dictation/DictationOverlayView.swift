@@ -117,8 +117,13 @@ struct DictationOverlayView: View {
                     .transition(.opacity.animation(.easeInOut(duration: 0.15)))
 
             case .recording:
-                recordingContent
-                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+                if viewModel.recordingMode == .holdToTalk {
+                    holdToTalkContent
+                        .transition(.opacity.animation(.easeInOut(duration: 0.15)))
+                } else {
+                    recordingContent
+                        .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+                }
 
             case .cancelled:
                 cancelledContent
@@ -142,8 +147,24 @@ struct DictationOverlayView: View {
     // MARK: - Ready State
 
     private var readyContent: some View {
-        WaveformView(audioLevel: 0.15)
-            .frame(width: 40, height: 14)
+        WaveformView(audioLevel: 0.15, barCount: 8)
+            .frame(width: 44, height: 14)
+    }
+
+    // MARK: - Hold-to-Talk State
+
+    private var holdToTalkContent: some View {
+        HStack(spacing: 10) {
+            // Recording indicator dot
+            Circle()
+                .fill(Color.red)
+                .frame(width: 5, height: 5)
+
+            // Live waveform — fewer bars than full recording pill
+            WaveformView(audioLevel: viewModel.audioLevel, barCount: 8)
+                .frame(width: 44, height: 16)
+        }
+        .padding(.horizontal, 4)
     }
 
     // MARK: - Recording State

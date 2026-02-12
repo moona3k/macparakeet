@@ -37,6 +37,16 @@ private final class MouseTrackingView: NSView {
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 
+// MARK: - Clickable Non-Activating Panel
+
+/// NSPanel subclass that allows SwiftUI buttons to receive clicks while
+/// remaining non-activating (won't steal focus on `orderFront`).
+/// Without `canBecomeKey = true`, buttons inside a `.nonactivatingPanel`
+/// are unresponsive because the panel never becomes key window.
+private final class ClickablePanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
+
 // MARK: - Overlay Controller
 
 /// Manages the floating dictation overlay panel.
@@ -63,7 +73,7 @@ final class DictationOverlayController {
         let panelHeight: CGFloat = 160
         hosting.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
 
-        let panel = NSPanel(
+        let panel = ClickablePanel(
             contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
@@ -113,8 +123,9 @@ final class DictationOverlayController {
     /// Determine which element the cursor is over and update the tooltip.
     /// The pill is centered in the panel. Left zone = cancel, right zone = stop.
     private func updateHoverTooltip(at point: NSPoint, in bounds: NSRect) {
-        guard case .recording = overlayViewModel.state else {
-            // No hover tooltips in ready, cancelled, processing, success, or error states
+        guard case .recording = overlayViewModel.state,
+              overlayViewModel.recordingMode == .persistent else {
+            // No hover tooltips in hold-to-talk, ready, cancelled, processing, success, or error states
             overlayViewModel.hoverTooltip = nil
             return
         }
@@ -157,6 +168,7 @@ final class DictationOverlayViewModel {
     }
 
     var state: OverlayState = .recording
+    var recordingMode: FnKeyStateMachine.RecordingMode = .persistent
     var audioLevel: Float = 0.0
     var recordingElapsedSeconds: Int = 0
     var isHovered: Bool = false
@@ -211,7 +223,7 @@ final class DictationOverlayViewModel {
     var pillStateKey: String {
         switch state {
         case .ready: return "ready"
-        case .recording: return "recording"
+        case .recording: return recordingMode == .holdToTalk ? "holdToTalk" : "recording"
         case .cancelled: return "cancelled"
         case .processing: return "processing"
         case .success: return "success"
