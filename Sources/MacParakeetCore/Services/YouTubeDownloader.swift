@@ -71,6 +71,38 @@ public actor YouTubeDownloader {
 
     // MARK: - Private
 
+    /// Locate FFmpeg for yt-dlp post-processing. App bundles have a minimal PATH
+    /// that excludes /opt/homebrew/bin, so yt-dlp can't find it without help.
+    private nonisolated static func findFFmpegDirectory() -> String? {
+        let fm = FileManager.default
+
+        // Check imageio-ffmpeg in the Python venv (same lookup as AudioFileConverter).
+        let venvSitePackages = fm
+            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
+            .first?
+            .appendingPathComponent("MacParakeet/python/lib")
+            .path
+        if let sitePackages = venvSitePackages {
+            let binDir = "\(sitePackages)/python3.11/site-packages/imageio_ffmpeg/binaries"
+            if let contents = try? fm.contentsOfDirectory(atPath: binDir),
+               contents.contains(where: { $0.hasPrefix("ffmpeg") }) {
+                return binDir
+            }
+        }
+
+        let searchPaths = [
+            "/opt/homebrew/bin/ffmpeg",
+            "/usr/local/bin/ffmpeg",
+            "/usr/bin/ffmpeg",
+        ]
+        for path in searchPaths {
+            if fm.fileExists(atPath: path) {
+                return (path as NSString).deletingLastPathComponent
+            }
+        }
+        return nil
+    }
+
     private struct VideoMetadata {
         let title: String
         let durationSeconds: Int?
@@ -141,15 +173,19 @@ public actor YouTubeDownloader {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ytDlpPath)
-        process.arguments = [
+        var args = [
             "-f", "bestaudio/best",
             "--no-playlist",
             "--retries", "3",
             "--concurrent-fragments", "4",
             "--newline",
             "-o", outputTemplate,
-            url,
         ]
+        if let ffmpegDir = Self.findFFmpegDirectory() {
+            args += ["--ffmpeg-location", ffmpegDir]
+        }
+        args.append(url)
+        process.arguments = args
         process.standardOutput = FileHandle.nullDevice
 
         let stderrPipe = Pipe()
@@ -308,7 +344,11 @@ public actor YouTubeDownloader {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ytDlpPath)
-        process.arguments = arguments
+        var fullArgs = arguments
+        if let ffmpegDir = Self.findFFmpegDirectory() {
+            fullArgs = ["--ffmpeg-location", ffmpegDir] + fullArgs
+        }
+        process.arguments = fullArgs
         process.standardOutput = captureStdout ? stdoutHandle : FileHandle.nullDevice
         process.standardError = stderrHandle
 

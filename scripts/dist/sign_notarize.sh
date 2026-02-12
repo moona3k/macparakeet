@@ -47,8 +47,11 @@ done < <(
     \( -name "uv" -o -name "uv-arm64" -o -name "uv-x86_64" \) -print0 2>/dev/null || true
 )
 
-echo "[3/8] Codesigning app (hardened runtime)…"
-codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$APP_PATH"
+ENTITLEMENTS="$ROOT_DIR/scripts/dist/MacParakeet.entitlements"
+
+echo "[3/8] Codesigning app (hardened runtime + entitlements)…"
+codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp \
+  --entitlements "$ENTITLEMENTS" "$APP_PATH"
 
 echo "[4/8] Verifying signature…"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
@@ -81,12 +84,49 @@ if [[ "$CREATE_DMG" == "1" ]]; then
   echo "Creating DMG…"
   # Stage a folder with the app + Applications symlink for drag-to-install experience.
   DMG_STAGING="$DIST_DIR/.dmg-staging"
-  rm -rf "$DMG_STAGING"
+  DMG_RW="$DIST_DIR/${APP_NAME}-rw.dmg"
+  rm -rf "$DMG_STAGING" "$DMG_RW"
   mkdir -p "$DMG_STAGING"
   cp -R "$APP_PATH" "$DMG_STAGING/"
   ln -s /Applications "$DMG_STAGING/Applications"
-  hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_STAGING" -ov -format UDZO "$DMG_PATH" >/dev/null
+
+  # Create a read-write DMG first so we can customize the Finder layout.
+  hdiutil create -volname "$APP_NAME" -srcfolder "$DMG_STAGING" -ov -format UDRW "$DMG_RW" >/dev/null
   rm -rf "$DMG_STAGING"
+
+  # Mount and apply Finder layout: app on left, Applications on right.
+  MOUNT_DIR="$(hdiutil attach "$DMG_RW" -nobrowse -noverify | tail -1 | awk '{print $NF}')"
+  if [[ -z "$MOUNT_DIR" || ! -d "$MOUNT_DIR" ]]; then
+    echo "Warning: Failed to mount DMG for layout customization; skipping."
+  else
+    timeout 30 osascript <<APPLESCRIPT || echo "Warning: Finder layout customization failed; skipping."
+tell application "Finder"
+  tell disk "$APP_NAME"
+    open
+    set current view of container window to icon view
+    set toolbar visible of container window to false
+    set statusbar visible of container window to false
+    set bounds of container window to {100, 100, 640, 400}
+    set opts to icon view options of container window
+    set icon size of opts to 80
+    set arrangement of opts to not arranged
+    set position of item "${APP_NAME}.app" of container window to {140, 140}
+    set position of item "Applications" of container window to {400, 140}
+    close
+    open
+    update without registering applications
+    delay 1
+    close
+  end tell
+end tell
+APPLESCRIPT
+    sync
+    hdiutil detach "$MOUNT_DIR" -quiet
+  fi
+
+  # Convert to compressed read-only DMG.
+  hdiutil convert "$DMG_RW" -format UDZO -o "$DMG_PATH" >/dev/null
+  rm -f "$DMG_RW"
 
   echo "Signing DMG…"
   codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG_PATH"

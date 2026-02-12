@@ -1,3 +1,4 @@
-parakeet-mlx>=0.4.0
-mlx>=0.22.0
-yt-dlp>=2025.1.0
+parakeet-mlx>=0.4.0,<1.0
+mlx>=0.22.0,<1.0
+yt-dlp>=2025.1.0,<2026.0
+imageio-ffmpeg>=0.5.1,<1.0

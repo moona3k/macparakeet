@@ -5,25 +5,134 @@ Protocol: one JSON-RPC request per line, one response per line.
 """
 
 import json
+import os
 import sys
 import traceback
+
+
+def _ensure_ffmpeg_on_path():
+    """Add FFmpeg to PATH so parakeet_mlx can find it.
+
+    parakeet_mlx uses shutil.which("ffmpeg") to locate FFmpeg. In a macOS
+    .app bundle the PATH is minimal (/usr/bin:/bin) and won't include
+    Homebrew or the imageio-ffmpeg bundled binary. Fix that here before
+    any audio loading happens.
+    """
+    try:
+        import imageio_ffmpeg
+        ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
+        ffmpeg_dir = os.path.dirname(ffmpeg_exe)
+        if ffmpeg_dir not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
+    except ImportError:
+        pass
+
+    # Also add common system locations as fallback
+    for extra in ["/opt/homebrew/bin", "/usr/local/bin"]:
+        if extra not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = os.environ.get("PATH", "") + os.pathsep + extra
+
+
+_ensure_ffmpeg_on_path()
 
 # Lazy-loaded model reference
 _model = None
 
+_HF_REPO = "mlx-community/parakeet-tdt-0.6b-v3"
+
 
 def _load_model():
-    """Load Parakeet TDT model on first use via parakeet_mlx.from_pretrained().
+    """Load Parakeet TDT model on first use.
 
-    Downloads the model on first run (~600MB) and caches it in HuggingFace cache.
+    Delegates to _load_model_with_progress() so the first transcribe call
+    also gets progress-aware loading if the model hasn't been warmed up yet.
     """
     global _model
     if _model is not None:
         return _model
-    try:
-        import parakeet_mlx
+    return _load_model_with_progress()
 
-        _model = parakeet_mlx.from_pretrained("mlx-community/parakeet-tdt-0.6b-v3")
+
+class _StderrProgress:
+    """tqdm-compatible progress class that writes SETUP_PROGRESS: lines to stderr."""
+
+    def __init__(self, *args, **kwargs):
+        self.total = kwargs.get("total", None)
+        self.n = 0
+        self.desc = kwargs.get("desc", "")
+
+    def update(self, n=1):
+        self.n += n
+        if self.total and self.total > 0:
+            sys.stderr.write(f"SETUP_PROGRESS:downloading_model:{self.n}:{self.total}\n")
+            sys.stderr.flush()
+
+    def close(self):
+        pass
+
+    def set_description(self, *args, **kwargs): pass
+    def set_postfix(self, *args, **kwargs): pass
+    def set_postfix_str(self, *args, **kwargs): pass
+    def refresh(self, *args, **kwargs): pass
+    def reset(self, *args, **kwargs): pass
+    def display(self, *args, **kwargs): pass
+    def clear(self, *args, **kwargs): pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
+
+def _load_model_with_progress():
+    """Load model with progress reporting to stderr.
+
+    Inlines the logic from parakeet_mlx.from_pretrained() but passes our
+    tqdm_class to hf_hub_download for the model weights download.
+    """
+    global _model
+    if _model is not None:
+        return _model
+
+    try:
+        import json as _json
+        from pathlib import Path
+
+        import mlx.core as mx
+        from huggingface_hub import hf_hub_download
+        from mlx.utils import tree_flatten, tree_unflatten
+        from parakeet_mlx.utils import from_config
+
+        # Download config (small, no progress needed)
+        sys.stderr.write("SETUP_PROGRESS:downloading_config:0:0\n")
+        sys.stderr.flush()
+        config_path = hf_hub_download(_HF_REPO, "config.json")
+        with open(config_path, "r") as f:
+            config = _json.load(f)
+
+        # Download model weights with progress
+        sys.stderr.write("SETUP_PROGRESS:downloading_model:0:0\n")
+        sys.stderr.flush()
+        weight_path = hf_hub_download(
+            _HF_REPO, "model.safetensors", tqdm_class=_StderrProgress
+        )
+
+        # Load into memory
+        sys.stderr.write("SETUP_PROGRESS:loading_model:0:0\n")
+        sys.stderr.flush()
+        model = from_config(config)
+        model.load_weights(weight_path)
+
+        # Cast to bfloat16
+        curr_weights = dict(tree_flatten(model.parameters()))
+        curr_weights = [(k, v.astype(mx.bfloat16)) for k, v in curr_weights.items()]
+        model.update(tree_unflatten(curr_weights))
+
+        _model = model
+
+        sys.stderr.write("SETUP_PROGRESS:ready:0:0\n")
+        sys.stderr.flush()
         return _model
     except ImportError as e:
         raise RuntimeError(f"Failed to import parakeet_mlx: {e}")
@@ -46,10 +155,11 @@ def handle_ping(params, request_id):
 def handle_warm_up(params, request_id):
     """Preload the model so first real transcription is fast.
 
-    This may download model weights on first run.
+    This may download model weights on first run. Emits SETUP_PROGRESS: lines
+    to stderr so the Swift app can show granular progress.
     """
     try:
-        _load_model()
+        _load_model_with_progress()
         return _make_response({"status": "ok"}, request_id)
     except RuntimeError as e:
         return _make_error(-32001, str(e), request_id)

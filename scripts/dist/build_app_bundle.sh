@@ -200,6 +200,16 @@ else
   fi
 fi
 
+# Copy app icon into Resources.
+ICON_SRC="$ROOT_DIR/Assets/AppIcon.icns"
+if [[ -f "$ICON_SRC" ]]; then
+  cp "$ICON_SRC" "$RESOURCES_DIR/AppIcon.icns"
+  echo "Bundled AppIcon.icns"
+else
+  echo "Error: Assets/AppIcon.icns not found. Cannot build production app without icon." >&2
+  exit 1
+fi
+
 echo "[3/4] Writing Info.plist…"
 INFO_PLIST="$CONTENTS_DIR/Info.plist"
 CHECKOUT_URL="${MACPARAKEET_CHECKOUT_URL:-}"
@@ -224,6 +234,8 @@ cat >"$INFO_PLIST" <<EOF
   <string>${APP_NAME}</string>
   <key>CFBundleExecutable</key>
   <string>${APP_NAME}</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
   <key>CFBundleIdentifier</key>
   <string>${BUNDLE_ID}</string>
   <key>CFBundleInfoDictionaryVersion</key>
@@ -238,6 +250,8 @@ cat >"$INFO_PLIST" <<EOF
   <string>${BUILD_NUMBER}</string>
   <key>LSMinimumSystemVersion</key>
   <string>${MIN_MACOS_VERSION}</string>
+  <key>LSUIElement</key>
+  <true/>
   <key>NSMicrophoneUsageDescription</key>
   <string>MacParakeet needs microphone access for dictation.</string>
 $(printf "%b" "$LICENSING_PLIST")
