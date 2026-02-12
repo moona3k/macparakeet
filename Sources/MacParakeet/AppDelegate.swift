@@ -19,6 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var hotkeyManager: HotkeyManager?
     private var overlayController: DictationOverlayController?
     private var overlayViewModel: DictationOverlayViewModel?
+    private var readyDismissTimer: DispatchWorkItem?
     private var idlePillController: IdlePillController?
     private var idlePillViewModel: IdlePillViewModel?
 
@@ -197,6 +198,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self?.cancelDictation()
         }
 
+        manager.onReadyForSecondTap = { [weak self] in
+            self?.showReadyPill()
+        }
+
         if manager.start() {
             hotkeyManager = manager
         }
@@ -286,10 +291,54 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         idlePillViewModel = nil
     }
 
+    // MARK: - Ready Pill
+
+    private func showReadyPill() {
+        readyDismissTimer?.cancel()
+
+        hideIdlePill()
+
+        let vm = DictationOverlayViewModel()
+        vm.onCancel = { [weak self] in self?.cancelDictation() }
+        vm.onStop = { [weak self] in self?.stopDictation() }
+        vm.onUndo = { [weak self] in self?.undoCancelDictation() }
+        vm.onDismiss = { [weak self] in self?.dismissOverlay() }
+        vm.state = .ready
+        overlayViewModel = vm
+
+        let controller = DictationOverlayController(viewModel: vm)
+        controller.show()
+        overlayController = controller
+
+        // Auto-dismiss after 800ms if no second tap or hold
+        let timer = DispatchWorkItem { [weak self] in
+            self?.dismissReadyPill()
+        }
+        readyDismissTimer = timer
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(800), execute: timer)
+    }
+
+    private func dismissReadyPill() {
+        readyDismissTimer?.cancel()
+        readyDismissTimer = nil
+
+        // Only dismiss if still in ready state — don't dismiss a recording overlay
+        guard let vm = overlayViewModel, case .ready = vm.state else { return }
+
+        overlayController?.hide()
+        overlayController = nil
+        overlayViewModel = nil
+        showIdlePill()
+    }
+
     // MARK: - Dictation Flow
 
     private func startDictation(mode: FnKeyStateMachine.RecordingMode) {
         guard let env = appEnvironment else { return }
+
+        // Cancel any pending ready dismiss timer
+        readyDismissTimer?.cancel()
+        readyDismissTimer = nil
 
         hideIdlePill()
 
@@ -299,24 +348,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 try await env.entitlementsService.assertCanTranscribe(now: Date())
             } catch {
                 await MainActor.run {
+                    self.dismissReadyPill()
                     self.showIdlePill()
                     self.presentEntitlementsAlert(error)
                 }
                 return
             }
 
-            let vm = DictationOverlayViewModel()
-            vm.onCancel = { [weak self] in self?.cancelDictation() }
-            vm.onStop = { [weak self] in self?.stopDictation() }
-            vm.onUndo = { [weak self] in self?.undoCancelDictation() }
-            vm.onDismiss = { [weak self] in self?.dismissOverlay() }
+            // Reuse existing overlay if it's in ready state (seamless transition)
+            let vm: DictationOverlayViewModel
+            if let existingVM = overlayViewModel, case .ready = existingVM.state {
+                vm = existingVM
+            } else {
+                vm = DictationOverlayViewModel()
+                vm.onCancel = { [weak self] in self?.cancelDictation() }
+                vm.onStop = { [weak self] in self?.stopDictation() }
+                vm.onUndo = { [weak self] in self?.undoCancelDictation() }
+                vm.onDismiss = { [weak self] in self?.dismissOverlay() }
+                overlayViewModel = vm
+
+                let controller = DictationOverlayController(viewModel: vm)
+                controller.show()
+                overlayController = controller
+            }
+
             vm.state = .recording
             vm.startTimer()
-            overlayViewModel = vm
-
-            let controller = DictationOverlayController(viewModel: vm)
-            controller.show()
-            overlayController = controller
 
             do {
                 try await env.dictationService.startRecording()
@@ -369,11 +426,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
 
             do {
-                let dictation = try await env.dictationService.stopRecording()
+                var dictation = try await env.dictationService.stopRecording()
                 await MainActor.run { vm.state = .success }
                 // Brief pause so user sees the checkmark before paste
                 try? await Task.sleep(for: .milliseconds(200))
+                let pastedToApp = await MainActor.run { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
                 try? await env.clipboardService.pasteText(dictation.cleanTranscript ?? dictation.rawTranscript)
+                if let pastedToApp {
+                    dictation.pastedToApp = pastedToApp
+                    dictation.updatedAt = Date()
+                    try? env.dictationRepo.save(dictation)
+                }
                 try? await Task.sleep(for: .milliseconds(800))
             } catch {
                 await MainActor.run {
@@ -396,29 +459,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func cancelDictation() {
         guard let env = appEnvironment, let vm = overlayViewModel else { return }
 
-        // Sync state machine — may have been triggered via UI button, not Esc
-        hotkeyManager?.notifyCancelledByUI()
+        // If already in cancel countdown, confirm immediately (Esc pressed again)
+        if case .cancelled = vm.state {
+            cancelTask?.cancel()
+            cancelTask = nil
+            Task {
+                await env.dictationService.confirmCancel()
+                await MainActor.run {
+                    self.hotkeyManager?.resetToIdle()
+                    self.overlayController?.hide()
+                    self.overlayController = nil
+                    self.showIdlePill()
+                }
+            }
+            return
+        }
 
         cancelTask?.cancel()
         cancelTask = Task {
-            // Don't cancel the service yet — audio keeps recording during undo window
+            // Soft cancel immediately: stop capture but keep audio briefly so Undo can proceed.
+            await env.dictationService.cancelRecording()
+
+            // Sync state machine — may have been triggered via UI button, not Esc
+            // (Esc path already transitions the state machine to cancelWindow.)
+            self.hotkeyManager?.notifyCancelledByUI()
+
             await MainActor.run {
                 vm.stopTimer()
+                vm.cancelTimeRemaining = 5.0
                 vm.state = .cancelled(timeRemaining: 5.0)
             }
 
-            // Countdown
-            for i in stride(from: 4.0, through: 0, by: -1) {
-                try? await Task.sleep(for: .seconds(1))
+            // Countdown with hover-pause: 100ms ticks, only update UI on whole-second
+            // boundaries to avoid SwiftUI reconstruction jank.
+            var remaining = 5.0
+            var lastDisplayed = 5.0
+            while remaining > 0 {
+                try? await Task.sleep(for: .milliseconds(100))
                 guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    vm.state = .cancelled(timeRemaining: i)
+
+                let hovered = await MainActor.run { vm.isHovered }
+                if !hovered {
+                    remaining -= 0.1
+                }
+
+                let display = max(0, min(5, ceil(remaining)))
+                if display != lastDisplayed {
+                    lastDisplayed = display
+                    await MainActor.run { vm.cancelTimeRemaining = display }
                 }
             }
 
-            // Countdown expired — NOW actually discard the recording
+            // Countdown expired — discard and return to idle UI.
             guard !Task.isCancelled else { return }
-            await env.dictationService.cancelRecording()
+            await env.dictationService.confirmCancel()
             await MainActor.run {
                 self.hotkeyManager?.resetToIdle()
                 self.overlayController?.hide()
@@ -429,16 +523,46 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func undoCancelDictation() {
-        // Cancel the countdown so it doesn't expire and discard audio
+        guard let env = appEnvironment, let vm = overlayViewModel else { return }
+
+        // Cancel the countdown so it doesn't expire and discard audio.
         cancelTask?.cancel()
         cancelTask = nil
 
-        // Sync state machine back to recording mode
-        hotkeyManager?.resumeRecording(mode: .persistent)
+        Task {
+            await MainActor.run {
+                vm.stopTimer()
+                vm.state = .processing
+            }
 
-        // Resume recording — audio was never interrupted, just switch overlay back
-        overlayViewModel?.state = .recording
-        overlayViewModel?.resumeTimer()
+            do {
+                var dictation = try await env.dictationService.undoCancel()
+                await MainActor.run { vm.state = .success }
+                // Brief pause so user sees the checkmark before paste
+                try? await Task.sleep(for: .milliseconds(200))
+                let pastedToApp = await MainActor.run { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
+                try? await env.clipboardService.pasteText(dictation.cleanTranscript ?? dictation.rawTranscript)
+                if let pastedToApp {
+                    dictation.pastedToApp = pastedToApp
+                    dictation.updatedAt = Date()
+                    try? env.dictationRepo.save(dictation)
+                }
+                try? await Task.sleep(for: .milliseconds(800))
+            } catch {
+                await MainActor.run {
+                    vm.state = .error(error.localizedDescription)
+                }
+                try? await Task.sleep(for: .seconds(5))
+            }
+
+            await MainActor.run {
+                self.hotkeyManager?.resetToIdle()
+                self.overlayController?.hide()
+                self.overlayController = nil
+                self.historyViewModel.loadDictations()
+                self.showIdlePill()
+            }
+        }
     }
 
     private func dismissOverlay() {

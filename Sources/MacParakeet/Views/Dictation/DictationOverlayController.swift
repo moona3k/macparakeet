@@ -114,6 +114,7 @@ final class DictationOverlayController {
     /// The pill is centered in the panel. Left zone = cancel, right zone = stop.
     private func updateHoverTooltip(at point: NSPoint, in bounds: NSRect) {
         guard case .recording = overlayViewModel.state else {
+            // No hover tooltips in ready, cancelled, processing, success, or error states
             overlayViewModel.hoverTooltip = nil
             return
         }
@@ -147,6 +148,7 @@ final class DictationOverlayController {
 @Observable
 final class DictationOverlayViewModel {
     enum OverlayState {
+        case ready
         case recording
         case cancelled(timeRemaining: Double)
         case processing
@@ -164,6 +166,9 @@ final class DictationOverlayViewModel {
     var onStop: (() -> Void)?
     var onUndo: (() -> Void)?
     var onDismiss: (() -> Void)?
+
+    /// Cancel countdown value (separate from state enum to avoid view reconstruction jank).
+    var cancelTimeRemaining: Double = 5.0
 
     private var timerTask: Task<Void, Never>?
 
@@ -205,6 +210,7 @@ final class DictationOverlayViewModel {
     /// Stable key for animating pill size transitions between states
     var pillStateKey: String {
         switch state {
+        case .ready: return "ready"
         case .recording: return "recording"
         case .cancelled: return "cancelled"
         case .processing: return "processing"

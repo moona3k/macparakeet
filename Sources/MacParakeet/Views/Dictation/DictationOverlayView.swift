@@ -59,10 +59,19 @@ private struct CheckmarkShape: Shape {
 struct DictationOverlayView: View {
     @Bindable var viewModel: DictationOverlayViewModel
 
+    /// Align tooltip above the hovered button: leading for cancel, trailing for stop.
+    private var tooltipAlignment: Alignment {
+        if isCancelHovered { return .leading }
+        if isStopHovered { return .trailing }
+        return .center
+    }
+
     var body: some View {
         VStack(spacing: 4) {
             // Tooltip — changes per hovered element via NSTrackingArea
             tooltipLabel
+                .frame(maxWidth: .infinity, alignment: tooltipAlignment)
+                .padding(.horizontal, 30)
                 .opacity(viewModel.isHovered && viewModel.hoverTooltip != nil ? 1 : 0)
                 .animation(.easeInOut(duration: 0.15), value: viewModel.isHovered)
                 .animation(.easeInOut(duration: 0.1), value: viewModel.hoverTooltip)
@@ -82,15 +91,16 @@ struct DictationOverlayView: View {
             errorCard(message: message)
 
         default:
+            let isReady = if case .ready = viewModel.state { true } else { false }
             pillContent
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
+                .padding(.horizontal, isReady ? 6 : 10)
+                .padding(.vertical, isReady ? 4 : 7)
                 .background(
                     Capsule()
-                        .fill(Color.black.opacity(0.85))
+                        .fill(Color.black.opacity(0.9))
                         .overlay(
                             Capsule()
-                                .strokeBorder(Color.white.opacity(0.1), lineWidth: 0.5)
+                                .strokeBorder(Color.white.opacity(0.15), lineWidth: 1)
                         )
                         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                 )
@@ -102,12 +112,16 @@ struct DictationOverlayView: View {
     private var pillContent: some View {
         ZStack {
             switch viewModel.state {
+            case .ready:
+                readyContent
+                    .transition(.opacity.animation(.easeInOut(duration: 0.15)))
+
             case .recording:
                 recordingContent
                     .transition(.opacity.animation(.easeInOut(duration: 0.2)))
 
-            case .cancelled(let timeRemaining):
-                cancelledContent(timeRemaining: timeRemaining)
+            case .cancelled:
+                cancelledContent
                     .transition(.opacity.animation(.easeInOut(duration: 0.2)))
 
             case .processing:
@@ -125,6 +139,13 @@ struct DictationOverlayView: View {
         .animation(.easeInOut(duration: 0.25), value: viewModel.pillStateKey)
     }
 
+    // MARK: - Ready State
+
+    private var readyContent: some View {
+        WaveformView(audioLevel: 0.15)
+            .frame(width: 40, height: 14)
+    }
+
     // MARK: - Recording State
 
     private var isCancelHovered: Bool {
@@ -140,10 +161,10 @@ struct DictationOverlayView: View {
             // Cancel button
             Button(action: { viewModel.onCancel?() }) {
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(isCancelHovered ? 1.0 : 0.8))
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white.opacity(isCancelHovered ? 1.0 : 0.9))
                     .frame(width: 22, height: 22)
-                    .background(Circle().fill(Color.white.opacity(isCancelHovered ? 0.25 : 0.12)))
+                    .background(Circle().fill(Color.white.opacity(isCancelHovered ? 0.35 : 0.2)))
             }
             .buttonStyle(.plain)
             .animation(.easeInOut(duration: 0.15), value: isCancelHovered)
@@ -177,25 +198,29 @@ struct DictationOverlayView: View {
 
     // MARK: - Cancelled State
 
-    private func cancelledContent(timeRemaining: Double) -> some View {
+    private var cancelledContent: some View {
         HStack(spacing: 10) {
-            // Countdown ring (smooth animation between steps)
+            // Countdown ring — implicit animation smoothly interpolates between 1s steps
             ZStack {
-                // Background track
                 Circle()
                     .stroke(Color.white.opacity(0.1), lineWidth: 1.5)
                     .frame(width: 24, height: 24)
 
                 Circle()
-                    .trim(from: 0, to: CGFloat(timeRemaining / 5.0))
+                    .trim(from: 0, to: CGFloat(viewModel.cancelTimeRemaining / 5.0))
                     .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                     .frame(width: 24, height: 24)
                     .rotationEffect(.degrees(-90))
-                    .animation(.linear(duration: 1), value: timeRemaining)
+                    .animation(.linear(duration: 1), value: viewModel.cancelTimeRemaining)
 
-                Text("\(Int(ceil(timeRemaining)))")
+                Text("\(Int(ceil(viewModel.cancelTimeRemaining)))")
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white.opacity(0.8))
+            }
+            .contentShape(Circle())
+            .onTapGesture {
+                // Confirm cancel immediately (matches spec: tap ring to discard now).
+                viewModel.onCancel?()
             }
 
             // Undo button
@@ -360,6 +385,7 @@ struct DictationOverlayView: View {
 
     private var tooltipText: String {
         switch viewModel.state {
+        case .ready: return ""
         case .recording: return "" // Per-button tooltips via hoverTooltip
         case .cancelled: return ""
         case .processing: return ""
@@ -371,6 +397,12 @@ struct DictationOverlayView: View {
 
 #Preview {
     VStack(spacing: 20) {
+        DictationOverlayView(viewModel: {
+            let vm = DictationOverlayViewModel()
+            vm.state = .ready
+            return vm
+        }())
+
         DictationOverlayView(viewModel: {
             let vm = DictationOverlayViewModel()
             vm.state = .recording

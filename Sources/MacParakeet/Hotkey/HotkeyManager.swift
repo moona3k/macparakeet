@@ -9,6 +9,7 @@ public final class HotkeyManager {
     public var onStartRecording: ((FnKeyStateMachine.RecordingMode) -> Void)?
     public var onStopRecording: (() -> Void)?
     public var onCancelRecording: (() -> Void)?
+    public var onReadyForSecondTap: (() -> Void)?
 
     private let stateMachine = FnKeyStateMachine()
     private let triggerKey: TriggerKey
@@ -93,6 +94,11 @@ public final class HotkeyManager {
                 let action = stateMachine.fnDown(timestampMs: timestampMs)
                 handleAction(action)
 
+                // Fire ready callback when first tap enters waitingForSecondTap
+                if action == .none && stateMachine.state == .waitingForSecondTap {
+                    onReadyForSecondTap?()
+                }
+
                 // Schedule hold timer
                 holdTimer?.cancel()
                 let timer = DispatchWorkItem { [weak self] in
@@ -122,7 +128,11 @@ public final class HotkeyManager {
             if keyCode == 53 { // Escape
                 let action = stateMachine.escapePressed()
                 handleAction(action)
-            } else {
+            } else if keyCode != 63 && keyCode != 179 {
+                // Skip Fn/Globe key (63/179) — macOS generates a synthetic keyDown
+                // with keyCode 179 when Fn is released (for "Change Input Source" or
+                // "Show Emoji & Symbols"). Without this guard, that keyDown resets
+                // the state machine between the first and second tap of a double-tap.
                 // Non-Escape key pressed — invalidate bare-tap if modifier is held
                 if targetModifierWasPressed {
                     bareTap = false
