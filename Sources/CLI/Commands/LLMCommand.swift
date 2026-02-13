@@ -11,6 +11,7 @@ struct LLMCommand: AsyncParsableCommand {
             Generate.self,
             Refine.self,
             CommandTransform.self,
+            Chat.self,
             SmokeTest.self,
         ]
     )
@@ -165,6 +166,48 @@ extension LLMCommand {
         }
     }
 
+    struct Chat: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "chat",
+            abstract: "Single-turn local chat (optionally grounded by transcript context)."
+        )
+
+        @Argument(help: "Question to ask the local model.")
+        var question: String
+
+        @Option(name: .long, help: "Optional transcript text file to append as context.")
+        var transcriptFile: String?
+
+        @OptionGroup
+        var runtime: LLMRuntimeOptions
+
+        @Flag(name: .long, help: "Copy result to clipboard.")
+        var copy: Bool = false
+
+        func run() async throws {
+            let question = question.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !question.isEmpty else {
+                throw CLIError.invalidQuestion
+            }
+
+            let transcriptContext = try LLMChatPromptComposer.loadTranscriptContext(
+                from: transcriptFile
+            )
+            let payload = LLMChatPromptComposer.compose(
+                question: question,
+                transcriptContext: transcriptContext
+            )
+
+            let request = LLMRequest(
+                prompt: payload.prompt,
+                systemPrompt: runtime.system ?? payload.defaultSystemPrompt,
+                options: runtime.generationOptions()
+            )
+
+            try await execute(request: request, runtime: runtime, copy: copy)
+        }
+    }
+
     struct SmokeTest: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "smoke-test",
@@ -202,6 +245,58 @@ extension LLMCommand {
                 print("model=\(response.modelID)")
                 print(String(format: "duration=%.2fs", response.durationSeconds))
             }
+        }
+    }
+}
+
+struct LLMChatPromptPayload: Sendable {
+    let prompt: String
+    let defaultSystemPrompt: String
+}
+
+enum LLMChatPromptComposer {
+    static let defaultSystemPrompt = """
+    You are a concise assistant.
+    Answer directly and avoid unnecessary verbosity.
+    """
+
+    static func compose(question: String, transcriptContext: String?) -> LLMChatPromptPayload {
+        let trimmedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let transcriptContext,
+           !transcriptContext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        {
+            let task = LLMTask.transcriptChat(question: trimmedQuestion, transcript: transcriptContext)
+            return LLMChatPromptPayload(
+                prompt: LLMPromptBuilder.userPrompt(for: task),
+                defaultSystemPrompt: LLMPromptBuilder.systemPrompt(for: task)
+            )
+        }
+
+        return LLMChatPromptPayload(
+            prompt: trimmedQuestion,
+            defaultSystemPrompt: defaultSystemPrompt
+        )
+    }
+
+    static func loadTranscriptContext(from path: String?) throws -> String? {
+        guard let rawPath = path?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !rawPath.isEmpty
+        else {
+            return nil
+        }
+
+        let fileURL = URL(fileURLWithPath: rawPath)
+        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+            throw CLIError.transcriptFileNotFound(rawPath)
+        }
+
+        do {
+            let transcript = try String(contentsOf: fileURL, encoding: .utf8)
+            let assembled = TranscriptContextAssembler.assemble(transcript: transcript)
+            let trimmed = assembled.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        } catch {
+            throw CLIError.transcriptFileReadFailed(rawPath, underlying: error)
         }
     }
 }

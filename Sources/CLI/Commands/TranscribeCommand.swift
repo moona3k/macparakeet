@@ -219,6 +219,9 @@ enum CLIError: Error, LocalizedError {
     case fileNotFound(String)
     case unsupportedFormat(String)
     case localLLMSmokeTestFailed(String)
+    case invalidQuestion
+    case transcriptFileNotFound(String)
+    case transcriptFileReadFailed(String, underlying: Error)
 
     var errorDescription: String? {
         switch self {
@@ -228,6 +231,12 @@ enum CLIError: Error, LocalizedError {
             return "Unsupported format: .\(ext). Supported: \(AudioFileConverter.supportedExtensions.sorted().joined(separator: ", "))"
         case .localLLMSmokeTestFailed(let output):
             return "LLM smoke test failed (unexpected response): \(output)"
+        case .invalidQuestion:
+            return "Question cannot be empty."
+        case .transcriptFileNotFound(let path):
+            return "Transcript file not found: \(path)"
+        case .transcriptFileReadFailed(let path, let underlying):
+            return "Failed to read transcript file at \(path): \(underlying.localizedDescription)"
         }
     }
 }

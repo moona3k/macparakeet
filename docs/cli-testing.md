@@ -93,6 +93,10 @@ swift run macparakeet-cli llm smoke-test --stats
 swift run macparakeet-cli llm generate "Summarize this paragraph in one sentence: ..."
 swift run macparakeet-cli llm refine formal "quick unpolished draft"
 swift run macparakeet-cli llm command "Translate to Spanish" "Hello, how are you?"
+swift run macparakeet-cli llm chat "What are the main decisions?"
+swift run macparakeet-cli llm chat "What blockers were mentioned?" \
+  --transcript-file /path/to/transcript.txt \
+  --stats
 ```
 
 ## Notes

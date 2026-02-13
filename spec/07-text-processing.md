@@ -255,4 +255,8 @@ macparakeet-cli llm refine code "check var name and update loop logic"
 
 # Apply a spoken-style command transform
 macparakeet-cli llm command "Translate to Spanish" "Hello, how are you?"
+
+# Single-turn chat (optional transcript grounding)
+macparakeet-cli llm chat "What were the key action items?"
+macparakeet-cli llm chat "What blockers were discussed?" --transcript-file /path/to/transcript.txt
 ```

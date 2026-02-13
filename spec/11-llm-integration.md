@@ -10,7 +10,7 @@ This spec defines how MacParakeet integrates local LLM features with clean archi
 ## Goals
 
 1. Deliver AI text refinement modes (Formal, Email, Code) on top of deterministic cleanup.
-2. Reuse one LLM integration path for command mode and future transcript chat.
+2. Reuse one LLM integration path for command mode and transcript chat.
 3. Keep local-only guarantees and avoid Python/daemon dependencies.
 4. Fail gracefully without breaking dictation/transcription flows.
 
@@ -85,8 +85,9 @@ No data loss and no silent crash paths are allowed.
 2. **Command mode (CLI today, GUI pending)**
 - selected text + spoken command -> LLM request (`commandTransform`) -> replace selection
 
-3. **Transcript chat (future scaffolding)**
-- query + transcript context chunking -> LLM request (`transcriptChat`)
+3. **Transcript chat (CLI baseline, GUI pending)**
+- query + optional transcript context chunking -> LLM request (`transcriptChat`)
+- available in CLI via `macparakeet-cli llm chat ... --transcript-file <path>`
 
 ---
 
@@ -120,6 +121,7 @@ All categories must map to user-safe fallback behavior.
 1. `PromptBuilder` per task and mode.
 2. `FallbackPolicy` for all error categories.
 3. `LLMServiceProtocol` mock-driven tests in dictation/command flows.
+4. CLI chat prompt + argument parsing tests (`llm chat` with transcript context).
 
 ### Integration
 
@@ -140,5 +142,6 @@ All categories must map to user-safe fallback behavior.
 2. Failure path returns deterministic-safe output and surfaces recoverable UI notice.
 3. No Python runtime or daemon dependency introduced.
 4. `swift test` remains green with new LLM seam tests.
+5. CLI single-turn chat supports optional transcript file context with bounded assembly.
 
 Latency metrics are tracked and monitored, but not used as hard release gates in this phase.

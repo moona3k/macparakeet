@@ -66,6 +66,11 @@ let package = Package(
             name: "MacParakeetTests",
             dependencies: ["MacParakeetCore", "MacParakeetViewModels"],
             path: "Tests/MacParakeetTests"
+        ),
+        .testTarget(
+            name: "CLITests",
+            dependencies: ["CLI", "MacParakeetCore"],
+            path: "Tests/CLITests"
         )
     ]
 )

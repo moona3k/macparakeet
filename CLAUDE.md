@@ -141,7 +141,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 ### v0.2 Clean Pipeline + AI
 - [x] Clean text pipeline (filler removal, custom words, snippets) -- deterministic, no LLM
 - [x] Custom words & snippets management UI (Vocabulary sidebar item)
-- [x] CLI commands: `macparakeet-cli flow process/words/snippets` + `macparakeet-cli llm generate/refine/command/smoke-test`
+- [x] CLI commands: `macparakeet-cli flow process/words/snippets` + `macparakeet-cli llm generate/refine/command/chat/smoke-test`
 - [x] Context modes (raw, clean, formal, email, code)
 - [x] AI text refinement via Qwen3-8B with deterministic fallback
 
@@ -542,6 +542,7 @@ swift run macparakeet-cli transcribe /path/to/audio.mp3
 swift run macparakeet-cli health
 swift run macparakeet-cli llm smoke-test --stats
 swift run macparakeet-cli llm refine formal "quick draft text"
+swift run macparakeet-cli llm chat "What changed?" --transcript-file /path/to/transcript.txt
 
 # Run tests (swift test works -- tests don't need Metal shaders)
 swift test
