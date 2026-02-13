@@ -31,6 +31,31 @@ final class LLMChatCommandTests: XCTestCase {
         XCTAssertTrue(payload.prompt.contains("Question:"))
     }
 
+    func testLoadTranscriptContextThrowsWhenFileDoesNotExist() {
+        let missingPath = "/tmp/macparakeet-missing-\(UUID().uuidString).txt"
+
+        XCTAssertThrowsError(try LLMChatPromptComposer.loadTranscriptContext(from: missingPath)) { error in
+            guard case CLIError.transcriptFileNotFound(let path) = error else {
+                return XCTFail("Expected transcriptFileNotFound, got: \(error)")
+            }
+            XCTAssertEqual(path, missingPath)
+        }
+    }
+
+    func testLoadTranscriptContextThrowsWhenPathIsUnreadable() throws {
+        let directoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("llm-chat-dir-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directoryURL) }
+
+        XCTAssertThrowsError(try LLMChatPromptComposer.loadTranscriptContext(from: directoryURL.path)) { error in
+            guard case CLIError.transcriptFileReadFailed(let path, _) = error else {
+                return XCTFail("Expected transcriptFileReadFailed, got: \(error)")
+            }
+            XCTAssertEqual(path, directoryURL.path)
+        }
+    }
+
     func testChatArgumentParsingReadsTranscriptSystemAndStatsFlags() throws {
         let command = try LLMCommand.Chat.parse(
             [
