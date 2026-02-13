@@ -20,6 +20,27 @@ public actor STTClient: STTClientProtocol {
         }
 
         let audioURL = URL(fileURLWithPath: audioPath)
+        let transcriptionProgressTask: Task<Void, Never>? = if let onProgress {
+            Task {
+                do {
+                    let progressStream = await manager.transcriptionProgressStream
+                    var lastProgress = -1
+                    for try await value in progressStream {
+                        let percent = min(99, max(0, Int((value * 100).rounded())))
+                        guard percent != lastProgress else { continue }
+                        lastProgress = percent
+                        onProgress(percent, 100)
+                    }
+                } catch {
+                    // Transcription still completes (or fails) independently.
+                }
+            }
+        } else {
+            nil
+        }
+        defer {
+            transcriptionProgressTask?.cancel()
+        }
 
         onProgress?(0, 100)
 
@@ -36,9 +57,23 @@ public actor STTClient: STTClientProtocol {
     public func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {
         let cacheDir = AsrModels.defaultCacheDirectory(for: modelVersion)
         let isCached = AsrModels.modelsExist(at: cacheDir, version: modelVersion)
+        let modelDownloadProgressTask: Task<Void, Never>? = if !isCached, let onProgress {
+            Task {
+                await Self.emitModelDownloadProgress(
+                    requiredModelNames: Array(AsrModels.requiredModelNames),
+                    cacheDirectory: cacheDir,
+                    onProgress: onProgress
+                )
+            }
+        } else {
+            nil
+        }
+        defer {
+            modelDownloadProgressTask?.cancel()
+        }
 
         if !isCached {
-            onProgress?("Downloading speech model...")
+            onProgress?(Self.modelDownloadProgressMessage(completedCount: 0, totalCount: AsrModels.requiredModelNames.count))
         }
         onProgress?("Loading model into memory...")
 
@@ -145,6 +180,45 @@ public actor STTClient: STTClientProtocol {
         }
 
         return nil
+    }
+
+    private nonisolated static func emitModelDownloadProgress(
+        requiredModelNames: [String],
+        cacheDirectory: URL,
+        onProgress: @escaping @Sendable (String) -> Void
+    ) async {
+        let sortedModelNames = requiredModelNames.sorted()
+        var lastCompletedCount = -1
+
+        while !Task.isCancelled {
+            let completedCount = sortedModelNames.reduce(into: 0) { count, name in
+                let modelPath = cacheDirectory.appendingPathComponent(name)
+                if FileManager.default.fileExists(atPath: modelPath.path) {
+                    count += 1
+                }
+            }
+
+            if completedCount != lastCompletedCount {
+                lastCompletedCount = completedCount
+                onProgress(modelDownloadProgressMessage(completedCount: completedCount, totalCount: sortedModelNames.count))
+            }
+
+            if completedCount >= sortedModelNames.count {
+                return
+            }
+
+            try? await Task.sleep(nanoseconds: 350_000_000)
+        }
+    }
+
+    private nonisolated static func modelDownloadProgressMessage(completedCount: Int, totalCount: Int) -> String {
+        guard totalCount > 0 else {
+            return "Downloading speech model..."
+        }
+
+        let boundedCompleted = max(0, min(completedCount, totalCount))
+        let percent = Int((Double(boundedCompleted) / Double(totalCount) * 100.0).rounded())
+        return "Downloading speech model... \(percent)% (\(boundedCompleted)/\(totalCount))"
     }
 
     private nonisolated static func mergeTokenTimingsIntoWords(_ tokenTimings: [TokenTiming]?) -> [TimestampedWord] {
