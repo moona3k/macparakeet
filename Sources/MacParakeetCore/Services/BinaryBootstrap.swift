@@ -40,22 +40,33 @@ public actor BinaryBootstrap {
     private let session: URLSession
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
+    private let ensureDirectories: @Sendable () throws -> Void
+    private let ytDlpBinaryPath: @Sendable () -> String
+    private let tempDirPath: @Sendable () -> String
 
     public init(
         session: URLSession = .shared,
         defaults: UserDefaults = .standard,
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        fileManager: FileManager = .default,
+        ensureDirectories: @escaping @Sendable () throws -> Void = { try AppPaths.ensureDirectories() },
+        ytDlpBinaryPath: @escaping @Sendable () -> String = { AppPaths.ytDlpBinaryPath },
+        tempDirPath: @escaping @Sendable () -> String = { AppPaths.tempDir }
     ) {
         self.session = session
         self.defaults = defaults
         self.now = now
+        self.fileManager = fileManager
+        self.ensureDirectories = ensureDirectories
+        self.ytDlpBinaryPath = ytDlpBinaryPath
+        self.tempDirPath = tempDirPath
     }
 
     public func ensureYtDlpAvailable() async throws -> String {
-        try AppPaths.ensureDirectories()
+        try ensureDirectories()
 
-        let targetPath = AppPaths.ytDlpBinaryPath
+        let targetPath = ytDlpBinaryPath()
         if fileManager.isExecutableFile(atPath: targetPath) {
             await autoUpdateYtDlpIfNeeded()
             return targetPath
@@ -70,7 +81,7 @@ public actor BinaryBootstrap {
         guard shouldRunYtDlpUpdateCheck() else { return }
         defaults.set(now(), forKey: Self.ytDlpLastUpdateCheckKey)
 
-        let binaryPath = AppPaths.ytDlpBinaryPath
+        let binaryPath = ytDlpBinaryPath()
         guard fileManager.isExecutableFile(atPath: binaryPath) else { return }
 
         do {
@@ -110,27 +121,24 @@ public actor BinaryBootstrap {
             throw BinaryBootstrapError.downloadFailed("Invalid yt-dlp download URL")
         }
 
-        let tempDir = URL(fileURLWithPath: AppPaths.tempDir, isDirectory: true)
+        let tempDir = URL(fileURLWithPath: tempDirPath(), isDirectory: true)
         try fileManager.createDirectory(at: tempDir, withIntermediateDirectories: true)
 
         let tempBinaryURL = tempDir.appendingPathComponent("yt-dlp-\(UUID().uuidString)")
-
-        do {
-            try await download(url: binaryURL, to: tempBinaryURL)
-            let checksums = try await fetchText(from: checksumsURL)
-            let expectedChecksum = try Self.extractChecksum(for: assetName, from: checksums)
-            let actualChecksum = try Self.sha256Hex(ofFileAt: tempBinaryURL)
-
-            guard actualChecksum.caseInsensitiveCompare(expectedChecksum) == .orderedSame else {
-                throw BinaryBootstrapError.checksumMismatch("Expected \(expectedChecksum), got \(actualChecksum)")
-            }
-
-            try installExecutable(from: tempBinaryURL, toPath: targetPath)
-        } catch {
-            throw error
+        defer {
+            try? fileManager.removeItem(at: tempBinaryURL)
         }
 
-        try? fileManager.removeItem(at: tempBinaryURL)
+        try await download(url: binaryURL, to: tempBinaryURL)
+        let checksums = try await fetchText(from: checksumsURL)
+        let expectedChecksum = try Self.extractChecksum(for: assetName, from: checksums)
+        let actualChecksum = try Self.sha256Hex(ofFileAt: tempBinaryURL)
+
+        guard actualChecksum.caseInsensitiveCompare(expectedChecksum) == .orderedSame else {
+            throw BinaryBootstrapError.checksumMismatch("Expected \(expectedChecksum), got \(actualChecksum)")
+        }
+
+        try installExecutable(from: tempBinaryURL, toPath: targetPath)
     }
 
     private func download(url: URL, to destination: URL) async throws {

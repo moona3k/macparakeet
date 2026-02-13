@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Converts audio/video files to 16kHz mono WAV using FFmpeg subprocess.
 public final class AudioFileConverter: Sendable {
@@ -62,8 +63,7 @@ public final class AudioFileConverter: Sendable {
         process.standardOutput = FileHandle.nullDevice
         process.standardError = stderrHandle
 
-        try process.run()
-        process.waitUntilExit()
+        try await runProcessAndWait(process, timeout: 600)
 
         if process.terminationStatus != 0 {
             stderrHandle.synchronizeFile()
@@ -105,6 +105,49 @@ public final class AudioFileConverter: Sendable {
             throw AudioProcessorError.conversionFailed(
                 "Bundled FFmpeg is missing. Reinstall MacParakeet."
             )
+        }
+    }
+
+    private func runProcessAndWait(_ process: Process, timeout: TimeInterval) async throws {
+        try process.run()
+
+        let resumed = OSAllocatedUnfairLock(initialState: false)
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            process.terminationHandler = { _ in
+                let shouldResume = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                if shouldResume {
+                    continuation.resume()
+                }
+            }
+
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                let shouldResume = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                if shouldResume {
+                    process.terminate()
+                    continuation.resume(
+                        throwing: AudioProcessorError.conversionFailed("FFmpeg conversion timed out")
+                    )
+                }
+            }
+
+            if !process.isRunning {
+                let shouldResume = resumed.withLock { done -> Bool in
+                    guard !done else { return false }
+                    done = true
+                    return true
+                }
+                if shouldResume {
+                    continuation.resume()
+                }
+            }
         }
     }
 }

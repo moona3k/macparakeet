@@ -157,7 +157,7 @@ FFMPEG_PATH="${FFMPEG_PATH:-/opt/homebrew/bin/ffmpeg}"
 ALLOW_NON_PORTABLE_FFMPEG="${ALLOW_NON_PORTABLE_FFMPEG:-0}"
 if [[ ! -x "$FFMPEG_PATH" ]]; then
   echo "Error: FFMPEG_PATH not executable: $FFMPEG_PATH" >&2
-  echo "Set FFMPEG_PATH to a valid ffmpeg binary before building the app bundle." >&2
+  echo "Set FFMPEG_PATH to a portable/static ffmpeg binary to bundle inside the app (not a Homebrew Cellar-linked build)." >&2
   exit 1
 fi
 
@@ -168,7 +168,7 @@ if [[ "$ALLOW_NON_PORTABLE_FFMPEG" != "1" ]] && command -v otool >/dev/null 2>&1
   if [[ -n "$NON_SYSTEM_DEPS" ]]; then
     echo "Error: ffmpeg binary has non-system dylib dependencies and is likely not portable:" >&2
     echo "$NON_SYSTEM_DEPS" >&2
-    echo "Provide a portable/static ffmpeg via FFMPEG_PATH, or set ALLOW_NON_PORTABLE_FFMPEG=1 to override." >&2
+    echo "Provide a portable/static ffmpeg via FFMPEG_PATH (for example: prebuilt standalone ffmpeg), or set ALLOW_NON_PORTABLE_FFMPEG=1 to override." >&2
     exit 1
   fi
 fi

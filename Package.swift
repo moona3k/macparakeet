@@ -21,7 +21,7 @@ let package = Package(
         // GRDB for SQLite (dictation history + transcription records)
         .package(url: "https://github.com/groue/GRDB.swift", from: "6.29.0"),
         // FluidAudio for Parakeet STT on CoreML/ANE
-        .package(url: "https://github.com/FluidInference/FluidAudio", from: "0.12.1"),
+        .package(url: "https://github.com/FluidInference/FluidAudio", .upToNextMinor(from: "0.12.1")),
         // ArgumentParser for CLI
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0")
     ],

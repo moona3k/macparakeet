@@ -26,8 +26,8 @@ extension STTClientProtocol {
 }
 
 public enum STTError: Error, LocalizedError {
-    case daemonNotRunning
-    case daemonStartFailed(String)
+    case engineNotRunning
+    case engineStartFailed(String)
     case transcriptionFailed(String)
     case timeout
     case modelNotLoaded
@@ -36,8 +36,8 @@ public enum STTError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .daemonNotRunning: return "Speech engine is not running"
-        case .daemonStartFailed(let reason): return "Failed to start speech engine: \(reason)"
+        case .engineNotRunning: return "Speech engine is not running"
+        case .engineStartFailed(let reason): return "Failed to start speech engine: \(reason)"
         case .transcriptionFailed(let reason): return "Transcription failed: \(reason)"
         case .timeout: return "STT request timed out"
         case .modelNotLoaded: return "STT model not loaded"

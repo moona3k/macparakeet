@@ -1,6 +1,5 @@
 import FluidAudio
 import Foundation
-import os
 
 /// STT client backed by FluidAudio CoreML/ANE runtime.
 public actor STTClient: STTClientProtocol {
@@ -109,7 +108,7 @@ public actor STTClient: STTClientProtocol {
         if let mapped = mapCommonError(error) {
             return mapped
         }
-        return .daemonStartFailed(error.localizedDescription)
+        return .engineStartFailed(error.localizedDescription)
     }
 
     private nonisolated static func mapTranscriptionError(_ error: Error) -> STTError {
@@ -131,18 +130,18 @@ public actor STTClient: STTClientProtocol {
             case .invalidAudioData:
                 return .transcriptionFailed(asrError.localizedDescription)
             case .modelLoadFailed, .modelCompilationFailed:
-                return .daemonStartFailed(asrError.localizedDescription)
+                return .engineStartFailed(asrError.localizedDescription)
             case .processingFailed(let message):
                 return .transcriptionFailed(message)
             case .unsupportedPlatform(let message):
-                return .daemonStartFailed(message)
+                return .engineStartFailed(message)
             case .streamingConversionFailed, .fileAccessFailed:
                 return .transcriptionFailed(asrError.localizedDescription)
             }
         }
 
         if let modelError = error as? AsrModelsError {
-            return .daemonStartFailed(modelError.localizedDescription)
+            return .engineStartFailed(modelError.localizedDescription)
         }
 
         return nil
@@ -200,113 +199,5 @@ public actor STTClient: STTClientProtocol {
 
         flushCurrentWord()
         return words
-    }
-
-    nonisolated static func consumeProgressUpdates(
-        from buffer: inout Data,
-        appending chunk: Data,
-        consumeTrailingLine: Bool = false
-    ) -> [(Int, Int)] {
-        buffer.append(chunk)
-        var updates: [(Int, Int)] = []
-
-        while let newlineIdx = buffer.firstIndex(of: 0x0A) {
-            let lineData = buffer.prefix(upTo: newlineIdx)
-            buffer.removeSubrange(..<buffer.index(after: newlineIdx))
-            if let update = parseProgressUpdate(lineData: lineData) {
-                updates.append(update)
-            }
-        }
-
-        if consumeTrailingLine, !buffer.isEmpty {
-            if let update = parseProgressUpdate(lineData: buffer[...]) {
-                updates.append(update)
-            }
-            buffer.removeAll(keepingCapacity: true)
-        }
-
-        return updates
-    }
-
-    // MARK: - Setup Progress Parsing
-
-    nonisolated static func consumeSetupProgressUpdates(
-        from buffer: inout Data,
-        appending chunk: Data,
-        consumeTrailingLine: Bool = false
-    ) -> [String] {
-        buffer.append(chunk)
-        var messages: [String] = []
-
-        while let newlineIdx = buffer.firstIndex(of: 0x0A) {
-            let lineData = buffer.prefix(upTo: newlineIdx)
-            buffer.removeSubrange(..<buffer.index(after: newlineIdx))
-            if let message = parseSetupProgressLine(lineData: lineData[...]) {
-                messages.append(message)
-            }
-        }
-
-        if consumeTrailingLine, !buffer.isEmpty {
-            if let message = parseSetupProgressLine(lineData: buffer[...]) {
-                messages.append(message)
-            }
-            buffer.removeAll(keepingCapacity: true)
-        }
-
-        return messages
-    }
-
-    nonisolated static func parseSetupProgressLine(lineData: Data.SubSequence) -> String? {
-        guard let line = String(data: Data(lineData), encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            line.hasPrefix("SETUP_PROGRESS:")
-        else {
-            return nil
-        }
-
-        let payload = line.dropFirst("SETUP_PROGRESS:".count)
-        let parts = payload.split(separator: ":", maxSplits: 2)
-        guard !parts.isEmpty else { return nil }
-
-        let phase = String(parts[0])
-        let bytesDone = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
-        let bytesTotal = parts.count > 2 ? Int(parts[2]) ?? 0 : 0
-
-        switch phase {
-        case "downloading_config":
-            return "Downloading speech model config..."
-        case "downloading_model":
-            if bytesTotal > 0 && bytesDone > 0 {
-                let totalMB = bytesTotal / (1024 * 1024)
-                let pct = Int(Double(bytesDone) / Double(bytesTotal) * 100)
-                return "Downloading speech model (\(totalMB) MB)... \(pct)%"
-            }
-            return "Downloading speech model..."
-        case "loading_model":
-            return "Loading model into memory..."
-        case "ready":
-            return "Ready"
-        default:
-            return nil
-        }
-    }
-
-    private nonisolated static func parseProgressUpdate(lineData: Data.SubSequence) -> (Int, Int)? {
-        guard let line = String(data: Data(lineData), encoding: .utf8)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            line.hasPrefix("PROGRESS:")
-        else {
-            return nil
-        }
-
-        let payload = line.dropFirst("PROGRESS:".count)
-        let parts = payload.split(separator: "/", maxSplits: 1)
-        guard parts.count == 2,
-            let current = Int(parts[0]),
-            let total = Int(parts[1])
-        else {
-            return nil
-        }
-        return (current, total)
     }
 }
