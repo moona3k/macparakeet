@@ -34,6 +34,7 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 | Brand identity | `docs/brand-identity.md` |
 | UI/UX design overhaul | `docs/design-overhaul.md` |
 | Distribution & signing | `docs/distribution.md` |
+| LLM runtime revalidation | `docs/runtime-revalidation-checklist.md` |
 | Implementation plans | `plans/` -> active and completed plans |
 
 ## Tech Stack (Locked Decisions)
