@@ -44,6 +44,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-004](adr/004-deterministic-pipeline.md) | Deterministic text processing pipeline |
 | [ADR-005](adr/005-onboarding-first-run.md) | First-run onboarding flow |
 | [ADR-006](adr/006-trial-and-license-activation.md) | Trial + license key activation |
+| [ADR-007](adr/007-fluidaudio-coreml-migration.md) | FluidAudio CoreML migration (Python elimination) |
 
 ## Version Roadmap
 
