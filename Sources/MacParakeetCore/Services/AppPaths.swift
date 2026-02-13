@@ -27,9 +27,14 @@ public enum AppPaths {
         "\(appSupportDir)/youtube-downloads"
     }
 
-    /// Python venv directory
-    public static var pythonVenvDir: String {
-        "\(appSupportDir)/python"
+    /// Directory for managed helper binaries (e.g. yt-dlp).
+    public static var binDir: String {
+        "\(appSupportDir)/bin"
+    }
+
+    /// Managed yt-dlp binary path.
+    public static var ytDlpBinaryPath: String {
+        "\(binDir)/yt-dlp"
     }
 
     /// Temp directory for audio processing
@@ -40,10 +45,18 @@ public enum AppPaths {
     /// Ensure all required directories exist
     public static func ensureDirectories() throws {
         let fm = FileManager.default
-        for dir in [appSupportDir, dictationsDir, youtubeDownloadsDir, tempDir] {
+        for dir in [appSupportDir, dictationsDir, youtubeDownloadsDir, binDir, tempDir] {
             if !fm.fileExists(atPath: dir) {
                 try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
             }
         }
+    }
+
+    /// Resolve bundled FFmpeg binary path from app resources.
+    /// Returns nil when running outside an app bundle or when ffmpeg is not present.
+    public static func bundledFFmpegPath() -> String? {
+        guard let resourcePath = Bundle.main.resourcePath else { return nil }
+        let ffmpegPath = (resourcePath as NSString).appendingPathComponent("ffmpeg")
+        return FileManager.default.isExecutableFile(atPath: ffmpegPath) ? ffmpegPath : nil
     }
 }

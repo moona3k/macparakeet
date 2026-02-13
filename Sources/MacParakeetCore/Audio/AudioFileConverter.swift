@@ -99,64 +99,12 @@ public final class AudioFileConverter: Sendable {
     }
 
     private func findFFmpeg() throws -> String {
-        let fm = FileManager.default
-
-        // Check bundled FFmpeg first
-        if let bundledPath = Bundle.main.resourcePath.map({ $0 + "/ffmpeg" }),
-           fm.fileExists(atPath: bundledPath) {
-            return bundledPath
+        do {
+            return try BinaryBootstrap.requireBundledFFmpegPath()
+        } catch {
+            throw AudioProcessorError.conversionFailed(
+                "Bundled FFmpeg is missing. Reinstall MacParakeet."
+            )
         }
-
-        // Check imageio-ffmpeg in the Python venv (installed as a pip dependency).
-        // The binary name includes platform info, so glob for it.
-        let venvSitePackages = FileManager.default
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first?
-            .appendingPathComponent("MacParakeet/python/lib")
-            .path
-        if let sitePackages = venvSitePackages {
-            let binDir = "\(sitePackages)/python3.11/site-packages/imageio_ffmpeg/binaries"
-            if let contents = try? fm.contentsOfDirectory(atPath: binDir) {
-                if let ffmpegBin = contents.first(where: { $0.hasPrefix("ffmpeg") }) {
-                    return "\(binDir)/\(ffmpegBin)"
-                }
-            }
-        }
-
-        // Common install paths
-        let searchPaths = [
-            "/opt/homebrew/bin/ffmpeg",
-            "/usr/local/bin/ffmpeg",
-            "/usr/bin/ffmpeg",
-        ]
-
-        for path in searchPaths {
-            if fm.fileExists(atPath: path) {
-                return path
-            }
-        }
-
-        // Try which
-        let whichProcess = Process()
-        let pipe = Pipe()
-        whichProcess.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        whichProcess.arguments = ["ffmpeg"]
-        whichProcess.standardOutput = pipe
-        whichProcess.standardError = FileHandle.nullDevice
-
-        try whichProcess.run()
-        whichProcess.waitUntilExit()
-
-        if whichProcess.terminationStatus == 0 {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            if let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !path.isEmpty {
-                return path
-            }
-        }
-
-        throw AudioProcessorError.conversionFailed(
-            "FFmpeg is required but was not found. Please reinstall MacParakeet or install FFmpeg manually."
-        )
     }
 }

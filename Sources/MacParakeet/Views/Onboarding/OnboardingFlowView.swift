@@ -285,9 +285,7 @@ struct OnboardingFlowView: View {
         case .engine:
             engineSetupView
                 .onAppear {
-                    let venvPython = URL(fileURLWithPath: AppPaths.pythonVenvDir, isDirectory: true)
-                        .appendingPathComponent("bin/python", isDirectory: false)
-                    let isFirstRun = !FileManager.default.fileExists(atPath: venvPython.path)
+                    let isFirstRun = !STTClient.isModelCached(version: .v3)
                     viewModel.startEngineWarmUp(isFirstRun: isFirstRun)
                 }
         case .done:
@@ -451,9 +449,7 @@ struct OnboardingFlowView: View {
 
                         HStack {
                             accentButton("Retry", disabled: false) {
-                                let venvPython = URL(fileURLWithPath: AppPaths.pythonVenvDir, isDirectory: true)
-                                    .appendingPathComponent("bin/python", isDirectory: false)
-                                let isFirstRun = !FileManager.default.fileExists(atPath: venvPython.path)
+                                let isFirstRun = !STTClient.isModelCached(version: .v3)
                                 viewModel.retryEngineWarmUp(isFirstRun: isFirstRun)
                             }
 

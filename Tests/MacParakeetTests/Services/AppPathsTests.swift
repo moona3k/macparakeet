@@ -17,9 +17,14 @@ final class AppPathsTests: XCTestCase {
         XCTAssertTrue(AppPaths.dictationsDir.hasSuffix("dictations"))
     }
 
-    func testPythonVenvDirIsInsideAppSupport() {
-        XCTAssertTrue(AppPaths.pythonVenvDir.hasPrefix(AppPaths.appSupportDir))
-        XCTAssertTrue(AppPaths.pythonVenvDir.hasSuffix("python"))
+    func testBinDirIsInsideAppSupport() {
+        XCTAssertTrue(AppPaths.binDir.hasPrefix(AppPaths.appSupportDir))
+        XCTAssertTrue(AppPaths.binDir.hasSuffix("bin"))
+    }
+
+    func testYtDlpBinaryPathIsInsideBinDir() {
+        XCTAssertTrue(AppPaths.ytDlpBinaryPath.hasPrefix(AppPaths.binDir))
+        XCTAssertTrue(AppPaths.ytDlpBinaryPath.hasSuffix("yt-dlp"))
     }
 
     func testYouTubeDownloadsDirIsInsideAppSupport() {

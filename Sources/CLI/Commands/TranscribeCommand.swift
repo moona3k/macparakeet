@@ -40,10 +40,9 @@ struct TranscribeCommand: AsyncParsableCommand {
         let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
         let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
         let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
-        let pythonBootstrap = PythonBootstrap()
-        let sttClient = STTClient(pythonBootstrap: pythonBootstrap)
+        let sttClient = STTClient()
         let audioProcessor = AudioProcessor()
-        let youtubeDownloader = YouTubeDownloader(pythonBootstrap: pythonBootstrap)
+        let youtubeDownloader = YouTubeDownloader()
 
         let service = TranscriptionService(
             audioProcessor: audioProcessor,

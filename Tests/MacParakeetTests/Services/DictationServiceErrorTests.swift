@@ -10,12 +10,12 @@ final class DictationServiceErrorTests: XCTestCase {
 
     func testSTTErrorDescriptions() {
         let errors: [(STTError, String)] = [
-            (.daemonNotRunning, "STT daemon is not running"),
+            (.daemonNotRunning, "Speech engine is not running"),
             (.modelNotLoaded, "STT model not loaded"),
             (.outOfMemory, "Out of memory during transcription"),
             (.transcriptionFailed("bad audio"), "Transcription failed: bad audio"),
             (.timeout, "STT request timed out"),
-            (.invalidResponse, "Invalid response from STT daemon"),
+            (.invalidResponse, "Invalid response from speech engine"),
         ]
 
         for (error, expected) in errors {

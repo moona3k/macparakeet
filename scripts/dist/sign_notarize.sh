@@ -38,7 +38,7 @@ echo "[1/8] Clearing extended attributes…"
 xattr -cr "$APP_PATH" || true
 
 echo "[2/8] Signing nested executables (if any)…"
-# Sign inside-out. `uv` and `node` are shipped under Resources and must be signed for notarization.
+# Sign inside-out. Helper binaries under Resources must be signed for notarization.
 NODE_RUNTIME_ENTITLEMENTS="$ROOT_DIR/scripts/dist/NodeRuntime.entitlements"
 while IFS= read -r -d '' bin; do
   base="$(basename "$bin")"
@@ -51,7 +51,7 @@ while IFS= read -r -d '' bin; do
   fi
 done < <(
   find "$APP_PATH/Contents/Resources" -maxdepth 1 -type f -perm -111 \
-    \( -name "uv" -o -name "uv-arm64" -o -name "uv-x86_64" -o -name "node" -o -name "node-arm64" -o -name "node-x86_64" \) -print0 2>/dev/null || true
+    \( -name "ffmpeg" -o -name "node" -o -name "node-arm64" -o -name "node-x86_64" \) -print0 2>/dev/null || true
 )
 
 ENTITLEMENTS="$ROOT_DIR/scripts/dist/MacParakeet.entitlements"

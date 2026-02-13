@@ -376,9 +376,10 @@ struct DictationOverlayView: View {
     private func errorInfo(_ message: String) -> (title: String, subtitle: String) {
         let lower = message.lowercased()
 
-        if lower.contains("stt") || lower.contains("daemon") || lower.contains("python")
+        if lower.contains("stt") || lower.contains("daemon") || lower.contains("speech engine")
+            || lower.contains("model not loaded")
             || lower.contains("failed to start") {
-            return ("Speech Engine Not Ready", "Check that Python and dependencies are installed.")
+            return ("Speech Engine Not Ready", "Finish engine setup in onboarding, then try again.")
         }
         if lower.contains("couldn't hear") || lower.contains("empty")
             || lower.contains("too short") || lower.contains("insufficient") {
@@ -499,7 +500,7 @@ struct DictationOverlayView: View {
 
         DictationOverlayView(viewModel: {
             let vm = DictationOverlayViewModel()
-            vm.state = .error("Failed to start STT daemon: Python environment not found")
+            vm.state = .error("Failed to start speech engine: model not loaded")
             return vm
         }())
 

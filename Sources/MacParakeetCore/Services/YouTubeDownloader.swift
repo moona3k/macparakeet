@@ -42,10 +42,10 @@ public actor YouTubeDownloader {
         }
     }
 
-    private let pythonBootstrap: PythonBootstrap
+    private let binaryBootstrap: BinaryBootstrap
 
-    public init(pythonBootstrap: PythonBootstrap) {
-        self.pythonBootstrap = pythonBootstrap
+    public init(binaryBootstrap: BinaryBootstrap = BinaryBootstrap()) {
+        self.binaryBootstrap = binaryBootstrap
     }
 
     /// Download audio from a YouTube URL.
@@ -71,50 +71,17 @@ public actor YouTubeDownloader {
 
     // MARK: - Private
 
-    /// Build a PATH that includes common binary locations. App bundles ship with
-    /// a minimal PATH that excludes /opt/homebrew/bin, so tools like ffmpeg and
-    /// node (required by yt-dlp for YouTube JS extraction) can't be found.
+    /// Build a PATH that includes common binary locations plus app-managed bin directory.
     private nonisolated static func extendedPATH() -> String {
         let current = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
         let extras = [
+            AppPaths.binDir,
             "/opt/homebrew/bin",
             "/usr/local/bin",
         ]
         let existing = Set(current.split(separator: ":").map(String.init))
         let missing = extras.filter { !existing.contains($0) }
         return (missing + [current]).joined(separator: ":")
-    }
-
-    /// Locate FFmpeg for yt-dlp post-processing. App bundles have a minimal PATH
-    /// that excludes /opt/homebrew/bin, so yt-dlp can't find it without help.
-    private nonisolated static func findFFmpegDirectory() -> String? {
-        let fm = FileManager.default
-
-        // Check imageio-ffmpeg in the Python venv (same lookup as AudioFileConverter).
-        let venvSitePackages = fm
-            .urls(for: .applicationSupportDirectory, in: .userDomainMask)
-            .first?
-            .appendingPathComponent("MacParakeet/python/lib")
-            .path
-        if let sitePackages = venvSitePackages {
-            let binDir = "\(sitePackages)/python3.11/site-packages/imageio_ffmpeg/binaries"
-            if let contents = try? fm.contentsOfDirectory(atPath: binDir),
-               contents.contains(where: { $0.hasPrefix("ffmpeg") }) {
-                return binDir
-            }
-        }
-
-        let searchPaths = [
-            "/opt/homebrew/bin/ffmpeg",
-            "/usr/local/bin/ffmpeg",
-            "/usr/bin/ffmpeg",
-        ]
-        for path in searchPaths {
-            if fm.fileExists(atPath: path) {
-                return (path as NSString).deletingLastPathComponent
-            }
-        }
-        return nil
     }
 
     private struct VideoMetadata {
@@ -128,23 +95,16 @@ public actor YouTubeDownloader {
     }
 
     private func resolveYtDlpPath() async throws -> String {
-        _ = try await pythonBootstrap.ensureEnvironment()
-
-        await pythonBootstrap.autoUpdateYouTubeEngineIfNeeded()
-        let venvBin = "\(pythonBootstrap.venvPath)/bin/yt-dlp"
-        if FileManager.default.fileExists(atPath: venvBin) {
-            return venvBin
+        let ytDlpPath = try await binaryBootstrap.ensureYtDlpAvailable()
+        guard FileManager.default.isExecutableFile(atPath: ytDlpPath) else {
+            throw YouTubeDownloadError.ytDlpNotFound
         }
+        return ytDlpPath
+    }
 
-        // Venv may exist but yt-dlp wasn't installed yet (added after initial bootstrap).
-        // Re-run requirements install to pick up new dependencies.
-        try await pythonBootstrap.installRequirements()
-
-        if FileManager.default.fileExists(atPath: venvBin) {
-            return venvBin
-        }
-
-        throw YouTubeDownloadError.ytDlpNotFound
+    private func ffmpegDirectory() throws -> String {
+        let ffmpegPath = try BinaryBootstrap.requireBundledFFmpegPath()
+        return (ffmpegPath as NSString).deletingLastPathComponent
     }
 
     private func fetchMetadata(ytDlpPath: String, url: String) async throws -> VideoMetadata {
@@ -192,6 +152,8 @@ public actor YouTubeDownloader {
             try fm.createDirectory(atPath: tempDir, withIntermediateDirectories: true)
         }
 
+        let ffmpegDir = try ffmpegDirectory()
+
         let uuid = UUID().uuidString
         let outputTemplate = "\(tempDir)/\(uuid).%(ext)s"
 
@@ -206,6 +168,7 @@ public actor YouTubeDownloader {
         if !jsRuntimeArgs.isEmpty {
             args += ["--no-js-runtimes"] + jsRuntimeArgs
         }
+        args += ["--ffmpeg-location", ffmpegDir]
         args += ["--extractor-args", "youtube:player_client=tv,android"]
         args += [
             "-f", "bestaudio/best",
@@ -214,11 +177,8 @@ public actor YouTubeDownloader {
             "--concurrent-fragments", "4",
             "--newline",
             "-o", outputTemplate,
+            url,
         ]
-        if let ffmpegDir = Self.findFFmpegDirectory() {
-            args += ["--ffmpeg-location", ffmpegDir]
-        }
-        args.append(url)
         process.arguments = args
         process.standardOutput = FileHandle.nullDevice
 
@@ -298,7 +258,7 @@ public actor YouTubeDownloader {
 
     nonisolated static func parseDownloadProgressPercent(from line: String) -> Int? {
         guard line.localizedCaseInsensitiveContains("[download]"),
-              let match = line.range(of: #"([0-9]+(?:\.[0-9]+)?)%"#, options: .regularExpression)
+            let match = line.range(of: #"([0-9]+(?:\.[0-9]+)?)%"#, options: .regularExpression)
         else {
             return nil
         }
@@ -320,7 +280,8 @@ public actor YouTubeDownloader {
             buffer.removeSubrange(..<buffer.index(after: newlineIdx))
             if let line = String(data: Data(lineData), encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-               !line.isEmpty {
+                !line.isEmpty
+            {
                 lines.append(line)
             }
         }
@@ -328,7 +289,8 @@ public actor YouTubeDownloader {
         if consumeTrailingLine, !buffer.isEmpty {
             if let line = String(data: buffer, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-               !line.isEmpty {
+                !line.isEmpty
+            {
                 lines.append(line)
             }
             buffer.removeAll(keepingCapacity: true)
@@ -349,14 +311,12 @@ public actor YouTubeDownloader {
     }
 
     private func findJavaScriptRuntime() -> JavaScriptRuntime? {
-        let venvBin = "\(pythonBootstrap.venvPath)/bin"
         let resourcePath = Bundle.main.resourcePath
         let candidates: [(name: String, binaryNames: [String], preferredPaths: [String])] = [
             (
                 "node",
                 ["node"],
                 Self.bundledRuntimePaths(baseName: "node", resourcePath: resourcePath) + [
-                    "\(venvBin)/node",
                     "/opt/homebrew/bin/node",
                     "/usr/local/bin/node",
                     "/usr/bin/node",
@@ -366,7 +326,6 @@ public actor YouTubeDownloader {
                 "deno",
                 ["deno"],
                 Self.bundledRuntimePaths(baseName: "deno", resourcePath: resourcePath) + [
-                    "\(venvBin)/deno",
                     "/opt/homebrew/bin/deno",
                     "/usr/local/bin/deno",
                     "/usr/bin/deno",
@@ -378,8 +337,6 @@ public actor YouTubeDownloader {
                 Self.bundledRuntimePaths(baseName: "qjs", resourcePath: resourcePath)
                     + Self.bundledRuntimePaths(baseName: "quickjs", resourcePath: resourcePath)
                     + [
-                        "\(venvBin)/qjs",
-                        "\(venvBin)/quickjs",
                         "/opt/homebrew/bin/qjs",
                         "/usr/local/bin/qjs",
                         "/usr/bin/qjs",
@@ -436,6 +393,10 @@ public actor YouTubeDownloader {
         let normalized = trimmed.lowercased()
         if normalized.contains("no supported javascript runtime could be found") {
             return "No supported JavaScript runtime found for YouTube extraction. Install Node.js (recommended) or Deno and retry."
+        }
+
+        if normalized.contains("ffmpeg") && normalized.contains("not found") {
+            return "Bundled FFmpeg is missing or inaccessible. Reinstall MacParakeet."
         }
 
         let lines = trimmed
@@ -498,9 +459,8 @@ public actor YouTubeDownloader {
         if !jsRuntimeArgs.isEmpty {
             fullArgs = ["--no-js-runtimes"] + jsRuntimeArgs + fullArgs
         }
-        if let ffmpegDir = Self.findFFmpegDirectory() {
-            fullArgs = ["--ffmpeg-location", ffmpegDir] + fullArgs
-        }
+        let ffmpegDir = try ffmpegDirectory()
+        fullArgs = ["--ffmpeg-location", ffmpegDir] + fullArgs
 
         process.arguments = fullArgs
         process.standardOutput = captureStdout ? stdoutHandle : FileHandle.nullDevice

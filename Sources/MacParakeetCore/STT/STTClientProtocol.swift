@@ -4,14 +4,14 @@ public protocol STTClientProtocol: Sendable {
     /// Transcribe an audio file at the given path
     func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult
 
-    /// Warm up the STT engine (start daemon, load model) with optional progress callback.
+    /// Warm up the STT engine (load model into memory) with optional progress callback.
     /// Progress messages are human-readable strings like "Downloading speech model (571 MB)... 45%".
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
 
-    /// Check if the daemon is running and responsive
+    /// Check if the STT engine is initialized and ready
     func isReady() async -> Bool
 
-    /// Shut down the daemon
+    /// Shut down the STT engine
     func shutdown() async
 }
 
@@ -36,13 +36,13 @@ public enum STTError: Error, LocalizedError {
 
     public var errorDescription: String? {
         switch self {
-        case .daemonNotRunning: return "STT daemon is not running"
-        case .daemonStartFailed(let reason): return "Failed to start STT daemon: \(reason)"
+        case .daemonNotRunning: return "Speech engine is not running"
+        case .daemonStartFailed(let reason): return "Failed to start speech engine: \(reason)"
         case .transcriptionFailed(let reason): return "Transcription failed: \(reason)"
         case .timeout: return "STT request timed out"
         case .modelNotLoaded: return "STT model not loaded"
         case .outOfMemory: return "Out of memory during transcription"
-        case .invalidResponse: return "Invalid response from STT daemon"
+        case .invalidResponse: return "Invalid response from speech engine"
         }
     }
 }

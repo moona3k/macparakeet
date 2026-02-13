@@ -5,8 +5,8 @@ set -euo pipefail
 #
 # This script:
 # - builds the `MacParakeet` SwiftPM product in Release
-# - assembles a minimal .app bundle (Info.plist + executable + bundled python package)
-# - optionally bundles `uv` and `node` into Resources (downloading if needed)
+# - assembles a minimal .app bundle (Info.plist + executable + bundled helper binaries)
+# - bundles FFmpeg into Resources and optionally bundles `node` for yt-dlp JS runtime support
 #
 # Outputs:
 #   dist/MacParakeet.app
@@ -21,6 +21,7 @@ set -euo pipefail
 #   SKIP_BUILD          (default: 0) reuse existing Release binary if 1
 #   BUILD_SYSTEM        (default: xcodebuild) 'xcodebuild' or 'swiftpm'
 #   XCODE_DERIVED_DATA  (default: .build/xcode-dist) derived data path for xcodebuild
+#   FFMPEG_PATH         (default: /opt/homebrew/bin/ffmpeg) source ffmpeg binary to bundle
 #   BUNDLE_NODE        (default: 1) bundle Node runtime for yt-dlp
 #   NODE_VERSION       (default: 24.13.1) Node version used when downloading
 
@@ -150,58 +151,16 @@ else
   echo "[2/4] Assembling app bundle…"
 fi
 
-# Bundle the python package sources (needed for `python -m macparakeet_stt`).
-mkdir -p "$RESOURCES_DIR/python"
-rsync -a --delete \
-  --exclude "__pycache__/" \
-  --exclude ".venv/" \
-  "$ROOT_DIR/python/" "$RESOURCES_DIR/python/"
-
-# Optionally bundle `uv` for first-run setup (PythonBootstrap prefers bundled uv).
-#
-# For universal builds, bundle both arch binaries as `uv-arm64` and `uv-x86_64`.
-UV_VERSION="${UV_VERSION:-0.9.21}"
-if command -v uv >/dev/null 2>&1; then
-  UV_PATH="$(command -v uv)"
-  cp "$UV_PATH" "$RESOURCES_DIR/uv"
-  chmod +x "$RESOURCES_DIR/uv"
-  echo "Bundled uv from: $UV_PATH"
-else
-  echo "uv not found on PATH; downloading uv ${UV_VERSION}…"
-  TMP="$(mktemp -d)"
-  trap 'rm -rf "$TMP"' EXIT
-
-  download_uv() {
-    local asset="$1"
-    local out="$2"
-    local tarball="$TMP/$asset"
-    curl -LsSf "https://github.com/astral-sh/uv/releases/download/${UV_VERSION}/${asset}" -o "$tarball"
-    rm -rf "$TMP/extract"
-    mkdir -p "$TMP/extract"
-    tar -xzf "$tarball" -C "$TMP/extract"
-    local uv_bin
-    uv_bin="$(find "$TMP/extract" -maxdepth 2 -type f -name uv | head -n 1)"
-    if [[ -z "${uv_bin:-}" || ! -f "$uv_bin" ]]; then
-      echo "Failed to locate uv binary inside ${asset}" >&2
-      exit 1
-    fi
-    install -m 0755 "$uv_bin" "$out"
-  }
-
-  if [[ "$UNIVERSAL" == "1" ]]; then
-    download_uv "uv-aarch64-apple-darwin.tar.gz" "$RESOURCES_DIR/uv-arm64"
-    download_uv "uv-x86_64-apple-darwin.tar.gz" "$RESOURCES_DIR/uv-x86_64"
-  else
-    ARCH="$(uname -m)"
-    if [[ "$ARCH" == "arm64" ]]; then
-      UV_ASSET="uv-aarch64-apple-darwin.tar.gz"
-    else
-      UV_ASSET="uv-x86_64-apple-darwin.tar.gz"
-    fi
-    download_uv "$UV_ASSET" "$RESOURCES_DIR/uv"
-  fi
+# Bundle FFmpeg (required at runtime for media demux/conversion).
+FFMPEG_PATH="${FFMPEG_PATH:-/opt/homebrew/bin/ffmpeg}"
+if [[ ! -x "$FFMPEG_PATH" ]]; then
+  echo "Error: FFMPEG_PATH not executable: $FFMPEG_PATH" >&2
+  echo "Set FFMPEG_PATH to a valid ffmpeg binary before building the app bundle." >&2
+  exit 1
 fi
-
+cp "$FFMPEG_PATH" "$RESOURCES_DIR/ffmpeg"
+chmod +x "$RESOURCES_DIR/ffmpeg"
+echo "Bundled FFmpeg from: $FFMPEG_PATH"
 
 
 # Optionally bundle `node` for yt-dlp JavaScript runtime support.

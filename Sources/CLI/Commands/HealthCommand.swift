@@ -5,7 +5,7 @@ import MacParakeetCore
 struct HealthCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "health",
-        abstract: "Check system health: database, STT daemon, paths."
+        abstract: "Check system health: database, speech engine, and helper binaries."
     )
 
     func run() async throws {
@@ -18,7 +18,8 @@ struct HealthCommand: AsyncParsableCommand {
         print("  App Support: \(AppPaths.appSupportDir)")
         print("  Database:    \(AppPaths.databasePath)")
         print("  Temp:        \(AppPaths.tempDir)")
-        print("  Python:      \(AppPaths.pythonVenvDir)")
+        print("  Bin:         \(AppPaths.binDir)")
+        print("  yt-dlp:      \(AppPaths.ytDlpBinaryPath)")
         print()
 
         // 2. Directories
@@ -54,21 +55,9 @@ struct HealthCommand: AsyncParsableCommand {
         }
         print()
 
-        // 4. STT Daemon
-        print("STT Daemon:")
+        // 4. Speech engine
+        print("Speech Engine:")
         let sttClient = STTClient()
-        let bootstrap = PythonBootstrap()
-        let env = bootstrap.daemonEnvironment()
-        if let pythonPath = env["PYTHONPATH"] {
-            print("  PYTHONPATH: \(pythonPath)")
-            let marker = URL(fileURLWithPath: pythonPath, isDirectory: true)
-                .appendingPathComponent("macparakeet_stt", isDirectory: true)
-                .appendingPathComponent("requirements.txt", isDirectory: false)
-                .path
-            print("  Source: \(FileManager.default.fileExists(atPath: marker) ? "Found" : "Missing")")
-        } else {
-            print("  PYTHONPATH: (not set)")
-        }
         do {
             try await sttClient.warmUp()
             let ready = await sttClient.isReady()
@@ -79,14 +68,23 @@ struct HealthCommand: AsyncParsableCommand {
         await sttClient.shutdown()
         print()
 
-        // 5. FFmpeg
-        print("FFmpeg:")
-        let ffmpegPaths = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg", "/usr/bin/ffmpeg"]
-        let foundFFmpeg = ffmpegPaths.first { FileManager.default.fileExists(atPath: $0) }
-        if let path = foundFFmpeg {
-            print("  Status: Found at \(path)")
+        // 5. Bundled FFmpeg
+        print("Bundled FFmpeg:")
+        if let ffmpegPath = AppPaths.bundledFFmpegPath() {
+            print("  Status: Found at \(ffmpegPath)")
         } else {
-            print("  Status: Not found (install via: brew install ffmpeg)")
+            print("  Status: Missing from app resources")
+        }
+        print()
+
+        // 6. yt-dlp managed binary
+        print("yt-dlp:")
+        let bootstrap = BinaryBootstrap()
+        do {
+            let path = try await bootstrap.ensureYtDlpAvailable()
+            print("  Status: Ready at \(path)")
+        } catch {
+            print("  Status: Not available — \(error.localizedDescription)")
         }
         print()
 

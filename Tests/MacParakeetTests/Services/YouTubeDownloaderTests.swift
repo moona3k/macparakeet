@@ -3,7 +3,7 @@ import XCTest
 
 final class YouTubeDownloaderTests: XCTestCase {
     func testDownloadInvalidURLThrows() async throws {
-        let downloader = YouTubeDownloader(pythonBootstrap: PythonBootstrap())
+        let downloader = YouTubeDownloader()
 
         do {
             _ = try await downloader.download(url: "not-a-youtube-url")
@@ -18,7 +18,7 @@ final class YouTubeDownloaderTests: XCTestCase {
     }
 
     func testDownloadEmptyURLThrows() async throws {
-        let downloader = YouTubeDownloader(pythonBootstrap: PythonBootstrap())
+        let downloader = YouTubeDownloader()
 
         do {
             _ = try await downloader.download(url: "")

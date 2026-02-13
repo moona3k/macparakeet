@@ -82,8 +82,7 @@ final class AppEnvironment {
             return Dictation.ProcessingMode(rawValue: raw ?? "clean") ?? .clean
         }
 
-        let pythonBootstrap = PythonBootstrap()
-        youtubeDownloader = YouTubeDownloader(pythonBootstrap: pythonBootstrap)
+        youtubeDownloader = YouTubeDownloader()
 
         dictationService = DictationService(
             audioProcessor: audioProcessor,
