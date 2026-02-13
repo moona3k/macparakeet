@@ -13,9 +13,14 @@ on:
       - "**/*.md"
   workflow_dispatch:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   swift-test:
     runs-on: macos-14
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4

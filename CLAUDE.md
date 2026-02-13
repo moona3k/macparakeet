@@ -657,6 +657,7 @@ These are hard-won lessons. Don't repeat them.
 
 - **Dead code from iterating on approaches** -- When switching from one approach to another, delete the old code entirely. Don't leave `_ = unusedVar` artifacts.
 - **Review agents catch real bugs** -- Running a review agent on onboarding or critical flows catches P0 issues. Worth doing for non-trivial UI flows.
+- **CI duplicates without workflow concurrency** -- If both `push` and `pull_request` triggers are enabled, GitHub Actions can run duplicate pipelines for the same SHA. Add `concurrency` with `cancel-in-progress: true` and a stable group key (`workflow + PR number/ref`) to avoid stale required checks.
 - **`mlx-swift-lm` version window can break CI toolchains** -- For Xcode 16.1 CI, keep `mlx-swift-lm` pinned to `2.29.2` unless re-validated: `2.29.3` has the Jamba trailing-comma parser break (upstream #67: https://github.com/ml-explore/mlx-swift-lm/issues/67), while `2.30.3` has a Swift 6.1 LoRA `consuming` regression (upstream #94: https://github.com/ml-explore/mlx-swift-lm/issues/94).
 
 ---
