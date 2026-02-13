@@ -41,7 +41,7 @@ User triggers dictation
     → User stops dictation (or release-to-stop)
     → Flush ring buffer to temp WAV
     → Validate sample count >= 81
-    → Send WAV to STT daemon
+    → Send to FluidAudio STT (CoreML/ANE)
     → Move WAV to dictations/ for storage (if enabled)
     → Clean up temp WAV (if storage disabled)
 ```
@@ -53,7 +53,7 @@ User triggers dictation
 ### Conversion Pipeline
 
 ```
-Input File → FFmpeg → 16kHz mono WAV → STT Daemon → Transcript
+Input File → FFmpeg → 16kHz mono WAV → FluidAudio STT (CoreML/ANE) → Transcript
 ```
 
 - **FFmpeg** (bundled with the app) handles format conversion to 16kHz mono WAV
@@ -79,7 +79,7 @@ User selects file
     → Validate format (check extension + probe with FFmpeg)
     → Validate duration <= max (4 hours default)
     → Convert to 16kHz mono WAV via FFmpeg
-    → Send WAV to STT daemon
+    → Send to FluidAudio STT (CoreML/ANE)
     → Return transcript
     → Clean up temp WAV
 ```
@@ -115,7 +115,7 @@ User pastes YouTube URL
     → Validate URL format (single video)
     → Download audio via yt-dlp (emit "Downloading audio... X%")
     → Convert to 16kHz mono WAV via FFmpeg
-    → Send WAV to STT daemon (emit "Transcribing... X%")
+    → Send to FluidAudio STT (CoreML/ANE) (emit "Transcribing... X%")
     → Save transcription (sourceURL set, filePath set only if retention enabled)
     → Clean up temp WAV (always)
 ```

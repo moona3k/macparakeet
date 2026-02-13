@@ -5,7 +5,7 @@
 ## Philosophy
 
 1. **Never lose user data** -- Dictation text, transcription results, and recordings must survive crashes.
-2. **Graceful degradation** -- If the STT daemon crashes, show an actionable error and offer retry. Never silently fail.
+2. **Graceful degradation** -- If STT fails, show an actionable error and offer retry. Never silently fail.
 3. **User-facing errors must be actionable** -- Every error the user sees must tell them what went wrong and what to do about it.
 4. **Crash recovery via ring buffer** -- During active recording, audio is written to a ring buffer on disk so data survives unexpected termination.
 5. **Structured logging** -- All internal errors logged via `os.Logger` with appropriate levels. User-facing errors are a separate concern.
@@ -24,11 +24,11 @@
 
 | Error | Cause | User Action |
 |-------|-------|-------------|
-| Daemon crash | Python process exited unexpectedly | Auto-restart daemon, retry transcription |
-| Daemon timeout | Transcription took > 60s | "Transcription timed out. Try a shorter recording." |
+| CoreML failure | FluidAudio transcription error | Log error, offer retry |
+| Transcription timeout | Transcription took > 60s | "Transcription timed out. Try a shorter recording." |
 | Out of memory | Model too large for available RAM | "Close other apps to free memory" |
 | Model not found | First run, model not downloaded | Show download progress |
-| Python env failed | uv bootstrap failed | "Check internet connection and retry" |
+| Model download failed | Network error during CoreML model download | "Check internet connection and retry" |
 
 ### Processing Errors
 
@@ -102,7 +102,7 @@ static let pipeline = Logger(subsystem: "com.macparakeet.app", category: "pipeli
 **Log levels:**
 - `.debug` -- Verbose diagnostic info (timestamps, buffer sizes)
 - `.info` -- Normal operations (recording started, transcription complete)
-- `.error` -- Recoverable errors (daemon restart, fallback to raw text)
+- `.error` -- Recoverable errors (STT failure, fallback to raw text)
 - `.fault` -- Unrecoverable errors (database corruption, crash)
 
 **Privacy:** Audio content and transcription text are logged as `.private` to prevent leaking user data into system logs.
@@ -111,7 +111,7 @@ static let pipeline = Logger(subsystem: "com.macparakeet.app", category: "pipeli
 
 | Operation | Max Retries | Backoff | Fallback |
 |-----------|------------|---------|----------|
-| STT daemon start | 3 | 1s, 2s, 4s | Show error, offer manual restart |
+| STT model load | 3 | 1s, 2s, 4s | Show error, offer manual restart |
 | Transcription | 2 | Immediate | Show error with raw audio preserved |
 | LLM inference | 1 | Immediate | Skip AI features, show raw content |
 | Database write | 3 | 100ms, 200ms, 400ms | Queue for retry on next launch |

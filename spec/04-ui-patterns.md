@@ -275,8 +275,8 @@ Errors use a wider rounded-rectangle card instead of the compact pill — distin
 ┌──────────────────────────────────────────┐
 │                                          │
 │  (⚠)  Speech Engine Not Ready           │
-│       Check that Python and              │
-│       dependencies are installed.        │
+│       STT model failed to load.          │
+│       Try restarting the app.            │
 │                                          │
 │                            [ Dismiss ]   │
 │                                          │
@@ -292,7 +292,7 @@ Errors use a wider rounded-rectangle card instead of the compact pill — distin
 - Auto-dismisses after 5 seconds (no visible countdown)
 - Dismiss button allows immediate dismissal
 - Error messages mapped from technical to user-friendly categories:
-  STT/daemon/python → "Speech Engine Not Ready"
+  STT/CoreML/model   → "Speech Engine Not Ready"
   Microphone/audio  → "Microphone Unavailable"
   Permission/access → "Permission Required"
   Timeout           → "Transcription Timed Out"
