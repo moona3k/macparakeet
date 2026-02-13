@@ -140,7 +140,7 @@ MacParakeet's opportunity is to be the first app that nails all four. WisprFlow 
 
 **Our advantage over Superwhisper:**
 - 5x cheaper ($49 vs $250)
-- Parakeet speed (300x realtime vs Whisper 15-30x)
+- Parakeet speed (155x realtime on ANE vs Whisper 15-30x)
 - Simpler setup and configuration
 - Focused on individual users, not enterprise
 - Lighter resource footprint
@@ -356,7 +356,7 @@ Users switch apps when:
 |---------|----------|
 | **"Your voice, your Mac, your words."** | Privacy + local + fidelity |
 | "Dictation that respects your privacy." | Privacy-first |
-| "300x faster than Whisper. 100% local." | Speed + privacy |
+| "155x faster than Whisper. 100% local." | Speed + privacy |
 | "WisprFlow speed without the cloud." | Competitive positioning |
 | "Pay once. Dictate forever." | Pricing model |
 | "Fast. Private. Simple." | Three pillars |
@@ -403,7 +403,7 @@ This captures the three key differentiators without mentioning competitors: loca
 
 1. **"WisprFlow vs MacParakeet" comparison page** -- Capture high-intent "wisprflow alternative" traffic
 2. **"Best Mac Dictation Apps 2026" blog post** -- Rank for broad research queries
-3. **Speed benchmark page** -- Demonstrate Parakeet's 300x realtime with real examples and video
+3. **Speed benchmark page** -- Demonstrate Parakeet's 155x realtime with real examples and video
 4. **Privacy page** -- Detailed explanation of local-only architecture for trust building
 5. **"MacWhisper vs MacParakeet" comparison page** -- Capture "macwhisper alternative" traffic
 
@@ -427,7 +427,7 @@ This captures the three key differentiators without mentioning competitors: loca
 
 **Probability:** Low (NVIDIA actively maintains)
 **Impact:** Medium -- would need to switch to alternative STT
-**Mitigation:** The app architecture separates STT from the rest of the pipeline. Switching to a new model (or fine-tuned Whisper) would require updating the Python daemon but not the Swift app. Monitor model ecosystem quarterly.
+**Mitigation:** The app architecture separates STT from the rest of the pipeline via `STTClientProtocol`. Switching to a new model (or fine-tuned Whisper) would require updating the FluidAudio integration but not the Swift app's consumer code. Monitor model ecosystem quarterly.
 
 ### Risk 4: VoiceInk captures the market at $39.99
 

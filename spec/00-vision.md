@@ -59,7 +59,7 @@ Cloud services send your voice to remote servers, create accounts, charge monthl
 
 ### 1. Speed Is the Feature
 
-Parakeet TDT 0.6B-v3 transcribes 60 minutes of audio in ~12 seconds (300x realtime). Dictation latency is under 500ms. This is not incremental improvement -- it is a category shift.
+Parakeet TDT 0.6B-v3 transcribes 60 minutes of audio in ~23 seconds (155x realtime on the Neural Engine via FluidAudio CoreML). Dictation latency is under 500ms. This is not incremental improvement -- it is a category shift.
 
 Speed changes behavior. When transcription takes 30 seconds, you think about whether it is worth doing. When it takes 0.5 seconds, you just talk. MacParakeet makes voice the faster input method for everything: emails, messages, code comments, documents, notes.
 
@@ -248,7 +248,7 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
                                |
             MacParakeet -------+----------------- WisprFlow
             ($49, local,       |                  ($144-180/yr, cloud,
-             Parakeet 300x)    |                   fast but server delays)
+             Parakeet 155x)    |                   fast but server delays)
                                |
                                |
    PRIVATE -------------------+------------------------------- CLOUD
@@ -267,8 +267,8 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 | Feature | MacParakeet | WisprFlow | MacWhisper | Superwhisper | Apple Dictation |
 |---------|-------------|-----------|------------|--------------|-----------------|
 | **STT Engine** | Parakeet TDT | Cloud AI | Whisper | Whisper | Apple Neural |
-| **Speed (60 min)** | ~12 sec | ~30 sec* | ~2-4 min | ~2-4 min | Real-time only |
-| **WER** | 6.3% | ~5%** | 7-12% | 7-12% | ~10-15% |
+| **Speed (60 min)** | ~23 sec | ~30 sec* | ~2-4 min | ~2-4 min | Real-time only |
+| **WER** | ~2.5% | ~5%** | 7-12% | 7-12% | ~10-15% |
 | **Privacy** | 100% local | Cloud | Local | Local | Mostly local |
 | **Dictation** | Yes | Yes | No | Yes | Yes |
 | **File transcription** | Yes | No | Yes | Limited | No |
@@ -295,8 +295,8 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 We are not a Whisper app that added Parakeet. We built the entire product around Parakeet TDT 0.6B-v3 from day one.
 
-- **300x realtime** vs Whisper's 15-30x. Not an incremental improvement -- an order of magnitude.
-- **6.3% WER** -- lower error rate than Whisper large-v3 at a fraction of the compute.
+- **155x realtime** on the Neural Engine vs Whisper's 15-30x. Not an incremental improvement -- an order of magnitude.
+- **~2.5% WER** -- lower error rate than Whisper large-v3 at a fraction of the compute.
 - **Word-level timestamps** -- enables synced subtitles, precise seeking, confidence scoring.
 - **Technical vocabulary** -- better handling of code terms, acronyms, and proper nouns than Whisper.
 
@@ -365,8 +365,8 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 +-----------------------------------------------------------------------+
 |                       Shared Technology                                |
 |  +---------------------------------------------------------------+    |
-|  |  parakeet-mlx (STT daemon)                                    |    |
-|  |  MLX-Swift (local LLM)                                        |    |
+|  |  FluidAudio CoreML (STT on Neural Engine)                      |    |
+|  |  MLX-Swift (local LLM on GPU)                                  |    |
 |  |  Text processing pipeline (clean/command mode)                 |    |
 |  +---------------------------------------------------------------+    |
 +-----------------------+-----------------------------------------------+
@@ -423,7 +423,7 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 |--------|--------|
 | Dictation latency (press-to-text) | < 500ms |
 | Transcription speed (60 min file) | < 15 seconds |
-| Word error rate | < 7% (Parakeet baseline: 6.3%) |
+| Word error rate | < 3% (Parakeet via FluidAudio CoreML: ~2.5%) |
 | App crash rate | < 0.1% of sessions |
 | First-use success rate | > 95% (user dictates successfully on first try) |
 
@@ -447,7 +447,7 @@ All within 60 seconds of first launch. No tutorial, no onboarding wizard, no acc
 
 The foundation. Dictation works. File transcription works. It is fast.
 
-- Parakeet STT integration (Python daemon via JSON-RPC)
+- Parakeet STT integration (FluidAudio CoreML on Neural Engine)
 - System-wide dictation (Fn trigger, configurable, floating overlay)
 - File transcription (drag-and-drop, common audio/video formats)
 - Basic UI (menu bar app, transcription window)
@@ -488,9 +488,9 @@ Ship-quality polish. App Store submission.
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
 | **Platform** | macOS 14.2+, Apple Silicon only | Parakeet and MLX require Metal. Apple Silicon is the future. |
-| **STT engine** | Parakeet TDT 0.6B-v3 | Fastest and most accurate open-source STT. 300x realtime, 6.3% WER. |
+| **STT engine** | Parakeet TDT 0.6B-v3 | Fastest and most accurate open-source STT. 155x realtime on ANE, ~2.5% WER via FluidAudio CoreML. |
 | **LLM** | Qwen3-4B via MLX-Swift | Best quality-to-size ratio for local inference. Dual-mode (thinking/non-thinking). |
-| **Python runtime** | uv bootstrap | Isolated Python for Parakeet daemon. No system Python dependency. |
+| **YouTube downloads** | Standalone yt-dlp | macOS binary, auto-updates via `--update`. No Python needed. |
 | **UI framework** | SwiftUI | Native Mac experience. Menu bar + window. |
 | **Database** | SQLite (GRDB) | Single file. No server. Dictation history, custom words, settings. |
 | **Cloud option** | None | Privacy is the brand. No cloud means no cloud. |
@@ -511,7 +511,7 @@ The parakeet bird is known for mimicking speech -- a fitting metaphor for a voic
 
 | Feature | What It Does | Why It Matters |
 |---------|--------------|----------------|
-| **Parakeet Speed** | 60 min audio in ~12 seconds | Transcription so fast it feels instant |
+| **Parakeet Speed** | 60 min audio in ~23 seconds | Transcription so fast it feels instant |
 | **System-wide Dictation** | Fn to dictate in any app | Voice input everywhere, not just our app |
 | **Command Mode** | "Fix grammar" / "Make concise" via voice | WisprFlow's best feature, locally, no subscription |
 | **100% Local** | Zero network, zero accounts | Unchallengeable privacy claim |

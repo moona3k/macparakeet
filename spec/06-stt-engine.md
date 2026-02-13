@@ -2,7 +2,7 @@
 
 > Status: **ACTIVE** - Authoritative, current
 
-MacParakeet uses Parakeet TDT 0.6B-v3 via parakeet-mlx for all speech-to-text, running locally on Apple Silicon.
+MacParakeet uses Parakeet TDT 0.6B-v3 via FluidAudio CoreML, running on Apple's Neural Engine (ANE) — fully local, native Swift.
 
 ---
 
@@ -11,189 +11,184 @@ MacParakeet uses Parakeet TDT 0.6B-v3 via parakeet-mlx for all speech-to-text, r
 | Property | Value |
 |----------|-------|
 | Model | Parakeet TDT 0.6B-v3 |
-| HuggingFace ID | `mlx-community/parakeet-tdt-0.6b-v3` |
-| Runtime | parakeet-mlx (Python, MLX backend) |
-| Word Error Rate | ~6.3% |
-| Speed | 300x+ realtime on Apple Silicon |
-| Output | Word-level timestamps with confidence scores |
-| Model Size | ~1.5GB download on first use |
-| Input Format | Any audio format (FFmpeg converts to 16kHz mono) |
-| Languages | English-primary; Parakeet v3 supports 25 European languages |
-| Chunking | Automatic for long audio (30s chunks, 5s overlap) |
-| Decoding | Greedy (default) or beam search (beam_size=5) |
+| Runtime | FluidAudio SDK (CoreML on ANE) |
+| Word Error Rate | ~2.5% (v3 multilingual) / ~2.1% (v2 English-only) |
+| Speed | ~155x realtime on Apple Silicon |
+| Peak working RAM | ~66 MB (~130 MB with custom vocabulary boosting) |
+| Model download | ~6 GB CoreML bundle (one-time, during onboarding) |
+| Output | Word-level timestamps with per-word confidence scores |
+| Input format | 16kHz mono Float32 samples (FluidAudio's AudioConverter handles resampling) |
+| Languages | v3: 25 European languages; v2: English only |
+| Decoding | Optimized CTC/TDT decoding (FluidAudio implementation) |
+
+### Three-Chip Architecture
+
+Each ML workload runs on the chip it was designed for:
+
+```
+CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
+GPU:  Qwen3-4B LLM (via MLX-Swift/Metal) — full GPU, no sharing
+ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML accelerator
+```
+
+STT and LLM run on separate silicon. Zero compute contention.
 
 ---
 
-## Python Daemon
+## FluidAudio SDK
 
-### Architecture
+### Overview
 
-The STT engine runs as a Python daemon process, communicating with the Swift app via JSON-RPC over stdin/stdout.
+[FluidAudio](https://github.com/FluidInference/FluidAudio) is an open-source Swift SDK by FluidInference that runs Parakeet TDT on Apple's Neural Engine via CoreML. Apache 2.0 licensed. ~1,500 GitHub stars, 34 releases, 20+ production apps.
 
+**SwiftPM dependency:** Use the `FluidAudio` product only (not `FluidAudioEspeak` which pulls in GPL-3.0 code).
+
+### API Surface
+
+Transcription in native Swift async/await:
+
+```swift
+import FluidAudio
+
+let models = try await AsrModels.downloadAndLoad(version: .v3)
+let manager = AsrManager(config: .default)
+try await manager.initialize(models: models)
+
+let result = try await manager.transcribe(samples, source: .system)
+// result.text — full transcription
+// result.confidence — e.g. 0.988
+// result.tokenTimings — word-level timestamps with per-word confidence
 ```
-MacParakeet (Swift) ←→ stdin/stdout (JSON-RPC) ←→ Python Daemon (parakeet-mlx)
+
+### Audio Input
+
+All methods require 16kHz mono Float32 samples. FluidAudio provides `AudioConverter`:
+
+```swift
+// From audio file (WAV, M4A, etc.)
+let samples = try await AudioConverter.resampleAudioFile(path: "path.wav")
+
+// From AVAudioPCMBuffer (microphone capture)
+let samples = try AudioConverter.resampleBuffer(buffer)
+```
+
+**Critical:** Always use FluidAudio's `AudioConverter` — never manually decode audio. CoreML models require correctly resampled input; manual parsing silently corrupts it.
+
+### Custom Vocabulary Boosting (v0.11.0+)
+
+FluidAudio's CTC-based keyword boosting maps to MacParakeet's `CustomWord` model:
+
+```swift
+let vocabulary = CustomVocabularyContext(terms: [
+    CustomVocabularyTerm(text: "MacParakeet"),
+    CustomVocabularyTerm(
+        text: "macOS",
+        aliases: ["Mac OS", "Macos"]  // recognized variants → canonical form
+    ),
+])
+
+let result = try await asrManager.transcribe(
+    audioSamples,
+    customVocabulary: vocabulary
+)
+// result.ctcDetectedTerms — vocabulary terms spotted
+// result.ctcAppliedTerms — terms applied to transcription
+```
+
+This runs a secondary CTC encoder (110M params) alongside the primary TDT encoder. Memory doubles from ~66MB to ~130MB when active. Optimal at 1-50 terms.
+
+### Additional Capabilities
+
+| Capability | Model | Details |
+|-----------|-------|---------|
+| Streaming ASR | Parakeet EOU 1.1B | Real-time with end-of-utterance detection, 160ms-1600ms chunks |
+| Speaker diarization | Pyannote + WeSpeaker | 15% DER, available for v0.4 |
+| Voice activity detection | Silero | 96% accuracy, 1220x RTF |
+| Custom vocabulary | CTC/TDT keyword boosting | 99.3% recall, 110M secondary encoder |
+
+---
+
+## STT Integration
+
+### Protocol Layer
+
+The `STTClientProtocol` interface is unchanged from v0.1. The implementation swaps from JSON-RPC/Python to FluidAudio/CoreML:
+
+```swift
+protocol STTClientProtocol: Sendable {
+    func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult
+    func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
+    func isReady() async -> Bool
+    func shutdown() async
+}
+
+struct STTResult: Sendable {
+    let text: String
+    let words: [TimestampedWord]
+}
+
+struct TimestampedWord: Sendable {
+    let word: String
+    let startMs: Int          // milliseconds
+    let endMs: Int            // milliseconds
+    let confidence: Double
+}
 ```
 
 ### Lifecycle
 
-- **Lazy start**: daemon is not started at app launch; it starts on first transcription request
-- **Keep alive**: once started, the daemon stays running for subsequent requests
-- **Restart on crash**: if the daemon process exits unexpectedly, it is restarted on the next transcription request
-- **Graceful shutdown**: daemon is terminated when the app quits
+- **Lazy init**: FluidAudio models are not loaded at app launch; loaded on first transcription request
+- **Keep loaded**: Once initialized, `AsrManager` stays ready for subsequent requests
+- **Warm-up during onboarding**: Download models (~6 GB) + CoreML compilation (~3.4s first time)
+- **Graceful shutdown**: `AsrManager` released when app quits
 
-### Environment
+### Data Flow
 
-- **uv** bootstraps the Python environment on first run
-- A bundled `uv` binary creates an isolated venv with parakeet-mlx and its dependencies
-- The venv is stored in the app's Application Support directory
-- No system Python dependency — fully self-contained
+```
+Dictation:
+  AudioRecorder → AVAudioPCMBuffer → AudioConverter.resampleBuffer() → AsrManager.transcribe() → STTResult
+
+File transcription:
+  FFmpeg (video demux) → .wav → AudioConverter.resampleAudioFile() → AsrManager.transcribe() → STTResult
+
+YouTube:
+  yt-dlp (standalone) → .m4a → FFmpeg (if needed) → AudioConverter.resampleAudioFile() → AsrManager.transcribe() → STTResult
+```
 
 ---
 
-## Protocol
+## Model Distribution
 
-### JSON-RPC 2.0
+### CoreML Model Bundle
 
-All communication uses JSON-RPC 2.0 over stdin/stdout. One request at a time (no batching).
+The CoreML model for `parakeet-tdt-0.6b-v3-coreml` is **~6 GB** on HuggingFace. Larger than the MLX weights (~2.5 GB) because CoreML stores pre-compiled, hardware-optimized model graphs for the ANE:
 
-### Transcribe Request
+| Component | Format |
+|-----------|--------|
+| ParakeetEncoder_15s | `.mlmodelc` |
+| ParakeetDecoder | `.mlmodelc` |
+| RNNTJoint | `.mlmodelc` |
+| Preprocessor | `.mlmodelc` |
+| Melspectrogram_15s | `.mlpackage` |
+| MelEncoder | `.mlmodelc` |
+| Vocab files | `.json` |
 
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "transcribe",
-  "params": {
-    "audio_path": "/tmp/recording.wav",
-    "chunk_duration": 30.0,
-    "overlap_duration": 5.0
-  },
-  "id": 1
-}
-```
+### Download Mechanism
 
-**Parameters:**
-- `audio_path` (required): Path to audio file (any format FFmpeg supports)
-- `chunk_duration` (default: 30.0): Seconds per chunk for long audio. 30s balances context vs memory. Set 0 to disable chunking.
-- `overlap_duration` (default: 5.0): Overlap between chunks (chunk/6 per HuggingFace best practice)
-
-### Transcribe Response
-
-```json
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "text": "Hello world",
-    "words": [
-      {
-        "word": "Hello",
-        "start_ms": 0,
-        "end_ms": 500,
-        "confidence": 0.98
-      },
-      {
-        "word": "world",
-        "start_ms": 520,
-        "end_ms": 1000,
-        "confidence": 0.95
-      }
-    ]
-  },
-  "id": 1
-}
-```
-
-**Note:** Word timestamps are in milliseconds (matching Oatmeal's convention). The daemon extracts these from parakeet-mlx's `AlignedResult.sentences[].tokens[]` objects, aggregating BPE tokens into words at space boundaries.
-
-### Progress Side-Channel
-
-In addition to JSON-RPC responses on stdout, the daemon emits chunk progress lines on stderr:
-
-```
-PROGRESS:<current>/<total>
-```
-
-`STTClient` reads stderr incrementally, buffers partial lines, and parses complete `PROGRESS:` updates before forwarding them to the app (`onProgress(current, total)`). Buffering avoids dropped updates when a progress line is split across pipe reads.
-
-### Warm-Up Request
-
-Warm-up is used during onboarding to ensure the daemon is running and the model is loaded (so the first real dictation/transcription isn't the one that pays the download cost).
-
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "warm_up",
-  "params": {},
-  "id": 2
-}
-```
-
-### Warm-Up Response
-
-```json
-{
-  "jsonrpc": "2.0",
-  "result": { "status": "ok" },
-  "id": 2
-}
-```
-
-### Error Response
-
-```json
-{
-  "jsonrpc": "2.0",
-  "error": {
-    "code": -32000,
-    "message": "Transcription failed",
-    "data": {
-      "reason": "Audio file not found"
-    }
-  },
-  "id": 1
-}
-```
-
-### Error Codes
-
-| Code | Meaning |
-|------|---------|
-| -32700 | Parse error (invalid JSON) |
-| -32600 | Invalid request |
-| -32601 | Method not found |
-| -32000 | Transcription failed |
-| -32001 | Model not loaded |
-| -32002 | Out of memory |
-
----
-
-## Bootstrap Flow
-
-```
-App Launch
-    → Check if Python venv exists
-    → If not: create venv via bundled uv
-        → Install parakeet-mlx + dependencies
-        → Download model (~1.5GB) if not cached
-    → If yes: verify venv integrity
-    → (Daemon not started yet — lazy start)
-
-First Transcription Request
-    → Start Python daemon process
-    → Wait for "ready" signal
-    → Send transcribe request
-    → Return result
-```
+- `AsrModels.downloadAndLoad(version:)` checks local cache first
+- If not cached, downloads from HuggingFace (configurable via `ModelRegistry.baseURL`)
+- CoreML compilation: ~3.4s cold (first load), ~162ms warm (subsequent loads)
+- After first run, models load from local cache
 
 ### First-Run Experience
 
-On first use, the bootstrap process:
+During onboarding:
 
-1. Creates an isolated Python environment using the bundled `uv` binary
-2. Installs `parakeet-mlx` and its dependencies into the venv
-3. Downloads the Parakeet TDT 0.6B-v3 model (~1.5GB)
-4. Reports progress to the UI (download percentage, install status)
+1. Download CoreML models (~6 GB) with progress indication
+2. One-time CoreML compilation (~3.4s)
+3. Short warm-up transcription to verify everything works
 
-This is a one-time cost. Subsequent launches skip directly to daemon start.
+This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 
 ---
 
@@ -203,30 +198,22 @@ This is a one-time cost. Subsequent launches skip directly to daemon start.
 
 - Show download progress bar in the UI
 - Support retry on network failure
-- Resume partial downloads where possible
+- Resume partial downloads where possible (HuggingFace supports range requests)
 - Verify model integrity after download (checksum)
 
-### Daemon Crash Recovery
+### CoreML Errors
 
-- Detect daemon exit via process monitoring
-- Log crash reason (stderr capture)
-- Auto-restart on next transcription request
-- After 3 consecutive crashes, show error to user and stop retrying until manually triggered
+- CoreML runs in-process (not a separate daemon) — no subprocess crash isolation
+- Wrap transcription calls in error handling
+- On CoreML failure, log the error, report to user, allow retry
+- Memory pressure: CoreML uses ~66 MB working RAM, far less likely to trigger OOM than the previous ~2 GB MLX path
 
 ### Timeout Handling
 
 - Transcription requests have a timeout proportional to audio duration
 - Short dictations: 30-second timeout
-- Long files: duration x 0.5 timeout (since model runs at 300x+ realtime, this is generous)
-- Warm-up requests allow a longer timeout (first-run downloads can take several minutes)
-- On timeout: kill daemon, report error, auto-restart on next request
-
-### Out of Memory
-
-- Parakeet-mlx runs on Apple Silicon unified memory
-- If the system is memory-constrained, the daemon may be killed by the OS
-- Detect OOM via exit code and report to user
-- Suggest closing other apps or restarting
+- Long files: generous timeout (model runs at ~155x realtime)
+- Warm-up/model download allows a longer timeout (first-run downloads can take minutes)
 
 ---
 
@@ -234,13 +221,42 @@ This is a one-time cost. Subsequent launches skip directly to daemon start.
 
 | Scenario | Latency |
 |----------|---------|
-| Cold start (model loading) | ~5 seconds |
-| Warm (model in memory) | <500ms for short dictations |
-| Long file transcription | ~12 seconds per hour of audio |
+| CoreML compilation (first load) | ~3.4 seconds |
+| Model warm load (cached) | ~162 ms |
+| Short dictation (5-10 seconds audio) | <100ms transcription |
+| Long file transcription | ~23 seconds per hour of audio |
+
+### Speed Comparison
+
+| Audio length | CoreML/ANE | Perceptible? |
+|-------------|-----------|-------------|
+| 5 seconds | 0.03s | No |
+| 30 seconds | 0.2s | No |
+| 1 minute | 0.4s | No |
+| 5 minutes | 1.9s | Barely |
+| 1 hour | 23s | Yes, but very fast |
+
+For dictation (the primary use case), transcription time is imperceptible. For long file transcription, the ANE path is still remarkably fast.
+
+### Memory Budget
+
+```
+Parakeet STT (CoreML/ANE)      ~66 MB working RAM (~130 MB with vocab boosting)
+Qwen3-4B LLM (MLX-Swift/GPU)  ~2.5 GB
+App process (UI + services)    ~100 MB
+Audio buffers                  ~50 MB
+────────────────────────────────────
+Total peak                     ~2.8 GB (without LLM) / ~2.9 GB (with vocab boosting)
+                               ~5.3 GB (with LLM loaded)
+
+Recommended: 16 GB RAM (Apple Silicon)
+Minimum: 8 GB (runs comfortably — STT uses only ~66 MB, not ~2 GB+)
+```
 
 ### Optimization Notes
 
-- The daemon keeps the model loaded in memory after first use (warm mode)
-- Apple Silicon's unified memory means no GPU↔CPU transfer overhead
-- For dictation, latency is the primary concern — aim for <500ms end-to-end after warm-up
+- `AsrManager` stays initialized after first use — subsequent calls skip model loading
+- Apple Silicon's unified memory means no CPU↔ANE transfer overhead
+- For dictation, latency is the primary concern — sub-100ms after warm-up
 - For file transcription, throughput matters more — progress reporting keeps the UI responsive
+- ANE and GPU run simultaneously — STT never competes with LLM for processing cycles

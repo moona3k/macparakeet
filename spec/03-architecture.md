@@ -41,7 +41,7 @@
 │  │                               │                                           │  │
 │  │  ┌──────────────┐  ┌─────────▼─────────┐  ┌────────────────────────────┐ │  │
 │  │  │  AIService   │  │    STTClient      │  │  TextProcessingPipeline   │ │  │
-│  │  │  (MLX-Swift) │  │  (JSON-RPC IPC)   │  │  (Deterministic cleanup)  │ │  │
+│  │  │  (MLX-Swift) │  │  (FluidAudio)     │  │  (Deterministic cleanup)  │ │  │
 │  │  └──────┬───────┘  └─────────┬─────────┘  └────────────────────────────┘ │  │
 │  │         │                    │                                             │  │
 │  │  ┌──────▼───────┐  ┌────────▼──────────────────────────────────────────┐ │  │
@@ -60,10 +60,10 @@
 │                          EXTERNAL PROCESSES                                      │
 │                                                                                  │
 │  ┌──────────────────────────────┐   ┌──────────────────────────────────────────┐ │
-│  │   Parakeet STT Daemon        │   │   MLX-Swift LLM (In-Process)             │ │
-│  │   (Python, JSON-RPC over     │   │   Qwen3-4B (4-bit quantized)             │ │
-│  │    stdin/stdout)              │   │   ~2.5 GB RAM                            │ │
-│  │   parakeet-mlx ~1.5 GB       │   │   Command mode + AI refinement           │ │
+│  │   Parakeet STT (In-Process)  │   │   MLX-Swift LLM (In-Process)             │ │
+│  │   FluidAudio CoreML on ANE   │   │   Qwen3-4B (4-bit quantized)             │ │
+│  │   ~66 MB working RAM         │   │   ~2.5 GB RAM                            │ │
+│  │   ~2.5% WER, 155x realtime   │   │   Command mode + AI refinement           │ │
 │  └──────────────────────────────┘   └──────────────────────────────────────────┘ │
 │                                                                                  │
 ├──────────────────────────────────────────────────────────────────────────────────┤
@@ -75,8 +75,8 @@
 │  │(Mic)     │  │ Hotkey)  │  │ Paste)      │  │ Control)     │               │
 │  └──────────┘  └──────────┘  └─────────────┘  └──────────────┘               │
 │                                                                                  │
-│  Total AI Memory: ~4 GB peak (Parakeet ~1.5 GB + LLM ~2.5 GB)                  │
-│  Recommended: 16 GB RAM (Apple Silicon only)                                     │
+│  Total AI Memory: ~2.7 GB peak (Parakeet ~66 MB on ANE + LLM ~2.5 GB on GPU)   │
+│  Recommended: 16 GB RAM (Apple Silicon only). Minimum: 8 GB.                    │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -346,14 +346,14 @@ protocol AudioProcessorProtocol: Sendable {
 
 #### 2.6 STTClient
 
-**Responsibility:** JSON-RPC client that communicates with the Parakeet Python daemon. Manages daemon lifecycle (start, health check, restart).
+**Responsibility:** Native Swift wrapper around FluidAudio CoreML. Manages model lifecycle (download, load, transcribe, shutdown). Runs Parakeet TDT on the Neural Engine (ANE).
 
 **Key Types/Protocols:**
 ```swift
 protocol STTClientProtocol: Sendable {
     func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult
     func isReady() async -> Bool
-    func warmUp() async throws
+    func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
     func shutdown() async
 }
 
@@ -370,67 +370,44 @@ struct TimestampedWord: Sendable {
 }
 ```
 
-**Dependencies:** Foundation (`Process`, `Pipe` for stdin/stdout/stderr IPC)
+**Dependencies:** FluidAudio SDK (CoreML, runs on ANE)
 
-**Protocol (JSON-RPC 2.0 over stdin/stdout):**
+**Architecture:**
 ```
-┌─────────────────┐    stdin (JSON-RPC request)     ┌─────────────────┐
-│                  │ ──────────────────────────────> │                  │
-│    STTClient     │                                 │  Parakeet Daemon │
-│    (Swift)       │ <────────────────────────────── │  (Python)        │
-│                  │    stdout (JSON-RPC response)   │                  │
-└─────────────────┘                                  └─────────────────┘
+CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
+GPU:  Qwen3-4B LLM (via MLX-Swift/Metal) — full GPU, no sharing
+ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML accelerator
 ```
 
-**Request:**
-```json
-{
-  "jsonrpc": "2.0",
-  "method": "transcribe",
-  "params": {
-    "audio_path": "/tmp/macparakeet/recording.wav",
-    "language": "en"
-  },
-  "id": 1
-}
+**API:**
+```swift
+import FluidAudio
+
+let models = try await AsrModels.downloadAndLoad(version: .v3)
+let manager = AsrManager(config: .default)
+try await manager.initialize(models: models)
+
+let result = try await manager.transcribe(samples, source: .system)
+// result.text, result.tokenTimings (word-level timestamps + confidence)
 ```
 
-**Response:**
-```json
-{
-  "jsonrpc": "2.0",
-  "result": {
-    "text": "Hello world",
-    "words": [
-      {"word": "Hello", "start_ms": 0, "end_ms": 500, "confidence": 0.98},
-      {"word": "world", "start_ms": 600, "end_ms": 1000, "confidence": 0.97}
-    ]
-  },
-  "id": 1
-}
-```
-
-**Daemon Lifecycle:**
+**Model Lifecycle:**
 ```
 App Launch
     │
     ▼
 STTClient.warmUp() called (lazy, on first use)
     │
-    ├── Check: Is daemon process alive?
+    ├── Check: Are CoreML models downloaded?
     │     │
-    │     ├── Yes → Send "ping" health check → Ready
+    │     ├── Yes → AsrManager.initialize(models:) → Ready (~162ms warm load)
     │     │
-    │     └── No ──► Check: Does Python venv exist?
-    │                  │
-    │                  ├── No ──► Run bundled `uv` to create venv
-    │                  │          Install parakeet-mlx + dependencies
-    │                  │
-    │                  └── Yes ─► Start daemon: `python -m macparakeet_stt`
-    │                              Wait for "ready" message on stdout
+    │     └── No ──► AsrModels.downloadAndLoad() (~6 GB download)
+    │                  CoreML compilation (~3.4s first time)
+    │                  AsrManager.initialize(models:)
     │
     ▼
-Daemon ready — STTClient accepts transcribe() calls
+AsrManager ready — STTClient accepts transcribe() calls
 ```
 
 #### 2.7 AIService
@@ -609,9 +586,9 @@ protocol TranscriptionRepositoryProtocol: Sendable {
 
 ---
 
-### 3. Parakeet STT Daemon (Python)
+### 3. Parakeet STT (In-Process via FluidAudio)
 
-External Python process managed by `STTClient`.
+Native Swift, runs in the app process via FluidAudio CoreML on the Neural Engine (ANE).
 
 **Responsibility:** Speech-to-text transcription using Parakeet TDT 0.6B-v3.
 
@@ -620,29 +597,25 @@ External Python process managed by `STTClient`.
 | Property | Value |
 |----------|-------|
 | Model | Parakeet TDT 0.6B-v3 |
-| WER | ~6.3% |
-| Speed | ~300x realtime on M1+ |
-| RAM | ~1.5 GB |
-| Input | 16kHz mono WAV |
+| WER | ~2.5% |
+| Speed | ~155x realtime on Apple Silicon |
+| Working RAM | ~66 MB (~130 MB with vocab boosting) |
+| Runs on | Neural Engine (ANE) via CoreML |
+| Input | 16kHz mono Float32 samples |
 | Output | Text + word-level timestamps + confidence |
-| IPC | JSON-RPC 2.0 over stdin/stdout |
+| Model download | ~6 GB CoreML bundle (one-time) |
 
-**Bootstrap:** Bundled `uv` binary creates an isolated Python environment on first run. No system Python dependency.
+**Why In-Process (Not Daemon)?**
+- FluidAudio provides native Swift async/await API — no IPC overhead
+- CoreML models run on the ANE, freeing the GPU for the LLM
+- Simpler lifecycle: download models once, initialize, call transcribe()
+- No Python, no subprocess, no JSON-RPC — pure Swift
 
 ```
-~/Library/Application Support/MacParakeet/python/
-    └── .venv/              # Isolated Python environment (created by uv)
-
-# Daemon source lives in the app repo at python/macparakeet_stt/
-# Bundled with the app, run via: python -m macparakeet_stt
+~/Library/Application Support/MacParakeet/
+    └── models/
+        └── stt/                # CoreML model cache (~6 GB)
 ```
-
-**Methods:**
-
-| Method | Description |
-|--------|-------------|
-| `transcribe` | Transcribe audio file → text + timestamps |
-| `ping` | Health check (returns `"pong"`) |
 
 ---
 
@@ -694,7 +667,7 @@ Runs in the Swift process via MLX-Swift framework. Not a separate daemon.
      │                     │           │ ────────────────────┐
      │                     │           │                     │
      │                     │           │    ┌────────────────▼───┐
-     │                     │           │    │  Parakeet Daemon   │
+     │                     │           │    │  Parakeet (ANE)   │
      │                     │           │    └────────────────┬───┘
      │                     │           │                     │
      │                     │           │  raw transcript     │
@@ -736,7 +709,7 @@ Runs in the Swift process via MLX-Swift framework. Not a separate daemon.
        │                       │ <───────────────────── │
        │                       │
        │                       │     ┌──────────┐
-       │                       │ ──> │STTClient │ ──> Parakeet Daemon
+       │                       │ ──> │STTClient │ ──> Parakeet (ANE)
        │                       │     └─────┬────┘
        │                       │           │
        │                       │  STTResult (text + timestamps)
@@ -1010,8 +983,10 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
 | Dictation audio | `~/Library/Application Support/MacParakeet/dictations/` |
 | Transcription exports | `~/Library/Application Support/MacParakeet/transcriptions/` |
-| Python venv | `~/Library/Application Support/MacParakeet/python/` |
-| ML models | `~/Library/Application Support/MacParakeet/models/` |
+| STT models | `~/Library/Application Support/MacParakeet/models/stt/` (CoreML, ~6 GB) |
+| LLM models | `~/Library/Application Support/MacParakeet/models/` |
+| yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
+| FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |
 | Logs | `~/Library/Logs/MacParakeet/` |
 | Temp audio | `$TMPDIR/macparakeet/` (cleaned after use) |
 | Settings | `UserDefaults` (standard `com.macparakeet.MacParakeet.plist`) |
@@ -1024,10 +999,12 @@ All four tables are independent. No foreign key relationships. This keeps the sc
     ├── dictations/                 # Saved dictation audio files
     │   ├── {uuid}.wav              # Flat storage, no date subdirectories
     │   └── ...
-    ├── python/                     # Parakeet STT daemon
-    │   └── .venv/                  # Isolated Python env (created by uv)
-    └── models/                     # Downloaded ML models (v0.2+)
-        └── Qwen3-4B-4bit/          # LLM model files
+    ├── models/                     # Downloaded ML models
+    │   ├── stt/                    # CoreML Parakeet models (~6 GB)
+    │   └── Qwen3-4B-4bit/          # LLM model files
+    └── bin/                        # Standalone binaries
+        ├── yt-dlp                  # YouTube downloader (~35 MB, self-updating)
+        └── ffmpeg                  # Video demuxing (~80 MB)
 ```
 
 ---
@@ -1038,23 +1015,17 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 
 | Package | SPM ID | Purpose | Notes |
 |---------|--------|---------|-------|
+| FluidAudio | `FluidAudio` | STT engine (Parakeet TDT via CoreML/ANE) | Apache 2.0. Use `FluidAudio` product only (not `FluidAudioEspeak`). |
 | mlx-swift-lm | `MLXLLM`, `MLXLMCommon` | LLM inference (Qwen3-4B) | v2.29.0+, Apple Silicon Metal acceleration |
 | GRDB.swift | `GRDB` | SQLite database | v6.29.0+, single-file storage, migrations, Codable records |
 | swift-argument-parser | `ArgumentParser` | CLI (implemented) | `macparakeet transcribe`, `history`, `health` |
 
-### Python (Daemon)
-
-| Package | Purpose | Notes |
-|---------|---------|-------|
-| parakeet-mlx | STT engine (Parakeet TDT 0.6B-v3) | MLX-accelerated inference |
-| mlx | ML framework | Apple Silicon backend |
-
-### Bundled Binaries
+### Bundled / Downloaded Binaries
 
 | Tool | Purpose | Notes |
 |------|---------|-------|
-| uv | Python environment management | Creates isolated venv, no system Python needed |
-| FFmpeg | Audio format conversion | Any format to 16kHz mono WAV for Parakeet |
+| yt-dlp | YouTube audio download | Standalone macOS binary (~35 MB), self-updates via `--update` |
+| FFmpeg | Video file demuxing | Extracts audio from video containers (mp4/mov/mkv/webm/avi) |
 
 ### System Frameworks
 
@@ -1108,7 +1079,7 @@ Dictation ready
 3. **No accounts** — No login, no email, no user tracking
 4. **No analytics** — Zero telemetry. Not even crash reporting (unless user opts in)
 5. **Audio storage is opt-in** — Dictation audio only saved if user enables "Keep audio" in settings
-6. **Local AI only** — All ML inference happens on-device via Metal GPU
+6. **Local AI only** — All ML inference happens on-device: STT on the ANE via CoreML, LLM on the GPU via Metal
 
 ### Sandboxing (App Store)
 
@@ -1124,8 +1095,8 @@ For App Store distribution, the app needs:
 
 **Sandboxing Challenges:**
 - Accessibility API (`AXUIElement`) requires the app to be in the Accessibility allow-list, which is a system-level permission, not an entitlement
-- Spawning Python subprocess (`Process`) works in sandbox but with restricted file access
-- FFmpeg subprocess similarly needs careful path handling within the sandbox container
+- FFmpeg and yt-dlp subprocesses need careful path handling within the sandbox container
+- CoreML runs in-process — no subprocess restrictions apply to STT
 - Direct distribution (notarized DMG) avoids most sandbox restrictions
 
 ---
@@ -1138,15 +1109,15 @@ For App Store distribution, the app needs:
 ┌────────────────────────────────────────────────────────────┐
 │                    Memory at Peak                           │
 ├────────────────────────────────────────────────────────────┤
-│  Parakeet model (loaded)         ~1.5 GB                   │
-│  Qwen3-4B LLM (loaded)          ~2.5 GB                   │
+│  Parakeet STT (CoreML/ANE)       ~66 MB working RAM        │
+│  Qwen3-4B LLM (MLX-Swift/GPU)   ~2.5 GB                   │
 │  App process (UI + services)     ~100 MB                   │
 │  Audio buffers                   ~50 MB                    │
 │  ──────────────────────────────────────                    │
-│  Total peak                      ~4.2 GB                   │
+│  Total peak (with LLM)           ~2.8 GB                   │
 │                                                            │
 │  Recommended system RAM: 16 GB (Apple Silicon)             │
-│  Minimum: 8 GB (LLM features disabled)                     │
+│  Minimum: 8 GB (runs comfortably — STT uses ~66 MB)        │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -1155,8 +1126,8 @@ For App Store distribution, the app needs:
 | Phase | Target | Strategy |
 |-------|--------|----------|
 | App window visible | <1 second | SwiftUI, no heavy init |
-| Dictation ready | <2 seconds | Daemon started lazily, not at launch |
-| First STT result | <3 seconds | Model warm-up on first transcribe call |
+| Dictation ready | <2 seconds | FluidAudio model loaded lazily, not at launch |
+| First STT result | <3 seconds | CoreML model warm-up on first transcribe call |
 | LLM ready | <3 seconds | Loaded on-demand, not at launch |
 
 **Lazy Loading Strategy:**
@@ -1165,14 +1136,14 @@ App Launch ──────────> Window shown (fast, no ML loaded)
                            │
                            │ User triggers dictation
                            ▼
-                       Start Parakeet daemon (background)
-                           │ ~2s
+                       Load FluidAudio model (background)
+                           │ ~162ms (warm) / ~3.4s (first time)
                            ▼
-                       Daemon ready → recording starts
+                       Model ready → recording starts
                            │
                            │ User stops recording
                            ▼
-                       Transcribe (Parakeet: 300x realtime)
+                       Transcribe (Parakeet on ANE: 155x realtime)
                            │
                            │ If AI refinement needed:
                            ▼
@@ -1191,16 +1162,16 @@ After initial warm-up, subsequent dictations are near-instant (daemon stays aliv
 
 | Audio Length | Transcription Time (M1) | Transcription Time (M1 Pro+) |
 |-------------|------------------------|-------------------------------|
-| 1 minute | ~0.2 seconds | ~0.1 seconds |
-| 10 minutes | ~2 seconds | ~1 second |
-| 1 hour | ~12 seconds | ~6 seconds |
-| 4 hours (max) | ~48 seconds | ~24 seconds |
+| 1 minute | ~0.4 seconds | ~0.2 seconds |
+| 10 minutes | ~4 seconds | ~2 seconds |
+| 1 hour | ~23 seconds | ~12 seconds |
+| 4 hours (max) | ~93 seconds | ~46 seconds |
 
-Parakeet TDT 0.6B-v3 achieves approximately 300x realtime on Apple Silicon.
+Parakeet TDT 0.6B-v3 achieves approximately 155x realtime on Apple Silicon via FluidAudio CoreML/ANE.
 
 ### Memory Management
 
-- **Parakeet daemon:** Stays alive after first use. Terminated after app idle for 10 minutes (configurable). Restarted on next request.
+- **Parakeet model:** AsrManager stays initialized after first use. Uses ~66 MB working RAM on the ANE. Released when app quits.
 - **LLM model:** Loaded into Metal GPU memory on first AI request. Unloaded after 5 minutes idle. Loading is async and does not block UI.
 - **Audio buffers:** Ring buffer during recording, flushed to temp file on stop. No recording duration limit — local processing means no artificial caps.
 - **Database:** GRDB uses WAL mode by default. No connection pooling needed (single-user app).
@@ -1214,7 +1185,7 @@ First dictation completes
     │
     ▼
 Schedule background task (low priority):
-    ├── If Parakeet daemon not running → start it
+    ├── If Parakeet model not loaded → initialize AsrManager
     └── If LLM not loaded AND user uses AI refinement → load model
 ```
 
@@ -1245,7 +1216,7 @@ MacParakeet has a small surface area compared to Oatmeal. Focus testing on the c
 - **Models** — Codable round-trip, validation, edge cases
 - **Repositories** — CRUD operations, search queries, migration correctness
 - **ExportService** — Format generation (TXT in v0.1; SRT, VTT, JSON in v0.3)
-- **STTClient** — JSON-RPC serialization/deserialization (mock the daemon)
+- **STTClient** — FluidAudio wrapper (mock the STTClientProtocol interface)
 - **AudioProcessor** — Format detection, conversion parameter correctness (mock FFmpeg)
 
 ### What We Skip
@@ -1341,14 +1312,14 @@ open Package.swift
 
 3. **Local-only by default.** No network calls. No API keys. No cloud fallback. Privacy is the product.
 
-4. **Lazy everything.** Python daemon, LLM model, and audio engine are all started on-demand. Cold launch is <1 second.
+4. **Lazy everything.** STT model, LLM model, and audio engine are all loaded on-demand. Cold launch is <1 second.
 
 5. **Single database file.** All persistent state in one SQLite file. Easy to backup, easy to debug, easy to reset.
 
 6. **Deterministic pipeline, probabilistic AI.** `TextProcessingPipeline` is rule-based and repeatable. `AIService` is LLM-based and optional. Users can choose either or both.
 
-7. **Crash gracefully.** If Parakeet daemon dies, restart it. If LLM fails to load, skip refinement. If paste fails, copy to clipboard and notify. Never lose the transcript.
+7. **Crash gracefully.** If CoreML fails, retry. If LLM fails to load, skip refinement. If paste fails, copy to clipboard and notify. Never lose the transcript.
 
 ---
 
-*Last updated: 2026-02-10*
+*Last updated: 2026-02-13*

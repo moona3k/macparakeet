@@ -220,7 +220,7 @@ What MacParakeet needs to match or beat WisprFlow:
 
 **WisprFlow, but local.**
 
-Take every feature that makes WisprFlow compelling -- push-to-talk, AI refinement, Command Mode, personal dictionary, context awareness -- and run it entirely on-device using Parakeet (300x realtime STT) and Qwen3-4B (local LLM).
+Take every feature that makes WisprFlow compelling -- push-to-talk, AI refinement, Command Mode, personal dictionary, context awareness -- and run it entirely on-device using Parakeet (155x realtime STT via FluidAudio CoreML on ANE) and Qwen3-4B (local LLM on GPU via MLX-Swift).
 
 Then go further:
 - **File transcription** (WisprFlow is dictation-only, no file import)
@@ -237,7 +237,7 @@ Command Mode via local Qwen3-4B is the key Pro feature. WisprFlow proves the dem
 
 | WisprFlow Feature | MacParakeet Local Implementation |
 |-------------------|--------------------------------|
-| Cloud STT | Parakeet TDT 0.6B-v3 via parakeet-mlx (300x faster) |
+| Cloud STT | Parakeet TDT 0.6B-v3 via FluidAudio CoreML/ANE (155x faster) |
 | Cloud LLM refinement | Qwen3-4B via MLX-Swift (on-device, ~2s cold start) |
 | Context awareness | macOS Accessibility API (AXUIElement) + local Qwen3 |
 | Auto-edit (filler/grammar) | Deterministic pipeline + Qwen3-4B |

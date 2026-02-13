@@ -70,8 +70,42 @@ At 0.6B parameters (quantized to ~600MB on disk, ~1.5GB downloaded with tokenize
 - Model downloaded on first launch with progress UI
 - Daemon lifecycle managed by the Swift app (start on launch, stop on quit)
 
+## Addendum: Runtime Migration to FluidAudio CoreML (February 2026)
+
+> Date: 2026-02-13
+
+**The model choice (Parakeet TDT 0.6B-v3) is unchanged.** The runtime is migrating from parakeet-mlx (Python/MLX/GPU) to FluidAudio (Swift/CoreML/ANE).
+
+### What Changed
+
+| Dimension | Original (ADR-001) | Updated |
+|-----------|-------------------|---------|
+| Runtime | parakeet-mlx (Python daemon, JSON-RPC) | FluidAudio SDK (native Swift, CoreML) |
+| Runs on | GPU (Metal via MLX) | ANE (Neural Engine via CoreML) |
+| Speed | ~300x realtime | ~155x realtime |
+| WER | ~6.3% | ~2.5% (improved decoding) |
+| Working RAM | ~1.5-2 GB (GPU pool) | ~66 MB |
+| Model download | ~1.5-2.5 GB (MLX weights) | ~6 GB (CoreML compiled bundles) |
+| Dependencies | Python + uv + venv | SwiftPM (FluidAudio) |
+| IPC | JSON-RPC over stdin/stdout | In-process async/await |
+
+### Why
+
+1. **Three-chip utilization** — Moving STT to the ANE frees the GPU entirely for the Qwen3-4B LLM. Zero compute contention.
+2. **Memory efficiency** — ~66 MB working RAM (vs ~2 GB+) makes 8GB Macs viable for both STT and LLM simultaneously.
+3. **Better accuracy** — FluidAudio's CoreML decoding achieves ~2.5% WER (vs ~6.3% on MLX). Same model weights, better decoding.
+4. **Eliminates Python** — No venv, no subprocess, no codesigning issues. Pure Swift. App Store compatible.
+5. **Simpler architecture** — Native Swift async/await replaces JSON-RPC daemon management.
+
+### Consequences Update
+
+The "Requires Python daemon" negative consequence from the original ADR is resolved. The new negative consequence is a larger model download (~6 GB vs ~2.5 GB) due to CoreML's pre-compiled hardware-optimized model graphs.
+
+See `docs/research/fluidaudio-stt-migration.md` for the full evaluation.
+
 ## References
 
 - [NVIDIA Parakeet TDT 0.6B-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)
-- [parakeet-mlx](https://github.com/senstella/parakeet-mlx) -- MLX port for Apple Silicon
+- [FluidAudio](https://github.com/FluidInference/FluidAudio) -- CoreML/ANE runtime for Apple Silicon
+- [parakeet-mlx](https://github.com/senstella/parakeet-mlx) -- MLX port (original runtime, superseded)
 - Oatmeal project ADR-011 (prior art for Parakeet selection)

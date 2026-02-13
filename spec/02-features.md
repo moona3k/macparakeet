@@ -140,7 +140,7 @@ Both modes coexist with no configuration required. The 400ms threshold distingui
 │ 5. Processing                                                    │
 │    - Overlay transitions to processing state                     │
 │    - Audio buffer → temp WAV → Parakeet STT daemon               │
-│    - Parakeet returns transcript (300x realtime, 6.3% WER)       │
+│    - Parakeet returns transcript (155x realtime, ~2.5% WER)      │
 │    - (v0.2) Raw → clean pipeline → polished text                 │
 ├─────────────────────────────────────────────────────────────────┤
 │ 6. Result                                                        │
@@ -302,13 +302,13 @@ User drops file(s) onto window or menu bar icon
          │
          ▼
 ┌──────────────────┐
-│    STTClient     │ ── Send WAV to Parakeet daemon via JSON-RPC
+│    STTClient     │ ── Send audio to Parakeet via FluidAudio CoreML
 └────────┬─────────┘
          │
          ▼
 ┌──────────────────┐
 │  Parakeet Daemon │ ── Transcribe with word-level timestamps
-│                  │    300x+ realtime on Apple Silicon
+│                  │    155x realtime on Apple Silicon (ANE)
 └────────┬─────────┘
          │
          ▼
@@ -1286,15 +1286,15 @@ Read surrounding text from the active app via macOS Accessibility APIs (AXUIElem
 
 | Metric | Target | Notes |
 |--------|--------|-------|
-| Transcription speed | 300x+ realtime | Parakeet TDT on Apple Silicon |
+| Transcription speed | 155x realtime | Parakeet TDT on Apple Silicon (ANE via FluidAudio CoreML) |
 | Dictation latency | <500ms end-to-end | From Fn release to text appearing |
 | Clean pipeline | <1ms | Deterministic, no LLM |
 | LLM refinement | <5s | Qwen3-4B for formal/email/code modes |
 | Memory usage (idle) | <200MB | Menu bar + daemon standing by |
-| Memory usage (active) | <4GB | During transcription with model loaded |
-| App size | <500MB | Including bundled uv + FFmpeg |
+| Memory usage (active) | <3GB | During transcription with both models loaded |
+| App size | <100MB | Plus ~6 GB STT model download on first run |
 | Startup time | <2s | Cold start to menu bar ready |
-| File transcription | 1 hour audio in <12s | On M1 or better |
+| File transcription | 1 hour audio in <25s | On M1 or better (ANE via CoreML) |
 
 ---
 
@@ -1329,7 +1329,7 @@ v0.1 Core MVP:
 
                    ┌──────────────────┐
                    │  Parakeet STT    │ ← Foundation for everything
-                   │  (Python daemon) │
+                   │  (FluidAudio)   │
                    └────────┬─────────┘
                             │
               ┌─────────────┼──────────────┐
