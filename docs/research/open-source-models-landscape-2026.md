@@ -1,6 +1,6 @@
 # Open Source Models Landscape (February 2026)
 
-> Status: **ACTIVE** — Research snapshot as of February 12, 2026
+> Status: **HISTORICAL SNAPSHOT** — Research snapshot as of February 12, 2026. Runtime/model decisions are superseded by ADR-007 and current docs (`Parakeet TDT 0.6B-v3` via FluidAudio CoreML).
 
 Deep dive into the current state of open source models relevant to MacParakeet: STT, small LLMs, and the Apple MLX ecosystem.
 
@@ -23,7 +23,7 @@ Deep dive into the current state of open source models relevant to MacParakeet: 
 
 **Key takeaways:**
 
-- **Parakeet TDT 0.6B-v2 remains the optimal STT choice.** #3 on the Open ASR Leaderboard by accuracy, #1 by speed. The 6.05% WER is within 0.42pp of the leaderboard leader (Canary Qwen 2.5B at 5.63%) while being 8x faster. ADR-001 is well-justified.
+- **At snapshot time, Parakeet TDT 0.6B-v2 was assessed as the best English-first STT choice.** Current project decision is v3-only via FluidAudio CoreML (see ADR-007 and spec docs).
 - **Qwen3-4B is still the right LLM**, but the **July 2025 "2507" update** is a meaningful upgrade — it ranked #1 among small language models for instruction following. Available as `mlx-community/Qwen3-4B-Instruct-2507-4bit`.
 - **MLX is now Apple-endorsed** (WWDC 2025). MLX-Swift has breaking API changes. The ecosystem is maturing fast.
 - **FluidAudio** is the most interesting new development — a Swift CoreML package that runs Parakeet natively on the ANE without a Python daemon. VoiceInk (competitor) already uses it.
@@ -35,7 +35,7 @@ Deep dive into the current state of open source models relevant to MacParakeet: 
 
 ### Parakeet Family (NVIDIA)
 
-MacParakeet uses Parakeet TDT 0.6B-v2 via parakeet-mlx (Python daemon, JSON-RPC).
+At snapshot time, MacParakeet used Parakeet TDT 0.6B-v2 via parakeet-mlx (Python daemon, JSON-RPC). Current migration docs supersede this with FluidAudio + v3.
 
 | Model | Params | Avg WER | RTFx | Languages | Release | License |
 |-------|--------|---------|------|-----------|---------|---------|
@@ -312,11 +312,13 @@ Apple Silicon's unified memory = zero-copy for MLX operations. A $2,000 Mac Stud
 
 ## Recommendations for MacParakeet
 
+> Note: This section reflects pre-migration recommendations from the February 12, 2026 snapshot. Current implementation docs and ADR-007 supersede STT/runtime recommendations.
+
 ### Immediate (No Architecture Changes)
 
 1. **Upgrade LLM to Qwen3-4B-Instruct-2507.** The July 2025 update ranked #1 among SLMs for instruction following — exactly what MacParakeet needs for text refinement and command mode. Change the HuggingFace model ID to `mlx-community/Qwen3-4B-Instruct-2507-4bit`. Minimal code change, meaningful quality improvement.
 
-2. **Keep Parakeet TDT 0.6B-v2 for STT.** It's the optimal speed/accuracy trade-off. v3 adds multilingual but slightly regresses English accuracy. Only upgrade to v3 if multilingual support is needed.
+2. **Snapshot recommendation (historical): keep Parakeet TDT 0.6B-v2 for STT.** Current project decision is v3-only via FluidAudio CoreML.
 
 3. **Monitor MLX-Swift breaking changes.** When upgrading mlx-swift-lm, prepare for `LLMModelFactory`, `UserInput`/`LMInput`, and throwing `ModelContainer.perform` changes.
 

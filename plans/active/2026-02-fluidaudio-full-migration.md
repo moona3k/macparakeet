@@ -111,9 +111,9 @@ Exit criteria:
 
 ### Phase 4: Binary-Based Media Tooling
 
-1. Introduce/finish binary bootstrap for yt-dlp and FFmpeg (app support `bin` path).
+1. Introduce/finish binary bootstrap for yt-dlp and wire bundled FFmpeg path resolution.
 2. Update `YouTubeDownloader` to standalone yt-dlp binary.
-3. Update `AudioFileConverter` to use bundled/system FFmpeg only (no imageio-ffmpeg probing).
+3. Update `AudioFileConverter` to use bundled FFmpeg only (no imageio-ffmpeg or system probing).
 4. Update `HealthCommand` checks to binary/model readiness signals.
 
 Exit criteria:
@@ -125,7 +125,7 @@ Exit criteria:
 1. Replace venv setup/warm-up steps with:
    - CoreML model download
    - Model initialization warm-up
-   - helper binary readiness checks (if part of first-run path)
+   - helper readiness checks (yt-dlp binary + bundled FFmpeg availability)
 2. Update onboarding copy/status messages accordingly.
 3. Verify onboarding can complete fully without Python installed.
 

@@ -46,7 +46,7 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 | STT | Parakeet TDT 0.6B-v3 | Via FluidAudio CoreML/ANE (~2.5% WER, 155x realtime) |
 | Audio | AVAudioEngine + Core Audio | Mic capture for dictation; FFmpeg (bundled) for video file conversion |
 | LLM | MLX-Swift | Qwen3-4B for command mode + AI refinement (GPU via Metal) |
-| YouTube | yt-dlp | Standalone macOS binary, auto-updates via `--update` |
+| YouTube | yt-dlp | Standalone macOS binary, weekly non-blocking auto-update via `--update` |
 | Licensing | LemonSqueezy | License key activation, validation API |
 
 ## Product Context

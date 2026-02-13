@@ -1011,7 +1011,8 @@ Display result (same view as file transcription)
 ```
 
 **Technical requirements:**
-- yt-dlp (bundled or user-installed) for YouTube audio download
+- yt-dlp standalone managed binary for YouTube audio download (weekly non-blocking `--update`)
+- Bundled FFmpeg binary for media demux/conversion (no system dependency)
 - Supports standard YouTube URL forms (`youtube.com/watch`, `youtu.be`, `youtube.com/shorts`, `youtube.com/embed`, `youtube.com/v`)
 - Playlist pages are processed in single-video mode (`--no-playlist`); full playlist batch transcription is deferred
 - Audio-only download (no video, saves bandwidth and time)

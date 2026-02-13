@@ -311,7 +311,7 @@ The CoreML/ANE path is the better architecture — three workloads on three chip
 2. **New `STTClient` implementation** — replace JSON-RPC Python daemon calls with FluidAudio async Swift API, conforming to existing `STTClientProtocol`
 3. **Delete entire Python stack** — remove `python/` directory, `PythonBootstrap.swift`, `JSONRPCTypes.swift`, `requirements.txt`, all uv/venv bootstrap code. No Python in the project at all.
 4. **Standalone yt-dlp binary** — replace pip-installed yt-dlp with standalone macOS binary (`yt-dlp_macos`, ~35 MB). Store in `~/Library/Application Support/MacParakeet/bin/`. Auto-updates via `yt-dlp --update`. See "Eliminating Python" below.
-5. **Standalone FFmpeg binary** — bundle FFmpeg or discover from system. Still needed for video file transcription (mp4/mov/mkv/webm/avi → audio extraction) and yt-dlp post-processing. FluidAudio's `AudioConverter` handles resampling but NOT video demuxing.
+5. **Bundled FFmpeg binary** — ship FFmpeg in app resources. Still needed for video file transcription (mp4/mov/mkv/webm/avi → audio extraction) and yt-dlp post-processing. FluidAudio's `AudioConverter` handles resampling but NOT video demuxing.
 6. **Update STT tests** — new implementation, same `STTClientProtocol` contract
 7. **Model download during onboarding** — replace Python venv setup with CoreML model download (~6 GB) + yt-dlp binary download (~35 MB)
 8. **Evaluate custom vocabulary integration** — feed `CustomWord` entries as `CustomVocabularyTerm` to FluidAudio's CTC boosting
@@ -340,7 +340,7 @@ yt-dlp publishes standalone macOS binaries (~35 MB) that include a bundled Pytho
 3. Store at `~/Library/Application Support/MacParakeet/bin/yt-dlp`
 4. Mark executable (`chmod +x`)
 
-**Auto-update (weekly, same as current):**
+**Auto-update (weekly, same as current, non-blocking):**
 
 ```swift
 // Equivalent of current autoUpdateYouTubeEngineIfNeeded()
@@ -348,20 +348,16 @@ let process = Process()
 process.executableURL = URL(fileURLWithPath: ytDlpPath)
 process.arguments = ["--update"]
 try process.run()
-process.waitUntilExit()
+process.waitUntilExit() // Failure is logged and ignored; does not block transcription
 ```
 
 **FFmpeg without Python:**
 
-Currently FFmpeg is discovered from `imageio-ffmpeg` (pip package in the venv) as a fallback. After removing Python:
+After removing Python, FFmpeg is provided as a bundled app resource.
 
-| Option | Details |
+| Decision | Details |
 |--------|---------|
-| **Bundle FFmpeg binary** | Include `ffmpeg` in app Resources (~80 MB). Self-contained, no external deps. |
-| **System FFmpeg** | Discover from Homebrew (`/opt/homebrew/bin/ffmpeg`) or system paths. Most dev machines have it. |
-| **Download on first use** | Download FFmpeg binary during onboarding alongside yt-dlp. Smaller initial app. |
-
-**Recommendation:** Bundle FFmpeg in the app for reliability. Discovery from Homebrew paths as fallback. ~80 MB is acceptable for guaranteed video file support.
+| **Bundled FFmpeg only** | Include `ffmpeg` in app Resources (~80 MB). Resolve from app bundle at runtime. No Homebrew/system probing. No first-run FFmpeg download. |
 
 ### What doesn't change
 
@@ -428,10 +424,10 @@ YouTube:   yt-dlp (standalone) → .m4a → AudioFileConverter (FFmpeg binary) �
 |--------|-------|
 | **Rewrite** | `STTClient.swift` (actor, ~464 lines → FluidAudio wrapper) |
 | **Rewrite** | `YouTubeDownloader.swift` (remove PythonBootstrap dependency, use standalone yt-dlp) |
-| **Rewrite** | `AudioFileConverter.swift` (remove imageio-ffmpeg venv lookup, use bundled/system FFmpeg) |
+| **Rewrite** | `AudioFileConverter.swift` (remove imageio-ffmpeg venv lookup, use bundled FFmpeg only) |
 | **Delete** | `PythonBootstrap.swift`, `JSONRPCTypes.swift` |
 | **Delete** | `python/` directory entirely (server.py, __main__.py, requirements.txt) |
-| **Add** | `BinaryBootstrap.swift` or similar (download yt-dlp + FFmpeg on first run) |
+| **Add** | `BinaryBootstrap.swift` or similar (download yt-dlp on first run; validate bundled FFmpeg) |
 | **Update** | `STTClientTests.swift`, `JSONRPCTests.swift` (adapt or replace) |
 | **Update** | `OnboardingViewModel` (model + binary download progress) |
 | **Update** | `HealthCommand.swift` (check yt-dlp binary instead of venv) |

@@ -144,7 +144,7 @@ v0.2 adds Qwen3-4B to the GPU — the exact moment GPU contention becomes real. 
 | Rewrite | `YouTubeDownloader` — standalone yt-dlp binary instead of venv |
 | Rewrite | `AudioFileConverter` — bundled FFmpeg instead of imageio-ffmpeg |
 | Delete | `python/` directory, `PythonBootstrap.swift`, `JSONRPCTypes.swift`, all uv/venv code |
-| Add | Binary bootstrap (download yt-dlp + FFmpeg on first run) |
+| Add | Binary bootstrap (download yt-dlp on first run; validate bundled FFmpeg availability) |
 | Update | Onboarding (CoreML model download replaces Python venv setup) |
 | Update | STT tests (new implementation, same protocol contract) |
 | Unchanged | `STTClientProtocol`, all services, all UI, all ViewModels (~150+ files) |
