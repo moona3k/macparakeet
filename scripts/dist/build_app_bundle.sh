@@ -22,6 +22,7 @@ set -euo pipefail
 #   BUILD_SYSTEM        (default: xcodebuild) 'xcodebuild' or 'swiftpm'
 #   XCODE_DERIVED_DATA  (default: .build/xcode-dist) derived data path for xcodebuild
 #   FFMPEG_PATH         (default: /opt/homebrew/bin/ffmpeg) source ffmpeg binary to bundle
+#   ALLOW_NON_PORTABLE_FFMPEG (default: 0) allow bundling ffmpeg with non-system dylib deps
 #   BUNDLE_NODE        (default: 1) bundle Node runtime for yt-dlp
 #   NODE_VERSION       (default: 24.13.1) Node version used when downloading
 
@@ -153,11 +154,25 @@ fi
 
 # Bundle FFmpeg (required at runtime for media demux/conversion).
 FFMPEG_PATH="${FFMPEG_PATH:-/opt/homebrew/bin/ffmpeg}"
+ALLOW_NON_PORTABLE_FFMPEG="${ALLOW_NON_PORTABLE_FFMPEG:-0}"
 if [[ ! -x "$FFMPEG_PATH" ]]; then
   echo "Error: FFMPEG_PATH not executable: $FFMPEG_PATH" >&2
   echo "Set FFMPEG_PATH to a valid ffmpeg binary before building the app bundle." >&2
   exit 1
 fi
+
+# Guard against accidentally bundling Homebrew-linked ffmpeg, which depends on
+# external Cellar dylibs and is not portable across machines.
+if [[ "$ALLOW_NON_PORTABLE_FFMPEG" != "1" ]] && command -v otool >/dev/null 2>&1; then
+  NON_SYSTEM_DEPS="$(otool -L "$FFMPEG_PATH" | tail -n +2 | awk '{print $1}' | grep -E '^/' | grep -Ev '^/System/Library/|^/usr/lib/' || true)"
+  if [[ -n "$NON_SYSTEM_DEPS" ]]; then
+    echo "Error: ffmpeg binary has non-system dylib dependencies and is likely not portable:" >&2
+    echo "$NON_SYSTEM_DEPS" >&2
+    echo "Provide a portable/static ffmpeg via FFMPEG_PATH, or set ALLOW_NON_PORTABLE_FFMPEG=1 to override." >&2
+    exit 1
+  fi
+fi
+
 cp "$FFMPEG_PATH" "$RESOURCES_DIR/ffmpeg"
 chmod +x "$RESOURCES_DIR/ffmpeg"
 echo "Bundled FFmpeg from: $FFMPEG_PATH"

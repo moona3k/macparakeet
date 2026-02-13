@@ -30,7 +30,8 @@ public enum BinaryBootstrapError: Error, LocalizedError {
 
 public actor BinaryBootstrap {
     private static let ytDlpAssetArm64 = "yt-dlp_macos"
-    private static let ytDlpAssetX86 = "yt-dlp_macos_legacy"
+    // yt-dlp currently publishes a single macOS binary asset name.
+    private static let ytDlpAssetX86 = "yt-dlp_macos"
     private static let ytDlpLatestBaseURL = "https://github.com/yt-dlp/yt-dlp/releases/latest/download"
     private static let ytDlpChecksumsFile = "SHA2-256SUMS"
     private static let ytDlpUpdateInterval: TimeInterval = 7 * 24 * 60 * 60
