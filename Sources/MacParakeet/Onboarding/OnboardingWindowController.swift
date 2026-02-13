@@ -42,8 +42,6 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         w.delegate = self
 
         self.window = w
-
-        NSApp.setActivationPolicy(.regular)
         w.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
@@ -54,18 +52,6 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         // User clicked the close button.
-        let closing = notification.object as? NSWindow
         window = nil
-        restoreAccessoryIfNoVisibleWindows(excluding: closing)
-    }
-
-    private func restoreAccessoryIfNoVisibleWindows(excluding closing: NSWindow?) {
-        let otherVisibleWindows = NSApp.windows.filter { w in
-            if let closing, w === closing { return false }
-            return w.isVisible && !w.isMiniaturized
-        }
-        if otherVisibleWindows.isEmpty {
-            NSApp.setActivationPolicy(.accessory)
-        }
     }
 }

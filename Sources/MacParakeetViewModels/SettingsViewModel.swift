@@ -8,6 +8,12 @@ public final class SettingsViewModel {
     public var launchAtLogin: Bool {
         didSet { defaults.set(launchAtLogin, forKey: "launchAtLogin") }
     }
+    public var menuBarOnlyMode: Bool {
+        didSet {
+            defaults.set(menuBarOnlyMode, forKey: AppPreferences.menuBarOnlyModeKey)
+            NotificationCenter.default.post(name: Notification.Name("macparakeet.menuBarOnlyModeDidChange"), object: nil)
+        }
+    }
 
     // Dictation
     public var hotkeyTrigger: String {
@@ -75,6 +81,7 @@ public final class SettingsViewModel {
         self.defaults = defaults
         self.youtubeDownloadsDirPath = youtubeDownloadsDirPath
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
+        menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
         hotkeyTrigger = defaults.string(forKey: "hotkeyTrigger") ?? "fn"
         silenceAutoStop = defaults.bool(forKey: "silenceAutoStop")
         let delay = defaults.double(forKey: "silenceDelay")

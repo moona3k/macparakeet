@@ -10,67 +10,16 @@ struct SettingsView: View {
 
     var body: some View {
         Form {
-            // License
-            Section("License") {
-                if viewModel.isUnlocked {
-                    // Warm unlocked banner
-                    HStack(spacing: DesignSystem.Spacing.md) {
-                        Image(systemName: "checkmark.seal.fill")
-                            .font(.system(size: 20))
-                            .foregroundStyle(DesignSystem.Colors.successGreen)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("You're all set!")
-                                .font(DesignSystem.Typography.sectionTitle)
-                            Text(viewModel.entitlementsSummary)
-                                .font(DesignSystem.Typography.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(.vertical, DesignSystem.Spacing.xs)
-                } else {
-                    HStack {
-                        Text(viewModel.entitlementsSummary)
-                            .font(.headline)
-                        Spacer()
-                        Label("Trial", systemImage: "lock.fill")
-                            .foregroundStyle(.secondary)
-                            .font(DesignSystem.Typography.caption)
-                    }
-                }
-
-                if !viewModel.entitlementsDetail.isEmpty {
-                    Text(viewModel.entitlementsDetail)
-                        .foregroundStyle(.secondary)
+            // EARLY ACCESS BYPASS: License section hidden while the app is free.
+            // To re-enable, restore the License Section UI from git history.
+            // The full licensing code (EntitlementsService, LemonSqueezy API, Keychain
+            // storage) remains intact and ready to re-enable.
+            Section("General") {
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Menu bar only mode", isOn: $viewModel.menuBarOnlyMode)
+                    Text("Hide the Dock icon and run from the menu bar only.")
                         .font(DesignSystem.Typography.caption)
-                }
-
-                if let err = viewModel.licensingError, !err.isEmpty {
-                    Text(err)
-                        .foregroundStyle(DesignSystem.Colors.errorRed)
-                        .font(DesignSystem.Typography.caption)
-                }
-
-                if !viewModel.isUnlocked {
-                    HStack {
-                        TextField("License key", text: $viewModel.licenseKeyInput)
-                            .textFieldStyle(.roundedBorder)
-                        Button(viewModel.licensingBusy ? "Activating..." : "Activate") {
-                            viewModel.activateLicense()
-                        }
-                        .disabled(viewModel.licensingBusy || viewModel.licenseKeyInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                    }
-
-                    if let url = viewModel.checkoutURL {
-                        Button("Buy License...") {
-                            NSWorkspace.shared.open(url)
-                        }
-                    }
-                } else {
-                    Button("Deactivate on This Mac...") {
-                        viewModel.deactivateLicense()
-                    }
-                    .disabled(viewModel.licensingBusy)
+                        .foregroundStyle(.tertiary)
                 }
             }
 

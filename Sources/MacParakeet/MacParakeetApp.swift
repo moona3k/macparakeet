@@ -3,7 +3,8 @@ import MacParakeetCore
 
 /// MacParakeet - Local-first voice app for macOS
 ///
-/// Hybrid menu bar app: menu bar always visible, dock icon appears when main window is open.
+/// Dock-first app with a persistent menu bar companion.
+/// Users can opt into menu-bar-only mode in Settings.
 /// Uses manual NSApplication.run() for reliable CLI execution (no .app bundle required).
 @main
 struct MacParakeetApp {
@@ -28,9 +29,7 @@ struct MacParakeetApp {
         let delegate = AppDelegate()
         app.delegate = delegate
 
-        // Start without dock icon (menu bar only)
-        // Dock icon will appear dynamically when main window opens (see AppDelegate)
-        app.setActivationPolicy(.accessory)
+        app.setActivationPolicy(AppPreferences.isMenuBarOnlyModeEnabled() ? .accessory : .regular)
 
         app.run()
     }
