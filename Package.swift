@@ -17,7 +17,7 @@ let package = Package(
     ],
     dependencies: [
         // MLX-Swift for local LLM inference (Qwen3-4B)
-        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", from: "2.29.0"),
+        .package(url: "https://github.com/ml-explore/mlx-swift-lm.git", .upToNextMinor(from: "2.29.0")),
         // GRDB for SQLite (dictation history + transcription records)
         .package(url: "https://github.com/groue/GRDB.swift", from: "6.29.0"),
         // FluidAudio for Parakeet STT on CoreML/ANE
