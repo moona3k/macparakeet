@@ -356,8 +356,8 @@ struct OnboardingFlowView: View {
                 )
                 featureRow(
                     icon: "bolt.fill",
-                    title: "300x realtime",
-                    detail: "60 minutes of audio transcribed in ~12 seconds on Apple Silicon."
+                    title: "155x realtime",
+                    detail: "60 minutes of audio transcribed in ~23 seconds on Apple Silicon."
                 )
                 featureRow(
                     icon: "lock.shield.fill",
