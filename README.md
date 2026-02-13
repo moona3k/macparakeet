@@ -54,7 +54,7 @@ Drag any audio or video file → get a transcript in seconds.
 ### Planned
 
 - **Command Mode** — Local LLM edits for command-mode workflows
-- **Chat with Transcript** — Ask questions about your transcriptions via local LLM
+- **Chat with Transcript (GUI)** — Ask questions about your transcriptions via local LLM
 - **More Exports** — DOCX and other formats
 
 ## Requirements
@@ -97,7 +97,7 @@ MacParakeet is built for **fast feedback loops**. AI agents make mistakes — bu
 - **Tests** — Unit and integration tests for all core logic (`swift test`)
 - **Internal CLI** — Headless interface to core services (transcribe files, test the pipeline) so changes can be verified without launching the GUI
   - Tip: use `swift run macparakeet-cli transcribe ... --database /tmp/macparakeet-dev.db` to avoid writing into your real app database during dev.
-  - Local LLM checks: `swift run macparakeet-cli llm smoke-test --stats` and `swift run macparakeet-cli llm refine formal "draft text"`.
+  - Local LLM checks: `swift run macparakeet-cli llm smoke-test --stats`, `swift run macparakeet-cli llm refine formal "draft text"`, and `swift run macparakeet-cli llm chat "question" --transcript-file /path/to/transcript.txt`.
   - See `docs/cli-testing.md` for GUI-parity vs deterministic testing modes.
 - **Protocol-based services** — Mockable boundaries make isolated testing straightforward
 

@@ -82,7 +82,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] AI text refinement (Qwen3-8B: formal, email, code modes)
 - [x] Custom words & snippets management UI
 - [ ] Personal dictionary (auto-learns vocabulary)
-- [x] CLI commands (`macparakeet-cli flow process/words/snippets` + `macparakeet-cli llm generate/refine/command/smoke-test`)
+- [x] CLI commands (`macparakeet-cli flow process/words/snippets` + `macparakeet-cli llm generate/refine/command/chat/smoke-test`)
 
 ### v0.3 Command Mode & Export (In Progress)
 

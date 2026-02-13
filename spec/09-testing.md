@@ -84,17 +84,16 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 
 ### CLI Tests
 
-**What:** End-to-end flows through the CLI interface.
+**What:** Command parsing and prompt construction behavior for CLI surfaces.
 
-**How:** Real CLI binary + test database. Verify JSON output structure and content.
+**How:** XCTest against the `CLI` module (`CLITests` target), plus manual/automation smoke runs for full binary execution.
 
 **Examples:**
-- `transcribe <file>` returns valid JSON with transcript and timestamps
-- `flow process "text"` applies clean pipeline correctly
-- `flow words list` returns valid JSON array of custom words
-- `flow snippets add "my signature" "Best regards, David"` creates a snippet
+- `llm chat` prompt composition with and without transcript context
+- `llm chat` argument parsing (`--transcript-file`, `--system`, `--stats`)
+- transcript-file loader behavior (missing file, bounded context assembly)
 
-**Tip:** Use a throwaway database path in CLI tests (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database.
+**Tip:** For runtime smoke runs, use a throwaway database path (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database.
 
 ## What We Skip
 
@@ -215,13 +214,13 @@ Audio and transcript fixtures live in `Tests/Fixtures/`:
 
 ```
 Tests/
-  MacParakeetCoreTests/
-    Models/              # Model encoding, validation
-    Database/            # Repository tests, migration tests
-    Services/            # Integration tests with mocks
-    Pipeline/            # Text processing pipeline tests
-    CLI/                 # CLI end-to-end tests
-  Fixtures/              # Shared test data
+  MacParakeetTests/      # Core + ViewModel tests
+    Models/
+    Database/
+    Services/
+    TextProcessing/
+    LLM/
+  CLITests/              # CLI parsing/prompt tests
 ```
 
 ## Manual QA Checklist — Dictation Overlay

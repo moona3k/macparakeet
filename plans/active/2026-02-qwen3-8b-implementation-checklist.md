@@ -29,9 +29,9 @@ Ship production-ready local LLM integration for refinement + command mode using 
 - Route selected text + spoken command through shared LLM seam.
 - Preserve current selection-replace UX behavior and error paths.
 
-5. **Transcript chat baseline scaffolding**
+5. **Transcript chat baseline**
 - Add transcript context assembly utilities (bounded chunking/truncation).
-- Add chat request pathway behind feature flag if UI not ready.
+- Ship CLI chat request pathway (`macparakeet-cli llm chat`) while GUI remains pending.
 
 6. **Benchmark + hardening**
 - Run benchmark protocol in `docs/planning/2026-02-qwen3-8b-benchmark-plan.md`.
@@ -43,7 +43,7 @@ Ship production-ready local LLM integration for refinement + command mode using 
 1. Completed: foundation seam + fallback-safe wiring (`TextRefinementService`, deterministic fallback, tests).
 2. Completed: Qwen runtime integration with lazy load and idle unload in `MLXLLMService`.
 3. Completed: dictation/transcription context modes (`raw`, `clean`, `formal`, `email`, `code`) wired through app + CLI.
-4. Completed: transcript chat scaffolding via bounded context assembly utility.
+4. Completed: transcript chat CLI baseline via `macparakeet-cli llm chat` with bounded context assembly utility.
 5. Remaining: command mode GUI flow (selection capture and in-place replace UX).
 6. Remaining: benchmark run execution/tuning pass on target hardware matrix.
 
