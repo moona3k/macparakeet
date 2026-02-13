@@ -31,13 +31,18 @@ public enum TriggerKey: String, CaseIterable, Codable, Sendable {
         }
     }
 
-    /// The currently configured trigger key, read from UserDefaults.
+    /// Resolve the configured trigger key from the provided defaults store.
     /// Defaults to `.fn` if not set or invalid.
-    public static var current: TriggerKey {
-        guard let raw = UserDefaults.standard.string(forKey: "hotkeyTrigger"),
+    public static func current(defaults: UserDefaults = .standard) -> TriggerKey {
+        guard let raw = defaults.string(forKey: "hotkeyTrigger"),
               let key = TriggerKey(rawValue: raw) else {
             return .fn
         }
         return key
+    }
+
+    /// The currently configured trigger key from standard user defaults.
+    public static var current: TriggerKey {
+        current(defaults: .standard)
     }
 }

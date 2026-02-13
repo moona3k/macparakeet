@@ -2,6 +2,24 @@ import XCTest
 @testable import MacParakeetCore
 
 final class TriggerKeyTests: XCTestCase {
+    private var testDefaults: UserDefaults!
+    private var suiteName: String!
+
+    override func setUp() {
+        super.setUp()
+        suiteName = "com.macparakeet.tests.triggerkey.\(UUID().uuidString)"
+        testDefaults = UserDefaults(suiteName: suiteName)
+    }
+
+    override func tearDown() {
+        if let suiteName {
+            testDefaults?.removePersistentDomain(forName: suiteName)
+        }
+        testDefaults = nil
+        suiteName = nil
+        super.tearDown()
+    }
+
     // MARK: - Raw Value Roundtrip
 
     func testRawValueRoundtripForAllCases() {
@@ -35,30 +53,27 @@ final class TriggerKeyTests: XCTestCase {
 
     func testCurrentDefaultsToFn() {
         // With no UserDefaults entry, .current should be .fn
-        let defaults = UserDefaults.standard
-        defaults.removeObject(forKey: "hotkeyTrigger")
-        XCTAssertEqual(TriggerKey.current, .fn)
+        testDefaults.removeObject(forKey: "hotkeyTrigger")
+        XCTAssertEqual(TriggerKey.current(defaults: testDefaults), .fn)
     }
 
     func testCurrentReadsFromUserDefaults() {
-        let defaults = UserDefaults.standard
-        defaults.set("control", forKey: "hotkeyTrigger")
-        XCTAssertEqual(TriggerKey.current, .control)
+        testDefaults.set("control", forKey: "hotkeyTrigger")
+        XCTAssertEqual(TriggerKey.current(defaults: testDefaults), .control)
 
-        defaults.set("option", forKey: "hotkeyTrigger")
-        XCTAssertEqual(TriggerKey.current, .option)
+        testDefaults.set("option", forKey: "hotkeyTrigger")
+        XCTAssertEqual(TriggerKey.current(defaults: testDefaults), .option)
 
         // Clean up
-        defaults.removeObject(forKey: "hotkeyTrigger")
+        testDefaults.removeObject(forKey: "hotkeyTrigger")
     }
 
     func testCurrentFallsBackToFnForInvalidValue() {
-        let defaults = UserDefaults.standard
-        defaults.set("invalid_key", forKey: "hotkeyTrigger")
-        XCTAssertEqual(TriggerKey.current, .fn)
+        testDefaults.set("invalid_key", forKey: "hotkeyTrigger")
+        XCTAssertEqual(TriggerKey.current(defaults: testDefaults), .fn)
 
         // Clean up
-        defaults.removeObject(forKey: "hotkeyTrigger")
+        testDefaults.removeObject(forKey: "hotkeyTrigger")
     }
 
     // MARK: - Codable
