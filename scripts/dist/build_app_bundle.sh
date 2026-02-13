@@ -6,7 +6,7 @@ set -euo pipefail
 # This script:
 # - builds the `MacParakeet` SwiftPM product in Release
 # - assembles a minimal .app bundle (Info.plist + executable + bundled python package)
-# - optionally bundles `uv` into Resources if it's available on PATH
+# - optionally bundles `uv` and `node` into Resources (downloading if needed)
 #
 # Outputs:
 #   dist/MacParakeet.app
@@ -21,6 +21,8 @@ set -euo pipefail
 #   SKIP_BUILD          (default: 0) reuse existing Release binary if 1
 #   BUILD_SYSTEM        (default: xcodebuild) 'xcodebuild' or 'swiftpm'
 #   XCODE_DERIVED_DATA  (default: .build/xcode-dist) derived data path for xcodebuild
+#   BUNDLE_NODE        (default: 1) bundle Node runtime for yt-dlp
+#   NODE_VERSION       (default: 24.13.1) Node version used when downloading
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -198,6 +200,68 @@ else
     fi
     download_uv "$UV_ASSET" "$RESOURCES_DIR/uv"
   fi
+fi
+
+
+
+# Optionally bundle `node` for yt-dlp JavaScript runtime support.
+#
+# We always download official Node builds here. Homebrew-installed `node`
+# links to external dylibs and is not reliably portable inside app bundles.
+#
+# For universal builds, bundle both arch binaries as `node-arm64` and `node-x86_64`.
+BUNDLE_NODE="${BUNDLE_NODE:-1}"
+NODE_VERSION="${NODE_VERSION:-24.13.1}"
+if [[ "$BUNDLE_NODE" == "1" ]]; then
+  echo "Bundling Node.js ${NODE_VERSION}…"
+  TMP_NODE="$(mktemp -d)"
+
+  download_node() {
+    local asset="$1"
+    local out="$2"
+    local tarball="$TMP_NODE/$asset"
+    local extract_dir="$TMP_NODE/extract"
+    local shasums="$TMP_NODE/SHASUMS256.txt"
+    curl -LsSf "https://nodejs.org/dist/v${NODE_VERSION}/${asset}" -o "$tarball"
+    if [[ ! -f "$shasums" ]]; then
+      curl -LsSf "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt" -o "$shasums"
+    fi
+    local expected_sha
+    expected_sha="$(awk -v target="$asset" '$2 == target {print $1}' "$shasums" | head -n 1)"
+    local actual_sha
+    actual_sha="$(shasum -a 256 "$tarball" | awk '{print $1}')"
+    if [[ -z "$expected_sha" || "$expected_sha" != "$actual_sha" ]]; then
+      echo "Node SHA256 verification failed for $asset" >&2
+      exit 1
+    fi
+    rm -rf "$extract_dir"
+    mkdir -p "$extract_dir"
+    tar -xzf "$tarball" -C "$extract_dir"
+    local node_bin
+    node_bin="$(find "$extract_dir" -maxdepth 3 -type f -path '*/bin/node' | head -n 1)"
+    if [[ -z "${node_bin:-}" || ! -f "$node_bin" ]]; then
+      echo "Failed to locate node binary inside ${asset}" >&2
+      exit 1
+    fi
+    install -m 0755 "$node_bin" "$out"
+  }
+
+  if [[ "$UNIVERSAL" == "1" ]]; then
+    download_node "node-v${NODE_VERSION}-darwin-arm64.tar.gz" "$RESOURCES_DIR/node-arm64"
+    download_node "node-v${NODE_VERSION}-darwin-x64.tar.gz" "$RESOURCES_DIR/node-x86_64"
+  else
+    ARCH="$(uname -m)"
+    if [[ "$ARCH" == "arm64" ]]; then
+      NODE_ASSET="node-v${NODE_VERSION}-darwin-arm64.tar.gz"
+    else
+      NODE_ASSET="node-v${NODE_VERSION}-darwin-x64.tar.gz"
+    fi
+    download_node "$NODE_ASSET" "$RESOURCES_DIR/node"
+  fi
+
+  rm -rf "$TMP_NODE"
+else
+  echo "Skipping Node bundling (BUNDLE_NODE=0)"
 fi
 
 # Copy app icon into Resources.

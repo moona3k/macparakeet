@@ -96,7 +96,7 @@ Simple does not mean basic. MacParakeet includes modern capabilities that cloud 
 
 One-time purchase. No subscription. No feature gates that make the free tier unusable.
 
-- **Free**: 15 minutes per day. Enough to evaluate properly and handle light use.
+- **Free**: 7-day trial (full features).
 - **Pro ($49)**: Unlimited. Everything. Forever.
 
 WisprFlow charges $144-180/year. After 3-4 months of MacParakeet, you have saved money. After a year, you have saved $95-131. After two years, $239-311. The gap only grows.
@@ -111,7 +111,7 @@ WisprFlow charges $144-180/year. After 3-4 months of MacParakeet, you have saved
 | **Core function** | Voice dictation and file transcription |
 | **Target users** | Developers, professionals, writers who want fast private voice input |
 | **Key differentiators** | Parakeet speed + 100% local + command mode + $49 one-time |
-| **Business model** | Freemium: free tier (15 min/day) + $49 Pro (one-time) |
+| **Business model** | Free trial (7 days) + $49 Pro (one-time) |
 | **Platform** | macOS 14.2+, Apple Silicon only |
 
 ---
@@ -337,12 +337,12 @@ The product surface area is intentionally small. This means fewer bugs, faster i
 
 | Tier | Price | What You Get |
 |------|-------|--------------|
-| **Free** | $0 | 15 min/day dictation, basic file transcription, clean text pipeline |
+| **Free** | $0 | 7-day trial (full features) |
 | **Pro** | $49 (one-time) | Unlimited dictation, unlimited transcription, command mode, all export formats (SRT/VTT/MD), custom words, text snippets, dictation history |
 
 ### Why This Works
 
-**Free tier is genuinely useful.** 15 minutes per day covers light dictation use. Users experience the speed and quality before deciding to buy. This is not a crippled trial -- it is a real product for light users.
+**Trial reduces friction.** A 7-day full-feature trial lets users build the habit and evaluate accuracy and speed before buying.
 
 **Pro is a clear upgrade.** Unlimited usage removes the daily cap. Command mode and export formats add real capability. Custom words and snippets add personalization. The upgrade path is obvious and compelling.
 

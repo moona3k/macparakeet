@@ -11,6 +11,7 @@ scripts/dist/build_app_bundle.sh
 ```
 
 This creates `dist/MacParakeet.app` and bundles:
+- `Assets/AppIcon.icns` into `Contents/Resources/AppIcon.icns` (app icon for Dock, Finder, DMG)
 - `python/macparakeet_stt` into `Contents/Resources/python/`
 - `uv` into `Contents/Resources/uv` if `uv` is on your `PATH`
 - SwiftPM resource bundles (e.g. `mlx-swift_Cmlx.bundle` containing `default.metallib`) into `Contents/Resources/`

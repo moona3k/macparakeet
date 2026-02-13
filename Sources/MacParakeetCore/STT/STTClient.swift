@@ -91,8 +91,41 @@ public actor STTClient: STTClientProtocol {
         return STTResult(text: result.text, words: words)
     }
 
-    public func warmUp() async throws {
-        try await ensureRunning()
+    public func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {
+        try await ensureRunning(onProgress: onProgress)
+
+        onProgress?("Starting speech engine...")
+
+        // Monitor stderr for SETUP_PROGRESS lines from the daemon
+        var progressBuffer: OSAllocatedUnfairLock<Data>?
+        if let onProgress, let stderrPipe {
+            let buffer = OSAllocatedUnfairLock(initialState: Data())
+            progressBuffer = buffer
+            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                guard !data.isEmpty else { return }
+                let updates = buffer.withLock { bufferedData in
+                    Self.consumeSetupProgressUpdates(from: &bufferedData, appending: data)
+                }
+                for message in updates {
+                    onProgress(message)
+                }
+            }
+        }
+
+        defer {
+            if onProgress != nil {
+                stderrPipe?.fileHandleForReading.readabilityHandler = nil
+                if let progressBuffer {
+                    let trailingUpdates = progressBuffer.withLock { bufferedData in
+                        Self.consumeSetupProgressUpdates(from: &bufferedData, appending: Data(), consumeTrailingLine: true)
+                    }
+                    for message in trailingUpdates {
+                        onProgress?(message)
+                    }
+                }
+            }
+        }
 
         // Ask the daemon to preload the model. This can take minutes on first run due to downloads.
         requestId += 1
@@ -144,7 +177,7 @@ public actor STTClient: STTClientProtocol {
 
     // MARK: - Private
 
-    private func ensureRunning() async throws {
+    private func ensureRunning(onProgress: (@Sendable (String) -> Void)? = nil) async throws {
         if let process, process.isRunning, isStarted {
             return
         }
@@ -155,11 +188,11 @@ public actor STTClient: STTClientProtocol {
             )
         }
 
-        try await startDaemon()
+        try await startDaemon(onProgress: onProgress)
     }
 
-    private func startDaemon() async throws {
-        let pythonPath = try await pythonBootstrap.ensureEnvironment()
+    private func startDaemon(onProgress: (@Sendable (String) -> Void)? = nil) async throws {
+        let pythonPath = try await pythonBootstrap.ensureEnvironment(onProgress: onProgress)
 
         let proc = Process()
         let stdin = Pipe()
@@ -344,6 +377,69 @@ public actor STTClient: STTClientProtocol {
         }
 
         return updates
+    }
+
+    // MARK: - Setup Progress Parsing
+
+    nonisolated static func consumeSetupProgressUpdates(
+        from buffer: inout Data,
+        appending chunk: Data,
+        consumeTrailingLine: Bool = false
+    ) -> [String] {
+        buffer.append(chunk)
+        var messages: [String] = []
+
+        while let newlineIdx = buffer.firstIndex(of: 0x0A) {
+            let lineData = buffer.prefix(upTo: newlineIdx)
+            buffer.removeSubrange(..<buffer.index(after: newlineIdx))
+            if let message = parseSetupProgressLine(lineData: lineData[...]) {
+                messages.append(message)
+            }
+        }
+
+        if consumeTrailingLine, !buffer.isEmpty {
+            if let message = parseSetupProgressLine(lineData: buffer[...]) {
+                messages.append(message)
+            }
+            buffer.removeAll(keepingCapacity: true)
+        }
+
+        return messages
+    }
+
+    nonisolated static func parseSetupProgressLine(lineData: Data.SubSequence) -> String? {
+        guard let line = String(data: Data(lineData), encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              line.hasPrefix("SETUP_PROGRESS:")
+        else {
+            return nil
+        }
+
+        let payload = line.dropFirst("SETUP_PROGRESS:".count)
+        let parts = payload.split(separator: ":", maxSplits: 2)
+        guard !parts.isEmpty else { return nil }
+
+        let phase = String(parts[0])
+        let bytesDone = parts.count > 1 ? Int(parts[1]) ?? 0 : 0
+        let bytesTotal = parts.count > 2 ? Int(parts[2]) ?? 0 : 0
+
+        switch phase {
+        case "downloading_config":
+            return "Downloading speech model config..."
+        case "downloading_model":
+            if bytesTotal > 0 && bytesDone > 0 {
+                let totalMB = bytesTotal / (1024 * 1024)
+                let pct = Int(Double(bytesDone) / Double(bytesTotal) * 100)
+                return "Downloading speech model (\(totalMB) MB)... \(pct)%"
+            }
+            return "Downloading speech model..."
+        case "loading_model":
+            return "Loading model into memory..."
+        case "ready":
+            return "Ready"
+        default:
+            return nil
+        }
     }
 
     private nonisolated static func parseProgressUpdate(lineData: Data.SubSequence) -> (Int, Int)? {

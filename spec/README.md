@@ -43,6 +43,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-003](adr/003-one-time-purchase.md) | One-time purchase pricing ($49) |
 | [ADR-004](adr/004-deterministic-pipeline.md) | Deterministic text processing pipeline |
 | [ADR-005](adr/005-onboarding-first-run.md) | First-run onboarding flow |
+| [ADR-006](adr/006-trial-and-license-activation.md) | Trial + license key activation |
 
 ## Version Roadmap
 
@@ -67,10 +68,10 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Dictation history (date-grouped, searchable, flat list with bottom bar player)
 - [x] Settings (hotkey display, silence auto-stop, storage, permissions)
 - [x] Menu bar app with main window
-- [x] Basic export (plain text, copy to clipboard)
+- [x] Basic export (TXT/Markdown/SRT/VTT + copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + substring search)
-- [x] CLI tool (`macparakeet transcribe`, `history`, `health`)
-- [x] 342 tests passing (`swift test` green)
+- [x] Internal dev CLI tool (`macparakeet transcribe`, `history`, `health`)
+- [x] 360 tests passing (`swift test` green)
 
 ### v0.2 AI & Text Processing (In Progress)
 
@@ -84,7 +85,8 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 
 - [ ] Command Mode: select text -> speak command -> LLM edits in-place
 - [x] YouTube URL transcription (yt-dlp + Parakeet)
-- [ ] Full export (.txt, .srt, .vtt, .docx, .pdf, .json)
+- [ ] Full export (.docx, .pdf, .json)
+- [x] Exports: TXT, Markdown, SRT, VTT (one-click to Downloads)
 
 ### v0.4 Polish & Launch (Planned)
 

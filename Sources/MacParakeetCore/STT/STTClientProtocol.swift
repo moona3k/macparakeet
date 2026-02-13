@@ -4,8 +4,9 @@ public protocol STTClientProtocol: Sendable {
     /// Transcribe an audio file at the given path
     func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult
 
-    /// Warm up the STT engine (start daemon, load model)
-    func warmUp() async throws
+    /// Warm up the STT engine (start daemon, load model) with optional progress callback.
+    /// Progress messages are human-readable strings like "Downloading speech model (571 MB)... 45%".
+    func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
 
     /// Check if the daemon is running and responsive
     func isReady() async -> Bool
@@ -17,6 +18,10 @@ public protocol STTClientProtocol: Sendable {
 extension STTClientProtocol {
     public func transcribe(audioPath: String) async throws -> STTResult {
         try await transcribe(audioPath: audioPath, onProgress: nil)
+    }
+
+    public func warmUp() async throws {
+        try await warmUp(onProgress: nil)
     }
 }
 

@@ -203,4 +203,37 @@ final class CancelFlowTests: XCTestCase {
             XCTFail("Expected idle state after start error, got \(state)")
         }
     }
+
+    func testUndoCancelProcessesAndSaves() async throws {
+        await mockSTT.configure(result: STTResult(text: "Hello world"))
+
+        try await dictationService.startRecording()
+        await dictationService.cancelRecording()
+
+        let dictation = try await dictationService.undoCancel()
+        XCTAssertEqual(dictation.rawTranscript, "Hello world")
+
+        let all = try dictationRepo.fetchAll(limit: nil)
+        XCTAssertEqual(all.count, 1)
+    }
+
+    func testStopRecordingWithEmptyTranscriptThrowsAndDoesNotSave() async throws {
+        await mockSTT.configure(result: STTResult(text: "   "))
+
+        try await dictationService.startRecording()
+
+        do {
+            _ = try await dictationService.stopRecording()
+            XCTFail("Expected emptyTranscript error")
+        } catch let error as DictationServiceError {
+            if case .emptyTranscript = error {} else {
+                XCTFail("Expected emptyTranscript, got \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+
+        let all = try dictationRepo.fetchAll(limit: nil)
+        XCTAssertTrue(all.isEmpty, "Empty transcript should not be saved")
+    }
 }

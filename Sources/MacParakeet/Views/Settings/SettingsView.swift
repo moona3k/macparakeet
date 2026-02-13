@@ -106,6 +106,13 @@ struct SettingsView: View {
                         .foregroundStyle(.tertiary)
                 }
 
+                VStack(alignment: .leading, spacing: 2) {
+                    Toggle("Auto-update YouTube engine", isOn: $viewModel.autoUpdateYouTubeEngine)
+                    Text("Enabled by default. Checks weekly and updates the YouTube download engine in the background.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.tertiary)
+                }
+
                 HStack {
                     Text("Dictations")
                     Spacer()

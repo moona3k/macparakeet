@@ -18,6 +18,13 @@ __pycache__/
 *.pyo
 .Python
 
+# Node / web tooling
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
 # macOS
 .DS_Store
 .AppleDouble
@@ -51,3 +58,7 @@ logs/
 # Test artifacts
 test-results/
 coverage/
+
+# Local tool state / outputs
+.wrangler/
+output/

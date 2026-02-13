@@ -16,8 +16,8 @@ public actor EntitlementsService: EntitlementsChecking {
     /// 7-day full-feature trial.
     private let trialLength: TimeInterval = 7 * 24 * 60 * 60
 
-    /// After a successful validation, allow this much offline use before we require a fresh validation.
-    private let validationGrace: TimeInterval = 30 * 24 * 60 * 60
+    /// One-time purchase = yours forever. Once validated, never lock out due to offline use.
+    private let validationGrace: TimeInterval = .infinity
 
     /// Attempt validation at most once per day.
     private let validationMinInterval: TimeInterval = 24 * 60 * 60
@@ -157,8 +157,8 @@ public actor EntitlementsService: EntitlementsChecking {
                 try? store.delete(Keys.lastValidatedISO)
             }
         } catch {
-            // Network failures shouldn't break an already-unlocked app. We keep the cached unlock
-            // while it's within grace.
+            // Network failures shouldn't break an already-unlocked app. One-time purchase = yours
+            // forever, so validated licenses stay unlocked indefinitely.
             _ = error
         }
     }

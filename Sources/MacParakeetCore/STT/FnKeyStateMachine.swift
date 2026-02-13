@@ -114,11 +114,15 @@ public final class FnKeyStateMachine {
         }
     }
 
-    /// Called when Escape is pressed during recording
+    /// Called when Escape is pressed during recording or cancel window
     public func escapePressed() -> Action {
         switch state {
         case .persistent, .holdToTalk:
             state = .cancelWindow
+            return .cancelRecording
+        case .cancelWindow, .blocked:
+            // Escape during undo countdown = confirm cancel immediately
+            state = .idle
             return .cancelRecording
         default:
             return .none

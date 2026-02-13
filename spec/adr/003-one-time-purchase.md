@@ -1,6 +1,6 @@
 # ADR-003: One-Time Purchase Pricing Model
 
-> Status: **Accepted**
+> Status: **HISTORICAL** - Pricing decision remains current; entitlement/trial mechanics are superseded by ADR-006.
 > Date: 2026-02-08
 
 ## Context

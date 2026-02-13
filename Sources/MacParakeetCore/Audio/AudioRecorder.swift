@@ -28,9 +28,15 @@ public actor AudioRecorder {
     public func start() throws {
         guard !recording else { return }
 
+        // Diagnostic: check mic permission
+        let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        print("[AudioRecorder] Mic permission status: \(authStatus.rawValue) (0=notDetermined, 1=restricted, 2=denied, 3=authorized)")
+
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
+
+        print("[AudioRecorder] Input format: sampleRate=\(inputFormat.sampleRate), channels=\(inputFormat.channelCount), commonFormat=\(inputFormat.commonFormat.rawValue)")
 
         // Target: 16kHz mono Float32
         guard let outputFormat = AVAudioFormat(
@@ -39,6 +45,7 @@ public actor AudioRecorder {
             channels: 1,
             interleaved: false
         ) else {
+            print("[AudioRecorder] ERROR: Failed to create output format")
             throw AudioProcessorError.recordingFailed("Failed to create output format")
         }
 
@@ -53,6 +60,7 @@ public actor AudioRecorder {
 
         // Install converter + tap
         guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+            print("[AudioRecorder] ERROR: Failed to create audio converter from \(inputFormat) to \(outputFormat)")
             throw AudioProcessorError.recordingFailed("Failed to create audio converter")
         }
 

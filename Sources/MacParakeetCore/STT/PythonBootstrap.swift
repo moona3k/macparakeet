@@ -8,6 +8,14 @@ public final class PythonBootstrap: Sendable {
     // Directory of the `macparakeet_stt/` Python package (contains requirements.txt).
     private let pythonPackagePath: String
 
+    private static let autoUpdateYouTubeEngineKey = "autoUpdateYouTubeEngine"
+    private static let lastYouTubeEngineUpdateCheckKey = "youtubeEngineLastAutoUpdateCheck"
+    private static let youTubeEngineUpdateInterval: TimeInterval = 7 * 24 * 60 * 60
+    private static let youTubeEnginePackages = [
+        "yt-dlp>=2025.1.0,<2027.0",
+        "yt-dlp-ejs>=0.3.2,<0.4.0",
+    ]
+
     public init(
         appSupportDir: String? = nil,
         pythonRootPath: String? = nil,
@@ -63,6 +71,13 @@ public final class PythonBootstrap: Sendable {
     /// Ensure the Python environment exists and has dependencies installed.
     /// Returns the path to the Python executable.
     public func ensureEnvironment() async throws -> String {
+        try await ensureEnvironment(onProgress: nil)
+    }
+
+    /// Ensure the Python environment exists and has dependencies installed.
+    /// Emits human-readable progress messages via the callback.
+    /// Returns the path to the Python executable.
+    public func ensureEnvironment(onProgress: (@Sendable (String) -> Void)?) async throws -> String {
         let fm = FileManager.default
 
         // Create app support dir if needed
@@ -70,8 +85,22 @@ public final class PythonBootstrap: Sendable {
             try fm.createDirectory(atPath: appSupportDir, withIntermediateDirectories: true)
         }
 
+        let requirementsPath = "\(pythonPackagePath)/requirements.txt"
+
         // Check if venv already exists
         if fm.fileExists(atPath: pythonExecutable) {
+            // Sync dependencies if requirements.txt has changed since last install.
+            // This ensures existing users pick up new dependencies (e.g. imageio-ffmpeg)
+            // without needing to delete their venv.
+            if requirementsChanged(requirementsPath: requirementsPath) {
+                let uvPath = try findUV()
+                onProgress?("Updating dependencies...")
+                try await runProcess(
+                    uvPath,
+                    arguments: ["pip", "install", "--python", pythonExecutable, "-r", requirementsPath]
+                )
+                writeRequirementsHash(requirementsPath: requirementsPath)
+            }
             return pythonExecutable
         }
 
@@ -79,18 +108,51 @@ public final class PythonBootstrap: Sendable {
         let uvPath = try findUV()
 
         // Create venv
+        onProgress?("Creating Python environment...")
         try await runProcess(uvPath, arguments: ["venv", venvPath, "--python", "3.11"])
 
         // Install requirements
-        let requirementsPath = "\(pythonPackagePath)/requirements.txt"
         if fm.fileExists(atPath: requirementsPath) {
+            onProgress?("Installing dependencies (~500 MB)...")
             try await runProcess(
                 uvPath,
                 arguments: ["pip", "install", "--python", pythonExecutable, "-r", requirementsPath]
             )
+            writeRequirementsHash(requirementsPath: requirementsPath)
         }
 
         return pythonExecutable
+    }
+
+    /// Best-effort periodic update for YouTube tooling. Runs at most once per week by default.
+    /// Failures are intentionally swallowed so downloads continue using existing known-good versions.
+    public func autoUpdateYouTubeEngineIfNeeded(defaults: UserDefaults = .standard) async {
+        let enabled = defaults.object(forKey: Self.autoUpdateYouTubeEngineKey) as? Bool ?? true
+        guard enabled else { return }
+
+        let now = Date()
+        if let lastCheck = defaults.object(forKey: Self.lastYouTubeEngineUpdateCheckKey) as? Date,
+           now.timeIntervalSince(lastCheck) < Self.youTubeEngineUpdateInterval {
+            return
+        }
+
+        // Throttle repeated checks even if update fails (e.g., offline machine).
+        defaults.set(now, forKey: Self.lastYouTubeEngineUpdateCheckKey)
+
+        do {
+            _ = try await ensureEnvironment()
+            let uvPath = try findUV()
+            try await runProcess(
+                uvPath,
+                arguments: [
+                    "pip", "install",
+                    "--python", pythonExecutable,
+                    "--upgrade",
+                ] + Self.youTubeEnginePackages
+            )
+        } catch {
+            // Best effort only; keep existing environment if update fails.
+        }
     }
 
     /// Re-install requirements from requirements.txt into an existing venv.
@@ -117,10 +179,53 @@ public final class PythonBootstrap: Sendable {
         var env = ProcessInfo.processInfo.environment
         env["PYTHONPATH"] = pythonRootPath
         env["VIRTUAL_ENV"] = venvPath
+
+        // Ensure PATH includes the venv bin (for FFmpeg installed via imageio-ffmpeg),
+        // the app Resources dir (for bundled binaries), and common Homebrew paths.
+        // macOS app bundles get a minimal PATH that excludes all of these.
+        var extraPaths = ["\(venvPath)/bin"]
+        if let resourcePath = Bundle.main.resourcePath {
+            extraPaths.append(resourcePath)
+        }
+        extraPaths += ["/opt/homebrew/bin", "/usr/local/bin"]
+        let currentPath = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
+        env["PATH"] = (extraPaths + [currentPath]).joined(separator: ":")
         return env
     }
 
     // MARK: - Private
+
+    private var requirementsHashPath: String {
+        "\(venvPath)/.requirements-hash"
+    }
+
+    private func requirementsChanged(requirementsPath: String) -> Bool {
+        guard let data = FileManager.default.contents(atPath: requirementsPath) else {
+            return false
+        }
+        let currentHash = Self.simpleHash(data)
+        guard let storedHash = try? String(contentsOfFile: requirementsHashPath, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines) else {
+            return true // No hash stored yet — treat as changed
+        }
+        return storedHash != currentHash
+    }
+
+    private func writeRequirementsHash(requirementsPath: String) {
+        guard let data = FileManager.default.contents(atPath: requirementsPath) else { return }
+        let hash = Self.simpleHash(data)
+        try? hash.write(toFile: requirementsHashPath, atomically: true, encoding: .utf8)
+    }
+
+    /// Simple content hash (base-16 of XOR-folded bytes). Not cryptographic, just change detection.
+    private static func simpleHash(_ data: Data) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325 // FNV offset basis
+        for byte in data {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3 // FNV prime
+        }
+        return String(hash, radix: 16)
+    }
 
     private static func discoverDevPythonRoot(startingAt startDir: String) -> String? {
         let fm = FileManager.default

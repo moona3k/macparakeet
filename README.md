@@ -19,7 +19,7 @@ Drag any audio or video file → get a transcript in seconds.
 
 - Transcribe a 3-hour podcast in under 2 minutes (300x realtime)
 - Word-level timestamps with confidence scores
-- Export to TXT (SRT/VTT/DOCX planned)
+- Export to TXT, Markdown, SRT, and VTT (DOCX planned)
 
 ## Why MacParakeet?
 
@@ -43,9 +43,8 @@ Drag any audio or video file → get a transcript in seconds.
 - **Smart Cleanup** — Deterministic 4-step pipeline (filler removal, custom words, snippets, whitespace)
 - **Custom Words** — Domain vocabulary corrections and proper noun casing
 - **Text Snippets** — Natural language triggers expand into longer text
-- **Export** — Plain text export (`.txt`) + copy to clipboard
+- **Export** — TXT, Markdown, SRT, and VTT exports + copy to clipboard
 - **History** — Dictation + transcription history stored locally (SQLite, searchable)
-- **CLI** — `macparakeet transcribe`, `history`, `health`, `flow process/words/snippets`
 - **YouTube Transcription** — Paste a YouTube URL, auto-download audio via yt-dlp, transcribe with Parakeet
 - **YouTube Audio Retention** — Downloaded YouTube audio is kept by default (configurable in Settings > Storage)
 
@@ -53,7 +52,7 @@ Drag any audio or video file → get a transcript in seconds.
 
 - **AI Refinement** — Qwen3-4B for formal, email, and code modes
 - **Command Mode** — Local LLM edits for command-mode workflows
-- **More Exports** — SRT/VTT/DOCX and other formats
+- **More Exports** — DOCX and other formats
 
 ## Requirements
 
@@ -93,7 +92,8 @@ MacParakeet processes everything locally. Your audio is never:
 MacParakeet is built for **fast feedback loops**. AI agents make mistakes — but they're good at fixing them if they can detect them. So every component is designed to be verifiable without manual interaction:
 
 - **Tests** — Unit and integration tests for all core logic (`swift test`)
-- **CLI** — Headless interface to core services (transcribe files, test the pipeline) so changes can be verified without launching the GUI
+- **Internal CLI** — Headless interface to core services (transcribe files, test the pipeline) so changes can be verified without launching the GUI
+  - Tip: use `macparakeet transcribe ... --database /tmp/macparakeet-dev.db` to avoid writing into your real app database during dev.
 - **Protocol-based services** — Mockable boundaries make isolated testing straightforward
 
 The faster the feedback loop, the faster the agent self-corrects. If you can't confirm a change works by running a command, the change isn't done.

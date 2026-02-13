@@ -462,13 +462,11 @@ Audio saved to temp dir
     ▼
 STT processes audio
     │
-    ├── Storage = "keep all"  ──► Move to ~/Library/Application Support/MacParakeet/dictations/{id}.wav
-    │                             Set audioPath on dictation record
+    ├── Storage = ON  ──► Move to ~/Library/Application Support/MacParakeet/dictations/{id}.wav
+    │                     Set audioPath on dictation record
     │
-    ├── Storage = "keep 7 days" ─► Same, but background job prunes after 7 days
-    │
-    └── Storage = "never keep" ──► Delete temp file immediately
-                                   audioPath stays null
+    └── Storage = OFF ──► Delete temp file immediately
+                          audioPath stays null
 ```
 
 ### Transcription Files

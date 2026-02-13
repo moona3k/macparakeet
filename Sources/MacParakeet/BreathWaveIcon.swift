@@ -21,62 +21,32 @@ enum BreathWaveIcon {
     //   M 42,34 L 42,82 C 42,100 30,110 18,112 C 6,114 2,106 8,98 C 14,90 30,88 42,92
     // Stroke width: 7 (large), 10 (small/menu bar)
 
-    /// Create the Cursive P logo as a **template** NSImage for menu bar use.
-    /// Template images are drawn in black; macOS applies the system tint automatically.
+    /// Load the parakeet silhouette as a **template** NSImage for menu bar use.
+    /// The image is stored as a processed SwiftPM resource (menubar-icon.png / @2x).
+    /// Template images adapt to light/dark mode automatically.
     static func menuBarIcon(pointSize: CGFloat = 18) -> NSImage {
-        let image = NSImage(size: NSSize(width: pointSize, height: pointSize), flipped: true) { rect in
-            let s = pointSize / 128.0
-
-            let strokeWidth = max(10 * s, 1.5)
-            let dotRadius = max(8 * s, 1.5)
-            let bowlRadius = 26 * s
-
-            NSColor.black.setStroke()
-            NSColor.black.setFill()
-
-            // Enclosed circular bowl
-            let bowl = NSBezierPath(
-                ovalIn: NSRect(
-                    x: 68 * s - bowlRadius, y: 34 * s - bowlRadius,
-                    width: bowlRadius * 2, height: bowlRadius * 2
-                )
-            )
-            bowl.lineWidth = strokeWidth
-            bowl.stroke()
-
-            // Stem + cursive loop tail
-            let tail = NSBezierPath()
-            tail.move(to: NSPoint(x: 42 * s, y: 34 * s))
-            tail.line(to: NSPoint(x: 42 * s, y: 82 * s))
-            tail.curve(
-                to: NSPoint(x: 18 * s, y: 112 * s),
-                controlPoint1: NSPoint(x: 42 * s, y: 100 * s),
-                controlPoint2: NSPoint(x: 30 * s, y: 110 * s)
-            )
-            tail.curve(
-                to: NSPoint(x: 8 * s, y: 98 * s),
-                controlPoint1: NSPoint(x: 6 * s, y: 114 * s),
-                controlPoint2: NSPoint(x: 2 * s, y: 106 * s)
-            )
-            tail.curve(
-                to: NSPoint(x: 42 * s, y: 92 * s),
-                controlPoint1: NSPoint(x: 14 * s, y: 90 * s),
-                controlPoint2: NSPoint(x: 30 * s, y: 88 * s)
-            )
-            tail.lineWidth = strokeWidth
-            tail.lineCapStyle = .round
-            tail.stroke()
-
-            // Dot — centered in bowl
-            NSBezierPath(ovalIn: NSRect(
-                x: 68 * s - dotRadius, y: 34 * s - dotRadius,
-                width: dotRadius * 2, height: dotRadius * 2
-            )).fill()
-
-            return true
+        // Try loading from SwiftPM resource bundle first, then fall back to main bundle.
+        if let url = Bundle.module.url(forResource: "menubar-icon@2x", withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            image.size = NSSize(width: pointSize, height: pointSize)
+            image.isTemplate = true
+            return image
         }
-        image.isTemplate = true
-        return image
+
+        // Fallback: 1x version
+        if let url = Bundle.module.url(forResource: "menubar-icon", withExtension: "png"),
+           let image = NSImage(contentsOf: url) {
+            image.size = NSSize(width: pointSize, height: pointSize)
+            image.isTemplate = true
+            return image
+        }
+
+        // Last resort: return a system symbol
+        let fallback = NSImage(systemSymbolName: "waveform", accessibilityDescription: "MacParakeet")
+            ?? NSImage()
+        fallback.size = NSSize(width: pointSize, height: pointSize)
+        fallback.isTemplate = true
+        return fallback
     }
 
     /// Create the Cursive P logo as a filled NSImage for app icon / dock use.

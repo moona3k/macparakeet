@@ -38,13 +38,20 @@ echo "[1/8] Clearing extended attributes…"
 xattr -cr "$APP_PATH" || true
 
 echo "[2/8] Signing nested executables (if any)…"
-# Sign inside-out. `uv` is shipped under Resources and must be signed for notarization.
+# Sign inside-out. `uv` and `node` are shipped under Resources and must be signed for notarization.
+NODE_RUNTIME_ENTITLEMENTS="$ROOT_DIR/scripts/dist/NodeRuntime.entitlements"
 while IFS= read -r -d '' bin; do
+  base="$(basename "$bin")"
   echo "Signing: $bin"
-  codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$bin"
+  if [[ "$base" == "node" || "$base" == "node-arm64" || "$base" == "node-x86_64" ]]; then
+    codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp \
+      --entitlements "$NODE_RUNTIME_ENTITLEMENTS" "$bin"
+  else
+    codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$bin"
+  fi
 done < <(
   find "$APP_PATH/Contents/Resources" -maxdepth 1 -type f -perm -111 \
-    \( -name "uv" -o -name "uv-arm64" -o -name "uv-x86_64" \) -print0 2>/dev/null || true
+    \( -name "uv" -o -name "uv-arm64" -o -name "uv-x86_64" -o -name "node" -o -name "node-arm64" -o -name "node-x86_64" \) -print0 2>/dev/null || true
 )
 
 ENTITLEMENTS="$ROOT_DIR/scripts/dist/MacParakeet.entitlements"
@@ -99,28 +106,63 @@ if [[ "$CREATE_DMG" == "1" ]]; then
   if [[ -z "$MOUNT_DIR" || ! -d "$MOUNT_DIR" ]]; then
     echo "Warning: Failed to mount DMG for layout customization; skipping."
   else
-    timeout 30 osascript <<APPLESCRIPT || echo "Warning: Finder layout customization failed; skipping."
+    OSA_OK=0
+
+    if command -v timeout >/dev/null 2>&1; then
+      timeout 30 osascript <<APPLESCRIPT && OSA_OK=1 || true
 tell application "Finder"
   tell disk "$APP_NAME"
     open
     set current view of container window to icon view
     set toolbar visible of container window to false
     set statusbar visible of container window to false
-    set bounds of container window to {100, 100, 640, 400}
+    set bounds of container window to {120, 120, 900, 560}
     set opts to icon view options of container window
-    set icon size of opts to 80
+    set icon size of opts to 128
+    set text size of opts to 14
     set arrangement of opts to not arranged
-    set position of item "${APP_NAME}.app" of container window to {140, 140}
-    set position of item "Applications" of container window to {400, 140}
+    set position of item "${APP_NAME}.app" of container window to {220, 260}
+    set position of item "Applications" of container window to {560, 260}
     close
     open
     update without registering applications
-    delay 1
+    delay 2
     close
   end tell
 end tell
 APPLESCRIPT
+    else
+      echo "Notice: 'timeout' not found; running osascript without timeout."
+      osascript <<APPLESCRIPT && OSA_OK=1 || true
+tell application "Finder"
+  tell disk "$APP_NAME"
+    open
+    set current view of container window to icon view
+    set toolbar visible of container window to false
+    set statusbar visible of container window to false
+    set bounds of container window to {120, 120, 900, 560}
+    set opts to icon view options of container window
+    set icon size of opts to 128
+    set text size of opts to 14
+    set arrangement of opts to not arranged
+    set position of item "${APP_NAME}.app" of container window to {220, 260}
+    set position of item "Applications" of container window to {560, 260}
+    close
+    open
+    update without registering applications
+    delay 2
+    close
+  end tell
+end tell
+APPLESCRIPT
+    fi
+
+    if [[ "$OSA_OK" -eq 0 ]]; then
+      echo "Warning: Finder layout customization failed; skipping."
+    fi
+
     sync
+    sleep 1
     hdiutil detach "$MOUNT_DIR" -quiet
   fi
 

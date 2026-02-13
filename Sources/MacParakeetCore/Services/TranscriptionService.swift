@@ -120,7 +120,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
             onProgress?("Transcribing... 0%")
             let sttProgress: (@Sendable (Int, Int) -> Void)? = onProgress.map { callback in
-                { current, total in
+                { @Sendable current, total in
                     let pct = total > 0 ? Int(Double(current) / Double(total) * 100) : 0
                     callback("Transcribing... \(min(pct, 99))%")
                 }

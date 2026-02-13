@@ -15,6 +15,10 @@ public protocol ExportServiceProtocol: Sendable {
 public final class ExportService: ExportServiceProtocol, Sendable {
     public init() {}
 
+    private func preferredText(transcription: Transcription) -> String {
+        transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+    }
+
     /// Export transcription as plain text file
     public func exportToTxt(transcription: Transcription, url: URL) throws {
         let content = formatPlainText(transcription: transcription)
@@ -25,7 +29,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     public func exportToSRT(transcription: Transcription, url: URL) throws {
         guard let words = transcription.wordTimestamps, !words.isEmpty else {
             // Fall back to full transcript as a single cue
-            let text = transcription.rawTranscript ?? transcription.cleanTranscript ?? ""
+            let text = preferredText(transcription: transcription)
             let duration = transcription.durationMs ?? 0
             let content = "1\n00:00:00,000 --> \(srtTimestamp(ms: duration))\n\(text)\n"
             try content.write(to: url, atomically: true, encoding: .utf8)
@@ -38,7 +42,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// Export transcription as WebVTT subtitle file
     public func exportToVTT(transcription: Transcription, url: URL) throws {
         guard let words = transcription.wordTimestamps, !words.isEmpty else {
-            let text = transcription.rawTranscript ?? transcription.cleanTranscript ?? ""
+            let text = preferredText(transcription: transcription)
             let duration = transcription.durationMs ?? 0
             let content = "WEBVTT\n\n\(vttTimestamp(ms: 0)) --> \(vttTimestamp(ms: duration))\n\(text)\n"
             try content.write(to: url, atomically: true, encoding: .utf8)
@@ -119,9 +123,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 lines.append("**[\(ts)]** \(cue.text)")
                 lines.append("")
             }
-        } else if let text = transcription.rawTranscript ?? transcription.cleanTranscript {
-            lines.append(text)
-            lines.append("")
+        } else {
+            let text = preferredText(transcription: transcription)
+            if !text.isEmpty {
+                lines.append(text)
+                lines.append("")
+            }
         }
 
         return lines.joined(separator: "\n")
@@ -129,7 +136,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Format transcription text for clipboard copy
     public func formatForClipboard(transcription: Transcription) -> String {
-        transcription.rawTranscript ?? transcription.cleanTranscript ?? ""
+        preferredText(transcription: transcription)
     }
 
     // MARK: - Subtitle Cue Building
@@ -222,7 +229,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         lines.append("")
 
         // Transcript
-        if let text = transcription.rawTranscript ?? transcription.cleanTranscript {
+        let text = preferredText(transcription: transcription)
+        if !text.isEmpty {
             lines.append(text)
         }
 

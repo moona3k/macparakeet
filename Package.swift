@@ -28,7 +28,8 @@ let package = Package(
         .executableTarget(
             name: "MacParakeet",
             dependencies: ["MacParakeetCore", "MacParakeetViewModels"],
-            path: "Sources/MacParakeet"
+            path: "Sources/MacParakeet",
+            resources: [.process("Resources")]
         ),
         // CLI tool for headless testing and scripting
         .executableTarget(

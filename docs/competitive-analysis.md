@@ -259,7 +259,7 @@ MacParakeet's opportunity is to be the first app that nails all four. WisprFlow 
 | **Command mode** | Yes (local LLM) | Yes (cloud LLM) | No | Yes | No | Yes (Agent Mode) | No | No |
 | **Context awareness** | Future | Yes (cloud, screen reading) | No | No | No | No | No | No |
 | **Styles / tone modes** | v0.2 (5 modes) | Yes (Pro, English only) | No | Yes (4+ modes) | Limited | Limited | No | No |
-| **Course correction** | No | Yes (cloud LLM) | No | No | No | No | No | No |
+| **Course correction** | No (deferred) | Yes (cloud LLM) | No | No | No | No | No | No |
 | **Whisper mode** | Planned (v0.4) | Yes | No | No | No | No | No | No |
 | **Custom words** | Yes | Yes (auto-learn) | Yes | Yes | Yes | Yes | No | No |
 | **Text snippets** | Yes | Yes | No | No | No | No | No | No |
@@ -271,13 +271,19 @@ MacParakeet's opportunity is to be the first app that nails all four. WisprFlow 
 | **Open source** | No | No | No | No | Yes (GPL) | No | No | No |
 | **Cross-platform** | macOS only | macOS, Windows, iOS | macOS only | macOS only | macOS only | macOS only | macOS only | macOS only |
 
+### Intentional Gaps
+
+**Course correction** (WisprFlow): "Let's meet at 2... actually 3" → "Let's meet at 3". Deferred — requires multi-turn LLM conversation tracking, adds significant complexity for a niche use case. Qwen3-4B can't reliably handle this in a single pass. May revisit post-launch if user demand warrants it.
+
+**Context awareness** (WisprFlow): Reading the active app window to inform AI output. Aspirational future feature — local implementation via Accessibility APIs + Qwen3-4B is possible but unscheduled. No version commitment.
+
 ---
 
 ## Pricing Analysis
 
 | App | Free Tier | Paid Price | Model | Annual Cost (Year 1) | Annual Cost (Year 2+) |
 |-----|-----------|------------|-------|----------------------|----------------------|
-| **MacParakeet** | 15 min/day | $49 one-time | One-time | $49 | $0 |
+| **MacParakeet** | 7-day trial | $49 one-time | One-time | $49 | $0 |
 | WisprFlow | 2000 words/week | $12-15/mo | Subscription | $144-180 | $144-180 |
 | MacWhisper | Basic (free) | $30 Pro | One-time | $30 | $0 |
 | Superwhisper | None | $5.41/mo or $250 | Sub or lifetime | $65 or $250 | $65 or $0 |

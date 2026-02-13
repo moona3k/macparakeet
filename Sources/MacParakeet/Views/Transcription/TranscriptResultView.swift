@@ -115,7 +115,7 @@ struct TranscriptResultView: View {
                 LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                     if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
                         timestampedView(words: timestamps)
-                    } else if let text = transcription.rawTranscript {
+                    } else if let text = transcription.cleanTranscript ?? transcription.rawTranscript {
                         Text(text)
                             .font(DesignSystem.Typography.bodyLarge)
                             .textSelection(.enabled)
@@ -212,7 +212,7 @@ struct TranscriptResultView: View {
         if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             return .from(wordTimestamps: timestamps)
         }
-        return .from(text: transcription.rawTranscript ?? transcription.fileName,
+        return .from(text: transcription.cleanTranscript ?? transcription.rawTranscript ?? transcription.fileName,
                      durationMs: transcription.durationMs ?? 1000)
     }
 
@@ -280,7 +280,7 @@ struct TranscriptResultView: View {
     // MARK: - Actions
 
     private func copyToClipboard() {
-        let text = transcription.rawTranscript ?? transcription.cleanTranscript ?? ""
+        let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         SoundManager.shared.play(.copyClick)

@@ -137,6 +137,10 @@ struct DictationOverlayView: View {
                 successContent
                     .transition(.scale(scale: 0.8).combined(with: .opacity).animation(.spring(response: 0.35, dampingFraction: 0.7)))
 
+            case .noSpeech:
+                noSpeechContent
+                    .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+
             case .error:
                 EmptyView()
             }
@@ -273,6 +277,39 @@ struct DictationOverlayView: View {
         AnimatedCheckmarkView()
     }
 
+    // MARK: - No Speech State
+
+    private var noSpeechContent: some View {
+        VStack(spacing: 8) {
+            HStack(spacing: 7) {
+                Image(systemName: "waveform.slash")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.5))
+
+                Text("No speech detected")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+
+            // Thin progress bar — track + fill, shrinks over 3s
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.12))
+                Capsule()
+                    .fill(Color.white.opacity(0.4))
+                    .scaleEffect(x: viewModel.noSpeechProgress, anchor: .trailing)
+                    .animation(.linear(duration: 3.0), value: viewModel.noSpeechProgress)
+            }
+            .frame(height: 2.5)
+            .onAppear {
+                // Trigger after the view renders so SwiftUI has a "from" value to animate
+                viewModel.noSpeechProgress = 0.0
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
+    }
+
     // MARK: - Error Card
 
     private func errorCard(message: String) -> some View {
@@ -343,8 +380,11 @@ struct DictationOverlayView: View {
             || lower.contains("failed to start") {
             return ("Speech Engine Not Ready", "Check that Python and dependencies are installed.")
         }
-        if lower.contains("microphone") || lower.contains("audio input")
-            || lower.contains("recording") {
+        if lower.contains("couldn't hear") || lower.contains("empty")
+            || lower.contains("too short") || lower.contains("insufficient") {
+            return ("No Speech Detected", "Try speaking louder or holding a bit longer.")
+        }
+        if lower.contains("microphone") || lower.contains("audio input") {
             return ("Microphone Unavailable", "Check your mic connection or select a different input.")
         }
         if lower.contains("permission") || lower.contains("access") {
@@ -411,6 +451,7 @@ struct DictationOverlayView: View {
         case .cancelled: return ""
         case .processing: return ""
         case .success: return ""
+        case .noSpeech: return ""
         case .error: return ""
         }
     }
@@ -446,6 +487,13 @@ struct DictationOverlayView: View {
         DictationOverlayView(viewModel: {
             let vm = DictationOverlayViewModel()
             vm.state = .success
+            return vm
+        }())
+
+        DictationOverlayView(viewModel: {
+            let vm = DictationOverlayViewModel()
+            vm.state = .noSpeech
+            vm.noSpeechProgress = 0.6
             return vm
         }())
 

@@ -94,6 +94,8 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 - `flow words list` returns valid JSON array of custom words
 - `flow snippets add "my signature" "Best regards, David"` creates a snippet
 
+**Tip:** Use a throwaway database path in CLI tests (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database.
+
 ## What We Skip
 
 | Skip | Reason | Alternative |

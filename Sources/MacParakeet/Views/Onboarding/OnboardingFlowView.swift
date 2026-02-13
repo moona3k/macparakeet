@@ -323,7 +323,7 @@ struct OnboardingFlowView: View {
                 featureRow(
                     icon: "mic.fill",
                     title: "Dictate anywhere",
-                    detail: "Double-tap \(TriggerKey.current.displayName) to start speaking. Text appears where your cursor is."
+                    detail: "Double-tap \(TriggerKey.current.displayName) for persistent dictation, or hold-to-talk and release to stop. Text appears where your cursor is."
                 )
                 featureRow(
                     icon: "bolt.fill",
@@ -361,9 +361,23 @@ struct OnboardingFlowView: View {
                     )
                     hotkeyFlowStep(
                         number: 3,
+                        key: TriggerKey.current.displayName,
+                        label: "Hold \(TriggerKey.current.displayName)",
+                        detail: "Push-to-talk dictation",
+                        isLast: false
+                    )
+                    hotkeyFlowStep(
+                        number: 4,
+                        key: TriggerKey.current.displayName,
+                        label: "Release \(TriggerKey.current.displayName)",
+                        detail: "Stop recording and paste text",
+                        isLast: false
+                    )
+                    hotkeyFlowStep(
+                        number: 5,
                         key: "Esc",
                         label: "Press Escape",
-                        detail: "Cancel without pasting",
+                        detail: "Cancel (5-second undo window)",
                         isLast: true
                     )
                 }
@@ -396,7 +410,7 @@ struct OnboardingFlowView: View {
                             Image(systemName: "clock.fill")
                                 .font(.system(size: 20))
                                 .foregroundStyle(.secondary)
-                        case .idle, .working:
+                        case .idle, .working(_, _):
                             SpinnerRingView(size: 20, revolutionDuration: 2.5, tintColor: DesignSystem.Colors.accent)
                         }
 
@@ -411,10 +425,16 @@ struct OnboardingFlowView: View {
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    if case .working = viewModel.engineState {
-                        ProgressView()
-                            .progressViewStyle(.linear)
-                            .tint(DesignSystem.Colors.accent)
+                    if case .working(_, let progress) = viewModel.engineState {
+                        if let progress {
+                            ProgressView(value: progress)
+                                .progressViewStyle(.linear)
+                                .tint(DesignSystem.Colors.accent)
+                        } else {
+                            ProgressView()
+                                .progressViewStyle(.linear)
+                                .tint(DesignSystem.Colors.accent)
+                        }
                     }
 
                     if case .failed(let msg) = viewModel.engineState {
@@ -441,7 +461,7 @@ struct OnboardingFlowView: View {
                                 viewModel.skipEngineWarmUp()
                             }
                         }
-                    } else if case .working = viewModel.engineState {
+                    } else if case .working(_, _) = viewModel.engineState {
                         HStack {
                             Button("Continue in Background") {
                                 viewModel.skipEngineWarmUp()
@@ -450,10 +470,12 @@ struct OnboardingFlowView: View {
                         }
                     }
 
-                    if case .working(let message) = viewModel.engineState {
+                    if case .working(let message, _) = viewModel.engineState {
                         Text(message)
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(.secondary)
+                            .contentTransition(.numericText())
+                            .animation(.default, value: message)
                     }
                 }
                 .padding(DesignSystem.Spacing.lg)
@@ -734,7 +756,7 @@ struct OnboardingFlowView: View {
     private func engineHeadline(_ state: OnboardingViewModel.EngineState) -> String {
         switch state {
         case .idle: return "Not started"
-        case .working: return "Working\u{2026}"
+        case .working(_, _): return "Working\u{2026}"
         case .ready: return "Ready"
         case .failed: return "Needs attention"
         case .skipped: return "Will set up later"
@@ -745,7 +767,7 @@ struct OnboardingFlowView: View {
         switch state {
         case .idle:
             return "We'll start the speech engine now."
-        case .working:
+        case .working(_, _):
             return "This can take a few minutes on first run. Keep this window open."
         case .ready:
             return "Local speech engine is running."

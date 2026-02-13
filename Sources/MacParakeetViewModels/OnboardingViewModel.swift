@@ -28,7 +28,7 @@ public final class OnboardingViewModel {
 
     public enum EngineState: Sendable, Equatable {
         case idle
-        case working(message: String)
+        case working(message: String, progress: Double?)
         case ready
         case failed(message: String)
         case skipped
@@ -127,7 +127,7 @@ public final class OnboardingViewModel {
             switch engineState {
             case .ready, .skipped:
                 return true
-            case .idle, .working, .failed:
+            case .idle, .working(_, _), .failed:
                 return false
             }
         case .done:
@@ -164,11 +164,18 @@ public final class OnboardingViewModel {
         let message = isFirstRun
             ? "Setting up local speech engine (first run can take a few minutes)..."
             : "Starting local speech engine..."
-        engineState = .working(message: message)
+        engineState = .working(message: message, progress: nil)
 
         Task {
             do {
-                try await sttClient.warmUp()
+                try await sttClient.warmUp { [weak self] progressMessage in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.engineGeneration == generation else { return }
+                        if case .skipped = self.engineState { return }
+                        let fraction = Self.parseProgressFraction(from: progressMessage)
+                        self.engineState = .working(message: progressMessage, progress: fraction)
+                    }
+                }
                 await MainActor.run {
                     guard self.engineGeneration == generation else { return }
                     if case .skipped = self.engineState { return }
@@ -184,6 +191,16 @@ public final class OnboardingViewModel {
                 }
             }
         }
+    }
+
+    /// Extract a percentage from messages like "Downloading speech model (571 MB)... 45%"
+    static func parseProgressFraction(from message: String) -> Double? {
+        guard message.hasSuffix("%") else { return nil }
+        let stripped = message.dropLast() // remove "%"
+        guard let lastSpace = stripped.lastIndex(of: " ") else { return nil }
+        let numberPart = stripped[stripped.index(after: lastSpace)...]
+        guard let pct = Int(numberPart), pct >= 0, pct <= 100 else { return nil }
+        return Double(pct) / 100.0
     }
 
     public func retryEngineWarmUp(isFirstRun: Bool) {

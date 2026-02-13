@@ -120,12 +120,18 @@ final class DictationOverlayController {
         trackingView = nil
     }
 
+    /// Resign key window so CGEvent paste targets the user's app, not the overlay panel.
+    /// Call this before any simulated Cmd+V when the overlay was clicked (e.g. Undo, Stop button).
+    func resignKeyWindow() {
+        panel?.resignKey()
+    }
+
     /// Determine which element the cursor is over and update the tooltip.
     /// The pill is centered in the panel. Left zone = cancel, right zone = stop.
     private func updateHoverTooltip(at point: NSPoint, in bounds: NSRect) {
         guard case .recording = overlayViewModel.state,
               overlayViewModel.recordingMode == .persistent else {
-            // No hover tooltips in hold-to-talk, ready, cancelled, processing, success, or error states
+            // No hover tooltips in hold-to-talk, ready, cancelled, processing, success, noSpeech, or error states
             overlayViewModel.hoverTooltip = nil
             return
         }
@@ -164,6 +170,7 @@ final class DictationOverlayViewModel {
         case cancelled(timeRemaining: Double)
         case processing
         case success
+        case noSpeech
         case error(String)
     }
 
@@ -181,6 +188,9 @@ final class DictationOverlayViewModel {
 
     /// Cancel countdown value (separate from state enum to avoid view reconstruction jank).
     var cancelTimeRemaining: Double = 5.0
+
+    /// No-speech progress bar: starts at 1.0, animates to 0.0 over 3 seconds.
+    var noSpeechProgress: CGFloat = 1.0
 
     private var timerTask: Task<Void, Never>?
 
@@ -227,6 +237,7 @@ final class DictationOverlayViewModel {
         case .cancelled: return "cancelled"
         case .processing: return "processing"
         case .success: return "success"
+        case .noSpeech: return "noSpeech"
         case .error: return "error"
         }
     }

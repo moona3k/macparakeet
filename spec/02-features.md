@@ -617,13 +617,16 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 
 | Format | Method | Content |
 |--------|--------|---------|
-| Plain text | `.txt` file | Full transcript, no timestamps |
-| Clipboard | Copy button | Transcript text |
+| Plain text | `.txt` file (Downloads) | Full transcript, no timestamps |
+| Markdown | `.md` file (Downloads) | Full transcript in Markdown |
+| Subtitles (SRT) | `.srt` file (Downloads) | Subtitle cues (word timestamps when available; fallback to a single cue) |
+| Subtitles (VTT) | `.vtt` file (Downloads) | WebVTT cues (word timestamps when available; fallback to a single cue) |
+| Clipboard | Copy button | Transcript text (clean preferred, raw fallback) |
 
 **Acceptance criteria:**
 - [x] "Copy to clipboard" copies full transcript text
-- [x] Export to .txt saves file via standard macOS save dialog
-- [x] Export includes file name and duration header
+- [x] Export buttons write files to the user's Downloads folder with sensible names
+- [x] TXT export includes file name and duration header
 
 ---
 
@@ -781,7 +784,7 @@ Modes stack: Formal/Email/Code always run the clean pipeline first, then apply L
 - [ ] Code mode preserves technical terms and syntax
 - [ ] LLM modes always apply clean pipeline first
 - [ ] LLM processing completes in <5 seconds for typical dictations
-- [ ] Mode selectable per-dictation (not just global setting)
+- [x] Mode is a global default (set in Vocabulary, applies to all dictations)
 - [ ] Graceful fallback to Clean if LLM fails or times out
 
 ---
@@ -951,7 +954,7 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 - [ ] Pre-built commands accessible from overlay
 - [ ] Custom commands can be saved and reused
 - [ ] Cmd+Z in target app undoes the replacement
-- [ ] Graceful error if no text selected or LLM fails
+- [ ] Graceful error if no text selected ("Select text first") or LLM fails
 
 ---
 
@@ -1248,7 +1251,7 @@ new scheduling architecture.
 **Acceptance criteria:**
 - [ ] App passes App Store review on first submission
 - [ ] All permissions justified in review notes
-- [ ] Free tier (15 min/day) and Pro tier ($49) configured
+- [ ] Trial (7 days) and Pro tier ($49) configured
 - [ ] Privacy policy live at macparakeet.com/privacy
 - [ ] Screenshots show all major features
 
@@ -1451,28 +1454,17 @@ Parakeet daemon bootstrap → Audio capture (AVAudioEngine)
 
 ---
 
-## Free vs Pro Tiers
+## Trial vs Pro
 
-| Feature | Free | Pro ($49) |
-|---------|------|-----------|
-| Dictation | 15 min/day | Unlimited |
-| File transcription | 15 min/day | Unlimited |
-| Export (.txt, clipboard) | Yes | Yes |
-| Export (.srt, .vtt, .docx, .pdf, .json) | -- | Yes |
-| Clean text pipeline | Yes | Yes |
-| AI refinement (formal, email, code) | -- | Yes |
-| Command mode | -- | Yes |
-| YouTube transcription | -- | Yes |
-| Speaker diarization | -- | Yes |
-| Batch processing | -- | Yes |
-| Whisper mode | -- | Yes |
-| Custom words & snippets | 10 each | Unlimited |
-| Dictation history | 7 days | Unlimited |
+| Tier | What’s Included |
+|------|------------------|
+| **Trial (7 days)** | Full feature access: dictation, file transcription, YouTube transcription, clean pipeline, custom words/snippets, exports. |
+| **Pro ($49)** | Unlimited access after trial ends. |
 
 **Implementation:**
-- Free tier enforced by daily timer (resets at midnight local time)
-- No account required for either tier
-- Pro unlocked via App Store in-app purchase (one-time, non-consumable)
+- Trial is time-based (7 days from first launch).
+- No account required.
+- Pro is unlocked via license activation (one-time purchase).
 - License stored in Keychain (survives reinstall)
 - No "nag screens" -- free tier is genuinely useful, Pro is genuinely better
 

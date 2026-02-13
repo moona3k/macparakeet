@@ -37,6 +37,9 @@ public final class SettingsViewModel {
     public var saveTranscriptionAudio: Bool {
         didSet { defaults.set(saveTranscriptionAudio, forKey: "saveTranscriptionAudio") }
     }
+    public var autoUpdateYouTubeEngine: Bool {
+        didSet { defaults.set(autoUpdateYouTubeEngine, forKey: "autoUpdateYouTubeEngine") }
+    }
 
     // Permission status
     public var microphoneGranted = false
@@ -79,6 +82,7 @@ public final class SettingsViewModel {
         processingMode = defaults.string(forKey: "processingMode") ?? "clean"
         saveAudioRecordings = defaults.object(forKey: "saveAudioRecordings") as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
+        autoUpdateYouTubeEngine = defaults.object(forKey: "autoUpdateYouTubeEngine") as? Bool ?? true
     }
 
     public func configure(

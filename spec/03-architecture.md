@@ -858,7 +858,7 @@ CREATE TABLE dictations (
     cleanTranscript TEXT,                   -- after TextProcessingPipeline (v0.2+)
     audioPath       TEXT,                   -- relative path to saved audio (nullable)
     pastedToApp     TEXT,                   -- bundle ID of target app
-    processingMode  TEXT NOT NULL DEFAULT 'raw', -- 'raw' | 'clean'
+    processingMode  TEXT NOT NULL DEFAULT 'raw', -- 'raw' (v0.1) or 'clean' (v0.2 default via UserDefaults)
     status          TEXT NOT NULL DEFAULT 'completed', -- 'recording' | 'processing' | 'completed' | 'error'
     errorMessage    TEXT,                   -- non-null if status == 'error'
     updatedAt       TEXT NOT NULL

@@ -2,6 +2,17 @@ import ArgumentParser
 import Foundation
 import MacParakeetCore
 
+private func resolveDatabasePath(_ database: String?) -> String {
+    let opt = database?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return (opt?.isEmpty == false) ? opt! : AppPaths.databasePath
+}
+
+private func ensureDatabaseDirectoryExists(path: String) {
+    guard path != AppPaths.databasePath else { return }
+    let dir = URL(fileURLWithPath: path).deletingLastPathComponent()
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+}
+
 struct HistoryCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "history",
@@ -24,8 +35,14 @@ struct DictationsSubcommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Maximum number of results.")
     var limit: Int = 20
 
+    @Option(help: "Path to SQLite database file (defaults to the app database).")
+    var database: String?
+
     func run() throws {
-        let dbManager = try DatabaseManager(path: AppPaths.databasePath)
+        try AppPaths.ensureDirectories()
+        let dbPath = resolveDatabasePath(database)
+        ensureDatabaseDirectoryExists(path: dbPath)
+        let dbManager = try DatabaseManager(path: dbPath)
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
         let dictations = try repo.fetchAll(limit: limit)
 
@@ -61,8 +78,14 @@ struct TranscriptionsSubcommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Maximum number of results.")
     var limit: Int = 20
 
+    @Option(help: "Path to SQLite database file (defaults to the app database).")
+    var database: String?
+
     func run() throws {
-        let dbManager = try DatabaseManager(path: AppPaths.databasePath)
+        try AppPaths.ensureDirectories()
+        let dbPath = resolveDatabasePath(database)
+        ensureDatabaseDirectoryExists(path: dbPath)
+        let dbManager = try DatabaseManager(path: dbPath)
         let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
         let transcriptions = try repo.fetchAll(limit: limit)
 
@@ -102,8 +125,14 @@ struct SearchSubcommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Maximum number of results.")
     var limit: Int = 20
 
+    @Option(help: "Path to SQLite database file (defaults to the app database).")
+    var database: String?
+
     func run() throws {
-        let dbManager = try DatabaseManager(path: AppPaths.databasePath)
+        try AppPaths.ensureDirectories()
+        let dbPath = resolveDatabasePath(database)
+        ensureDatabaseDirectoryExists(path: dbPath)
+        let dbManager = try DatabaseManager(path: dbPath)
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
         let results = try repo.search(query: query, limit: limit)
 

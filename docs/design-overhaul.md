@@ -687,7 +687,7 @@ Same flow, warmer personality:
 7. The app has **personality** — it doesn't look like every other macOS utility
 8. It still feels **premium** — warm ≠ cheap, friendly ≠ childish
 9. **Both themes work** — light as default, dark as strong alternative
-10. **All 315 tests still pass** — this is a view-layer change only
+10. **All 360 tests still pass** — this is a view-layer change only
 
 ---
 

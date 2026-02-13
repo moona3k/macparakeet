@@ -21,8 +21,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var overlayViewModel: DictationOverlayViewModel?
     private var readyDismissTimer: DispatchWorkItem?
     private var recordingTask: Task<Void, Never>?
+    /// Serializes non-recording overlay actions (stop/undo/confirm-cancel) and allows safe cancellation.
+    private var overlayActionTask: Task<Void, Never>?
     private var idlePillController: IdlePillController?
     private var idlePillViewModel: IdlePillViewModel?
+
+    /// Monotonic generation id for the dictation UI flow. Any async work must guard this value before
+    /// mutating shared UI state or calling into `DictationService` (which is global/shared).
+    private var overlayGeneration: Int = 0
 
     // MARK: - ViewModels
 
@@ -145,7 +151,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             appEnvironment = env
 
             Task {
-                await env.entitlementsService.bootstrapTrialIfNeeded()
+                // Only bootstrap trial if onboarding is already completed (returning user).
+                // For new users, trial starts at onboarding completion — not during setup.
+                let onboardingDone = UserDefaults.standard.string(forKey: OnboardingViewModel.onboardingCompletedKey) != nil
+                if onboardingDone {
+                    await env.entitlementsService.bootstrapTrialIfNeeded()
+                }
                 await env.entitlementsService.refreshValidationIfNeeded()
             }
 
@@ -201,6 +212,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         manager.onReadyForSecondTap = { [weak self] in
             self?.showReadyPill()
+        }
+
+        manager.onEscapeWhileIdle = { [weak self] in
+            self?.dismissOverlayIfError()
         }
 
         if manager.start() {
@@ -264,6 +279,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             sttClient: sttClient,
             onFinish: { [weak self] in
                 self?.refreshHotkeyAfterPermissions()
+                // Start the 7-day trial now that onboarding is complete —
+                // user doesn't lose trial days to permission setup.
+                if let env = self?.appEnvironment {
+                    Task { await env.entitlementsService.bootstrapTrialIfNeeded() }
+                }
             },
             onOpenMainApp: { [weak self] in
                 self?.openMainWindow()
@@ -292,12 +312,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         idlePillViewModel = nil
     }
 
+    @discardableResult
+    private func bumpOverlayGeneration() -> Int {
+        overlayGeneration += 1
+        return overlayGeneration
+    }
+
     // MARK: - Ready Pill
 
     private func showReadyPill() {
         readyDismissTimer?.cancel()
 
         hideIdlePill()
+
+        // If the user repeatedly enters "waitingForSecondTap" (e.g., slow/multiple taps),
+        // HotkeyManager may call onReadyForSecondTap multiple times. Reuse the same ready
+        // overlay instead of creating new panels (which can orphan older ones on screen).
+        if let existingVM = overlayViewModel,
+           case .ready = existingVM.state,
+           overlayController != nil {
+            scheduleReadyDismiss(expectedGeneration: overlayGeneration)
+            return
+        }
+
+        // Defensive: if there's an existing overlay controller, hide it before replacing.
+        overlayController?.hide()
+        overlayController = nil
+        overlayViewModel = nil
+
+        let gen = bumpOverlayGeneration()
 
         let vm = DictationOverlayViewModel()
         vm.onCancel = { [weak self] in self?.cancelDictation() }
@@ -311,17 +354,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         controller.show()
         overlayController = controller
 
-        // Auto-dismiss after 800ms if no second tap or hold
+        scheduleReadyDismiss(expectedGeneration: gen)
+    }
+
+    private func scheduleReadyDismiss(expectedGeneration: Int) {
+        // Auto-dismiss after 800ms if no second tap or hold.
         let timer = DispatchWorkItem { [weak self] in
-            self?.dismissReadyPill()
+            Task { @MainActor in
+                self?.dismissReadyPill(expectedGeneration: expectedGeneration)
+            }
         }
         readyDismissTimer = timer
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(800), execute: timer)
     }
 
-    private func dismissReadyPill() {
+    private func dismissReadyPill(expectedGeneration: Int? = nil) {
         readyDismissTimer?.cancel()
         readyDismissTimer = nil
+
+        if let expectedGeneration, expectedGeneration != overlayGeneration {
+            return
+        }
 
         // Only dismiss if still in ready state — don't dismiss a recording overlay
         guard let vm = overlayViewModel, case .ready = vm.state else { return }
@@ -341,7 +394,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         readyDismissTimer?.cancel()
         readyDismissTimer = nil
 
+        // Starting a new recording should cancel any pending cancel countdown.
+        let hadCancelCountdown = cancelTask != nil
+        cancelTask?.cancel()
+        cancelTask = nil
+        if hadCancelCountdown {
+            // Prevent the hotkey state machine from being stuck in cancelWindow/blocked.
+            hotkeyManager?.resetToIdle()
+        }
+
         hideIdlePill()
+
+        // If we already have a ready pill, keep the current generation so we can reuse it seamlessly.
+        // Otherwise bump, which invalidates any prior async work.
+        let gen: Int
+        if let existingVM = overlayViewModel, case .ready = existingVM.state {
+            gen = overlayGeneration
+        } else {
+            gen = bumpOverlayGeneration()
+        }
 
         // Cancel old recording task and immediately clean up any overlay it created.
         // Without this, a rapid double-call to startDictation (before the first task
@@ -354,27 +425,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             overlayViewModel = nil
         }
 
-        recordingTask = Task {
+        recordingTask = Task { @MainActor in
             do {
                 // Avoid showing the overlay if the user isn't entitled (trial expired).
                 try await env.entitlementsService.assertCanTranscribe(now: Date())
             } catch {
-                await MainActor.run {
-                    self.dismissReadyPill()
-                    self.showIdlePill()
-                    self.presentEntitlementsAlert(error)
-                }
+                guard self.overlayGeneration == gen else { return }
+                self.dismissReadyPill(expectedGeneration: gen)
+                self.showIdlePill()
+                self.presentEntitlementsAlert(error)
                 return
             }
 
             // Bail if stop/cancel was called while awaiting entitlements
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, self.overlayGeneration == gen else { return }
 
             // Reuse existing overlay if it's in ready state (seamless transition)
             let vm: DictationOverlayViewModel
             if let existingVM = overlayViewModel, case .ready = existingVM.state {
                 vm = existingVM
             } else {
+                guard self.overlayGeneration == gen else { return }
                 vm = DictationOverlayViewModel()
                 vm.onCancel = { [weak self] in self?.cancelDictation() }
                 vm.onStop = { [weak self] in self?.stopDictation() }
@@ -387,26 +458,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 overlayController = controller
             }
 
+            guard self.overlayGeneration == gen else { return }
             vm.recordingMode = mode
             vm.state = .recording
             vm.startTimer()
 
             do {
                 try await env.dictationService.startRecording()
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, self.overlayGeneration == gen else { return }
 
                 // Snapshot settings at start of recording (keeps behavior stable during a recording).
-                let (autoStopEnabled, silenceDelay) = await MainActor.run {
-                    (self.settingsViewModel.silenceAutoStop, self.settingsViewModel.silenceDelay)
-                }
+                let (autoStopEnabled, silenceDelay) = (self.settingsViewModel.silenceAutoStop, self.settingsViewModel.silenceDelay)
                 let silenceThreshold: Float = 0.03
                 var lastNonSilenceAt = Date()
                 var didAutoStop = false
 
                 // Update audio level periodically
-                while !Task.isCancelled, case .recording = await env.dictationService.state {
+                while !Task.isCancelled,
+                      self.overlayGeneration == gen,
+                      case .recording = await env.dictationService.state {
                     let level = await env.dictationService.audioLevel
-                    await MainActor.run { vm.audioLevel = level }
+                    vm.audioLevel = level
 
                     if autoStopEnabled {
                         let now = Date()
@@ -414,7 +486,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                             lastNonSilenceAt = now
                         } else if !didAutoStop, now.timeIntervalSince(lastNonSilenceAt) >= silenceDelay {
                             didAutoStop = true
-                            await MainActor.run { self.stopDictation() }
+                            self.stopDictation()
                             break
                         }
                     }
@@ -422,15 +494,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     try? await Task.sleep(for: .milliseconds(50))
                 }
             } catch {
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    vm.state = .error(error.localizedDescription)
-                }
+                guard !Task.isCancelled, self.overlayGeneration == gen else { return }
+                vm.state = .error(error.localizedDescription)
                 try? await Task.sleep(for: .seconds(5))
-                guard !Task.isCancelled else { return }
-                await MainActor.run {
-                    self.dismissOverlay()
-                }
+                guard !Task.isCancelled, self.overlayGeneration == gen else { return }
+                self.dismissOverlay()
             }
         }
     }
@@ -438,25 +506,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func stopDictation() {
         recordingTask?.cancel()
         recordingTask = nil
-        guard let env = appEnvironment, let vm = overlayViewModel else { return }
+
+        // Stop should cancel any pending cancel countdown.
+        cancelTask?.cancel()
+        cancelTask = nil
+
+        guard let env = appEnvironment else { return }
+
+        // Edge case: stop during entitlements check (no overlay created yet).
+        guard let vm = overlayViewModel else {
+            hotkeyManager?.resetToIdle()
+            showIdlePill()
+            return
+        }
 
         // Capture the controller now — if the user starts a new dictation before
         // our Task finishes, self.overlayController will point to a new overlay
         // and we'd orphan this one on screen.
         let controller = overlayController
+        let gen = overlayGeneration
 
-        Task {
-            await MainActor.run {
-                vm.stopTimer()
-                vm.state = .processing
-            }
+        overlayActionTask?.cancel()
+        overlayActionTask = Task { @MainActor in
+            vm.stopTimer()
+            vm.state = .processing
 
             do {
                 var dictation = try await env.dictationService.stopRecording()
-                await MainActor.run { vm.state = .success }
+                vm.state = .success
+                // Resign key window so CGEvent paste targets the user's app
+                // (needed when stop was triggered by clicking the overlay button).
+                controller?.resignKeyWindow()
                 // Brief pause so user sees the checkmark before paste
                 try? await Task.sleep(for: .milliseconds(200))
-                let pastedToApp = await MainActor.run { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
+                let pastedToApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
                 try? await env.clipboardService.pasteText(dictation.cleanTranscript ?? dictation.rawTranscript)
                 if let pastedToApp {
                     dictation.pastedToApp = pastedToApp
@@ -464,23 +547,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     try? env.dictationRepo.save(dictation)
                 }
                 try? await Task.sleep(for: .milliseconds(800))
+            } catch where self.isNoSpeechError(error) {
+                // Brief "no speech" pill — view's onAppear triggers the bar animation
+                vm.noSpeechProgress = 1.0
+                vm.state = .noSpeech
+                try? await Task.sleep(for: .seconds(3))
             } catch {
-                await MainActor.run {
-                    vm.state = .error(error.localizedDescription)
-                }
+                guard !Task.isCancelled else { return }
+                vm.state = .error(error.localizedDescription)
                 try? await Task.sleep(for: .seconds(5))
             }
 
-            await MainActor.run {
-                controller?.hide()
-                // Only nil out self.overlayController if it hasn't been replaced
-                if self.overlayController === controller {
-                    self.overlayController = nil
-                }
-                self.historyViewModel.loadDictations()
-                if self.overlayController == nil {
-                    self.showIdlePill()
-                }
+            guard !Task.isCancelled else { return }
+
+            controller?.hide()
+            // Only clear references if they haven't been replaced.
+            if self.overlayController === controller {
+                self.overlayController = nil
+            }
+            if self.overlayViewModel === vm {
+                self.overlayViewModel = nil
+            }
+            self.historyViewModel.loadDictations()
+            if self.overlayGeneration == gen, self.overlayController == nil {
+                self.hotkeyManager?.resetToIdle()
+                self.showIdlePill()
             }
         }
     }
@@ -490,26 +581,66 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func cancelDictation() {
         recordingTask?.cancel()
         recordingTask = nil
-        guard let env = appEnvironment, let vm = overlayViewModel else { return }
+
+        guard let env = appEnvironment else { return }
+
+        // Edge case: cancel during entitlements check (no overlay created yet).
+        guard let vm = overlayViewModel else {
+            hotkeyManager?.resetToIdle()
+            showIdlePill()
+            return
+        }
+
+        // Cancel in "ready" state should just dismiss back to idle (no audio to cancel).
+        if case .ready = vm.state {
+            dismissReadyPill()
+            hotkeyManager?.resetToIdle()
+            return
+        }
+
+        // If we're processing (stop/undo), treat cancel as a UI dismiss and let processing finish.
+        switch vm.state {
+        case .processing, .success, .noSpeech, .error:
+            dismissOverlay()
+            return
+        default:
+            break
+        }
 
         // If already in cancel countdown, confirm immediately (Esc pressed again)
         if case .cancelled = vm.state {
             cancelTask?.cancel()
             cancelTask = nil
-            Task {
+
+            let controller = overlayController
+            let gen = overlayGeneration
+
+            overlayActionTask?.cancel()
+            overlayActionTask = Task { @MainActor in
+                guard self.overlayGeneration == gen else { return }
                 await env.dictationService.confirmCancel()
-                await MainActor.run {
-                    self.hotkeyManager?.resetToIdle()
-                    self.overlayController?.hide()
+                guard self.overlayGeneration == gen else { return }
+
+                self.hotkeyManager?.resetToIdle()
+                controller?.hide()
+                if self.overlayController === controller {
                     self.overlayController = nil
-                    self.showIdlePill()
                 }
+                if self.overlayViewModel === vm {
+                    self.overlayViewModel = nil
+                }
+                _ = self.bumpOverlayGeneration()
+                self.showIdlePill()
             }
             return
         }
 
         cancelTask?.cancel()
-        cancelTask = Task {
+        let controller = overlayController
+        let gen = overlayGeneration
+        cancelTask = Task { @MainActor in
+            guard self.overlayGeneration == gen else { return }
+
             // Soft cancel immediately: stop capture but keep audio briefly so Undo can proceed.
             await env.dictationService.cancelRecording()
 
@@ -517,11 +648,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // (Esc path already transitions the state machine to cancelWindow.)
             self.hotkeyManager?.notifyCancelledByUI()
 
-            await MainActor.run {
-                vm.stopTimer()
-                vm.cancelTimeRemaining = 5.0
-                vm.state = .cancelled(timeRemaining: 5.0)
-            }
+            guard self.overlayGeneration == gen else { return }
+            vm.stopTimer()
+            vm.cancelTimeRemaining = 5.0
+            vm.state = .cancelled(timeRemaining: 5.0)
 
             // Simple 5-second countdown. Only update cancelTimeRemaining (not state
             // enum) to avoid SwiftUI view reconstruction that fights the ring animation.
@@ -530,20 +660,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if Task.isCancelled {
                     // Callers (confirm/undo) handle their own cleanup, but guarantee
                     // the hotkey is never left stuck in cancelWindow.
-                    await MainActor.run { self.hotkeyManager?.resetToIdle() }
+                    self.hotkeyManager?.resetToIdle()
                     return
                 }
-                await MainActor.run { vm.cancelTimeRemaining = i }
+                guard self.overlayGeneration == gen else { return }
+                vm.cancelTimeRemaining = i
             }
 
             // Countdown expired — discard and return to idle UI.
+            guard self.overlayGeneration == gen else { return }
             await env.dictationService.confirmCancel()
-            await MainActor.run {
-                self.hotkeyManager?.resetToIdle()
-                self.overlayController?.hide()
+            guard self.overlayGeneration == gen else { return }
+            self.hotkeyManager?.resetToIdle()
+            controller?.hide()
+            if self.overlayController === controller {
                 self.overlayController = nil
-                self.showIdlePill()
             }
+            if self.overlayViewModel === vm {
+                self.overlayViewModel = nil
+            }
+            _ = self.bumpOverlayGeneration()
+            self.showIdlePill()
         }
     }
 
@@ -556,19 +693,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         // Capture the controller now (same race-condition guard as stopDictation).
         let controller = overlayController
+        let gen = overlayGeneration
 
-        Task {
-            await MainActor.run {
-                vm.stopTimer()
-                vm.state = .processing
-            }
+        overlayActionTask?.cancel()
+        overlayActionTask = Task { @MainActor in
+            vm.stopTimer()
+            vm.state = .processing
 
             do {
                 var dictation = try await env.dictationService.undoCancel()
-                await MainActor.run { vm.state = .success }
+                vm.state = .success
+                // Resign key window so CGEvent paste targets the user's app,
+                // not the overlay panel (which became key when Undo was clicked).
+                controller?.resignKeyWindow()
                 // Brief pause so user sees the checkmark before paste
                 try? await Task.sleep(for: .milliseconds(200))
-                let pastedToApp = await MainActor.run { NSWorkspace.shared.frontmostApplication?.bundleIdentifier }
+                let pastedToApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
                 try? await env.clipboardService.pasteText(dictation.cleanTranscript ?? dictation.rawTranscript)
                 if let pastedToApp {
                     dictation.pastedToApp = pastedToApp
@@ -576,23 +716,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     try? env.dictationRepo.save(dictation)
                 }
                 try? await Task.sleep(for: .milliseconds(800))
+            } catch where self.isNoSpeechError(error) {
+                // Brief "no speech" pill — view's onAppear triggers the bar animation
+                vm.noSpeechProgress = 1.0
+                vm.state = .noSpeech
+                try? await Task.sleep(for: .seconds(3))
             } catch {
-                await MainActor.run {
-                    vm.state = .error(error.localizedDescription)
-                }
+                guard !Task.isCancelled else { return }
+                vm.state = .error(error.localizedDescription)
                 try? await Task.sleep(for: .seconds(5))
             }
 
-            await MainActor.run {
+            guard !Task.isCancelled else { return }
+
+            if self.overlayGeneration == gen {
                 self.hotkeyManager?.resetToIdle()
-                controller?.hide()
-                if self.overlayController === controller {
-                    self.overlayController = nil
-                }
-                self.historyViewModel.loadDictations()
-                if self.overlayController == nil {
-                    self.showIdlePill()
-                }
+            }
+            controller?.hide()
+            if self.overlayController === controller {
+                self.overlayController = nil
+            }
+            if self.overlayViewModel === vm {
+                self.overlayViewModel = nil
+            }
+            self.historyViewModel.loadDictations()
+            if self.overlayGeneration == gen, self.overlayController == nil {
+                self.showIdlePill()
             }
         }
     }
@@ -602,11 +751,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         recordingTask = nil
         cancelTask?.cancel()
         cancelTask = nil
+        overlayActionTask?.cancel()
+        overlayActionTask = nil
+        readyDismissTimer?.cancel()
+        readyDismissTimer = nil
         hotkeyManager?.resetToIdle()
         overlayController?.hide()
         overlayController = nil
         overlayViewModel = nil
+        _ = bumpOverlayGeneration()
         showIdlePill()
+    }
+
+    /// Dismiss the overlay if it's showing an error or no-speech feedback. Called when ESC is
+    /// pressed while the state machine is idle (these overlays outlive the recording state).
+    private func dismissOverlayIfError() {
+        guard let vm = overlayViewModel else { return }
+        if case .error = vm.state {
+            dismissOverlay()
+        } else if case .noSpeech = vm.state {
+            dismissOverlay()
+        }
+    }
+
+    /// Whether the error represents "no speech" (empty transcript or recording too short).
+    /// These get the gentle noSpeech pill instead of the full error card.
+    private func isNoSpeechError(_ error: Error) -> Bool {
+        if let e = error as? DictationServiceError, e == .emptyTranscript { return true }
+        if let e = error as? AudioProcessorError, case .insufficientSamples = e { return true }
+        return false
     }
 
     // MARK: - Window Management

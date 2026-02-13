@@ -2,6 +2,11 @@ import ArgumentParser
 import Foundation
 import MacParakeetCore
 
+enum TranscribeMode: String, ExpressibleByArgument {
+    case raw
+    case clean
+}
+
 struct TranscribeCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "transcribe",
@@ -14,13 +19,27 @@ struct TranscribeCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Output format: text, json.")
     var format: String = "text"
 
+    @Option(help: "Processing mode: raw, clean.")
+    var mode: TranscribeMode = .clean
+
+    @Option(help: "Path to SQLite database file (defaults to the app database).")
+    var database: String?
+
     func run() async throws {
         let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Set up services
         try AppPaths.ensureDirectories()
-        let dbManager = try DatabaseManager(path: AppPaths.databasePath)
+        let dbPathOpt = database?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedDBPath = (dbPathOpt?.isEmpty == false) ? dbPathOpt! : AppPaths.databasePath
+        if resolvedDBPath != AppPaths.databasePath {
+            let dir = URL(fileURLWithPath: resolvedDBPath).deletingLastPathComponent()
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        let dbManager = try DatabaseManager(path: resolvedDBPath)
         let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+        let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
+        let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
         let pythonBootstrap = PythonBootstrap()
         let sttClient = STTClient(pythonBootstrap: pythonBootstrap)
         let audioProcessor = AudioProcessor()
@@ -30,6 +49,9 @@ struct TranscribeCommand: AsyncParsableCommand {
             audioProcessor: audioProcessor,
             sttClient: sttClient,
             transcriptionRepo: transcriptionRepo,
+            customWordRepo: customWordRepo,
+            snippetRepo: snippetRepo,
+            processingMode: { self.mode == .raw ? .raw : .clean },
             youtubeDownloader: youtubeDownloader
         )
 
@@ -75,7 +97,7 @@ struct TranscribeCommand: AsyncParsableCommand {
             print("Duration: \(min)m \(sec)s")
         }
         print()
-        print(t.rawTranscript ?? "(no transcript)")
+        print(t.cleanTranscript ?? t.rawTranscript ?? "(no transcript)")
         print()
 
         if let words = t.wordTimestamps, !words.isEmpty {
@@ -94,7 +116,9 @@ struct TranscribeCommand: AsyncParsableCommand {
             "fileName": t.fileName,
             "status": "\(t.status)",
         ]
-        if let text = t.rawTranscript { dict["text"] = text }
+        if let text = t.rawTranscript { dict["rawTranscript"] = text }
+        if let text = t.cleanTranscript { dict["cleanTranscript"] = text }
+        if let preferred = (t.cleanTranscript ?? t.rawTranscript) { dict["text"] = preferred }
         if let ms = t.durationMs { dict["durationMs"] = ms }
         if let words = t.wordTimestamps {
             dict["words"] = words.map { w in

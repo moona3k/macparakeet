@@ -10,7 +10,7 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 
 **Domain:** [macparakeet.com](https://macparakeet.com)
 
-**Pricing:** $49 one-time purchase (Free tier: 15 min/day)
+**Pricing:** $49 one-time purchase (Free: 7-day trial)
 
 ## Quick Navigation
 
@@ -29,6 +29,9 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 | Testing strategy | `spec/09-testing.md` |
 | ADRs (locked decisions) | `spec/adr/` -> individual decision records |
 | Competitive research | `docs/competitive-analysis.md` |
+| Brand identity | `docs/brand-identity.md` |
+| UI/UX design overhaul | `docs/design-overhaul.md` |
+| Distribution & signing | `docs/distribution.md` |
 | Implementation plans | `plans/` -> active and completed plans |
 
 ## Tech Stack (Locked Decisions)
@@ -42,6 +45,7 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 | Python | uv bootstrap | Bundled uv binary, isolated venv |
 | Audio | AVAudioEngine + Core Audio | Mic capture for dictation |
 | LLM | MLX-Swift | Qwen3-4B for command mode + AI refinement |
+| Licensing | LemonSqueezy | License key activation, validation API |
 
 ## Product Context
 
@@ -81,6 +85,22 @@ Direct competitors (see `docs/competitive-analysis.md` for full analysis):
 4. **Two co-equal modes** -- Dictation AND transcription, not bolted-on afterthoughts
 5. **Simple** -- Does two things well, no feature bloat
 
+## Product Decisions (Settled)
+
+These decisions were made during spec review and are locked:
+
+| Decision | Choice | Rationale |
+|----------|--------|-----------|
+| Empty transcript UX | Silently dismiss | Short hold-to-talk with no speech = user changed their mind. No error card. |
+| Audio retention | On/off toggle | Simpler than 3-tier (all/7d/never). Users who care about storage can manually delete. |
+| Processing mode scope | Global default only | Set once in Vocabulary, applies to all dictations. No per-dictation picker on overlay. |
+| Trial start timing | On onboarding completion | 7-day clock starts after permissions are granted, not during setup. |
+| License grace period | Unlimited | Validate once on activation, never expire locally. One-time purchase = yours forever. |
+| Command mode no selection | Show error "Select text first" | Command Mode is about editing selected text, not free-form generation. |
+| Context awareness | Aspirational future | No version commitment. Don't promise what doesn't exist. Build post-launch. |
+| Course correction | Deferred | Complexity not justified for local LLM. Noted in competitive analysis. |
+| Sound design | Skip for v1.0 | Ship without custom sounds. Add later when there's time to get them right. |
+
 ## Architecture Decisions (ADRs)
 
 All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess them.
@@ -92,10 +112,11 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-003 | One-time purchase pricing ($49) | `spec/adr/003-one-time-purchase.md` |
 | ADR-004 | Deterministic text processing pipeline | `spec/adr/004-deterministic-pipeline.md` |
 | ADR-005 | First-run onboarding flow | `spec/adr/005-onboarding-first-run.md` |
+| ADR-006 | Trial + license key activation | `spec/adr/006-trial-and-license-activation.md` |
 
 ## Current Phase
 
-**v0.2 In Progress** -- Clean pipeline + management UI implemented (342 tests, `swift test` green)
+**v0.2 In Progress** -- Clean pipeline + management UI implemented (360 tests, `swift test` green)
 
 ### v0.1 MVP (Implemented)
 - [x] System-wide dictation: Configurable hotkey (Fn default), double-tap (persistent) + hold-to-talk
@@ -106,9 +127,9 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] Settings (hotkey display, silence auto-stop, storage, permissions)
 - [x] Dictation history (date-grouped, searchable, flat list with bottom bar player, audio playback)
 - [x] Menu bar app with main window + sidebar navigation
-- [x] Basic export (plain text .txt, copy to clipboard)
+- [x] Basic export (TXT/Markdown/SRT/VTT + copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + substring search)
-- [x] CLI tool: `macparakeet transcribe`, `history`, `health`
+- [x] Internal dev CLI tool: `macparakeet transcribe`, `history`, `health`
 - [x] Python STT daemon (JSON-RPC over stdin/stdout)
 
 ### v0.2 Clean Pipeline + AI
@@ -121,7 +142,8 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 ### v0.3 Command Mode + Export
 - [ ] Command Mode (highlight text + voice command -> LLM edits in-place, like WisprFlow Pro)
 - [x] YouTube URL transcription (yt-dlp + Parakeet, single video)
-- [ ] Export formats (TXT, SRT, VTT, DOCX)
+- [x] Export formats (TXT, Markdown, SRT, VTT)
+- [ ] Export formats (DOCX, PDF, JSON)
 
 ### v0.4 Polish + Launch
 - [ ] Speaker diarization
@@ -273,8 +295,10 @@ macparakeet/
 │   └── adr/            # Architecture Decision Records (locked)
 ├── docs/               # Research, explorations (informative)
 │   ├── competitive-analysis.md
-│   ├── distribution.md # Developer ID signing + notarization guide
-│   └── research/       # Deep dives on competitors, user sentiment
+│   ├── brand-identity.md   # Logo, colors, typography, brand voice
+│   ├── design-overhaul.md  # UI/UX redesign spec (warm magical direction)
+│   ├── distribution.md     # Developer ID signing + notarization guide
+│   └── research/           # Deep dives on competitors, user sentiment
 ├── plans/              # Implementation plans (version controlled)
 │   ├── active/         # Currently being implemented
 │   └── completed/      # Done plans (archived, not deleted)
@@ -284,8 +308,8 @@ macparakeet/
 │   ├── MacParakeetCore/        # Shared library (no UI deps)
 │   └── MacParakeetViewModels/  # ViewModels (testable, depends on Core)
 ├── Tests/
-│   └── MacParakeetTests/   # Unit, database, and integration tests (342 tests)
-├── Assets/             # App icons and images (placeholder)
+│   └── MacParakeetTests/   # Unit, database, and integration tests (360 tests)
+├── Assets/             # App icon (.icns + source PNG) and SVG logos
 ├── python/             # STT daemon (Parakeet via uv)
 │   └── macparakeet_stt/
 └── scripts/            # Build, test, and release scripts (placeholder)
@@ -567,7 +591,7 @@ swift test
 
 ### Privacy Guarantees
 
-1. **No network by default** -- App works fully offline
+1. **Offline-first** -- Dictation and file transcription work fully offline. Network is used only for user-initiated YouTube downloads and optional license activation/validation.
 2. **Temp files deleted** -- Audio removed after transcription (unless user saves)
 3. **No analytics** -- Zero telemetry
 4. **No accounts** -- No login, no email, no tracking

@@ -71,6 +71,20 @@ public actor YouTubeDownloader {
 
     // MARK: - Private
 
+    /// Build a PATH that includes common binary locations. App bundles ship with
+    /// a minimal PATH that excludes /opt/homebrew/bin, so tools like ffmpeg and
+    /// node (required by yt-dlp for YouTube JS extraction) can't be found.
+    private nonisolated static func extendedPATH() -> String {
+        let current = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
+        let extras = [
+            "/opt/homebrew/bin",
+            "/usr/local/bin",
+        ]
+        let existing = Set(current.split(separator: ":").map(String.init))
+        let missing = extras.filter { !existing.contains($0) }
+        return (missing + [current]).joined(separator: ":")
+    }
+
     /// Locate FFmpeg for yt-dlp post-processing. App bundles have a minimal PATH
     /// that excludes /opt/homebrew/bin, so yt-dlp can't find it without help.
     private nonisolated static func findFFmpegDirectory() -> String? {
@@ -108,7 +122,15 @@ public actor YouTubeDownloader {
         let durationSeconds: Int?
     }
 
+    private struct JavaScriptRuntime {
+        let name: String
+        let executablePath: String
+    }
+
     private func resolveYtDlpPath() async throws -> String {
+        _ = try await pythonBootstrap.ensureEnvironment()
+
+        await pythonBootstrap.autoUpdateYouTubeEngineIfNeeded()
         let venvBin = "\(pythonBootstrap.venvPath)/bin/yt-dlp"
         if FileManager.default.fileExists(atPath: venvBin) {
             return venvBin
@@ -129,11 +151,13 @@ public actor YouTubeDownloader {
         let result = try await runYtDlp(
             ytDlpPath: ytDlpPath,
             arguments: [
-            "--skip-download",
-            "--dump-json",
-            "--no-playlist",
-            url,
-        ],
+                "--skip-download",
+                "--dump-json",
+                "--no-playlist",
+                "--extractor-args",
+                "youtube:player_client=tv,android",
+                url,
+            ],
             captureStdout: true
         )
 
@@ -143,7 +167,7 @@ public actor YouTubeDownloader {
             if normalized.contains("video unavailable") || normalized.contains("private video") {
                 throw YouTubeDownloadError.videoNotFound
             }
-            throw YouTubeDownloadError.downloadFailed(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))
+            throw YouTubeDownloadError.downloadFailed(Self.normalizeYtDlpError(errorOutput))
         }
 
         let data = Data(result.stdout.utf8)
@@ -173,7 +197,17 @@ public actor YouTubeDownloader {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ytDlpPath)
-        var args = [
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = Self.extendedPATH()
+        process.environment = env
+
+        var args: [String] = []
+        let jsRuntimeArgs = javaScriptRuntimeArguments()
+        if !jsRuntimeArgs.isEmpty {
+            args += ["--no-js-runtimes"] + jsRuntimeArgs
+        }
+        args += ["--extractor-args", "youtube:player_client=tv,android"]
+        args += [
             "-f", "bestaudio/best",
             "--no-playlist",
             "--retries", "3",
@@ -250,7 +284,7 @@ public actor YouTubeDownloader {
 
         guard result.terminationStatus == 0 else {
             let errorOutput = result.stderr.isEmpty ? "Unknown error" : result.stderr
-            throw YouTubeDownloadError.downloadFailed(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))
+            throw YouTubeDownloadError.downloadFailed(Self.normalizeYtDlpError(errorOutput))
         }
 
         // Find the downloaded file (yt-dlp chooses the extension)
@@ -309,6 +343,117 @@ public actor YouTubeDownloader {
         let stderr: String
     }
 
+    private func javaScriptRuntimeArguments() -> [String] {
+        guard let runtime = findJavaScriptRuntime() else { return [] }
+        return ["--js-runtimes", "\(runtime.name):\(runtime.executablePath)"]
+    }
+
+    private func findJavaScriptRuntime() -> JavaScriptRuntime? {
+        let venvBin = "\(pythonBootstrap.venvPath)/bin"
+        let resourcePath = Bundle.main.resourcePath
+        let candidates: [(name: String, binaryNames: [String], preferredPaths: [String])] = [
+            (
+                "node",
+                ["node"],
+                Self.bundledRuntimePaths(baseName: "node", resourcePath: resourcePath) + [
+                    "\(venvBin)/node",
+                    "/opt/homebrew/bin/node",
+                    "/usr/local/bin/node",
+                    "/usr/bin/node",
+                ]
+            ),
+            (
+                "deno",
+                ["deno"],
+                Self.bundledRuntimePaths(baseName: "deno", resourcePath: resourcePath) + [
+                    "\(venvBin)/deno",
+                    "/opt/homebrew/bin/deno",
+                    "/usr/local/bin/deno",
+                    "/usr/bin/deno",
+                ]
+            ),
+            (
+                "quickjs",
+                ["qjs", "quickjs"],
+                Self.bundledRuntimePaths(baseName: "qjs", resourcePath: resourcePath)
+                    + Self.bundledRuntimePaths(baseName: "quickjs", resourcePath: resourcePath)
+                    + [
+                        "\(venvBin)/qjs",
+                        "\(venvBin)/quickjs",
+                        "/opt/homebrew/bin/qjs",
+                        "/usr/local/bin/qjs",
+                        "/usr/bin/qjs",
+                    ]
+            ),
+        ]
+
+        for candidate in candidates {
+            if let path = candidate.preferredPaths.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) {
+                return JavaScriptRuntime(name: candidate.name, executablePath: path)
+            }
+            for binaryName in candidate.binaryNames {
+                if let discovered = Self.findExecutable(named: binaryName, inPATH: Self.extendedPATH()) {
+                    return JavaScriptRuntime(name: candidate.name, executablePath: discovered)
+                }
+            }
+        }
+
+        return nil
+    }
+
+    private nonisolated static func bundledRuntimePaths(baseName: String, resourcePath: String?) -> [String] {
+        guard let resourcePath else { return [] }
+        #if arch(arm64)
+        let archName = "arm64"
+        #else
+        let archName = "x86_64"
+        #endif
+        return [
+            "\(resourcePath)/\(baseName)",
+            "\(resourcePath)/\(baseName)-\(archName)",
+        ]
+    }
+
+    private nonisolated static func findExecutable(named binaryName: String, inPATH path: String) -> String? {
+        let fm = FileManager.default
+        for rawComponent in path.split(separator: ":") {
+            let component = String(rawComponent)
+            guard !component.isEmpty else { continue }
+            let candidate = URL(fileURLWithPath: component, isDirectory: true)
+                .appendingPathComponent(binaryName)
+                .path
+            if fm.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    private nonisolated static func normalizeYtDlpError(_ raw: String) -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "Unknown error" }
+
+        let normalized = trimmed.lowercased()
+        if normalized.contains("no supported javascript runtime could be found") {
+            return "No supported JavaScript runtime found for YouTube extraction. Install Node.js (recommended) or Deno and retry."
+        }
+
+        let lines = trimmed
+            .split(whereSeparator: \.isNewline)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if let errorLine = lines.first(where: { $0.localizedCaseInsensitiveContains("error:") }) {
+            return errorLine
+        }
+
+        if let nonWarningLine = lines.first(where: { !$0.localizedCaseInsensitiveContains("warning:") }) {
+            return nonWarningLine
+        }
+
+        return lines.first ?? trimmed
+    }
+
     private func runYtDlp(
         ytDlpPath: String,
         arguments: [String],
@@ -344,10 +489,19 @@ public actor YouTubeDownloader {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ytDlpPath)
+        var env = ProcessInfo.processInfo.environment
+        env["PATH"] = Self.extendedPATH()
+        process.environment = env
+
         var fullArgs = arguments
+        let jsRuntimeArgs = javaScriptRuntimeArguments()
+        if !jsRuntimeArgs.isEmpty {
+            fullArgs = ["--no-js-runtimes"] + jsRuntimeArgs + fullArgs
+        }
         if let ffmpegDir = Self.findFFmpegDirectory() {
             fullArgs = ["--ffmpeg-location", ffmpegDir] + fullArgs
         }
+
         process.arguments = fullArgs
         process.standardOutput = captureStdout ? stdoutHandle : FileHandle.nullDevice
         process.standardError = stderrHandle
