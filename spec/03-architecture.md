@@ -1074,7 +1074,7 @@ Dictation ready
 
 ### Privacy Guarantees
 
-1. **No network by default** — App works fully offline. No API calls, no telemetry, no analytics
+1. **No cloud processing** — User content is processed locally. Network is only used for one-time model downloads and user-initiated YouTube downloads.
 2. **Temp files cleaned** — Audio files in `$TMPDIR` deleted immediately after transcription
 3. **No accounts** — No login, no email, no user tracking
 4. **No analytics** — Zero telemetry. Not even crash reporting (unless user opts in)
@@ -1126,34 +1126,22 @@ For App Store distribution, the app needs:
 | Phase | Target | Strategy |
 |-------|--------|----------|
 | App window visible | <1 second | SwiftUI, no heavy init |
-| Dictation ready | <2 seconds | FluidAudio model loaded lazily, not at launch |
+| Dictation ready | <2 seconds | Post-onboarding (models pre-warmed) |
 | First STT result | <3 seconds | CoreML model warm-up on first transcribe call |
-| LLM ready | <3 seconds | Loaded on-demand, not at launch |
+| LLM ready | <3 seconds | Post-onboarding (Qwen pre-warmed) |
 
-**Lazy Loading Strategy:**
+**Model Readiness Strategy:**
 ```
-App Launch ──────────> Window shown (fast, no ML loaded)
+First Launch ────────> Onboarding model setup step
+                           ├── Download + warm Parakeet STT
+                           └── Download + warm Qwen3-8B
+                           ▼
+                       Ready state unlocked
                            │
-                           │ User triggers dictation
-                           ▼
-                       Load FluidAudio model (background)
-                           │ ~162ms (warm) / ~3.4s (first time)
-                           ▼
-                       Model ready → recording starts
-                           │
-                           │ User stops recording
-                           ▼
-                       Transcribe (Parakeet on ANE: 155x realtime)
-                           │
-                           │ If AI refinement needed:
-                           ▼
-                       Load Qwen3-8B (background, ~2-3s)
+Subsequent Launches ──> Window shown (fast)
                            │
                            ▼
-                       Refine text (~1-2s)
-                           │
-                           ▼
-                       Paste result
+                       Dictation / refinement run immediately
 ```
 
 After initial warm-up, subsequent dictations are near-instant (AsrManager stays initialized, model stays loaded with idle timeout).
@@ -1310,9 +1298,9 @@ open Package.swift
 
 2. **Protocol-first services.** Every service has a protocol. Tests inject mocks. No singletons.
 
-3. **Local-only by default.** No network calls. No API keys. No cloud fallback. Privacy is the product.
+3. **Local-only for user data.** No cloud inference and no API-key dependency. Network is only for model artifact downloads and user-initiated media downloads.
 
-4. **Lazy everything.** STT model, LLM model, and audio engine are all loaded on-demand. Cold launch is <1 second.
+4. **Fast launch + onboarding pre-warm.** App launch stays lightweight; first-run onboarding prepares STT + LLM so core features feel ready immediately afterward.
 
 5. **Single database file.** All persistent state in one SQLite file. Easy to backup, easy to debug, easy to reset.
 

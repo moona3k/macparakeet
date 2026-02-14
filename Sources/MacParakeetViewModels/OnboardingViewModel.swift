@@ -20,7 +20,7 @@ public final class OnboardingViewModel {
             case .microphone: return "Microphone"
             case .accessibility: return "Accessibility"
             case .hotkey: return "Hotkey"
-            case .engine: return "Speech Engine"
+            case .engine: return "Local Models"
             case .done: return "Ready"
             }
         }
@@ -31,7 +31,6 @@ public final class OnboardingViewModel {
         case working(message: String, progress: Double?)
         case ready
         case failed(message: String)
-        case skipped
     }
 
     public struct Completion: Sendable {
@@ -47,6 +46,7 @@ public final class OnboardingViewModel {
 
     private let permissionService: PermissionServiceProtocol
     private let sttClient: STTClientProtocol
+    private let llmService: any LLMServiceProtocol
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
     private var engineGeneration: Int = 0
@@ -57,11 +57,13 @@ public final class OnboardingViewModel {
     public init(
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
+        llmService: any LLMServiceProtocol,
         defaults: UserDefaults = .standard,
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
         self.permissionService = permissionService
         self.sttClient = sttClient
+        self.llmService = llmService
         self.defaults = defaults
         self.now = now
     }
@@ -125,7 +127,7 @@ public final class OnboardingViewModel {
             return true
         case .engine:
             switch engineState {
-            case .ready, .skipped:
+            case .ready:
                 return true
             case .idle, .working(_, _), .failed:
                 return false
@@ -156,14 +158,12 @@ public final class OnboardingViewModel {
         isBusy = false
     }
 
-    public func startEngineWarmUp(isFirstRun: Bool) {
+    public func startEngineWarmUp() {
         guard case .idle = engineState else { return }
         engineGeneration += 1
         let generation = engineGeneration
         isBusy = true
-        let message = isFirstRun
-            ? "Setting up local speech engine (first run can take a few minutes)..."
-            : "Starting local speech engine..."
+        let message = "Setting up local models (Parakeet + Qwen). This may take a few minutes..."
         engineState = .working(message: message, progress: nil)
 
         Task {
@@ -171,21 +171,37 @@ public final class OnboardingViewModel {
                 try await sttClient.warmUp { [weak self] progressMessage in
                     Task { @MainActor [weak self] in
                         guard let self, self.engineGeneration == generation else { return }
-                        if case .skipped = self.engineState { return }
-                        let fraction = Self.parseProgressFraction(from: progressMessage)
-                        self.engineState = .working(message: progressMessage, progress: fraction)
+                        let message = "Speech model: \(progressMessage)"
+                        let fraction = Self.parseProgressFraction(from: message)
+                        self.engineState = .working(message: message, progress: fraction)
                     }
                 }
+
                 await MainActor.run {
                     guard self.engineGeneration == generation else { return }
-                    if case .skipped = self.engineState { return }
+                    self.engineState = .working(message: "Preparing local AI model (Qwen)...", progress: nil)
+                }
+                _ = try await llmService.generate(
+                    request: LLMRequest(
+                        prompt: "Reply with exactly: OK",
+                        systemPrompt: "Return exactly one token: OK",
+                        options: LLMGenerationOptions(
+                            temperature: 0.0,
+                            topP: 1.0,
+                            maxTokens: 8,
+                            timeoutSeconds: nil
+                        )
+                    )
+                )
+
+                await MainActor.run {
+                    guard self.engineGeneration == generation else { return }
                     self.engineState = .ready
                     self.isBusy = false
                 }
             } catch {
                 await MainActor.run {
                     guard self.engineGeneration == generation else { return }
-                    if case .skipped = self.engineState { return }
                     self.engineState = .failed(message: error.localizedDescription)
                     self.isBusy = false
                 }
@@ -203,15 +219,8 @@ public final class OnboardingViewModel {
         return Double(pct) / 100.0
     }
 
-    public func retryEngineWarmUp(isFirstRun: Bool) {
+    public func retryEngineWarmUp() {
         engineState = .idle
-        startEngineWarmUp(isFirstRun: isFirstRun)
-    }
-
-    public func skipEngineWarmUp() {
-        // Ignore any in-flight warmup completion.
-        engineGeneration += 1
-        engineState = .skipped
-        isBusy = false
+        startEngineWarmUp()
     }
 }

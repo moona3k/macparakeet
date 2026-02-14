@@ -10,6 +10,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     func show(
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
+        llmService: any LLMServiceProtocol,
         onFinish: @escaping () -> Void,
         onOpenMainApp: @escaping () -> Void
     ) {
@@ -19,7 +20,11 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             return
         }
 
-        let vm = OnboardingViewModel(permissionService: permissionService, sttClient: sttClient)
+        let vm = OnboardingViewModel(
+            permissionService: permissionService,
+            sttClient: sttClient,
+            llmService: llmService
+        )
         let view = OnboardingFlowView(
             viewModel: vm,
             onFinish: { [weak self] in

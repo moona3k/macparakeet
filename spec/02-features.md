@@ -75,19 +75,19 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 
 ### F0: First-Run Onboarding
 
-**What:** A premium first-run setup window that guides users through permissions, hotkey basics, and local engine warm-up so the first dictation feels reliable.
+**What:** A premium first-run setup window that guides users through permissions, hotkey basics, and local model setup so core dictation plus AI features are ready immediately.
 
 **Goals:**
 - Reduce first-run friction (no mysterious permission failures).
 - Teach the core interaction model in under 60 seconds.
-- Warm up the local STT engine on first run to reduce latency.
+- Download and warm up both local models (Parakeet STT + Qwen3-8B) on first run.
 
 **Flow:**
 1. Welcome
 2. Microphone permission
 3. Accessibility permission
 4. Hotkey instructions (configurable trigger + Esc)
-5. Speech engine warm-up (retry or defer)
+5. Local model setup (Parakeet + Qwen, retry required)
 6. Ready
 
 ### F1: System-Wide Dictation
@@ -1240,11 +1240,11 @@ new scheduling architecture.
 **Required entitlements:**
 - Audio input (microphone access for dictation)
 - Accessibility (global hotkey, text insertion)
-- Outgoing network (YouTube download only, user-initiated)
+- Outgoing network (first-run model downloads + YouTube downloads, user-initiated)
 - Temporary file access (audio processing workspace)
 
 **Privacy policy highlights:**
-- No data leaves device except YouTube downloads (user-initiated)
+- No user content leaves device. Network is only for first-run model downloads and user-initiated YouTube downloads.
 - No analytics, no telemetry, no tracking
 - No account required
 - Audio stored only locally, deletable by user
@@ -1293,7 +1293,7 @@ Read surrounding text from the active app via macOS Accessibility APIs (AXUIElem
 | LLM refinement | <5s | Qwen3-8B for formal/email/code modes |
 | Memory usage (idle) | <200MB | Menu bar + STT model standing by |
 | Memory usage (active) | <3GB | During transcription with both models loaded |
-| App size | <100MB | Plus ~6 GB STT model download on first run |
+| App size | <100MB | Plus ~11 GB model downloads on first run (~6 GB STT + ~5 GB Qwen) |
 | Startup time | <2s | Cold start to menu bar ready |
 | File transcription | 1 hour audio in <25s | On M1 or better (ANE via CoreML) |
 
@@ -1305,13 +1305,13 @@ MacParakeet's brand is privacy. These are non-negotiable.
 
 | Requirement | Detail |
 |-------------|--------|
-| No network by default | App works fully offline, no internet required |
+| No network by default | App works fully offline after one-time model setup |
 | No analytics | Zero telemetry, no crash reporting to servers |
 | No telemetry | No usage tracking, no feature analytics |
 | No accounts | No email, no login, no registration |
 | No cloud processing | All STT and LLM runs locally on Apple Silicon |
 | User-controlled storage | Audio saved by default, user can disable or delete |
-| Network only for YouTube | YouTube download is the only network call, user-initiated |
+| Network only for setup + YouTube | One-time model downloads during onboarding + YouTube download, both user-initiated |
 
 **What "100% local" means:**
 - Parakeet STT runs on Apple Silicon Neural Engine (ANE) via FluidAudio CoreML -- no cloud API

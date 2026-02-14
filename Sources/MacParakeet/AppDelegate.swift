@@ -327,19 +327,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let env = appEnvironment else { return }
         let completed = UserDefaults.standard.string(forKey: OnboardingViewModel.onboardingCompletedKey) != nil
         if !completed {
-            showOnboarding(permissionService: env.permissionService, sttClient: env.sttClient)
+            showOnboarding(
+                permissionService: env.permissionService,
+                sttClient: env.sttClient,
+                llmService: env.llmService
+            )
         }
     }
 
     private func showOnboarding() {
         guard let env = appEnvironment else { return }
-        showOnboarding(permissionService: env.permissionService, sttClient: env.sttClient)
+        showOnboarding(
+            permissionService: env.permissionService,
+            sttClient: env.sttClient,
+            llmService: env.llmService
+        )
     }
 
-    private func showOnboarding(permissionService: PermissionServiceProtocol, sttClient: STTClientProtocol) {
+    private func showOnboarding(
+        permissionService: PermissionServiceProtocol,
+        sttClient: STTClientProtocol,
+        llmService: any LLMServiceProtocol
+    ) {
         onboardingWindowController.show(
             permissionService: permissionService,
             sttClient: sttClient,
+            llmService: llmService,
             onFinish: { [weak self] in
                 self?.refreshHotkeyAfterPermissions()
                 // Start the 7-day trial now that onboarding is complete —

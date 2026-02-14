@@ -316,8 +316,7 @@ struct OnboardingFlowView: View {
         case .engine:
             engineSetupView
                 .onAppear {
-                    let isFirstRun = !STTClient.isModelCached(version: .v3)
-                    viewModel.startEngineWarmUp(isFirstRun: isFirstRun)
+                    viewModel.startEngineWarmUp()
                 }
         case .done:
             doneStep
@@ -435,10 +434,6 @@ struct OnboardingFlowView: View {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .font(.system(size: 20))
                                 .foregroundStyle(DesignSystem.Colors.warningAmber)
-                        case .skipped:
-                            Image(systemName: "clock.fill")
-                                .font(.system(size: 20))
-                                .foregroundStyle(.secondary)
                         case .idle, .working(_, _):
                             SpinnerRingView(size: 20, revolutionDuration: 2.5, tintColor: DesignSystem.Colors.accent)
                         }
@@ -480,20 +475,8 @@ struct OnboardingFlowView: View {
 
                         HStack {
                             accentButton("Retry", disabled: false) {
-                                let isFirstRun = !STTClient.isModelCached(version: .v3)
-                                viewModel.retryEngineWarmUp(isFirstRun: isFirstRun)
+                                viewModel.retryEngineWarmUp()
                             }
-
-                            Button("Do This Later") {
-                                viewModel.skipEngineWarmUp()
-                            }
-                        }
-                    } else if case .working(_, _) = viewModel.engineState {
-                        HStack {
-                            Button("Continue in Background") {
-                                viewModel.skipEngineWarmUp()
-                            }
-                            .buttonStyle(.bordered)
                         }
                     }
 
@@ -732,7 +715,7 @@ struct OnboardingFlowView: View {
         case .microphone: return "Enable Microphone Access"
         case .accessibility: return "Enable Accessibility"
         case .hotkey: return "Learn the Hotkey"
-        case .engine: return "Prepare Local Speech Engine"
+        case .engine: return "Prepare Local Models"
         case .done: return "All Set"
         }
     }
@@ -748,7 +731,7 @@ struct OnboardingFlowView: View {
         case .hotkey:
             return "You can start dictating from any app without switching context."
         case .engine:
-            return "First run may download local speech assets. After setup, startup is fast."
+            return "Download and warm up Parakeet + Qwen so all app features are ready."
         case .done:
             return "You're ready to dictate and transcribe locally on your Mac."
         }
@@ -786,22 +769,19 @@ struct OnboardingFlowView: View {
         case .working(_, _): return "Working\u{2026}"
         case .ready: return "Ready"
         case .failed: return "Needs attention"
-        case .skipped: return "Will set up later"
         }
     }
 
     private func engineDetail(_ state: OnboardingViewModel.EngineState) -> String {
         switch state {
         case .idle:
-            return "We'll prepare the local speech engine now."
+            return "We'll prepare both the speech and AI models now."
         case .working(_, _):
-            return "This can take a few minutes on first run while speech assets download and initialize."
+            return "This can take several minutes on first run while local models download and initialize."
         case .ready:
-            return "Local speech engine is running."
+            return "Parakeet speech and Qwen AI models are ready."
         case .failed:
-            return "Setup failed. You can retry now, or continue and let the app set up on first use."
-        case .skipped:
-            return "You can set this up later. Dictation may take longer the first time you use it."
+            return "Setup failed. Please retry to complete model preparation."
         }
     }
 
@@ -844,7 +824,7 @@ struct OnboardingFlowView: View {
         case .accessibility:
             return "Enable Accessibility to continue."
         case .engine:
-            return "Wait for engine setup to finish, or choose Do This Later."
+            return "Wait for local model setup to finish."
         case .welcome, .hotkey, .done:
             return nil
         }

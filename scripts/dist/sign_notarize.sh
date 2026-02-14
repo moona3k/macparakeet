@@ -102,7 +102,8 @@ if [[ "$CREATE_DMG" == "1" ]]; then
   rm -rf "$DMG_STAGING"
 
   # Mount and apply Finder layout: app on left, Applications on right.
-  MOUNT_DIR="$(hdiutil attach "$DMG_RW" -nobrowse -noverify | tail -1 | awk '{print $NF}')"
+  # hdiutil output is tab-delimited; mount points may contain spaces.
+  MOUNT_DIR="$(hdiutil attach "$DMG_RW" -nobrowse -noverify | tail -1 | awk -F '\t' 'NF>=3 {print $3}')"
   if [[ -z "$MOUNT_DIR" || ! -d "$MOUNT_DIR" ]]; then
     echo "Warning: Failed to mount DMG for layout customization; skipping."
   else

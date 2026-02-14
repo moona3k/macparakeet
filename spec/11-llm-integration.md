@@ -97,7 +97,7 @@ No data loss and no silent crash paths are allowed.
 |----------|-------|
 | Runtime | `mlx-swift-lm` |
 | Model | `mlx-community/Qwen3-8B-4bit` |
-| Loading | lazy-load on first use |
+| Loading | lazy-load by default, pre-warmed during first-run onboarding setup |
 | Unload | idle timeout (default 5 min) |
 | Context strategy | bounded prompt assembly with truncation/chunking |
 

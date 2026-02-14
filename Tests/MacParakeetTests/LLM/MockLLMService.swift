@@ -24,6 +24,10 @@ actor MockLLMService: LLMServiceProtocol {
         configuredError = nil
     }
 
+    func requestCount() -> Int {
+        requests.count
+    }
+
     func generate(request: LLMRequest) async throws -> LLMResponse {
         requests.append(request)
         if let configuredError {

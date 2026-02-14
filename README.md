@@ -6,6 +6,8 @@
 
 MacParakeet uses NVIDIA's Parakeet TDT model — running on Apple's Neural Engine via FluidAudio CoreML — to power system-wide voice dictation and file transcription. Entirely on your Mac, with zero cloud uploads.
 
+First-run onboarding prepares both local models (Parakeet STT + Qwen3-8B) so dictation and AI refinement are ready before you start using the app.
+
 ## Two Modes
 
 ### System-Wide Dictation

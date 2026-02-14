@@ -47,6 +47,9 @@ Ship production-ready local LLM integration for refinement + command mode using 
 5. Remaining: command mode GUI flow (selection capture and in-place replace UX).
 6. Remaining: benchmark run execution/tuning pass on target hardware matrix.
 
+Command Mode implementation checklist:
+- `plans/active/2026-02-command-mode-gui-f10a-checklist.md` (implementation-ready F10a plan with scope locks, architecture, tests, and PR slicing)
+
 ## Tests Required per Slice
 
 1. Unit: prompt and fallback behavior.

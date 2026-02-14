@@ -8,10 +8,16 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         perms.microphonePermission = .notDetermined
         let stt = MockSTTClient()
+        let llm = MockLLMService()
         let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
         defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
 
-        let vm = OnboardingViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        let vm = OnboardingViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            llmService: llm,
+            defaults: defaults
+        )
         vm.jump(to: .microphone)
 
         // Not granted => can't continue.
@@ -30,10 +36,16 @@ final class OnboardingViewModelTests: XCTestCase {
         let perms = MockPermissionService()
         perms.accessibilityPermission = false
         let stt = MockSTTClient()
+        let llm = MockLLMService()
         let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
         defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
 
-        let vm = OnboardingViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        let vm = OnboardingViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            llmService: llm,
+            defaults: defaults
+        )
         vm.jump(to: .accessibility)
 
         vm.refresh()
@@ -49,29 +61,43 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpTransitionsToReady() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
+        let llm = MockLLMService()
         let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
         defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
 
-        let vm = OnboardingViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        let vm = OnboardingViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            llmService: llm,
+            defaults: defaults
+        )
         vm.jump(to: .engine)
 
-        vm.startEngineWarmUp(isFirstRun: false)
-        try await Task.sleep(for: .milliseconds(50))
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(120))
 
         XCTAssertEqual(vm.engineState, .ready)
         let called = await stt.wasWarmUpCalled()
         XCTAssertTrue(called)
+        let requestCount = await llm.requestCount()
+        XCTAssertEqual(requestCount, 1)
         XCTAssertTrue(vm.canContinueFromCurrentStep())
     }
 
     func testMarkOnboardingCompletedPersistsToDefaults() {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
+        let llm = MockLLMService()
         let suite = "com.macparakeet.tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
 
-        let vm = OnboardingViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        let vm = OnboardingViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            llmService: llm,
+            defaults: defaults
+        )
         XCTAssertFalse(vm.hasCompletedOnboarding)
         _ = vm.markOnboardingCompleted()
         XCTAssertTrue(vm.hasCompletedOnboarding)
@@ -80,24 +106,56 @@ final class OnboardingViewModelTests: XCTestCase {
     func testEngineWarmUpWithProgressPhases() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
+        let llm = MockLLMService()
         await stt.configureWarmUp(progressPhases: [
-            "Creating Python environment...",
-            "Installing dependencies (~500 MB)...",
-            "Starting speech engine...",
+            "Downloading speech model... 0%",
             "Downloading speech model (571 MB)... 50%",
             "Loading model into memory...",
         ])
         let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
 
-        let vm = OnboardingViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        let vm = OnboardingViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            llmService: llm,
+            defaults: defaults
+        )
         vm.jump(to: .engine)
 
-        vm.startEngineWarmUp(isFirstRun: true)
-        try await Task.sleep(for: .milliseconds(100))
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(120))
 
         XCTAssertEqual(vm.engineState, .ready)
         let called = await stt.wasWarmUpCalled()
         XCTAssertTrue(called)
+        let requestCount = await llm.requestCount()
+        XCTAssertEqual(requestCount, 1)
+    }
+
+    func testEngineWarmUpFailsWhenLLMSetupFails() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let llm = MockLLMService()
+        await llm.configureError(LLMServiceError.generationFailed("network"))
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+
+        let vm = OnboardingViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            llmService: llm,
+            defaults: defaults
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(120))
+
+        if case .failed = vm.engineState {
+            // expected
+        } else {
+            XCTFail("Expected failed state when LLM warm-up fails")
+        }
+        XCTAssertFalse(vm.canContinueFromCurrentStep())
     }
 
     func testParseProgressFractionFromPercentage() {
@@ -120,4 +178,3 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(state, .working(message: "Downloading...", progress: 0.5))
     }
 }
-
