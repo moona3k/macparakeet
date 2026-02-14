@@ -882,7 +882,7 @@ Modes stack: Formal/Email/Code always run the clean pipeline first, then apply L
 
 ---
 
-## v0.3 Features (Command Mode & Export)
+## v0.3 Features (Command Mode, Chat & Export)
 
 ### F10: Command Mode
 
@@ -973,6 +973,54 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 - [ ] Custom commands can be saved and reused
 - [ ] Cmd+Z in target app undoes the replacement
 - [ ] Graceful error if no text selected ("Select text first") or LLM fails
+
+---
+
+### F10a: Transcript Chat (GUI MVP)
+
+**What:** Ask questions about the currently selected transcript from the transcript detail screen using local Qwen3-8B.
+
+**Scope (MVP):**
+- Current transcript scope only (no cross-transcript retrieval yet)
+- In-memory thread per transcript for current app session
+- Bounded transcript context assembly to avoid prompt overflow
+- Local-only execution (no cloud calls)
+
+**Flow:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. User opens transcript detail                                 │
+├─────────────────────────────────────────────────────────────────┤
+│ 2. User asks a question in the chat side panel                 │
+│    "What action items were discussed?"                         │
+├─────────────────────────────────────────────────────────────────┤
+│ 3. App assembles bounded transcript context                    │
+│    - current transcript text                                   │
+│    - truncation marker if needed                               │
+├─────────────────────────────────────────────────────────────────┤
+│ 4. Qwen3-8B generates response locally                         │
+│    - loading state shown in panel                              │
+│    - no network dependency                                     │
+├─────────────────────────────────────────────────────────────────┤
+│ 5. Response appears in thread                                  │
+│    - retry available for failed generations                    │
+│    - thread stays attached to this transcript in-session       │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Technical implementation:**
+- Prompt composed via shared `TranscriptChatPromptComposer`
+- Prompt task uses `LLMTask.transcriptChat(question:transcript:)`
+- Context bounded by `TranscriptContextAssembler.assemble(...)`
+- Response generated through `LLMServiceProtocol.generate(...)`
+
+**Acceptance criteria:**
+- [x] Transcript detail shows chat panel UI
+- [x] User can send a question and receive a response in-thread
+- [x] Context is bounded for long transcripts
+- [x] Failed responses surface inline error with retry path
+- [x] Local model readiness status is visible in panel
 
 ---
 
@@ -1394,12 +1442,17 @@ v0.2 AI & Text Processing:
          and F2 (file transcription)
 
 
-v0.3 Command Mode & Export:
+v0.3 Command Mode, Chat & Export:
 ────────────────────────────────────────────────────────────────────
 
       ┌──────────────────┐
       │ F10: Command     │ ← Requires F1 (dictation) + F8 (LLM)
       │ Mode             │   + Accessibility API
+      └──────────────────┘
+
+      ┌──────────────────┐
+      │ F10a: Transcript │ ← Requires F2 (transcript detail) + F8 (LLM)
+      │ Chat (GUI MVP)   │
       └──────────────────┘
 
       ┌──────────────────┐
@@ -1439,7 +1492,7 @@ v0.4 Polish & Launch:
 Cross-cutting dependency:
 
       Parakeet STT ──► F1, F2, F10, F11, F13, F14, F15
-      Qwen3-8B LLM ──► F8, F10
+      Qwen3-8B LLM ──► F8, F10, F10a
       Accessibility ──► F1 (hotkey + paste), F10 (text selection)
       FFmpeg ──────────► F2, F11, F14
       yt-dlp ──────────► F11

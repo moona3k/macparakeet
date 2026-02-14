@@ -38,7 +38,7 @@ Drag any audio or video file → get a transcript in seconds.
 
 ## Features
 
-### Implemented (v0.1 + v0.2)
+### Implemented (v0.1 + v0.2 + partial v0.3)
 
 - **Blazing Fast** — Parakeet TDT STT, fully local
 - **100% Private** — Audio never leaves your Mac. No accounts. No tracking.
@@ -46,6 +46,7 @@ Drag any audio or video file → get a transcript in seconds.
 - **File Transcription** — Drag-drop audio/video files, word timestamps
 - **Smart Cleanup** — Deterministic 4-step pipeline (filler removal, custom words, snippets, whitespace)
 - **AI Refinement Modes** — Formal, Email, and Code modes powered by local Qwen3-8B with deterministic fallback
+- **Transcript Chat (GUI MVP)** — Ask questions about the selected transcript in-app via local Qwen3-8B
 - **Custom Words** — Domain vocabulary corrections and proper noun casing
 - **Text Snippets** — Natural language triggers expand into longer text
 - **Export** — TXT, Markdown, SRT, and VTT exports + copy to clipboard
@@ -56,7 +57,7 @@ Drag any audio or video file → get a transcript in seconds.
 ### Planned
 
 - **Command Mode** — Local LLM edits for command-mode workflows
-- **Chat with Transcript (GUI)** — Ask questions about your transcriptions via local LLM
+- **Advanced Transcript Chat** — Citations/grounding highlights, cross-transcript scope, and saved threads
 - **More Exports** — DOCX and other formats
 
 ## Requirements
@@ -99,7 +100,8 @@ MacParakeet is built for **fast feedback loops**. AI agents make mistakes — bu
 - **Tests** — Unit and integration tests for all core logic (`swift test`)
 - **Internal CLI** — Headless interface to core services (transcribe files, test the pipeline) so changes can be verified without launching the GUI
   - Tip: use `swift run macparakeet-cli transcribe ... --database /tmp/macparakeet-dev.db` to avoid writing into your real app database during dev.
-  - Local LLM checks: `swift run macparakeet-cli llm smoke-test --stats`, `swift run macparakeet-cli llm refine formal "draft text"`, and `swift run macparakeet-cli llm chat "question" --transcript-file /path/to/transcript.txt`.
+  - Canonical dev app launch: `scripts/dev/run_app.sh` (builds latest debug binary, kills stale `/Applications` instance, launches current repo build).
+  - Local LLM checks: `swift run macparakeet-cli llm smoke-test --stats`, `swift run macparakeet-cli llm refine formal "draft text"`, and `swift run macparakeet-cli llm chat "question" --transcript-file /path/to/transcript.txt` (for `smoke-test`/generation commands, use Xcode/`xcodebuild` or the packaged app when MLX shader resources are unavailable in plain `swift run`).
   - Model lifecycle checks: `swift run macparakeet-cli models status`, `swift run macparakeet-cli models warm-up --target all`, `swift run macparakeet-cli models repair --target all`.
   - See `docs/cli-testing.md` for GUI-parity vs deterministic testing modes.
 - **Protocol-based services** — Mockable boundaries make isolated testing straightforward

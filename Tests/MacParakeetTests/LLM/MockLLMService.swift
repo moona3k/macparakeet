@@ -34,6 +34,10 @@ actor MockLLMService: LLMServiceProtocol {
         requests.count
     }
 
+    func lastRequest() -> LLMRequest? {
+        requests.last
+    }
+
     func configureWarmUp(failuresBeforeSuccess: Int = 0) {
         warmUpFailuresBeforeSuccess = max(0, failuresBeforeSuccess)
     }

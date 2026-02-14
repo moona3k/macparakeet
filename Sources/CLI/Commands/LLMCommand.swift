@@ -249,32 +249,17 @@ extension LLMCommand {
     }
 }
 
-struct LLMChatPromptPayload: Sendable {
-    let prompt: String
-    let defaultSystemPrompt: String
-}
+typealias LLMChatPromptPayload = TranscriptChatPromptPayload
 
 enum LLMChatPromptComposer {
-    static let defaultSystemPrompt = """
-    You are a concise assistant.
-    Answer directly and avoid unnecessary verbosity.
-    """
+    static var defaultSystemPrompt: String {
+        TranscriptChatPromptComposer.defaultSystemPrompt
+    }
 
     static func compose(question: String, transcriptContext: String?) -> LLMChatPromptPayload {
-        let trimmedQuestion = question.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let transcriptContext,
-           !transcriptContext.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        {
-            let task = LLMTask.transcriptChat(question: trimmedQuestion, transcript: transcriptContext)
-            return LLMChatPromptPayload(
-                prompt: LLMPromptBuilder.userPrompt(for: task),
-                defaultSystemPrompt: LLMPromptBuilder.systemPrompt(for: task)
-            )
-        }
-
-        return LLMChatPromptPayload(
-            prompt: trimmedQuestion,
-            defaultSystemPrompt: defaultSystemPrompt
+        TranscriptChatPromptComposer.compose(
+            question: question,
+            transcriptContext: transcriptContext
         )
     }
 

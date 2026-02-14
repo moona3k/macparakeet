@@ -54,7 +54,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 |---------|------|-------|--------|
 | v0.1 | Core MVP | Dictation + transcription + history + settings | **Implemented** |
 | v0.2 | AI & Text Processing | Clean pipeline, AI refinement, custom words | **In Progress** |
-| v0.3 | Command Mode & Export | Voice commands, YouTube, full export formats | **In Progress** |
+| v0.3 | Command Mode, Chat & Export | Voice commands, transcript chat, YouTube, full export formats | **In Progress** |
 | v0.4 | Polish & Launch | Diarization, batch processing, App Store | Planned |
 
 ## Version Progress
@@ -84,9 +84,10 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [ ] Personal dictionary (auto-learns vocabulary)
 - [x] CLI commands (`macparakeet-cli flow process/words/snippets` + `macparakeet-cli llm generate/refine/command/chat/smoke-test` + `macparakeet-cli models status/warm-up/repair`)
 
-### v0.3 Command Mode & Export (In Progress)
+### v0.3 Command Mode, Chat & Export (In Progress)
 
 - [ ] Command Mode: select text -> speak command -> LLM edits in-place
+- [x] Transcript Chat (GUI MVP): ask questions about the selected transcript via local Qwen3-8B
 - [x] YouTube URL transcription (yt-dlp + Parakeet)
 - [ ] Full export (.docx, .pdf, .json)
 - [x] Exports: TXT, Markdown, SRT, VTT (one-click to Downloads)

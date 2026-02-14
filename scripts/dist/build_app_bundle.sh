@@ -15,7 +15,10 @@ set -euo pipefail
 #   APP_NAME            (default: MacParakeet)
 #   BUNDLE_ID           (default: com.macparakeet.MacParakeet)
 #   VERSION             (default: 0.1.0)
-#   BUILD_NUMBER        (default: 1)
+#   BUILD_NUMBER        (default: UTC timestamp, e.g. 20260213220512)
+#   BUILD_GIT_COMMIT    (default: current git short SHA)
+#   BUILD_DATE_UTC      (default: current UTC ISO-8601 timestamp)
+#   BUILD_SOURCE        (default: dist-<build-system>-release)
 #   MIN_MACOS_VERSION   (default: 14.2)
 #   UNIVERSAL           (default: 0) build universal (arm64+x86_64) if 1
 #   SKIP_BUILD          (default: 0) reuse existing Release binary if 1
@@ -32,11 +35,14 @@ DIST_DIR="$ROOT_DIR/dist"
 APP_NAME="${APP_NAME:-MacParakeet}"
 BUNDLE_ID="${BUNDLE_ID:-com.macparakeet.MacParakeet}"
 VERSION="${VERSION:-0.1.0}"
-BUILD_NUMBER="${BUILD_NUMBER:-1}"
+BUILD_NUMBER="${BUILD_NUMBER:-$(date -u +%Y%m%d%H%M%S)}"
+BUILD_GIT_COMMIT="${BUILD_GIT_COMMIT:-$(git -C "$ROOT_DIR" rev-parse --short=12 HEAD 2>/dev/null || echo unknown)}"
+BUILD_DATE_UTC="${BUILD_DATE_UTC:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}"
 MIN_MACOS_VERSION="${MIN_MACOS_VERSION:-14.2}"
 UNIVERSAL="${UNIVERSAL:-0}"
 SKIP_BUILD="${SKIP_BUILD:-0}"
 BUILD_SYSTEM="${BUILD_SYSTEM:-xcodebuild}"
+BUILD_SOURCE="${BUILD_SOURCE:-dist-${BUILD_SYSTEM}-release}"
 XCODE_DERIVED_DATA="${XCODE_DERIVED_DATA:-$ROOT_DIR/.build/xcode-dist}"
 
 APP_DIR="$DIST_DIR/${APP_NAME}.app"
@@ -286,6 +292,12 @@ cat >"$INFO_PLIST" <<EOF
   <string>${VERSION}</string>
   <key>CFBundleVersion</key>
   <string>${BUILD_NUMBER}</string>
+  <key>MacParakeetBuildDateUTC</key>
+  <string>${BUILD_DATE_UTC}</string>
+  <key>MacParakeetBuildSource</key>
+  <string>${BUILD_SOURCE}</string>
+  <key>MacParakeetGitCommit</key>
+  <string>${BUILD_GIT_COMMIT}</string>
   <key>LSMinimumSystemVersion</key>
   <string>${MIN_MACOS_VERSION}</string>
   <key>LSUIElement</key>
@@ -298,3 +310,4 @@ $(printf "%b" "$LICENSING_PLIST")
 EOF
 
 echo "[4/4] Done: $APP_DIR"
+echo "Metadata: version=$VERSION build=$BUILD_NUMBER commit=$BUILD_GIT_COMMIT built=$BUILD_DATE_UTC source=$BUILD_SOURCE"

@@ -1,13 +1,22 @@
 import SwiftUI
 import MacParakeetCore
+import MacParakeetViewModels
 
 struct TranscriptResultView: View {
     let transcription: Transcription
+    @Bindable var viewModel: TranscriptionViewModel
     var onBack: (() -> Void)?
     var onRetranscribe: ((Transcription) -> Void)?
 
+    private enum ContentPane: String, CaseIterable, Identifiable {
+        case transcript = "Transcript"
+        case chat = "Chat"
+        var id: String { rawValue }
+    }
+
     @State private var backHovered = false
     @State private var copied = false
+    @State private var selectedPane: ContentPane = .transcript
     @State private var showExportConfirmation = false
     @State private var lastExportedURL: URL?
     @State private var lastExportedFormat: String?
@@ -110,23 +119,10 @@ struct TranscriptResultView: View {
             SacredGeometryDivider()
                 .padding(.horizontal, DesignSystem.Spacing.lg)
 
-            // Transcript with timestamps
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                    if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
-                        timestampedView(words: timestamps)
-                    } else if let text = transcription.cleanTranscript ?? transcription.rawTranscript {
-                        Text(text)
-                            .font(DesignSystem.Typography.bodyLarge)
-                            .textSelection(.enabled)
-                            .lineSpacing(4)
-                    } else {
-                        Text("No transcript available")
-                            .foregroundStyle(.secondary)
-                    }
-                }
-                .padding(DesignSystem.Spacing.lg)
+            GeometryReader { proxy in
+                contentArea(availableWidth: proxy.size.width)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
 
@@ -204,6 +200,64 @@ struct TranscriptResultView: View {
             dismissTask?.cancel()
             dismissTask = nil
         }
+    }
+
+    @ViewBuilder
+    private func contentArea(availableWidth: CGFloat) -> some View {
+        if availableWidth >= 980 {
+            HStack(spacing: DesignSystem.Spacing.md) {
+                transcriptPane
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+
+                TranscriptChatPanel(transcription: transcription, viewModel: viewModel)
+                    .frame(width: max(360, min(460, availableWidth * 0.38)))
+            }
+            .padding(DesignSystem.Spacing.lg)
+        } else {
+            VStack(spacing: DesignSystem.Spacing.sm) {
+                Picker("Pane", selection: $selectedPane) {
+                    ForEach(ContentPane.allCases) { pane in
+                        Text(pane.rawValue).tag(pane)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if selectedPane == .transcript {
+                    transcriptPane
+                } else {
+                    TranscriptChatPanel(transcription: transcription, viewModel: viewModel)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                }
+            }
+            .padding(DesignSystem.Spacing.lg)
+        }
+    }
+
+    private var transcriptPane: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
+                    timestampedView(words: timestamps)
+                } else if let text = transcription.cleanTranscript ?? transcription.rawTranscript {
+                    Text(text)
+                        .font(DesignSystem.Typography.bodyLarge)
+                        .textSelection(.enabled)
+                        .lineSpacing(4)
+                } else {
+                    Text("No transcript available")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(DesignSystem.Spacing.lg)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .fill(DesignSystem.Colors.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
+        )
     }
 
     // MARK: - Mandala Data

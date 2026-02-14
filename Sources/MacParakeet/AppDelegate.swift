@@ -213,7 +213,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             // Configure view models
             transcriptionViewModel.configure(
                 transcriptionService: env.transcriptionService,
-                transcriptionRepo: env.transcriptionRepo
+                transcriptionRepo: env.transcriptionRepo,
+                llmService: env.llmService
             )
             historyViewModel.configure(dictationRepo: env.dictationRepo)
             settingsViewModel.configure(
@@ -645,14 +646,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 controller?.resignKeyWindow()
                 // Brief pause so user sees the checkmark before paste
                 try? await Task.sleep(for: .milliseconds(200))
-                let pastedToApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                try? await env.clipboardService.pasteText(dictation.cleanTranscript ?? dictation.rawTranscript)
-                if let pastedToApp {
-                    dictation.pastedToApp = pastedToApp
-                    dictation.updatedAt = Date()
-                    try? env.dictationRepo.save(dictation)
+                let transcriptToPaste = dictation.cleanTranscript ?? dictation.rawTranscript
+                let didAutoPaste = await self.pasteTranscriptWithFallback(
+                    transcript: transcriptToPaste,
+                    viewModel: vm,
+                    clipboardService: env.clipboardService
+                )
+                if didAutoPaste {
+                    if let pastedToApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier {
+                        dictation.pastedToApp = pastedToApp
+                        dictation.updatedAt = Date()
+                        try? env.dictationRepo.save(dictation)
+                    }
+                    try? await Task.sleep(for: .milliseconds(800))
+                } else {
+                    try? await Task.sleep(for: .seconds(5))
                 }
-                try? await Task.sleep(for: .milliseconds(800))
             } catch where self.isNoSpeechError(error) {
                 // Brief "no speech" pill — view's onAppear triggers the bar animation
                 vm.noSpeechProgress = 1.0
@@ -814,14 +823,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 controller?.resignKeyWindow()
                 // Brief pause so user sees the checkmark before paste
                 try? await Task.sleep(for: .milliseconds(200))
-                let pastedToApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                try? await env.clipboardService.pasteText(dictation.cleanTranscript ?? dictation.rawTranscript)
-                if let pastedToApp {
-                    dictation.pastedToApp = pastedToApp
-                    dictation.updatedAt = Date()
-                    try? env.dictationRepo.save(dictation)
+                let transcriptToPaste = dictation.cleanTranscript ?? dictation.rawTranscript
+                let didAutoPaste = await self.pasteTranscriptWithFallback(
+                    transcript: transcriptToPaste,
+                    viewModel: vm,
+                    clipboardService: env.clipboardService
+                )
+                if didAutoPaste {
+                    if let pastedToApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier {
+                        dictation.pastedToApp = pastedToApp
+                        dictation.updatedAt = Date()
+                        try? env.dictationRepo.save(dictation)
+                    }
+                    try? await Task.sleep(for: .milliseconds(800))
+                } else {
+                    try? await Task.sleep(for: .seconds(5))
                 }
-                try? await Task.sleep(for: .milliseconds(800))
             } catch where self.isNoSpeechError(error) {
                 // Brief "no speech" pill — view's onAppear triggers the bar animation
                 vm.noSpeechProgress = 1.0
@@ -886,6 +903,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if let e = error as? DictationServiceError, e == .emptyTranscript { return true }
         if let e = error as? AudioProcessorError, case .insufficientSamples = e { return true }
         return false
+    }
+
+    /// Best-effort paste with explicit fallback.
+    /// Returns true when auto-paste dispatch succeeded; false when we had to copy only.
+    @MainActor
+    private func pasteTranscriptWithFallback(
+        transcript: String,
+        viewModel: DictationOverlayViewModel,
+        clipboardService: ClipboardServiceProtocol
+    ) async -> Bool {
+        do {
+            try await clipboardService.pasteText(transcript)
+            return true
+        } catch {
+            await clipboardService.copyToClipboard(transcript)
+            viewModel.state = .error("Copied to clipboard. Press Cmd+V.")
+            return false
+        }
     }
 
     // MARK: - Window Management

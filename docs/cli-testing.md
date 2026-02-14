@@ -8,6 +8,16 @@ Use `macparakeet-cli` for fast, repeatable testing of core transcription and tex
 swift build --product macparakeet-cli
 ```
 
+## Canonical Dev App Launch
+
+Always launch the GUI from repo source when validating new UI work:
+
+```bash
+scripts/dev/run_app.sh
+```
+
+This script builds the latest debug binary, stops stale `/Applications`/`dist` app processes, and launches the current workspace build with build identity metadata.
+
 ## Core Modes
 
 ### 1) GUI-Parity Mode (recommended for behavior checks)
@@ -120,10 +130,20 @@ swift run macparakeet-cli llm chat "What blockers were mentioned?" \
 ```
 
 - If LLM commands report `Local AI runtime unavailable` with `default.metallib`, MLX shader resources are missing. Build/run with Xcode or `xcodebuild`, or run the packaged app so `mlx-swift_Cmlx.bundle` is present.
+- For file/URL transcription from `swift run`, FFmpeg can come from your shell `PATH` in development. If needed, set `MACPARAKEET_FFMPEG_PATH=/absolute/path/to/ffmpeg`.
 
 ## Notes
 
 - CLI validates core service behavior (STT, conversion, pipeline, persistence) but does **not** validate GUI-only flows (windowing/menu bar, hotkey overlay, accessibility-driven paste UX).
+- Transcript chat GUI MVP is verified manually from the transcript detail screen:
+  - Open any completed transcript in the app
+  - Ask a question in the right-side chat panel
+  - Confirm response appears in-thread
+  - Confirm `Cmd+Return` sends from the composer
+  - Confirm delivered assistant responses can be copied via the copy icon
+  - For long transcripts, confirm bounded-context behavior still returns a response
+  - Switch between transcripts and confirm threads remain isolated
+  - Force an error (for example, temporarily break local model runtime) and confirm inline retry path
 - For isolated testing, use a temporary DB:
 
 ```bash

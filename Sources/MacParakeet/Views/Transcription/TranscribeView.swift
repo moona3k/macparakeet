@@ -45,6 +45,7 @@ struct TranscribeView: View {
                 if let transcription = viewModel.currentTranscription {
                     TranscriptResultView(
                         transcription: transcription,
+                        viewModel: viewModel,
                         onBack: { viewModel.currentTranscription = nil },
                         onRetranscribe: { original in
                             viewModel.retranscribe(original)

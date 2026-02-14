@@ -52,7 +52,7 @@ public struct LLMRequest: Sendable {
 
 public enum LLMTask: Sendable {
     case refine(mode: LLMRefinementMode, input: String)
-    case commandTransform(command: String) // "translate to spanish", etc.
+    case commandTransform(command: String, selectedText: String)
     case transcriptChat(question: String, transcript: String)
 }
 
@@ -85,9 +85,10 @@ No data loss and no silent crash paths are allowed.
 2. **Command mode (CLI today, GUI pending)**
 - selected text + spoken command -> LLM request (`commandTransform`) -> replace selection
 
-3. **Transcript chat (CLI baseline, GUI pending)**
-- query + optional transcript context chunking -> LLM request (`transcriptChat`)
-- available in CLI via `macparakeet-cli llm chat ... --transcript-file <path>`
+3. **Transcript chat (CLI + GUI MVP)**
+- query + bounded transcript context -> LLM request (`transcriptChat`)
+- CLI path: `macparakeet-cli llm chat ... --transcript-file <path>`
+- GUI path: transcript detail view sidecar panel (selected transcript scope, in-memory thread)
 
 ---
 
@@ -122,6 +123,7 @@ All categories must map to user-safe fallback behavior.
 2. `FallbackPolicy` for all error categories.
 3. `LLMServiceProtocol` mock-driven tests in dictation/command flows.
 4. CLI chat prompt + argument parsing tests (`llm chat` with transcript context).
+5. GUI transcript chat view model tests (success, error, retry, bounded context).
 
 ### Integration
 
@@ -143,5 +145,6 @@ All categories must map to user-safe fallback behavior.
 3. No Python runtime or daemon dependency introduced.
 4. `swift test` remains green with new LLM seam tests.
 5. CLI single-turn chat supports optional transcript file context with bounded assembly.
+6. GUI transcript chat MVP is available from transcript detail view and uses bounded context assembly.
 
 Latency metrics are tracked and monitored, but not used as hard release gates in this phase.

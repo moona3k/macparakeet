@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import AppKit
 import MacParakeetCore
 import MacParakeetViewModels
 
@@ -8,6 +9,7 @@ struct SettingsView: View {
 
     @State private var showClearAllAlert = false
     @State private var showClearYouTubeAudioAlert = false
+    @State private var copiedBuildIdentity = false
 
     var body: some View {
         ScrollView {
@@ -353,24 +355,45 @@ struct SettingsView: View {
     // MARK: - About
 
     private var aboutCard: some View {
-        settingsCard(
+        let identity = BuildIdentity.current
+        return settingsCard(
             title: "About",
             subtitle: "Build identity and runtime posture.",
             icon: "info.circle"
         ) {
-            HStack(spacing: DesignSystem.Spacing.md) {
-                SpinnerRingView(size: 18, revolutionDuration: 8.0, tintColor: DesignSystem.Colors.accent)
-                    .opacity(0.6)
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                HStack(spacing: DesignSystem.Spacing.md) {
+                    SpinnerRingView(size: 18, revolutionDuration: 8.0, tintColor: DesignSystem.Colors.accent)
+                        .opacity(0.6)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("MacParakeet \(appVersion)")
-                        .font(DesignSystem.Typography.body)
-                    Text("Local-first transcription stack")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("MacParakeet \(identity.version) (\(identity.buildNumber))")
+                            .font(DesignSystem.Typography.body)
+                        Text("Local-first transcription stack")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+
+                    Button(copiedBuildIdentity ? "Copied" : "Copy Build Info") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(buildIdentityReport(identity), forType: .string)
+                        copiedBuildIdentity = true
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(1.2))
+                            copiedBuildIdentity = false
+                        }
+                    }
+                    .buttonStyle(.bordered)
                 }
 
-                Spacer()
+                Divider()
+
+                aboutRow(label: "Source", value: identity.buildSource)
+                aboutRow(label: "Commit", value: identity.gitCommit)
+                aboutRow(label: "Built", value: identity.buildDateUTC)
+                aboutRow(label: "Executable", value: identity.executablePath)
             }
         }
     }
@@ -507,12 +530,35 @@ struct SettingsView: View {
 
     // MARK: - Helpers
 
-    private var appVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
-    }
-
     private var formattedYouTubeStorageMB: String {
         String(format: "%.1f", viewModel.youtubeDownloadStorageMB)
+    }
+
+    private func aboutRow(label: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(label)
+                .font(DesignSystem.Typography.micro)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(DesignSystem.Typography.caption.monospaced())
+                .textSelection(.enabled)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+    }
+
+    private func buildIdentityReport(_ identity: BuildIdentity) -> String {
+        [
+            "MacParakeet Build Identity",
+            "Version: \(identity.version)",
+            "Build: \(identity.buildNumber)",
+            "Source: \(identity.buildSource)",
+            "Commit: \(identity.gitCommit)",
+            "Built: \(identity.buildDateUTC)",
+            "Executable: \(identity.executablePath)",
+            "Bundle: \(identity.bundlePath)",
+        ]
+        .joined(separator: "\n")
     }
 
     @ViewBuilder
