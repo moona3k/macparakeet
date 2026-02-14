@@ -10,6 +10,7 @@ Scope: Production planning for local LLM integration in MacParakeet.
 3. Benchmark protocol: `docs/planning/2026-02-qwen3-8b-benchmark-plan.md`
 4. Execution checklist: `plans/active/2026-02-qwen3-8b-implementation-checklist.md`
 5. Risk register: `docs/planning/llm-runtime-risk-register.md`
+6. 4B vs 8B benchmark report: `docs/planning/2026-02-qwen-4b-vs-8b-benchmark-report.md`
 
 ## What This Enables
 
