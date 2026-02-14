@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 public enum DictationState: Sendable {
     case idle
@@ -22,6 +23,7 @@ public protocol DictationServiceProtocol: Sendable {
 }
 
 public actor DictationService: DictationServiceProtocol {
+    private let logger = Logger(subsystem: "com.macparakeet.core", category: "DictationService")
     private let audioProcessor: AudioProcessorProtocol
     private let sttClient: STTClientProtocol
     private let dictationRepo: DictationRepositoryProtocol
@@ -78,6 +80,7 @@ public actor DictationService: DictationServiceProtocol {
     }
 
     public func startRecording() async throws {
+        logger.debug("startRecording requested state=\(self.debugStateLabel(self._state), privacy: .public)")
         if let entitlements {
             try await entitlements.assertCanTranscribe(now: Date())
         }
@@ -99,23 +102,29 @@ public actor DictationService: DictationServiceProtocol {
         _state = .recording
         do {
             try await audioProcessor.startCapture()
+            logger.debug("startRecording capture started")
         } catch {
             _state = .idle
+            logger.error("startRecording failed error=\(error.localizedDescription, privacy: .public)")
             throw error
         }
     }
 
     public func stopRecording() async throws -> Dictation {
         guard case .recording = _state else {
+            logger.warning("stopRecording rejected state=\(self.debugStateLabel(self._state), privacy: .public)")
             throw DictationServiceError.notRecording
         }
 
         _state = .processing
+        logger.debug("stopRecording processing begin")
 
         do {
             let audioURL = try await audioProcessor.stopCapture()
+            logger.debug("stopRecording capture stopped url=\(audioURL.path, privacy: .public)")
             let dictation = try await processCapturedAudio(audioURL: audioURL)
             _state = .success(dictation)
+            logger.debug("stopRecording success rawChars=\(dictation.rawTranscript.count) cleanChars=\(dictation.cleanTranscript?.count ?? 0)")
             try? await Task.sleep(for: .milliseconds(500))
             _state = .idle
             return dictation
@@ -123,6 +132,7 @@ public actor DictationService: DictationServiceProtocol {
             // Reset to idle so a new recording can be started.
             // The caller (AppDelegate) handles error display timing on the overlay.
             _state = .idle
+            logger.error("stopRecording failed error=\(error.localizedDescription, privacy: .public)")
             throw error
         }
     }
@@ -203,11 +213,13 @@ public actor DictationService: DictationServiceProtocol {
     private func processCapturedAudio(audioURL: URL) async throws -> Dictation {
         // Transcribe
         let result = try await sttClient.transcribe(audioPath: audioURL.path)
+        logger.debug("processCapturedAudio transcription complete chars=\(result.text.count)")
 
         let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             // Clean up temp audio file; do not paste/save empty transcripts.
             try? FileManager.default.removeItem(at: audioURL)
+            logger.warning("processCapturedAudio empty transcript")
             throw DictationServiceError.emptyTranscript
         }
 
@@ -274,6 +286,23 @@ public actor DictationService: DictationServiceProtocol {
             _state = .idle
         }
         cancelResetTask = nil
+    }
+
+    private func debugStateLabel(_ state: DictationState) -> String {
+        switch state {
+        case .idle:
+            return "idle"
+        case .recording:
+            return "recording"
+        case .processing:
+            return "processing"
+        case .success:
+            return "success"
+        case .cancelled:
+            return "cancelled"
+        case .error:
+            return "error"
+        }
     }
 }
 
