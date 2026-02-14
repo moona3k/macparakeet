@@ -1074,7 +1074,7 @@ Dictation ready
 
 ### Privacy Guarantees
 
-1. **No cloud processing** — User content is processed locally. Network is only used for one-time model downloads and user-initiated YouTube downloads.
+1. **No cloud processing** — User content is processed locally. Network is only used for one-time model downloads, optional license activation/validation, and user-initiated YouTube downloads.
 2. **Temp files cleaned** — Audio files in `$TMPDIR` deleted immediately after transcription
 3. **No accounts** — No login, no email, no user tracking
 4. **No analytics** — Zero telemetry. Not even crash reporting (unless user opts in)
@@ -1298,7 +1298,7 @@ open Package.swift
 
 2. **Protocol-first services.** Every service has a protocol. Tests inject mocks. No singletons.
 
-3. **Local-only for user data.** No cloud inference and no API-key dependency. Network is only for model artifact downloads and user-initiated media downloads.
+3. **Local-only for user data.** No cloud inference and no API-key dependency. Network is only for model artifacts, optional license activation/validation, and user-initiated media downloads.
 
 4. **Fast launch + onboarding pre-warm.** App launch stays lightweight; first-run onboarding prepares STT + LLM so core features feel ready immediately afterward.
 

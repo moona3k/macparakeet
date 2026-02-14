@@ -162,6 +162,7 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(OnboardingViewModel.parseProgressFraction(from: "Downloading speech model (571 MB)... 45%"), 0.45)
         XCTAssertEqual(OnboardingViewModel.parseProgressFraction(from: "Downloading speech model (571 MB)... 0%"), 0.0)
         XCTAssertEqual(OnboardingViewModel.parseProgressFraction(from: "Downloading speech model (571 MB)... 100%"), 1.0)
+        XCTAssertEqual(OnboardingViewModel.parseProgressFraction(from: "Speech model: Downloading speech model... 60% (3/5)"), 0.6)
     }
 
     func testParseProgressFractionReturnsNilForNonPercentage() {

@@ -1240,11 +1240,11 @@ new scheduling architecture.
 **Required entitlements:**
 - Audio input (microphone access for dictation)
 - Accessibility (global hotkey, text insertion)
-- Outgoing network (first-run model downloads + YouTube downloads, user-initiated)
+- Outgoing network (first-run model downloads, optional license activation/validation, and user-initiated YouTube downloads)
 - Temporary file access (audio processing workspace)
 
 **Privacy policy highlights:**
-- No user content leaves device. Network is only for first-run model downloads and user-initiated YouTube downloads.
+- No user content leaves device. Network is only for model/setup artifacts, optional license activation/validation, and user-initiated YouTube downloads.
 - No analytics, no telemetry, no tracking
 - No account required
 - Audio stored only locally, deletable by user
@@ -1305,13 +1305,13 @@ MacParakeet's brand is privacy. These are non-negotiable.
 
 | Requirement | Detail |
 |-------------|--------|
-| No network by default | App works fully offline after one-time model setup |
+| No network by default | App works fully offline after one-time model setup unless optional license activation/validation is enabled |
 | No analytics | Zero telemetry, no crash reporting to servers |
 | No telemetry | No usage tracking, no feature analytics |
 | No accounts | No email, no login, no registration |
 | No cloud processing | All STT and LLM runs locally on Apple Silicon |
 | User-controlled storage | Audio saved by default, user can disable or delete |
-| Network only for setup + YouTube | One-time model downloads during onboarding + YouTube download, both user-initiated |
+| Network only for setup/licensing + YouTube | One-time model downloads during onboarding, optional license activation/validation, and YouTube download |
 
 **What "100% local" means:**
 - Parakeet STT runs on Apple Silicon Neural Engine (ANE) via FluidAudio CoreML -- no cloud API

@@ -51,6 +51,7 @@ public final class OnboardingViewModel {
     private let now: @Sendable () -> Date
     private var engineGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
+    private static let progressPercentRegex = try! NSRegularExpression(pattern: #"(\d{1,3})(?:\.\d+)?\s*%"#)
 
     public static let onboardingCompletedKey = "onboarding.completedAtISO"
 
@@ -209,14 +210,20 @@ public final class OnboardingViewModel {
         }
     }
 
-    /// Extract a percentage from messages like "Downloading speech model (571 MB)... 45%"
+    /// Extract a percentage from messages like:
+    /// "Downloading speech model... 45%" or "Downloading speech model... 45% (3/7)"
     static func parseProgressFraction(from message: String) -> Double? {
-        guard message.hasSuffix("%") else { return nil }
-        let stripped = message.dropLast() // remove "%"
-        guard let lastSpace = stripped.lastIndex(of: " ") else { return nil }
-        let numberPart = stripped[stripped.index(after: lastSpace)...]
-        guard let pct = Int(numberPart), pct >= 0, pct <= 100 else { return nil }
-        return Double(pct) / 100.0
+        let range = NSRange(message.startIndex..., in: message)
+        guard let match = progressPercentRegex.firstMatch(in: message, options: [], range: range),
+              match.numberOfRanges >= 2,
+              let numberRange = Range(match.range(at: 1), in: message),
+              let percent = Double(message[numberRange]),
+              percent >= 0,
+              percent <= 100 else {
+            return nil
+        }
+
+        return percent / 100
     }
 
     public func retryEngineWarmUp() {
