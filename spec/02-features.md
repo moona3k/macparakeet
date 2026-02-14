@@ -90,6 +90,10 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 5. Local model setup (Parakeet + Qwen, retry required)
 6. Ready
 
+**Dismiss behavior:**
+- Closing onboarding before completion shows a confirmation prompt.
+- If dismissed anyway, onboarding is re-opened on next app activation until setup is completed.
+
 ### F1: System-Wide Dictation
 
 **What:** Press a hotkey anywhere on macOS, speak, and polished text appears in the active app. The core feature that makes MacParakeet worth using every day.

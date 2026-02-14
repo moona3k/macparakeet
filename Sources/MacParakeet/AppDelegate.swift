@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var hotkeyTriggerObserver: Any?
     private var menuBarOnlyModeObserver: Any?
     private var hotkeyMenuItem: NSMenuItem?
+    private var reopenOnboardingOnNextActivate = false
 
     // MARK: - App Lifecycle
 
@@ -337,6 +338,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    func applicationDidBecomeActive(_ notification: Notification) {
+        guard reopenOnboardingOnNextActivate else { return }
+        maybeShowOnboarding()
+    }
+
     private func showOnboarding() {
         guard let env = appEnvironment else { return }
         showOnboarding(
@@ -356,6 +362,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             sttClient: sttClient,
             llmService: llmService,
             onFinish: { [weak self] in
+                self?.reopenOnboardingOnNextActivate = false
                 self?.refreshHotkeyAfterPermissions()
                 // Start the 7-day trial now that onboarding is complete —
                 // user doesn't lose trial days to permission setup.
@@ -365,6 +372,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             },
             onOpenMainApp: { [weak self] in
                 self?.openMainWindow()
+            },
+            onIncompleteDismiss: { [weak self] in
+                self?.reopenOnboardingOnNextActivate = true
             }
         )
     }
