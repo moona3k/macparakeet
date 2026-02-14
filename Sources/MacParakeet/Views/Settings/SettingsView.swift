@@ -332,7 +332,7 @@ struct SettingsView: View {
     private var onboardingCard: some View {
         settingsCard(
             title: "Onboarding",
-            subtitle: "Re-run setup flow for permissions and speech engine warm-up.",
+            subtitle: "Re-run setup flow for permissions and local model warm-up.",
             icon: "list.number"
         ) {
             HStack {

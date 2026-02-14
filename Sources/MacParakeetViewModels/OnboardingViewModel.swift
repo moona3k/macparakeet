@@ -52,6 +52,7 @@ public final class OnboardingViewModel {
     private var engineGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
     private static let progressPercentRegex = try! NSRegularExpression(pattern: #"(\d{1,3})(?:\.\d+)?\s*%"#)
+    private let engineWarmUpAttempts = 3
 
     public static let onboardingCompletedKey = "onboarding.completedAtISO"
 
@@ -169,12 +170,22 @@ public final class OnboardingViewModel {
 
         Task {
             do {
-                try await sttClient.warmUp { [weak self] progressMessage in
-                    Task { @MainActor [weak self] in
-                        guard let self, self.engineGeneration == generation else { return }
-                        let message = "Speech model: \(progressMessage)"
-                        let fraction = Self.parseProgressFraction(from: message)
-                        self.engineState = .working(message: message, progress: fraction)
+                try await runWithRetry(maxAttempts: engineWarmUpAttempts, onRetry: { [weak self] attempt in
+                    guard let self, self.engineGeneration == generation else { return }
+                    self.engineState = .working(
+                        message: "Retrying speech model setup (attempt \(attempt)/\(self.engineWarmUpAttempts))...",
+                        progress: nil
+                    )
+                }) {
+                    guard self.engineGeneration == generation else { throw CancellationError() }
+
+                    try await self.sttClient.warmUp { [weak self] progressMessage in
+                        Task { @MainActor [weak self] in
+                            guard let self, self.engineGeneration == generation else { return }
+                            let message = "Speech model: \(progressMessage)"
+                            let fraction = Self.parseProgressFraction(from: message)
+                            self.engineState = .working(message: message, progress: fraction)
+                        }
                     }
                 }
 
@@ -182,18 +193,17 @@ public final class OnboardingViewModel {
                     guard self.engineGeneration == generation else { return }
                     self.engineState = .working(message: "Preparing local AI model (Qwen)...", progress: nil)
                 }
-                _ = try await llmService.generate(
-                    request: LLMRequest(
-                        prompt: "Reply with exactly: OK",
-                        systemPrompt: "Return exactly one token: OK",
-                        options: LLMGenerationOptions(
-                            temperature: 0.0,
-                            topP: 1.0,
-                            maxTokens: 8,
-                            timeoutSeconds: nil
-                        )
+
+                try await runWithRetry(maxAttempts: engineWarmUpAttempts, onRetry: { [weak self] attempt in
+                    guard let self, self.engineGeneration == generation else { return }
+                    self.engineState = .working(
+                        message: "Retrying local AI model setup (attempt \(attempt)/\(self.engineWarmUpAttempts))...",
+                        progress: nil
                     )
-                )
+                }) {
+                    guard self.engineGeneration == generation else { throw CancellationError() }
+                    try await self.llmService.warmUp()
+                }
 
                 await MainActor.run {
                     guard self.engineGeneration == generation else { return }
@@ -229,5 +239,32 @@ public final class OnboardingViewModel {
     public func retryEngineWarmUp() {
         engineState = .idle
         startEngineWarmUp()
+    }
+
+    private func runWithRetry(
+        maxAttempts: Int,
+        onRetry: @escaping (_ attempt: Int) -> Void,
+        operation: @escaping () async throws -> Void
+    ) async throws {
+        precondition(maxAttempts >= 1, "maxAttempts must be >= 1")
+
+        var backoffNs: UInt64 = 250_000_000
+        var lastError: Error?
+
+        for attempt in 1...maxAttempts {
+            do {
+                try await operation()
+                return
+            } catch {
+                lastError = error
+                guard attempt < maxAttempts else { break }
+                let nextAttempt = attempt + 1
+                onRetry(nextAttempt)
+                try await Task.sleep(nanoseconds: backoffNs)
+                backoffNs *= 2
+            }
+        }
+
+        throw lastError ?? STTError.engineStartFailed("Local model warm-up failed.")
     }
 }

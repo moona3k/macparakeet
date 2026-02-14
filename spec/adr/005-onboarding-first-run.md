@@ -8,7 +8,7 @@ MacParakeet is a menu bar app with a configurable global hotkey (default: Fn) an
 
 - Explain the core interaction model (hotkey, stop/paste, cancel).
 - Acquire required permissions (Microphone, Accessibility).
-- Prepare the local STT engine (FluidAudio CoreML model download + warm-up) so the first dictation feels fast and reliable.
+- Prepare local models (Parakeet STT + Qwen LLM) so dictation and AI refinement are ready on first use.
 
 Without onboarding, users encounter failures out of context (missing permissions, slow first warm-up) and the product feels brittle.
 
@@ -31,7 +31,7 @@ The onboarding can also be launched manually from Settings.
 
 - Users get a guided, premium setup that reduces first-run friction.
 - Hotkey manager is restarted after onboarding to reliably start listening once Accessibility is granted.
-- Speech engine warm-up happens explicitly during onboarding to reduce latency on the first dictation.
+- Both local models are downloaded/warmed during onboarding to reduce first-use latency for dictation and AI refinement.
 - Onboarding completion is stored in `UserDefaults` as an ISO8601 timestamp.
 
 ## Alternatives Considered

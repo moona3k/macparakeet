@@ -79,8 +79,8 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(vm.engineState, .ready)
         let called = await stt.wasWarmUpCalled()
         XCTAssertTrue(called)
-        let requestCount = await llm.requestCount()
-        XCTAssertEqual(requestCount, 1)
+        let llmWarmUpCalls = await llm.warmUpCallCount()
+        XCTAssertEqual(llmWarmUpCalls, 1)
         XCTAssertTrue(vm.canContinueFromCurrentStep())
     }
 
@@ -128,8 +128,8 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(vm.engineState, .ready)
         let called = await stt.wasWarmUpCalled()
         XCTAssertTrue(called)
-        let requestCount = await llm.requestCount()
-        XCTAssertEqual(requestCount, 1)
+        let llmWarmUpCalls = await llm.warmUpCallCount()
+        XCTAssertEqual(llmWarmUpCalls, 1)
     }
 
     func testEngineWarmUpFailsWhenLLMSetupFails() async throws {
@@ -148,7 +148,7 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.jump(to: .engine)
 
         vm.startEngineWarmUp()
-        try await Task.sleep(for: .milliseconds(120))
+        try await Task.sleep(for: .milliseconds(1_100))
 
         if case .failed = vm.engineState {
             // expected
@@ -177,5 +177,51 @@ final class OnboardingViewModelTests: XCTestCase {
 
         XCTAssertNotEqual(state, stateNoProgress)
         XCTAssertEqual(state, .working(message: "Downloading...", progress: 0.5))
+    }
+
+    func testEngineWarmUpRetriesTransientSTTFailure() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let llm = MockLLMService()
+        await stt.configureWarmUpFailuresBeforeSuccess(2)
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+
+        let vm = OnboardingViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            llmService: llm,
+            defaults: defaults
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertEqual(vm.engineState, .ready)
+        let sttCalls = await stt.warmUpCallCount
+        XCTAssertEqual(sttCalls, 3)
+    }
+
+    func testEngineWarmUpRetriesTransientLLMFailure() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let llm = MockLLMService()
+        await llm.configureWarmUp(failuresBeforeSuccess: 2)
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+
+        let vm = OnboardingViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            llmService: llm,
+            defaults: defaults
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(1_100))
+
+        XCTAssertEqual(vm.engineState, .ready)
+        let llmWarmUpCalls = await llm.warmUpCallCount()
+        XCTAssertEqual(llmWarmUpCalls, 3)
     }
 }
