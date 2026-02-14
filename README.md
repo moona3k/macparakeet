@@ -100,6 +100,7 @@ MacParakeet is built for **fast feedback loops**. AI agents make mistakes — bu
 - **Internal CLI** — Headless interface to core services (transcribe files, test the pipeline) so changes can be verified without launching the GUI
   - Tip: use `swift run macparakeet-cli transcribe ... --database /tmp/macparakeet-dev.db` to avoid writing into your real app database during dev.
   - Local LLM checks: `swift run macparakeet-cli llm smoke-test --stats`, `swift run macparakeet-cli llm refine formal "draft text"`, and `swift run macparakeet-cli llm chat "question" --transcript-file /path/to/transcript.txt`.
+  - Model lifecycle checks: `swift run macparakeet-cli models status`, `swift run macparakeet-cli models warm-up --target all`, `swift run macparakeet-cli models repair --target all`.
   - See `docs/cli-testing.md` for GUI-parity vs deterministic testing modes.
 - **Protocol-based services** — Mockable boundaries make isolated testing straightforward
 

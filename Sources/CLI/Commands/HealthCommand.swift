@@ -5,10 +5,18 @@ import MacParakeetCore
 struct HealthCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "health",
-        abstract: "Check system health: database, speech engine, and helper binaries."
+        abstract: "Check system health: database, local models, and helper binaries."
     )
 
+    @Flag(name: .long, help: "Attempt to repair/warm local models (Parakeet + Qwen).")
+    var repairModels: Bool = false
+
+    @Option(name: .long, help: "Maximum repair attempts per model when --repair-models is set.")
+    var repairAttempts: Int = 3
+
     func run() async throws {
+        let repairAttempts = try validatedAttempts(repairAttempts)
+
         print("MacParakeet Health Check")
         print("========================")
         print()
@@ -55,15 +63,30 @@ struct HealthCommand: AsyncParsableCommand {
         }
         print()
 
-        // 4. Speech engine
-        print("Speech Engine:")
+        // 4. Local models
+        print("Local Models:")
         let sttClient = STTClient()
-        do {
-            try await sttClient.warmUp()
-            let ready = await sttClient.isReady()
-            print("  Status: \(ready ? "Ready" : "Not ready")")
-        } catch {
-            print("  Status: Not available — \(error.localizedDescription)")
+        let llmService = MLXLLMService()
+
+        await printSTTStatus(sttClient: sttClient)
+        print()
+        await printLLMStatus(llmService: llmService)
+
+        if repairModels {
+            print()
+            print("Model repair requested...")
+            do {
+                try await warmUpModels(
+                    target: .all,
+                    attempts: repairAttempts,
+                    sttClient: sttClient,
+                    llmService: llmService,
+                    log: { message in print("  \(message)") }
+                )
+                print("Model repair completed.")
+            } catch {
+                print("Model repair failed — \(error.localizedDescription)")
+            }
         }
         await sttClient.shutdown()
         print()

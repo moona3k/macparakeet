@@ -10,6 +10,7 @@ struct CLI: AsyncParsableCommand {
             TranscribeCommand.self,
             HistoryCommand.self,
             HealthCommand.self,
+            ModelsCommand.self,
             FlowCommand.self,
             LLMCommand.self,
         ],

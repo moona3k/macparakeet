@@ -63,6 +63,25 @@ Without `--enforce-entitlements`, the CLI runs core transcription without GUI ga
 
 ```bash
 swift run macparakeet-cli health
+swift run macparakeet-cli health --repair-models --repair-attempts 3
+```
+
+### Local model lifecycle commands
+
+```bash
+# Non-invasive status (does not force downloads)
+swift run macparakeet-cli models status
+
+# Status for one model
+swift run macparakeet-cli models status --target stt
+swift run macparakeet-cli models status --target llm
+
+# Warm-up (single attempt by default)
+swift run macparakeet-cli models warm-up --target all
+
+# Repair (best-effort retry; default 3 attempts)
+swift run macparakeet-cli models repair --target all
+swift run macparakeet-cli models repair --target llm --attempts 5
 ```
 
 ### List recent dictations/transcriptions
@@ -90,6 +109,7 @@ swift run macparakeet-cli flow snippets list
 
 ```bash
 swift run macparakeet-cli llm smoke-test --stats
+swift run macparakeet-cli models warm-up --target llm
 swift run macparakeet-cli llm generate "Summarize this paragraph in one sentence: ..."
 swift run macparakeet-cli llm refine formal "quick unpolished draft"
 swift run macparakeet-cli llm command "Translate to Spanish" "Hello, how are you?"
