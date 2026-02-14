@@ -91,6 +91,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 6. Ready
 
 **Model failure recovery:**
+- Before warm-up, onboarding runs lightweight preflight checks (runtime support + first-setup disk/network readiness).
 - If local model setup fails, onboarding shows explicit recovery tips based on failure type.
 - Users get direct CTAs: `Retry` and `Open Settings` (to `Settings > Local Models > Repair`).
 

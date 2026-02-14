@@ -28,12 +28,14 @@ The onboarding flow is linear and step-based:
 The onboarding can also be launched manually from Settings.
 
 If onboarding is closed before completion, the app shows an explicit confirmation dialog. If the user exits setup anyway, onboarding is shown again on the next app activation until completion.
+During local model setup, onboarding runs lightweight preflight checks (runtime support + first-setup disk/network readiness) before warm-up begins.
 
 ## Consequences
 
 - Users get a guided, premium setup that reduces first-run friction.
 - Hotkey manager is restarted after onboarding to reliably start listening once Accessibility is granted.
 - Both local models are downloaded/warmed during onboarding to reduce first-use latency for dictation and AI refinement.
+- Preflight checks fail fast with actionable guidance, reducing avoidable warm-up failures.
 - Onboarding completion is stored in `UserDefaults` as an ISO8601 timestamp.
 - Incomplete setup is never silently dismissed; users either continue setup or explicitly defer it.
 
