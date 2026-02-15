@@ -884,16 +884,24 @@ Modes stack: Formal/Email/Code always run the clean pipeline first, then apply L
 
 ## v0.3 Features (Command Mode, Chat & Export)
 
-### F10: Command Mode
+### F10: Command Mode (Epic)
 
-**What:** Select text in any app, activate command mode, speak a natural language command, and the text is edited in-place by the local LLM. Like WisprFlow Pro, but running entirely on-device.
+**What:** Select text in any app, activate command mode, speak a natural language command, and the text is edited in-place by the local LLM.
+
+To reduce implementation risk and keep delivery focused, Command Mode is split into:
+
+- `F10a` core command workflow (GUI MVP)
+- `F10b` command enhancements (quick commands + saved templates)
 
 **This is the key differentiator for MacParakeet.** Cloud competitors charge monthly for this. We do it locally for a one-time price.
 
-**Activation:**
+### F10a: Command Mode Core (GUI MVP)
+
+**Scope:**
 - Default shortcut: Fn+Ctrl (or configurable)
-- Requires text to be selected in the active app
+- Requires text selected in active app
 - Can also be activated from menu bar: "Command Mode"
+- Record spoken command, run local LLM transform, replace selected text in-place
 
 **Flow:**
 
@@ -907,7 +915,7 @@ Modes stack: Formal/Email/Code always run the clean pipeline first, then apply L
 │    - Selected text captured via Accessibility API                │
 ├─────────────────────────────────────────────────────────────────┤
 │ 3. User speaks command                                           │
-│    "Make this formal and fix the capitalization"                  │
+│    "Make this formal and fix the capitalization"                 │
 ├─────────────────────────────────────────────────────────────────┤
 │ 4. Processing                                                    │
 │    - Command transcribed via Parakeet                            │
@@ -933,18 +941,9 @@ Modes stack: Formal/Email/Code always run the clean pipeline first, then apply L
 | "Make it shorter" | (verbose text) | (concise version) |
 | "Convert to code" | "create a function that adds two numbers" | `func add(_ a: Int, _ b: Int) -> Int { a + b }` |
 
-**Pre-built commands (quick access):**
-Users can pin frequently used commands for one-click access:
-- Fix grammar
-- Make formal
-- Make concise
-- Translate to [language]
-
-**Custom commands:**
-Users can define and save custom command templates for repeated use.
-
 **Technical implementation:**
-- Read selected text via Accessibility API (`AXUIElement`)
+- Read selected text via Accessibility API (`AXUIElement`) with fallback retrieval chain
+- Enforce selected text hard cap: 16,000 characters with explicit error
 - Transcribe spoken command via Parakeet
 - Send `(selected_text, command)` to Qwen3-8B with system prompt: "Apply the user's command to the provided text. Return only the edited text, no explanation."
 - Replace selected text by simulating Cmd+V with the result (same paste mechanism as dictation)
@@ -954,9 +953,9 @@ Users can define and save custom command templates for repeated use.
 
 ```
      ┌─────────────────────────────────────────────┐
-     │  Speak your command...                       │
-     │  [X]  ∿∿∿∿∿∿∿∿∿∿∿∿  [■]                    │
-     │  Selected: "hey can u send the file" (37c)   │
+     │  Speak your command...                      │
+     │  [X]  ∿∿∿∿∿∿∿∿∿∿∿∿  [■]                   │
+     │  Selected: "hey can u send the file" (37c) │
      └─────────────────────────────────────────────┘
 ```
 
@@ -964,19 +963,31 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 
 **Acceptance criteria:**
 - [ ] Fn+Ctrl activates command mode when text is selected
+- [ ] "Command Mode" menu bar action enters same start flow
 - [ ] Selected text read from active app via Accessibility API
 - [ ] Spoken command transcribed via Parakeet
 - [ ] LLM applies command to selected text correctly
-- [ ] Result replaces selected text in the active app
-- [ ] Works across apps (Safari, Notes, Slack, VS Code, etc.)
-- [ ] Pre-built commands accessible from overlay
-- [ ] Custom commands can be saved and reused
+- [ ] Result replaces selected text in the active app exactly once
 - [ ] Cmd+Z in target app undoes the replacement
-- [ ] Graceful error if no text selected ("Select text first") or LLM fails
+- [ ] Works across apps (Safari, Notes, Slack, VS Code, etc.)
+- [ ] Graceful errors for: no permission, no text selected ("Select text first"), text too long, and LLM/paste failures
+
+### F10b: Command Mode Enhancements
+
+**Scope:**
+- Pre-built quick commands exposed in overlay
+- User-defined saved command templates
+- Faster repeat-command UX and command organization polish
+
+**Acceptance criteria:**
+- [ ] Pre-built commands are accessible from overlay
+- [ ] Custom commands can be created, edited, deleted, and reused
+- [ ] Reusing a saved command routes through same F10a execution path
+- [ ] Failure behavior matches F10a error handling policy
 
 ---
 
-### F10a: Transcript Chat (GUI MVP)
+### F10c: Transcript Chat (GUI MVP)
 
 **What:** Ask questions about the currently selected transcript from the transcript detail screen using local Qwen3-8B.
 
@@ -1446,12 +1457,17 @@ v0.3 Command Mode, Chat & Export:
 ────────────────────────────────────────────────────────────────────
 
       ┌──────────────────┐
-      │ F10: Command     │ ← Requires F1 (dictation) + F8 (LLM)
-      │ Mode             │   + Accessibility API
+      │ F10a: Command    │ ← Requires F1 (dictation) + F8 (LLM)
+      │ Mode Core        │   + Accessibility API
       └──────────────────┘
 
       ┌──────────────────┐
-      │ F10a: Transcript │ ← Requires F2 (transcript detail) + F8 (LLM)
+      │ F10b: Command    │ ← Extends F10a (quick commands + templates)
+      │ Mode Enhancements│
+      └──────────────────┘
+
+      ┌──────────────────┐
+      │ F10c: Transcript │ ← Requires F2 (transcript detail) + F8 (LLM)
       │ Chat (GUI MVP)   │
       └──────────────────┘
 
@@ -1491,9 +1507,9 @@ v0.4 Polish & Launch:
 
 Cross-cutting dependency:
 
-      Parakeet STT ──► F1, F2, F10, F11, F13, F14, F15
-      Qwen3-8B LLM ──► F8, F10, F10a
-      Accessibility ──► F1 (hotkey + paste), F10 (text selection)
+      Parakeet STT ──► F1, F2, F10a, F11, F13, F14, F15
+      Qwen3-8B LLM ──► F8, F10a, F10b, F10c
+      Accessibility ──► F1 (hotkey + paste), F10a (text selection)
       FFmpeg ──────────► F2, F11, F14
       yt-dlp ──────────► F11
       GRDB (SQLite) ──► F4, F7 (custom words, snippets)

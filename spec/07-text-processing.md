@@ -93,6 +93,10 @@ Final normalization pass:
 
 A voice-controlled text transformation feature that works with any selected text in any app.
 
+Feature split:
+- `F10a` core command flow (selection -> spoken command -> transformed replacement)
+- `F10b` enhancements (quick commands + saved templates)
+
 ### Flow
 
 ```
@@ -123,11 +127,16 @@ User selects text in any app
 | "Make shorter" | Reduces length while keeping meaning |
 | "Add bullet points" | Reformats as a bulleted list |
 
-### Constraints
+### Constraints (F10a)
 
-- Selected text is limited to ~4000 tokens as a practical limit for command mode (Qwen3-8B supports 128K context)
+- Selected text is limited to 16,000 characters (hard cap, explicit error on overflow)
 - If no text is selected, show a brief tooltip: "Select text first"
 - Command recording uses the same mic pipeline as dictation
+
+### Enhancements (F10b)
+
+- Pre-built quick commands in overlay for repeated edits
+- Saved custom command templates that route through the same core transform path
 
 ---
 

@@ -86,8 +86,9 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 
 ### v0.3 Command Mode, Chat & Export (In Progress)
 
-- [ ] Command Mode: select text -> speak command -> LLM edits in-place
-- [x] Transcript Chat (GUI MVP): ask questions about the selected transcript via local Qwen3-8B
+- [ ] F10a Command Mode Core: select text -> speak command -> LLM edits in-place
+- [ ] F10b Command Mode Enhancements: quick commands + saved templates
+- [x] F10c Transcript Chat (GUI MVP): ask questions about the selected transcript via local Qwen3-8B
 - [x] YouTube URL transcription (yt-dlp + Parakeet)
 - [ ] Full export (.docx, .pdf, .json)
 - [x] Exports: TXT, Markdown, SRT, VTT (one-click to Downloads)
