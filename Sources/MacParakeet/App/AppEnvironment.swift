@@ -17,8 +17,10 @@ final class AppEnvironment {
     let clipboardService: ClipboardService
     let exportService: ExportService
     let permissionService: PermissionService
+    let accessibilityService: AccessibilityService
     let entitlementsService: EntitlementsService
     let llmService: MLXLLMService
+    let commandModeService: CommandModeService
     let checkoutURL: URL?
 
     init() throws {
@@ -46,6 +48,7 @@ final class AppEnvironment {
         clipboardService = ClipboardService()
         exportService = ExportService()
         permissionService = PermissionService()
+        accessibilityService = AccessibilityService()
 
         // Licensing / entitlements (basic guards: 7-day trial + license unlock).
         //
@@ -116,6 +119,12 @@ final class AppEnvironment {
                 UserDefaults.standard.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
             },
             youtubeDownloader: youtubeDownloader
+        )
+
+        commandModeService = CommandModeService(
+            audioProcessor: audioProcessor,
+            sttClient: sttClient,
+            llmService: llmService
         )
     }
 }

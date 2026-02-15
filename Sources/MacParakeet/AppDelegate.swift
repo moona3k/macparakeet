@@ -26,6 +26,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var overlayActionTask: Task<Void, Never>?
     private var idlePillController: IdlePillController?
     private var idlePillViewModel: IdlePillViewModel?
+    private var commandOverlayController: DictationOverlayController?
+    private var commandOverlayViewModel: DictationOverlayViewModel?
+    private var commandModeTask: Task<Void, Never>?
+    private var commandModeProcessTask: Task<Void, Never>?
+    private var commandModeSelectedText: String?
+    private var commandModeGeneration: Int = 0
+    private var isCommandModeActive = false
 
     /// Monotonic generation id for the dictation UI flow. Any async work must guard this value before
     /// mutating shared UI state or calling into `DictationService` (which is global/shared).
@@ -65,6 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hideIdlePill()
+        commandModeTask?.cancel()
+        commandModeProcessTask?.cancel()
+        commandOverlayController?.hide()
+        commandOverlayController = nil
+        commandOverlayViewModel = nil
         hotkeyManager?.stop()
         if let onboardingObserver { NotificationCenter.default.removeObserver(onboardingObserver) }
         if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
@@ -165,6 +177,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             title: "Open MacParakeet",
             action: #selector(openMainWindow),
             keyEquivalent: "o"
+        ))
+
+        menu.addItem(NSMenuItem.separator())
+
+        menu.addItem(NSMenuItem(
+            title: "Command Mode",
+            action: #selector(startCommandModeFromMenuBar),
+            keyEquivalent: ""
         ))
 
         menu.addItem(NSMenuItem.separator())
@@ -292,15 +312,193 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         setupHotkey()
     }
 
-    /// Phase 1 command-mode hotkey wiring only.
-    /// Full command-mode start/stop/cancel flow is implemented in F10a core slices.
     private func startCommandModeFromHotkey() {
-        dictationLog.debug("command hotkey start detected (phase1 wiring)")
+        guard let env = appEnvironment else { return }
+        guard !isCommandModeActive else { return }
+        if recordingTask != nil {
+            dictationLog.debug("command mode start ignored while dictation UI is active")
+            return
+        }
+
+        if let vm = overlayViewModel {
+            if case .ready = vm.state {
+                dismissReadyPill()
+            } else {
+                dictationLog.debug("command mode start ignored while dictation overlay is active")
+                return
+            }
+        }
+
+        if overlayController != nil {
+            dictationLog.debug("command mode start ignored while dictation overlay controller is active")
+            return
+        }
+
+        hideIdlePill()
+
+        commandModeTask?.cancel()
+        commandModeProcessTask?.cancel()
+        commandModeProcessTask = nil
+
+        let gen = bumpCommandModeGeneration()
+        commandModeTask = Task { @MainActor in
+            do {
+                try await env.entitlementsService.assertCanTranscribe(now: Date())
+            } catch {
+                guard self.commandModeGeneration == gen else { return }
+                self.presentEntitlementsAlert(error)
+                self.showIdlePill()
+                return
+            }
+
+            guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
+
+            let selectedText: String
+            do {
+                selectedText = try env.accessibilityService.getSelectedText()
+            } catch {
+                guard self.commandModeGeneration == gen else { return }
+                self.presentCommandModeAlert(error.localizedDescription)
+                self.showIdlePill()
+                return
+            }
+
+            guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
+
+            self.commandModeSelectedText = selectedText
+            self.isCommandModeActive = true
+            self.hotkeyManager?.setCommandModeActive(true)
+
+            let vm = DictationOverlayViewModel()
+            vm.recordingMode = .persistent
+            vm.onCancel = { [weak self] in self?.cancelCommandModeFromHotkey() }
+            vm.onStop = { [weak self] in self?.stopCommandMode() }
+            vm.onDismiss = { [weak self] in self?.cancelCommandModeFromHotkey() }
+            vm.state = .recording
+            vm.startTimer()
+            self.commandOverlayViewModel = vm
+
+            let controller = DictationOverlayController(viewModel: vm)
+            controller.show()
+            self.commandOverlayController = controller
+
+            do {
+                try await env.commandModeService.startRecording()
+                while !Task.isCancelled,
+                      self.commandModeGeneration == gen,
+                      self.isCommandModeActive,
+                      await env.commandModeService.state == .recording {
+                    vm.audioLevel = await env.commandModeService.audioLevel
+                    try? await Task.sleep(for: .milliseconds(50))
+                }
+            } catch {
+                guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
+                vm.stopTimer()
+                vm.state = .error(error.localizedDescription)
+                try? await Task.sleep(for: .seconds(3))
+                guard self.commandModeGeneration == gen else { return }
+                await env.commandModeService.cancelRecording()
+                self.finishCommandMode(expectedGeneration: gen)
+            }
+        }
     }
 
-    /// Phase 1 command-mode hotkey wiring only.
+    private func stopCommandMode() {
+        guard let env = appEnvironment else { return }
+        guard isCommandModeActive,
+              let selectedText = commandModeSelectedText,
+              let vm = commandOverlayViewModel else {
+            return
+        }
+
+        commandModeTask?.cancel()
+        commandModeTask = nil
+
+        let controller = commandOverlayController
+        let gen = commandModeGeneration
+
+        commandModeProcessTask?.cancel()
+        commandModeProcessTask = Task { @MainActor in
+            vm.stopTimer()
+            vm.state = .processing
+
+            do {
+                let result = try await env.commandModeService.stopRecordingAndProcess(selectedText: selectedText)
+                guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
+                vm.state = .success
+                controller?.resignKeyWindow()
+                try? await Task.sleep(for: .milliseconds(200))
+
+                let didAutoPaste = await self.pasteTranscriptWithFallback(
+                    transcript: result.transformedText,
+                    viewModel: vm,
+                    clipboardService: env.clipboardService
+                )
+                if didAutoPaste {
+                    try? await Task.sleep(for: .milliseconds(800))
+                } else {
+                    try? await Task.sleep(for: .seconds(2))
+                }
+            } catch where (error as? CommandModeServiceError) == .emptyCommand {
+                guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
+                vm.noSpeechProgress = 1.0
+                vm.state = .noSpeech
+                try? await Task.sleep(for: .seconds(3))
+            } catch {
+                guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
+                vm.state = .error(error.localizedDescription)
+                try? await Task.sleep(for: .seconds(3))
+            }
+
+            guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
+            self.finishCommandMode(expectedGeneration: gen)
+        }
+    }
+
     private func cancelCommandModeFromHotkey() {
-        dictationLog.debug("command hotkey cancel detected (phase1 wiring)")
+        guard let env = appEnvironment else { return }
+        guard isCommandModeActive else { return }
+
+        let gen = commandModeGeneration
+        commandModeTask?.cancel()
+        commandModeTask = nil
+        commandModeProcessTask?.cancel()
+        commandModeProcessTask = nil
+
+        Task { @MainActor in
+            await env.commandModeService.cancelRecording()
+            guard self.commandModeGeneration == gen else { return }
+            self.finishCommandMode(expectedGeneration: gen)
+        }
+    }
+
+    private func finishCommandMode(expectedGeneration: Int) {
+        guard commandModeGeneration == expectedGeneration else { return }
+
+        commandModeTask?.cancel()
+        commandModeTask = nil
+        commandModeProcessTask?.cancel()
+        commandModeProcessTask = nil
+        commandOverlayViewModel?.stopTimer()
+        commandOverlayController?.hide()
+        commandOverlayController = nil
+        commandOverlayViewModel = nil
+        commandModeSelectedText = nil
+        isCommandModeActive = false
+        hotkeyManager?.setCommandModeActive(false)
+        hotkeyManager?.resetToIdle()
+        _ = bumpCommandModeGeneration()
+        showIdlePill()
+    }
+
+    private func presentCommandModeAlert(_ message: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = "Command Mode"
+        alert.informativeText = message
+        alert.addButton(withTitle: "OK")
+        _ = alert.runModal()
     }
 
     private func observeOpenOnboarding() {
@@ -444,6 +642,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func bumpOverlayGeneration() -> Int {
         overlayGeneration += 1
         return overlayGeneration
+    }
+
+    @discardableResult
+    private func bumpCommandModeGeneration() -> Int {
+        commandModeGeneration += 1
+        return commandModeGeneration
     }
 
     // MARK: - Ready Pill
@@ -965,11 +1169,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// Dismiss the overlay if it's showing an error or no-speech feedback. Called when ESC is
     /// pressed while the state machine is idle (these overlays outlive the recording state).
     private func dismissOverlayIfError() {
-        guard let vm = overlayViewModel else { return }
-        if case .error = vm.state {
-            dismissOverlay()
-        } else if case .noSpeech = vm.state {
-            dismissOverlay()
+        if let vm = overlayViewModel {
+            if case .error = vm.state {
+                dismissOverlay()
+                return
+            } else if case .noSpeech = vm.state {
+                dismissOverlay()
+                return
+            }
+        }
+
+        if let commandVM = commandOverlayViewModel {
+            if case .error = commandVM.state {
+                cancelCommandModeFromHotkey()
+            } else if case .noSpeech = commandVM.state {
+                cancelCommandModeFromHotkey()
+            }
         }
     }
 
@@ -1060,6 +1275,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
         mainWindow?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+    }
+
+    @objc private func startCommandModeFromMenuBar() {
+        startCommandModeFromHotkey()
     }
 
     @objc private func openMainWindowToSettings() {
