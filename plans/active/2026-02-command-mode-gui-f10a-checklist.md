@@ -1,8 +1,19 @@
 # Command Mode GUI (F10a) Implementation Checklist
 
-Status: Ready for implementation
+Status: Pending de-risk gates
 Owner: Core app team
-Updated: 2026-02-13
+Updated: 2026-02-15
+
+Pre-implementation de-risk plan:
+`plans/active/2026-02-command-mode-f10a-de-risk-plan.md`
+
+## Definition of Ready (must be true before coding F10a)
+
+1. de-risk phases 0 through 5 are complete
+2. Go/No-Go review is "Go" with app lead + QA lead sign-off
+3. no open P0 or P1 defects related to hotkey, AX selection, or paste replacement
+4. spec split for `F10a` and `F10b` is merged
+5. command-mode observability event keys are agreed and documented
 
 ## Objective
 
@@ -229,6 +240,13 @@ Verify:
 2. replacement works
 3. `Cmd+Z` in target app reverts replacement
 
+## Non-Functional Acceptance
+
+1. no duplicated paste action under rapid stop/cancel interactions
+2. command flow returns to idle state after any error (no stuck overlay)
+3. command hotkey does not regress dictation startup/stop reliability
+4. logs are sufficient to reconstruct one full command lifecycle from start to finish
+
 ## PR Slicing (recommended)
 
 1. `spec`: F10a/F10b acceptance split
@@ -243,3 +261,25 @@ Verify:
 3. manual matrix passes for all listed apps
 4. no regression to dictation hotkey behavior
 5. F10a acceptance checked in spec and PR description
+6. observability events emitted for success and each major failure bucket
+7. no open P0/P1 defects at merge time
+
+## Rollout and Rollback
+
+1. rollout:
+   - merge behind normal release process after manual matrix re-run on release candidate
+2. rollback trigger:
+   - any post-merge P0/P1 in command flow or dictation regression
+3. rollback action:
+   - revert F10a PR slice(s) cleanly and keep de-risk evidence/docs intact
+
+## Execution Tracking
+
+- [ ] Definition of Ready complete
+- [ ] Spec split merged (`F10a`/`F10b`)
+- [ ] Core services implemented + unit tests
+- [ ] Hotkey wiring implemented + integration tests
+- [ ] Overlay and app delegate orchestration complete
+- [ ] Manual matrix completed and attached
+- [ ] Non-functional acceptance checks passed
+- [ ] Release candidate validation passed
