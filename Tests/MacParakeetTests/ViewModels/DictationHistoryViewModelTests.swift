@@ -107,6 +107,7 @@ final class DictationHistoryViewModelTests: XCTestCase {
         XCTAssertEqual(totalDictationCount(), 3, "Before search, all three should be loaded")
 
         viewModel.searchText = "world"
+        viewModel.loadDictations()
 
         XCTAssertEqual(totalDictationCount(), 2, "Should match two dictations containing 'world'")
     }
@@ -119,6 +120,7 @@ final class DictationHistoryViewModelTests: XCTestCase {
 
         viewModel.configure(dictationRepo: mockRepo)
         viewModel.searchText = "fox"
+        viewModel.loadDictations()
         XCTAssertEqual(totalDictationCount(), 1)
 
         viewModel.searchText = ""
@@ -132,6 +134,7 @@ final class DictationHistoryViewModelTests: XCTestCase {
 
         viewModel.configure(dictationRepo: mockRepo)
         viewModel.searchText = "nonexistent"
+        viewModel.loadDictations()
 
         XCTAssertTrue(viewModel.groupedDictations.isEmpty, "No results for unmatched search")
     }

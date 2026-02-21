@@ -48,11 +48,19 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol {
     }
 
     public func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription? {
-        try dbQueue.read { db in
+        let trimmed = videoID.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return nil }
+
+        // Escape LIKE wildcards (% and _) so video IDs containing _ match literally
+        let escaped = trimmed
+            .replacingOccurrences(of: "%", with: "\\%")
+            .replacingOccurrences(of: "_", with: "\\_")
+
+        return try dbQueue.read { db in
             try Transcription
                 .filter(Transcription.Columns.sourceURL != nil)
                 .filter(Transcription.Columns.status == Transcription.TranscriptionStatus.completed.rawValue)
-                .filter(Transcription.Columns.sourceURL.like("%\(videoID)%"))
+                .filter(Transcription.Columns.sourceURL.like("%\(escaped)%", escape: "\\"))
                 .order(Transcription.Columns.createdAt.desc)
                 .fetchOne(db)
         }

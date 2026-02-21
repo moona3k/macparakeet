@@ -24,6 +24,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var recordingTask: Task<Void, Never>?
     /// Serializes non-recording overlay actions (stop/undo/confirm-cancel) and allows safe cancellation.
     private var overlayActionTask: Task<Void, Never>?
+    private var overlayActionGeneration: Int = 0
+    /// True only while `DictationService.startRecording()` is in-flight.
+    private var isStartRecordingInFlight = false
+    /// Stop requested while startup is in-flight; fulfilled once service reaches recording.
+    private var pendingStopGeneration: Int?
     private var idlePillController: IdlePillController?
     private var idlePillViewModel: IdlePillViewModel?
     private var commandOverlayController: DictationOverlayController?
@@ -748,6 +753,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         } else {
             gen = bumpOverlayGeneration()
         }
+        pendingStopGeneration = nil
         dictationLog.debug("startDictation requested mode=\(String(describing: mode), privacy: .public) generation=\(gen)")
 
         // Cancel old recording task and immediately clean up any overlay it created.
@@ -756,6 +762,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if recordingTask != nil {
             recordingTask?.cancel()
             recordingTask = nil
+            isStartRecordingInFlight = false
             overlayController?.hide()
             overlayController = nil
             overlayViewModel = nil
@@ -801,13 +808,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.dictationLog.debug("recording UI entered generation=\(gen) mode=\(String(describing: mode), privacy: .public)")
 
             do {
+                self.isStartRecordingInFlight = true
                 self.dictationLog.debug("dictationService.startRecording begin generation=\(gen)")
                 try await env.dictationService.startRecording()
+                self.isStartRecordingInFlight = false
                 let stateAfterStart = await env.dictationService.state
                 self.dictationLog.debug(
                     "dictationService.startRecording success generation=\(gen) serviceState=\(self.describeDictationState(stateAfterStart), privacy: .public)"
                 )
                 guard !Task.isCancelled, self.overlayGeneration == gen else { return }
+
+                if self.pendingStopGeneration == gen {
+                    self.pendingStopGeneration = nil
+                    self.dictationLog.debug("startDictation applying deferred stop generation=\(gen)")
+                    self.stopDictation()
+                    return
+                }
 
                 // Snapshot settings at start of recording (keeps behavior stable during a recording).
                 let (autoStopEnabled, silenceDelay) = (self.settingsViewModel.silenceAutoStop, self.settingsViewModel.silenceDelay)
@@ -836,6 +852,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     try? await Task.sleep(for: .milliseconds(50))
                 }
             } catch {
+                self.isStartRecordingInFlight = false
                 self.dictationLog.error("startDictation failed generation=\(gen) error=\(error.localizedDescription, privacy: .public)")
                 guard !Task.isCancelled, self.overlayGeneration == gen else { return }
                 vm.state = .error(error.localizedDescription)
@@ -862,6 +879,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             return
         }
 
+        // A stop was already requested while startup is still in-flight.
+        if pendingStopGeneration == overlayGeneration {
+            dictationLog.debug("stopDictation ignored generation=\(self.overlayGeneration) reason=pending-stop-already-set")
+            return
+        }
+
+        // Idempotency: ignore duplicate stop requests while a stop/undo/confirm action is running.
+        if overlayActionTask != nil {
+            dictationLog.debug("stopDictation ignored generation=\(self.overlayGeneration) reason=overlay-action-in-flight")
+            return
+        }
+
         // Capture the controller now — if the user starts a new dictation before
         // our Task finishes, self.overlayController will point to a new overlay
         // and we'd orphan this one on screen.
@@ -869,30 +898,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let gen = overlayGeneration
         let taskToCancelAfterStop = recordingTask
 
-        overlayActionTask?.cancel()
+        overlayActionGeneration += 1
+        let actionGen = overlayActionGeneration
         overlayActionTask = Task { @MainActor in
-            let stateBeforeStop = await env.dictationService.state
-            let readyToStop: Bool
-            if case .recording = stateBeforeStop {
-                readyToStop = true
-            } else {
-                dictationLog.debug(
-                    "stopDictation waiting for recording generation=\(gen) initialServiceState=\(self.describeDictationState(stateBeforeStop), privacy: .public)"
-                )
-                readyToStop = await self.waitForServiceRecordingStart(
-                    dictationService: env.dictationService,
-                    expectedGeneration: gen
-                )
+            defer {
+                if self.overlayActionGeneration == actionGen {
+                    self.overlayActionTask = nil
+                }
             }
 
-            guard readyToStop else {
-                self.dictationLog.warning("stopDictation aborted generation=\(gen) service never reached recording")
-                taskToCancelAfterStop?.cancel()
-                if self.overlayGeneration == gen {
-                    self.recordingTask = nil
-                    self.hotkeyManager?.resetToIdle()
-                    self.showIdlePill()
-                }
+            let stateBeforeStop = await env.dictationService.state
+            switch DictationStopDecider.decide(
+            serviceState: stateBeforeStop,
+            isStartRecordingInFlight: self.isStartRecordingInFlight
+            ) {
+            case .deferUntilRecording:
+                self.pendingStopGeneration = gen
+                self.dictationLog.debug(
+                    "stopDictation deferred generation=\(gen) serviceState=\(self.describeDictationState(stateBeforeStop), privacy: .public)"
+                )
+                return
+            case .rejectNotRecording:
+                self.dictationLog.error(
+                    "stopDictation rejected generation=\(gen) serviceState=\(self.describeDictationState(stateBeforeStop), privacy: .public)"
+                )
+                vm.stopTimer()
+                vm.state = .error("Recording was not active. Please start dictation again.")
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
                 controller?.hide()
                 if self.overlayController === controller {
                     self.overlayController = nil
@@ -900,12 +933,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 if self.overlayViewModel === vm {
                     self.overlayViewModel = nil
                 }
+                if self.overlayGeneration == gen {
+                    self.hotkeyManager?.resetToIdle()
+                    self.showIdlePill()
+                }
                 return
+            case .proceed:
+                break
             }
 
+            self.pendingStopGeneration = nil
             taskToCancelAfterStop?.cancel()
             if self.overlayGeneration == gen {
                 self.recordingTask = nil
+                self.isStartRecordingInFlight = false
             }
 
             vm.stopTimer()
@@ -979,6 +1020,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func cancelDictation() {
         recordingTask?.cancel()
         recordingTask = nil
+        isStartRecordingInFlight = false
+        pendingStopGeneration = nil
 
         guard let env = appEnvironment else { return }
 
@@ -1014,7 +1057,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             let gen = overlayGeneration
 
             overlayActionTask?.cancel()
+            overlayActionGeneration += 1
+            let actionGen = overlayActionGeneration
             overlayActionTask = Task { @MainActor in
+                defer {
+                    if self.overlayActionGeneration == actionGen {
+                        self.overlayActionTask = nil
+                    }
+                }
                 guard self.overlayGeneration == gen else { return }
                 await env.dictationService.confirmCancel()
                 guard self.overlayGeneration == gen else { return }
@@ -1094,7 +1144,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let gen = overlayGeneration
 
         overlayActionTask?.cancel()
+        overlayActionGeneration += 1
+        let actionGen = overlayActionGeneration
         overlayActionTask = Task { @MainActor in
+            defer {
+                if self.overlayActionGeneration == actionGen {
+                    self.overlayActionTask = nil
+                }
+            }
             vm.stopTimer()
             vm.state = .processing
 
@@ -1155,6 +1212,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func dismissOverlay() {
         recordingTask?.cancel()
         recordingTask = nil
+        isStartRecordingInFlight = false
+        pendingStopGeneration = nil
         cancelTask?.cancel()
         cancelTask = nil
         overlayActionTask?.cancel()
@@ -1251,23 +1310,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .error:
             return "error"
         }
-    }
-
-    private func waitForServiceRecordingStart(
-        dictationService: DictationServiceProtocol,
-        expectedGeneration: Int,
-        timeoutMs: Int = 1200
-    ) async -> Bool {
-        let pollMs = 50
-        let attempts = max(1, timeoutMs / pollMs)
-        for _ in 0..<attempts {
-            guard overlayGeneration == expectedGeneration else { return false }
-            if case .recording = await dictationService.state {
-                return true
-            }
-            try? await Task.sleep(for: .milliseconds(pollMs))
-        }
-        return false
     }
 
     // MARK: - Window Management

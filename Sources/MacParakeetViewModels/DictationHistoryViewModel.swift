@@ -9,8 +9,10 @@ import UniformTypeIdentifiers
 public final class DictationHistoryViewModel {
     public var groupedDictations: [(String, [Dictation])] = []
     public var searchText: String = "" {
-        didSet { loadDictations() }
+        didSet { debounceSearch() }
     }
+    private var searchDebounceTask: Task<Void, Never>?
+
     // MARK: - Playback State
 
     public var isPlaying: Bool = false
@@ -194,6 +196,20 @@ public final class DictationHistoryViewModel {
     }
 
     // MARK: - Private
+
+    private func debounceSearch() {
+        searchDebounceTask?.cancel()
+        if searchText.isEmpty {
+            // Clear immediately so the full list restores without lag
+            loadDictations()
+            return
+        }
+        searchDebounceTask = Task {
+            try? await Task.sleep(for: .milliseconds(300))
+            guard !Task.isCancelled else { return }
+            loadDictations()
+        }
+    }
 
     private func showPlaybackError(_ message: String) {
         playbackErrorResetTask?.cancel()
