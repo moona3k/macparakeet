@@ -41,6 +41,23 @@ struct TranscribeCommand: AsyncParsableCommand {
     @Flag(help: "Enable entitlement/trial checks to mirror GUI gating behavior.")
     var enforceEntitlements: Bool = false
 
+    static func resolveProcessingMode(_ mode: TranscribeMode, storedMode: String?) -> Dictation.ProcessingMode {
+        switch mode {
+        case .raw:
+            return .raw
+        case .clean:
+            return .clean
+        case .formal:
+            return .formal
+        case .email:
+            return .email
+        case .code:
+            return .code
+        case .appDefault:
+            return Dictation.ProcessingMode(rawValue: storedMode ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
+        }
+    }
+
     func run() async throws {
         let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -76,21 +93,7 @@ struct TranscribeCommand: AsyncParsableCommand {
             snippetRepo: snippetRepo,
             llmService: llmService,
             processingMode: {
-                switch self.mode {
-                case .raw:
-                    return .raw
-                case .clean:
-                    return .clean
-                case .formal:
-                    return .formal
-                case .email:
-                    return .email
-                case .code:
-                    return .code
-                case .appDefault:
-                    let rawMode = UserDefaults.standard.string(forKey: "processingMode")
-                    return Dictation.ProcessingMode(rawValue: rawMode ?? "clean") ?? .clean
-                }
+                Self.resolveProcessingMode(self.mode, storedMode: UserDefaults.standard.string(forKey: "processingMode"))
             },
             shouldKeepDownloadedAudio: {
                 switch self.downloadedAudio {

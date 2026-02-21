@@ -32,6 +32,7 @@ final class TextRefinementServiceTests: XCTestCase {
         let requests = await mockLLM.requests
         XCTAssertEqual(requests.count, 1)
         XCTAssertTrue(requests[0].prompt.contains("Rewrite"))
+        XCTAssertTrue((requests[0].systemPrompt ?? "").lowercased().contains("formal professional tone"))
     }
 
     func testFormalModeFallsBackWhenLLMFails() async {
@@ -51,31 +52,49 @@ final class TextRefinementServiceTests: XCTestCase {
         XCTAssertNotNil(result.fallbackReason)
     }
 
-    // MARK: - Preamble stripping
+    // MARK: - Preamble handling
 
-    func testStripPreambleCertainly() {
-        let input = "Certainly! Here's a formal version of your text:\n\n\"The project is on track.\""
-        XCTAssertEqual(TextRefinementService.stripPreamble(input), "The project is on track.")
+    func testFormalModeFallsBackWhenLLMReturnsAssistantPreamble() async {
+        let mockLLM = MockLLMService()
+        await mockLLM.configureResponse(text: "Certainly! Here's a formal version of your text:\n\nThe project is on track.")
+        let service = TextRefinementService(llmService: mockLLM)
+
+        let result = await service.refine(
+            rawText: "um the project is on track",
+            mode: .formal,
+            customWords: [],
+            snippets: []
+        )
+
+        XCTAssertEqual(result.text, "The project is on track")
+        XCTAssertEqual(result.path, .llmFallback)
+        XCTAssertEqual(result.fallbackReason, "LLM output contained assistant preamble")
     }
 
-    func testStripPreambleHereIs() {
-        let input = "Here is a rewritten version:\n\nThe project is on track."
-        XCTAssertEqual(TextRefinementService.stripPreamble(input), "The project is on track.")
+    func testFormalModeKeepsLegitimateCertainlySentence() async {
+        let mockLLM = MockLLMService()
+        await mockLLM.configureResponse(text: "Certainly this sentence should stay as-is.")
+        let service = TextRefinementService(llmService: mockLLM)
+
+        let result = await service.refine(
+            rawText: "hello world",
+            mode: .formal,
+            customWords: [],
+            snippets: []
+        )
+
+        XCTAssertEqual(result.text, "Certainly this sentence should stay as-is.")
+        XCTAssertEqual(result.path, .llm)
     }
 
-    func testStripPreambleCleanTextUnchanged() {
-        let input = "The project is on track."
-        XCTAssertEqual(TextRefinementService.stripPreamble(input), "The project is on track.")
-    }
-
-    func testStripPreambleSmartQuotes() {
-        let input = "\u{201C}The project is on track.\u{201D}"
-        XCTAssertEqual(TextRefinementService.stripPreamble(input), "The project is on track.")
-    }
-
-    func testStripPreambleSureHereIs() {
+    func testHasAssistantPreambleDetectsCommonChatter() {
         let input = "Sure. Here's the rewritten text:\n\nI am going to proceed with the next step."
-        XCTAssertEqual(TextRefinementService.stripPreamble(input), "I am going to proceed with the next step.")
+        XCTAssertTrue(TextRefinementService.hasAssistantPreamble(input))
+    }
+
+    func testHasAssistantPreambleIgnoresLegitimateLeadingPhrases() {
+        XCTAssertFalse(TextRefinementService.hasAssistantPreamble("Here is what I think: we should merge now."))
+        XCTAssertFalse(TextRefinementService.hasAssistantPreamble("Certainly this sentence should stay as-is."))
     }
 
     func testFormalModeSkipsLLMWhenDeterministicTextIsEmpty() async {

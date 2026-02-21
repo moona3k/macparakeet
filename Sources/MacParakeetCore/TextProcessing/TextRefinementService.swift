@@ -108,10 +108,14 @@ public struct TextRefinementService: Sendable {
 
         do {
             let response = try await llmService.generate(request: request)
-            let refined = Self.stripPreamble(response.text)
+            let refined = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
 
             guard !refined.isEmpty else {
                 return fallback(deterministic: deterministic, reason: "LLM output was empty")
+            }
+
+            guard !Self.hasAssistantPreamble(refined) else {
+                return fallback(deterministic: deterministic, reason: "LLM output contained assistant preamble")
             }
 
             return TextRefinementResult(
@@ -134,32 +138,48 @@ public struct TextRefinementService: Sendable {
         )
     }
 
-    /// Strip common LLM preamble patterns (e.g. "Certainly! Here's a formal version:\n\n")
-    /// and surrounding quotes that Qwen3 sometimes adds.
-    static func stripPreamble(_ text: String) -> String {
-        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Detect preamble chatter (e.g. "Certainly! Here's a formal version:") so callers can fall back
+    /// instead of mutating generated text heuristically.
+    static func hasAssistantPreamble(_ text: String) -> Bool {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
 
-        // Strip preamble lines like "Certainly! Here's..." or "Here is..." followed by a colon
-        let preamblePatterns: [String] = [
-            "(?i)^(certainly|sure|of course|absolutely)[!.]?\\s*",
-            "(?i)^here(?:'s| is| are)\\s+[^\\n]*:\\s*",
-            "(?i)^a more \\w+ version[^\\n]*:\\s*",
+        let firstLine = trimmed.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+            .first
+            .map(String.init) ?? trimmed
+        guard let colonIndex = firstLine.firstIndex(of: ":") else { return false }
+
+        let prefix = firstLine[..<colonIndex]
+            .lowercased()
+            .replacingOccurrences(of: "\u{2019}", with: "'")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let hasIntroCue = prefix.contains("here's")
+            || prefix.contains("here is")
+            || prefix.contains("here are")
+            || prefix.hasPrefix("certainly")
+            || prefix.hasPrefix("sure")
+            || prefix.hasPrefix("of course")
+            || prefix.hasPrefix("absolutely")
+
+        guard hasIntroCue else { return false }
+
+        let rewriteMarkers = [
+            "rewritten",
+            "rewrite",
+            "revised",
+            "refined",
+            "improved",
+            "edited",
+            "corrected",
+            "formal version",
+            "polished",
+            "professional tone",
+            "your text",
+            "your message",
+            "your email",
         ]
-        for pattern in preamblePatterns {
-            if let range = result.range(of: pattern, options: .regularExpression) {
-                result = String(result[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        // Strip wrapping quotes (single pass)
-        if result.count >= 2 {
-            let first = result.first!, last = result.last!
-            if (first == "\"" && last == "\"") || (first == "\u{201C}" && last == "\u{201D}") {
-                result = String(result.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
-
-        return result
+        return rewriteMarkers.contains { prefix.contains($0) }
     }
 
     public static func defaultOptions(for mode: Dictation.ProcessingMode) -> LLMGenerationOptions {

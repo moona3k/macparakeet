@@ -13,7 +13,7 @@ struct VocabularyView: View {
     @State private var hoveredModeTitle: String?
 
     private var selectedMode: Dictation.ProcessingMode {
-        Dictation.ProcessingMode(rawValue: settingsViewModel.processingMode) ?? .clean
+        Dictation.ProcessingMode(rawValue: settingsViewModel.processingMode) ?? .raw
     }
 
     var body: some View {

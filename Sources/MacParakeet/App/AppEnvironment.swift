@@ -84,7 +84,7 @@ final class AppEnvironment {
 
         let processingModeClosure: @Sendable () -> Dictation.ProcessingMode = {
             let raw = UserDefaults.standard.string(forKey: "processingMode")
-            return Dictation.ProcessingMode(rawValue: raw ?? "clean") ?? .clean
+            return Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
         }
 
         youtubeDownloader = YouTubeDownloader()
