@@ -2,13 +2,24 @@ import ApplicationServices
 import Foundation
 
 public protocol AccessibilityServiceProtocol: Sendable {
+    func getSelectedTextWithSource(maxCharacters: Int?) throws -> (String, AccessibilitySelectionSource)
     func getSelectedText(maxCharacters: Int?) throws -> String
 }
 
 public extension AccessibilityServiceProtocol {
+    func getSelectedTextWithSource() throws -> (String, AccessibilitySelectionSource) {
+        try getSelectedTextWithSource(maxCharacters: nil)
+    }
+
     func getSelectedText() throws -> String {
         try getSelectedText(maxCharacters: nil)
     }
+}
+
+public enum AccessibilitySelectionSource: String, Sendable, Equatable {
+    case selectedTextAttribute
+    case parameterizedString
+    case valueSubstring
 }
 
 public enum AccessibilityServiceError: Error, LocalizedError, Equatable {
@@ -154,6 +165,10 @@ public final class AccessibilityService: AccessibilityServiceProtocol, @unchecke
     }
 
     public func getSelectedText(maxCharacters: Int?) throws -> String {
+        try getSelectedTextWithSource(maxCharacters: maxCharacters).0
+    }
+
+    public func getSelectedTextWithSource(maxCharacters: Int?) throws -> (String, AccessibilitySelectionSource) {
         let max = maxCharacters ?? defaultMaxCharacters
         guard backend.isTrusted() else {
             throw AccessibilityServiceError.notAuthorized
@@ -163,7 +178,7 @@ public final class AccessibilityService: AccessibilityServiceProtocol, @unchecke
         }
 
         if let direct = normalized(backend.selectedText(of: element)), !direct.isEmpty {
-            return try validatedLength(direct, max: max)
+            return (try validatedLength(direct, max: max), .selectedTextAttribute)
         }
 
         guard let range = backend.selectedRange(of: element) else {
@@ -174,7 +189,7 @@ public final class AccessibilityService: AccessibilityServiceProtocol, @unchecke
         }
 
         if let parameterized = normalized(backend.string(for: range, of: element)), !parameterized.isEmpty {
-            return try validatedLength(parameterized, max: max)
+            return (try validatedLength(parameterized, max: max), .parameterizedString)
         }
 
         guard let value = backend.fullValue(of: element) else {
@@ -192,7 +207,7 @@ public final class AccessibilityService: AccessibilityServiceProtocol, @unchecke
         guard let extracted = normalized(ns.substring(with: nsRange)), !extracted.isEmpty else {
             throw AccessibilityServiceError.noSelectedText
         }
-        return try validatedLength(extracted, max: max)
+        return (try validatedLength(extracted, max: max), .valueSubstring)
     }
 
     private func normalized(_ value: String?) -> String? {

@@ -292,10 +292,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         manager.onStartCommandMode = { [weak self] in
+            self?.dictationLog.notice("command_hotkey_detected action=start")
             self?.startCommandModeFromHotkey()
         }
 
         manager.onCancelCommandMode = { [weak self] in
+            self?.dictationLog.notice("command_hotkey_detected action=cancel")
             self?.cancelCommandModeFromHotkey()
         }
 
@@ -347,6 +349,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         commandModeProcessTask = nil
 
         let gen = bumpCommandModeGeneration()
+        dictationLog.notice("command_mode_start_requested generation=\(gen)")
         commandModeTask = Task { @MainActor in
             do {
                 try await env.entitlementsService.assertCanTranscribe(now: Date())
@@ -361,10 +364,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
             let selectedText: String
             do {
-                selectedText = try env.accessibilityService.getSelectedText()
+                dictationLog.notice("command_selection_read_started generation=\(gen)")
+                let (text, source) = try env.accessibilityService.getSelectedTextWithSource()
+                let normalizedSource = source.rawValue
+                selectedText = text
+                dictationLog.notice(
+                    "command_selection_read_succeeded generation=\(gen) source=\(normalizedSource, privacy: .public) length=\(selectedText.count)"
+                )
             } catch {
                 guard self.commandModeGeneration == gen else { return }
-                self.presentCommandModeAlert(error.localizedDescription)
+                let bucket = self.commandFailureBucket(for: error)
+                let messageKey = self.commandFailureMessageKey(for: error)
+                self.dictationLog.error(
+                    "command_selection_read_failed generation=\(gen) failure_bucket=\(bucket, privacy: .public) message_key=\(messageKey, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
+                self.presentCommandModeAlert(self.commandModeUserMessage(for: error))
                 self.showIdlePill()
                 return
             }
@@ -392,6 +406,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             self.commandOverlayController = controller
 
             do {
+                dictationLog.notice("command_recording_started generation=\(gen)")
                 try await env.commandModeService.startRecording()
                 while !Task.isCancelled,
                       self.commandModeGeneration == gen,
@@ -402,8 +417,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             } catch {
                 guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
+                let bucket = self.commandFailureBucket(for: error)
+                let messageKey = self.commandFailureMessageKey(for: error)
+                self.dictationLog.error(
+                    "command_recording_failed generation=\(gen) failure_bucket=\(bucket, privacy: .public) message_key=\(messageKey, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
                 vm.stopTimer()
-                vm.state = .error(error.localizedDescription)
+                vm.state = .error(self.commandModeUserMessage(for: error))
                 try? await Task.sleep(for: .seconds(3))
                 guard self.commandModeGeneration == gen else { return }
                 await env.commandModeService.cancelRecording()
@@ -419,6 +439,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
               let vm = commandOverlayViewModel else {
             return
         }
+        guard commandModeProcessTask == nil else {
+            dictationLog.debug("stopCommandMode ignored generation=\(self.commandModeGeneration) reason=processing-in-flight")
+            return
+        }
 
         commandModeTask?.cancel()
         commandModeTask = nil
@@ -430,8 +454,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         commandModeProcessTask = Task { @MainActor in
             vm.stopTimer()
             vm.state = .processing
+            self.dictationLog.notice("command_recording_stopped generation=\(gen)")
 
             do {
+                dictationLog.notice("command_processing_started generation=\(gen)")
                 let result = try await env.commandModeService.stopRecordingAndProcess(selectedText: selectedText)
                 guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
                 vm.state = .success
@@ -439,9 +465,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 try? await Task.sleep(for: .milliseconds(200))
 
                 let didAutoPaste = await self.pasteTranscriptWithFallback(
+                    generation: gen,
                     transcript: result.transformedText,
                     viewModel: vm,
-                    clipboardService: env.clipboardService
+                    clipboardService: env.clipboardService,
+                    pasteFlow: .command
                 )
                 if didAutoPaste {
                     try? await Task.sleep(for: .milliseconds(800))
@@ -449,13 +477,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     try? await Task.sleep(for: .seconds(2))
                 }
             } catch where (error as? CommandModeServiceError) == .emptyCommand {
+                let bucket = self.commandFailureBucket(for: error)
+                let messageKey = self.commandFailureMessageKey(for: error)
+                self.dictationLog.warning(
+                    "command_processing_failed generation=\(gen) failure_bucket=\(bucket, privacy: .public) message_key=\(messageKey, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
                 guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
                 vm.noSpeechProgress = 1.0
                 vm.state = .noSpeech
                 try? await Task.sleep(for: .seconds(3))
             } catch {
+                let bucket = self.commandFailureBucket(for: error)
+                let messageKey = self.commandFailureMessageKey(for: error)
+                self.dictationLog.error(
+                    "command_processing_failed generation=\(gen) failure_bucket=\(bucket, privacy: .public) message_key=\(messageKey, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
                 guard !Task.isCancelled, self.commandModeGeneration == gen else { return }
-                vm.state = .error(error.localizedDescription)
+                vm.state = .error(self.commandModeUserMessage(for: error))
                 try? await Task.sleep(for: .seconds(3))
             }
 
@@ -496,6 +534,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         isCommandModeActive = false
         hotkeyManager?.setCommandModeActive(false)
         hotkeyManager?.resetToIdle()
+        dictationLog.notice("command_flow_completed generation=\(expectedGeneration)")
         _ = bumpCommandModeGeneration()
         showIdlePill()
     }
@@ -970,6 +1009,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 try? await Task.sleep(for: .milliseconds(200))
                 let transcriptToPaste = dictation.cleanTranscript ?? dictation.rawTranscript
                 let didAutoPaste = await self.pasteTranscriptWithFallback(
+                    generation: gen,
                     transcript: transcriptToPaste,
                     viewModel: vm,
                     clipboardService: env.clipboardService
@@ -1166,6 +1206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 try? await Task.sleep(for: .milliseconds(200))
                 let transcriptToPaste = dictation.cleanTranscript ?? dictation.rawTranscript
                 let didAutoPaste = await self.pasteTranscriptWithFallback(
+                    generation: gen,
                     transcript: transcriptToPaste,
                     viewModel: vm,
                     clipboardService: env.clipboardService
@@ -1262,19 +1303,147 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     /// Best-effort paste with explicit fallback.
     /// Returns true when auto-paste dispatch succeeded; false when we had to copy only.
     @MainActor
+    private enum PasteFlow: String {
+        case command
+        case dictation
+    }
+
     private func pasteTranscriptWithFallback(
+        generation: Int,
         transcript: String,
         viewModel: DictationOverlayViewModel,
-        clipboardService: ClipboardServiceProtocol
+        clipboardService: ClipboardServiceProtocol,
+        pasteFlow: PasteFlow = .dictation
     ) async -> Bool {
         do {
+            dictationLog.notice("\(pasteFlow.rawValue)_paste_started generation=\(generation) length=\(transcript.count)")
             try await clipboardService.pasteText(transcript)
             return true
         } catch {
+            let bucket = commandFailureBucket(for: error)
+            let messageKey = commandFailureMessageKey(for: error)
+            dictationLog.error(
+                "\(pasteFlow.rawValue)_paste_failed generation=\(generation) failure_bucket=\(bucket, privacy: .public) message_key=\(messageKey, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
             await clipboardService.copyToClipboard(transcript)
             viewModel.state = .error("Copied to clipboard. Press Cmd+V.")
             return false
         }
+    }
+
+    private func commandFailureBucket(for error: Error) -> String {
+        if let accessibilityError = error as? AccessibilityServiceError {
+            switch accessibilityError {
+            case .notAuthorized:
+                return "accessibility_not_authorized"
+            case .noFocusedElement:
+                return "no_focused_element"
+            case .noSelectedText:
+                return "no_selected_text"
+            case .textTooLong:
+                return "selection_too_long"
+            case .unsupportedElement:
+                return "unsupported_element"
+            }
+        }
+
+        if let commandModeError = error as? CommandModeServiceError {
+            switch commandModeError {
+            case .notRecording:
+                return "not_recording"
+            case .emptySelectedText:
+                return "empty_selected_text"
+            case .emptyCommand:
+                return "empty_command"
+            case .emptyTransformedText:
+                return "empty_transformed_text"
+            }
+        }
+
+        if error is ClipboardServiceError {
+            return "paste_failed"
+        }
+
+        if let audioError = error as? AudioProcessorError {
+            switch audioError {
+            case .microphonePermissionDenied:
+                return "audio_permission_denied"
+            case .microphoneNotAvailable:
+                return "audio_unavailable"
+            case .recordingFailed:
+                return "audio_recording_failed"
+            case .conversionFailed:
+                return "audio_conversion_failed"
+            case .unsupportedFormat:
+                return "audio_unsupported_format"
+            case .fileTooLarge:
+                return "audio_file_too_large"
+            case .insufficientSamples:
+                return "audio_insufficient_samples"
+            }
+        }
+
+        if let sttError = error as? STTError {
+            switch sttError {
+            case .engineNotRunning:
+                return "stt_engine_not_running"
+            case .engineStartFailed:
+                return "stt_engine_start_failed"
+            case .transcriptionFailed:
+                return "stt_transcription_failed"
+            case .timeout:
+                return "stt_timeout"
+            case .modelNotLoaded:
+                return "stt_model_not_loaded"
+            case .outOfMemory:
+                return "stt_out_of_memory"
+            case .invalidResponse:
+                return "stt_invalid_response"
+            }
+        }
+
+        if let llmError = error as? LLMServiceError {
+            switch llmError {
+            case .invalidPrompt:
+                return "llm_invalid_prompt"
+            case .timedOut:
+                return "llm_timeout"
+            case .emptyResponse:
+                return "llm_empty_response"
+            case .runtimeUnavailable:
+                return "llm_runtime_unavailable"
+            case .generationFailed:
+                return "llm_generation_failed"
+            }
+        }
+
+        return "unknown"
+    }
+
+    private func commandFailureMessageKey(for error: Error) -> String {
+        "command_failure.\(commandFailureBucket(for: error))"
+    }
+
+    private func commandModeUserMessage(for error: Error) -> String {
+        if let accessibilityError = error as? AccessibilityServiceError {
+            return accessibilityError.localizedDescription
+        }
+        if let commandModeError = error as? CommandModeServiceError {
+            return commandModeError.localizedDescription
+        }
+        if let llmError = error as? LLMServiceError {
+            return llmError.localizedDescription
+        }
+        if let audioError = error as? AudioProcessorError {
+            return audioError.localizedDescription
+        }
+        if let sttError = error as? STTError {
+            return sttError.localizedDescription
+        }
+        if let clipboardError = error as? ClipboardServiceError {
+            return clipboardError.localizedDescription
+        }
+        return "Could not apply command. Please try again."
     }
 
     private func describeDictationState(_ state: DictationState) -> String {

@@ -59,6 +59,32 @@ final class CommandModeServiceTests: XCTestCase {
         }
     }
 
+    func testStartRecordingWhileAlreadyRecordingIsNoOp() async throws {
+        try await service.startRecording()
+        try await service.startRecording()
+
+        let state = await service.state
+        if case .recording = state {} else {
+            XCTFail("Expected recording state, got \(state)")
+        }
+    }
+
+    func testStopAfterCancelReturnsNotRecording() async throws {
+        await mockAudio.configure(captureResult: URL(fileURLWithPath: "/tmp/command-mode.wav"))
+        await mockSTT.configure(result: STTResult(text: "Make formal"))
+        try await service.startRecording()
+        await service.cancelRecording()
+
+        do {
+            _ = try await service.stopRecordingAndProcess(selectedText: "hello")
+            XCTFail("Expected notRecording error")
+        } catch {
+            XCTAssertEqual(error as? CommandModeServiceError, .notRecording)
+        }
+        let state = await service.state
+        XCTAssertEqual(state, .idle)
+    }
+
     func testStopFailsWithEmptySelectedText() async throws {
         try await service.startRecording()
 
@@ -85,6 +111,24 @@ final class CommandModeServiceTests: XCTestCase {
             let state = await service.state
             XCTAssertEqual(state, .idle)
         }
+    }
+
+    func testStopTwiceProcessesOnlyOnce() async throws {
+        await mockAudio.configure(captureResult: URL(fileURLWithPath: "/tmp/command-mode.wav"))
+        await mockSTT.configure(result: STTResult(text: "Make formal"))
+        await mockLLM.configureResponse(text: "Please share update with team")
+
+        try await service.startRecording()
+        _ = try await service.stopRecordingAndProcess(selectedText: "hey team")
+
+        do {
+            _ = try await service.stopRecordingAndProcess(selectedText: "hey team")
+            XCTFail("Expected notRecording error")
+        } catch {
+            XCTAssertEqual(error as? CommandModeServiceError, .notRecording)
+        }
+        let state = await service.state
+        XCTAssertEqual(state, .idle)
     }
 
     func testStopPropagatesLLMFailureAndResetsToIdle() async throws {

@@ -99,6 +99,77 @@ final class AccessibilityServiceTests: XCTestCase {
             XCTAssertEqual(error as? AccessibilityServiceError, .textTooLong(max: 5, actual: 6))
         }
     }
+
+    func testGetSelectedTextWithSourceUsesSelectedTextAttribute() throws {
+        let backend = MockAccessibilityBackend(
+            isTrusted: true,
+            selectedText: "Hello"
+        )
+        let service = AccessibilityService(defaultMaxCharacters: 16000, backend: backend)
+
+        let (selected, source) = try service.getSelectedTextWithSource()
+        XCTAssertEqual(selected, "Hello")
+        XCTAssertEqual(source, .selectedTextAttribute)
+    }
+
+    func testGetSelectedTextWithSourceFallsBackToParameterizedString() throws {
+        let backend = MockAccessibilityBackend(
+            isTrusted: true,
+            selectedText: nil,
+            selectedRange: CFRange(location: 0, length: 2),
+            stringForRange: "Hi"
+        )
+        let service = AccessibilityService(defaultMaxCharacters: 16000, backend: backend)
+
+        let (selected, source) = try service.getSelectedTextWithSource()
+        XCTAssertEqual(selected, "Hi")
+        XCTAssertEqual(source, .parameterizedString)
+    }
+
+    func testGetSelectedTextWithSourceFallsBackToValueSubstring() throws {
+        let backend = MockAccessibilityBackend(
+            isTrusted: true,
+            selectedText: nil,
+            selectedRange: CFRange(location: 3, length: 4),
+            stringForRange: nil,
+            fullValue: "Swift test"
+        )
+        let service = AccessibilityService(defaultMaxCharacters: 16000, backend: backend)
+
+        let (selected, source) = try service.getSelectedTextWithSource()
+        XCTAssertEqual(selected, "ft t")
+        XCTAssertEqual(source, .valueSubstring)
+    }
+
+    func testGetSelectedTextWithSourceFallsBackToValueSubstringWhenParameterizedStringIsEmpty() throws {
+        let backend = MockAccessibilityBackend(
+            isTrusted: true,
+            selectedText: nil,
+            selectedRange: CFRange(location: 0, length: 2),
+            stringForRange: "   ",
+            fullValue: "Hello"
+        )
+        let service = AccessibilityService(defaultMaxCharacters: 16000, backend: backend)
+
+        let (selected, source) = try service.getSelectedTextWithSource()
+        XCTAssertEqual(selected, "He")
+        XCTAssertEqual(source, .valueSubstring)
+    }
+
+    func testGetSelectedTextWithSourceRejectsOutOfBoundsRange() throws {
+        let backend = MockAccessibilityBackend(
+            isTrusted: true,
+            selectedText: nil,
+            selectedRange: CFRange(location: 99, length: 2),
+            stringForRange: nil,
+            fullValue: "Short"
+        )
+        let service = AccessibilityService(defaultMaxCharacters: 16000, backend: backend)
+
+        XCTAssertThrowsError(try service.getSelectedTextWithSource()) { error in
+            XCTAssertEqual(error as? AccessibilityServiceError, .unsupportedElement)
+        }
+    }
 }
 
 private struct MockAccessibilityBackend: AccessibilityBackend {
