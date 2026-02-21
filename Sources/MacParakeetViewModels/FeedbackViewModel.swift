@@ -8,6 +8,8 @@ import AppKit
 @MainActor
 @Observable
 public final class FeedbackViewModel {
+    private static let maxScreenshotSizeBytes = 5 * 1024 * 1024
+
     // Form fields
     public var category: FeedbackCategory = .bug
     public var message: String = ""
@@ -36,6 +38,7 @@ public final class FeedbackViewModel {
     }
 
     private var feedbackService: (any FeedbackServiceProtocol)?
+    private var submitTask: Task<Void, Never>?
 
     public init() {}
 
@@ -56,12 +59,18 @@ public final class FeedbackViewModel {
         guard panel.runModal() == .OK, let url = panel.url else { return }
 
         do {
-            let data = try Data(contentsOf: url)
-            let maxSize = 5 * 1024 * 1024 // 5 MB
-            guard data.count <= maxSize else {
+            if let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+               fileSize > Self.maxScreenshotSizeBytes {
                 submissionState = .error("Screenshot must be 5 MB or smaller.")
                 return
             }
+
+            let data = try Data(contentsOf: url, options: .mappedIfSafe)
+            guard data.count <= Self.maxScreenshotSizeBytes else {
+                submissionState = .error("Screenshot must be 5 MB or smaller.")
+                return
+            }
+
             screenshotData = data
             screenshotFilename = url.lastPathComponent
         } catch {
@@ -81,27 +90,40 @@ public final class FeedbackViewModel {
         guard canSubmit else { return }
         guard let service = feedbackService else { return }
 
+        submitTask?.cancel()
         submissionState = .submitting
+        let trimmedMessage = message.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
 
         let payload = FeedbackPayload(
             category: category,
-            message: message,
-            email: email.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : email.trimmingCharacters(in: .whitespacesAndNewlines),
+            message: trimmedMessage,
+            email: trimmedEmail.isEmpty ? nil : trimmedEmail,
             screenshotBase64: screenshotData?.base64EncodedString(),
             screenshotFilename: screenshotFilename,
             systemInfo: systemInfo
         )
 
-        Task {
+        submitTask = Task { [weak self] in
+            guard let self else { return }
+            defer { submitTask = nil }
+
             do {
                 try await service.submitFeedback(payload)
+                guard !Task.isCancelled else { return }
+
                 submissionState = .success
                 // Auto-reset after 3 seconds
-                try? await Task.sleep(for: .seconds(3))
+                try await Task.sleep(for: .seconds(3))
+                guard !Task.isCancelled else { return }
+
                 if submissionState == .success {
                     resetForm()
                 }
+            } catch is CancellationError {
+                return
             } catch {
+                guard !Task.isCancelled else { return }
                 submissionState = .error(error.localizedDescription)
             }
         }
@@ -110,6 +132,8 @@ public final class FeedbackViewModel {
     // MARK: - Reset
 
     public func resetForm() {
+        submitTask?.cancel()
+        submitTask = nil
         category = .bug
         message = ""
         email = ""

@@ -97,12 +97,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         return false
     }
 
-    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        // Dock click while no visible windows should reopen/create the main window.
-        if !flag {
-            openMainWindow()
-        } else {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows _: Bool) -> Bool {
+        // Overlay panels (idle/recording pills) are NSWindows and make the `hasVisibleWindows`
+        // flag unreliable for Dock reopen. Only treat primary app windows as visible here.
+        if hasVisiblePrimaryWindow {
             NSApp.activate(ignoringOtherApps: true)
+        } else {
+            openMainWindow()
         }
         return true
     }
@@ -1310,6 +1311,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         case .error:
             return "error"
         }
+    }
+
+    private var hasVisiblePrimaryWindow: Bool {
+        (mainWindow?.isVisible ?? false) || onboardingWindowController.isVisible
     }
 
     // MARK: - Window Management

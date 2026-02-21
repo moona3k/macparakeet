@@ -8,6 +8,9 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private var window: NSWindow?
     private var viewModel: OnboardingViewModel?
     private var allowCloseWithoutCompletion = false
+    var isVisible: Bool {
+        window?.isVisible == true
+    }
 
     func show(
         permissionService: PermissionServiceProtocol,

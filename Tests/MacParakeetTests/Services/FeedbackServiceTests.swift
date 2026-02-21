@@ -176,6 +176,58 @@ final class FeedbackServiceTests: XCTestCase {
         }
     }
 
+    func testSubmitFeedbackTrimsMessageBeforeEncoding() async throws {
+        var capturedBody: [String: Any]?
+
+        MockURLProtocol.handler = { request in
+            var bodyData: Data?
+            if let body = request.httpBody {
+                bodyData = body
+            } else if let stream = request.httpBodyStream {
+                stream.open()
+                var buffer = [UInt8](repeating: 0, count: 65536)
+                var collected = Data()
+                while stream.hasBytesAvailable {
+                    let count = stream.read(&buffer, maxLength: buffer.count)
+                    if count > 0 { collected.append(buffer, count: count) }
+                    else { break }
+                }
+                stream.close()
+                bodyData = collected
+            }
+            if let bodyData {
+                capturedBody = try? JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
+            }
+            let response = HTTPURLResponse(
+                url: request.url!,
+                statusCode: 200,
+                httpVersion: nil,
+                headerFields: nil
+            )!
+            return (response, Data("{\"success\":true}".utf8))
+        }
+
+        let payload = FeedbackPayload(
+            category: .bug,
+            message: "  Please trim me  ",
+            email: nil,
+            screenshotBase64: nil,
+            screenshotFilename: nil,
+            systemInfo: SystemInfo(
+                appVersion: "1.0",
+                buildNumber: "1",
+                gitCommit: "abc123",
+                buildSource: "test",
+                macOSVersion: "15.0.0",
+                chipType: "Apple M1"
+            )
+        )
+
+        try await service.submitFeedback(payload)
+
+        XCTAssertEqual(capturedBody?["message"] as? String, "Please trim me")
+    }
+
     func testServerErrorThrows() async {
         MockURLProtocol.handler = { request in
             let response = HTTPURLResponse(

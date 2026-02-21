@@ -204,14 +204,18 @@ struct TranscriptResultView: View {
 
     @ViewBuilder
     private func contentArea(availableWidth: CGFloat) -> some View {
-        if availableWidth >= 980 {
+        let innerWidth = availableWidth - 2 * DesignSystem.Spacing.lg
+        if innerWidth >= 820 {
+            let chatWidth = max(340, min(440, innerWidth * 0.36))
+            let transcriptWidth = innerWidth - chatWidth - DesignSystem.Spacing.md
             HStack(spacing: DesignSystem.Spacing.md) {
                 transcriptPane
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .frame(width: transcriptWidth, alignment: .topLeading)
 
                 TranscriptChatPanel(transcription: transcription, viewModel: viewModel)
-                    .frame(width: max(360, min(460, availableWidth * 0.38)))
+                    .frame(width: chatWidth)
             }
+            .frame(maxHeight: .infinity, alignment: .top)
             .padding(DesignSystem.Spacing.lg)
         } else {
             VStack(spacing: DesignSystem.Spacing.sm) {
@@ -221,6 +225,7 @@ struct TranscriptResultView: View {
                     }
                 }
                 .pickerStyle(.segmented)
+                .labelsHidden()
 
                 if selectedPane == .transcript {
                     transcriptPane

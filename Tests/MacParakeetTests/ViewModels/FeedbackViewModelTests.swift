@@ -8,10 +8,14 @@ final class MockFeedbackService: FeedbackServiceProtocol, @unchecked Sendable {
     var submitCallCount = 0
     var lastPayload: FeedbackPayload?
     var submitError: Error?
+    var submitDelayMilliseconds: UInt64 = 0
 
     func submitFeedback(_ feedback: FeedbackPayload) async throws {
         submitCallCount += 1
         lastPayload = feedback
+        if submitDelayMilliseconds > 0 {
+            try await Task.sleep(nanoseconds: submitDelayMilliseconds * 1_000_000)
+        }
         if let error = submitError {
             throw error
         }
@@ -87,6 +91,15 @@ final class FeedbackViewModelTests: XCTestCase {
         XCTAssertNil(mockService.lastPayload?.email, "Whitespace-only email should be sent as nil")
     }
 
+    func testSuccessfulSubmissionTrimsMessagePayload() async throws {
+        viewModel.message = "  Please fix this crash  "
+
+        viewModel.submit()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertEqual(mockService.lastPayload?.message, "Please fix this crash")
+    }
+
     // MARK: - Submit Failure
 
     func testFailedSubmission() async throws {
@@ -101,6 +114,22 @@ final class FeedbackViewModelTests: XCTestCase {
         } else {
             XCTFail("Expected error state, got \(viewModel.submissionState)")
         }
+    }
+
+    func testResetFormCancelsInFlightSubmissionTask() async throws {
+        mockService.submitDelayMilliseconds = 700
+        viewModel.message = "Delayed submission"
+
+        viewModel.submit()
+        try await Task.sleep(for: .milliseconds(100))
+        viewModel.resetForm()
+
+        XCTAssertEqual(viewModel.submissionState, .idle)
+        XCTAssertEqual(viewModel.message, "")
+
+        try await Task.sleep(for: .milliseconds(800))
+        XCTAssertEqual(viewModel.submissionState, .idle)
+        XCTAssertEqual(viewModel.message, "")
     }
 
     // MARK: - Reset

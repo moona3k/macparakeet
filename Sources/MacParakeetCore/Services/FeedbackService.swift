@@ -96,10 +96,19 @@ public final class FeedbackService: FeedbackServiceProtocol {
             throw FeedbackError.emptyMessage
         }
 
+        let normalizedFeedback = FeedbackPayload(
+            category: feedback.category,
+            message: trimmed,
+            email: feedback.email,
+            screenshotBase64: feedback.screenshotBase64,
+            screenshotFilename: feedback.screenshotFilename,
+            systemInfo: feedback.systemInfo
+        )
+
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
 
-        guard let body = try? encoder.encode(feedback) else {
+        guard let body = try? encoder.encode(normalizedFeedback) else {
             throw FeedbackError.encodingFailed
         }
 
