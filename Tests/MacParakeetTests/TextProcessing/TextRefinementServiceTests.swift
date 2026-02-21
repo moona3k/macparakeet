@@ -31,7 +31,7 @@ final class TextRefinementServiceTests: XCTestCase {
         XCTAssertEqual(result.path, .llm)
         let requests = await mockLLM.requests
         XCTAssertEqual(requests.count, 1)
-        XCTAssertTrue(requests[0].prompt.contains("formal"))
+        XCTAssertTrue(requests[0].prompt.contains("Rewrite"))
     }
 
     func testFormalModeFallsBackWhenLLMFails() async {
@@ -49,6 +49,33 @@ final class TextRefinementServiceTests: XCTestCase {
         XCTAssertEqual(result.text, "Hello world")
         XCTAssertEqual(result.path, .llmFallback)
         XCTAssertNotNil(result.fallbackReason)
+    }
+
+    // MARK: - Preamble stripping
+
+    func testStripPreambleCertainly() {
+        let input = "Certainly! Here's a formal version of your text:\n\n\"The project is on track.\""
+        XCTAssertEqual(TextRefinementService.stripPreamble(input), "The project is on track.")
+    }
+
+    func testStripPreambleHereIs() {
+        let input = "Here is a rewritten version:\n\nThe project is on track."
+        XCTAssertEqual(TextRefinementService.stripPreamble(input), "The project is on track.")
+    }
+
+    func testStripPreambleCleanTextUnchanged() {
+        let input = "The project is on track."
+        XCTAssertEqual(TextRefinementService.stripPreamble(input), "The project is on track.")
+    }
+
+    func testStripPreambleSmartQuotes() {
+        let input = "\u{201C}The project is on track.\u{201D}"
+        XCTAssertEqual(TextRefinementService.stripPreamble(input), "The project is on track.")
+    }
+
+    func testStripPreambleSureHereIs() {
+        let input = "Sure. Here's the rewritten text:\n\nI am going to proceed with the next step."
+        XCTAssertEqual(TextRefinementService.stripPreamble(input), "I am going to proceed with the next step.")
     }
 
     func testFormalModeSkipsLLMWhenDeterministicTextIsEmpty() async {

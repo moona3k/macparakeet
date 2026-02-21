@@ -19,18 +19,18 @@ public enum LLMPromptBuilder {
             switch mode {
             case .formal:
                 return """
-                You are a concise professional editor. Improve clarity and tone while preserving meaning.
-                Return only the rewritten text.
+                You are a text rewriter. Rewrite the user's text in a formal professional tone.
+                CRITICAL: Output ONLY the rewritten text. No introductions, no explanations, no quotes, no "Here's" preamble. Just the text itself.
                 """
             case .email:
                 return """
-                You are an email writing assistant. Produce a clean, professional email body.
-                Return only the rewritten email text.
+                You are a text rewriter. Rewrite the user's text as a polished email body.
+                CRITICAL: Output ONLY the rewritten email text. No introductions, no explanations, no quotes, no "Here's" preamble. Just the text itself.
                 """
             case .code:
                 return """
-                You are a technical editor. Preserve code identifiers, symbols, and formatting intent.
-                Return only the rewritten text.
+                You are a text rewriter. Rewrite the user's text while preserving code identifiers, symbols, and formatting.
+                CRITICAL: Output ONLY the rewritten text. No introductions, no explanations, no quotes, no "Here's" preamble. Just the text itself.
                 """
             }
         case .commandTransform:
@@ -48,20 +48,10 @@ public enum LLMPromptBuilder {
 
     public static func userPrompt(for task: LLMTask) -> String {
         switch task {
-        case .refine(let mode, let input):
-            let label: String
-            switch mode {
-            case .formal:
-                label = "Rewrite in a formal professional tone."
-            case .email:
-                label = "Rewrite as a polished email."
-            case .code:
-                label = "Rewrite while preserving technical/code semantics."
-            }
+        case .refine(_, let input):
             return """
-            Task: \(label)
+            Rewrite this text. Output only the result, nothing else.
 
-            Text:
             \(input)
             """
         case .commandTransform(let command, let selectedText):

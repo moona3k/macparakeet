@@ -14,19 +14,19 @@ final class LLMPromptBuilderTests: XCTestCase {
     func testEmailRefinePromptMentionsEmail() {
         let task = LLMTask.refine(mode: .email, input: "quick update")
         let system = LLMPromptBuilder.systemPrompt(for: task).lowercased()
-        let user = LLMPromptBuilder.userPrompt(for: task).lowercased()
+        let user = LLMPromptBuilder.userPrompt(for: task)
 
         XCTAssertTrue(system.contains("email"))
-        XCTAssertTrue(user.contains("email"))
+        XCTAssertTrue(user.contains("quick update"))
     }
 
     func testCodeRefinePromptPreservesTechnicalIntent() {
         let task = LLMTask.refine(mode: .code, input: "use var_name in if(x==1)")
         let system = LLMPromptBuilder.systemPrompt(for: task).lowercased()
-        let user = LLMPromptBuilder.userPrompt(for: task).lowercased()
+        let user = LLMPromptBuilder.userPrompt(for: task)
 
-        XCTAssertTrue(system.contains("technical"))
-        XCTAssertTrue(user.contains("preserving technical"))
+        XCTAssertTrue(system.contains("code"))
+        XCTAssertTrue(user.contains("var_name"))
     }
 
     func testCommandPromptContainsCommandAndSelectedText() {

@@ -43,7 +43,7 @@ public final class SettingsViewModel {
     public var processingMode: String {
         didSet {
             guard Dictation.ProcessingMode(rawValue: processingMode) != nil else {
-                processingMode = Dictation.ProcessingMode.clean.rawValue
+                processingMode = Dictation.ProcessingMode.raw.rawValue
                 return
             }
             defaults.set(processingMode, forKey: "processingMode")
@@ -473,7 +473,7 @@ public final class SettingsViewModel {
 
     private static func normalizedProcessingMode(_ rawValue: String?) -> String {
         guard let rawValue, Dictation.ProcessingMode(rawValue: rawValue) != nil else {
-            return Dictation.ProcessingMode.clean.rawValue
+            return Dictation.ProcessingMode.raw.rawValue
         }
         return rawValue
     }

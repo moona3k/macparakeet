@@ -108,7 +108,7 @@ public struct TextRefinementService: Sendable {
 
         do {
             let response = try await llmService.generate(request: request)
-            let refined = response.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let refined = Self.stripPreamble(response.text)
 
             guard !refined.isEmpty else {
                 return fallback(deterministic: deterministic, reason: "LLM output was empty")
@@ -132,6 +132,34 @@ public struct TextRefinementService: Sendable {
             path: .llmFallback,
             fallbackReason: reason
         )
+    }
+
+    /// Strip common LLM preamble patterns (e.g. "Certainly! Here's a formal version:\n\n")
+    /// and surrounding quotes that Qwen3 sometimes adds.
+    static func stripPreamble(_ text: String) -> String {
+        var result = text.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Strip preamble lines like "Certainly! Here's..." or "Here is..." followed by a colon
+        let preamblePatterns: [String] = [
+            "(?i)^(certainly|sure|of course|absolutely)[!.]?\\s*",
+            "(?i)^here(?:'s| is| are)\\s+[^\\n]*:\\s*",
+            "(?i)^a more \\w+ version[^\\n]*:\\s*",
+        ]
+        for pattern in preamblePatterns {
+            if let range = result.range(of: pattern, options: .regularExpression) {
+                result = String(result[range.upperBound...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        // Strip wrapping quotes (single pass)
+        if result.count >= 2 {
+            let first = result.first!, last = result.last!
+            if (first == "\"" && last == "\"") || (first == "\u{201C}" && last == "\u{201D}") {
+                result = String(result.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return result
     }
 
     public static func defaultOptions(for mode: Dictation.ProcessingMode) -> LLMGenerationOptions {

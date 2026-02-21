@@ -128,9 +128,9 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(testDefaults.string(forKey: "processingMode"), Dictation.ProcessingMode.email.rawValue)
     }
 
-    func testInvalidProcessingModeFallsBackToClean() {
+    func testInvalidProcessingModeFallsBackToRaw() {
         viewModel.processingMode = "invalid-mode"
-        XCTAssertEqual(viewModel.processingMode, Dictation.ProcessingMode.clean.rawValue)
+        XCTAssertEqual(viewModel.processingMode, Dictation.ProcessingMode.raw.rawValue)
     }
 
     // MARK: - Permissions
