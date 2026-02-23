@@ -49,7 +49,7 @@ Everything else exists to make those two modes faster, smarter, and more useful.
 
 No existing app nails all four: **Speed + Privacy + Simplicity + Fair Pricing**.
 
-Cloud services send your voice to remote servers, create accounts, charge monthly, and add server latency. Local apps either bury you in settings (MacWhisper has 50+ features) or charge a premium (Superwhisper at $250). Apple Dictation is free but slow, inaccurate, and has no command mode, no custom vocabulary, no file transcription.
+Cloud services send your voice to remote servers, create accounts, charge monthly, and add server latency. Local apps either bury you in settings (MacWhisper has 50+ features) or charge a premium (Superwhisper at $250). Apple Dictation is free but slow, inaccurate, and has no custom vocabulary, no file transcription.
 
 **MacParakeet's answer:** Built from the ground up around Parakeet TDT -- the fastest, most accurate open-source STT model available. 100% local. Two modes. $49. Done.
 
@@ -87,8 +87,7 @@ Every feature we add must pass the test: "Does this make dictation or transcript
 
 Simple does not mean basic. MacParakeet includes modern capabilities that cloud competitors pioneered, but runs them locally:
 
-- **Command Mode** -- "Fix the grammar in that paragraph" or "Make this more concise." Voice-driven text editing powered by a local LLM. WisprFlow's killer feature, without the cloud.
-- **Clean Pipeline** -- Deterministic text processing: capitalization, punctuation, number formatting. No LLM needed for basic cleanup.
+- **Clean Pipeline** -- Deterministic text processing: filler removal, custom word replacement, snippet expansion, whitespace normalization. Professional output with zero latency.
 - **Custom Words** -- Teach it your vocabulary. Technical terms, proper nouns, acronyms. Anchors that improve recognition accuracy.
 - **Context Awareness** -- (Future) Reads the surrounding text to produce better transcriptions. Knows "React" in a code editor, "react" in a therapy note.
 
@@ -110,7 +109,7 @@ WisprFlow charges $144-180/year. After 3-4 months of MacParakeet, you have saved
 | **Product type** | Native macOS app (menu bar + window) |
 | **Core function** | Voice dictation and file transcription |
 | **Target users** | Developers, professionals, writers who want fast private voice input |
-| **Key differentiators** | Parakeet speed + 100% local + command mode + $49 one-time |
+| **Key differentiators** | Parakeet speed + 100% local + $49 one-time |
 | **Business model** | Free trial (7 days) + $49 Pro (one-time) |
 | **Platform** | macOS 14.2+, Apple Silicon only |
 
@@ -183,32 +182,9 @@ WisprFlow charges $144-180/year. After 3-4 months of MacParakeet, you have saved
 - Multiple export formats: plain text, SRT subtitles, VTT, Markdown.
 - Transcription history with search.
 
-### Mode 3: Command Mode (Pro)
+### ~~Mode 3: Command Mode (Pro)~~ — REMOVED
 
-```
-+-----------------------------------------------------------------------+
-|                                                                       |
-|  You just typed (or dictated):                                        |
-|  "their going to the store to by some items for there party"          |
-|                                                                       |
-|  You say: "Fix the grammar"                                           |
-|                                                                       |
-|  Result:                                                              |
-|  "They're going to the store to buy some items for their party."      |
-|                                                                       |
-|  Other commands:                                                      |
-|  - "Make this more concise"                                           |
-|  - "Rewrite as bullet points"                                         |
-|  - "Translate to Spanish"                                             |
-|  - "Add a professional sign-off"                                      |
-|                                                                       |
-+-----------------------------------------------------------------------+
-```
-
-- Voice commands that edit, rewrite, or transform selected text.
-- Powered by a local LLM (Qwen3-8B via MLX). No cloud.
-- Works on any selected text in any application.
-- WisprFlow charges $12-15/mo for this. We do it locally for $0/mo after purchase.
+> **REMOVED** (2026-02-23) — Command Mode and local LLM support removed. MacParakeet is focused on its two core strengths: fast local dictation and file transcription.
 
 ---
 
@@ -218,7 +194,7 @@ WisprFlow charges $144-180/year. After 3-4 months of MacParakeet, you have saved
 
 The people who would use WisprFlow if it were not cloud-dependent. They type fast already, but voice is faster for certain tasks: writing long messages, thinking out loud, dictating documentation. They care deeply about privacy and dislike subscriptions.
 
-**What they want:** Fast dictation that works in VS Code, Terminal, Slack. Command mode for quick edits. No cloud, no subscription, no bloat.
+**What they want:** Fast dictation that works in VS Code, Terminal, Slack. No cloud, no subscription, no bloat.
 
 ### Secondary: Privacy-Conscious Professionals
 
@@ -272,7 +248,7 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 | **Privacy** | 100% local | Cloud | Local | Local | Mostly local |
 | **Dictation** | Yes | Yes | No | Yes | Yes |
 | **File transcription** | Yes | No | Yes | Limited | No |
-| **Command mode** | Local LLM | Cloud AI | No | Cloud AI | No |
+| **Smart cleanup** | Deterministic | Cloud AI | No | Cloud AI | No |
 | **Custom words** | Yes | Yes | Limited | No | No |
 | **Price** | $49 once | $144-180/yr | $30 once | $250 once | Free |
 | **Account required** | No | Yes | No | Yes | Apple ID |
@@ -282,10 +258,10 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 ### Why We Win Each Segment
 
-- **vs WisprFlow**: Same speed class, command mode included, but local + $49 once vs $144-180/year. WisprFlow users who care about privacy or cost switch to us.
-- **vs MacWhisper**: Faster (Parakeet vs Whisper), simpler (2 modes vs 50+ features), plus dictation and command mode. The $19 premium over MacWhisper ($30) buys system-wide dictation, voice commands, and a Parakeet-first architecture.
-- **vs Superwhisper**: Dramatically cheaper ($49 vs $250), Parakeet-first architecture, local command mode. Price-sensitive Superwhisper users switch to us.
-- **vs Apple Dictation**: Faster, more accurate, command mode, custom words, file transcription. Free users wanting more capability upgrade to us.
+- **vs WisprFlow**: Same speed class, but local + $49 once vs $144-180/year. WisprFlow users who care about privacy or cost switch to us.
+- **vs MacWhisper**: Faster (Parakeet vs Whisper), simpler (2 modes vs 50+ features), plus system-wide dictation. The $19 premium over MacWhisper ($30) buys dictation and a Parakeet-first architecture.
+- **vs Superwhisper**: Dramatically cheaper ($49 vs $250), Parakeet-first architecture. Price-sensitive Superwhisper users switch to us.
+- **vs Apple Dictation**: Faster, more accurate, custom words, file transcription. Free users wanting more capability upgrade to us.
 
 ---
 
@@ -317,13 +293,7 @@ In a market of subscriptions ($144-180/yr for WisprFlow) and premium pricing ($2
 - Savings vs WisprFlow after 2 years: $239-311
 - Savings vs Superwhisper: $201 immediately
 
-### 4. Local Command Mode
-
-WisprFlow's most compelling feature is voice commands: "fix the grammar," "make this shorter," "rewrite as bullets." They do it with cloud AI. We do it with a local LLM (Qwen3-8B via MLX-Swift).
-
-This means command mode works offline, has no per-use cost, and keeps your text private. The quality of Qwen3-8B for text editing tasks is more than sufficient for the command set users actually need.
-
-### 5. Focused Simplicity
+### 4. Focused Simplicity
 
 Two modes. Not twenty. Not fifty.
 
@@ -338,13 +308,13 @@ The product surface area is intentionally small. This means fewer bugs, faster i
 | Tier | Price | What You Get |
 |------|-------|--------------|
 | **Free** | $0 | 7-day trial (full features) |
-| **Pro** | $49 (one-time) | Unlimited dictation, unlimited transcription, command mode, all export formats (SRT/VTT/MD), custom words, text snippets, dictation history |
+| **Pro** | $49 (one-time) | Unlimited dictation, unlimited transcription, all export formats (SRT/VTT/MD), custom words, text snippets, dictation history |
 
 ### Why This Works
 
 **Trial reduces friction.** A 7-day full-feature trial lets users build the habit and evaluate accuracy and speed before buying.
 
-**Pro is a clear upgrade.** Unlimited usage removes the daily cap. Command mode and export formats add real capability. Custom words and snippets add personalization. The upgrade path is obvious and compelling.
+**Pro is a clear upgrade.** Unlimited usage removes the daily cap. Export formats add real capability. Custom words and snippets add personalization. The upgrade path is obvious and compelling.
 
 **No subscription.** This is a feature, not a limitation. In a market where every competitor charges monthly or annually, one-time pricing is a differentiator that drives word-of-mouth. "I paid $49 once and never think about it again" is a story people tell their friends.
 
@@ -366,8 +336,7 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 |                       Shared Technology                                |
 |  +---------------------------------------------------------------+    |
 |  |  FluidAudio CoreML (STT on Neural Engine)                      |    |
-|  |  MLX-Swift (local LLM on GPU)                                  |    |
-|  |  Text processing pipeline (clean/command mode)                 |    |
+|  |  Text processing pipeline (raw/clean modes)                    |    |
 |  +---------------------------------------------------------------+    |
 +-----------------------+-----------------------------------------------+
 |    MacParakeet        |              Oatmeal                          |
@@ -375,8 +344,8 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 |                       |                                               |
 |  - Dictate anywhere   |  - Calendar integration                       |
 |  - Transcribe files   |  - Entity extraction                          |
-|  - Command mode       |  - Cross-meeting memory                       |
-|  - Custom words       |  - Action items                               |
+|  - Custom words       |  - Cross-meeting memory                       |
+|  - YouTube import     |  - Action items                               |
 |  - Export formats     |  - Knowledge graph                            |
 |                       |  - Pre-meeting briefs                         |
 |  Simple, focused      |  Complex, powerful                            |
@@ -400,7 +369,7 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 - **Standalone value**: MacParakeet is a complete product on its own. It does not require or reference Oatmeal.
 - **Funnel potential**: MacParakeet users who want meeting-specific features (calendar sync, entity extraction, memory) are natural Oatmeal prospects.
 - **Revenue timing**: MacParakeet can generate revenue while Oatmeal matures. Simpler product = faster to market.
-- **Technology proving ground**: Parakeet integration, clean pipeline, and LLM command mode are battle-tested in MacParakeet before being used in Oatmeal.
+- **Technology proving ground**: Parakeet integration and clean pipeline are battle-tested in MacParakeet before being used in Oatmeal.
 
 ---
 
@@ -453,22 +422,20 @@ The foundation. Dictation works. File transcription works. It is fast.
 - Basic UI (menu bar app, transcription window)
 - Settings (audio input selection, output preferences)
 
-### v0.2: AI & Text Processing
+### v0.2: Clean Pipeline
 
-Clean pipeline and AI refinement make dictation output polish-ready.
+Clean pipeline makes dictation output polish-ready.
 
 - Clean text pipeline (deterministic: filler removal, custom words, snippets)
-- AI text refinement (Qwen3-8B: formal, email, code modes)
 - Custom words & snippets management UI
-- Personal dictionary (auto-learns vocabulary)
+- In-app feedback
 
-### v0.3: Command Mode & Export
+### v0.3: YouTube & Export
 
-Voice-driven text editing and full export pipeline.
+YouTube transcription and full export pipeline.
 
-- Command mode (select text → speak command → LLM edits in-place)
 - YouTube URL transcription (yt-dlp + Parakeet)
-- Full export formats (.txt, .srt, .vtt, .docx, .pdf, .json)
+- Export formats (.txt, .srt, .vtt, .docx, .pdf, .json)
 
 ### v0.4: Polish + App Store
 
@@ -487,14 +454,13 @@ Ship-quality polish. App Store submission.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Platform** | macOS 14.2+, Apple Silicon only | Parakeet and MLX require Metal. Apple Silicon is the future. |
+| **Platform** | macOS 14.2+, Apple Silicon only | FluidAudio CoreML requires Apple Silicon. |
 | **STT engine** | Parakeet TDT 0.6B-v3 | Fastest and most accurate open-source STT. 155x realtime on ANE, ~2.5% WER via FluidAudio CoreML. |
-| **LLM** | Qwen3-8B via MLX-Swift | Best quality-to-size ratio for local inference. Dual-mode (thinking/non-thinking). |
 | **YouTube downloads** | Standalone yt-dlp | macOS binary, auto-updates via `--update`. No Python needed. |
 | **UI framework** | SwiftUI | Native Mac experience. Menu bar + window. |
 | **Database** | SQLite (GRDB) | Single file. No server. Dictation history, custom words, settings. |
 | **Cloud option** | None | Privacy is the brand. No cloud means no cloud. |
-| **Pricing** | $49 one-time | Clear value vs subscriptions. Premium over MacWhisper ($30) justified by dictation + command mode. |
+| **Pricing** | $49 one-time | Clear value vs subscriptions. Premium over MacWhisper ($30) justified by system-wide dictation + smart cleanup. |
 | **Subscription** | No | Differentiator. One-time purchase builds trust and word-of-mouth. |
 
 ---
@@ -513,7 +479,7 @@ The parakeet bird is known for mimicking speech -- a fitting metaphor for a voic
 |---------|--------------|----------------|
 | **Parakeet Speed** | 60 min audio in ~23 seconds | Transcription so fast it feels instant |
 | **System-wide Dictation** | Fn to dictate in any app | Voice input everywhere, not just our app |
-| **Command Mode** | "Fix grammar" / "Make concise" via voice | WisprFlow's best feature, locally, no subscription |
+| **YouTube Transcription** | Paste a URL, get a transcript | File transcription for the YouTube era |
 | **100% Local** | Zero network, zero accounts | Unchallengeable privacy claim |
 | **Clean Pipeline** | Deterministic text cleanup | Professional output without LLM overhead |
 | **Custom Words** | User-defined vocabulary anchors | Technical terms transcribed correctly every time |

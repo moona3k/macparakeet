@@ -102,7 +102,7 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 |------|--------|-------------|
 | SwiftUI view tests | Brittle, slow, low value | Test ViewModels and state logic |
 | Audio capture tests | Hardware-dependent | Test processing logic with fixture data |
-| Third-party internals | Trust GRDB, MLX-Swift, ArgumentParser | Test our integration layer |
+| Third-party internals | Trust GRDB, FluidAudio, ArgumentParser | Test our integration layer |
 | Visual snapshot tests | Maintenance burden exceeds value | Manual QA for UI changes |
 | Flaky tests | Any test that fails intermittently | Fix or delete -- no `@retry` hacks |
 

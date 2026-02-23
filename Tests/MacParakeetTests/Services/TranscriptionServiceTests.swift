@@ -27,14 +27,12 @@ final class TranscriptionServiceTests: XCTestCase {
     var service: TranscriptionService!
     var mockAudio: MockAudioProcessor!
     var mockSTT: MockSTTClient!
-    var mockLLM: MockLLMService!
     var transcriptionRepo: TranscriptionRepository!
 
     override func setUp() async throws {
         let dbManager = try DatabaseManager()
         mockAudio = MockAudioProcessor()
         mockSTT = MockSTTClient()
-        mockLLM = MockLLMService()
         transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
 
         service = TranscriptionService(
@@ -218,41 +216,5 @@ final class TranscriptionServiceTests: XCTestCase {
         let created = FileManager.default.createFile(atPath: url.path, contents: Data("audio".utf8))
         XCTAssertTrue(created)
         return url
-    }
-
-    func testTranscribeFileEmailModeUsesLLM() async throws {
-        await mockSTT.configure(result: STTResult(text: "meeting moved to 3pm"))
-        await mockLLM.configureResponse(text: "Subject: Schedule Update\n\nThe meeting has been moved to 3 PM.")
-        let service = TranscriptionService(
-            audioProcessor: mockAudio,
-            sttClient: mockSTT,
-            transcriptionRepo: transcriptionRepo,
-            llmService: mockLLM,
-            processingMode: { .email }
-        )
-
-        let fileURL = URL(fileURLWithPath: "/tmp/test.mp3")
-        let result = try await service.transcribe(fileURL: fileURL)
-
-        XCTAssertEqual(result.cleanTranscript, "Subject: Schedule Update\n\nThe meeting has been moved to 3 PM.")
-        let requests = await mockLLM.requests
-        XCTAssertEqual(requests.count, 1)
-    }
-
-    func testTranscribeFileEmailModeFallsBackToDeterministic() async throws {
-        await mockSTT.configure(result: STTResult(text: "um meeting moved to 3pm"))
-        await mockLLM.configureError(LLMServiceError.generationFailed("timeout"))
-        let service = TranscriptionService(
-            audioProcessor: mockAudio,
-            sttClient: mockSTT,
-            transcriptionRepo: transcriptionRepo,
-            llmService: mockLLM,
-            processingMode: { .email }
-        )
-
-        let fileURL = URL(fileURLWithPath: "/tmp/test.mp3")
-        let result = try await service.transcribe(fileURL: fileURL)
-
-        XCTAssertEqual(result.cleanTranscript, "Meeting moved to 3pm")
     }
 }

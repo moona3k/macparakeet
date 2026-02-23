@@ -1,6 +1,6 @@
 # FluidAudio CoreML Migration: STT Backend Evaluation
 
-> Status: **ACTIVE** — Research findings, February 12-13, 2026
+> Status: **HISTORICAL** — Research findings from February 12-13, 2026. FluidAudio migration is complete. LLM/Qwen3-8B GPU references are outdated — LLM support removed 2026-02-23.
 
 ## Problem Statement
 

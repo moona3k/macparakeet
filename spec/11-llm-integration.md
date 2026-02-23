@@ -1,6 +1,6 @@
 # 11 - LLM Integration
 
-> Status: **ACTIVE** - Authoritative, current
+> Status: **HISTORICAL** - LLM support removed 2026-02-23. All LLM-powered features (AI refinement, Command Mode, Chat with Transcript) and the `mlx-swift-lm` dependency have been removed.
 > Baseline: Qwen3-8B 4-bit via MLX-Swift-LM (ADR-008)
 
 This spec defines how MacParakeet integrates local LLM features with clean architecture, deterministic fallback behavior, and testable seams.

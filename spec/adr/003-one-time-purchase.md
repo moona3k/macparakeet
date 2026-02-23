@@ -2,6 +2,7 @@
 
 > Status: **HISTORICAL** - Pricing decision remains current; entitlement/trial mechanics are superseded by ADR-006.
 > Date: 2026-02-08
+> Note: References to "command mode" and "LLM modes" in pricing rationale are historical — LLM support removed 2026-02-23. Pricing tiers remain valid; feature differentiation now centers on unlimited usage, export formats, custom words, and text snippets.
 
 ## Context
 

@@ -27,21 +27,18 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  v0.2 - "AI & Text Processing"                                   │
-│  "Clean text automatically, refine with AI when needed"         │
+│  v0.2 - "Clean Pipeline"                                          │
+│  "Clean text automatically with deterministic processing"       │
 ├─────────────────────────────────────────────────────────────────┤
 │  • Clean text pipeline (deterministic: fillers, words, snippets) │
-│  • AI text refinement (Qwen3-8B: formal, email, code modes)    │
 │  • Custom words & snippets management UI                        │
-│  • Personal dictionary (auto-learns vocabulary)                 │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│  v0.3 - "Command Mode & Export"                                  │
-│  "Edit text with voice, import from anywhere, export anything"  │
+│  v0.3 - "YouTube & Export"                                        │
+│  "Import from anywhere, export anything"                        │
 ├─────────────────────────────────────────────────────────────────┤
-│  • Command mode (select text → speak command → LLM edits)       │
 │  • YouTube URL transcription (yt-dlp + Parakeet)                │
 │  • Full export (.txt, .srt, .vtt, .docx, .pdf, .json)          │
 └─────────────────────────────────────────────────────────────────┘
@@ -62,7 +59,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 │  Future - "Platform"                                             │
 ├─────────────────────────────────────────────────────────────────┤
 │  • iOS companion                                                 │
-│  • Translation (via LLM)                                         │
+│  • Translation                                                     │
 │  • API / Shortcuts integration                                   │
 │  • Team vocabulary sharing                                       │
 │  • Vibe coding integrations (Cursor, VS Code)                   │
@@ -80,14 +77,14 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 **Goals:**
 - Reduce first-run friction (no mysterious permission failures).
 - Teach the core interaction model in under 60 seconds.
-- Download and warm up both local models (Parakeet STT + Qwen3-8B) on first run.
+- Download and warm up the local speech model (Parakeet STT) on first run.
 
 **Flow:**
 1. Welcome
 2. Microphone permission
 3. Accessibility permission
 4. Hotkey instructions (configurable trigger + Esc)
-5. Local model setup (Parakeet + Qwen, retry required)
+5. Speech model setup (Parakeet, retry required)
 6. Ready
 
 **Model failure recovery:**
@@ -591,11 +588,10 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 │ │ [Clear All Dictations...]                                    │ │
 │ └──────────────────────────────────────────────────────────────┘ │
 │                                                                  │
-│ LOCAL MODELS                                                     │
+│ SPEECH MODEL                                                     │
 │ ┌──────────────────────────────────────────────────────────────┐ │
 │ │ Parakeet (Speech)        Ready                 [Repair]      │ │
-│ │ Qwen (AI)                Not Loaded            [Repair]      │ │
-│ │ [Check Now]                                   [Repair All]   │ │
+│ │ [Check Now]                                                  │ │
 │ └──────────────────────────────────────────────────────────────┘ │
 │                                                                  │
 │ PERMISSIONS                                                      │
@@ -617,7 +613,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 | Silence delay | 1s, 1.5s, 2s, 3s, 5s | 2s |
 | Save audio recordings | On / Off | On |
 | Keep downloaded YouTube audio | On / Off | On |
-| Local model controls | Check status / Repair / Repair All | Available |
+| Speech model controls | Check status / Repair | Available |
 
 **Acceptance criteria:**
 - [x] All settings persist across app restarts (UserDefaults or GRDB)
@@ -627,7 +623,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 - [x] YouTube storage toggle controls whether downloaded URL audio is kept after transcription
 - [x] "Clear All" requires confirmation, deletes audio files and database entries
 - [x] Permission status shown with current grant state
-- [x] Local model panel shows status for Parakeet + Qwen and allows repair with retry
+- [x] Speech model panel shows status for Parakeet and allows repair with retry
 
 ---
 
@@ -767,9 +763,11 @@ CREATE TABLE text_snippets (
 
 ---
 
-### F8: AI Text Refinement
+### F8: AI Text Refinement — REMOVED
 
-**What:** LLM-powered text transformation for cases where deterministic cleanup is not enough. Uses Qwen3-8B via MLX-Swift, running entirely on-device.
+> Status: **REMOVED** (2026-02-23) — LLM support removed. Formal/Email/Code modes and Qwen3-8B dependency eliminated. Only Raw and Clean (deterministic) modes remain.
+
+**What:** ~~LLM-powered text transformation for cases where deterministic cleanup is not enough. Uses Qwen3-8B via MLX-Swift, running entirely on-device.~~
 
 **Context modes:**
 
@@ -888,18 +886,18 @@ Modes stack: Formal/Email/Code always run the clean pipeline first, then apply L
 
 ## v0.3 Features (Command Mode, Chat & Export)
 
-### F10: Command Mode (Epic)
+### F10: Command Mode (Epic) — REMOVED
 
-**What:** Select text in any app, activate command mode, speak a natural language command, and the text is edited in-place by the local LLM.
+> Status: **REMOVED** (2026-02-23) — LLM support removed. Command Mode (F10a/F10b) and Chat with Transcript (F10c) eliminated along with Qwen3-8B dependency.
 
-To reduce implementation risk and keep delivery focused, Command Mode is split into:
+**What:** ~~Select text in any app, activate command mode, speak a natural language command, and the text is edited in-place by the local LLM.~~
 
-- `F10a` core command workflow (GUI MVP)
-- `F10b` command enhancements (quick commands + saved templates)
+~~To reduce implementation risk and keep delivery focused, Command Mode is split into:~~
 
-**This is the key differentiator for MacParakeet.** Cloud competitors charge monthly for this. We do it locally for a one-time price.
+~~- `F10a` core command workflow (GUI MVP)~~
+~~- `F10b` command enhancements (quick commands + saved templates)~~
 
-### F10a: Command Mode Core (GUI MVP)
+### F10a: Command Mode Core (GUI MVP) — REMOVED
 
 **Scope:**
 - Default shortcut: Fn+Ctrl (or configurable)
@@ -991,9 +989,11 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 
 ---
 
-### F10c: Transcript Chat (GUI MVP)
+### F10c: Transcript Chat (GUI MVP) — REMOVED
 
-**What:** Ask questions about the currently selected transcript from the transcript detail screen using local Qwen3-8B.
+> Status: **REMOVED** (2026-02-23) — LLM support removed.
+
+**What:** ~~Ask questions about the currently selected transcript from the transcript detail screen using local Qwen3-8B.~~
 
 **Scope (MVP):**
 - Current transcript scope only (no cross-transcript retrieval yet)
@@ -1345,7 +1345,7 @@ new scheduling architecture.
 Share transcripts between Mac and iPhone. Capture in-person conversations on iPhone.
 
 ### F18: Translation
-Translate transcribed text to other languages using Qwen3-8B. Activated as a command mode command or processing mode.
+Translate transcribed text to other languages. Implementation approach TBD (local model or API).
 
 ### F19: API / Shortcuts Integration
 Expose transcription as a macOS Shortcut action. Enable automation: "When I receive a voice memo, transcribe it."
@@ -1360,7 +1360,7 @@ Deep integration with code editors:
 - **Terminal:** Voice commands for git, build, test
 
 ### F22: Context Awareness
-Read surrounding text from the active app via macOS Accessibility APIs (AXUIElement) to produce better transcriptions. Knows "React" in a code editor, "react" in a therapy note. All processing local via Qwen3-8B -- no screen content ever leaves device.
+Read surrounding text from the active app via macOS Accessibility APIs (AXUIElement) to produce better transcriptions. Knows "React" in a code editor, "react" in a therapy note. All processing local -- no screen content ever leaves device.
 
 ---
 
@@ -1370,11 +1370,10 @@ Read surrounding text from the active app via macOS Accessibility APIs (AXUIElem
 |--------|--------|-------|
 | Transcription speed | 155x realtime | Parakeet TDT on Apple Silicon (ANE via FluidAudio CoreML) |
 | Dictation latency | <500ms end-to-end | From Fn release to text appearing |
-| Clean pipeline | <1ms | Deterministic, no LLM |
-| LLM refinement | <5s | Qwen3-8B for formal/email/code modes |
+| Clean pipeline | <1ms | Deterministic, pure string operations |
 | Memory usage (idle) | <200MB | Menu bar + STT model standing by |
-| Memory usage (active) | <3GB | During transcription with both models loaded |
-| App size | <100MB | Plus ~11 GB model downloads on first run (~6 GB STT + ~5 GB Qwen) |
+| Memory usage (active) | <300MB | During transcription with STT loaded |
+| App size | <100MB | Plus ~6 GB STT model download on first run |
 | Startup time | <2s | Cold start to menu bar ready |
 | File transcription | 1 hour audio in <25s | On M1 or better (ANE via CoreML) |
 
@@ -1390,13 +1389,12 @@ MacParakeet's brand is privacy. These are non-negotiable.
 | No analytics | Zero telemetry, no crash reporting to servers |
 | No telemetry | No usage tracking, no feature analytics |
 | No accounts | No email, no login, no registration |
-| No cloud processing | All STT and LLM runs locally on Apple Silicon |
+| No cloud processing | All STT runs locally on Apple Silicon |
 | User-controlled storage | Audio saved by default, user can disable or delete |
 | Network only for setup/licensing + YouTube | One-time model downloads during onboarding, optional license activation/validation, and YouTube download |
 
 **What "100% local" means:**
 - Parakeet STT runs on Apple Silicon Neural Engine (ANE) via FluidAudio CoreML -- no cloud API
-- Qwen3-8B LLM runs on Apple Silicon GPU via MLX-Swift/Metal -- no OpenAI, no Anthropic
 - Audio never leaves the device
 - Transcripts never leave the device
 - No "phone home" on launch, no update checks to our servers (App Store handles updates)
@@ -1437,43 +1435,25 @@ v0.1 Core MVP:
       └──────────────┘     └──────────────┘
 
 
-v0.2 AI & Text Processing:
+v0.2 Text Processing:
 ────────────────────────────────────────────────────────────────────
 
       ┌──────────────────┐
       │ F7: Clean Text   │ ← Deterministic pipeline
-      │ Pipeline         │   (no LLM dependency)
+      │ Pipeline         │
       └────────┬─────────┘
                │
-       ┌───────┼────────────────┐
-       │       │                │
-   ┌───▼────┐  │  ┌─────────────▼────┐
-   │ F8: AI │  │  │ F9: Custom Words │
-   │ Refine │  │  │ & Snippets UI    │
-   │ (LLM)  │  │  │                  │
-   └────────┘  │  └──────────────────┘
-               │
+               │  ┌──────────────────┐
+               └──│ F9: Custom Words │
+                  │ & Snippets UI    │
+                  └──────────────────┘
+
          Integrates with F1 (dictation)
          and F2 (file transcription)
 
 
-v0.3 Command Mode, Chat & Export:
+v0.3 YouTube & Export:
 ────────────────────────────────────────────────────────────────────
-
-      ┌──────────────────┐
-      │ F10a: Command    │ ← Requires F1 (dictation) + F8 (LLM)
-      │ Mode Core        │   + Accessibility API
-      └──────────────────┘
-
-      ┌──────────────────┐
-      │ F10b: Command    │ ← Extends F10a (quick commands + templates)
-      │ Mode Enhancements│
-      └──────────────────┘
-
-      ┌──────────────────┐
-      │ F10c: Transcript │ ← Requires F2 (transcript detail) + F8 (LLM)
-      │ Chat (GUI MVP)   │
-      └──────────────────┘
 
       ┌──────────────────┐
       │ F11: YouTube     │ ← Requires F2 (file transcription)
@@ -1511,9 +1491,8 @@ v0.4 Polish & Launch:
 
 Cross-cutting dependency:
 
-      Parakeet STT ──► F1, F2, F10a, F11, F13, F14, F15
-      Qwen3-8B LLM ──► F8, F10a, F10b, F10c
-      Accessibility ──► F1 (hotkey + paste), F10a (text selection)
+      Parakeet STT ──► F1, F2, F11, F13, F14, F15
+      Accessibility ──► F1 (hotkey + paste)
       FFmpeg ──────────► F2, F11, F14
       yt-dlp ──────────► F11
       GRDB (SQLite) ──► F4, F7 (custom words, snippets)
@@ -1537,7 +1516,7 @@ FluidAudio model download → Audio capture (AVAudioEngine)
 | Meeting recording (system audio) | That's Oatmeal, not MacParakeet |
 | Calendar integration | Meeting app territory |
 | Entity extraction / memory | Meeting app territory |
-| Cloud LLM option | Privacy is the brand -- no OpenAI, no Anthropic |
+| Cloud processing | Privacy is the brand -- no OpenAI, no Anthropic |
 | Windows / Linux | macOS-only simplifies everything, Apple Silicon required |
 | Collaborative / multi-user | Single-user product |
 | Subscription pricing | One-time purchase is the differentiator |

@@ -3,6 +3,7 @@
 > Status: **Accepted**
 > Date: 2026-02-08
 > Runtime Note (2026-02-13): Runtime/mechanism details in this ADR are historical and superseded by ADR-007. ADR-001 remains authoritative for STT model choice.
+> Note: GPU/LLM references (Qwen3-8B, "three-chip") are historical — LLM support removed 2026-02-23. MacParakeet now uses a two-chip architecture (CPU + ANE).
 
 ## Context
 

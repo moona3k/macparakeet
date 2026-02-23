@@ -8,10 +8,10 @@ struct HealthCommand: AsyncParsableCommand {
         abstract: "Check system health: database, local models, and helper binaries."
     )
 
-    @Flag(name: .long, help: "Attempt to repair/warm local models (Parakeet + Qwen).")
+    @Flag(name: .long, help: "Attempt to repair/warm the Parakeet speech model.")
     var repairModels: Bool = false
 
-    @Option(name: .long, help: "Maximum repair attempts per model when --repair-models is set.")
+    @Option(name: .long, help: "Maximum repair attempts when --repair-models is set.")
     var repairAttempts: Int = 3
 
     func run() async throws {
@@ -71,21 +71,16 @@ struct HealthCommand: AsyncParsableCommand {
         // 4. Local models
         print("Local Models:")
         let sttClient = STTClient()
-        let llmService = MLXLLMService()
 
         await printSTTStatus(sttClient: sttClient)
-        print()
-        await printLLMStatus(llmService: llmService)
 
         if let repairAttempts = validatedRepairAttempts {
             print()
             print("Model repair requested...")
             do {
                 try await warmUpModels(
-                    target: .all,
                     attempts: repairAttempts,
                     sttClient: sttClient,
-                    llmService: llmService,
                     log: { message in print("  \(message)") }
                 )
                 print("Model repair completed.")

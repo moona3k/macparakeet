@@ -2,7 +2,7 @@
 
 > Status: **ACTIVE** - Authoritative, current
 
-Text processing transforms raw STT output into polished text. MacParakeet offers a deterministic pipeline for fast, predictable results, and optional LLM-powered modes for more sophisticated transformations.
+Text processing transforms raw STT output into polished text. MacParakeet offers a deterministic pipeline for fast, predictable results.
 
 ---
 
@@ -71,102 +71,12 @@ Final normalization pass:
 |------|-----------|--------|---------|
 | Raw | None | N/A | 0ms |
 | Clean | Deterministic pipeline | TextProcessingPipeline | <1ms |
-| Formal | Pipeline + LLM (professional tone) | Qwen3-8B | ~1-3s |
-| Email | Pipeline + LLM (email format) | Qwen3-8B | ~1-3s |
-| Code | Pipeline + LLM (preserve syntax) | Qwen3-8B | ~1-3s |
 
 ### Mode Details
 
 **Raw**: No processing. The exact text output from Parakeet is used as-is. Useful for debugging or when the user wants full control.
 
-**Clean** (default): The deterministic 4-step pipeline runs. Fast, predictable, no LLM dependency. Good for most dictation use cases.
-
-**Formal**: The deterministic pipeline runs first, then the result is sent to Qwen3-8B with a prompt to rewrite in a professional tone. Suitable for business communication.
-
-**Email**: Pipeline first, then LLM rewrites into polished email-style text.
-
-**Code**: Pipeline first, then LLM preserves technical syntax, variable names, and code-like patterns while cleaning up natural language around them.
-
----
-
-## Command Mode (v0.3)
-
-A voice-controlled text transformation feature that works with any selected text in any app.
-
-Feature split:
-- `F10a` core command flow (selection -> spoken command -> transformed replacement)
-- `F10b` enhancements (quick commands + saved templates)
-
-### Flow
-
-```
-User selects text in any app
-    → Presses Fn+Ctrl (or configured shortcut)
-    → MacParakeet activates, shows recording indicator
-    → User speaks a command: "Translate to Spanish", "Make formal", "Fix grammar"
-    → MacParakeet captures command via STT
-    → Gets selected text via Accessibility API
-    → Sends selected text + spoken command to Qwen3-8B
-    → Replaces selected text with result via CGEvent (paste)
-```
-
-### Implementation
-
-- **Get selected text**: Accessibility API (`AXUIElement`) to read the current selection from the focused app
-- **Paste result**: `CGEvent`-based paste (Cmd+V simulation) to replace the selection
-- Requires **Accessibility** permission (same permission as global hotkey)
-
-### Example Commands
-
-| Spoken Command | Effect |
-|----------------|--------|
-| "Translate to Spanish" | Translates selected text to Spanish |
-| "Make formal" | Rewrites in professional tone |
-| "Fix grammar" | Corrects grammar and spelling |
-| "Summarize" | Condenses selected text |
-| "Make shorter" | Reduces length while keeping meaning |
-| "Add bullet points" | Reformats as a bulleted list |
-
-### Constraints (F10a)
-
-- Selected text is limited to 16,000 characters (hard cap, explicit error on overflow)
-- If no text is selected, show a brief tooltip: "Select text first"
-- Command recording uses the same mic pipeline as dictation
-
-### Enhancements (F10b)
-
-- Pre-built quick commands in overlay for repeated edits
-- Saved custom command templates that route through the same core transform path
-
----
-
-## LLM Integration
-
-### Model
-
-| Property | Value |
-|----------|-------|
-| Model | Qwen3-8B |
-| HuggingFace ID | `mlx-community/Qwen3-8B-4bit` |
-| Runtime | MLX-Swift |
-| Memory | Loaded/unloaded on demand |
-
-### Dual-Mode Operation
-
-The same Qwen3-8B model is used with different settings depending on task complexity:
-
-| Mode | Use Case | Temperature | Top-P |
-|------|----------|-------------|-------|
-| Non-thinking | Simple rewrites, formatting | 0.7 | 0.8 |
-| Thinking | Complex commands, translation, reasoning | 0.6 | 0.95 |
-
-### Memory Management
-
-- The LLM is **not** loaded at app launch
-- It loads on first LLM-mode dictation or command mode invocation
-- It stays loaded for a configurable idle timeout (default: 5 minutes)
-- After idle timeout, the model is unloaded to free memory
-- Loading takes ~2-3 seconds on first use
+**Clean** (default): The deterministic 4-step pipeline runs. Fast and predictable. Good for most dictation use cases.
 
 ---
 
@@ -246,26 +156,4 @@ macparakeet-cli flow snippets add "my signature" "Best regards, David"
 
 # Delete a snippet
 macparakeet-cli flow snippets delete <id>
-```
-
-### Local LLM
-
-```bash
-# Local model smoke test
-macparakeet-cli llm smoke-test --stats
-
-# Direct prompt generation
-macparakeet-cli llm generate "Summarize this in one sentence: ..."
-
-# Refine text (deterministic clean + local LLM)
-macparakeet-cli llm refine formal "quick draft note"
-macparakeet-cli llm refine email "meeting moved to 3pm tomorrow"
-macparakeet-cli llm refine code "check var name and update loop logic"
-
-# Apply a spoken-style command transform
-macparakeet-cli llm command "Translate to Spanish" "Hello, how are you?"
-
-# Single-turn chat (optional transcript grounding)
-macparakeet-cli llm chat "What were the key action items?"
-macparakeet-cli llm chat "What blockers were discussed?" --transcript-file /path/to/transcript.txt
 ```

@@ -29,13 +29,12 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 | Error handling | `spec/08-error-handling.md` |
 | Testing strategy | `spec/09-testing.md` |
 | AI coding methodology | `spec/10-ai-coding-method.md` |
-| LLM integration | `spec/11-llm-integration.md` |
+| LLM integration (historical) | `spec/11-llm-integration.md` |
 | ADRs (locked decisions) | `spec/adr/` -> individual decision records |
 | Competitive research | `docs/competitive-analysis.md` |
 | Brand identity | `docs/brand-identity.md` |
 | UI/UX design overhaul | `docs/design-overhaul.md` |
 | Distribution & signing | `docs/distribution.md` |
-| LLM runtime revalidation | `docs/runtime-revalidation-checklist.md` |
 | Implementation plans | `plans/` -> active and completed plans |
 
 ## Tech Stack (Locked Decisions)
@@ -47,7 +46,6 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 | Database | SQLite | GRDB (single file, dictation history + transcriptions) |
 | STT | Parakeet TDT 0.6B-v3 | Via FluidAudio CoreML/ANE (~2.5% WER, 155x realtime) |
 | Audio | AVAudioEngine + Core Audio | Mic capture for dictation; FFmpeg (bundled) for video file conversion |
-| LLM | MLX-Swift | Qwen3-8B for command mode, AI refinement, chat (GPU via Metal) |
 | YouTube | yt-dlp | Standalone macOS binary, weekly non-blocking auto-update via `--update` |
 | Licensing | LemonSqueezy | License key activation, validation API |
 
@@ -100,9 +98,7 @@ These decisions were made during spec review and are locked:
 | Processing mode scope | Global default only | Set once in Vocabulary, applies to all dictations. No per-dictation picker on overlay. |
 | Trial start timing | On onboarding completion | 7-day clock starts after permissions are granted, not during setup. |
 | License grace period | Unlimited | Validate once on activation, never expire locally. One-time purchase = yours forever. |
-| Command mode no selection | Show error "Select text first" | Command Mode is about editing selected text, not free-form generation. |
 | Context awareness | Aspirational future | No version commitment. Don't promise what doesn't exist. Build post-launch. |
-| Course correction | Deferred | Complexity not justified for local LLM. Noted in competitive analysis. |
 | Sound design | Skip for v1.0 | Ship without custom sounds. Add later when there's time to get them right. |
 
 ## Architecture Decisions (ADRs)
@@ -118,11 +114,11 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-005 | First-run onboarding flow | `spec/adr/005-onboarding-first-run.md` |
 | ADR-006 | Trial + license key activation | `spec/adr/006-trial-and-license-activation.md` |
 | ADR-007 | FluidAudio CoreML migration (Python elimination) | `spec/adr/007-fluidaudio-coreml-migration.md` |
-| ADR-008 | Local LLM runtime baseline (`mlx-swift-lm` + Qwen3-8B) | `spec/adr/008-local-llm-runtime-and-model.md` |
+| ADR-008 | Local LLM runtime baseline (historical — removed) | `spec/adr/008-local-llm-runtime-and-model.md` |
 
 ## Current Phase
 
-**v0.2 Complete, v0.3 In Progress** -- 98 source files, 52 test files, 449 tests passing (`swift test` green)
+**v0.2 Complete, v0.3 In Progress** -- ~82 source files, ~46 test files, 416 tests passing (`swift test` green)
 
 ### v0.1 MVP (Implemented)
 - [x] System-wide dictation: Configurable hotkey (Fn default), double-tap (persistent) + hold-to-talk
@@ -135,20 +131,17 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] Menu bar app with main window + sidebar navigation
 - [x] Basic export (TXT/Markdown/SRT/VTT + copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + substring search)
-- [x] Internal dev CLI tool: `macparakeet-cli transcribe`, `history`, `health`, `flow`, `llm`
+- [x] Internal dev CLI tool: `macparakeet-cli transcribe`, `history`, `health`, `flow`
 - [x] STT engine (Parakeet TDT via FluidAudio CoreML/ANE)
 
-### v0.2 Clean Pipeline + AI
-- [x] Clean text pipeline (filler removal, custom words, snippets) -- deterministic, no LLM
+### v0.2 Clean Pipeline (Implemented)
+- [x] Clean text pipeline (filler removal, custom words, snippets) -- deterministic
 - [x] Custom words & snippets management UI (Vocabulary sidebar item)
-- [x] CLI commands: `macparakeet-cli flow process/words/snippets` + `macparakeet-cli llm generate/refine/command/chat/smoke-test`
-- [x] Context modes (raw, clean, formal, email, code)
-- [x] AI text refinement via Qwen3-8B with deterministic fallback
+- [x] CLI commands: `macparakeet-cli flow process/words/snippets` + `macparakeet-cli models status/warm-up/repair`
+- [x] Processing modes (raw, clean)
 - [x] In-app feedback form (Settings → Help & Feedback → Cloudflare Worker → GitHub Issues)
 
-### v0.3 Command Mode + Chat + Export
-- [ ] Command Mode (highlight text + voice command -> LLM edits in-place, like WisprFlow Pro)
-- [x] Chat with transcript (ask questions about the selected transcript via Qwen3-8B, GUI MVP)
+### v0.3 YouTube & Export (In Progress)
 - [x] YouTube URL transcription (yt-dlp + Parakeet, single video)
 - [x] Export formats (TXT, Markdown, SRT, VTT)
 - [ ] Export formats (DOCX, PDF, JSON)
@@ -190,10 +183,9 @@ let result = try await manager.transcribe(audioSamples, source: .system)
 // result.words contains word-level timestamps + confidence
 ```
 
-**Three-chip architecture:**
+**Two-chip architecture:**
 ```
 CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
-GPU:  Qwen3-8B LLM (via MLX-Swift/Metal) — full GPU, no sharing
 ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML chip
 ```
 
@@ -202,23 +194,6 @@ ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML chip
 - `macparakeet.db` (GRDB): Dictation history + transcription records in a single file
 - No vector search or embeddings needed (unlike Oatmeal)
 - One repository per table (GRDB pattern)
-
-### LLM Integration
-
-**Single Qwen3 model for ALL tasks** (no Llama, no Ollama):
-
-| Model | HuggingFace ID |
-|-------|----------------|
-| Qwen3-8B | `mlx-community/Qwen3-8B-4bit` |
-
-One model handles text refinement, command mode, and chat with transcript. 128K context window supports full-length transcripts. ~5 GB GPU RAM at 4-bit quantization.
-
-**Dual-mode operation** (same model, different settings):
-
-| Mode | Use Case | Settings |
-|------|----------|----------|
-| Non-thinking | Text cleanup, formatting | `temp=0.7, topP=0.8` |
-| Thinking | Command mode, chat, complex edits | `temp=0.6, topP=0.95` |
 
 ### Audio Capture
 
@@ -292,7 +267,7 @@ macparakeet/
 │   ├── 04-ui-patterns.md   # UI components
 │   ├── 05-audio-pipeline.md
 │   ├── 06-stt-engine.md
-│   ├── 07-text-processing.md  # Clean pipeline + command mode
+│   ├── 07-text-processing.md  # Clean pipeline
 │   ├── 08-error-handling.md
 │   ├── 09-testing.md
 │   └── adr/            # Architecture Decision Records (locked)
@@ -501,9 +476,6 @@ swift test
 
 # Full suite in parallel
 swift test --parallel
-
-# With external services (local only)
-MLX_TESTS=1 swift test --filter MLXIntegrationTests
 ```
 
 ### AI Agent Testing Loop
@@ -517,14 +489,10 @@ MLX_TESTS=1 swift test --filter MLXIntegrationTests
 
 - SwiftUI view tests (test ViewModels instead)
 - Audio capture tests (test processing logic with fixtures)
-- Third-party library internals (trust GRDB, MLX-Swift)
+- Third-party library internals (trust GRDB, FluidAudio)
 - FluidAudio/CoreML internals (test the Swift STTClient protocol layer)
 
 ## Building
-
-### Why xcodebuild?
-
-MLX-Swift requires Metal shaders. **`swift build` cannot compile Metal shaders** -- it will build but crash at runtime with "Failed to load the default metallib".
 
 ### Build & Run
 
@@ -542,11 +510,8 @@ swift build --target CLI
 swift run macparakeet-cli --help
 swift run macparakeet-cli transcribe /path/to/audio.mp3
 swift run macparakeet-cli health
-swift run macparakeet-cli llm smoke-test --stats
-swift run macparakeet-cli llm refine formal "quick draft text"
-swift run macparakeet-cli llm chat "What changed?" --transcript-file /path/to/transcript.txt
 
-# Run tests (swift test works -- tests don't need Metal shaders)
+# Run tests
 swift test
 ```
 
@@ -575,7 +540,6 @@ swift test
 | App bundle | `/Applications/MacParakeet.app` |
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
 | STT models | `~/Library/Application Support/MacParakeet/models/stt/` (CoreML, ~6 GB) |
-| LLM models | `~/Library/Application Support/MacParakeet/models/` |
 | yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
 | FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |
 | Settings | `~/Library/Preferences/com.macparakeet.plist` |
@@ -624,7 +588,7 @@ These patterns are proven from OatFlow development in Oatmeal. Apply them here.
 | Manual NSApplication.run() | No SwiftUI `App` protocol — manual `NSApplication.shared.run()` for reliable CLI execution without .app bundle. Same pattern as Oatmeal. |
 | NSStatusItem for menu bar | Menu bar via `NSStatusBar.system.statusItem()`, not SwiftUI `MenuBarExtra` |
 | NSWindow + NSHostingView | Main window created programmatically, SwiftUI content hosted via `NSHostingView` |
-| Core library has no UI deps | `MacParakeetCore` imports Foundation + GRDB + FluidAudio + MLX, never SwiftUI |
+| Core library has no UI deps | `MacParakeetCore` imports Foundation + GRDB + FluidAudio, never SwiftUI |
 | ViewModels in separate target | `MacParakeetViewModels/` — testable without GUI, depends only on Core |
 | Views organized by feature | `Views/Dictation/`, `Views/Transcription/`, not flat |
 | Observable ViewModels | `@MainActor @Observable` on all ViewModels |
@@ -660,8 +624,6 @@ These are hard-won lessons. Don't repeat them.
 - **Dead code from iterating on approaches** -- When switching from one approach to another, delete the old code entirely. Don't leave `_ = unusedVar` artifacts.
 - **Review agents catch real bugs** -- Running a review agent on onboarding or critical flows catches P0 issues. Worth doing for non-trivial UI flows.
 - **CI duplicates without workflow concurrency** -- If both `push` and `pull_request` triggers are enabled, GitHub Actions can run duplicate pipelines for the same SHA. Add `concurrency` with `cancel-in-progress: true` and a stable group key (`workflow + PR number/ref`) to avoid stale required checks.
-- **`mlx-swift-lm` version window can break CI toolchains** -- For Xcode 16.1 CI, keep `mlx-swift-lm` pinned to `2.29.2` unless re-validated: `2.29.3` has the Jamba trailing-comma parser break (upstream #67: https://github.com/ml-explore/mlx-swift-lm/issues/67), while `2.30.3` has a Swift 6.1 LoRA `consuming` regression (upstream #94: https://github.com/ml-explore/mlx-swift-lm/issues/94).
-
 ---
 
 ## Commit Message Guidelines

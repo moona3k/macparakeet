@@ -748,7 +748,7 @@ struct OnboardingFlowView: View {
         case .hotkey:
             return "You can start dictating from any app without switching context."
         case .engine:
-            return "Download and warm up Parakeet + Qwen so all app features are ready. First setup needs internet once."
+            return "Download and warm up the Parakeet speech model so all features are ready. First setup needs internet once."
         case .done:
             return "You're ready to dictate and transcribe locally on your Mac."
         }
@@ -792,11 +792,11 @@ struct OnboardingFlowView: View {
     private func engineDetail(_ state: OnboardingViewModel.EngineState) -> String {
         switch state {
         case .idle:
-            return "We'll prepare both the speech and AI models now. Internet is required once to download them."
+            return "We'll prepare the speech model now. Internet is required once to download it."
         case .working(_, _):
-            return "This can take several minutes on first run while local models download and initialize. Keep MacParakeet online until setup completes."
+            return "This can take several minutes on first run while the speech model downloads. Keep MacParakeet online until setup completes."
         case .ready:
-            return "Parakeet speech and Qwen AI models are ready."
+            return "Parakeet speech model is ready."
         case .failed:
             return "Setup failed. Please retry to complete model preparation."
         }

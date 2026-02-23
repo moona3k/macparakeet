@@ -8,15 +8,8 @@ struct TranscriptResultView: View {
     var onBack: (() -> Void)?
     var onRetranscribe: ((Transcription) -> Void)?
 
-    private enum ContentPane: String, CaseIterable, Identifiable {
-        case transcript = "Transcript"
-        case chat = "Chat"
-        var id: String { rawValue }
-    }
-
     @State private var backHovered = false
     @State private var copied = false
-    @State private var selectedPane: ContentPane = .transcript
     @State private var showExportConfirmation = false
     @State private var lastExportedURL: URL?
     @State private var lastExportedFormat: String?
@@ -204,38 +197,8 @@ struct TranscriptResultView: View {
 
     @ViewBuilder
     private func contentArea(availableWidth: CGFloat) -> some View {
-        let innerWidth = availableWidth - 2 * DesignSystem.Spacing.lg
-        if innerWidth >= 820 {
-            let chatWidth = max(340, min(440, innerWidth * 0.36))
-            let transcriptWidth = innerWidth - chatWidth - DesignSystem.Spacing.md
-            HStack(spacing: DesignSystem.Spacing.md) {
-                transcriptPane
-                    .frame(width: transcriptWidth, alignment: .topLeading)
-
-                TranscriptChatPanel(transcription: transcription, viewModel: viewModel)
-                    .frame(width: chatWidth)
-            }
-            .frame(maxHeight: .infinity, alignment: .top)
+        transcriptPane
             .padding(DesignSystem.Spacing.lg)
-        } else {
-            VStack(spacing: DesignSystem.Spacing.sm) {
-                Picker("Pane", selection: $selectedPane) {
-                    ForEach(ContentPane.allCases) { pane in
-                        Text(pane.rawValue).tag(pane)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-
-                if selectedPane == .transcript {
-                    transcriptPane
-                } else {
-                    TranscriptChatPanel(transcription: transcription, viewModel: viewModel)
-                        .frame(maxHeight: .infinity, alignment: .top)
-                }
-            }
-            .padding(DesignSystem.Spacing.lg)
-        }
     }
 
     private var transcriptPane: some View {

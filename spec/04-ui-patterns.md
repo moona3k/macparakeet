@@ -684,17 +684,14 @@ Note: How It Works, Tips, Custom Words, and Text Snippets sections are only visi
 │  Parakeet (Speech)   ╭─✓ Ready─╮              [Repair]   │
 │  Loaded in memory and ready.                              │
 │                                                           │
-│  Qwen (AI)           ╭─◌ Not Loaded─╮         [Repair]   │
-│  Not loaded. It will load on first AI use.               │
-│                                                           │
-│  Updated 4:27 PM                 [Check Now] [Repair All]│
+│  Updated 4:27 PM                            [Check Now]  │
 │                                                           │
 └───────────────────────────────────────────────────────────┘
 ```
 
 - Status pill states: `Unknown`, `Checking`, `Ready`, `Not Loaded`, `Not Downloaded`, `Repairing`, `Failed`
 - `Repair` retries with bounded backoff (up to 3 attempts) and shows attempt-aware detail text
-- `Repair All` runs sequentially: Parakeet first, then Qwen (avoids unnecessary memory spikes)
+- `Repair` retries the Parakeet model download/initialization with bounded backoff
 
 ### Permissions (v0.1)
 

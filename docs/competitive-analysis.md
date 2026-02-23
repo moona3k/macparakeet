@@ -101,8 +101,8 @@ MacParakeet's opportunity is to be the first app that nails all four. WisprFlow 
 - Parakeet-first design (not a secondary engine bolted on)
 - Simpler, focused UX -- dictation-first with file transcription
 - System-wide dictation (MacWhisper is primarily file transcription)
-- Command mode and LLM-powered advanced modes
-- The $19 premium ($49 vs $30) buys dictation workflow, voice commands, and Parakeet-optimized pipeline
+- Smart text cleanup (deterministic pipeline)
+- The $19 premium ($49 vs $30) buys dictation workflow, custom vocabulary, and Parakeet-optimized pipeline
 
 ---
 
@@ -176,8 +176,7 @@ MacParakeet's opportunity is to be the first app that nails all four. WisprFlow 
 
 **Our advantage over VoiceInk:**
 - File transcription (audio, video, subtitle import)
-- Command mode with local LLM
-- More processing modes (formal, email, code)
+- YouTube URL transcription
 - More polished UX and onboarding
 - Professional support
 
@@ -241,7 +240,7 @@ MacParakeet's opportunity is to be the first app that nails all four. WisprFlow 
 
 **Our advantage over BetterDictation:**
 - Parakeet speed (10-20x faster than Whisper)
-- More features (file transcription, command mode, advanced modes)
+- More features (file transcription, YouTube transcription, custom words)
 - Fully local at all tiers (no cloud upsell)
 - Custom words and text snippets
 
@@ -256,9 +255,9 @@ MacParakeet's opportunity is to be the first app that nails all four. WisprFlow 
 | **Real-time dictation** | Yes | Yes | Limited | Yes | Yes | Yes | Yes | Yes |
 | **File transcription** | Yes | No | Yes | Yes | No | No | No | No |
 | **YouTube URL transcription** | Yes | No | No | No | No | No | No | No |
-| **Command mode** | Yes (local LLM) | Yes (cloud LLM) | No | Yes | No | Yes (Agent Mode) | No | No |
+| **Command mode** | No | Yes (cloud LLM) | No | Yes | No | Yes (Agent Mode) | No | No |
 | **Context awareness** | Future | Yes (cloud, screen reading) | No | No | No | No | No | No |
-| **Styles / tone modes** | v0.2 (5 modes) | Yes (Pro, English only) | No | Yes (4+ modes) | Limited | Limited | No | No |
+| **Styles / tone modes** | 2 modes (raw, clean) | Yes (Pro, English only) | No | Yes (4+ modes) | Limited | Limited | No | No |
 | **Course correction** | No (deferred) | Yes (cloud LLM) | No | No | No | No | No | No |
 | **Whisper mode** | Planned (v0.4) | Yes | No | No | No | No | No | No |
 | **Custom words** | Yes | Yes (auto-learn) | Yes | Yes | Yes | Yes | No | No |
@@ -273,9 +272,9 @@ MacParakeet's opportunity is to be the first app that nails all four. WisprFlow 
 
 ### Intentional Gaps
 
-**Course correction** (WisprFlow): "Let's meet at 2... actually 3" → "Let's meet at 3". Deferred — requires multi-turn LLM conversation tracking, adds significant complexity for a niche use case. Qwen3-8B can't reliably handle this in a single pass. May revisit post-launch if user demand warrants it.
+**Course correction** (WisprFlow): "Let's meet at 2... actually 3" → "Let's meet at 3". Deferred — adds significant complexity for a niche use case. May revisit post-launch if user demand warrants it.
 
-**Context awareness** (WisprFlow): Reading the active app window to inform AI output. Aspirational future feature — local implementation via Accessibility APIs + Qwen3-8B is possible but unscheduled. No version commitment.
+**Context awareness** (WisprFlow): Reading the active app window to inform transcription output. Aspirational future feature — local implementation via Accessibility APIs is possible but unscheduled. No version commitment.
 
 ---
 
@@ -305,7 +304,7 @@ MacWhisper BetterDict VoiceInk  MacParakeet  Voibe      Superwhisper
 (Pro)                           (Pro)        (Lifetime)  (Lifetime)
 ```
 
-MacParakeet at $49 sits above the budget tier ($30-40) but well below premium lifetime pricing ($99-250). The $19 premium over MacWhisper ($30) is justified by system-wide dictation, command mode, and Parakeet-first architecture -- features MacWhisper lacks entirely.
+MacParakeet at $49 sits above the budget tier ($30-40) but well below premium lifetime pricing ($99-250). The $19 premium over MacWhisper ($30) is justified by system-wide dictation, smart text cleanup, and Parakeet-first architecture -- features MacWhisper lacks entirely.
 
 ---
 
@@ -421,7 +420,7 @@ This captures the three key differentiators without mentioning competitors: loca
 
 **Probability:** Medium-High (Apple Intelligence trajectory)
 **Impact:** High -- free, built-in, perfectly integrated
-**Mitigation:** Apple will likely never offer custom words, text snippets, processing modes, file transcription, or command mode. MacParakeet's value is in the power-user features that Apple won't build. Position as "for people who outgrew Apple dictation."
+**Mitigation:** Apple will likely never offer custom words, text snippets, processing modes, or file transcription. MacParakeet's value is in the power-user features that Apple won't build. Position as "for people who outgrew Apple dictation."
 
 ### Risk 3: Parakeet model discontinued or stagnates
 
@@ -433,7 +432,7 @@ This captures the three key differentiators without mentioning competitors: loca
 
 **Probability:** Medium (strong community, open source)
 **Impact:** Medium -- price competition from below
-**Mitigation:** MacParakeet offers more features (file transcription, command mode, advanced processing modes). The $9 price difference is justified by functionality. Focus marketing on features VoiceInk lacks rather than price.
+**Mitigation:** MacParakeet offers more features (file transcription, YouTube transcription, smart text cleanup). The $9 price difference is justified by functionality. Focus marketing on features VoiceInk lacks rather than price.
 
 ### Risk 5: Market consolidation (acquisition of competitors)
 

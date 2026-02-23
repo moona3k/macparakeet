@@ -124,8 +124,8 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     func testProcessingModePersists() {
-        viewModel.processingMode = Dictation.ProcessingMode.email.rawValue
-        XCTAssertEqual(testDefaults.string(forKey: "processingMode"), Dictation.ProcessingMode.email.rawValue)
+        viewModel.processingMode = Dictation.ProcessingMode.clean.rawValue
+        XCTAssertEqual(testDefaults.string(forKey: "processingMode"), Dictation.ProcessingMode.clean.rawValue)
     }
 
     func testInvalidProcessingModeFallsBackToRaw() {
@@ -328,21 +328,17 @@ final class SettingsViewModelTests: XCTestCase {
         )
         let stt = MockSTTClient()
         await stt.setReady(false)
-        let llm = MockLLMService()
-        await llm.setReady(false)
 
         vm.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
             entitlementsService: entitlements,
             checkoutURL: nil,
-            sttClient: stt,
-            llmService: llm
+            sttClient: stt
         )
 
         try await Task.sleep(for: .milliseconds(120))
         XCTAssertEqual(vm.parakeetStatus, .notDownloaded)
-        XCTAssertEqual(vm.qwenStatus, .notLoaded)
     }
 
     func testRepairParakeetModelUsesRetryAndEndsReady() async throws {
@@ -356,15 +352,13 @@ final class SettingsViewModelTests: XCTestCase {
         let stt = MockSTTClient()
         await stt.setReady(false)
         await stt.configureWarmUpFailuresBeforeSuccess(2)
-        let llm = MockLLMService()
 
         vm.configure(
             permissionService: mockPermissions,
             dictationRepo: mockRepo,
             entitlementsService: entitlements,
             checkoutURL: nil,
-            sttClient: stt,
-            llmService: llm
+            sttClient: stt
         )
 
         vm.repairParakeetModel()
@@ -374,30 +368,6 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(warmUpCallCount, 3)
         XCTAssertFalse(vm.parakeetRepairing)
         XCTAssertEqual(vm.parakeetStatus, .ready)
-    }
-
-    func testRepairQwenModelUsesRetryAndEndsReady() async throws {
-        let stt = MockSTTClient()
-        let llm = MockLLMService()
-        await llm.configureWarmUp(failuresBeforeSuccess: 2)
-        await llm.setReady(false)
-
-        viewModel.configure(
-            permissionService: mockPermissions,
-            dictationRepo: mockRepo,
-            entitlementsService: entitlements,
-            checkoutURL: nil,
-            sttClient: stt,
-            llmService: llm
-        )
-
-        viewModel.repairQwenModel()
-        try await Task.sleep(for: .milliseconds(1300))
-
-        let warmUpCallCount = await llm.warmUpCallCount()
-        XCTAssertEqual(warmUpCallCount, 3)
-        XCTAssertFalse(viewModel.qwenRepairing)
-        XCTAssertEqual(viewModel.qwenStatus, .ready)
     }
 
     // MARK: - Round-trip

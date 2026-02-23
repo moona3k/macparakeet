@@ -1,6 +1,7 @@
 # ADR 005: First-Run Onboarding Window
 
 Date: 2026-02-10
+> Note: Core onboarding flow unchanged. Qwen LLM warm-up step referenced below was removed 2026-02-23 — onboarding now prepares only the Parakeet STT model.
 
 ## Context
 

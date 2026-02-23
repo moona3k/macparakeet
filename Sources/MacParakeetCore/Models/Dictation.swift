@@ -17,9 +17,15 @@ public struct Dictation: Codable, Identifiable, Sendable {
     public enum ProcessingMode: String, Codable, Sendable {
         case raw
         case clean
-        case formal
-        case email
-        case code
+
+        public init(from decoder: Decoder) throws {
+            let rawValue = try decoder.singleValueContainer().decode(String.self)
+            switch rawValue {
+            case "raw": self = .raw
+            case "clean", "formal", "email", "code": self = .clean
+            default: self = .raw
+            }
+        }
     }
 
     public enum DictationStatus: String, Codable, Sendable {
@@ -61,40 +67,25 @@ public extension Dictation.ProcessingMode {
         self != .raw
     }
 
-    var usesLLMRefinement: Bool {
-        switch self {
-        case .formal, .email, .code:
-            return true
-        case .raw, .clean:
-            return false
-        }
-    }
-
-    var llmRefinementMode: LLMRefinementMode? {
-        switch self {
-        case .formal:
-            return .formal
-        case .email:
-            return .email
-        case .code:
-            return .code
-        case .raw, .clean:
-            return nil
-        }
-    }
-
     var displayName: String {
         switch self {
         case .raw:
             return "Raw"
         case .clean:
             return "Clean"
-        case .formal:
-            return "Formal"
-        case .email:
-            return "Email"
-        case .code:
-            return "Code"
+        }
+    }
+
+    /// Maps deprecated raw values (from old database rows) to a valid mode.
+    init(legacyRawValue: String?) {
+        guard let rawValue = legacyRawValue else {
+            self = .raw
+            return
+        }
+        switch rawValue {
+        case "raw": self = .raw
+        case "clean", "formal", "email", "code": self = .clean
+        default: self = .raw
         }
     }
 }

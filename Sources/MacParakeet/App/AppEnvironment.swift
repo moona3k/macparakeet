@@ -19,8 +19,6 @@ final class AppEnvironment {
     let permissionService: PermissionService
     let accessibilityService: AccessibilityService
     let entitlementsService: EntitlementsService
-    let llmService: MLXLLMService
-    let commandModeService: CommandModeService
     let checkoutURL: URL?
 
     init() throws {
@@ -43,7 +41,6 @@ final class AppEnvironment {
 
         // Services
         sttClient = STTClient()
-        llmService = MLXLLMService()
         audioProcessor = AudioProcessor()
         clipboardService = ClipboardService()
         exportService = ExportService()
@@ -101,7 +98,6 @@ final class AppEnvironment {
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
-            llmService: llmService,
             processingMode: processingModeClosure
         )
 
@@ -112,19 +108,12 @@ final class AppEnvironment {
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
-            llmService: llmService,
             processingMode: processingModeClosure,
             shouldKeepDownloadedAudio: {
                 // Defaults to true if unset (matches Settings UI default).
                 UserDefaults.standard.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
             },
             youtubeDownloader: youtubeDownloader
-        )
-
-        commandModeService = CommandModeService(
-            audioProcessor: audioProcessor,
-            sttClient: sttClient,
-            llmService: llmService
         )
     }
 }

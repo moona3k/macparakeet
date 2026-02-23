@@ -3,7 +3,7 @@
 > Status: **ACTIVE** - Authoritative, current
 > Migration Note: FluidAudio CoreML migration is the active target architecture. Specs describe target behavior while runtime implementation is in progress.
 
-**MacParakeet** is a local-first voice toolkit for macOS: system-wide dictation, file transcription, and AI-powered text editing -- all running on-device with zero cloud dependency.
+**MacParakeet** is a local-first voice toolkit for macOS: system-wide dictation and file transcription -- all running on-device with zero cloud dependency.
 
 ## Spec Documents
 
@@ -20,7 +20,7 @@
 | 08 | [Error Handling](08-error-handling.md) | Error philosophy, categories, recovery | Active |
 | 09 | [Testing](09-testing.md) | Testing strategy, patterns, guidelines | Active |
 | 10 | [AI Coding Method](10-ai-coding-method.md) | Spec-driven coding philosophy and kernel methodology | Active |
-| 11 | [LLM Integration](11-llm-integration.md) | Local LLM architecture, fallback policy, runtime baseline | Active |
+| 11 | [LLM Integration](11-llm-integration.md) | Local LLM architecture (historical — removed) | Historical |
 
 ## Root Decisions (Locked)
 
@@ -30,8 +30,7 @@ These decisions are final. Do not second-guess them.
 |----------|--------|-----------|
 | Local STT | Parakeet TDT 0.6B-v3 via FluidAudio CoreML/ANE | 155x realtime, ~2.5% WER, fully local, ~66 MB working RAM |
 | Database | SQLite via GRDB | Single file, embedded, zero config |
-| Local LLM | Qwen3-8B via MLX-Swift | Single model for all LLM tasks (refinement, command mode, chat). 128K context. |
-| Platform | macOS 14.2+ (Apple Silicon only) | FluidAudio + MLX-Swift require Apple Silicon; Swift 6.0 |
+| Platform | macOS 14.2+ (Apple Silicon only) | FluidAudio requires Apple Silicon; Swift 6.0 |
 | Business model | One-time purchase ($49) | Key differentiator vs WisprFlow ($144-180/year subscription) |
 
 ## Architecture Decision Records (ADRs)
@@ -47,14 +46,15 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-005](adr/005-onboarding-first-run.md) | First-run onboarding flow |
 | [ADR-006](adr/006-trial-and-license-activation.md) | Trial + license key activation |
 | [ADR-007](adr/007-fluidaudio-coreml-migration.md) | FluidAudio CoreML migration (Python elimination) |
+| [ADR-008](adr/008-local-llm-runtime-and-model.md) | Local LLM runtime baseline (historical — removed) |
 
 ## Version Roadmap
 
 | Version | Name | Focus | Status |
 |---------|------|-------|--------|
 | v0.1 | Core MVP | Dictation + transcription + history + settings | **Implemented** |
-| v0.2 | AI & Text Processing | Clean pipeline, AI refinement, custom words | **In Progress** |
-| v0.3 | Command Mode, Chat & Export | Voice commands, transcript chat, YouTube, full export formats | **In Progress** |
+| v0.2 | Clean Pipeline | Deterministic text processing, custom words, snippets | **Implemented** |
+| v0.3 | YouTube & Export | YouTube transcription, export formats | **In Progress** |
 | v0.4 | Polish & Launch | Diarization, batch processing, App Store | Planned |
 
 ## Version Progress
@@ -73,26 +73,21 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Menu bar app with main window
 - [x] Basic export (TXT/Markdown/SRT/VTT + copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + substring search)
-- [x] Internal dev CLI tool (`macparakeet-cli transcribe`, `history`, `health`, `models`, `flow`, `llm`)
+- [x] Internal dev CLI tool (`macparakeet-cli transcribe`, `history`, `health`, `models`, `flow`)
 - [x] Test suite passing (`swift test` green)
 
-### v0.2 AI & Text Processing (In Progress)
+### v0.2 Clean Pipeline (Implemented)
 
 - [x] Clean text pipeline (deterministic: fillers, custom words, snippets)
-- [x] AI text refinement (Qwen3-8B: formal, email, code modes)
 - [x] Custom words & snippets management UI
-- [ ] Personal dictionary (auto-learns vocabulary)
-- [x] CLI commands (`macparakeet-cli flow process/words/snippets` + `macparakeet-cli llm generate/refine/command/chat/smoke-test` + `macparakeet-cli models status/warm-up/repair`)
+- [x] CLI commands (`macparakeet-cli flow process/words/snippets` + `macparakeet-cli models status/warm-up/repair`)
 - [x] In-app feedback form (Settings → Help & Feedback → Cloudflare Worker → GitHub Issues on `macparakeet-community`)
 
-### v0.3 Command Mode, Chat & Export (In Progress)
+### v0.3 YouTube & Export (In Progress)
 
-- [ ] F10a Command Mode Core: select text -> speak command -> LLM edits in-place
-- [ ] F10b Command Mode Enhancements: quick commands + saved templates
-- [x] F10c Transcript Chat (GUI MVP): ask questions about the selected transcript via local Qwen3-8B
 - [x] YouTube URL transcription (yt-dlp + Parakeet)
-- [ ] Full export (.docx, .pdf, .json)
 - [x] Exports: TXT, Markdown, SRT, VTT (one-click to Downloads)
+- [ ] Full export (.docx, .pdf, .json)
 
 ### v0.4 Polish & Launch (Planned)
 
@@ -110,8 +105,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 3. **Version order matters.** Implement v0.1 before v0.2. Do not jump ahead.
 4. **Never lose user data.** Graceful degradation over silent failure.
 5. **Local-first.** Audio and text never leave the device. No cloud APIs.
-6. **One model.** Qwen3-8B for all LLM tasks. No Llama, no Ollama, no OpenAI.
-7. **`swift test` is the gate.** All tests must pass before and after changes.
+6. **`swift test` is the gate.** All tests must pass before and after changes.
 8. **Kernel has precedence for implementation.** When present, `spec/kernel/*` artifacts define executable requirements and contracts.
 
 ### Where to Start

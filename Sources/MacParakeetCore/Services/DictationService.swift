@@ -58,9 +58,7 @@ public actor DictationService: DictationServiceProtocol {
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
-        llmService: (any LLMServiceProtocol)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
-        refinementOptionsProvider: TextRefinementService.OptionsProvider? = nil,
         cancelWindow: Duration = .seconds(5)
     ) {
         self.audioProcessor = audioProcessor
@@ -72,10 +70,7 @@ public actor DictationService: DictationServiceProtocol {
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.processingMode = processingMode ?? { .raw }
-        self.textRefinementService = TextRefinementService(
-            llmService: llmService,
-            optionsProvider: refinementOptionsProvider ?? TextRefinementService.defaultOptionsProvider
-        )
+        self.textRefinementService = TextRefinementService()
         self.cancelWindow = cancelWindow
     }
 

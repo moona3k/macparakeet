@@ -15,7 +15,6 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     func show(
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
-        llmService: any LLMServiceProtocol,
         onFinish: @escaping () -> Void,
         onOpenMainApp: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
@@ -29,8 +28,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
         let vm = OnboardingViewModel(
             permissionService: permissionService,
-            sttClient: sttClient,
-            llmService: llmService
+            sttClient: sttClient
         )
         viewModel = vm
         let view = OnboardingFlowView(
@@ -64,7 +62,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             let alert = NSAlert()
             alert.alertStyle = .warning
             alert.messageText = "Setup is not finished"
-            alert.informativeText = "MacParakeet needs permissions and local model setup (Parakeet + Qwen) before core features are reliable."
+            alert.informativeText = "MacParakeet needs permissions and speech model setup (Parakeet) before core features are reliable."
             alert.addButton(withTitle: "Continue Setup")
             alert.addButton(withTitle: "Exit Setup")
 

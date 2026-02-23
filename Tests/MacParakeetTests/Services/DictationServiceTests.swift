@@ -6,7 +6,6 @@ final class DictationServiceTests: XCTestCase {
     var mockAudio: MockAudioProcessor!
     var mockSTT: MockSTTClient!
     var mockClipboard: MockClipboardService!
-    var mockLLM: MockLLMService!
     var dictationRepo: DictationRepository!
 
     override func setUp() async throws {
@@ -14,7 +13,6 @@ final class DictationServiceTests: XCTestCase {
         mockAudio = MockAudioProcessor()
         mockSTT = MockSTTClient()
         mockClipboard = MockClipboardService()
-        mockLLM = MockLLMService()
         dictationRepo = DictationRepository(dbQueue: dbManager.dbQueue)
 
         service = DictationService(
@@ -66,44 +64,4 @@ final class DictationServiceTests: XCTestCase {
 
     // Note: Cancel flow tests, stop-when-not-recording, and STT error propagation
     // are covered in CancelFlowTests.swift to avoid duplication.
-
-    func testStopRecordingFormalModeUsesLLM() async throws {
-        await mockSTT.configure(result: STTResult(text: "hello world"))
-        await mockLLM.configureResponse(text: "Hello world from local LLM.")
-        let service = DictationService(
-            audioProcessor: mockAudio,
-            sttClient: mockSTT,
-            dictationRepo: dictationRepo,
-            clipboardService: mockClipboard,
-            llmService: mockLLM,
-            processingMode: { .formal }
-        )
-
-        try await service.startRecording()
-        let dictation = try await service.stopRecording()
-
-        XCTAssertEqual(dictation.processingMode, .formal)
-        XCTAssertEqual(dictation.cleanTranscript, "Hello world from local LLM.")
-        let requests = await mockLLM.requests
-        XCTAssertEqual(requests.count, 1)
-    }
-
-    func testStopRecordingFormalModeFallsBackToDeterministicOnLLMError() async throws {
-        await mockSTT.configure(result: STTResult(text: "um hello world"))
-        await mockLLM.configureError(LLMServiceError.generationFailed("test failure"))
-        let service = DictationService(
-            audioProcessor: mockAudio,
-            sttClient: mockSTT,
-            dictationRepo: dictationRepo,
-            clipboardService: mockClipboard,
-            llmService: mockLLM,
-            processingMode: { .formal }
-        )
-
-        try await service.startRecording()
-        let dictation = try await service.stopRecording()
-
-        XCTAssertEqual(dictation.processingMode, .formal)
-        XCTAssertEqual(dictation.cleanTranscript, "Hello world")
-    }
 }

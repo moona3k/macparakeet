@@ -12,7 +12,7 @@ scripts/dist/build_app_bundle.sh
 
 This creates `dist/MacParakeet.app` and bundles:
 - `Assets/AppIcon.icns` into `Contents/Resources/AppIcon.icns` (app icon for Dock, Finder, DMG)
-- SwiftPM resource bundles (e.g. `mlx-swift_Cmlx.bundle` containing `default.metallib`) into `Contents/Resources/`
+- SwiftPM resource bundles into `Contents/Resources/`
 - Standalone helper binaries (yt-dlp and FFmpeg) into `Contents/Resources/` when configured by the build scripts
 - No Python runtime or `uv` bootstrap is bundled (FluidAudio/CoreML STT is native Swift)
 

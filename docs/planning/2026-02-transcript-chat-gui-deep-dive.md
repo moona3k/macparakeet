@@ -1,5 +1,7 @@
 # Transcript Chat GUI Deep Dive
 
+> Status: **HISTORICAL** - Transcript Chat and LLM support removed 2026-02-23.
+
 Status: Draft proposal for implementation  
 Date: 2026-02-14  
 Scope: Codebase readiness review + premium UI/UX ideation for transcript chat GUI

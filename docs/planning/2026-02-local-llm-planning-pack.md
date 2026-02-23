@@ -1,5 +1,7 @@
 # Local LLM Planning Pack (Qwen3-8B)
 
+> Status: **HISTORICAL** - LLM support (Qwen3-8B / MLX-Swift) removed 2026-02-23.
+
 Last updated: 2026-02-13
 Scope: Production planning for local LLM integration in MacParakeet.
 

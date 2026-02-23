@@ -1,5 +1,7 @@
 # Runtime Revalidation Checklist (macOS Local LLM)
 
+> Status: **HISTORICAL** - LLM support (Qwen3-8B / MLX-Swift) removed 2026-02-23.
+
 Last updated: 2026-02-13
 
 ## Goal

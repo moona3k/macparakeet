@@ -35,8 +35,6 @@
 | Error | Cause | User Action |
 |-------|-------|-------------|
 | Pipeline error | Text processing stage failed | Fall back to raw text, log error |
-| LLM inference failed | MLX model error or OOM | Skip AI features, show raw transcript |
-| LLM runtime unavailable | Missing MLX shaders (`default.metallib`) or Metal runtime issue | Rebuild/reinstall to restore `mlx-swift_Cmlx.bundle`; retry |
 
 ### Dictation Control Errors
 

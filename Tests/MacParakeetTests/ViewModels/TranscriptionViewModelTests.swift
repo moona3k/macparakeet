@@ -7,12 +7,10 @@ final class TranscriptionViewModelTests: XCTestCase {
     var viewModel: TranscriptionViewModel!
     var mockService: MockTranscriptionService!
     var mockRepo: MockTranscriptionRepository!
-    var mockLLMService: MockLLMService!
 
     override func setUp() {
         mockService = MockTranscriptionService()
         mockRepo = MockTranscriptionRepository()
-        mockLLMService = MockLLMService()
         viewModel = TranscriptionViewModel()
     }
 
@@ -460,117 +458,6 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.transcriptions.isEmpty)
     }
 
-    // MARK: - Transcript Chat
-
-    func testChatSuccessFlowAppendsMessagesAndResponse() async throws {
-        let t = Transcription(fileName: "meeting.wav", rawTranscript: "Action items are ship v1 and write docs.", status: .completed)
-        mockRepo.transcriptions = [t]
-        await mockLLMService.configureResponse(text: "Top action items: ship v1, write docs.")
-
-        viewModel.configure(
-            transcriptionService: mockService,
-            transcriptionRepo: mockRepo,
-            llmService: mockLLMService
-        )
-        viewModel.currentTranscription = t
-        viewModel.chatInput = "What are the action items?"
-
-        viewModel.sendChatQuestion()
-        XCTAssertTrue(viewModel.isGeneratingCurrentChatResponse)
-
-        try await Task.sleep(for: .milliseconds(200))
-
-        XCTAssertFalse(viewModel.isGeneratingCurrentChatResponse)
-        XCTAssertEqual(viewModel.currentChatMessages.count, 2)
-        XCTAssertEqual(viewModel.currentChatMessages[0].role, .user)
-        XCTAssertEqual(viewModel.currentChatMessages[1].role, .assistant)
-        XCTAssertEqual(viewModel.currentChatMessages[1].state, .delivered)
-        XCTAssertEqual(viewModel.currentChatMessages[1].text, "Top action items: ship v1, write docs.")
-    }
-
-    func testChatFailureMarksAssistantMessageFailed() async throws {
-        let t = Transcription(fileName: "meeting.wav", rawTranscript: "No blockers were mentioned.", status: .completed)
-        mockRepo.transcriptions = [t]
-        await mockLLMService.configureError(LLMServiceError.generationFailed("runtime error"))
-
-        viewModel.configure(
-            transcriptionService: mockService,
-            transcriptionRepo: mockRepo,
-            llmService: mockLLMService
-        )
-        viewModel.currentTranscription = t
-        viewModel.chatInput = "Any blockers?"
-
-        viewModel.sendChatQuestion()
-        try await Task.sleep(for: .milliseconds(200))
-
-        XCTAssertEqual(viewModel.currentChatMessages.count, 2)
-        XCTAssertEqual(viewModel.currentChatMessages[1].state, .failed)
-        XCTAssertNotNil(viewModel.chatErrorMessage)
-    }
-
-    func testChatQuestionTrimsAndRejectsEmptyInput() {
-        let t = Transcription(fileName: "meeting.wav", rawTranscript: "Hello", status: .completed)
-        mockRepo.transcriptions = [t]
-        viewModel.configure(
-            transcriptionService: mockService,
-            transcriptionRepo: mockRepo,
-            llmService: mockLLMService
-        )
-        viewModel.currentTranscription = t
-        viewModel.chatInput = "   "
-
-        viewModel.sendChatQuestion()
-
-        XCTAssertTrue(viewModel.currentChatMessages.isEmpty)
-    }
-
-    func testChatUsesBoundedTranscriptContextForLongInput() async throws {
-        let longText = String(repeating: "abcdef ", count: 3_000)
-        let t = Transcription(fileName: "long.wav", rawTranscript: longText, status: .completed)
-        mockRepo.transcriptions = [t]
-        await mockLLMService.configureResponse(text: "Summary.")
-
-        viewModel.configure(
-            transcriptionService: mockService,
-            transcriptionRepo: mockRepo,
-            llmService: mockLLMService
-        )
-        viewModel.currentTranscription = t
-        viewModel.chatInput = "Summarize briefly."
-
-        viewModel.sendChatQuestion()
-        try await Task.sleep(for: .milliseconds(200))
-
-        let request = await mockLLMService.lastRequest()
-        XCTAssertNotNil(request)
-        XCTAssertTrue(request?.prompt.contains("[...truncated...]") == true)
-    }
-
-    func testRetryLastFailedQuestionSendsAnotherRequest() async throws {
-        let t = Transcription(fileName: "meeting.wav", rawTranscript: "Transcript content.", status: .completed)
-        mockRepo.transcriptions = [t]
-        await mockLLMService.configureError(LLMServiceError.generationFailed("boom"))
-
-        viewModel.configure(
-            transcriptionService: mockService,
-            transcriptionRepo: mockRepo,
-            llmService: mockLLMService
-        )
-        viewModel.currentTranscription = t
-        viewModel.chatInput = "What changed?"
-        viewModel.sendChatQuestion()
-        try await Task.sleep(for: .milliseconds(200))
-
-        await mockLLMService.configureResponse(text: "The transcript indicates no major changes.")
-        viewModel.retryLastFailedQuestion()
-        try await Task.sleep(for: .milliseconds(200))
-
-        let requestCount = await mockLLMService.requestCount()
-        XCTAssertEqual(requestCount, 2)
-        XCTAssertEqual(viewModel.currentChatMessages.last?.state, .delivered)
-    }
-
     // MARK: - Initial State
 
     func testInitialState() {
@@ -580,7 +467,5 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.progress, "")
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertFalse(viewModel.isDragging)
-        XCTAssertEqual(viewModel.chatInput, "")
-        XCTAssertTrue(viewModel.currentChatMessages.isEmpty)
     }
 }

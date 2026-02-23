@@ -2,6 +2,7 @@
 
 > Status: **Accepted**
 > Date: 2026-02-08
+> Note: Core decision (100% local) unchanged. LLM references (Qwen3-8B, command mode, AI refinement) are historical — LLM support removed 2026-02-23 (see ADR-008).
 
 ## Context
 

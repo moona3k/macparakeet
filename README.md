@@ -6,7 +6,7 @@
 
 MacParakeet uses NVIDIA's Parakeet TDT model — running on Apple's Neural Engine via FluidAudio CoreML — to power system-wide voice dictation and file transcription. Entirely on your Mac, with zero cloud uploads.
 
-First-run onboarding prepares both local models (Parakeet STT + Qwen3-8B) so dictation and AI refinement are ready before you start using the app.
+First-run onboarding downloads the Parakeet speech model so dictation and transcription are ready before you start using the app.
 
 ## Two Modes
 
@@ -33,7 +33,6 @@ Drag any audio or video file → get a transcript in seconds.
 | **Speed** | 155x realtime | Varies (server) | 15-30x | 15-30x |
 | **Price** | $49 once | $12-15/month | $30 Pro | $250 lifetime |
 | **Privacy** | Zero cloud | Audio uploaded | Local | Local |
-| **Command Mode** | Local LLM | Cloud LLM | No | No |
 | **STT Engine** | Parakeet | Whisper (cloud) | Whisper + Parakeet | Whisper |
 
 ## Features
@@ -45,8 +44,6 @@ Drag any audio or video file → get a transcript in seconds.
 - **System-Wide Dictation** — Configurable hotkey (Fn default), double-tap (persistent) + hold-to-talk
 - **File Transcription** — Drag-drop audio/video files, word timestamps
 - **Smart Cleanup** — Deterministic 4-step pipeline (filler removal, custom words, snippets, whitespace)
-- **AI Refinement Modes** — Formal, Email, and Code modes powered by local Qwen3-8B with deterministic fallback
-- **Transcript Chat (GUI MVP)** — Ask questions about the selected transcript in-app via local Qwen3-8B
 - **Custom Words** — Domain vocabulary corrections and proper noun casing
 - **Text Snippets** — Natural language triggers expand into longer text
 - **Export** — TXT, Markdown, SRT, and VTT exports + copy to clipboard
@@ -57,9 +54,9 @@ Drag any audio or video file → get a transcript in seconds.
 
 ### Planned
 
-- **Command Mode** — Local LLM edits for command-mode workflows
-- **Advanced Transcript Chat** — Citations/grounding highlights, cross-transcript scope, and saved threads
-- **More Exports** — DOCX and other formats
+- **More Exports** — DOCX, PDF, and JSON formats
+- **Speaker Diarization** — Auto-detect and label speakers
+- **Batch Processing** — Queue multiple files for transcription
 
 ## Requirements
 
@@ -74,7 +71,6 @@ Download from [macparakeet.com](https://macparakeet.com)
 ## Tech Stack
 
 - **STT Engine**: Parakeet TDT 0.6B-v3 via FluidAudio CoreML (Neural Engine)
-- **LLM**: Qwen3-8B via MLX-Swift (local, for command mode + chat)
 - **Framework**: Swift + SwiftUI
 - **Database**: SQLite via GRDB
 - **Platform**: macOS 14.2+ (Apple Silicon)
@@ -102,9 +98,7 @@ MacParakeet is built for **fast feedback loops**. AI agents make mistakes — bu
 - **Internal CLI** — Headless interface to core services (transcribe files, test the pipeline) so changes can be verified without launching the GUI
   - Tip: use `swift run macparakeet-cli transcribe ... --database /tmp/macparakeet-dev.db` to avoid writing into your real app database during dev.
   - Canonical dev app launch: `scripts/dev/run_app.sh` (builds latest debug binary, kills stale `/Applications` instance, launches current repo build).
-  - Local LLM checks: `swift run macparakeet-cli llm smoke-test --stats`, `swift run macparakeet-cli llm refine formal "draft text"`, and `swift run macparakeet-cli llm chat "question" --transcript-file /path/to/transcript.txt` (for `smoke-test`/generation commands, use Xcode/`xcodebuild` or the packaged app when MLX shader resources are unavailable in plain `swift run`).
-  - Model lifecycle checks: `swift run macparakeet-cli models status`, `swift run macparakeet-cli models warm-up --target all`, `swift run macparakeet-cli models repair --target all`.
-  - See `docs/cli-testing.md` for GUI-parity vs deterministic testing modes.
+  - Model lifecycle checks: `swift run macparakeet-cli models status`, `swift run macparakeet-cli models warm-up`, `swift run macparakeet-cli models repair`.
 - **Protocol-based services** — Mockable boundaries make isolated testing straightforward
 
 The faster the feedback loop, the faster the agent self-corrects. If you can't confirm a change works by running a command, the change isn't done.

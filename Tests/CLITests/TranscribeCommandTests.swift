@@ -14,8 +14,8 @@ final class TranscribeCommandTests: XCTestCase {
     }
 
     func testResolveProcessingModeUsesStoredModeForAppDefaultWhenValid() {
-        let mode = TranscribeCommand.resolveProcessingMode(.appDefault, storedMode: Dictation.ProcessingMode.email.rawValue)
-        XCTAssertEqual(mode, .email)
+        let mode = TranscribeCommand.resolveProcessingMode(.appDefault, storedMode: Dictation.ProcessingMode.clean.rawValue)
+        XCTAssertEqual(mode, .clean)
     }
 
     func testResolveProcessingModeRespectsExplicitMode() {

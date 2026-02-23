@@ -2,16 +2,10 @@ import ArgumentParser
 import Foundation
 import MacParakeetCore
 
-enum ModelTarget: String, ExpressibleByArgument, CaseIterable {
-    case stt
-    case llm
-    case all
-}
-
 struct ModelsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "models",
-        abstract: "Inspect and manage local model lifecycle.",
+        abstract: "Inspect and manage the local Parakeet speech model.",
         subcommands: [
             Status.self,
             WarmUp.self,
@@ -24,50 +18,30 @@ extension ModelsCommand {
     struct Status: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "status",
-            abstract: "Show local model status without forcing downloads."
+            abstract: "Show speech model status without forcing downloads."
         )
-
-        @Option(help: "Target model: stt, llm, all.")
-        var target: ModelTarget = .all
 
         func run() async throws {
             let sttClient = STTClient()
-            let llmService = MLXLLMService()
-
-            switch target {
-            case .stt:
-                await printSTTStatus(sttClient: sttClient)
-            case .llm:
-                await printLLMStatus(llmService: llmService)
-            case .all:
-                await printSTTStatus(sttClient: sttClient)
-                print()
-                await printLLMStatus(llmService: llmService)
-            }
+            await printSTTStatus(sttClient: sttClient)
         }
     }
 
     struct WarmUp: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "warm-up",
-            abstract: "Warm up local model(s). May download on first run."
+            abstract: "Warm up speech model. May download on first run."
         )
 
-        @Option(help: "Target model: stt, llm, all.")
-        var target: ModelTarget = .all
-
-        @Option(name: .long, help: "Maximum attempts per model.")
+        @Option(name: .long, help: "Maximum attempts.")
         var attempts: Int = 1
 
         func run() async throws {
             let attempts = try validatedAttempts(attempts)
             let sttClient = STTClient()
-            let llmService = MLXLLMService()
             try await warmUpModels(
-                target: target,
                 attempts: attempts,
                 sttClient: sttClient,
-                llmService: llmService,
                 log: { print($0) }
             )
         }
@@ -76,24 +50,18 @@ extension ModelsCommand {
     struct Repair: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "repair",
-            abstract: "Best-effort retry model repair (sequential for all)."
+            abstract: "Best-effort retry speech model repair."
         )
 
-        @Option(help: "Target model: stt, llm, all.")
-        var target: ModelTarget = .all
-
-        @Option(name: .long, help: "Maximum attempts per model.")
+        @Option(name: .long, help: "Maximum attempts.")
         var attempts: Int = 3
 
         func run() async throws {
             let attempts = try validatedAttempts(attempts)
             let sttClient = STTClient()
-            let llmService = MLXLLMService()
             try await warmUpModels(
-                target: target,
                 attempts: attempts,
                 sttClient: sttClient,
-                llmService: llmService,
                 log: { print($0) }
             )
         }
@@ -123,63 +91,7 @@ func printSTTStatus(sttClient: STTClientProtocol) async {
     }
 }
 
-func printLLMStatus(llmService: any LLMServiceProtocol) async {
-    let ready = await llmService.isReady()
-
-    print("Qwen (LLM):")
-    print("  Ready:  \(ready ? "Yes" : "No")")
-    if ready {
-        print("  Status: Ready")
-    } else {
-        print("  Status: Not loaded (loads on first AI use)")
-    }
-}
-
 func warmUpModels(
-    target: ModelTarget,
-    attempts: Int,
-    sttClient: STTClientProtocol,
-    llmService: any LLMServiceProtocol,
-    log: @escaping @Sendable (String) -> Void
-) async throws {
-    switch target {
-    case .stt:
-        try await warmUpSTT(attempts: attempts, sttClient: sttClient, log: log)
-    case .llm:
-        try await warmUpLLM(attempts: attempts, llmService: llmService, log: log)
-    case .all:
-        var failures: [(model: String, error: Error)] = []
-
-        do {
-            try await warmUpSTT(attempts: attempts, sttClient: sttClient, log: log)
-        } catch {
-            failures.append(("Parakeet (STT)", error))
-            log("Parakeet (STT): failed — \(error.localizedDescription)")
-        }
-
-        do {
-            try await warmUpLLM(attempts: attempts, llmService: llmService, log: log)
-        } catch {
-            failures.append(("Qwen (LLM)", error))
-            log("Qwen (LLM): failed — \(error.localizedDescription)")
-        }
-
-        if !failures.isEmpty {
-            throw MultiModelWarmUpError(failures: failures)
-        }
-    }
-}
-
-private struct MultiModelWarmUpError: LocalizedError {
-    let failures: [(model: String, error: Error)]
-
-    var errorDescription: String? {
-        let summary = failures.map { "\($0.model): \($0.error.localizedDescription)" }.joined(separator: " | ")
-        return "One or more model warm-up operations failed. \(summary)"
-    }
-}
-
-private func warmUpSTT(
     attempts: Int,
     sttClient: STTClientProtocol,
     log: @escaping @Sendable (String) -> Void
@@ -195,20 +107,6 @@ private func warmUpSTT(
 
     let ready = await sttClient.isReady()
     log("Parakeet (STT): \(ready ? "Ready" : "Not ready")")
-}
-
-private func warmUpLLM(
-    attempts: Int,
-    llmService: any LLMServiceProtocol,
-    log: @escaping @Sendable (String) -> Void
-) async throws {
-    log("Qwen (LLM): preparing...")
-    try await runWithRetry(attempts: attempts, label: "Qwen (LLM)", log: log) { _ in
-        try await llmService.warmUp()
-    }
-
-    let ready = await llmService.isReady()
-    log("Qwen (LLM): \(ready ? "Ready" : "Not ready")")
 }
 
 private func runWithRetry(
@@ -234,5 +132,5 @@ private func runWithRetry(
         }
     }
 
-    throw lastError ?? LLMServiceError.generationFailed("\(label) warm-up failed.")
+    throw lastError ?? STTError.engineStartFailed("\(label) warm-up failed.")
 }

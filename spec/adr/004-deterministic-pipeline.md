@@ -2,6 +2,7 @@
 
 > Status: **Accepted**
 > Date: 2026-02-08
+> Note: Core decision (deterministic pipeline for default processing) unchanged and strengthened. LLM-powered modes (formal, email, code, command) referenced below were removed 2026-02-23 — only raw and clean modes remain.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # Open Source Models Landscape (February 2026)
 
-> Status: **HISTORICAL SNAPSHOT** — Research snapshot as of February 12, 2026. Runtime/model decisions are superseded by ADR-007 and current docs (`Parakeet TDT 0.6B-v3` via FluidAudio CoreML).
+> Status: **HISTORICAL** — Research snapshot as of February 12, 2026. LLM support (Qwen3-8B / MLX-Swift) removed from MacParakeet 2026-02-23. Only Parakeet STT via FluidAudio CoreML remains.
 
 Deep dive into the current state of open source models relevant to MacParakeet: STT, small LLMs, and the Apple MLX ecosystem.
 

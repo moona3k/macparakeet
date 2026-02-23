@@ -1,6 +1,6 @@
 # WisprFlow Deep Dive
 
-> Status: **ACTIVE** - Competitive research, updated February 2026
+> Status: **HISTORICAL** - Competitive research from February 2026. LLM/Command Mode comparisons are outdated — MacParakeet removed LLM support 2026-02-23.
 
 ## What WisprFlow Does
 

@@ -33,9 +33,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
-        llmService: (any LLMServiceProtocol)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
-        refinementOptionsProvider: TextRefinementService.OptionsProvider? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil
     ) {
@@ -46,10 +44,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.processingMode = processingMode ?? { .raw }
-        self.textRefinementService = TextRefinementService(
-            llmService: llmService,
-            optionsProvider: refinementOptionsProvider ?? TextRefinementService.defaultOptionsProvider
-        )
+        self.textRefinementService = TextRefinementService()
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
         self.youtubeDownloader = youtubeDownloader
     }

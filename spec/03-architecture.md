@@ -30,21 +30,21 @@
 │  │                        MacParakeetCore                                     │  │
 │  │                     (Library — No UI Deps)                                 │  │
 │  │                                                                            │  │
-│  │  ┌─────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐  │  │
-│  │  │ DictationService│  │ TranscriptionService │  │ CommandModeService  │  │  │
-│  │  └────────┬────────┘  └──────────┬───────────┘  └──────────┬──────────┘  │  │
-│  │           │                      │                         │              │  │
-│  │  ┌────────▼────────────────────────────────────────────────▼───────────┐  │  │
+│  │  ┌─────────────────┐  ┌──────────────────────┐                          │  │
+│  │  │ DictationService│  │ TranscriptionService │                          │  │
+│  │  └────────┬────────┘  └──────────┬───────────┘                          │  │
+│  │           │                      │                                       │  │
+│  │  ┌────────▼──────────────────────▼────────────────────────────────────┐  │  │
 │  │  │                        AudioProcessor                               │  │  │
 │  │  │            (Format conversion, resampling, buffering)               │  │  │
 │  │  └────────────────────────────┬────────────────────────────────────────┘  │  │
 │  │                               │                                           │  │
-│  │  ┌──────────────┐  ┌─────────▼─────────┐  ┌────────────────────────────┐ │  │
-│  │  │  AIService   │  │    STTClient      │  │  TextProcessingPipeline   │ │  │
-│  │  │  (MLX-Swift) │  │  (FluidAudio)     │  │  (Deterministic cleanup)  │ │  │
-│  │  └──────┬───────┘  └─────────┬─────────┘  └────────────────────────────┘ │  │
-│  │         │                    │                                             │  │
-│  │  ┌──────▼───────┐  ┌────────▼──────────────────────────────────────────┐ │  │
+│  │                     ┌─────────▼─────────┐  ┌────────────────────────────┐ │  │
+│  │                     │    STTClient      │  │  TextProcessingPipeline   │ │  │
+│  │                     │  (FluidAudio)     │  │  (Deterministic cleanup)  │ │  │
+│  │                     └─────────┬─────────┘  └────────────────────────────┘ │  │
+│  │                               │                                           │  │
+│  │  ┌──────────────┐  ┌────────▼──────────────────────────────────────────┐ │  │
 │  │  │ExportService │  │               Data Layer                          │ │  │
 │  │  │(TXT)         │  │  Models: Dictation, Transcription,               │ │  │
 │  │  └──────────────┘  │          CustomWord, TextSnippet                  │ │  │
@@ -59,12 +59,12 @@
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │                          EXTERNAL PROCESSES                                      │
 │                                                                                  │
-│  ┌──────────────────────────────┐   ┌──────────────────────────────────────────┐ │
-│  │   Parakeet STT (In-Process)  │   │   MLX-Swift LLM (In-Process)             │ │
-│  │   FluidAudio CoreML on ANE   │   │   Qwen3-8B (4-bit quantized)             │ │
-│  │   ~66 MB working RAM         │   │   ~5 GB RAM                              │ │
-│  │   ~2.5% WER, 155x realtime   │   │   Command mode + AI refinement           │ │
-│  └──────────────────────────────┘   └──────────────────────────────────────────┘ │
+│  ┌──────────────────────────────┐                                                │
+│  │   Parakeet STT (In-Process)  │                                                │
+│  │   FluidAudio CoreML on ANE   │                                                │
+│  │   ~66 MB working RAM         │                                                │
+│  │   ~2.5% WER, 155x realtime   │                                                │
+│  └──────────────────────────────┘                                                │
 │                                                                                  │
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │                          SYSTEM INTEGRATIONS                                     │
@@ -75,8 +75,8 @@
 │  │(Mic)     │  │ Hotkey)  │  │ Paste)      │  │ Control)     │               │
 │  └──────────┘  └──────────┘  └─────────────┘  └──────────────┘               │
 │                                                                                  │
-│  Total AI Memory: ~5.2 GB peak (Parakeet ~66 MB on ANE + LLM ~5 GB on GPU)     │
-│  Recommended: 16 GB RAM (Apple Silicon only). Minimum: 8 GB.                    │
+│  Total AI Memory: ~66 MB peak (Parakeet on ANE)                                │
+│  Recommended: 8 GB RAM (Apple Silicon only).                                    │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -263,7 +263,7 @@ Transcription returned to UI
 
 #### 2.3 TextProcessingPipeline
 
-**Responsibility:** Deterministic, rule-based text cleanup. Runs after STT, before display. No LLM involved — fast, predictable, repeatable.
+**Responsibility:** Deterministic, rule-based text cleanup. Runs after STT, before display. Fast, predictable, repeatable.
 
 **Key Types/Protocols:**
 ```swift
@@ -284,42 +284,8 @@ protocol TextProcessingPipelineProtocol {
 - All stages are pure functions over strings — trivially testable
 - Custom words loaded once and cached; refreshed on repository change
 - Pipeline is synchronous — no async overhead for a few hundred microseconds of work
-- Separate from `AIService` refinement: pipeline is deterministic rules, AI is probabilistic
 
-#### 2.4 CommandModeService
-
-**Responsibility:** Select-and-replace workflow. User selects text, triggers hotkey, speaks a command (e.g., "make this more formal"), and the LLM transforms the selected text.
-
-**Key Types/Protocols:**
-```swift
-protocol CommandModeServiceProtocol {
-    func execute(selectedText: String, command: String) async throws -> String
-}
-```
-
-**Dependencies:** `AIService`, Accessibility API (to read selection), `NSPasteboard` (to replace)
-
-**Data Flow:**
-```
-User selects text in any app
-    │
-    ▼
-Command hotkey pressed → DictationService records command
-    │
-    ▼
-Accessibility reads selected text (AXUIElement)
-    │
-    ▼
-CommandModeService.execute(selectedText:, command:)
-    │ ── Constructs prompt: "Given this text: {selection}\nDo: {command}"
-    │ ── Sends to AIService (non-thinking mode)
-    │ ── Receives transformed text
-    │
-    ▼
-Replace selection via NSPasteboard + CGEvent (Cmd+V)
-```
-
-#### 2.5 AudioProcessor
+#### 2.4 AudioProcessor
 
 **Responsibility:** Audio format conversion and resampling. Converts any supported input format to 16kHz mono WAV for Parakeet. Also handles microphone audio buffer management for dictation.
 
@@ -343,7 +309,7 @@ protocol AudioProcessorProtocol: Sendable {
 - Audio buffer stored in memory during recording, flushed to disk on stop
 - Supports: MP3, WAV, M4A, FLAC, OGG, OPUS, MP4, MOV, MKV, WebM, AVI
 
-#### 2.6 STTClient
+#### 2.5 STTClient
 
 **Responsibility:** Native Swift wrapper around FluidAudio CoreML. Manages model lifecycle (download, load, transcribe, shutdown). Runs Parakeet TDT on the Neural Engine (ANE).
 
@@ -374,7 +340,6 @@ struct TimestampedWord: Sendable {
 **Architecture:**
 ```
 CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
-GPU:  Qwen3-8B LLM (via MLX-Swift/Metal) — full GPU, no sharing
 ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML accelerator
 ```
 
@@ -409,54 +374,7 @@ STTClient.warmUp() called (lazy, on first use)
 AsrManager ready — STTClient accepts transcribe() calls
 ```
 
-#### 2.7 AIService
-
-**Responsibility:** Local LLM inference via MLX-Swift. Handles text refinement, command mode transformations, and summarization.
-
-**Key Types/Protocols:**
-```swift
-protocol AIServiceProtocol {
-    func refine(text: String, level: RefinementLevel) async throws -> String
-    func transform(text: String, command: String) async throws -> String
-    func summarize(text: String) async throws -> String
-    func isModelLoaded() -> Bool
-    func loadModel() async throws
-    func unloadModel()
-}
-
-enum RefinementLevel {
-    case none       // passthrough
-    case clean      // remove fillers, fix punctuation
-    case formal     // professional tone, grammar fixes
-}
-```
-
-**Dependencies:** MLX-Swift framework
-
-**Model Details:**
-
-| Property | Value |
-|----------|-------|
-| Model | Qwen3-8B |
-| HuggingFace ID | `mlx-community/Qwen3-8B-4bit` |
-| Quantization | 4-bit |
-| RAM | ~5 GB |
-| Framework | MLX-Swift (Apple Silicon Metal) |
-
-**Dual-Mode Operation (same model, different settings):**
-
-| Mode | Use Case | Settings |
-|------|----------|----------|
-| Non-thinking | Refinement, cleanup, short commands | `temp=0.7, topP=0.8` |
-| Thinking | Complex transforms, summarization | `temp=0.6, topP=0.95` |
-
-**Memory Management:**
-- Model loaded on-demand (first AI request)
-- Unloaded after configurable idle timeout (default: 5 minutes)
-- Loading takes ~2-3 seconds on M1; subsequent calls are instant
-- Never loaded concurrently with Parakeet warm-up (stagger to avoid memory spike)
-
-#### 2.8 ExportService
+#### 2.6 ExportService
 
 **Responsibility:** Convert transcription results into various output formats.
 
@@ -486,7 +404,7 @@ ExportService.exportToTxt(transcription:, url: outputURL)
 File saved at outputURL
 ```
 
-#### 2.9 Models
+#### 2.7 Models
 
 All models conform to GRDB's `Codable` + `FetchableRecord` + `PersistableRecord` protocols.
 
@@ -547,7 +465,7 @@ struct TextSnippet: Codable, Identifiable {
 }
 ```
 
-#### 2.10 Repositories
+#### 2.8 Repositories
 
 One repository per table. All use GRDB and follow the same pattern.
 
@@ -606,7 +524,7 @@ Native Swift, runs in the app process via FluidAudio CoreML on the Neural Engine
 
 **Why In-Process (Not Daemon)?**
 - FluidAudio provides native Swift async/await API — no IPC overhead
-- CoreML models run on the ANE, freeing the GPU for the LLM
+- CoreML models run on the ANE, leaving GPU free for the rest of macOS
 - Simpler lifecycle: download models once, initialize, call transcribe()
 - No Python, no subprocess, no JSON-RPC — pure Swift
 
@@ -615,20 +533,6 @@ Native Swift, runs in the app process via FluidAudio CoreML on the Neural Engine
     └── models/
         └── stt/                # CoreML model cache (~6 GB)
 ```
-
----
-
-### 4. MLX-Swift LLM (In-Process)
-
-Runs in the Swift process via MLX-Swift framework. Not a separate daemon.
-
-**Responsibility:** AI text refinement and command mode transformations.
-
-**Why In-Process (Not Daemon)?**
-- MLX-Swift provides native Swift API — no IPC overhead
-- Metal shader compilation needs to happen in the app process
-- Simpler lifecycle: load model into memory, call, unload
-- Like Parakeet (FluidAudio/CoreML), the LLM is pure Swift/Metal
 
 ---
 
@@ -714,13 +618,6 @@ Runs in the Swift process via MLX-Swift framework. Not a separate daemon.
        │                       │  STTResult (text + timestamps)
        │                       │ <──────── │
        │                       │
-       │                       │     ┌──────────┐
-       │                       │ ──> │AIService │  (optional: refine)
-       │                       │     └─────┬────┘
-       │                       │           │
-       │                       │  refined text
-       │                       │ <──────── │
-       │                       │
        │                       │  Save to TranscriptionRepository
        │                       │
        │  TranscriptionResult  │
@@ -731,53 +628,7 @@ Runs in the Swift process via MLX-Swift framework. Not a separate daemon.
        │                       │
 ```
 
-### 3. Command Mode Core Flow (F10a): Select Text -> Hotkey -> Record -> LLM -> Replace
-
-```
-┌──────┐   ┌──────────────────┐   ┌────────────────┐   ┌───────────┐
-│ User │   │CommandModeService│   │DictationService│   │ AIService │
-└──┬───┘   └────────┬─────────┘   └───────┬────────┘   └─────┬─────┘
-   │                │                      │                  │
-   │ Select text    │                      │                  │
-   │ in any app     │                      │                  │
-   │                │                      │                  │
-   │ Command hotkey │                      │                  │
-   │ ─────────────> │                      │                  │
-   │                │  Record voice command│                  │
-   │                │ ──────────────────── │                  │
-   │                │                      │                  │
-   │  (user speaks: │                      │                  │
-   │  "make formal")│                      │                  │
-   │                │                      │                  │
-   │                │  command transcript  │                  │
-   │                │ <─────────────────── │                  │
-   │                │                      │                  │
-   │                │  Read selected text via Accessibility   │
-   │                │  (AXUIElement focused element → value)  │
-   │                │                                         │
-   │                │  transform(selectedText, command)       │
-   │                │ ──────────────────────────────────────> │
-   │                │                                         │
-   │                │         ┌──────────────────────────┐    │
-   │                │         │ Prompt:                  │    │
-   │                │         │ "Given text: {selection} │    │
-   │                │         │  Command: make formal    │    │
-   │                │         │  Return transformed text"│    │
-   │                │         └──────────────────────────┘    │
-   │                │                                         │
-   │                │  transformed text                       │
-   │                │ <────────────────────────────────────── │
-   │                │                                         │
-   │                │  Replace via NSPasteboard + Cmd+V       │
-   │                │                                         │
-   │ Text replaced  │                                         │
-   │ <───────────── │                                         │
-   │                │                                         │
-```
-
-F10b (quick commands + saved templates) reuses this same execution path and only changes command input UX.
-
-### 4. Export Flow: Transcription -> Format -> File
+### 3. Export Flow: Transcription -> Format -> File
 
 ```
 ┌──────────────┐    ┌───────────────┐    ┌───────────────┐
@@ -985,7 +836,6 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 | Dictation audio | `~/Library/Application Support/MacParakeet/dictations/` |
 | Transcription exports | `~/Library/Application Support/MacParakeet/transcriptions/` |
 | STT models | `~/Library/Application Support/MacParakeet/models/stt/` (CoreML, ~6 GB) |
-| LLM models | `~/Library/Application Support/MacParakeet/models/` |
 | yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
 | FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |
 | Logs | `~/Library/Logs/MacParakeet/` |
@@ -1001,8 +851,7 @@ All four tables are independent. No foreign key relationships. This keeps the sc
     │   ├── {uuid}.wav              # Flat storage, no date subdirectories
     │   └── ...
     ├── models/                     # Downloaded ML models
-    │   ├── stt/                    # CoreML Parakeet models (~6 GB)
-    │   └── Qwen3-8B-4bit/          # LLM model files
+    │   └── stt/                    # CoreML Parakeet models (~6 GB)
     └── bin/                        # Standalone binaries
         ├── yt-dlp                  # YouTube downloader (~35 MB, self-updating)
         └── ffmpeg                  # Video demuxing (~80 MB)
@@ -1017,9 +866,8 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 | Package | SPM ID | Purpose | Notes |
 |---------|--------|---------|-------|
 | FluidAudio | `FluidAudio` | STT engine (Parakeet TDT via CoreML/ANE) | Apache 2.0. Use `FluidAudio` product only — NOT `FluidAudioEspeak` (GPL-3.0, would require open-sourcing). |
-| mlx-swift-lm | `MLXLLM`, `MLXLMCommon` | LLM inference (Qwen3-8B) | v2.29.0+, Apple Silicon Metal acceleration |
 | GRDB.swift | `GRDB` | SQLite database | v6.29.0+, single-file storage, migrations, Codable records |
-| swift-argument-parser | `ArgumentParser` | CLI (implemented) | `macparakeet-cli transcribe`, `history`, `health`, `models`, `flow`, `llm` |
+| swift-argument-parser | `ArgumentParser` | CLI (implemented) | `macparakeet-cli transcribe`, `history`, `health`, `models`, `flow` |
 
 ### Bundled / Downloaded Binaries
 
@@ -1035,7 +883,7 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 | AVFoundation / AVAudioEngine | Microphone capture |
 | CoreGraphics (CGEvent) | Global hotkey detection, simulated keystrokes (Cmd+V) |
 | AppKit (NSPasteboard) | Clipboard read/write for paste |
-| Accessibility (AXUIElement) | Read selected text for command mode |
+| Accessibility (AXUIElement) | Global hotkey, paste simulation |
 | SwiftUI | All UI |
 | UniformTypeIdentifiers | File type detection for drag-and-drop |
 
@@ -1080,7 +928,7 @@ Dictation ready
 3. **No accounts** — No login, no email, no user tracking
 4. **No analytics** — Zero telemetry. Not even crash reporting (unless user opts in)
 5. **Audio storage is opt-in** — Dictation audio only saved if user enables "Keep audio" in settings
-6. **Local AI only** — All ML inference happens on-device: STT on the ANE via CoreML, LLM on the GPU via Metal
+6. **Local AI only** — All ML inference happens on-device: STT on the ANE via CoreML
 
 ### Sandboxing (App Store)
 
@@ -1111,14 +959,12 @@ For App Store distribution, the app needs:
 │                    Memory at Peak                           │
 ├────────────────────────────────────────────────────────────┤
 │  Parakeet STT (CoreML/ANE)       ~66 MB working RAM        │
-│  Qwen3-8B LLM (MLX-Swift/GPU)   ~5 GB                     │
 │  App process (UI + services)     ~100 MB                   │
 │  Audio buffers                   ~50 MB                    │
 │  ──────────────────────────────────────                    │
-│  Total peak (with LLM)           ~5.3 GB                   │
+│  Total peak                      ~300 MB                   │
 │                                                            │
-│  Recommended system RAM: 16 GB (Apple Silicon)             │
-│  Minimum: 8 GB (runs comfortably — STT uses ~66 MB)        │
+│  Minimum system RAM: 8 GB (Apple Silicon)                  │
 └────────────────────────────────────────────────────────────┘
 ```
 
@@ -1129,20 +975,18 @@ For App Store distribution, the app needs:
 | App window visible | <1 second | SwiftUI, no heavy init |
 | Dictation ready | <2 seconds | Post-onboarding (models pre-warmed) |
 | First STT result | <3 seconds | CoreML model warm-up on first transcribe call |
-| LLM ready | <3 seconds | Post-onboarding (Qwen pre-warmed) |
 
 **Model Readiness Strategy:**
 ```
 First Launch ────────> Onboarding model setup step
-                           ├── Download + warm Parakeet STT
-                           └── Download + warm Qwen3-8B
+                           └── Download + warm Parakeet STT
                            ▼
                        Ready state unlocked
                            │
 Subsequent Launches ──> Window shown (fast)
                            │
                            ▼
-                       Dictation / refinement run immediately
+                       Dictation runs immediately
 ```
 
 After initial warm-up, subsequent dictations are near-instant (AsrManager stays initialized, model stays loaded with idle timeout).
@@ -1161,7 +1005,6 @@ Parakeet TDT 0.6B-v3 throughput varies by device class: approximately 155x realt
 ### Memory Management
 
 - **Parakeet model:** AsrManager stays initialized after first use. Uses ~66 MB working RAM on the ANE. Released when app quits.
-- **LLM model:** Loaded into Metal GPU memory on first AI request. Unloaded after 5 minutes idle. Loading is async and does not block UI.
 - **Audio buffers:** Ring buffer during recording, flushed to temp file on stop. No recording duration limit — local processing means no artificial caps.
 - **Database:** GRDB uses WAL mode by default. No connection pooling needed (single-user app).
 
@@ -1174,8 +1017,7 @@ First dictation completes
     │
     ▼
 Schedule background task (low priority):
-    ├── If Parakeet model not loaded → initialize AsrManager
-    └── If LLM not loaded AND user uses AI refinement → load model
+    └── If Parakeet model not loaded → initialize AsrManager
 ```
 
 This ensures subsequent interactions feel instant without bloating initial startup.
@@ -1214,7 +1056,6 @@ MacParakeet has a small surface area compared to Oatmeal. Focus testing on the c
 - **AVAudioEngine** — Requires real hardware microphone
 - **CGEvent / Accessibility** — Requires system permissions, not testable in CI
 - **Parakeet model accuracy** — That is the model's problem, not ours
-- **MLX-Swift internals** — Trust the framework
 
 ### Test Infrastructure
 
@@ -1262,15 +1103,11 @@ swift test --parallel
 swift test --filter TextProcessingPipelineTests
 ```
 
-Note: `swift test` works for tests (no Metal shaders needed). Use `xcodebuild` only for building the GUI app.
+Note: `swift test` works for all tests. Use `xcodebuild` for building the GUI app.
 
 ---
 
 ## Build & Run
-
-### Why xcodebuild?
-
-MLX-Swift requires Metal shaders. `swift build` compiles Swift code but **cannot compile Metal shaders** — the app builds but crashes at runtime with "Failed to load the default metallib." Use `xcodebuild` for app builds.
 
 ### Commands
 
@@ -1301,14 +1138,14 @@ open Package.swift
 
 3. **Local-only for user data.** No cloud inference and no API-key dependency. Network is only for model artifacts, optional license activation/validation, and user-initiated media downloads.
 
-4. **Fast launch + onboarding pre-warm.** App launch stays lightweight; first-run onboarding prepares STT + LLM so core features feel ready immediately afterward.
+4. **Fast launch + onboarding pre-warm.** App launch stays lightweight; first-run onboarding prepares STT model so core features feel ready immediately afterward.
 
 5. **Single database file.** All persistent state in one SQLite file. Easy to backup, easy to debug, easy to reset.
 
-6. **Deterministic pipeline, probabilistic AI.** `TextProcessingPipeline` is rule-based and repeatable. `AIService` is LLM-based and optional. Users can choose either or both.
+6. **Deterministic pipeline.** `TextProcessingPipeline` is rule-based and repeatable. Users choose raw or clean mode.
 
-7. **Crash gracefully.** If CoreML fails, retry. If LLM fails to load, skip refinement. If paste fails, copy to clipboard and notify. Never lose the transcript.
+7. **Crash gracefully.** If CoreML fails, retry. If paste fails, copy to clipboard and notify. Never lose the transcript.
 
 ---
 
-*Last updated: 2026-02-13*
+*Last updated: 2026-02-23*

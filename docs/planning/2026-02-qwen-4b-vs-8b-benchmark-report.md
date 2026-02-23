@@ -1,5 +1,7 @@
 # Qwen 4B vs 8B Benchmark Report (Local + External Alignment)
 
+> Status: **HISTORICAL** - LLM support (Qwen3-8B / MLX-Swift) removed 2026-02-23.
+
 Last updated: 2026-02-13
 Owner: Core
 

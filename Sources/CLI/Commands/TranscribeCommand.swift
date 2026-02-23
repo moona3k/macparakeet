@@ -5,9 +5,6 @@ import MacParakeetCore
 enum TranscribeMode: String, ExpressibleByArgument {
     case raw
     case clean
-    case formal
-    case email
-    case code
     case appDefault = "app-default"
 }
 
@@ -29,7 +26,7 @@ struct TranscribeCommand: AsyncParsableCommand {
     @Option(name: .shortAndLong, help: "Output format: text, json.")
     var format: String = "text"
 
-    @Option(help: "Processing mode: raw, clean, formal, email, code, app-default.")
+    @Option(help: "Processing mode: raw, clean, app-default.")
     var mode: TranscribeMode = .appDefault
 
     @Option(help: "Downloaded YouTube audio retention: app-default, keep, delete.")
@@ -47,12 +44,6 @@ struct TranscribeCommand: AsyncParsableCommand {
             return .raw
         case .clean:
             return .clean
-        case .formal:
-            return .formal
-        case .email:
-            return .email
-        case .code:
-            return .code
         case .appDefault:
             return Dictation.ProcessingMode(rawValue: storedMode ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
         }
@@ -74,7 +65,6 @@ struct TranscribeCommand: AsyncParsableCommand {
         let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
         let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
         let sttClient = STTClient()
-        let llmService = MLXLLMService()
         let audioProcessor = AudioProcessor()
         let youtubeDownloader = YouTubeDownloader()
         let entitlementsService = enforceEntitlements ? makeEntitlementsService() : nil
@@ -91,7 +81,6 @@ struct TranscribeCommand: AsyncParsableCommand {
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
-            llmService: llmService,
             processingMode: {
                 Self.resolveProcessingMode(self.mode, storedMode: UserDefaults.standard.string(forKey: "processingMode"))
             },
@@ -221,10 +210,6 @@ struct TranscribeCommand: AsyncParsableCommand {
 enum CLIError: Error, LocalizedError {
     case fileNotFound(String)
     case unsupportedFormat(String)
-    case localLLMSmokeTestFailed(String)
-    case invalidQuestion
-    case transcriptFileNotFound(String)
-    case transcriptFileReadFailed(String, underlying: Error)
 
     var errorDescription: String? {
         switch self {
@@ -232,14 +217,6 @@ enum CLIError: Error, LocalizedError {
             return "File not found: \(path)"
         case .unsupportedFormat(let ext):
             return "Unsupported format: .\(ext). Supported: \(AudioFileConverter.supportedExtensions.sorted().joined(separator: ", "))"
-        case .localLLMSmokeTestFailed(let output):
-            return "LLM smoke test failed (unexpected response): \(output)"
-        case .invalidQuestion:
-            return "Question cannot be empty."
-        case .transcriptFileNotFound(let path):
-            return "Transcript file not found: \(path)"
-        case .transcriptFileReadFailed(let path, let underlying):
-            return "Failed to read transcript file at \(path): \(underlying.localizedDescription)"
         }
     }
 }

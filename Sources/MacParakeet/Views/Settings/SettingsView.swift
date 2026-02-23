@@ -246,8 +246,8 @@ struct SettingsView: View {
 
     private var localModelsCard: some View {
         settingsCard(
-            title: "Local Models",
-            subtitle: "Parakeet speech + Qwen AI status and repair.",
+            title: "Speech Model",
+            subtitle: "Parakeet speech recognition status and repair.",
             icon: "cpu"
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
@@ -258,17 +258,6 @@ struct SettingsView: View {
                     isRepairing: viewModel.parakeetRepairing
                 ) {
                     viewModel.repairParakeetModel()
-                }
-
-                Divider()
-
-                modelStatusRow(
-                    title: "Qwen (AI)",
-                    detail: viewModel.qwenStatusDetail,
-                    status: viewModel.qwenStatus,
-                    isRepairing: viewModel.qwenRepairing
-                ) {
-                    viewModel.repairQwenModel()
                 }
 
                 Divider()
@@ -286,14 +275,14 @@ struct SettingsView: View {
                         viewModel.refreshModelStatus()
                     }
                     .buttonStyle(.bordered)
-                    .disabled(viewModel.parakeetRepairing || viewModel.qwenRepairing)
+                    .disabled(viewModel.parakeetRepairing)
 
-                    Button("Repair All") {
-                        viewModel.repairAllModels()
+                    Button("Repair") {
+                        viewModel.repairParakeetModel()
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(DesignSystem.Colors.accent)
-                    .disabled(viewModel.parakeetRepairing || viewModel.qwenRepairing)
+                    .disabled(viewModel.parakeetRepairing)
                 }
             }
         }

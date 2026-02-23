@@ -9,20 +9,15 @@ public final class HotkeyManager {
     public var onStartRecording: ((FnKeyStateMachine.RecordingMode) -> Void)?
     public var onStopRecording: (() -> Void)?
     public var onCancelRecording: (() -> Void)?
-    public var onStartCommandMode: (() -> Void)?
-    public var onCancelCommandMode: (() -> Void)?
     public var onReadyForSecondTap: (() -> Void)?
     public var onEscapeWhileIdle: (() -> Void)?
 
     private let stateMachine = FnKeyStateMachine()
-    private let commandHotkeyArbiter = CommandHotkeyArbiter()
     private let triggerKey: TriggerKey
     private let targetMask: CGEventFlags
     private var eventTap: CFMachPort?
     private var holdTimer: DispatchWorkItem?
     private var runLoopSource: CFRunLoopSource?
-    private var isCommandModeActive = false
-
     /// Edge detection: was the target modifier pressed in the previous event?
     private var targetModifierWasPressed = false
 
@@ -75,8 +70,6 @@ public final class HotkeyManager {
         runLoopSource = nil
         targetModifierWasPressed = false
         bareTap = true
-        isCommandModeActive = false
-        commandHotkeyArbiter.reset()
         stateMachine.reset()
     }
 
@@ -88,32 +81,6 @@ public final class HotkeyManager {
         if type == .flagsChanged {
             let flags = event.flags
             let isPressed = flags.contains(targetMask)
-            let isFnPressed = flags.contains(.maskSecondaryFn)
-            let isControlPressed = flags.contains(.maskControl)
-
-            let commandDecision = commandHotkeyArbiter.process(
-                isFnPressed: isFnPressed,
-                isControlPressed: isControlPressed,
-                isCommandModeActive: isCommandModeActive,
-                isCommandModeAvailable: onStartCommandMode != nil || onCancelCommandMode != nil
-            )
-
-            switch commandDecision.action {
-            case .none:
-                break
-            case .startCommandMode:
-                onStartCommandMode?()
-            case .cancelCommandMode:
-                onCancelCommandMode?()
-            }
-
-            if commandDecision.suppressDictation {
-                holdTimer?.cancel()
-                stateMachine.reset()
-                targetModifierWasPressed = isPressed
-                bareTap = true
-                return Unmanaged.passRetained(event)
-            }
 
             // Edge detection: only act on actual transitions of the target modifier
             guard isPressed != targetModifierWasPressed else {
@@ -202,14 +169,6 @@ public final class HotkeyManager {
     /// Reset state machine to idle (e.g., after cancel countdown expires).
     public func resetToIdle() {
         stateMachine.reset()
-    }
-
-    /// Called by app-level command mode flow to suppress dictation gestures while command mode is active.
-    public func setCommandModeActive(_ active: Bool) {
-        isCommandModeActive = active
-        if !active {
-            commandHotkeyArbiter.reset()
-        }
     }
 
     private func handleAction(_ action: FnKeyStateMachine.Action) {

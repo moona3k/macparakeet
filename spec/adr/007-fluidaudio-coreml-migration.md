@@ -2,6 +2,7 @@
 
 > Status: **Accepted**
 > Date: 2026-02-13
+> Note: Core decision (FluidAudio CoreML for STT) is implemented and active. GPU/LLM references (Qwen3-8B, "GPU contention") are historical — LLM support removed 2026-02-23.
 
 ## Context
 
