@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let settingsViewModel = SettingsViewModel()
     private let customWordsViewModel = CustomWordsViewModel()
     private let textSnippetsViewModel = TextSnippetsViewModel()
+    private let feedbackViewModel = FeedbackViewModel()
     private let mainWindowState = MainWindowState()
     private let onboardingWindowController = OnboardingWindowController()
     private var onboardingObserver: Any?
@@ -1210,7 +1211,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             historyViewModel: historyViewModel,
             settingsViewModel: settingsViewModel,
             customWordsViewModel: customWordsViewModel,
-            textSnippetsViewModel: textSnippetsViewModel
+            textSnippetsViewModel: textSnippetsViewModel,
+            feedbackViewModel: feedbackViewModel
         )
 
         let window = NSWindow(

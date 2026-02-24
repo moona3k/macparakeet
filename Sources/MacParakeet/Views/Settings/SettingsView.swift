@@ -10,7 +10,6 @@ struct SettingsView: View {
     @State private var showClearAllAlert = false
     @State private var showClearYouTubeAudioAlert = false
     @State private var copiedBuildIdentity = false
-    @State private var feedbackViewModel = FeedbackViewModel()
 
     var body: some View {
         ScrollView {
@@ -22,7 +21,6 @@ struct SettingsView: View {
                 localModelsCard
                 permissionsCard
                 onboardingCard
-                feedbackCard
                 aboutCard
             }
             .padding(DesignSystem.Spacing.lg)
@@ -49,7 +47,6 @@ struct SettingsView: View {
             viewModel.refreshStats()
             viewModel.refreshEntitlements()
             viewModel.refreshModelStatus()
-            feedbackViewModel.configure(feedbackService: FeedbackService())
         }
     }
 
@@ -342,187 +339,6 @@ struct SettingsView: View {
                 .tint(DesignSystem.Colors.accent)
             }
         }
-    }
-
-    // MARK: - Feedback
-
-    private var feedbackCard: some View {
-        settingsCard(
-            title: "Help & Feedback",
-            subtitle: "Report bugs, request features, or share feedback.",
-            icon: "bubble.left.and.text.bubble.right"
-        ) {
-            if feedbackViewModel.submissionState == .success {
-                feedbackSuccessBanner
-            } else {
-                feedbackFormContent
-            }
-        }
-    }
-
-    private var feedbackSuccessBanner: some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 16))
-            Text("Thank you! Your feedback has been submitted.")
-                .font(DesignSystem.Typography.body)
-        }
-        .foregroundStyle(DesignSystem.Colors.successGreen)
-        .padding(DesignSystem.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(DesignSystem.Colors.successGreen.opacity(0.08))
-        )
-    }
-
-    private var feedbackFormContent: some View {
-        VStack(spacing: DesignSystem.Spacing.md) {
-            // Category picker
-            HStack(alignment: .center) {
-                rowText(
-                    title: "Category",
-                    detail: "What kind of feedback is this?"
-                )
-                Spacer(minLength: DesignSystem.Spacing.md)
-                Picker("Category", selection: $feedbackViewModel.category) {
-                    ForEach(FeedbackCategory.allCases, id: \.rawValue) { cat in
-                        Text(cat.displayName).tag(cat)
-                    }
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: 170)
-            }
-
-            Divider()
-
-            // Message
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                Text("Message")
-                    .font(DesignSystem.Typography.body)
-                TextEditor(text: $feedbackViewModel.message)
-                    .font(DesignSystem.Typography.body)
-                    .scrollContentBackground(.hidden)
-                    .padding(DesignSystem.Spacing.sm)
-                    .frame(minHeight: 80)
-                    .background(
-                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                            .fill(DesignSystem.Colors.surfaceElevated)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                            .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
-                    )
-            }
-
-            Divider()
-
-            // Email (optional)
-            HStack(alignment: .center) {
-                rowText(
-                    title: "Email (optional)",
-                    detail: "Only if you'd like a reply."
-                )
-                Spacer(minLength: DesignSystem.Spacing.md)
-                TextField("you@example.com", text: $feedbackViewModel.email)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 220)
-            }
-
-            Divider()
-
-            // Screenshot
-            HStack(alignment: .center) {
-                rowText(
-                    title: "Screenshot (optional)",
-                    detail: "PNG, JPEG, TIFF, or HEIC. Max 5 MB."
-                )
-                Spacer(minLength: DesignSystem.Spacing.md)
-                if let filename = feedbackViewModel.screenshotFilename {
-                    HStack(spacing: DesignSystem.Spacing.xs) {
-                        Image(systemName: "photo")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                        Text(filename)
-                            .font(DesignSystem.Typography.caption)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Button("Remove") {
-                            feedbackViewModel.removeScreenshot()
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                    }
-                } else {
-                    Button("Attach Screenshot") {
-                        feedbackViewModel.attachScreenshot()
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-
-            Divider()
-
-            // System info disclosure
-            DisclosureGroup("System Info", isExpanded: $feedbackViewModel.showSystemInfo) {
-                Text(feedbackViewModel.systemInfo.displaySummary)
-                    .font(DesignSystem.Typography.caption.monospaced())
-                    .textSelection(.enabled)
-                    .padding(DesignSystem.Spacing.sm)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                            .fill(DesignSystem.Colors.surfaceElevated)
-                    )
-            }
-            .font(DesignSystem.Typography.body)
-
-            // Error banner
-            if case .error(let errorMessage) = feedbackViewModel.submissionState {
-                feedbackErrorBanner(errorMessage)
-            }
-
-            // Action buttons
-            HStack {
-                Spacer()
-                Button("Cancel") {
-                    feedbackViewModel.resetForm()
-                }
-                .buttonStyle(.bordered)
-
-                Button(feedbackViewModel.submissionState == .submitting ? "Sending..." : "Send Feedback") {
-                    feedbackViewModel.submit()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(DesignSystem.Colors.accent)
-                .disabled(!feedbackViewModel.canSubmit)
-            }
-        }
-    }
-
-    private func feedbackErrorBanner(_ error: String) -> some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 13))
-            Text(error)
-                .font(DesignSystem.Typography.caption)
-                .lineLimit(2)
-            Spacer()
-            Button {
-                feedbackViewModel.dismissError()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .semibold))
-            }
-            .buttonStyle(.plain)
-        }
-        .foregroundStyle(DesignSystem.Colors.errorRed)
-        .padding(DesignSystem.Spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(DesignSystem.Colors.errorRed.opacity(0.08))
-        )
     }
 
     // MARK: - About

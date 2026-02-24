@@ -139,7 +139,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] Custom words & snippets management UI (Vocabulary sidebar item)
 - [x] CLI commands: `macparakeet-cli flow process/words/snippets` + `macparakeet-cli models status/warm-up/repair`
 - [x] Processing modes (raw, clean)
-- [x] In-app feedback form (Settings → Help & Feedback → Cloudflare Worker → GitHub Issues)
+- [x] In-app feedback form (Feedback sidebar item → Cloudflare Worker → GitHub Issues)
 
 ### v0.3 YouTube & Export (In Progress)
 - [x] YouTube URL transcription (yt-dlp + Parakeet, single video)
@@ -230,12 +230,16 @@ Menu Bar Icon (always visible)
     |   +-- Custom words management (sheet)
     |   +-- Text snippets management (sheet)
     |
+    +-- Feedback Panel
+    |   +-- Category selection (bug report, feature request, other)
+    |   +-- Message form with optional email + screenshot
+    |   +-- Community link (macparakeet-community GitHub)
+    |
     +-- Settings Window
     |   +-- License activation
     |   +-- Hotkey configuration
     |   +-- Storage management
     |   +-- Permissions
-    |   +-- Help & Feedback (bug reports, feature requests via Cloudflare Worker → GitHub Issues)
     |
     +-- History Panel
         +-- Dictation history with search
@@ -247,7 +251,8 @@ View files organized by feature in `Sources/MacParakeet/Views/`:
 - `Transcription/` -- Main window, drop zone, transcript display, export
 - `Dictation/` -- Overlay, waveform, recording state
 - `Vocabulary/` -- Processing mode, custom words, text snippets
-- `Settings/` -- License, dictation prefs, storage, permissions, help & feedback
+- `Feedback/` -- Feedback form, category selection, community link
+- `Settings/` -- License, dictation prefs, storage, permissions
 - `History/` -- Dictation history, search, playback
 - `Components/` -- Reusable components (status badge, waveform view)
 

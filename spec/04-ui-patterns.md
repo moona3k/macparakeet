@@ -28,8 +28,9 @@ Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutt
 │  🎤 Transcribe   │  [Depends on sidebar selection]           │
 │  🕒 Dictations   │                                           │
 │  📖 Vocabulary   │  - Transcribe: Drop zone + recent list   │
-│  ⚙ Settings      │  - Dictations: History list               │
-│                  │  - Vocabulary: Processing mode + manage   │
+│  💬 Feedback     │  - Dictations: History list               │
+│  ⚙ Settings      │  - Vocabulary: Processing mode + manage   │
+│                  │  - Feedback: Form + community link        │
 │                  │  - Settings: Grouped form                 │
 │                  │                                           │
 └──────────────────┴───────────────────────────────────────────┘
@@ -39,11 +40,12 @@ Minimum window width: 800pt.
 
 ### Sidebar
 
-The sidebar uses NavigationSplitView with four flat items (icon + label):
+The sidebar uses NavigationSplitView with five flat items (icon + label):
 
 - **Transcribe** (`waveform`) -- Drop zone and recent transcriptions
 - **Dictations** (`clock.arrow.circlepath`) -- Flat history list with bottom bar player
 - **Vocabulary** (`book.fill`) -- Processing mode, pipeline guide, custom words & snippets management
+- **Feedback** (`bubble.left.and.text.bubble.right`) -- Bug reports, feature requests, community link
 - **Settings** (`gearshape`) -- License, dictation prefs, storage, permissions
 
 Column width: `min: 160, ideal: 180, max: 220`. Window minimum width: 800pt.
@@ -851,6 +853,7 @@ All UI listed above is v0.1 except where noted:
 
 ### v0.3 (Import & Export, In Progress)
 
+- Feedback sidebar item (form with category cards, community link)
 - YouTube URL input field in transcription view
 - YouTube download phase text + determinate percent bar in transcription processing UI
 - Batch processing queue view

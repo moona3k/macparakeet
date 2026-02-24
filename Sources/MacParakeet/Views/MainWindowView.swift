@@ -5,6 +5,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case transcribe = "Transcribe"
     case dictations = "Dictations"
     case vocabulary = "Vocabulary"
+    case feedback = "Feedback"
     case settings = "Settings"
 
     var id: String { rawValue }
@@ -14,6 +15,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .transcribe: return "waveform"
         case .dictations: return "clock.arrow.circlepath"
         case .vocabulary: return "book.fill"
+        case .feedback: return "bubble.left.and.text.bubble.right"
         case .settings: return "gearshape"
         }
     }
@@ -27,6 +29,7 @@ struct MainWindowView: View {
     let settingsViewModel: SettingsViewModel
     let customWordsViewModel: CustomWordsViewModel
     let textSnippetsViewModel: TextSnippetsViewModel
+    let feedbackViewModel: FeedbackViewModel
 
     var body: some View {
         NavigationSplitView {
@@ -50,6 +53,8 @@ struct MainWindowView: View {
                         customWordsViewModel: customWordsViewModel,
                         textSnippetsViewModel: textSnippetsViewModel
                     )
+                case .feedback:
+                    FeedbackView(viewModel: feedbackViewModel)
                 case .settings:
                     SettingsView(viewModel: settingsViewModel)
                 }

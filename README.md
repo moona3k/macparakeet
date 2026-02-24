@@ -50,7 +50,7 @@ Drag any audio or video file → get a transcript in seconds.
 - **History** — Dictation + transcription history stored locally (SQLite, searchable)
 - **YouTube Transcription** — Paste a YouTube URL, auto-download audio via yt-dlp, transcribe with Parakeet
 - **YouTube Audio Retention** — Downloaded YouTube audio is kept by default (configurable in Settings > Storage)
-- **In-App Feedback** — Report bugs, request features, or share feedback directly from Settings (routes to [macparakeet-community](https://github.com/moona3k/macparakeet-community))
+- **In-App Feedback** — Report bugs, request features, or share feedback from the dedicated Feedback tab (routes to [macparakeet-community](https://github.com/moona3k/macparakeet-community))
 
 ### Planned
 
@@ -105,7 +105,7 @@ The faster the feedback loop, the faster the agent self-corrects. If you can't c
 
 ## Support
 
-- In-app: Settings > Help & Feedback
+- In-app: Feedback (sidebar)
 - Community: [github.com/moona3k/macparakeet-community](https://github.com/moona3k/macparakeet-community)
 - Website: [macparakeet.com](https://macparakeet.com)
 
