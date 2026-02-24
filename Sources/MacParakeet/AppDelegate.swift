@@ -57,6 +57,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         if isRunningFromDiskImage() {
             showMoveToApplicationsAlert()
+            return
         }
         setupMainMenu()
         setupMenuBar()
