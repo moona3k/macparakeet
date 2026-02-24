@@ -1,8 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
-  <!-- MacParakeet "Cursive P" Logo — White on transparent (for dark backgrounds) -->
-
-  <circle cx="68" cy="34" r="26" fill="none" stroke="#FFFFFF" stroke-width="7"/>
-  <path d="M 42 34 L 42 82 C 42 100, 30 110, 18 112 C 6 114, 2 106, 8 98 C 14 90, 30 88, 42 92"
-        fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round"/>
-  <circle cx="68" cy="34" r="6" fill="#FFFFFF"/>
-</svg>
