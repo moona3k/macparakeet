@@ -132,7 +132,7 @@ struct VocabularyView: View {
     private var pipelineCard: some View {
         vocabularyCard(
             title: "Clean Pipeline",
-            subtitle: "Ordered deterministic stages (always run before AI modes).",
+            subtitle: "Ordered deterministic stages applied to every Clean dictation.",
             icon: "list.number"
         ) {
             VStack(spacing: 0) {
