@@ -55,6 +55,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - App Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        if isRunningFromDiskImage() {
+            showMoveToApplicationsAlert()
+        }
         setupMainMenu()
         setupMenuBar()
         setupEnvironment()
@@ -77,6 +80,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         Task {
             await appEnvironment?.sttClient.shutdown()
         }
+    }
+
+    // MARK: - Disk Image Guard
+
+    private func isRunningFromDiskImage() -> Bool {
+        Bundle.main.bundlePath.hasPrefix("/Volumes/")
+    }
+
+    private func showMoveToApplicationsAlert() {
+        let alert = NSAlert()
+        alert.messageText = "Move to Applications"
+        alert.informativeText = "MacParakeet must be in your Applications folder to work correctly. " +
+            "Running from a disk image prevents macOS from granting microphone and accessibility permissions.\n\n" +
+            "Drag MacParakeet to the Applications folder in the DMG window, then launch it from there."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Quit")
+        alert.runModal()
+        NSApp.terminate(nil)
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

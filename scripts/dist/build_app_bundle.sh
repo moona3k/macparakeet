@@ -170,7 +170,7 @@ fi
 # Guard against accidentally bundling Homebrew-linked ffmpeg, which depends on
 # external Cellar dylibs and is not portable across machines.
 if [[ "$ALLOW_NON_PORTABLE_FFMPEG" != "1" ]] && command -v otool >/dev/null 2>&1; then
-  NON_SYSTEM_DEPS="$(otool -L "$FFMPEG_PATH" | tail -n +2 | awk '{print $1}' | grep -E '^/' | grep -Ev '^/System/Library/|^/usr/lib/' || true)"
+  NON_SYSTEM_DEPS="$(otool -L "$FFMPEG_PATH" | tail -n +2 | awk '{print $1}' | grep -Ev '^/System/Library/|^/usr/lib/' | grep -Ev '^\(' || true)"
   if [[ -n "$NON_SYSTEM_DEPS" ]]; then
     echo "Error: ffmpeg binary has non-system dylib dependencies and is likely not portable:" >&2
     echo "$NON_SYSTEM_DEPS" >&2
