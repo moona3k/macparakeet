@@ -732,7 +732,7 @@ struct OnboardingFlowView: View {
         case .microphone: return "Enable Microphone Access"
         case .accessibility: return "Enable Accessibility"
         case .hotkey: return "Learn the Hotkey"
-        case .engine: return "Prepare Local Models"
+        case .engine: return "Prepare Speech Model"
         case .done: return "All Set"
         }
     }
@@ -808,16 +808,16 @@ struct OnboardingFlowView: View {
         if lower.contains("network") || lower.contains("internet") || lower.contains("timed out") {
             return [
                 "Check your internet connection, then retry setup.",
-                "Use a stable network until both models finish downloading.",
-                "If it keeps failing, open Settings > Local Models and run Repair All."
+                "Use a stable network until the speech model finishes downloading.",
+                "If it keeps failing, open Settings > Speech Model and run Repair."
             ]
         }
 
         if lower.contains("space") || lower.contains("disk") || lower.contains("no space") {
             return [
-                "Free at least 10 GB of disk space.",
+                "Free at least 7 GB of disk space.",
                 "Retry setup after storage is available.",
-                "You can also run Repair All in Settings > Local Models."
+                "You can also run Repair in Settings > Speech Model."
             ]
         }
 
@@ -825,7 +825,7 @@ struct OnboardingFlowView: View {
             return [
                 "Confirm the app can write to your user Library folder.",
                 "Restart MacParakeet, then retry setup.",
-                "If needed, run Repair All in Settings > Local Models."
+                "If needed, run Repair in Settings > Speech Model."
             ]
         }
 
@@ -838,7 +838,7 @@ struct OnboardingFlowView: View {
 
         return [
             "Retry setup first (temporary failures are common).",
-            "If it keeps failing, open Settings > Local Models and run Repair All.",
+            "If it keeps failing, open Settings > Speech Model and run Repair.",
             "If the error persists, restart the app and retry once."
         ]
     }

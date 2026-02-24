@@ -96,6 +96,16 @@ final class DictationModelTests: XCTestCase {
         XCTAssertEqual(decoded.processingMode, .clean)
     }
 
+    func testDeprecatedModeRawValueInitMapsToClean() {
+        // Verifies init?(rawValue:) handles legacy stored preferences (UserDefaults, CLI args)
+        XCTAssertEqual(Dictation.ProcessingMode(rawValue: "formal"), .clean)
+        XCTAssertEqual(Dictation.ProcessingMode(rawValue: "email"), .clean)
+        XCTAssertEqual(Dictation.ProcessingMode(rawValue: "code"), .clean)
+        XCTAssertEqual(Dictation.ProcessingMode(rawValue: "clean"), .clean)
+        XCTAssertEqual(Dictation.ProcessingMode(rawValue: "raw"), .raw)
+        XCTAssertNil(Dictation.ProcessingMode(rawValue: "unknown"))
+    }
+
     func testCodableRoundTrip() throws {
         let original = Dictation(
             durationMs: 3000,

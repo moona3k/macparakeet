@@ -418,7 +418,7 @@ struct DictationOverlayView: View {
         if lower.contains("stt") || lower.contains("speech engine") || lower.contains("engine")
             || lower.contains("model not loaded")
             || lower.contains("failed to start") {
-            return ("Speech Engine Not Ready", "Run onboarding or go to Settings > Local Models > Repair.")
+            return ("Speech Engine Not Ready", "Run onboarding or go to Settings > Speech Model > Repair.")
         }
         if lower.contains("couldn't hear") || lower.contains("empty")
             || lower.contains("too short") || lower.contains("insufficient") {

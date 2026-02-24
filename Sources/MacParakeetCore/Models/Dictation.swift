@@ -18,13 +18,20 @@ public struct Dictation: Codable, Identifiable, Sendable {
         case raw
         case clean
 
-        public init(from decoder: Decoder) throws {
-            let rawValue = try decoder.singleValueContainer().decode(String.self)
+        /// Override default RawRepresentable init to handle deprecated mode values.
+        /// Without this, `ProcessingMode(rawValue: "formal")` returns nil and callers
+        /// fall back to `.raw`, silently disabling processing for upgraded users.
+        public init?(rawValue: String) {
             switch rawValue {
             case "raw": self = .raw
             case "clean", "formal", "email", "code": self = .clean
-            default: self = .raw
+            default: return nil
             }
+        }
+
+        public init(from decoder: Decoder) throws {
+            let rawValue = try decoder.singleValueContainer().decode(String.self)
+            self = Self(rawValue: rawValue) ?? .raw
         }
     }
 
@@ -76,18 +83,6 @@ public extension Dictation.ProcessingMode {
         }
     }
 
-    /// Maps deprecated raw values (from old database rows) to a valid mode.
-    init(legacyRawValue: String?) {
-        guard let rawValue = legacyRawValue else {
-            self = .raw
-            return
-        }
-        switch rawValue {
-        case "raw": self = .raw
-        case "clean", "formal", "email", "code": self = .clean
-        default: self = .raw
-        }
-    }
 }
 
 extension Dictation: FetchableRecord, PersistableRecord {
