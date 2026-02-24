@@ -180,13 +180,20 @@ public actor YouTubeDownloader {
             url,
         ]
         process.arguments = args
-        process.standardOutput = FileHandle.nullDevice
+
+        // yt-dlp sends [download] progress lines to stdout (not stderr).
+        // Pipe both streams so we can parse progress from stdout and capture
+        // errors from stderr.
+        let stdoutPipe = Pipe()
+        let stdoutHandle = stdoutPipe.fileHandleForReading
+        process.standardOutput = stdoutPipe
 
         let stderrPipe = Pipe()
         let stderrHandle = stderrPipe.fileHandleForReading
         process.standardError = stderrPipe
 
         let stderrAll = OSAllocatedUnfairLock(initialState: Data())
+        let stdoutBuffer = OSAllocatedUnfairLock(initialState: Data())
         let stderrBuffer = OSAllocatedUnfairLock(initialState: Data())
         let lastProgress = OSAllocatedUnfairLock(initialState: -1)
 
@@ -202,12 +209,9 @@ public actor YouTubeDownloader {
             }
         }
 
-        stderrHandle.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            guard !chunk.isEmpty else { return }
-            stderrAll.withLock { $0.append(chunk) }
-            let lines = stderrBuffer.withLock { buffer in
-                Self.extractLines(from: &buffer, appending: chunk)
+        @Sendable func parseProgressLines(from buffer: OSAllocatedUnfairLock<Data>, chunk: Data) {
+            let lines = buffer.withLock { buf in
+                Self.extractLines(from: &buf, appending: chunk)
             }
             for line in lines {
                 if let pct = Self.parseDownloadProgressPercent(from: line) {
@@ -216,23 +220,44 @@ public actor YouTubeDownloader {
             }
         }
 
+        stdoutHandle.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            parseProgressLines(from: stdoutBuffer, chunk: chunk)
+        }
+
+        stderrHandle.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            guard !chunk.isEmpty else { return }
+            stderrAll.withLock { $0.append(chunk) }
+            parseProgressLines(from: stderrBuffer, chunk: chunk)
+        }
+
         do {
             try process.run()
             try await waitForProcess(process, timeout: 600)
         } catch {
+            stdoutHandle.readabilityHandler = nil
             stderrHandle.readabilityHandler = nil
             throw error
         }
 
+        stdoutHandle.readabilityHandler = nil
         stderrHandle.readabilityHandler = nil
-        let tailData = stderrHandle.readDataToEndOfFile()
-        stderrAll.withLock { $0.append(tailData) }
-        let tailLines = stderrBuffer.withLock { buffer in
-            Self.extractLines(from: &buffer, appending: tailData, consumeTrailingLine: true)
-        }
-        for line in tailLines {
-            if let pct = Self.parseDownloadProgressPercent(from: line) {
-                emitProgress(pct)
+
+        // Drain remaining data from both pipes
+        let stdoutTail = stdoutHandle.readDataToEndOfFile()
+        let stderrTail = stderrHandle.readDataToEndOfFile()
+        stderrAll.withLock { $0.append(stderrTail) }
+
+        for (buffer, tail) in [(stdoutBuffer, stdoutTail), (stderrBuffer, stderrTail)] {
+            let lines = buffer.withLock { buf in
+                Self.extractLines(from: &buf, appending: tail, consumeTrailingLine: true)
+            }
+            for line in lines {
+                if let pct = Self.parseDownloadProgressPercent(from: line) {
+                    emitProgress(pct)
+                }
             }
         }
 
