@@ -281,9 +281,10 @@ public final class OnboardingViewModel {
             throw STTError.engineStartFailed("Local model runtime requires Apple Silicon with Metal support.")
         }
 
-        // First setup requires download capacity and network.
-        let requiresFirstSetupPrereqs = !hasCompletedOnboarding || !isSpeechModelCached()
-        guard requiresFirstSetupPrereqs else { return }
+        // Only gate on network/disk if the model still needs downloading.
+        // If the model is already cached, skip preflight regardless of onboarding state
+        // (e.g. user reset onboarding while offline — no download needed).
+        guard !isSpeechModelCached() else { return }
 
         guard let freeBytes = availableDiskBytes() else {
             throw STTError.engineStartFailed("Unable to determine free disk space. Verify at least \(Self.formatGiB(requiredFirstSetupDiskBytes)) is available, then retry.")

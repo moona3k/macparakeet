@@ -182,7 +182,7 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(sttCalls, 0)
     }
 
-    func testEngineWarmUpFailsPreflightWhenSpeechCachedButOnboardingIncompleteAndOffline() async throws {
+    func testEngineWarmUpSkipsPreflightWhenSpeechCachedEvenIfOnboardingIncompleteAndOffline() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
@@ -198,14 +198,10 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.startEngineWarmUp()
         try await Task.sleep(for: .milliseconds(120))
 
-        if case .failed(let message) = vm.engineState {
-            XCTAssertTrue(message.lowercased().contains("internet connection is required"))
-        } else {
-            XCTFail("Expected preflight failure when onboarding is incomplete and offline")
-        }
-
+        // Model is cached — should skip preflight and proceed to warm-up,
+        // even if onboarding hasn't completed and we're offline.
         let sttCalls = await stt.warmUpCallCount
-        XCTAssertEqual(sttCalls, 0)
+        XCTAssertEqual(sttCalls, 1, "Should proceed to STT warm-up when model is cached")
     }
 
     func testEngineWarmUpFailsPreflightWhenDiskTooLowOnFirstSetup() async throws {
