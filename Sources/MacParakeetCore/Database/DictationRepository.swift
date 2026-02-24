@@ -168,12 +168,7 @@ public final class DictationRepository: DictationRepositoryProtocol {
 
     public func stats() throws -> DictationStats {
         try dbQueue.read { db in
-            // Subquery normalizes text before word counting:
-            // 1. COALESCE prefers cleanTranscript over rawTranscript
-            // 2. Replace non-space whitespace (newline, tab, CR) with spaces
-            // 3. TRIM outer whitespace
-            // 4. Collapse runs of multiple spaces (5 rounds handles up to 32 consecutive)
-            // 5. Count words as (single-space count + 1)
+            // Numeric aggregates in SQL
             let row = try Row.fetchOne(db, sql: """
                 SELECT
                     COUNT(*) AS cnt,
@@ -182,38 +177,34 @@ public final class DictationRepository: DictationRepositoryProtocol {
                     CASE WHEN COUNT(*) > 0
                         THEN COALESCE(SUM(durationMs), 0) / COUNT(*)
                         ELSE 0
-                    END AS avgDur,
-                    COALESCE(SUM(
-                        CASE WHEN LENGTH(normalized) > 0
-                            THEN LENGTH(normalized) - LENGTH(REPLACE(normalized, ' ', '')) + 1
-                            ELSE 0
-                        END
-                    ), 0) AS wordCount
-                FROM (
-                    SELECT durationMs,
-                        REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(
-                            TRIM(REPLACE(REPLACE(REPLACE(
-                                COALESCE(cleanTranscript, rawTranscript),
-                            char(10), ' '), char(13), ' '), char(9), ' ')),
-                        '  ', ' '), '  ', ' '), '  ', ' '), '  ', ' '), '  ', ' ') AS normalized
-                    FROM dictations
-                    WHERE status = 'completed'
-                )
+                    END AS avgDur
+                FROM dictations
+                WHERE status = 'completed'
                 """)
 
             let count: Int = row?["cnt"] ?? 0
             let totalDuration: Int = row?["totalDur"] ?? 0
             let maxDuration: Int = row?["maxDur"] ?? 0
             let avgDuration: Int = row?["avgDur"] ?? 0
-            let totalWords: Int = row?["wordCount"] ?? 0
 
-            // Fetch raw createdAt dates for streak computation in Swift
-            // (GRDB stores Date as timeIntervalSinceReferenceDate, so SQL date() won't work)
+            // Word count + dates computed in Swift for correctness
+            // (SQL REPLACE-based space collapsing is bounded; Swift split is exact)
+            let transcripts = try String.fetchAll(
+                db,
+                sql: """
+                    SELECT COALESCE(cleanTranscript, rawTranscript)
+                    FROM dictations
+                    WHERE status = 'completed'
+                    """
+            )
+            let totalWords = transcripts.reduce(0) { total, text in
+                total + Self.countWords(in: text)
+            }
+
             let dates = try Date.fetchAll(
                 db,
                 sql: "SELECT createdAt FROM dictations WHERE status = 'completed' ORDER BY createdAt DESC"
             )
-
             let (streak, thisWeek) = Self.computeWeeklyStreak(from: dates)
 
             return DictationStats(
@@ -226,6 +217,11 @@ public final class DictationRepository: DictationRepositoryProtocol {
                 dictationsThisWeek: thisWeek
             )
         }
+    }
+
+    /// Counts words by splitting on whitespace runs. Exact for any input.
+    static func countWords(in text: String) -> Int {
+        text.split(whereSeparator: \.isWhitespace).count
     }
 
     /// Computes the weekly streak and this-week count from an array of distinct dates (descending).
