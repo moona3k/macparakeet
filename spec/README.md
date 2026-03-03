@@ -87,7 +87,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 
 - [x] YouTube URL transcription (yt-dlp + Parakeet)
 - [x] Exports: TXT, Markdown, SRT, VTT (one-click to Downloads)
-- [ ] Full export (.docx, .pdf, .json)
+- [x] Full export (.docx, .pdf, .json)
 
 ### v0.4 Polish & Launch (Planned)
 

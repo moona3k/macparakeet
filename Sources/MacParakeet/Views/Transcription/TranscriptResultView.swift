@@ -142,6 +142,18 @@ struct TranscriptResultView: View {
                         Button { exportToDownloads(format: .md) } label: {
                             Label("Markdown (.md)", systemImage: "text.document")
                         }
+                        Button { exportToDownloads(format: .docx) } label: {
+                            Label("Word Document (.docx)", systemImage: "doc.richtext")
+                        }
+                        Button { exportToDownloads(format: .pdf) } label: {
+                            Label("PDF Document (.pdf)", systemImage: "doc.viewfinder")
+                        }
+                    }
+
+                    Section("Data") {
+                        Button { exportToDownloads(format: .json) } label: {
+                            Label("Raw Data (.json)", systemImage: "curlybraces")
+                        }
                     }
 
                     if hasTimestamps {
@@ -322,7 +334,7 @@ struct TranscriptResultView: View {
     }
 
     private enum ExportFormat: String {
-        case txt, md, srt, vtt
+        case txt, md, srt, vtt, docx, pdf, json
     }
 
     // MARK: - Export Confirmation Popover
@@ -400,6 +412,9 @@ struct TranscriptResultView: View {
             case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL)
             case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
             case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
+            case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
+            case .pdf: try exportService.exportToPDF(transcription: transcription, url: fileURL)
+            case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
             }
         } catch {
             exportErrorMessage = error.localizedDescription

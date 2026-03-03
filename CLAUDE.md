@@ -145,7 +145,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 ### v0.3 YouTube & Export (In Progress)
 - [x] YouTube URL transcription (yt-dlp + Parakeet, single video)
 - [x] Export formats (TXT, Markdown, SRT, VTT)
-- [ ] Export formats (DOCX, PDF, JSON)
+- [x] Export formats (DOCX, PDF, JSON)
 
 ### v0.4 Polish + Launch
 - [ ] Speaker diarization

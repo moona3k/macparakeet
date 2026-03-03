@@ -1,10 +1,14 @@
 import Foundation
+import AppKit
 
 public protocol ExportServiceProtocol: Sendable {
     func exportToTxt(transcription: Transcription, url: URL) throws
     func exportToSRT(transcription: Transcription, url: URL) throws
     func exportToVTT(transcription: Transcription, url: URL) throws
     func exportToMarkdown(transcription: Transcription, url: URL) throws
+    func exportToJSON(transcription: Transcription, url: URL) throws
+    func exportToPDF(transcription: Transcription, url: URL) throws
+    func exportToDocx(transcription: Transcription, url: URL) throws
     func formatSRT(words: [WordTimestamp]) -> String
     func formatVTT(words: [WordTimestamp]) -> String
     func formatMarkdown(transcription: Transcription) -> String
@@ -50,6 +54,53 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
         let content = formatVTT(words: words)
         try content.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// Export transcription as JSON file
+    public func exportToJSON(transcription: Transcription, url: URL) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(transcription)
+        try data.write(to: url)
+    }
+
+    /// Export transcription as PDF file
+    public func exportToPDF(transcription: Transcription, url: URL) throws {
+        let attrString = try buildRichTranscript(transcription: transcription)
+        
+        // On macOS, the easiest way to generate a PDF from an attributed string 
+        // without a visible window is using a print operation to a PDF destination.
+        // This must be run on the main thread because of AppKit.
+        try MainActor.assumeIsolated {
+            let printInfo = NSPrintInfo.shared
+            printInfo.jobDisposition = .save
+            printInfo.dictionary().setObject(url, forKey: NSPrintInfo.AttributeKey.jobSavingURL as NSCopying)
+            
+            // Create a view to host the text for printing
+            let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: 500, height: 700))
+            textView.textStorage?.setAttributedString(attrString)
+            
+            let printOp = NSPrintOperation(view: textView, printInfo: printInfo)
+            printOp.showsPrintPanel = false
+            printOp.showsProgressPanel = false
+            
+            if !printOp.run() {
+                throw NSError(domain: "MacParakeetError", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to generate PDF"])
+            }
+        }
+    }
+
+    /// Export transcription as DOCX file
+    public func exportToDocx(transcription: Transcription, url: URL) throws {
+        let attrString = try buildRichTranscript(transcription: transcription)
+        let range = NSRange(location: 0, length: attrString.length)
+        
+        let data = try attrString.data(
+            from: range,
+            documentAttributes: [.documentType: NSAttributedString.DocumentType.officeOpenXML]
+        )
+        try data.write(to: url)
     }
 
     /// Format word timestamps as SRT subtitle string
@@ -235,5 +286,58 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    // MARK: - Rich Text (AppKit)
+
+    private func buildRichTranscript(transcription: Transcription) throws -> NSAttributedString {
+        let result = NSMutableAttributedString()
+
+        let titleFont = NSFont.boldSystemFont(ofSize: 24)
+        let headerFont = NSFont.boldSystemFont(ofSize: 14)
+        let bodyFont = NSFont.systemFont(ofSize: 12)
+        let timestampFont = NSFont.monospacedSystemFont(ofSize: 11, weight: .medium)
+
+        // Title
+        result.append(NSAttributedString(string: transcription.fileName + "\n\n", attributes: [.font: titleFont]))
+
+        // Metadata
+        var metaLines: [String] = []
+        if let durationMs = transcription.durationMs {
+            metaLines.append("Duration: \(durationMs.formattedDuration)")
+        }
+        if let sourceURL = transcription.sourceURL {
+            metaLines.append("Source: \(sourceURL)")
+        }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        metaLines.append("Transcribed: \(formatter.string(from: transcription.createdAt))")
+        
+        if !metaLines.isEmpty {
+            let metaText = metaLines.joined(separator: "\n") + "\n\n"
+            result.append(NSAttributedString(string: metaText, attributes: [.font: headerFont, .foregroundColor: NSColor.secondaryLabelColor]))
+        }
+
+        // Horizontal line equivalent
+        result.append(NSAttributedString(string: "----------------------------------------------------------\n\n", attributes: [.foregroundColor: NSColor.tertiaryLabelColor]))
+
+        // Content
+        if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
+            let cues = buildSubtitleCues(from: timestamps)
+            for cue in cues {
+                let ts = "[" + formatReadableTimestamp(ms: cue.startMs) + "] "
+                let attrTs = NSAttributedString(string: ts, attributes: [.font: timestampFont, .foregroundColor: NSColor.secondaryLabelColor])
+                result.append(attrTs)
+                
+                let attrText = NSAttributedString(string: cue.text + "\n\n", attributes: [.font: bodyFont])
+                result.append(attrText)
+            }
+        } else {
+            let text = preferredText(transcription: transcription)
+            result.append(NSAttributedString(string: text, attributes: [.font: bodyFont]))
+        }
+
+        return result
     }
 }

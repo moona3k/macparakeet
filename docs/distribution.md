@@ -105,8 +105,8 @@ Confirm `content-length`, `last-modified`, and `etag` match the newly uploaded D
 ## Full release workflow
 
 ```bash
-# 1. Build app bundle
-scripts/dist/build_app_bundle.sh
+# 1. Build app bundle (ALLOW_NON_PORTABLE_FFMPEG=1 if using Homebrew ffmpeg)
+ALLOW_NON_PORTABLE_FFMPEG=1 scripts/dist/build_app_bundle.sh
 
 # 2. Sign + notarize (creates .app and .dmg)
 NOTARYTOOL_PROFILE="AC_PASSWORD" scripts/dist/sign_notarize.sh

@@ -179,27 +179,11 @@ struct TranscribeCommand: AsyncParsableCommand {
     }
 
     private func printJSON(_ t: Transcription) {
-        var dict: [String: Any] = [
-            "id": t.id.uuidString,
-            "fileName": t.fileName,
-            "status": "\(t.status)",
-        ]
-        if let text = t.rawTranscript { dict["rawTranscript"] = text }
-        if let text = t.cleanTranscript { dict["cleanTranscript"] = text }
-        if let preferred = (t.cleanTranscript ?? t.rawTranscript) { dict["text"] = preferred }
-        if let ms = t.durationMs { dict["durationMs"] = ms }
-        if let words = t.wordTimestamps {
-            dict["words"] = words.map { w in
-                [
-                    "word": w.word,
-                    "startMs": w.startMs,
-                    "endMs": w.endMs,
-                    "confidence": w.confidence,
-                ] as [String: Any]
-            }
-        }
-
-        if let data = try? JSONSerialization.data(withJSONObject: dict, options: [.prettyPrinted, .sortedKeys]),
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        
+        if let data = try? encoder.encode(t),
            let str = String(data: data, encoding: .utf8)
         {
             print(str)

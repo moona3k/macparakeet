@@ -312,6 +312,75 @@ final class ExportServiceTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempURL)
     }
 
+    // MARK: - New Export Formats
+
+    func testExportToJSON() throws {
+        let transcription = Transcription(
+            fileName: "data.mp3",
+            durationMs: 10000,
+            rawTranscript: "JSON export test",
+            status: .completed
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_\(UUID().uuidString).json")
+
+        try exportService.exportToJSON(transcription: transcription, url: tempURL)
+
+        let data = try Data(contentsOf: tempURL)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let decoded = try decoder.decode(Transcription.self, from: data)
+        
+        XCTAssertEqual(decoded.fileName, "data.mp3")
+        XCTAssertEqual(decoded.rawTranscript, "JSON export test")
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    func testExportToPDF() throws {
+        let transcription = Transcription(
+            fileName: "document.mp3",
+            rawTranscript: "PDF export test content",
+            status: .completed
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_\(UUID().uuidString).pdf")
+
+        // PDF export uses NSPrintOperation which must be on MainActor
+        try MainActor.assumeIsolated {
+            try exportService.exportToPDF(transcription: transcription, url: tempURL)
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tempURL.path))
+        let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
+        let fileSize = attributes[.size] as? Int64 ?? 0
+        XCTAssertGreaterThan(fileSize, 0)
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    func testExportToDocx() throws {
+        let transcription = Transcription(
+            fileName: "word.mp3",
+            rawTranscript: "DOCX export test content",
+            status: .completed
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_\(UUID().uuidString).docx")
+
+        try exportService.exportToDocx(transcription: transcription, url: tempURL)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tempURL.path))
+        let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
+        let fileSize = attributes[.size] as? Int64 ?? 0
+        XCTAssertGreaterThan(fileSize, 0)
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
     func testReadableTimestampFormatting() {
         XCTAssertEqual(exportService.formatReadableTimestamp(ms: 0), "0:00")
         XCTAssertEqual(exportService.formatReadableTimestamp(ms: 5000), "0:05")
