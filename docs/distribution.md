@@ -16,19 +16,13 @@ This creates `dist/MacParakeet.app` and bundles:
 - Standalone helper binaries (yt-dlp and FFmpeg) into `Contents/Resources/` when configured by the build scripts
 - No Python runtime or `uv` bootstrap is bundled (FluidAudio/CoreML STT is native Swift)
 
-`build_app_bundle.sh` enforces a **portable** FFmpeg binary (no non-system dylib dependencies). If your default Homebrew FFmpeg is Cellar-linked, set `FFMPEG_PATH` explicitly:
+`build_app_bundle.sh` automatically downloads a **statically-linked FFmpeg** from [ffmpeg.martin-riedl.de](https://ffmpeg.martin-riedl.de/) (macOS arm64, SHA256-verified). No Homebrew dependency. To use a custom binary instead, set `FFMPEG_PATH`:
 
 ```bash
-FFMPEG_PATH=/absolute/path/to/portable-ffmpeg scripts/dist/build_app_bundle.sh
+FFMPEG_PATH=/absolute/path/to/static-ffmpeg scripts/dist/build_app_bundle.sh
 ```
 
-Quick portability check:
-
-```bash
-otool -L /absolute/path/to/portable-ffmpeg | grep -Ev '^/System/Library/|^/usr/lib/' || true
-```
-
-Expected: no output from the command above.
+The script verifies the bundled binary has no non-system dylib dependencies (portability check via `otool -L`).
 
 Optional licensing config (recommended for production):
 
@@ -105,8 +99,8 @@ Confirm `content-length`, `last-modified`, and `etag` match the newly uploaded D
 ## Full release workflow
 
 ```bash
-# 1. Build app bundle (ALLOW_NON_PORTABLE_FFMPEG=1 if using Homebrew ffmpeg)
-ALLOW_NON_PORTABLE_FFMPEG=1 scripts/dist/build_app_bundle.sh
+# 1. Build app bundle (auto-downloads static FFmpeg)
+scripts/dist/build_app_bundle.sh
 
 # 2. Sign + notarize (creates .app and .dmg)
 NOTARYTOOL_PROFILE="AC_PASSWORD" scripts/dist/sign_notarize.sh

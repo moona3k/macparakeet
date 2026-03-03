@@ -115,17 +115,12 @@ public actor BinaryBootstrap {
     public nonisolated static func resolveRuntimeFFmpegPath(
         bundledFFmpegPath: String? = AppPaths.bundledFFmpegPath(),
         environment: [String: String] = ProcessInfo.processInfo.environment,
-        bundlePath: String = Bundle.main.bundlePath,
         fileManager: FileManager = .default
     ) -> String? {
         if let bundledFFmpegPath,
            fileManager.isExecutableFile(atPath: bundledFFmpegPath)
         {
             return bundledFFmpegPath
-        }
-
-        guard isLikelySwiftPMRun(bundlePath: bundlePath) else {
-            return nil
         }
 
         if let override = environment["MACPARAKEET_FFMPEG_PATH"]?
@@ -142,6 +137,16 @@ public actor BinaryBootstrap {
         }
 
         return nil
+    }
+
+    /// Find FFmpeg via PATH search only (skips bundled binary).
+    /// Used as a fallback when the bundled FFmpeg fails at runtime (e.g., dyld Team ID mismatch).
+    public nonisolated static func findSystemFFmpeg(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default
+    ) -> String? {
+        let extendedPATH = Self.extendedPATH(from: environment["PATH"])
+        return findExecutable(named: "ffmpeg", inPATH: extendedPATH, fileManager: fileManager)
     }
 
     // MARK: - Private
@@ -291,10 +296,6 @@ public actor BinaryBootstrap {
         let existing = Set(current.split(separator: ":").map(String.init))
         let missing = extras.filter { !existing.contains($0) }
         return ([current] + missing).joined(separator: ":")
-    }
-
-    private nonisolated static func isLikelySwiftPMRun(bundlePath: String) -> Bool {
-        bundlePath.contains("/.build/") || bundlePath.hasSuffix("/debug") || bundlePath.hasSuffix(".xctest")
     }
 
     private nonisolated static func findExecutable(

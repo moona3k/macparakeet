@@ -24,7 +24,8 @@ set -euo pipefail
 #   SKIP_BUILD          (default: 0) reuse existing Release binary if 1
 #   BUILD_SYSTEM        (default: xcodebuild) 'xcodebuild' or 'swiftpm'
 #   XCODE_DERIVED_DATA  (default: .build/xcode-dist) derived data path for xcodebuild
-#   FFMPEG_PATH         (default: /opt/homebrew/bin/ffmpeg) source ffmpeg binary to bundle
+#   FFMPEG_PATH         (default: auto-download static build) source ffmpeg binary to bundle
+#   FFMPEG_VERSION      (default: release) 'release' or 'snapshot' from ffmpeg.martin-riedl.de
 #   ALLOW_NON_PORTABLE_FFMPEG (default: 0) allow bundling ffmpeg with non-system dylib deps
 #   BUNDLE_NODE        (default: 1) bundle Node runtime for yt-dlp
 #   NODE_VERSION       (default: 24.13.1) Node version used when downloading
@@ -159,29 +160,79 @@ else
 fi
 
 # Bundle FFmpeg (required at runtime for media demux/conversion).
-FFMPEG_PATH="${FFMPEG_PATH:-/opt/homebrew/bin/ffmpeg}"
+#
+# By default, downloads a statically-linked build from ffmpeg.martin-riedl.de.
+# Override with FFMPEG_PATH to use your own binary.
+FFMPEG_VERSION="${FFMPEG_VERSION:-release}"
 ALLOW_NON_PORTABLE_FFMPEG="${ALLOW_NON_PORTABLE_FFMPEG:-0}"
-if [[ ! -x "$FFMPEG_PATH" ]]; then
-  echo "Error: FFMPEG_PATH not executable: $FFMPEG_PATH" >&2
-  echo "Set FFMPEG_PATH to a portable/static ffmpeg binary to bundle inside the app (not a Homebrew Cellar-linked build)." >&2
-  exit 1
+
+download_static_ffmpeg() {
+  local version_type="$1"  # "release" or "snapshot"
+  local out="$2"
+  local base_url="https://ffmpeg.martin-riedl.de/redirect/latest/macos/arm64/${version_type}"
+  local tmp_dir
+  tmp_dir="$(mktemp -d)"
+  local zip_path="$tmp_dir/ffmpeg.zip"
+
+  echo "Downloading static FFmpeg (${version_type}) from ffmpeg.martin-riedl.de…"
+  curl -LsSf "${base_url}/ffmpeg.zip" -o "$zip_path"
+
+  # Verify checksum. The redirect resolves to a versioned URL; fetch the
+  # .sha256 file from the same resolved location.
+  local resolved_url
+  resolved_url="$(curl -LsS -o /dev/null -w "%{url_effective}" "${base_url}/ffmpeg.zip")"
+  local expected_sha
+  expected_sha="$(curl -LsSf "${resolved_url}.sha256" | awk '{print $1}')"
+  local actual_sha
+  actual_sha="$(shasum -a 256 "$zip_path" | awk '{print $1}')"
+
+  if [[ -z "$expected_sha" || "$expected_sha" != "$actual_sha" ]]; then
+    echo "Error: FFmpeg SHA256 verification failed." >&2
+    echo "  Expected: $expected_sha" >&2
+    echo "  Actual:   $actual_sha" >&2
+    rm -rf "$tmp_dir"
+    exit 1
+  fi
+  echo "SHA256 verified: $actual_sha"
+
+  unzip -o -q "$zip_path" -d "$tmp_dir/extract"
+  local ffmpeg_bin="$tmp_dir/extract/ffmpeg"
+  if [[ ! -f "$ffmpeg_bin" ]]; then
+    echo "Error: ffmpeg not found inside downloaded zip." >&2
+    rm -rf "$tmp_dir"
+    exit 1
+  fi
+
+  install -m 0755 "$ffmpeg_bin" "$out"
+  rm -rf "$tmp_dir"
+}
+
+if [[ -n "${FFMPEG_PATH:-}" ]]; then
+  # User provided a custom FFmpeg binary.
+  if [[ ! -x "$FFMPEG_PATH" ]]; then
+    echo "Error: FFMPEG_PATH not executable: $FFMPEG_PATH" >&2
+    exit 1
+  fi
+  cp "$FFMPEG_PATH" "$RESOURCES_DIR/ffmpeg"
+  chmod +x "$RESOURCES_DIR/ffmpeg"
+  echo "Bundled FFmpeg from: $FFMPEG_PATH"
+else
+  # Download static FFmpeg (no Homebrew dependencies).
+  download_static_ffmpeg "$FFMPEG_VERSION" "$RESOURCES_DIR/ffmpeg"
+  echo "Bundled static FFmpeg ($FFMPEG_VERSION)"
 fi
 
 # Guard against accidentally bundling Homebrew-linked ffmpeg, which depends on
 # external Cellar dylibs and is not portable across machines.
 if [[ "$ALLOW_NON_PORTABLE_FFMPEG" != "1" ]] && command -v otool >/dev/null 2>&1; then
-  NON_SYSTEM_DEPS="$(otool -L "$FFMPEG_PATH" | tail -n +2 | awk '{print $1}' | grep -Ev '^/System/Library/|^/usr/lib/' | grep -Ev '^\(' || true)"
+  NON_SYSTEM_DEPS="$(otool -L "$RESOURCES_DIR/ffmpeg" | tail -n +2 | awk '{print $1}' | grep -Ev '^/System/Library/|^/usr/lib/' | grep -Ev '^\(' || true)"
   if [[ -n "$NON_SYSTEM_DEPS" ]]; then
-    echo "Error: ffmpeg binary has non-system dylib dependencies and is likely not portable:" >&2
+    echo "Error: bundled ffmpeg has non-system dylib dependencies and is not portable:" >&2
     echo "$NON_SYSTEM_DEPS" >&2
-    echo "Provide a portable/static ffmpeg via FFMPEG_PATH (for example: prebuilt standalone ffmpeg), or set ALLOW_NON_PORTABLE_FFMPEG=1 to override." >&2
+    echo "Use the default auto-download (remove FFMPEG_PATH), provide a static build, or set ALLOW_NON_PORTABLE_FFMPEG=1 to override." >&2
     exit 1
   fi
 fi
-
-cp "$FFMPEG_PATH" "$RESOURCES_DIR/ffmpeg"
-chmod +x "$RESOURCES_DIR/ffmpeg"
-echo "Bundled FFmpeg from: $FFMPEG_PATH"
 
 
 # Optionally bundle `node` for yt-dlp JavaScript runtime support.

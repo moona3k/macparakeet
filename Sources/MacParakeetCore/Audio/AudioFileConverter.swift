@@ -31,16 +31,52 @@ public final class AudioFileConverter: Sendable {
             throw AudioProcessorError.unsupportedFormat(ext)
         }
 
-        // If already a 16kHz mono WAV, still convert to ensure correct format
         let tempDir = try ensureTempDir()
-        let outputURL = tempDir.appendingPathComponent("\(UUID().uuidString).wav")
+        let primaryPath = try findFFmpeg()
 
-        let ffmpegPath = try findFFmpeg()
+        do {
+            return try await runFFmpegConversion(
+                ffmpegPath: primaryPath, inputURL: fileURL, tempDir: tempDir
+            )
+        } catch let error as AudioProcessorError {
+            // If the bundled FFmpeg failed due to dyld (e.g., Team ID mismatch after
+            // code signing), try the system FFmpeg from PATH as a fallback.
+            guard case .conversionFailed(let reason) = error,
+                  reason.contains("dyld") || reason.contains("Library not loaded"),
+                  let fallbackPath = BinaryBootstrap.findSystemFFmpeg(),
+                  fallbackPath != primaryPath
+            else { throw error }
+
+            return try await runFFmpegConversion(
+                ffmpegPath: fallbackPath, inputURL: fileURL, tempDir: tempDir
+            )
+        }
+    }
+
+    /// Build the FFmpeg command arguments (useful for testing)
+    public func ffmpegArguments(inputPath: String, outputPath: String) -> [String] {
+        [
+            "-i", inputPath,
+            "-ar", "16000",
+            "-ac", "1",
+            "-f", "wav",
+            "-acodec", "pcm_f32le",
+            "-y",
+            outputPath
+        ]
+    }
+
+    // MARK: - Private
+
+    private func runFFmpegConversion(
+        ffmpegPath: String, inputURL: URL, tempDir: URL
+    ) async throws -> URL {
+        let outputURL = tempDir.appendingPathComponent("\(UUID().uuidString).wav")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ffmpegPath)
         process.arguments = [
-            "-i", fileURL.path,
+            "-i", inputURL.path,
             "-ar", "16000",      // 16kHz sample rate
             "-ac", "1",          // mono
             "-f", "wav",         // WAV format
@@ -73,21 +109,6 @@ public final class AudioFileConverter: Sendable {
 
         return outputURL
     }
-
-    /// Build the FFmpeg command arguments (useful for testing)
-    public func ffmpegArguments(inputPath: String, outputPath: String) -> [String] {
-        [
-            "-i", inputPath,
-            "-ar", "16000",
-            "-ac", "1",
-            "-f", "wav",
-            "-acodec", "pcm_f32le",
-            "-y",
-            outputPath
-        ]
-    }
-
-    // MARK: - Private
 
     private func ensureTempDir() throws -> URL {
         let tempDir = FileManager.default.temporaryDirectory

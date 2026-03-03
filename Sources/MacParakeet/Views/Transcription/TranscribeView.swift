@@ -3,6 +3,20 @@ import UniformTypeIdentifiers
 import MacParakeetCore
 import MacParakeetViewModels
 
+/// Extract a short, meaningful summary from a potentially long error message.
+/// For dyld/library errors shows "Library loading failed", for other errors
+/// takes the first line, truncated to fit the status pill.
+private func truncateErrorMessage(_ msg: String) -> String {
+    if msg.contains("dyld") || msg.contains("Library not loaded") {
+        return "Library loading failed"
+    }
+    let firstLine = msg.prefix(while: { $0 != "\n" })
+    if firstLine.count > 40 {
+        return String(firstLine.prefix(37)) + "..."
+    }
+    return String(firstLine)
+}
+
 struct TranscribeView: View {
     @Bindable var viewModel: TranscriptionViewModel
     private enum PipelineStep: CaseIterable {
@@ -203,22 +217,29 @@ struct TranscribeView: View {
     // MARK: - Error Banner
 
     private func errorBanner(_ error: String) -> some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 13))
-            Text(error)
-                .font(DesignSystem.Typography.caption)
-                .lineLimit(2)
-            Spacer()
-            Button {
-                viewModel.errorMessage = nil
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 10, weight: .semibold))
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 13))
+                Text(truncateErrorMessage(error))
+                    .font(DesignSystem.Typography.caption)
+                    .lineLimit(2)
+                    .help(error)
+                Spacer()
+                Button {
+                    viewModel.errorMessage = nil
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
+            .foregroundStyle(DesignSystem.Colors.errorRed)
+
+            Text("Hover for details. Report persistent issues via **Feedback** in the sidebar.")
+                .font(DesignSystem.Typography.micro)
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
         }
-        .foregroundStyle(DesignSystem.Colors.errorRed)
         .padding(DesignSystem.Spacing.md)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
@@ -610,10 +631,11 @@ private struct RecentTranscriptionRow: View {
             VStack(alignment: .trailing, spacing: 2) {
                 pillLabel("Failed", icon: "xmark", color: DesignSystem.Colors.errorRed)
                 if let msg = transcription.errorMessage {
-                    Text(msg.count > 30 ? String(msg.prefix(27)) + "..." : msg)
+                    Text(truncateErrorMessage(msg))
                         .font(.system(size: 9))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
+                        .help(msg)
                 }
             }
         case .cancelled:

@@ -199,14 +199,13 @@ final class BinaryBootstrapTests: XCTestCase {
         let resolved = BinaryBootstrap.resolveRuntimeFFmpegPath(
             bundledFFmpegPath: bundledFFmpeg.path,
             environment: [:],
-            bundlePath: "/Applications/MacParakeet.app",
             fileManager: .default
         )
 
         XCTAssertEqual(resolved, bundledFFmpeg.path)
     }
 
-    func testResolveRuntimeFFmpegPathUsesEnvOverrideInSwiftPMRuntime() throws {
+    func testResolveRuntimeFFmpegPathUsesEnvOverride() throws {
         let devDir = rootDir.appendingPathComponent("dev", isDirectory: true)
         try FileManager.default.createDirectory(at: devDir, withIntermediateDirectories: true)
         let ffmpeg = devDir.appendingPathComponent("ffmpeg")
@@ -218,14 +217,13 @@ final class BinaryBootstrapTests: XCTestCase {
                 "MACPARAKEET_FFMPEG_PATH": ffmpeg.path,
                 "PATH": "/usr/bin:/bin"
             ],
-            bundlePath: "/Users/dmoon/code/macparakeet/.build/arm64-apple-macosx/debug/macparakeet-cli",
             fileManager: .default
         )
 
         XCTAssertEqual(resolved, ffmpeg.path)
     }
 
-    func testResolveRuntimeFFmpegPathUsesPATHInSwiftPMRuntime() throws {
+    func testResolveRuntimeFFmpegPathUsesPATHFallback() throws {
         let pathDir = rootDir.appendingPathComponent("path-bin", isDirectory: true)
         try FileManager.default.createDirectory(at: pathDir, withIntermediateDirectories: true)
         let ffmpeg = pathDir.appendingPathComponent("ffmpeg")
@@ -234,24 +232,20 @@ final class BinaryBootstrapTests: XCTestCase {
         let resolved = BinaryBootstrap.resolveRuntimeFFmpegPath(
             bundledFFmpegPath: nil,
             environment: ["PATH": pathDir.path],
-            bundlePath: "/Users/dmoon/code/macparakeet/.build/arm64-apple-macosx/debug/macparakeet-cli",
             fileManager: .default
         )
 
         XCTAssertEqual(resolved, ffmpeg.path)
     }
 
-    func testResolveRuntimeFFmpegPathSkipsPATHOutsideSwiftPMRuntime() throws {
-        let pathDir = rootDir.appendingPathComponent("path-bin", isDirectory: true)
-        try FileManager.default.createDirectory(at: pathDir, withIntermediateDirectories: true)
-        let ffmpeg = pathDir.appendingPathComponent("ffmpeg")
-        try createExecutable(at: ffmpeg)
-
+    func testResolveRuntimeFFmpegPathReturnsNilWhenNothingAvailable() throws {
+        // Use a FileManager that reports no executable files, isolating from
+        // the host system (which may have /opt/homebrew/bin/ffmpeg).
+        let noExecFM = NoExecutableFileManager()
         let resolved = BinaryBootstrap.resolveRuntimeFFmpegPath(
             bundledFFmpegPath: nil,
-            environment: ["PATH": pathDir.path],
-            bundlePath: "/Applications/MacParakeet.app",
-            fileManager: .default
+            environment: ["PATH": rootDir.path],
+            fileManager: noExecFM
         )
 
         XCTAssertNil(resolved)
@@ -320,4 +314,10 @@ final class BinaryBootstrapTests: XCTestCase {
     private static func httpResponse(url: URL, statusCode: Int) -> HTTPURLResponse {
         HTTPURLResponse(url: url, statusCode: statusCode, httpVersion: nil, headerFields: nil)!
     }
+}
+
+/// FileManager subclass that always returns false for isExecutableFile,
+/// isolating tests from whatever is installed on the host system.
+private class NoExecutableFileManager: FileManager {
+    override func isExecutableFile(atPath path: String) -> Bool { false }
 }
