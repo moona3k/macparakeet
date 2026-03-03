@@ -19,6 +19,8 @@ public final class HotkeyManager {
     private var eventTap: CFMachPort?
     private var holdTimer: DispatchWorkItem?
     private var runLoopSource: CFRunLoopSource?
+    /// The run loop the source was installed on, so stop() removes from the correct one.
+    private var installedRunLoop: CFRunLoop?
     /// Edge detection: was the target modifier pressed in the previous event?
     private var targetModifierWasPressed = false
     /// Edge detection for keyCode triggers: true while the trigger key is physically held.
@@ -32,8 +34,15 @@ public final class HotkeyManager {
         self.targetMask = trigger.kind == .modifier ? Self.mask(for: trigger) : nil
     }
 
+    deinit {
+        stop()
+    }
+
     /// Start listening for key events. Requires Accessibility permission.
     public func start() -> Bool {
+        // Guard against double-start: stop existing tap to prevent leaking it
+        if eventTap != nil { stop() }
+
         var eventMask: CGEventMask = (1 << CGEventType.flagsChanged.rawValue)
             | (1 << CGEventType.keyDown.rawValue)
         if trigger.kind == .keyCode {
@@ -46,7 +55,7 @@ public final class HotkeyManager {
             options: .defaultTap,
             eventsOfInterest: eventMask,
             callback: { _, type, event, refcon -> Unmanaged<CGEvent>? in
-                guard let refcon else { return Unmanaged.passRetained(event) }
+                guard let refcon else { return Unmanaged.passUnretained(event) }
                 let manager = Unmanaged<HotkeyManager>.fromOpaque(refcon).takeUnretainedValue()
                 return manager.handleEvent(type: type, event: event)
             },
@@ -57,7 +66,9 @@ public final class HotkeyManager {
 
         eventTap = tap
         runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, .commonModes)
+        let runLoop = CFRunLoopGetCurrent()
+        installedRunLoop = runLoop
+        CFRunLoopAddSource(runLoop, runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
 
         return true
@@ -68,12 +79,13 @@ public final class HotkeyManager {
         if let tap = eventTap {
             CGEvent.tapEnable(tap: tap, enable: false)
         }
-        if let source = runLoopSource {
-            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), source, .commonModes)
+        if let source = runLoopSource, let runLoop = installedRunLoop {
+            CFRunLoopRemoveSource(runLoop, source, .commonModes)
         }
         holdTimer?.cancel()
         eventTap = nil
         runLoopSource = nil
+        installedRunLoop = nil
         targetModifierWasPressed = false
         triggerKeyIsPressed = false
         bareTap = true
@@ -83,6 +95,13 @@ public final class HotkeyManager {
     // MARK: - Private
 
     private func handleEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        // macOS can disable our tap if the callback is slow or for user-input conditions.
+        // Re-enable it to prevent the hotkey from silently dying.
+        if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+            if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
+            return Unmanaged.passUnretained(event)
+        }
+
         switch trigger.kind {
         case .modifier:
             return handleModifierEvent(type: type, event: event)
@@ -102,7 +121,7 @@ public final class HotkeyManager {
 
             // Edge detection: only act on actual transitions of the target modifier
             guard isPressed != targetModifierWasPressed else {
-                return Unmanaged.passRetained(event)
+                return Unmanaged.passUnretained(event)
             }
             targetModifierWasPressed = isPressed
 
@@ -170,14 +189,14 @@ public final class HotkeyManager {
             }
         }
 
-        return Unmanaged.passRetained(event)
+        return Unmanaged.passUnretained(event)
     }
 
     // MARK: - KeyCode Trigger Path
 
     private func handleKeyCodeEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
         guard let triggerCode = trigger.keyCode else {
-            return Unmanaged.passRetained(event)
+            return Unmanaged.passUnretained(event)
         }
 
         let timestampMs = UInt64(event.timestamp / 1_000_000)
@@ -243,7 +262,7 @@ public final class HotkeyManager {
         }
         // flagsChanged events are ignored for keyCode triggers
 
-        return Unmanaged.passRetained(event)
+        return Unmanaged.passUnretained(event)
     }
 
     /// Notify state machine that cancel was triggered via UI (not Esc).

@@ -2,7 +2,10 @@ import Foundation
 
 /// A hotkey trigger that supports both modifier keys and regular key codes.
 /// Replaces the old `TriggerKey` enum with an extensible struct.
-public struct HotkeyTrigger: Equatable, Sendable, Codable {
+///
+/// Only canonical identity (kind + modifierName/keyCode) is persisted.
+/// Display names are derived at runtime from `KeyCodeNames` / modifier lookup.
+public struct HotkeyTrigger: Sendable {
 
     // MARK: - Kind
 
@@ -19,40 +22,62 @@ public struct HotkeyTrigger: Equatable, Sendable, Codable {
         case blocked(String)
     }
 
-    // MARK: - Properties
+    // MARK: - Stored Properties (canonical identity only)
 
     public let kind: Kind
     /// Raw modifier name ("fn", "control", etc.) for `.modifier` kind. Nil for `.keyCode`.
     public let modifierName: String?
     /// CGKeyCode for `.keyCode` kind. Nil for `.modifier`.
     public let keyCode: UInt16?
+
+    // MARK: - Computed Properties (derived at runtime)
+
     /// Human-readable name for UI display (e.g., "Fn", "End", "F13").
-    public let displayName: String
+    public var displayName: String {
+        switch kind {
+        case .modifier:
+            return Self.modifierDisplayNames[modifierName ?? ""]?.displayName ?? modifierName ?? "Unknown"
+        case .keyCode:
+            guard let code = keyCode else { return "Unknown" }
+            return KeyCodeNames.name(for: code).displayName
+        }
+    }
+
     /// Short symbol for compact display (e.g., "fn", "⌃", "End", "F13").
-    public let shortSymbol: String
+    public var shortSymbol: String {
+        switch kind {
+        case .modifier:
+            return Self.modifierDisplayNames[modifierName ?? ""]?.shortSymbol ?? modifierName ?? "?"
+        case .keyCode:
+            guard let code = keyCode else { return "?" }
+            return KeyCodeNames.name(for: code).shortSymbol
+        }
+    }
+
+    /// Modifier name → (displayName, shortSymbol)
+    private static let modifierDisplayNames: [String: (displayName: String, shortSymbol: String)] = [
+        "fn": ("Fn", "fn"),
+        "control": ("Control", "⌃"),
+        "option": ("Option", "⌥"),
+        "shift": ("Shift", "⇧"),
+        "command": ("Command", "⌘"),
+    ]
+
+    // MARK: - Init
+
+    public init(kind: Kind, modifierName: String?, keyCode: UInt16?) {
+        self.kind = kind
+        self.modifierName = modifierName
+        self.keyCode = keyCode
+    }
 
     // MARK: - Modifier Presets
 
-    public static let fn = HotkeyTrigger(
-        kind: .modifier, modifierName: "fn", keyCode: nil,
-        displayName: "Fn", shortSymbol: "fn"
-    )
-    public static let control = HotkeyTrigger(
-        kind: .modifier, modifierName: "control", keyCode: nil,
-        displayName: "Control", shortSymbol: "⌃"
-    )
-    public static let option = HotkeyTrigger(
-        kind: .modifier, modifierName: "option", keyCode: nil,
-        displayName: "Option", shortSymbol: "⌥"
-    )
-    public static let shift = HotkeyTrigger(
-        kind: .modifier, modifierName: "shift", keyCode: nil,
-        displayName: "Shift", shortSymbol: "⇧"
-    )
-    public static let command = HotkeyTrigger(
-        kind: .modifier, modifierName: "command", keyCode: nil,
-        displayName: "Command", shortSymbol: "⌘"
-    )
+    public static let fn = HotkeyTrigger(kind: .modifier, modifierName: "fn", keyCode: nil)
+    public static let control = HotkeyTrigger(kind: .modifier, modifierName: "control", keyCode: nil)
+    public static let option = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil)
+    public static let shift = HotkeyTrigger(kind: .modifier, modifierName: "shift", keyCode: nil)
+    public static let command = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil)
 
     /// All modifier presets for UI iteration.
     public static let modifierPresets: [HotkeyTrigger] = [.fn, .control, .option, .shift, .command]
@@ -61,11 +86,7 @@ public struct HotkeyTrigger: Equatable, Sendable, Codable {
 
     /// Create a trigger from a CGKeyCode.
     public static func fromKeyCode(_ code: UInt16) -> HotkeyTrigger {
-        let names = KeyCodeNames.name(for: code)
-        return HotkeyTrigger(
-            kind: .keyCode, modifierName: nil, keyCode: code,
-            displayName: names.displayName, shortSymbol: names.shortSymbol
-        )
+        HotkeyTrigger(kind: .keyCode, modifierName: nil, keyCode: code)
     }
 
     // MARK: - Validation
@@ -88,10 +109,7 @@ public struct HotkeyTrigger: Equatable, Sendable, Codable {
             return .warned("May interfere with text editing.")
         }
 
-        // Letter keys (A=0..Z, roughly keycodes 0-50 minus the special ones already handled)
-        // Number keys (keycode 18-29 for 1-0)
-        // Rather than enumerate all, warn for codes in the "typing" range that aren't
-        // function/navigation/special keys. Function keys, nav keys, and F13+ are safe.
+        // Function keys, nav keys, and F13+ are safe. Warn everything else.
         let safeKeyCodes: Set<UInt16> = [
             // Function keys
             122, 120, 99, 118, 96, 97, 98, 100, 101, 109, 103, 111,
@@ -149,5 +167,35 @@ public struct HotkeyTrigger: Equatable, Sendable, Codable {
         if let data = try? JSONEncoder().encode(self) {
             defaults.set(data, forKey: Self.defaultsKey)
         }
+    }
+}
+
+// MARK: - Equatable (canonical identity only)
+
+extension HotkeyTrigger: Equatable {
+    public static func == (lhs: HotkeyTrigger, rhs: HotkeyTrigger) -> Bool {
+        lhs.kind == rhs.kind && lhs.modifierName == rhs.modifierName && lhs.keyCode == rhs.keyCode
+    }
+}
+
+// MARK: - Codable (canonical identity only — no displayName/shortSymbol)
+
+extension HotkeyTrigger: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case kind, modifierName, keyCode
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        kind = try container.decode(Kind.self, forKey: .kind)
+        modifierName = try container.decodeIfPresent(String.self, forKey: .modifierName)
+        keyCode = try container.decodeIfPresent(UInt16.self, forKey: .keyCode)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(kind, forKey: .kind)
+        try container.encodeIfPresent(modifierName, forKey: .modifierName)
+        try container.encodeIfPresent(keyCode, forKey: .keyCode)
     }
 }

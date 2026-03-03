@@ -31,6 +31,9 @@ struct HotkeyRecorderView: View {
                 .foregroundStyle(validationIsBlocked ? DesignSystem.Colors.errorRed : DesignSystem.Colors.warningAmber)
             }
         }
+        .onDisappear {
+            stopRecording()
+        }
     }
 
     // MARK: - Normal State
@@ -72,6 +75,9 @@ struct HotkeyRecorderView: View {
     // MARK: - Recording Logic
 
     private func startRecording() {
+        // Guard against double-start leaking the existing monitor
+        if eventMonitor != nil { stopRecording() }
+
         isRecording = true
         validationMessage = nil
         validationIsBlocked = false
@@ -101,25 +107,19 @@ struct HotkeyRecorderView: View {
                     return nil
                 }
             } else if event.type == .flagsChanged {
-                // Detect which modifier was pressed by comparing flags
-                let flags = event.modifierFlags
-                let candidate: HotkeyTrigger?
-
-                if flags.contains(.function) {
-                    candidate = .fn
-                } else if flags.contains(.control) {
-                    candidate = .control
-                } else if flags.contains(.option) {
-                    candidate = .option
-                } else if flags.contains(.shift) {
-                    candidate = .shift
-                } else if flags.contains(.command) {
-                    candidate = .command
-                } else {
-                    candidate = nil
+                // Use event.keyCode to identify which modifier key changed,
+                // not flags.contains — that reports ALL held modifiers, not the one that changed.
+                let candidate: HotkeyTrigger? = switch event.keyCode {
+                case 63, 179:  .fn       // Fn/Globe
+                case 59, 62:   .control  // Left/Right Control
+                case 58, 61:   .option   // Left/Right Option
+                case 56, 60:   .shift    // Left/Right Shift
+                case 55, 54:   .command  // Left/Right Command
+                default:       nil
                 }
 
-                if let candidate {
+                // Only accept on key-down (modifier flag present), ignore key-up
+                if let candidate, !event.modifierFlags.intersection([.function, .control, .option, .shift, .command]).isEmpty {
                     acceptTrigger(candidate, warning: nil)
                     return event // Pass modifier through
                 }
