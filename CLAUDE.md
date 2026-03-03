@@ -594,7 +594,7 @@ These patterns are proven from OatFlow development in Oatmeal. Apply them here.
 | Manual NSApplication.run() | No SwiftUI `App` protocol — manual `NSApplication.shared.run()` for reliable CLI execution without .app bundle. Same pattern as Oatmeal. |
 | NSStatusItem for menu bar | Menu bar via `NSStatusBar.system.statusItem()`, not SwiftUI `MenuBarExtra` |
 | NSWindow + NSHostingView | Main window created programmatically, SwiftUI content hosted via `NSHostingView` |
-| Core library has no UI deps | `MacParakeetCore` imports Foundation + GRDB + FluidAudio, never SwiftUI |
+| Core library has no UI deps | `MacParakeetCore` imports Foundation + GRDB + FluidAudio, never SwiftUI. **Exception:** `ExportService` imports AppKit for PDF/DOCX generation (NSAttributedString, NSPrintOperation) — no Foundation-only alternative exists on macOS. Do not extend this exception to other Core files. |
 | ViewModels in separate target | `MacParakeetViewModels/` — testable without GUI, depends only on Core |
 | Views organized by feature | `Views/Dictation/`, `Views/Transcription/`, not flat |
 | Observable ViewModels | `@MainActor @Observable` on all ViewModels |
