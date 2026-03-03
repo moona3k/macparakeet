@@ -141,6 +141,10 @@ struct SettingsView: View {
 
                 Divider()
 
+                dictationModeGuide
+
+                Divider()
+
                 settingsToggleRow(
                     title: "Auto-stop after silence",
                     detail: "Stops recording when speech pauses for the selected delay.",
@@ -460,6 +464,80 @@ struct SettingsView: View {
             .buttonStyle(.bordered)
             .disabled(isRepairing)
         }
+    }
+
+    // MARK: - Dictation Mode Guide
+
+    private var dictationModeGuide: some View {
+        VStack(spacing: 0) {
+            modeShortcutRow(
+                keys: [viewModel.hotkeyTrigger.shortSymbol, viewModel.hotkeyTrigger.shortSymbol],
+                separator: "+",
+                action: "Persistent dictation",
+                detail: "Tap again to stop"
+            )
+
+            Divider()
+                .padding(.leading, 88)
+
+            modeShortcutRow(
+                keys: [viewModel.hotkeyTrigger.shortSymbol],
+                separator: nil,
+                action: "Push-to-talk",
+                detail: "Release to stop"
+            )
+        }
+        .padding(DesignSystem.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated)
+        )
+    }
+
+    private func modeShortcutRow(keys: [String], separator: String?, action: String, detail: String) -> some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            HStack(spacing: 3) {
+                if keys.count == 2, let sep = separator {
+                    miniSettingsKeyCap(keys[0])
+                    Text(sep)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.tertiary)
+                    miniSettingsKeyCap(keys[1])
+                } else {
+                    Text("Hold")
+                        .font(DesignSystem.Typography.micro)
+                        .foregroundStyle(.secondary)
+                    miniSettingsKeyCap(keys[0])
+                }
+            }
+            .frame(width: 80, alignment: .center)
+
+            Text(action)
+                .font(DesignSystem.Typography.caption)
+
+            Spacer()
+
+            Text(detail)
+                .font(DesignSystem.Typography.micro)
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.vertical, 6)
+    }
+
+    private func miniSettingsKeyCap(_ label: String) -> some View {
+        Text(label)
+            .font(.system(size: 10, weight: .medium, design: .rounded))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(DesignSystem.Colors.cardBackground)
+                    .shadow(color: .black.opacity(0.06), radius: 0.5, x: 0, y: 0.5)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 4)
+                    .strokeBorder(DesignSystem.Colors.border, lineWidth: 0.5)
+            )
     }
 
     // MARK: - Helpers

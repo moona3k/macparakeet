@@ -370,53 +370,157 @@ struct OnboardingFlowView: View {
 
     // MARK: - Hotkey Step
 
+    @State private var doubleTapPhase = 0
+    @State private var holdPhase: CGFloat = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private var hotkeyStep: some View {
         VStack(alignment: .leading, spacing: 14) {
+            // Persistent Mode card
             onboardingCard {
-                VStack(alignment: .leading, spacing: 0) {
-                    hotkeyFlowStep(
-                        number: 1,
-                        key: HotkeyTrigger.current.displayName,
-                        label: "Double-tap \(HotkeyTrigger.current.displayName)",
-                        detail: "Start dictation from any app",
-                        isLast: false
-                    )
-                    hotkeyFlowStep(
-                        number: 2,
-                        key: HotkeyTrigger.current.displayName,
-                        label: "Tap \(HotkeyTrigger.current.displayName) again",
-                        detail: "Stop recording and paste text",
-                        isLast: false
-                    )
-                    hotkeyFlowStep(
-                        number: 3,
-                        key: HotkeyTrigger.current.displayName,
-                        label: "Hold \(HotkeyTrigger.current.displayName)",
-                        detail: "Push-to-talk dictation",
-                        isLast: false
-                    )
-                    hotkeyFlowStep(
-                        number: 4,
-                        key: HotkeyTrigger.current.displayName,
-                        label: "Release \(HotkeyTrigger.current.displayName)",
-                        detail: "Stop recording and paste text",
-                        isLast: false
-                    )
-                    hotkeyFlowStep(
-                        number: 5,
-                        key: "Esc",
-                        label: "Press Escape",
-                        detail: "Cancel (5-second undo window)",
-                        isLast: true
-                    )
+                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                    doubleTapIllustration
+                        .frame(width: 80)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Persistent Mode")
+                            .font(DesignSystem.Typography.micro)
+                            .foregroundStyle(DesignSystem.Colors.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
+
+                        Text("Double-tap \(HotkeyTrigger.current.shortSymbol)")
+                            .font(DesignSystem.Typography.sectionTitle)
+
+                        Text("Starts persistent recording.\nTap \(HotkeyTrigger.current.shortSymbol) again to stop and paste.")
+                            .font(DesignSystem.Typography.bodySmall)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                 }
                 .padding(DesignSystem.Spacing.lg)
+            }
+
+            // Push-to-Talk card
+            onboardingCard {
+                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                    holdIllustration
+                        .frame(width: 80)
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Push-to-Talk")
+                            .font(DesignSystem.Typography.micro)
+                            .foregroundStyle(DesignSystem.Colors.accent)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
+
+                        Text("Hold \(HotkeyTrigger.current.shortSymbol)")
+                            .font(DesignSystem.Typography.sectionTitle)
+
+                        Text("Records while you hold the key.\nRelease to stop and paste.")
+                            .font(DesignSystem.Typography.bodySmall)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .padding(DesignSystem.Spacing.lg)
+            }
+
+            // Escape row
+            HStack(spacing: 10) {
+                keyCap("Esc")
+                Text("Press Escape to cancel")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                Text("·")
+                    .foregroundStyle(.tertiary)
+                Text("5-second undo window")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.tertiary)
             }
 
             Text("Tip: If your keyboard doesn't send \(HotkeyTrigger.current.displayName) events, you can still use file transcription from the main app window.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }
+        .onAppear { startAnimations() }
+        .onDisappear { stopAnimations() }
+    }
+
+    // MARK: - Hotkey Gesture Illustrations
+
+    @State private var animationTask: Task<Void, Never>?
+
+    private var doubleTapIllustration: some View {
+        HStack(spacing: 4) {
+            keyCap(HotkeyTrigger.current.shortSymbol)
+                .scaleEffect(doubleTapPhase == 1 ? 0.9 : 1.0)
+                .opacity(doubleTapPhase == 1 ? 1.0 : 0.5)
+            Text("·")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundStyle(.tertiary)
+            keyCap(HotkeyTrigger.current.shortSymbol)
+                .scaleEffect(doubleTapPhase == 2 ? 0.9 : 1.0)
+                .opacity(doubleTapPhase == 2 ? 1.0 : 0.5)
+        }
+        .animation(.easeInOut(duration: 0.15), value: doubleTapPhase)
+    }
+
+    private var holdIllustration: some View {
+        VStack(spacing: 6) {
+            keyCap(HotkeyTrigger.current.shortSymbol)
+                .scaleEffect(holdPhase > 0 ? 0.93 : 1.0)
+                .opacity(holdPhase > 0 ? 1.0 : 0.5)
+                .animation(.easeInOut(duration: 0.15), value: holdPhase > 0)
+
+            // Hold bar that grows
+            GeometryReader { geo in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(DesignSystem.Colors.accent.opacity(0.5))
+                    .frame(width: geo.size.width * (reduceMotion ? 1.0 : holdPhase))
+                    .animation(.linear(duration: holdPhase > 0 ? 1.0 : 0.15), value: holdPhase)
+            }
+            .frame(height: 4)
+        }
+    }
+
+    private func startAnimations() {
+        guard !reduceMotion else { return }
+        animationTask?.cancel()
+        animationTask = Task { @MainActor in
+            while !Task.isCancelled {
+                // Double-tap: press, pause, press
+                doubleTapPhase = 1
+                try? await Task.sleep(for: .milliseconds(200))
+                guard !Task.isCancelled else { break }
+                doubleTapPhase = 0
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled else { break }
+                doubleTapPhase = 2
+                try? await Task.sleep(for: .milliseconds(200))
+                guard !Task.isCancelled else { break }
+                doubleTapPhase = 0
+
+                // Hold: press and grow bar
+                holdPhase = 0.01 // trigger "pressed" state
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { break }
+                holdPhase = 1.0
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled else { break }
+                holdPhase = 0
+
+                // Pause before repeat
+                try? await Task.sleep(for: .seconds(1.5))
+            }
+        }
+    }
+
+    private func stopAnimations() {
+        animationTask?.cancel()
+        animationTask = nil
     }
 
     // MARK: - Engine Setup
@@ -613,43 +717,6 @@ struct OnboardingFlowView: View {
         }
     }
 
-    private func hotkeyFlowStep(number: Int, key: String, label: String, detail: String, isLast: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 14) {
-                // Number circle
-                Text("\(number)")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(DesignSystem.Colors.accent)
-                    .frame(width: 24, height: 24)
-                    .background(
-                        Circle()
-                            .fill(DesignSystem.Colors.accent.opacity(0.1))
-                    )
-
-                // Key cap
-                keyCap(key)
-
-                // Label + detail
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(label)
-                        .font(.system(size: 14, weight: .semibold))
-                    Text(detail)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            // Connecting line
-            if !isLast {
-                Rectangle()
-                    .fill(DesignSystem.Colors.border)
-                    .frame(width: 1, height: 16)
-                    .padding(.leading, 12) // center under number circle
-                    .padding(.vertical, 4)
-            }
-        }
-    }
-
     private func keyCap(_ label: String) -> some View {
         Text(label)
             .font(.system(size: 12, weight: .medium, design: .rounded))
@@ -746,7 +813,7 @@ struct OnboardingFlowView: View {
         case .accessibility:
             return "Accessibility is required for the global hotkey and reliable paste automation."
         case .hotkey:
-            return "You can start dictating from any app without switching context."
+            return "Two ways to dictate — pick whichever feels natural."
         case .engine:
             return "Download and warm up the Parakeet speech model so all features are ready. First setup needs internet once."
         case .done:
