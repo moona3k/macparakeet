@@ -129,27 +129,37 @@ struct FeedbackView: View {
     }
 
     private var formContent: some View {
-        VStack(spacing: DesignSystem.Spacing.md) {
+        VStack(spacing: DesignSystem.Spacing.lg) {
             // Message (hero — the only required field)
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                 Text("Message")
                     .font(DesignSystem.Typography.body)
-                TextEditor(text: $viewModel.message)
-                    .font(DesignSystem.Typography.body)
-                    .scrollContentBackground(.hidden)
-                    .padding(DesignSystem.Spacing.sm)
-                    .frame(minHeight: 100)
-                    .background(
-                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                            .fill(DesignSystem.Colors.surfaceElevated)
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                            .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
-                    )
+                    .fontWeight(.medium)
+                
+                ZStack(alignment: .topLeading) {
+                    TextEditor(text: $viewModel.message)
+                        .font(DesignSystem.Typography.body)
+                        .scrollContentBackground(.hidden)
+                        .padding(DesignSystem.Spacing.sm)
+                        .frame(minHeight: 100)
+                        .background(
+                            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                .fill(DesignSystem.Colors.contentBackground)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
+                        )
+                    
+                    if viewModel.message.isEmpty {
+                        Text("Describe the issue, share an idea, or just say hello...")
+                            .font(DesignSystem.Typography.body)
+                            .foregroundStyle(.tertiary)
+                            .padding(DesignSystem.Spacing.sm + 5)
+                            .allowsHitTesting(false)
+                    }
+                }
             }
-
-            Divider()
 
             // Email + Screenshot side-by-side (both optional, visually secondary)
             HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
@@ -157,6 +167,7 @@ struct FeedbackView: View {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     Text("Email (optional)")
                         .font(DesignSystem.Typography.body)
+                        .fontWeight(.medium)
                     TextField("you@example.com", text: $viewModel.email)
                         .textFieldStyle(.roundedBorder)
                     Text("Only if you'd like a reply.")
@@ -169,6 +180,7 @@ struct FeedbackView: View {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     Text("Screenshot (optional)")
                         .font(DesignSystem.Typography.body)
+                        .fontWeight(.medium)
 
                     if let filename = viewModel.screenshotFilename {
                         screenshotAttachedPill(filename)
@@ -199,8 +211,6 @@ struct FeedbackView: View {
                 }
             }
 
-            Divider()
-
             // System info disclosure
             DisclosureGroup("System Info", isExpanded: $viewModel.showSystemInfo) {
                 Text(viewModel.systemInfo.displaySummary)
@@ -210,10 +220,11 @@ struct FeedbackView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(
                         RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                            .fill(DesignSystem.Colors.surfaceElevated)
+                            .fill(DesignSystem.Colors.contentBackground.opacity(0.5))
                     )
             }
             .font(DesignSystem.Typography.body)
+            .padding(.top, DesignSystem.Spacing.sm)
 
             // Error banner
             if case .error(let errorMessage) = viewModel.submissionState {
@@ -235,6 +246,7 @@ struct FeedbackView: View {
                 .tint(DesignSystem.Colors.accent)
                 .disabled(!viewModel.canSubmit)
             }
+            .padding(.top, DesignSystem.Spacing.sm)
         }
     }
 
