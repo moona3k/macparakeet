@@ -352,7 +352,7 @@ struct OnboardingFlowView: View {
                 featureRow(
                     icon: "mic.fill",
                     title: "Dictate anywhere",
-                    detail: "Double-tap \(TriggerKey.current.displayName) for persistent dictation, or hold-to-talk and release to stop. Text appears where your cursor is."
+                    detail: "Double-tap \(HotkeyTrigger.current.displayName) for persistent dictation, or hold-to-talk and release to stop. Text appears where your cursor is."
                 )
                 featureRow(
                     icon: "bolt.fill",
@@ -376,29 +376,29 @@ struct OnboardingFlowView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     hotkeyFlowStep(
                         number: 1,
-                        key: TriggerKey.current.displayName,
-                        label: "Double-tap \(TriggerKey.current.displayName)",
+                        key: HotkeyTrigger.current.displayName,
+                        label: "Double-tap \(HotkeyTrigger.current.displayName)",
                         detail: "Start dictation from any app",
                         isLast: false
                     )
                     hotkeyFlowStep(
                         number: 2,
-                        key: TriggerKey.current.displayName,
-                        label: "Tap \(TriggerKey.current.displayName) again",
+                        key: HotkeyTrigger.current.displayName,
+                        label: "Tap \(HotkeyTrigger.current.displayName) again",
                         detail: "Stop recording and paste text",
                         isLast: false
                     )
                     hotkeyFlowStep(
                         number: 3,
-                        key: TriggerKey.current.displayName,
-                        label: "Hold \(TriggerKey.current.displayName)",
+                        key: HotkeyTrigger.current.displayName,
+                        label: "Hold \(HotkeyTrigger.current.displayName)",
                         detail: "Push-to-talk dictation",
                         isLast: false
                     )
                     hotkeyFlowStep(
                         number: 4,
-                        key: TriggerKey.current.displayName,
-                        label: "Release \(TriggerKey.current.displayName)",
+                        key: HotkeyTrigger.current.displayName,
+                        label: "Release \(HotkeyTrigger.current.displayName)",
                         detail: "Stop recording and paste text",
                         isLast: false
                     )
@@ -413,7 +413,7 @@ struct OnboardingFlowView: View {
                 .padding(DesignSystem.Spacing.lg)
             }
 
-            Text("Tip: If your keyboard doesn't send \(TriggerKey.current.displayName) events, you can still use file transcription from the main app window.")
+            Text("Tip: If your keyboard doesn't send \(HotkeyTrigger.current.displayName) events, you can still use file transcription from the main app window.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }
@@ -546,7 +546,7 @@ struct OnboardingFlowView: View {
 
             onboardingCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    quickTip(icon: "mic.fill", text: "Double-tap \(TriggerKey.current.displayName) to start dictating anywhere")
+                    quickTip(icon: "mic.fill", text: "Double-tap \(HotkeyTrigger.current.displayName) to start dictating anywhere")
                     quickTip(icon: "doc.fill", text: "Drop an audio file onto the main window to transcribe")
                     quickTip(icon: "gearshape", text: "Visit Settings to customize your experience")
                 }

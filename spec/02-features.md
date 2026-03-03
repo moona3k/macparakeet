@@ -102,7 +102,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 
 **Activation — Configurable Hotkey:**
 
-The hotkey (default: `Fn`, configurable to Control, Option, Shift, or Command in Settings) serves as the universal activation trigger with two coexisting modes:
+The hotkey (default: `Fn`, configurable to any single key via a "record a shortcut" UI in Settings) serves as the universal activation trigger with two coexisting modes:
 
 | Mode | Gesture | Behavior |
 |------|---------|----------|
@@ -112,13 +112,16 @@ The hotkey (default: `Fn`, configurable to Control, Option, Shift, or Command in
 Both modes coexist with no configuration required. The 400ms threshold distinguishes taps from holds.
 
 **Implementation:**
-- `CGEvent` tap for `flagsChanged` events (modifier keys generate flag changes)
-- `TriggerKey` enum maps the selected key to the correct `CGEventFlags` mask
-- Edge detection: only fire on actual transitions of the target modifier flag
-- Bare-tap filtering: if a regular key is pressed while the modifier is held (e.g., Ctrl+C), the release is not counted as a tap — prevents keyboard shortcuts from triggering dictation
+- `CGEvent` tap for system-wide key event interception
+- `HotkeyTrigger` struct with `.modifier` / `.keyCode` kind discriminator (see ADR-009)
+- Modifier triggers: `flagsChanged` events with `CGEventFlags` mask, bare-tap filtering
+- KeyCode triggers: `keyDown`/`keyUp` events with event swallowing, edge detection via `triggerKeyIsPressed` boolean
+- Edge detection: only fire on actual transitions of the target key state
+- Bare-tap filtering (modifiers only): if a regular key is pressed while the modifier is held (e.g., Ctrl+C), the release is not counted as a tap — prevents keyboard shortcuts from triggering dictation
 - Gesture interruption: if a non-Escape key is pressed during `waitingForSecondTap`, the state machine resets — prevents double-tap detection across typing
-- On modifier-down: schedule a 400ms `DispatchWorkItem`. If a second tap arrives before it fires, enter double-tap (persistent mode). If the timer fires with the key still held, enter hold-mode and begin recording.
-- On modifier-up: if hold timer still pending, cancel it (was a quick tap). If recording in hold-mode, auto-stop and process.
+- On key-down: schedule a 400ms `DispatchWorkItem`. If a second tap arrives before it fires, enter double-tap (persistent mode). If the timer fires with the key still held, enter hold-mode and begin recording.
+- On key-up: if hold timer still pending, cancel it (was a quick tap). If recording in hold-mode, auto-stop and process.
+- Escape is permanently reserved for cancel-dictation and cannot be assigned as hotkey
 - Requires Accessibility permission (prompted on first activation).
 - Stop orchestration is state-driven (proceed, defer-until-recording, reject-not-recording) to avoid first-start races when stop arrives before `startRecording()` fully transitions to `.recording`.
 - Duplicate stop requests are ignored while a stop/cancel/undo overlay action is already in-flight (idempotent stop behavior).
@@ -276,7 +279,7 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
 **Acceptance criteria:**
 - [x] Double-tap hotkey activates persistent recording from any app
 - [x] Hold hotkey (> 400ms) activates hold-mode, release auto-stops and pastes
-- [x] Hotkey trigger configurable (Fn, Control, Option, Shift, Command) with bare-tap filtering
+- [x] Hotkey trigger configurable to any single key (modifiers, function keys, navigation keys, etc.) via record-a-shortcut UI
 - [x] Overlay appears at bottom-center with waveform animation
 - [x] Hover tooltips display correctly on non-activating panel
 - [ ] Parakeet transcribes with <500ms end-to-end latency for short dictations
@@ -572,7 +575,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 │                                                                  │
 │ DICTATION                                                        │
 │ ┌──────────────────────────────────────────────────────────────┐ │
-│ │ Hotkey: [fn Fn ▾]  (double-tap / hold)                      │ │
+│ │ Hotkey: [fn Fn   Change...]  (double-tap / hold)            │ │
 │ │                                                              │ │
 │ │ Stop mode:                                                   │ │
 │ │   ( ) Auto-stop after silence     Delay: [2 sec ▾]          │ │
@@ -608,7 +611,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 | Setting | Options | Default |
 |---------|---------|---------|
 | Launch at login | On / Off | Off |
-| Dictation hotkey | Configurable (Fn, Option, etc.) | Fn (double-tap / hold) |
+| Dictation hotkey | Any single key (record-a-shortcut UI) | Fn (double-tap / hold) |
 | Stop mode | Auto-stop after silence / Manual | Manual |
 | Silence delay | 1s, 1.5s, 2s, 3s, 5s | 2s |
 | Save audio recordings | On / Off | On |
@@ -617,7 +620,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 
 **Acceptance criteria:**
 - [x] All settings persist across app restarts (UserDefaults or GRDB)
-- [x] Hotkey can be changed to alternative keys (Fn, Control, Option, Shift, Command)
+- [x] Hotkey can be changed to any single key (modifiers, function keys, navigation keys, etc.) via record-a-shortcut UI
 - [x] Stop mode switch works correctly for both modes
 - [x] Storage toggle controls whether audio files are saved
 - [x] YouTube storage toggle controls whether downloaded URL audio is kept after transcription

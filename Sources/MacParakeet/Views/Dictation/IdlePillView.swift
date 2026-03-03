@@ -66,7 +66,7 @@ struct IdlePillView: View {
             Text("Click or hold ")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.white.opacity(0.9))
-            Text(TriggerKey.current.shortSymbol)
+            Text(HotkeyTrigger.current.shortSymbol)
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color(nsColor: NSColor(red: 0.85, green: 0.55, blue: 0.75, alpha: 1.0)))
             Text(" to start dictating")

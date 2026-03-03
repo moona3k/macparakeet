@@ -277,7 +277,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Hotkey
 
     private func setupHotkey() {
-        let manager = HotkeyManager(triggerKey: TriggerKey.current)
+        let manager = HotkeyManager(trigger: HotkeyTrigger.current)
 
         manager.onStartRecording = { [weak self] mode in
             self?.startDictation(mode: mode)
@@ -355,7 +355,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private var hotkeyMenuTitle: String {
-        "Hotkey: \(TriggerKey.current.displayName) (double-tap / hold)"
+        "Hotkey: \(HotkeyTrigger.current.displayName) (double-tap / hold)"
     }
 
     private func maybeShowOnboarding() {

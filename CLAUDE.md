@@ -115,6 +115,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-006 | Trial + license key activation | `spec/adr/006-trial-and-license-activation.md` |
 | ADR-007 | FluidAudio CoreML migration (Python elimination) | `spec/adr/007-fluidaudio-coreml-migration.md` |
 | ADR-008 | Local LLM runtime baseline (historical — removed) | `spec/adr/008-local-llm-runtime-and-model.md` |
+| ADR-009 | Custom hotkey support (any single key) | `spec/adr/009-custom-hotkey.md` |
 
 ## Current Phase
 

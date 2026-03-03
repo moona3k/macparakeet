@@ -128,14 +128,7 @@ struct SettingsView: View {
                         detail: "System-wide key used to start and stop dictation."
                     )
                     Spacer(minLength: DesignSystem.Spacing.md)
-                    Picker("Hotkey", selection: $viewModel.hotkeyTrigger) {
-                        ForEach(TriggerKey.allCases, id: \.rawValue) { key in
-                            Text("\(key.shortSymbol) \(key.displayName)").tag(key.rawValue)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.menu)
-                    .frame(width: 170)
+                    HotkeyRecorderView(trigger: $viewModel.hotkeyTrigger)
                 }
 
                 Divider()

@@ -370,6 +370,37 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.parakeetStatus, .ready)
     }
 
+    // MARK: - Hotkey Trigger
+
+    func testHotkeyTriggerDefaultsToFn() {
+        XCTAssertEqual(viewModel.hotkeyTrigger, .fn)
+    }
+
+    func testHotkeyTriggerPersistsKeyCode() {
+        let endKey = HotkeyTrigger.fromKeyCode(119)
+        viewModel.hotkeyTrigger = endKey
+
+        let vm2 = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(vm2.hotkeyTrigger, endKey)
+        XCTAssertEqual(vm2.hotkeyTrigger.displayName, "End")
+    }
+
+    func testHotkeyTriggerPersistsModifier() {
+        viewModel.hotkeyTrigger = .control
+
+        let vm2 = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(vm2.hotkeyTrigger, .control)
+    }
+
+    func testHotkeyTriggerBackwardCompatibleWithLegacyString() {
+        // Simulate a legacy UserDefaults value from the old TriggerKey enum
+        testDefaults.set("option", forKey: "hotkeyTrigger")
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(vm.hotkeyTrigger, .option)
+        XCTAssertEqual(vm.hotkeyTrigger.displayName, "Option")
+    }
+
     // MARK: - Round-trip
 
     func testSettingsRoundTrip() {

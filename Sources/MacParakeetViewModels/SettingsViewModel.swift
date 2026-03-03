@@ -26,9 +26,9 @@ public final class SettingsViewModel {
     }
 
     // Dictation
-    public var hotkeyTrigger: String {
+    public var hotkeyTrigger: HotkeyTrigger {
         didSet {
-            defaults.set(hotkeyTrigger, forKey: "hotkeyTrigger")
+            hotkeyTrigger.save(to: defaults)
             NotificationCenter.default.post(name: Notification.Name("macparakeet.hotkeyTriggerDidChange"), object: nil)
         }
     }
@@ -105,7 +105,7 @@ public final class SettingsViewModel {
         self.isSpeechModelCached = isSpeechModelCached
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
         menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
-        hotkeyTrigger = defaults.string(forKey: "hotkeyTrigger") ?? "fn"
+        hotkeyTrigger = HotkeyTrigger.current(defaults: defaults)
         silenceAutoStop = defaults.bool(forKey: "silenceAutoStop")
         let delay = defaults.double(forKey: "silenceDelay")
         silenceDelay = delay == 0 ? 2.0 : delay
