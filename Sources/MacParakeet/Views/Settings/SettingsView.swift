@@ -248,40 +248,13 @@ struct SettingsView: View {
             subtitle: "Parakeet powers all speech recognition on your Mac.",
             icon: "cpu"
         ) {
-            VStack(spacing: DesignSystem.Spacing.md) {
-                modelStatusRow(
-                    title: "Parakeet (Speech)",
-                    detail: viewModel.parakeetStatusDetail,
-                    status: viewModel.parakeetStatus,
-                    isRepairing: viewModel.parakeetRepairing
-                ) {
-                    viewModel.repairParakeetModel()
-                }
-
-                Divider()
-
-                HStack {
-                    if let updatedAt = viewModel.modelStatusUpdatedAt {
-                        Text("Updated \(updatedAt.formatted(date: .omitted, time: .shortened))")
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button("Check Now") {
-                        viewModel.refreshModelStatus()
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(viewModel.parakeetRepairing)
-
-                    Button("Repair") {
-                        viewModel.repairParakeetModel()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(DesignSystem.Colors.accent)
-                    .disabled(viewModel.parakeetRepairing)
-                }
+            modelStatusRow(
+                title: "Parakeet (Speech)",
+                detail: viewModel.parakeetStatusDetail,
+                status: viewModel.parakeetStatus,
+                isRepairing: viewModel.parakeetRepairing
+            ) {
+                viewModel.repairParakeetModel()
             }
         }
     }

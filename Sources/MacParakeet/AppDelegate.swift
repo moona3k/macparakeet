@@ -186,9 +186,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
 
-        guard let button = statusItem?.button else { return }
+        guard let statusItem = statusItem,
+              let button = statusItem.button else { return }
 
         button.image = BreathWaveIcon.menuBarIcon(pointSize: 18)
+
+        let dropView = MenuBarDropView(frame: button.bounds)
+        dropView.onDrop = { [weak self] url in
+            Task { @MainActor in
+                self?.openMainWindow()
+                self?.transcriptionViewModel.transcribeFile(url: url)
+                SoundManager.shared.play(.fileDropped)
+            }
+        }
+        button.addSubview(dropView)
 
         let menu = NSMenu()
 
@@ -223,7 +234,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: "q"
         ))
 
-        statusItem?.menu = menu
+        statusItem.menu = menu
     }
 
     // MARK: - Environment Setup

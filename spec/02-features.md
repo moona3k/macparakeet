@@ -388,7 +388,7 @@ Display in scrollable result view
 
 **Acceptance criteria:**
 - [x] Drag-and-drop file onto app window triggers transcription
-- [ ] Drag-and-drop onto menu bar icon triggers transcription
+- [x] Drag-and-drop onto menu bar icon triggers transcription
 - [x] Click "Browse Files" opens file picker
 - [x] Progress indicator shows during transcription with estimated time
 - [x] Result displayed in scrollable text view with timestamps

@@ -79,7 +79,6 @@ public final class SettingsViewModel {
     public var parakeetStatus: LocalModelStatus = .unknown
     public var parakeetStatusDetail: String = "Not checked yet."
     public var parakeetRepairing = false
-    public var modelStatusUpdatedAt: Date?
 
     // Licensing / entitlements
     public var entitlementsSummary: String = ""
@@ -184,7 +183,6 @@ public final class SettingsViewModel {
         guard let sttClient else {
             parakeetStatus = .unknown
             parakeetStatusDetail = "Unavailable in this runtime."
-            modelStatusUpdatedAt = nil
             return
         }
 
@@ -207,7 +205,6 @@ public final class SettingsViewModel {
                     self.parakeetStatusDetail = "Not downloaded yet."
                 }
 
-                self.modelStatusUpdatedAt = Date()
             }
         }
     }
@@ -247,9 +244,6 @@ public final class SettingsViewModel {
         }
     }
 
-    public func repairAllModels() {
-        repairParakeetModel()
-    }
 
     public func activateLicense() {
         guard let service = entitlementsService else { return }
