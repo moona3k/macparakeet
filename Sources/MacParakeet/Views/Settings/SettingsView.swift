@@ -513,13 +513,13 @@ struct SettingsView: View {
             .frame(width: 80, alignment: .center)
 
             Text(action)
-                .font(DesignSystem.Typography.caption)
+                .font(DesignSystem.Typography.bodySmall.weight(.medium))
 
             Spacer()
 
             Text(detail)
-                .font(DesignSystem.Typography.micro)
-                .foregroundStyle(.tertiary)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
         }
         .padding(.vertical, 6)
     }
