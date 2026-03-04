@@ -97,7 +97,7 @@ An LLM-based approach would require prompt engineering to respect user-defined w
 
 - Clean mode cannot handle complex transformations (e.g., "rewrite this more formally" requires LLM)
 - Custom words require manual setup by users (vs LLM learning from context)
-- Pipeline rules are English-centric; future language support would need per-language rules
+- Pipeline rules are English-optimized; STT supports 25 European languages but clean mode processing (filler removal, snippets) is English-only. Per-language filler lists and rules needed for clean mode in other languages.
 - Advanced modes (formal, email, code) still require LLM, with associated latency
 
 ### Implementation Notes

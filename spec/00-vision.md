@@ -446,7 +446,7 @@ Ship-quality polish. App Store submission.
 - Marketing site (macparakeet.com)
 - In-app purchase integration (Free/Pro tiers)
 - Accessibility (VoiceOver, keyboard navigation)
-- Localization (English first, structure for future languages)
+- UI Localization (English UI first, structure for future languages; STT already supports 25 European languages)
 
 ---
 

@@ -33,6 +33,7 @@ Drag any audio or video file → get a transcript in seconds.
 | **Speed** | 155x realtime | Varies (server) | 15-30x | 15-30x |
 | **Price** | $49 once | $12-15/month | $30 Pro | $250 lifetime |
 | **Privacy** | Zero cloud | Audio uploaded | Local | Local |
+| **Languages** | 10+ European | 104+ | 100+ | 20+ |
 | **STT Engine** | Parakeet | Whisper (cloud) | Whisper + Parakeet | Whisper |
 
 ## Features
@@ -40,6 +41,7 @@ Drag any audio or video file → get a transcript in seconds.
 ### Implemented (v0.1 + v0.2 + partial v0.3)
 
 - **Blazing Fast** — Parakeet TDT STT, fully local
+- **Multilingual** — 10+ European languages including Spanish, French, German, Italian, Portuguese, and Russian
 - **100% Private** — Audio never leaves your Mac. No accounts. No tracking.
 - **System-Wide Dictation** — Configurable hotkey (Fn default), double-tap (persistent) + hold-to-talk
 - **File Transcription** — Drag-drop audio/video files, word timestamps

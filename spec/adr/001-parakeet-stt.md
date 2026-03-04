@@ -16,7 +16,7 @@ The two leading local STT options are:
 | Whisper (various sizes) | 15-30x realtime | 7-12% | ONNX, CoreML, MLX |
 | Parakeet TDT 0.6B-v3 | ~300x realtime | ~6.3% | MLX (Apple Silicon native) |
 
-Whisper has broader ecosystem support and language coverage, but Parakeet is faster, more accurate for English, and better optimized for Apple Silicon via MLX.
+Whisper has broader ecosystem support and language coverage (100+ languages including CJK), but Parakeet is faster, more accurate for English, and better optimized for Apple Silicon. Parakeet TDT v3 supports 25 European languages natively with auto-detection, though accuracy varies by language (~3-5% WER for English/Italian/Spanish/Portuguese, ~6-12% for French/German/Russian, higher for others).
 
 ## Decision
 
@@ -53,7 +53,7 @@ At 0.6B parameters (quantized to ~600MB on disk, ~1.5GB downloaded with tokenize
 ### Positive
 
 - Sub-second transcription for typical dictation segments
-- Better accuracy than Whisper for English technical content
+- Better accuracy than Whisper for English and major European languages
 - Native Apple Silicon performance via MLX
 - Compact model size (~1.5GB download)
 - Word-level timestamps and confidence scores included
@@ -63,7 +63,7 @@ At 0.6B parameters (quantized to ~600MB on disk, ~1.5GB downloaded with tokenize
 - **Requires Python daemon**: The parakeet-mlx library is Python-based, requiring a Python runtime managed by `uv`. This adds complexity to the app bundle and first-launch experience.
 - **~1.5GB model download**: Users must download the model on first launch. Must handle this gracefully with progress indication and offline fallback messaging.
 - **Apple Silicon only**: No Intel Mac support. This is acceptable given Apple Silicon's market penetration (all Macs since late 2020) and our target audience.
-- **English-primary**: Parakeet TDT 0.6B-v3 is optimized for English. Multilingual support would require Whisper as a fallback (not planned for v1).
+- **European languages only**: Parakeet TDT 0.6B-v3 supports 25 European languages natively with auto-detection, but does not cover CJK, Arabic, Hindi, or other non-European languages. Supporting those would require Whisper as a fallback.
 
 ### Implementation Notes
 

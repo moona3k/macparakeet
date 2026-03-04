@@ -44,7 +44,7 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 | Platform | macOS 14.2+ | Apple Silicon only |
 | Language | Swift 6.0 | SwiftUI for UI |
 | Database | SQLite | GRDB (single file, dictation history + transcriptions) |
-| STT | Parakeet TDT 0.6B-v3 | Via FluidAudio CoreML/ANE (~2.5% WER, 155x realtime) |
+| STT | Parakeet TDT 0.6B-v3 | Via FluidAudio CoreML/ANE (~2.5% WER, 155x realtime, 25 European languages) |
 | Audio | AVAudioEngine + Core Audio | Mic capture for dictation; FFmpeg (bundled) for video file conversion |
 | YouTube | yt-dlp | Standalone macOS binary, weekly non-blocking auto-update via `--update` |
 | Licensing | LemonSqueezy | License key activation, validation API |

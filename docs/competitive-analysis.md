@@ -246,6 +246,37 @@ MacParakeet's opportunity is to be the first app that nails all four. WisprFlow 
 
 ---
 
+### SpeakMac
+
+**Budget local dictation. $19 one-time.**
+
+| Attribute | Details |
+|-----------|---------|
+| Pricing | $19 one-time (Personal), $29 (Pro, 2 Macs) |
+| STT engine | Undisclosed (local, likely Whisper-based) |
+| Processing | Local only |
+| Platform | macOS only (Apple Silicon) |
+
+**Strengths:**
+- Cheapest one-time purchase in the market ($19)
+- 100% local, no accounts
+- Custom words and snippets
+- 25+ language support
+
+**Weaknesses:**
+- **No file transcription**: Dictation only -- cannot transcribe audio or video files.
+- **Opaque STT engine**: Does not disclose which model is used. No accuracy benchmarks published.
+- **No YouTube transcription**: No file-based workflow at all.
+- **Minimal community presence**: No GitHub, limited reviews.
+
+**Our advantage over SpeakMac:**
+- Parakeet-first with published benchmarks (~2.5% WER, 155x realtime)
+- File transcription (audio, video, YouTube URLs)
+- More feature-rich (export formats, dictation history, processing pipeline)
+- Transparent tech stack
+
+---
+
 ## Feature Comparison Matrix
 
 | Feature | MacParakeet | WisprFlow | MacWhisper | Superwhisper | VoiceInk | Spokenly | BetterDictation | Voibe |
@@ -263,7 +294,7 @@ MacParakeet's opportunity is to be the first app that nails all four. WisprFlow 
 | **Custom words** | Yes | Yes (auto-learn) | Yes | Yes | Yes | Yes | No | No |
 | **Text snippets** | Yes | Yes | No | No | No | No | No | No |
 | **Speaker diarization** | v0.4 | No | Poor | No | No | No | No | No |
-| **Multi-language** | English (v1) | 104+ | 100+ | 20+ | 10+ | 10+ | 10+ | 10+ |
+| **Multi-language** | 10+ European | 104+ | 100+ | 20+ | 10+ | 10+ | 10+ | 10+ |
 | **Offline capable** | Yes (fully) | No | Yes | Yes | Yes | Partial | Partial | Yes |
 | **Session limit** | None | 6 min | None | None | None | None | None | None |
 | **HIPAA-ready** | By design (local) | Yes (all tiers) | No | SOC 2 Type II | No | No | No | Yes |
