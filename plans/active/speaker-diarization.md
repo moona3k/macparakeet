@@ -12,7 +12,8 @@ Add speaker diarization to file transcription and YouTube transcription using Fl
 |----------|--------|-----------|
 | Pipeline | FluidAudio offline (OfflineDiarizerManager) | Best accuracy (~15% DER), unlimited speakers, already in our dependency |
 | Scope | File + YouTube transcription only | Dictation is single-speaker |
-| Speaker data storage | `speakerId` on `WordTimestamp`, `speakerCount`/`speakers` on `Transcription` | Minimal schema change, JSON-encoded, backward compatible |
+| Speaker data storage | Stable IDs (`"S1"`) on `WordTimestamp.speakerId`, structured `speakers` mapping + `diarizationSegments` on `Transcription` | Stable IDs avoid O(n) rewrite on rename; segments enable accurate analytics |
+| Diarization failure | Non-fatal — ASR result persisted even if diarization fails | Never lose transcription due to diarization error |
 | Always-on | Yes for file transcription | Users transcribing files almost always want speaker attribution |
 | Cross-file identity | Not supported | Per-transcription speaker IDs only |
 | ASR + diarization ordering | Sequential (ASR first, then diarization) | Simpler, correctness over speed. Optimize to parallel later if needed. |
@@ -21,11 +22,11 @@ Add speaker diarization to file transcription and YouTube transcription using Fl
 
 ### Phase 1: Core Pipeline
 
-#### 1.1 Add `speakerId` to `WordTimestamp`
+#### 1.1 Update data model
 
 **File:** `Sources/MacParakeetCore/Models/Transcription.swift`
 
-Add `speakerId: String?` to `WordTimestamp`. Nullable for backward compatibility — existing transcriptions without diarization remain valid.
+Add `speakerId: String?` to `WordTimestamp` storing **stable raw IDs** from the diarization pipeline (`"S1"`, `"S2"`), not display labels. This means rename only touches the `speakers` mapping, not every word.
 
 ```swift
 public struct WordTimestamp: Codable, Sendable {
@@ -33,11 +34,36 @@ public struct WordTimestamp: Codable, Sendable {
     public var startMs: Int
     public var endMs: Int
     public var confidence: Double
-    public var speakerId: String?  // v0.4 diarization
+    public var speakerId: String?  // v0.4 diarization — stable ID e.g. "S1" (not display label)
 }
 ```
 
-No database migration needed — `wordTimestamps` is a JSON text column. The new field is nullable and Codable handles it automatically (missing key = nil).
+Change `speakers` from `[String]?` to a structured mapping:
+
+```swift
+public struct SpeakerInfo: Codable, Sendable {
+    public var id: String       // Stable ID from diarization: "S1", "S2"
+    public var label: String    // Display label: "Speaker 1" (default) or user-assigned name e.g. "Sarah"
+}
+
+// On Transcription:
+var speakers: [SpeakerInfo]?          // replaces [String]?
+var diarizationSegments: [DiarizationSegmentRecord]?  // NEW: raw segments for analytics
+```
+
+Add `diarizationSegments` to persist raw diarization output:
+
+```swift
+public struct DiarizationSegmentRecord: Codable, Sendable {
+    public var speakerId: String   // "S1", "S2"
+    public var startMs: Int
+    public var endMs: Int
+}
+```
+
+No database migration needed — `wordTimestamps`, `speakers`, and the new `diarizationSegments` are all JSON text columns. Nullable fields + Codable handles backward compatibility automatically (missing key = nil).
+
+**Migration note:** The `speakers` column changes from `["Speaker 1","Speaker 2"]` to `[{"id":"S1","label":"Speaker 1"},...]`. Since no production transcriptions have diarization data yet (v0.4 feature), this is safe. Add a custom `Decodable` init that handles both formats defensively.
 
 #### 1.2 Create DiarizationService
 
@@ -57,7 +83,7 @@ protocol DiarizationServiceProtocol: Sendable {
 
 ```swift
 struct SpeakerSegment: Sendable {
-    let speakerId: String       // "Speaker 1", "Speaker 2", etc.
+    let speakerId: String       // Stable ID: "S1", "S2" (raw from pipeline)
     let startMs: Int
     let endMs: Int
 }
@@ -65,15 +91,16 @@ struct SpeakerSegment: Sendable {
 struct DiarizationResult: Sendable {
     let segments: [SpeakerSegment]
     let speakerCount: Int
-    let speakerIds: [String]    // Ordered list: ["Speaker 1", "Speaker 2"]
+    let speakers: [SpeakerInfo]  // [SpeakerInfo(id: "S1", label: "Speaker 1"), ...]
 }
 ```
 
 Implementation:
 - Lazy-init `OfflineDiarizerManager` on first call
-- Map FluidAudio's `TimedSpeakerSegment` → our `SpeakerSegment` with human-readable labels
-- Convert FluidAudio's offline pipeline IDs (`"S1"`, `"S2"`, ...) to display labels (`"Speaker 1"`, `"Speaker 2"`, ...)
+- Map FluidAudio's `TimedSpeakerSegment` → our `SpeakerSegment`, preserving raw IDs (`"S1"`, `"S2"`)
+- Build `SpeakerInfo` array with default display labels (`"Speaker 1"`, `"Speaker 2"`, ...) derived from raw IDs
 - Convert `startTimeSeconds`/`endTimeSeconds` (Float, seconds) to `startMs`/`endMs` (Int, milliseconds) to match `WordTimestamp` format
+- **Handle `noSpeechDetected` error** — catch and return empty result (not a fatal error)
 
 #### 1.3 Create timestamp merger
 
@@ -88,10 +115,17 @@ func mergeWordTimestampsWithSpeakers(
 ) -> [WordTimestamp]
 ```
 
-Algorithm:
+Algorithm (two-pointer linear merge, O(W+S)):
+- Both `words` and `segments` are sorted by start time
+- Advance a segment pointer as words progress through time
 - For each word, find the diarization segment with the most time overlap
 - Assign that segment's `speakerId` to the word
-- Words with no overlapping segment get `speakerId = nil`
+- Words with no overlapping segment get `speakerId = nil` (this happens in silence gaps and overlapping speech regions where the offline pipeline trims output)
+- **Tie-breaking:** if a word overlaps two segments equally, assign the earlier segment (deterministic)
+
+**Nil-word UI behavior:** Words with `speakerId = nil` are grouped with the preceding speaker turn for display. In exports, they appear under the last known speaker. This avoids visual fragmentation from short unlabeled gaps.
+
+**Type conversion note:** ASR returns `TimestampedWord` (from `STTResult`), but our model uses `WordTimestamp`. The conversion happens in `TranscriptionService` when building the transcription record — this is existing code, not new.
 
 This is a pure function — easy to test with fixture data.
 
@@ -99,26 +133,40 @@ This is a pure function — easy to test with fixture data.
 
 **File:** `Sources/MacParakeetCore/Services/TranscriptionService.swift`
 
-After ASR completes, run diarization and merge:
+After ASR completes, run diarization and merge. **Diarization is non-fatal** — ASR result is always persisted.
 
 ```swift
 // Existing: ASR
 let sttResult = try await sttClient.transcribe(audioPath: path)
 
-// New: Diarization
-let diarizationResult = try await diarizationService.diarize(audioURL: url)
+// Persist ASR result immediately (diarization must not block this)
+transcription.wordTimestamps = sttResult.words.map { ... } // TimestampedWord → WordTimestamp
+transcription.rawTranscript = sttResult.text
 
-// New: Merge
-let mergedWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
-    words: sttResult.words,
-    segments: diarizationResult.segments
-)
+// New: Diarization (non-fatal)
+do {
+    let diarizationResult = try await diarizationService.diarize(audioURL: url)
 
-// Update transcription record
-transcription.wordTimestamps = mergedWords
-transcription.speakerCount = diarizationResult.speakerCount
-transcription.speakers = diarizationResult.speakerIds
+    // Merge speaker IDs into word timestamps
+    let mergedWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
+        words: transcription.wordTimestamps!,
+        segments: diarizationResult.segments
+    )
+
+    transcription.wordTimestamps = mergedWords
+    transcription.speakerCount = diarizationResult.speakerCount
+    transcription.speakers = diarizationResult.speakers
+    transcription.diarizationSegments = diarizationResult.segments.map { ... } // → DiarizationSegmentRecord
+} catch {
+    // Diarization failed — log and continue with ASR-only result
+    logger.warning("Diarization failed: \(error). Continuing with ASR-only transcript.")
+    // speakerCount, speakers, diarizationSegments remain nil
+}
 ```
+
+**Critical:** Both ASR and diarization must run on the **same audio file path** to ensure timestamp alignment. Do not re-convert or trim audio between the two calls.
+
+**Progress reporting:** Show "Transcribing..." during ASR, then "Identifying speakers..." during diarization. These are separate visible phases in the UI.
 
 ### Phase 2: Onboarding
 
@@ -131,7 +179,7 @@ Add diarization model download step after ASR model download:
 ```
 Step 1: Permissions (mic, accessibility)
 Step 2: Download ASR models (~6 GB)      ← existing
-Step 3: Download diarization models (~100 MB)  ← new
+Step 3: Download diarization models (~130 MB)  ← new
 Step 4: Verify / warm-up
 ```
 
@@ -161,9 +209,9 @@ Can you tell us more about the scheduling changes?
 
 Allow clicking a speaker label to rename (e.g., "Speaker 1" → "Sarah"):
 
-- Update `speakers` array on the `Transcription` record
-- Update all `WordTimestamp.speakerId` values that match the old name
-- Persist via `TranscriptionRepository.update()`
+- Update the `label` field in the matching `SpeakerInfo` entry in `Transcription.speakers`
+- **No word rewrite needed** — `WordTimestamp.speakerId` stores stable IDs (`"S1"`), display labels come from the `speakers` mapping
+- Persist via `TranscriptionRepository.update()` — single field update, O(1)
 
 #### 3.3 Speaker summary panel
 
@@ -173,7 +221,11 @@ Show per-speaker analytics at the top of the transcript:
 - Word count
 - Color swatch
 
-Computed from `wordTimestamps` — group by `speakerId`, sum durations and word counts.
+**Speaking time** computed from `diarizationSegments` — group by `speakerId`, sum segment durations. This is more accurate than summing word durations (word timestamps have gaps between words that aren't silence).
+
+**Word count** computed from `wordTimestamps` — group by `speakerId`, count words.
+
+**Display labels** resolved via the `speakers` mapping (stable ID → display label).
 
 ### Phase 4: Export
 
@@ -181,17 +233,19 @@ Computed from `wordTimestamps` — group by `speakerId`, sum durations and word 
 
 **File:** `Sources/MacParakeetCore/Services/ExportService.swift`
 
-When `speakerCount > 0`, include speaker labels:
+When `speakerCount > 0`, include speaker labels. Resolve display labels from `speakers` mapping.
+
+**Critical:** SRT/VTT cues that span a speaker boundary must be **split at the speaker change**. Do not simply prefix a single speaker label onto a multi-speaker cue — that produces incorrect output.
 
 | Format | Speaker format |
 |--------|---------------|
-| TXT | `Speaker 1:\n` before each turn |
-| Markdown | `**Speaker 1:**\n` before each turn |
-| SRT | `Speaker 1: subtitle text` on each cue |
-| VTT | `<v Speaker 1>subtitle text</v>` per WebVTT spec |
+| TXT | `Sarah:\n` before each turn |
+| Markdown | `**Sarah:**\n` before each turn |
+| SRT | Split cues at speaker changes; `Sarah: subtitle text` on each cue |
+| VTT | Split cues at speaker changes; `<v Sarah>subtitle text</v>` per WebVTT spec |
 | DOCX | Bold speaker name before each turn |
 | PDF | Bold speaker name before each turn |
-| JSON | `speakerId` field on each word in `wordTimestamps` |
+| JSON | `speakerId` (stable ID) on each word; `speakers` mapping in metadata |
 
 ### Phase 5: Tests
 
@@ -210,7 +264,7 @@ When `speakerCount > 0`, include speaker labels:
 
 | Action | File | Notes |
 |--------|------|-------|
-| Edit | `Sources/MacParakeetCore/Models/Transcription.swift` | Add `speakerId` to `WordTimestamp` |
+| Edit | `Sources/MacParakeetCore/Models/Transcription.swift` | Add `speakerId` to `WordTimestamp`, `SpeakerInfo` struct, `DiarizationSegmentRecord`, update `speakers` type |
 | Add | `Sources/MacParakeetCore/Services/DiarizationService.swift` | New service wrapping FluidAudio |
 | Add | `Sources/MacParakeetCore/Services/SpeakerMerger.swift` | Pure merge function |
 | Edit | `Sources/MacParakeetCore/Services/TranscriptionService.swift` | Integrate diarization after ASR |
@@ -232,7 +286,13 @@ When `speakerCount > 0`, include speaker labels:
 
 | Risk | Mitigation |
 |------|------------|
-| Diarization accuracy on short clips (<30s) | Test with various lengths; document minimum recommended |
+| Diarization failure (noSpeechDetected, model error) | Non-fatal: persist ASR result, show notice, leave speaker fields nil |
+| Diarization accuracy on short clips (<30s) | Test with various lengths; document minimum recommended. Default `minSegmentDurationSeconds=1.0` drops short backchannels — accept this tradeoff. |
 | Model download failure during onboarding | Retry logic + clear error message (same pattern as ASR models) |
 | Large files (2+ hours) memory pressure | Use `manager.process(url)` (file-based, memory-mapped) not in-memory arrays |
+| Large files — JSON blob size | `wordTimestamps` and `diarizationSegments` can be large for 2+ hour files. Monitor DB write time. |
 | Speaker count mismatch expectations | Show "1 speaker detected" gracefully for single-speaker files |
+| Overlapping speech → nil speakerId | Offline pipeline trims overlaps by default (`embeddingExcludeOverlap`). Words in overlap zones get nil. UI groups nil words with preceding speaker. |
+| Timestamp misalignment ASR vs diarization | Both must run on the same audio file path — enforce in TranscriptionService |
+| SRT/VTT cues spanning speaker changes | Must split cues at speaker boundaries, not just prefix labels |
+| Progress reporting during diarization | `OfflineDiarizerManager.process()` doesn't provide progress callbacks. Use indeterminate progress with "Identifying speakers..." label. |

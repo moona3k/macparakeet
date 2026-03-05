@@ -1228,21 +1228,27 @@ new scheduling architecture.
 **Technical notes:**
 - Uses FluidAudio's offline diarization pipeline (separate from ASR, see ADR-010)
 - Three-stage pipeline: pyannote community-1 (segmentation) + WeSpeaker v2 (embeddings) + VBx (clustering)
-- ~15% DER on VoxConverse, ~17.7% on AMI — competitive with commercial APIs
-- ~100 MB additional model download (one-time, cached alongside ASR models)
+- ~15% DER on VoxConverse (CoreML), ~11.2% PyTorch reference — competitive with commercial APIs
+- ~130 MB additional model download (one-time, cached alongside ASR models)
 - Runs after ASR completes, merges speaker segments with word-level timestamps by time overlap
+- Diarization is non-fatal — if it fails, ASR result is still persisted without speaker data
+- Stable speaker IDs (`"S1"`, `"S2"`) stored on words; display labels in separate mapping (rename is O(1))
+- Overlapping speech regions are trimmed (exclusive output) — words in overlap zones may lack speaker assignment
 - No cross-file speaker identity (Speaker 1 in file A is not linked to Speaker 1 in file B)
 - Single-speaker files correctly return one speaker label with no overhead
+- Total file transcription time: ~53-79 seconds per hour of audio (ASR ~23s + diarization ~30-56s)
 
 **Acceptance criteria:**
 - [ ] Speakers automatically detected and separated in transcript
 - [ ] Speaker labels displayed in transcript view with colors
 - [ ] Click speaker label to rename with real name
-- [ ] Speaking time and word count per speaker
+- [ ] Speaking time (from diarization segments) and word count per speaker
 - [ ] Export includes speaker information in all formats
+- [ ] SRT/VTT cues split at speaker boundaries
 - [ ] Works with 2+ speakers (no artificial upper limit)
-- [ ] Diarization models downloaded during onboarding (~100 MB)
+- [ ] Diarization models downloaded during onboarding (~130 MB)
 - [ ] Single-speaker files handled gracefully (one speaker label)
+- [ ] Diarization failure is non-fatal (ASR result preserved, notice shown)
 
 ---
 

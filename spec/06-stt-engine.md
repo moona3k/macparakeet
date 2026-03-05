@@ -101,7 +101,7 @@ This runs a secondary CTC encoder (110M params) alongside the primary TDT encode
 | Capability | Model | Details |
 |-----------|-------|---------|
 | Streaming ASR | Parakeet EOU 1.1B | Real-time with end-of-utterance detection, 160ms-1600ms chunks |
-| Speaker diarization (offline) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | ~15% DER (VoxConverse), ~100 MB models, unlimited speakers. See ADR-010. |
+| Speaker diarization (offline) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | ~15% DER (VoxConverse, CoreML), ~130 MB models, unlimited speakers. See ADR-010. |
 | Speaker diarization (streaming) | Sortformer (NVIDIA) | ~32% DER, 4 speaker max. Not used — see ADR-010 for rationale. |
 | Voice activity detection | Silero | 96% accuracy, 1220x RTF |
 | Custom vocabulary | CTC/TDT keyword boosting | 99.3% recall, 110M secondary encoder |
@@ -293,7 +293,7 @@ Audio → Pyannote community-1 (WHEN) → WeSpeaker v2 (WHO) → VBx clustering 
 | Embeddings | WeSpeaker v2 (256-dim) | ~40 MB | Apache 2.0 |
 | PLDA scoring | PLDA rho model + psi parameters | ~10 MB | Apache 2.0 |
 
-**Total**: ~100 MB (one-time download, cached at `~/Library/Application Support/FluidAudio/Models/`)
+**Total**: ~130 MB (one-time download, cached at `~/Library/Application Support/FluidAudio/Models/`)
 
 ### Integration with ASR
 
@@ -309,7 +309,9 @@ Audio file
          WordTimestamp entries with speakerId
 ```
 
-Each word's time range is compared against diarization speaker segments. The speaker with the most overlap is assigned to that word.
+Each word's time range is compared against diarization speaker segments. The speaker with the most overlap is assigned to that word. Words in silence gaps or overlapping speech zones (trimmed by the offline pipeline) get `speakerId = nil`.
+
+**Diarization is non-fatal.** If diarization fails (`noSpeechDetected`, model error, etc.), the ASR result is still persisted. Speaker fields remain nil and the transcript displays without speaker attribution.
 
 ### API
 
@@ -334,6 +336,7 @@ for segment in result.segments {
 | Speed | 64-122x RTF (config-dependent) |
 | Memory | ~100 MB models + minimal working RAM |
 | 1 hour audio | ~30-56 seconds processing |
+| Total (ASR + diarization) | ~53-79 seconds per hour of audio |
 
 ### What's NOT included
 

@@ -24,15 +24,15 @@ FluidAudio (our existing STT dependency, ADR-007) bundles a complete diarization
 | Approach | Pipeline | DER | Speed | Speaker Limit | Streaming |
 |----------|----------|-----|-------|---------------|-----------|
 | **Offline** | Pyannote community-1 segmentation + WeSpeaker v2 embeddings + VBx clustering | ~15% (VoxConverse), ~17.7% (AMI) | 64-122x RTF | Unlimited | No |
-| **Streaming (Pyannote)** | Same models, chunk-by-chunk with SpeakerManager | ~26-50% (config-dependent) | 51-392x RTF | Unlimited | Yes |
+| **Streaming (Pyannote)** | Legacy pyannote 3.1 segmentation + WeSpeaker v2 embeddings, chunk-by-chunk with SpeakerManager | ~26-50% (config-dependent) | 51-392x RTF | Unlimited | Yes |
 | **Sortformer** | NVIDIA's end-to-end neural diarizer | ~32% (AMI SDM) | ~127x RTF | **4 max (hard limit)** | Yes |
 
 ### Competitive landscape
 
 Pyannote community-1 is widely considered the best open-source diarization pipeline as of early 2026:
 
-- **PyannoteAI (commercial)**: 11.2% DER — best overall, but requires a paid API
-- **Pyannote community-1 (open source)**: ~15% DER — best open-source option, significant improvement over legacy 3.1 in speaker counting and assignment
+- **PyannoteAI (commercial)**: ~8.5% DER (precision-2 on VoxConverse) — best overall, but requires a paid API
+- **Pyannote community-1 (PyTorch reference)**: ~11.2% DER on VoxConverse — best open-source model. FluidAudio's CoreML port: ~15% DER due to fp16 quantization (significant improvement over legacy 3.1 in speaker counting and assignment)
 - **DiariZen**: 13.3% DER — competitive open-source alternative, but no CoreML/ANE port exists
 - **NVIDIA Sortformer**: Real-time capable, but 4-speaker hard limit and ~32% DER
 
@@ -74,7 +74,7 @@ ASR and diarization can potentially run in parallel since they use different mod
 | PLDA scoring | PLDA rho model + psi parameters | ~10 MB | Apache 2.0 | CPU |
 | Clustering | VBx + AHC warm start | N/A (algorithmic) | N/A | CPU |
 
-**Total additional download**: ~100 MB (one-time, cached alongside ASR models)
+**Total additional download**: ~130 MB (one-time, cached alongside ASR models)
 
 ### API usage
 
@@ -91,10 +91,20 @@ for segment in result.segments {
 
 ### Data model impact
 
-- `WordTimestamp` gains a `speakerId: String?` field
-- `Transcription` already has `speakerCount` and `speakers` fields (nullable, added in v0.1 schema for future use)
-- Speaker names stored per-transcription (no cross-file speaker identity)
-- Existing transcriptions without diarization remain valid (nullable field)
+- `WordTimestamp` gains a `speakerId: String?` field storing **stable raw IDs** (`"S1"`, `"S2"`) from the diarization pipeline — not display labels
+- `Transcription.speakers` stores a JSON mapping with stable IDs and display names: `[{"id":"S1","label":"Speaker 1"},{"id":"S2","label":"Speaker 2"}]`. Rename updates the mapping only, not every word.
+- New `diarizationSegments` JSON column on `Transcription` stores the raw diarization output for accurate speaking time analytics and future features (timeline view, skip-to-speaker)
+- `Transcription.speakerCount` populated from diarization result
+- Existing transcriptions without diarization remain valid (all fields nullable)
+
+### Diarization is non-fatal
+
+If diarization fails (e.g. `noSpeechDetected`, model error, timeout), the ASR result **must still be persisted**. Diarization failure should:
+- Log the error
+- Leave `speakerCount`/`speakers`/`diarizationSegments` as nil
+- Leave all `WordTimestamp.speakerId` as nil
+- Show a non-blocking notice in the UI ("Speaker detection unavailable for this file")
+- Never prevent the user from viewing, exporting, or using the transcript
 
 ### UI impact
 
@@ -105,7 +115,11 @@ for segment in result.segments {
 
 ### Always-on vs opt-in
 
-Diarization adds ~30-56 seconds of processing per hour of audio (at 64-122x RTF) plus ~100 MB model download. For file transcription, always run it — users transcribing files almost always want to know who said what. If a file has only one speaker, diarization correctly returns a single speaker label with no user-visible overhead.
+Diarization adds ~30-56 seconds of processing per hour of audio (at 64-122x RTF) on top of ASR's ~23 seconds per hour. Total file transcription time for 1 hour of audio: ~53-79 seconds (ASR + diarization). This is still very fast and the additional time is worth it for speaker attribution. Model download is ~130 MB (one-time).
+
+For file transcription, always run it — users transcribing files almost always want to know who said what. If a file has only one speaker, diarization correctly returns a single speaker label with no user-visible overhead.
+
+**Important:** Progress reporting and time estimates must account for both ASR and diarization phases. Show "Transcribing..." during ASR and "Identifying speakers..." during diarization as separate progress indicators.
 
 Skip diarization only for dictation (single speaker by design).
 
@@ -119,7 +133,7 @@ Skip diarization only for dictation (single speaker by design).
 | Speaker limit | Unlimited | 4 max (hard architectural limit) |
 | Cross-recording recognition | Possible via SpeakerManager | Not supported |
 | Noise robustness | Good | Better |
-| Overlapping speech | Good | Better |
+| Overlapping speech | Exclusive (overlaps trimmed by default) | Better (models overlap natively) |
 | Quiet/distant speech | Good | Poor (trained to ignore background) |
 | Maturity | Battle-tested (pyannote is the industry standard) | Newer, less proven |
 
@@ -160,15 +174,16 @@ Users can correct misattributions by renaming speakers. Missed speech is visible
 
 - Speaker-attributed transcripts for file transcription and YouTube
 - No new dependencies — uses existing FluidAudio
-- ~100 MB additional model download (one-time, small vs 6 GB ASR models)
+- ~130 MB additional model download (one-time, small vs 6 GB ASR models)
 - Unlimited speakers (no artificial cap)
 - ~15% DER — competitive with commercial solutions
 - 64-122x RTF — diarization adds negligible time to transcription
 
 ### Negative
 
-- ~100 MB additional model download during onboarding
+- ~130 MB additional model download during onboarding
 - ~2-4% DER loss vs PyTorch reference due to CoreML fp16 quantization
+- Overlapping speech regions are trimmed (exclusive output) — words in overlap zones may get `speakerId = nil`
 - No cross-file speaker identity (Speaker 1 in file A is not linked to Speaker 1 in file B)
 - No real-time streaming diarization (by design — that's Oatmeal)
 - Platform-specific quirk: iOS has audio conversion issues with stereo files (macOS-only is fine for us, per FluidAudio's investigation report)
