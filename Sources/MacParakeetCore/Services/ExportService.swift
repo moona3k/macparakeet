@@ -269,9 +269,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     }
 
     /// Resolve a speakerId to a display label using the speakers mapping.
+    /// Returns nil if speakerId is nil or speakers mapping is nil (no diarization).
     func speakerLabel(for speakerId: String?, in speakers: [SpeakerInfo]?) -> String? {
-        guard let speakerId else { return nil }
-        return speakers?.first(where: { $0.id == speakerId })?.label ?? speakerId
+        guard let speakerId, let speakers else { return nil }
+        return speakers.first(where: { $0.id == speakerId })?.label ?? speakerId
     }
 
     // MARK: - Timestamp Formatting

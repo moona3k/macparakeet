@@ -71,10 +71,12 @@ public actor DiarizationService: DiarizationServiceProtocol {
             return SpeakerSegment(speakerId: mappedId, startMs: startMs, endMs: endMs)
         }
 
-        let speakers: [SpeakerInfo] = idMapping.sorted(by: { $0.value < $1.value }).map { _, stableId in
-            let number = String(stableId.dropFirst())
-            return SpeakerInfo(id: stableId, label: "Speaker \(number)")
-        }
+        let speakers: [SpeakerInfo] = idMapping
+            .sorted { Int($0.value.dropFirst()) ?? 0 < Int($1.value.dropFirst()) ?? 0 }
+            .map { _, stableId in
+                let number = String(stableId.dropFirst())
+                return SpeakerInfo(id: stableId, label: "Speaker \(number)")
+            }
 
         return MacParakeetDiarizationResult(
             segments: segments,

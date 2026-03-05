@@ -1,7 +1,7 @@
 import Foundation
 
 /// Merges word-level timestamps with speaker diarization segments.
-/// Both inputs must be sorted by start time. Uses a two-pointer O(W+S) algorithm.
+/// Both inputs must be sorted by start time.
 public enum SpeakerMerger {
 
     /// Assign a speakerId to each word based on which diarization segment has the most time overlap.
@@ -16,26 +16,22 @@ public enum SpeakerMerger {
         var segIdx = 0
 
         for (wordIdx, word) in words.enumerated() {
-            // Advance segment pointer past segments that end before this word starts
-            while segIdx > 0 && segments[segIdx - 1].endMs > word.startMs {
-                // Don't advance past — we may need earlier segments for overlap
-                break
+            // Advance segIdx past segments that end before this word starts.
+            // Since words are sorted by startMs, segments before segIdx can never
+            // overlap any future word either, making this amortized O(W+S).
+            while segIdx < segments.count && segments[segIdx].endMs <= word.startMs {
+                segIdx += 1
             }
 
             var bestSpeaker: String? = nil
             var bestOverlap = 0
 
-            // Check segments starting from where they could overlap with this word
+            // Scan forward from segIdx to find the segment with most overlap
             var s = segIdx
-            // Rewind to find first possible overlapping segment
-            while s > 0 && segments[s - 1].endMs > word.startMs {
-                s -= 1
-            }
-
             while s < segments.count {
                 let seg = segments[s]
                 if seg.startMs >= word.endMs {
-                    break // No more segments can overlap
+                    break // No more segments can overlap this word
                 }
 
                 let overlapStart = max(word.startMs, seg.startMs)
@@ -53,11 +49,6 @@ public enum SpeakerMerger {
 
             if bestOverlap > 0 {
                 result[wordIdx].speakerId = bestSpeaker
-            }
-
-            // Advance segIdx for efficiency: skip segments that can't overlap future words
-            while segIdx < segments.count && segments[segIdx].endMs <= word.startMs {
-                segIdx += 1
             }
         }
 
