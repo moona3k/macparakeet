@@ -271,7 +271,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// Resolve a speakerId to a display label using the speakers mapping.
     /// Returns nil if speakerId is nil or speakers mapping is nil (no diarization).
     func speakerLabel(for speakerId: String?, in speakers: [SpeakerInfo]?) -> String? {
-        guard let speakerId, let speakers else { return nil }
+        guard let speakerId, let speakers, !speakers.isEmpty else { return nil }
         return speakers.first(where: { $0.id == speakerId })?.label ?? speakerId
     }
 
@@ -279,6 +279,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// SRT format: 00:01:23,456
     func srtTimestamp(ms: Int) -> String {
+        let ms = max(0, ms)
         let hours = ms / 3_600_000
         let minutes = (ms % 3_600_000) / 60_000
         let seconds = (ms % 60_000) / 1_000
@@ -288,6 +289,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// VTT format: 00:01:23.456
     func vttTimestamp(ms: Int) -> String {
+        let ms = max(0, ms)
         let hours = ms / 3_600_000
         let minutes = (ms % 3_600_000) / 60_000
         let seconds = (ms % 60_000) / 1_000

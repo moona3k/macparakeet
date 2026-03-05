@@ -12,14 +12,15 @@ public enum SpeakerMerger {
     ) -> [WordTimestamp] {
         guard !words.isEmpty, !segments.isEmpty else { return words }
 
-        // Defensive sort — FluidAudio returns chronological segments, but
+        // Defensive sort — FluidAudio returns chronological output, but
         // the algorithm requires sorted input for correctness.
+        let sortedWords = words.sorted { $0.startMs < $1.startMs }
         let sortedSegments = segments.sorted { $0.startMs < $1.startMs }
 
-        var result = words
+        var result = sortedWords
         var segIdx = 0
 
-        for (wordIdx, word) in words.enumerated() {
+        for (wordIdx, word) in sortedWords.enumerated() {
             // Advance segIdx past segments that end before this word starts.
             // Since words are sorted by startMs, segments before segIdx can never
             // overlap any future word either, making this amortized O(W+S).
