@@ -1239,18 +1239,19 @@ new scheduling architecture.
 - Total file transcription time: ~53-79 seconds per hour of audio (ASR ~23s + diarization ~30-56s)
 
 **Acceptance criteria:**
-- [ ] Speakers automatically detected and separated in transcript
-- [ ] Speaker labels displayed in transcript view with colors
-- [ ] Click speaker label to rename with real name
-- [ ] Speaking time (from diarization segments) and word count per speaker
-- [ ] Export includes speaker information in all formats
-- [ ] SRT/VTT cues split at speaker boundaries
-- [ ] Works with 2+ speakers (no artificial upper limit)
-- [ ] Diarization models downloaded during onboarding (~130 MB)
-- [ ] Single-speaker files handled gracefully (one speaker label)
-- [ ] Diarization failure is non-fatal (ASR result preserved, notice shown)
-- [ ] Progress shows "Identifying speakers..." with time estimate sublabel
-- [ ] Option-key (⌥) alternate skips diarization for per-run fast transcription
+- [x] Speakers automatically detected and separated in transcript
+- [ ] Speaker labels displayed in transcript view with colors (Step 8 — UI PR)
+- [ ] Click speaker label to rename with real name (Step 8 — UI PR)
+- [ ] Speaking time (from diarization segments) and word count per speaker (Step 8 — UI PR)
+- [x] Export includes speaker information in all formats
+- [x] SRT/VTT cues split at speaker boundaries
+- [x] Works with 2+ speakers (no artificial upper limit)
+- [x] Diarization models downloaded during onboarding (~130 MB)
+- [x] Single-speaker files handled gracefully (one speaker label)
+- [x] Diarization failure is non-fatal (ASR result preserved)
+- [x] Progress shows "Identifying speakers..." headline
+- [ ] Option-key (⌥) alternate skips diarization for per-run fast transcription (Step 8 — UI PR)
+- [x] CLI: `macparakeet-cli transcribe` runs diarization by default, `--no-diarize` to skip
 
 ---
 

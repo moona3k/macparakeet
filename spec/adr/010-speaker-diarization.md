@@ -127,6 +127,8 @@ For file transcription, always run it — users transcribing files almost always
 
 Skip diarization only for: dictation (single speaker by design) or explicit user opt-out via Option-key.
 
+**CLI:** `macparakeet-cli transcribe` runs diarization by default (matching GUI). Use `--no-diarize` to skip. Text output shows speaker labels at turn changes; JSON output includes all speaker data via Codable.
+
 ## Rationale
 
 ### Why the offline pipeline, not Sortformer
