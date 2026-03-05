@@ -176,15 +176,19 @@ struct TranscribeCommand: AsyncParsableCommand {
         print()
 
         // Show transcript with speaker labels at turn changes when available
-        if let words = t.wordTimestamps, !words.isEmpty, let speakers = t.speakers, !speakers.isEmpty {
+        if let words = t.wordTimestamps, !words.isEmpty,
+           let speakers = t.speakers, !speakers.isEmpty,
+           words.contains(where: { $0.speakerId != nil }) {
             let speakerMap = Dictionary(uniqueKeysWithValues: speakers.map { ($0.id, $0.label) })
             var lastSpeakerId: String? = nil
             for w in words {
-                if let sid = w.speakerId, sid != lastSpeakerId, let label = speakerMap[sid] {
-                    print()
-                    print("\(label):")
+                if let sid = w.speakerId {
+                    if sid != lastSpeakerId, let label = speakerMap[sid] {
+                        print()
+                        print("\(label):")
+                    }
+                    lastSpeakerId = sid
                 }
-                lastSpeakerId = w.speakerId
                 Swift.print(w.word, terminator: " ")
             }
             print()
