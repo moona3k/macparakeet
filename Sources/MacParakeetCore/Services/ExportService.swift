@@ -68,6 +68,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// Export transcription as PDF file using Core Graphics PDF context.
     /// Avoids NSPrintOperation which spins a modal run loop and deadlocks
     /// when called from SwiftUI button actions on MainActor.
+    /// Must be called on MainActor (uses NSTextStorage, NSLayoutManager, NSGraphicsContext).
     public func exportToPDF(transcription: Transcription, url: URL) throws {
         let attrString = try buildRichTranscript(transcription: transcription)
 
@@ -78,7 +79,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         let textWidth = pageWidth - margin * 2
         let textHeight = pageHeight - margin * 2
 
-        // Layout the attributed string using NSTextLayoutManager via a temporary text container
+        // Layout the attributed string using a temporary text container
         let textStorage = NSTextStorage(attributedString: attrString)
         let layoutManager = NSLayoutManager()
         textStorage.addLayoutManager(layoutManager)
@@ -86,6 +87,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         let textContainer = NSTextContainer(size: NSSize(width: textWidth, height: CGFloat.greatestFiniteMagnitude))
         textContainer.lineFragmentPadding = 0
         layoutManager.addTextContainer(textContainer)
+
+        defer {
+            layoutManager.removeTextContainer(at: 0)
+            textStorage.removeLayoutManager(layoutManager)
+        }
 
         // Force full layout
         layoutManager.ensureLayout(for: textContainer)
@@ -97,6 +103,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             throw NSError(domain: "MacParakeetError", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Failed to create PDF context"])
         }
+
+        defer { context.closePDF() }
 
         // Draw pages
         var yOffset: CGFloat = 0
@@ -126,8 +134,6 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
             yOffset += textHeight
         }
-
-        context.closePDF()
     }
 
     /// Export transcription as DOCX file
