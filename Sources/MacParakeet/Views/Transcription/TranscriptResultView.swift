@@ -2,6 +2,16 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
+/// Data-driven model for the export confirmation popover.
+/// Using a single `Identifiable` value with `.popover(item:)` ensures
+/// the popover content always has the correct URL and format — no race
+/// between separate presentation and data states.
+private struct ExportConfirmation: Identifiable {
+    let id = UUID()
+    let url: URL
+    let format: String
+}
+
 struct TranscriptResultView: View {
     let transcription: Transcription
     @Bindable var viewModel: TranscriptionViewModel
@@ -10,9 +20,7 @@ struct TranscriptResultView: View {
 
     @State private var backHovered = false
     @State private var copied = false
-    @State private var showExportConfirmation = false
-    @State private var lastExportedURL: URL?
-    @State private var lastExportedFormat: String?
+    @State private var exportConfirmation: ExportConfirmation?
     @State private var exportErrorMessage: String?
     @State private var copiedResetTask: Task<Void, Never>?
     @State private var dismissTask: Task<Void, Never>?
@@ -170,8 +178,8 @@ struct TranscriptResultView: View {
                     Label("Export", systemImage: "arrow.down.doc")
                 }
                 .menuStyle(.borderedButton)
-                .popover(isPresented: $showExportConfirmation, arrowEdge: .top) {
-                    exportConfirmationPopover
+                .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
+                    exportConfirmationPopover(confirmation)
                 }
 
                 if let onRetranscribe, let filePath = transcription.filePath,
@@ -340,7 +348,7 @@ struct TranscriptResultView: View {
     // MARK: - Export Confirmation Popover
 
     @ViewBuilder
-    private var exportConfirmationPopover: some View {
+    private func exportConfirmationPopover(_ confirmation: ExportConfirmation) -> some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(alignment: .top, spacing: 8) {
                 Image(systemName: "checkmark.circle.fill")
@@ -348,9 +356,9 @@ struct TranscriptResultView: View {
                     .foregroundStyle(DesignSystem.Colors.successGreen)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Exported \(lastExportedFormat?.uppercased() ?? "")")
+                    Text("Exported \(confirmation.format.uppercased())")
                         .font(DesignSystem.Typography.body.bold())
-                    Text(lastExportedURL?.lastPathComponent ?? "")
+                    Text(confirmation.url.lastPathComponent)
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)
@@ -361,7 +369,7 @@ struct TranscriptResultView: View {
                 Button {
                     dismissTask?.cancel()
                     dismissTask = nil
-                    showExportConfirmation = false
+                    exportConfirmation = nil
                 } label: {
                     Image(systemName: "xmark")
                         .font(.system(size: 10, weight: .semibold))
@@ -372,18 +380,16 @@ struct TranscriptResultView: View {
                 .accessibilityHint("Dismisses the export confirmation popover")
             }
 
-            if let url = lastExportedURL {
-                Button {
-                    NSWorkspace.shared.activateFileViewerSelecting([url])
-                    dismissTask?.cancel()
-                    dismissTask = nil
-                    showExportConfirmation = false
-                } label: {
-                    Label("Show in Finder", systemImage: "folder")
-                        .font(DesignSystem.Typography.caption)
-                }
-                .buttonStyle(.bordered)
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting([confirmation.url])
+                dismissTask?.cancel()
+                dismissTask = nil
+                exportConfirmation = nil
+            } label: {
+                Label("Show in Finder", systemImage: "folder")
+                    .font(DesignSystem.Typography.caption)
             }
+            .buttonStyle(.bordered)
         }
         .padding(DesignSystem.Spacing.md)
         .frame(minWidth: 220)
@@ -428,22 +434,15 @@ struct TranscriptResultView: View {
         // Cancel any pending auto-dismiss from a previous export
         dismissTask?.cancel()
 
-        lastExportedURL = fileURL
-        lastExportedFormat = format.rawValue
-
-        // Delay popover presentation by one render cycle so SwiftUI
-        // commits the URL/format state before creating the popover view.
-        // Without this, the first-ever export shows a blank popover
-        // because .popover(isPresented:) can capture stale nil values.
-        Task { @MainActor in
-            showExportConfirmation = true
-        }
+        // Single atomic state drives the popover via .popover(item:),
+        // so presentation and data are never out of sync.
+        exportConfirmation = ExportConfirmation(url: fileURL, format: format.rawValue)
 
         // Auto-dismiss after 5 seconds
         dismissTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(5.0))
             guard !Task.isCancelled else { return }
-            showExportConfirmation = false
+            exportConfirmation = nil
         }
     }
 
