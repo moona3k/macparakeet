@@ -16,8 +16,13 @@ public final class SettingsViewModel {
 
     // General
     public var launchAtLogin: Bool {
-        didSet { defaults.set(launchAtLogin, forKey: "launchAtLogin") }
+        didSet {
+            guard !isApplyingLaunchAtLoginState else { return }
+            applyLaunchAtLoginChange(launchAtLogin)
+        }
     }
+    public var launchAtLoginDetail: String = ""
+    public var launchAtLoginError: String?
     public var menuBarOnlyMode: Bool {
         didSet {
             defaults.set(menuBarOnlyMode, forKey: AppPreferences.menuBarOnlyModeKey)
@@ -95,10 +100,12 @@ public final class SettingsViewModel {
     private var customWordRepo: CustomWordRepositoryProtocol?
     private var snippetRepo: TextSnippetRepositoryProtocol?
     private var entitlementsService: EntitlementsService?
+    private var launchAtLoginService: LaunchAtLoginControlling?
     private var sttClient: STTClientProtocol?
     private let defaults: UserDefaults
     private let youtubeDownloadsDirPath: @Sendable () -> String
     private let isSpeechModelCached: @Sendable () -> Bool
+    private var isApplyingLaunchAtLoginState = false
 
     public init(
         defaults: UserDefaults = .standard,
@@ -125,6 +132,7 @@ public final class SettingsViewModel {
         dictationRepo: DictationRepositoryProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
         entitlementsService: EntitlementsService,
+        launchAtLoginService: LaunchAtLoginControlling? = nil,
         checkoutURL: URL?,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
@@ -134,14 +142,27 @@ public final class SettingsViewModel {
         self.dictationRepo = dictationRepo
         self.transcriptionRepo = transcriptionRepo
         self.entitlementsService = entitlementsService
+        self.launchAtLoginService = launchAtLoginService
         self.checkoutURL = checkoutURL
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.sttClient = sttClient
+        refreshLaunchAtLoginStatus()
         refreshPermissions()
         refreshStats()
         refreshEntitlements()
         refreshModelStatus()
+    }
+
+    public func refreshLaunchAtLoginStatus() {
+        guard let service = launchAtLoginService else {
+            launchAtLoginDetail = ""
+            launchAtLoginError = nil
+            return
+        }
+
+        applyLaunchAtLoginStatus(service.currentStatus())
+        launchAtLoginError = nil
     }
 
     public func refreshPermissions() {
@@ -371,6 +392,30 @@ public final class SettingsViewModel {
             return Dictation.ProcessingMode.raw.rawValue
         }
         return rawValue
+    }
+
+    private func applyLaunchAtLoginChange(_ enabled: Bool) {
+        defaults.set(enabled, forKey: "launchAtLogin")
+        launchAtLoginError = nil
+
+        guard let service = launchAtLoginService else { return }
+
+        do {
+            let updatedStatus = try service.setEnabled(enabled)
+            applyLaunchAtLoginStatus(updatedStatus)
+        } catch {
+            let fallbackStatus = service.currentStatus()
+            applyLaunchAtLoginStatus(fallbackStatus)
+            launchAtLoginError = error.localizedDescription
+        }
+    }
+
+    private func applyLaunchAtLoginStatus(_ status: LaunchAtLoginStatus) {
+        isApplyingLaunchAtLoginState = true
+        launchAtLogin = status.isEnabled
+        defaults.set(status.isEnabled, forKey: "launchAtLogin")
+        isApplyingLaunchAtLoginState = false
+        launchAtLoginDetail = status.detailText
     }
 
     private func runWithRetry(

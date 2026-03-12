@@ -8,6 +8,7 @@ final class SettingsViewModelTests: XCTestCase {
     var mockRepo: MockDictationRepository!
     var mockTranscriptionRepo: MockTranscriptionRepository!
     var mockPermissions: MockPermissionService!
+    var mockLaunchAtLogin: MockLaunchAtLoginService!
     var testDefaults: UserDefaults!
     var entitlements: EntitlementsService!
     var youtubeDownloadsTestDir: URL!
@@ -16,6 +17,7 @@ final class SettingsViewModelTests: XCTestCase {
         mockRepo = MockDictationRepository()
         mockTranscriptionRepo = MockTranscriptionRepository()
         mockPermissions = MockPermissionService()
+        mockLaunchAtLogin = MockLaunchAtLoginService()
         youtubeDownloadsTestDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("mp-youtube-\(UUID().uuidString)", isDirectory: true)
         try? FileManager.default.createDirectory(at: youtubeDownloadsTestDir, withIntermediateDirectories: true)
@@ -94,6 +96,56 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.launchAtLogin = true
 
         XCTAssertTrue(testDefaults.bool(forKey: "launchAtLogin"))
+    }
+
+    func testConfigureSyncsLaunchAtLoginFromServiceStatus() {
+        testDefaults.set(false, forKey: "launchAtLogin")
+        mockLaunchAtLogin.status = .enabled
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            launchAtLoginService: mockLaunchAtLogin,
+            checkoutURL: nil
+        )
+
+        XCTAssertTrue(viewModel.launchAtLogin)
+        XCTAssertEqual(viewModel.launchAtLoginDetail, "MacParakeet will open automatically when you sign in.")
+    }
+
+    func testSettingLaunchAtLoginCallsService() {
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            launchAtLoginService: mockLaunchAtLogin,
+            checkoutURL: nil
+        )
+
+        viewModel.launchAtLogin = true
+
+        XCTAssertEqual(mockLaunchAtLogin.setEnabledCalls, [true])
+        XCTAssertTrue(viewModel.launchAtLogin)
+        XCTAssertNil(viewModel.launchAtLoginError)
+    }
+
+    func testSettingLaunchAtLoginRevertsAndShowsErrorWhenServiceFails() {
+        mockLaunchAtLogin.errorToThrow = LaunchAtLoginError.invalidSignature
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            launchAtLoginService: mockLaunchAtLogin,
+            checkoutURL: nil
+        )
+
+        viewModel.launchAtLogin = true
+
+        XCTAssertEqual(mockLaunchAtLogin.setEnabledCalls, [true])
+        XCTAssertFalse(viewModel.launchAtLogin)
+        XCTAssertEqual(viewModel.launchAtLoginError, LaunchAtLoginError.invalidSignature.localizedDescription)
     }
 
     func testSettingMenuBarOnlyModePersists() {

@@ -52,6 +52,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var showIdlePillObserver: Any?
     private var hotkeyMenuItem: NSMenuItem?
     private var reopenOnboardingOnNextActivate = false
+    private var hasPresentedHotkeyUnavailableAlert = false
     private let dictationLog = Logger(subsystem: "com.macparakeet.app", category: "DictationFlow")
 
     // MARK: - App Lifecycle
@@ -265,6 +266,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 dictationRepo: env.dictationRepo,
                 transcriptionRepo: env.transcriptionRepo,
                 entitlementsService: env.entitlementsService,
+                launchAtLoginService: env.launchAtLoginService,
                 checkoutURL: env.checkoutURL,
                 customWordRepo: env.customWordRepo,
                 snippetRepo: env.snippetRepo,
@@ -315,6 +317,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         if manager.start() {
             hotkeyManager = manager
+            hasPresentedHotkeyUnavailableAlert = false
+        } else {
+            hotkeyManager = nil
+            presentHotkeyUnavailableAlertIfNeeded()
         }
     }
 
@@ -1295,6 +1301,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let resp = alert.runModal()
         if resp == .alertFirstButtonReturn {
+            openMainWindowToSettings()
+        }
+    }
+
+    private func presentHotkeyUnavailableAlertIfNeeded() {
+        guard !hasPresentedHotkeyUnavailableAlert else { return }
+        guard settingsViewModel.accessibilityGranted == false else { return }
+
+        hasPresentedHotkeyUnavailableAlert = true
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Global Hotkey Unavailable"
+        alert.informativeText =
+            "MacParakeet couldn’t enable the system-wide hotkey because Accessibility access is missing. " +
+            "You can still open the app manually, but dictation shortcuts won’t work until this is enabled."
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Not Now")
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
             openMainWindowToSettings()
         }
     }

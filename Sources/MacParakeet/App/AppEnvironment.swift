@@ -20,6 +20,7 @@ final class AppEnvironment {
     let permissionService: PermissionService
     let accessibilityService: AccessibilityService
     let entitlementsService: EntitlementsService
+    let launchAtLoginService: LaunchAtLoginService
     let checkoutURL: URL?
 
     init() throws {
@@ -47,6 +48,7 @@ final class AppEnvironment {
         exportService = ExportService()
         permissionService = PermissionService()
         accessibilityService = AccessibilityService()
+        launchAtLoginService = LaunchAtLoginService()
 
         // Licensing / entitlements (basic guards: 7-day trial + license unlock).
         //

@@ -43,6 +43,7 @@ struct SettingsView: View {
             Text("This will permanently delete all downloaded YouTube audio files and detach them from existing transcriptions.")
         }
         .onAppear {
+            viewModel.refreshLaunchAtLoginStatus()
             viewModel.refreshPermissions()
             viewModel.refreshStats()
             viewModel.refreshEntitlements()
@@ -109,6 +110,23 @@ struct SettingsView: View {
                     detail: "Start MacParakeet automatically when you sign in.",
                     isOn: $viewModel.launchAtLogin
                 )
+
+                if !viewModel.launchAtLoginDetail.isEmpty || viewModel.launchAtLoginError != nil {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if !viewModel.launchAtLoginDetail.isEmpty {
+                            Text(viewModel.launchAtLoginDetail)
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let error = viewModel.launchAtLoginError {
+                            Text(error)
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(DesignSystem.Colors.errorRed)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
 
                 Divider()
 

@@ -1,5 +1,6 @@
 import Foundation
 import MacParakeetCore
+import OSLog
 #if canImport(Metal)
 import Metal
 #endif
@@ -7,6 +8,7 @@ import Metal
 @MainActor
 @Observable
 public final class OnboardingViewModel {
+    private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "OnboardingViewModel")
     public enum Step: Int, CaseIterable, Identifiable, Sendable {
         case welcome
         case microphone
@@ -231,7 +233,7 @@ public final class OnboardingViewModel {
                         })
                     } catch {
                         // Diarization model prep failure is non-fatal
-                        print("[MacParakeet] Diarization model prep failed: \(error.localizedDescription)")
+                        logger.error("diarization_model_prep_failed error=\(error.localizedDescription, privacy: .public)")
                     }
                 }
 

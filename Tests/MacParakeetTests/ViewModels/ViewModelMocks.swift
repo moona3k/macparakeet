@@ -149,6 +149,32 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     }
 }
 
+// MARK: - MockLaunchAtLoginService
+
+final class MockLaunchAtLoginService: LaunchAtLoginControlling {
+    var status: LaunchAtLoginStatus
+    var setEnabledCalls: [Bool] = []
+    var errorToThrow: Error?
+
+    init(status: LaunchAtLoginStatus = .disabled, errorToThrow: Error? = nil) {
+        self.status = status
+        self.errorToThrow = errorToThrow
+    }
+
+    func currentStatus() -> LaunchAtLoginStatus {
+        status
+    }
+
+    func setEnabled(_ enabled: Bool) throws -> LaunchAtLoginStatus {
+        setEnabledCalls.append(enabled)
+        if let errorToThrow {
+            throw errorToThrow
+        }
+        status = enabled ? .enabled : .disabled
+        return status
+    }
+}
+
 // MARK: - MockTranscriptionService
 
 actor MockTranscriptionService: TranscriptionServiceProtocol {

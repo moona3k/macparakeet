@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 public protocol TranscriptionServiceProtocol: Sendable {
     func transcribe(fileURL: URL, onProgress: (@Sendable (String) -> Void)?) async throws -> Transcription
@@ -15,6 +16,7 @@ extension TranscriptionServiceProtocol {
 }
 
 public actor TranscriptionService: TranscriptionServiceProtocol {
+    private let logger = Logger(subsystem: "com.macparakeet.core", category: "TranscriptionService")
     private let audioProcessor: AudioProcessorProtocol
     private let sttClient: STTClientProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
@@ -166,7 +168,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                     throw CancellationError()
                 } catch {
                     // Diarization failure is non-fatal — transcript is still usable
-                    print("[MacParakeet] Diarization failed: \(error.localizedDescription)")
+                    logger.error("diarization_failed error=\(error.localizedDescription, privacy: .public)")
                 }
             }
 
