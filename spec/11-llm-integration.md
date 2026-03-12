@@ -97,7 +97,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
 }
 ```
 
-API keys are stored in Keychain (via existing `KeychainKeyValueStore`), not UserDefaults. Provider config (ID, base URL, model name) is stored in UserDefaults.
+API keys are stored in Keychain (via existing `KeychainKeyValueStore`), not UserDefaults. Provider config (ID, base URL, model name) is stored in UserDefaults. **Important:** `apiKey` must be excluded from `Codable` encoding via custom `CodingKeys` to prevent leaking secrets to UserDefaults. The key is always read/written separately through Keychain.
 
 ### Client Protocol
 
@@ -211,7 +211,7 @@ concise summary that captures the key points, decisions, and action items.
 Use bullet points for clarity. Keep the summary under 500 words.
 ```
 
-**Context assembly:** Full transcript text. If transcript exceeds **100,000 characters** (~25K tokens), truncate from the middle — keep first 45K chars + last 45K chars with an ellipsis marker. This fixed budget works across all providers (even small local models have 8K+ context).
+**Context assembly:** Full transcript text. If transcript exceeds the context budget, truncate from the middle — keep first 45% + last 45% of the budget with an ellipsis marker. **Budget:** 100,000 characters (~25K tokens) for cloud providers, 24,000 characters (~6K tokens) for local providers (`isLocal == true`) to fit within typical 8K context windows.
 
 ### 2. Chat with Transcript
 
@@ -234,7 +234,7 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 </transcript>
 ```
 
-**Context assembly:** System prompt with full transcript + conversation history. Same 100K character budget as summary. If total context exceeds the budget, drop oldest conversation turns first (keep system prompt + transcript + recent turns).
+**Context assembly:** System prompt with full transcript + conversation history. Same context budget as summary (100K cloud / 24K local). If total context exceeds the budget, drop oldest conversation turns first (keep system prompt + transcript + recent turns).
 
 ### 3. Custom Transforms
 

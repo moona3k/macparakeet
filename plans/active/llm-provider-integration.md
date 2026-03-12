@@ -148,7 +148,7 @@ public protocol LLMServiceProtocol: Sendable {
 Implementation:
 - Builds system prompts per feature (summary, chat, transform)
 - Assembles messages array (system + transcript context + user input)
-- Context truncation: if transcript exceeds **100,000 characters** (~25K tokens), truncate from the middle (keep first 45K chars + last 45K chars + ellipsis marker). For chat, if conversation history causes overflow, drop oldest turns first (keep system prompt + transcript + recent turns).
+- Context truncation: if transcript exceeds the context budget, truncate from the middle (keep first 45% + last 45% + ellipsis marker). **Budget:** 100K chars for cloud providers, 24K chars for local (`isLocal == true`) to fit 8K context windows. For chat, if conversation history causes overflow, drop oldest turns first (keep system prompt + transcript + recent turns).
 - Delegates to `LLMClientProtocol`
 
 #### Step 1.6: Provider Config Storage
@@ -157,6 +157,7 @@ Implementation:
 
 - Provider ID, base URL, model name → UserDefaults
 - API key → Keychain (via existing `KeychainKeyValueStore`)
+- **Important:** `LLMProviderConfig.apiKey` must be excluded from `Codable` encoding via custom `CodingKeys` — the key is always read/written through Keychain, never serialized to UserDefaults
 - Expose as a simple read/write interface for the ViewModel
 
 #### Step 1.7: Tests
