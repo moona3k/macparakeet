@@ -148,7 +148,7 @@ public protocol LLMServiceProtocol: Sendable {
 Implementation:
 - Builds system prompts per feature (summary, chat, transform)
 - Assembles messages array (system + transcript context + user input)
-- Context truncation: if transcript exceeds the context budget, truncate from the middle (keep first 45% + last 45% + ellipsis marker). **Budget:** 100K chars for cloud providers, 24K chars for local (`isLocal == true`) to fit 8K context windows. For chat, if conversation history causes overflow, drop oldest turns first (keep system prompt + transcript + recent turns).
+- Context truncation: if transcript exceeds the context budget, truncate from the middle (keep first 45% + last 45% + ellipsis marker). **Budget:** 100K chars for cloud providers, 24K chars for local (`isLocal == true`) to fit 8K context windows. Truncation must snap to word boundaries (use `String.Index` range finding) to avoid slicing multi-byte Unicode characters. For chat, if conversation history causes overflow, drop oldest turns first (keep system prompt + transcript + recent turns).
 - Delegates to `LLMClientProtocol`
 
 #### Step 1.6: Provider Config Storage
