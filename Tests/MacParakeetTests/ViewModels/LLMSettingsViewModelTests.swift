@@ -169,7 +169,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(callbackCalled)
     }
 
-    // MARK: - Provider switch clears API key for local
+    // MARK: - Provider switch preserves per-provider keys
 
     func testSwitchingToLocalClearsAPIKey() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
@@ -177,6 +177,62 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         viewModel.selectedProviderID = .ollama
         XCTAssertEqual(viewModel.apiKeyInput, "")
+    }
+
+    func testSwitchingProviderLoadsStoredKey() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        // Save OpenAI config (stores key in mock)
+        viewModel.apiKeyInput = "sk-openai-key"
+        viewModel.saveConfiguration()
+
+        // Switch to Anthropic, save a different key
+        viewModel.selectedProviderID = .anthropic
+        viewModel.apiKeyInput = "sk-ant-key"
+        viewModel.saveConfiguration()
+
+        // Switch back to OpenAI — should restore the OpenAI key
+        viewModel.selectedProviderID = .openai
+        XCTAssertEqual(viewModel.apiKeyInput, "sk-openai-key")
+
+        // Switch back to Anthropic — should restore the Anthropic key
+        viewModel.selectedProviderID = .anthropic
+        XCTAssertEqual(viewModel.apiKeyInput, "sk-ant-key")
+    }
+
+    func testSwitchingProviderResetsConnectionTestState() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.connectionTestState = .success
+
+        viewModel.selectedProviderID = .anthropic
+        XCTAssertEqual(viewModel.connectionTestState, .idle)
+    }
+
+    // MARK: - Save State
+
+    func testSaveShowsSavedState() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+        XCTAssertEqual(viewModel.saveState, .saved)
+    }
+
+    func testFieldChangeResetsSaveState() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.saveConfiguration()
+        XCTAssertEqual(viewModel.saveState, .saved)
+
+        viewModel.apiKeyInput = "sk-different"
+        XCTAssertEqual(viewModel.saveState, .idle)
+    }
+
+    func testFieldChangeResetsConnectionTestState() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.connectionTestState = .success
+
+        viewModel.apiKeyInput = "sk-changed"
+        XCTAssertEqual(viewModel.connectionTestState, .idle)
     }
 
     // MARK: - Fetch Models

@@ -119,17 +119,7 @@ struct LLMSettingsView: View {
                     .buttonStyle(.bordered)
                 }
 
-                if let error = viewModel.saveError {
-                    HStack(spacing: 4) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 12))
-                            .foregroundStyle(DesignSystem.Colors.errorRed)
-                        Text(error)
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(DesignSystem.Colors.errorRed)
-                            .lineLimit(2)
-                    }
-                }
+                saveStateIndicator
 
                 Spacer()
             }
@@ -194,6 +184,33 @@ struct LLMSettingsView: View {
                       ? DesignSystem.Colors.successGreen.opacity(0.06)
                       : DesignSystem.Colors.warningAmber.opacity(0.06))
         )
+    }
+
+    @ViewBuilder
+    private var saveStateIndicator: some View {
+        switch viewModel.saveState {
+        case .idle:
+            EmptyView()
+        case .saved:
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DesignSystem.Colors.successGreen)
+                Text("Saved")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.successGreen)
+            }
+        case .error(let message):
+            HStack(spacing: 4) {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                Text(message)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .lineLimit(2)
+            }
+        }
     }
 
     @ViewBuilder

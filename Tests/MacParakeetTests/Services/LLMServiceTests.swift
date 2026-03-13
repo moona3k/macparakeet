@@ -56,14 +56,33 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
 
 final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     var config: LLMProviderConfig?
+    /// Per-provider key storage for testing provider switching.
+    var storedKeys: [LLMProviderID: String] = [:]
 
     func loadConfig() throws -> LLMProviderConfig? { config }
-    func saveConfig(_ config: LLMProviderConfig) throws { self.config = config }
-    func deleteConfig() throws { config = nil }
-    func loadAPIKey() throws -> String? { config?.apiKey }
+    func saveConfig(_ config: LLMProviderConfig) throws {
+        self.config = config
+        if let key = config.apiKey {
+            storedKeys[config.id] = key
+        } else {
+            storedKeys.removeValue(forKey: config.id)
+        }
+    }
+    func deleteConfig() throws {
+        if let id = config?.id {
+            storedKeys.removeValue(forKey: id)
+        }
+        config = nil
+    }
+    func loadAPIKey() throws -> String? {
+        guard let config else { return nil }
+        return storedKeys[config.id]
+    }
+    func loadAPIKey(for provider: LLMProviderID) throws -> String? { storedKeys[provider] }
 
     func saveAPIKey(_ key: String) throws {
         guard let existing = config else { return }
+        storedKeys[existing.id] = key
         config = LLMProviderConfig(
             id: existing.id, baseURL: existing.baseURL, apiKey: key,
             modelName: existing.modelName, isLocal: existing.isLocal
@@ -72,6 +91,7 @@ final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
 
     func deleteAPIKey() throws {
         guard let existing = config else { return }
+        storedKeys.removeValue(forKey: existing.id)
         config = LLMProviderConfig(
             id: existing.id, baseURL: existing.baseURL, apiKey: nil,
             modelName: existing.modelName, isLocal: existing.isLocal

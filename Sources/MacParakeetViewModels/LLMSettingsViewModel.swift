@@ -11,24 +11,48 @@ public final class LLMSettingsViewModel {
         case error(String)
     }
 
+    public enum SaveState: Equatable {
+        case idle
+        case saved
+        case error(String)
+    }
+
     public var selectedProviderID: LLMProviderID = .openai {
         didSet {
             if oldValue != selectedProviderID {
+                suppressStatusReset = true
                 modelName = Self.defaultModelName(for: selectedProviderID)
                 baseURLOverride = ""
                 fetchedModels = []
                 isFetchingModels = false
-                if !requiresAPIKey { apiKeyInput = "" }
+                // Load stored key for the new provider (or clear for local)
+                if requiresAPIKey {
+                    apiKeyInput = (try? configStore?.loadAPIKey(for: selectedProviderID)) ?? ""
+                } else {
+                    apiKeyInput = ""
+                }
+                suppressStatusReset = false
+                connectionTestState = .idle
+                saveState = .idle
             }
         }
     }
-    public var apiKeyInput: String = ""
-    public var modelName: String = "gpt-4.1"
-    public var baseURLOverride: String = ""
+    public var apiKeyInput: String = "" {
+        didSet { if !suppressStatusReset && oldValue != apiKeyInput { connectionTestState = .idle; saveState = .idle } }
+    }
+    public var modelName: String = "gpt-4.1" {
+        didSet { if !suppressStatusReset && oldValue != modelName { connectionTestState = .idle; saveState = .idle } }
+    }
+    public var baseURLOverride: String = "" {
+        didSet { if !suppressStatusReset && oldValue != baseURLOverride { connectionTestState = .idle; saveState = .idle } }
+    }
     public var connectionTestState: ConnectionTestState = .idle
-    public var saveError: String?
+    public var saveState: SaveState = .idle
     public var fetchedModels: [String] = []
     public var isFetchingModels: Bool = false
+
+    /// Suppresses status resets in property didSet during programmatic updates.
+    private var suppressStatusReset = false
 
     public var isConfigured: Bool {
         configStore != nil && (try? configStore?.loadConfig()) != nil
@@ -62,13 +86,12 @@ public final class LLMSettingsViewModel {
     public func saveConfiguration() {
         guard let configStore else { return }
         let config = buildConfig()
-        saveError = nil
         do {
             try configStore.saveConfig(config)
-            connectionTestState = .idle
+            saveState = .saved
             onConfigurationChanged?()
         } catch {
-            saveError = error.localizedDescription
+            saveState = .error(error.localizedDescription)
         }
     }
 
@@ -76,13 +99,16 @@ public final class LLMSettingsViewModel {
         guard let llmClient else { return }
         connectionTestState = .testing
         let config = buildConfig()
+        let capturedProvider = selectedProviderID
         Task {
             do {
                 try await llmClient.testConnection(config: config)
+                guard selectedProviderID == capturedProvider else { return }
                 connectionTestState = .success
                 // Also fetch models on successful connection
-                await fetchModelsQuietly(config: config)
+                await fetchModelsQuietly(config: config, capturedProvider: capturedProvider)
             } catch {
+                guard selectedProviderID == capturedProvider else { return }
                 connectionTestState = .error(error.localizedDescription)
             }
         }
@@ -92,31 +118,36 @@ public final class LLMSettingsViewModel {
         guard let llmClient else { return }
         isFetchingModels = true
         let config = buildConfig()
+        let capturedProvider = selectedProviderID
         Task {
-            await fetchModelsQuietly(config: config)
+            await fetchModelsQuietly(config: config, capturedProvider: capturedProvider)
         }
     }
 
-    private func fetchModelsQuietly(config: LLMProviderConfig) async {
+    private func fetchModelsQuietly(config: LLMProviderConfig, capturedProvider: LLMProviderID) async {
         guard let llmClient else { return }
         isFetchingModels = true
         let currentModel = modelName
         do {
             let allModels = try await llmClient.listModels(config: config)
+            guard selectedProviderID == capturedProvider else { return }
             // Filter to chat-capable models (exclude embeddings, tts, image-only, etc.)
             let chatModels = Self.filterChatModels(allModels, provider: config.id)
             fetchedModels = chatModels
             // Preserve current selection if it exists in fetched list;
             // otherwise fall back to the provider's default model, then first in list
             if !chatModels.contains(currentModel) {
+                suppressStatusReset = true
                 let defaultModel = Self.defaultModelName(for: config.id)
                 if chatModels.contains(defaultModel) {
                     modelName = defaultModel
                 } else if let first = chatModels.first {
                     modelName = first
                 }
+                suppressStatusReset = false
             }
         } catch {
+            guard selectedProviderID == capturedProvider else { return }
             fetchedModels = []
         }
         isFetchingModels = false
@@ -138,6 +169,7 @@ public final class LLMSettingsViewModel {
         modelName = Self.defaultModelName(for: selectedProviderID)
         baseURLOverride = ""
         connectionTestState = .idle
+        saveState = .idle
         onConfigurationChanged?()
     }
 
@@ -145,6 +177,7 @@ public final class LLMSettingsViewModel {
 
     private func loadExistingConfig() {
         guard let configStore, let config = try? configStore.loadConfig() else { return }
+        suppressStatusReset = true
         selectedProviderID = config.id
         apiKeyInput = config.apiKey ?? ""
         modelName = config.modelName
@@ -153,6 +186,7 @@ public final class LLMSettingsViewModel {
         if config.baseURL.absoluteString != defaultURL {
             baseURLOverride = config.baseURL.absoluteString
         }
+        suppressStatusReset = false
     }
 
     private func buildConfig() -> LLMProviderConfig {

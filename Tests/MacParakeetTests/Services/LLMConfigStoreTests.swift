@@ -36,8 +36,8 @@ final class LLMConfigStoreTests: XCTestCase {
         let config = LLMProviderConfig.anthropic(apiKey: "sk-ant-secret")
         try store.saveConfig(config)
 
-        // Verify apiKey is in Keychain
-        let keychainValue = try keychain.getString("llm_api_key")
+        // Verify apiKey is in per-provider Keychain key
+        let keychainValue = try keychain.getString("llm_api_key_anthropic")
         XCTAssertEqual(keychainValue, "sk-ant-secret")
 
         // Verify apiKey is NOT in UserDefaults (CodingKeys excludes it)
@@ -58,7 +58,7 @@ final class LLMConfigStoreTests: XCTestCase {
         try store.deleteConfig()
 
         XCTAssertNil(try store.loadConfig())
-        XCTAssertNil(try keychain.getString("llm_api_key"))
+        XCTAssertNil(try keychain.getString("llm_api_key_openai"))
         XCTAssertNil(defaults.data(forKey: "llm_provider_config"))
     }
 
@@ -85,10 +85,15 @@ final class LLMConfigStoreTests: XCTestCase {
     }
 
     func testLoadAPIKeyAndSaveAPIKey() throws {
+        // loadAPIKey() requires a saved config to know which provider to look up
         XCTAssertNil(try store.loadAPIKey())
+
+        let config = LLMProviderConfig.openai(apiKey: "sk-initial")
+        try store.saveConfig(config)
 
         try store.saveAPIKey("sk-direct")
         XCTAssertEqual(try store.loadAPIKey(), "sk-direct")
+        XCTAssertEqual(try store.loadAPIKey(for: .openai), "sk-direct")
 
         try store.deleteAPIKey()
         XCTAssertNil(try store.loadAPIKey())
@@ -98,11 +103,43 @@ final class LLMConfigStoreTests: XCTestCase {
         // Save config with apiKey, then delete only the Keychain entry
         let config = LLMProviderConfig.openai(apiKey: "sk-test")
         try store.saveConfig(config)
-        try keychain.delete("llm_api_key")
+        try keychain.delete("llm_api_key_openai")
 
         let loaded = try store.loadConfig()
         XCTAssertNotNil(loaded)
         XCTAssertEqual(loaded?.id, .openai)
         XCTAssertNil(loaded?.apiKey)
+    }
+
+    // MARK: - Per-Provider Key Storage
+
+    func testPerProviderKeysPreservedAcrossSwitch() throws {
+        // Save OpenAI config
+        let openaiConfig = LLMProviderConfig.openai(apiKey: "sk-openai-key")
+        try store.saveConfig(openaiConfig)
+
+        // Save Anthropic config (switches active provider)
+        let anthropicConfig = LLMProviderConfig.anthropic(apiKey: "sk-ant-key")
+        try store.saveConfig(anthropicConfig)
+
+        // Both keys should be in Keychain
+        XCTAssertEqual(try keychain.getString("llm_api_key_openai"), "sk-openai-key")
+        XCTAssertEqual(try keychain.getString("llm_api_key_anthropic"), "sk-ant-key")
+
+        // loadAPIKey(for:) returns the right key per provider
+        XCTAssertEqual(try store.loadAPIKey(for: .openai), "sk-openai-key")
+        XCTAssertEqual(try store.loadAPIKey(for: .anthropic), "sk-ant-key")
+    }
+
+    func testDeleteOnlyClearsActiveProviderKey() throws {
+        // Save keys for multiple providers
+        try store.saveConfig(.openai(apiKey: "sk-openai"))
+        try store.saveConfig(.anthropic(apiKey: "sk-ant"))
+
+        // Delete clears only the active provider (anthropic) key
+        try store.deleteConfig()
+
+        XCTAssertEqual(try keychain.getString("llm_api_key_openai"), "sk-openai")
+        XCTAssertNil(try keychain.getString("llm_api_key_anthropic"))
     }
 }
