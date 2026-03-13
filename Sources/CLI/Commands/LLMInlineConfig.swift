@@ -2,6 +2,33 @@ import ArgumentParser
 import Foundation
 import MacParakeetCore
 
+// MARK: - Shared Helpers
+
+func validateBaseURL(_ value: String) throws -> URL {
+    guard let url = URL(string: value),
+          let scheme = url.scheme?.lowercased(),
+          ["http", "https"].contains(scheme),
+          url.host != nil else {
+        throw ValidationError("--base-url must be an absolute http:// or https:// URL")
+    }
+    return url
+}
+
+func readInput(_ path: String) throws -> String {
+    if path == "-" {
+        var lines: [String] = []
+        while let line = readLine(strippingNewline: false) {
+            lines.append(line)
+        }
+        return lines.joined()
+    } else {
+        let url = URL(fileURLWithPath: path)
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+}
+
+// MARK: - Inline Options
+
 /// Shared options for CLI commands that call an LLM provider directly (no Keychain).
 struct LLMInlineOptions: ParsableArguments {
     @Option(name: .long, help: "Provider: anthropic, openai, gemini, ollama, lmstudio, custom.")
@@ -25,7 +52,7 @@ struct LLMInlineOptions: ParsableArguments {
         }
 
         let overrideURL: URL? = if let urlStr = baseURL {
-            try validateCustomBaseURL(urlStr)
+            try validateBaseURL(urlStr)
         } else {
             nil
         }

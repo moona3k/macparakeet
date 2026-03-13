@@ -47,16 +47,3 @@ struct LLMSummarizeCommand: AsyncParsableCommand {
         }
     }
 }
-
-func readInput(_ path: String) throws -> String {
-    if path == "-" {
-        var lines: [String] = []
-        while let line = readLine(strippingNewline: false) {
-            lines.append(line)
-        }
-        return lines.joined()
-    } else {
-        let url = URL(fileURLWithPath: path)
-        return try String(contentsOf: url, encoding: .utf8)
-    }
-}
