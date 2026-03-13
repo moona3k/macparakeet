@@ -122,7 +122,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**v0.2 Complete, v0.3 In Progress** -- ~89 source files, ~49 test files, 461 tests passing (`swift test` green)
+**v0.3 Complete, v0.4 In Progress** -- ~113 source files, ~59 test files, 701 tests passing (`swift test` green)
 
 ### v0.1 MVP (Implemented)
 - [x] System-wide dictation: Configurable hotkey (Fn default), double-tap (persistent) + hold-to-talk
@@ -145,15 +145,24 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] Processing modes (raw, clean)
 - [x] In-app feedback form (Feedback sidebar item → Cloudflare Worker → GitHub Issues)
 
-### v0.3 YouTube & Export (In Progress)
+### v0.3 YouTube & Export (Implemented)
 - [x] YouTube URL transcription (yt-dlp + Parakeet, single video)
 - [x] Export formats (TXT, Markdown, SRT, VTT)
 - [x] Export formats (DOCX, PDF, JSON)
 - [x] Drag-and-drop enhancements (menu bar icon support)
-- [ ] Drag-and-drop enhancements (hover states, visual feedback)
 
-### v0.4 Polish + Launch
-- [ ] Speaker diarization (FluidAudio offline pipeline: pyannote community-1 + WeSpeaker + VBx, file transcription only, ADR-010)
+### v0.4 Polish + Launch (In Progress)
+- [x] Speaker diarization CLI preview (FluidAudio offline pipeline, ADR-010)
+- [x] Custom hotkey support (any single key, ADR-009)
+- [x] Sparkle auto-updates
+- [x] LLM provider integration (cloud API keys, summary + chat, ADR-011)
+- [x] Private dictation mode (community#14)
+- [x] Newline escape in text snippets (community#16)
+- [x] Menu bar drag-and-drop
+- [x] Hide dictation pill toggle
+- [x] Voice stats dashboard
+- [x] UI polish (toggles, sidebar sections, copy improvements)
+- [ ] Speaker diarization GUI
 - [ ] Batch file processing
 - [ ] Whisper Mode (quiet/whispered speech recognition)
 - [ ] App Store submission
@@ -497,6 +506,21 @@ Step-by-step guides for frequent development tasks.
 5. Run focused tests (should pass), then run `swift test` before merge
 6. Update `spec/kernel/traceability.md`
 7. Commit with test + fix together
+
+### Release a new build (build → sign → notarize → deploy → auto-update)
+
+Full guide: `docs/distribution.md`. Quick steps:
+
+1. **Build:** `scripts/dist/build_app_bundle.sh` — creates `dist/MacParakeet.app` with Sparkle.framework embedded
+2. **Sign + notarize:** `scripts/dist/sign_notarize.sh` — signs app + DMG, submits to Apple, staples tickets. Uses Keychain profile `AC_PASSWORD` by default.
+3. **Upload DMG to R2:** `npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg --file dist/MacParakeet.dmg --content-type "application/x-apple-diskimage" --remote`
+4. **Verify R2 file size matches local:** `curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?ts=$(date +%s)" | grep content-length` — must equal `stat -f%z dist/MacParakeet.dmg`. If mismatched, re-upload (another process may have overwritten).
+5. **Sign for Sparkle:** `.build/artifacts/sparkle/Sparkle/bin/sign_update dist/MacParakeet.dmg` — outputs `sparkle:edSignature` and `length` for the appcast
+6. **Update appcast:** Edit `~/code/macparakeet-website/public/appcast.xml` — add `<item>` with build number (`CFBundleVersion` from Info.plist), version, signature, length, and release notes
+7. **Deploy website:** `cd ~/code/macparakeet-website && git add public/appcast.xml && git commit -m "Update appcast" && git push && npx astro build && npx wrangler pages deploy dist --project-name macparakeet-website --branch main`
+8. **Verify:** `curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep sparkle:version`
+
+**Critical:** The DMG uploaded to R2 must be the **exact same file** you ran `sign_update` on. If the file sizes don't match, Sparkle will reject the update with "improperly signed".
 
 ### Add a CLI command (if CLI target is added)
 
