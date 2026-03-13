@@ -136,10 +136,11 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
     public func testConnection(config: LLMProviderConfig) async throws {
         let messages = [ChatMessage(role: .user, content: "Hi")]
-        // Reasoning models (o1/o3/o4) need more tokens since max_completion_tokens
-        // covers both reasoning and output. 128 is enough for a minimal response.
-        let isReasoning = config.id == .openai && Self.isOpenAIReasoningModel(config.modelName)
-        let options = ChatCompletionOptions(maxTokens: isReasoning ? 128 : 1)
+        // Models that use reasoning tokens (o1/o3/o4, gpt-5.x) need more budget since
+        // max_completion_tokens covers both reasoning and visible output.
+        // 128 is enough for a minimal response. Older models can use 1 to minimize cost.
+        let needsMoreTokens = config.id == .openai && Self.openAIRequiresMaxCompletionTokens(config.modelName)
+        let options = ChatCompletionOptions(maxTokens: needsMoreTokens ? 128 : 1)
         _ = try await chatCompletion(messages: messages, config: config, options: options)
     }
 
@@ -230,12 +231,14 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
 
-        // OpenAI reasoning models (o1, o3, o4-mini) reject temperature and max_tokens.
-        // They require max_completion_tokens instead.
+        // OpenAI reasoning models (o1/o3/o4) reject temperature AND max_tokens.
+        // Newer OpenAI models (gpt-5.x) reject max_tokens but accept temperature.
+        // All of them require max_completion_tokens instead of max_tokens.
         let isReasoningModel = config.id == .openai && Self.isOpenAIReasoningModel(config.modelName)
+        let needsNewTokenParam = config.id == .openai && Self.openAIRequiresMaxCompletionTokens(config.modelName)
         let temperature = isReasoningModel ? nil : options.temperature
-        let maxTokens = isReasoningModel ? nil : options.maxTokens
-        let maxCompletionTokens = isReasoningModel ? options.maxTokens : nil
+        let maxTokens = needsNewTokenParam ? nil : options.maxTokens
+        let maxCompletionTokens = needsNewTokenParam ? options.maxTokens : nil
 
         // Ollama defaults to 2048-token context regardless of model capability.
         // Inject num_ctx to use the model's actual context window.
@@ -264,6 +267,18 @@ public final class LLMClient: LLMClientProtocol, Sendable {
     private static func isOpenAIReasoningModel(_ model: String) -> Bool {
         let lowered = model.lowercased()
         return lowered.hasPrefix("o1") || lowered.hasPrefix("o3") || lowered.hasPrefix("o4")
+    }
+
+    /// OpenAI models that require max_completion_tokens instead of max_tokens.
+    /// Includes reasoning models (o1/o3/o4) and newer GPT models (5.x+).
+    private static func openAIRequiresMaxCompletionTokens(_ model: String) -> Bool {
+        let lowered = model.lowercased()
+        if isOpenAIReasoningModel(lowered) { return true }
+        // GPT-5.x and beyond reject max_tokens
+        if lowered.hasPrefix("gpt-"), let digit = lowered.dropFirst(4).first, let version = digit.wholeNumberValue, version >= 5 {
+            return true
+        }
+        return false
     }
 
     internal enum SSEResult {
