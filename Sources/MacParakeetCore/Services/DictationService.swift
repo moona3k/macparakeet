@@ -237,29 +237,16 @@ public actor DictationService: DictationServiceProtocol {
         let wc = finalText.split(whereSeparator: \.isWhitespace).count
         let saveHistory = shouldSaveDictationHistory?() ?? true
 
-        // Create dictation record
-        var dictation: Dictation
-        if saveHistory {
-            dictation = Dictation(
-                durationMs: computeDurationMs(from: result),
-                rawTranscript: result.text,
-                cleanTranscript: cleanTranscript,
-                processingMode: mode,
-                status: .completed,
-                wordCount: wc
-            )
-        } else {
-            // Private mode: save metadata only (no transcript text, no audio)
-            dictation = Dictation(
-                durationMs: computeDurationMs(from: result),
-                rawTranscript: "",
-                cleanTranscript: nil,
-                processingMode: mode,
-                status: .completed,
-                hidden: true,
-                wordCount: wc
-            )
-        }
+        // Create dictation record with full transcript (needed for paste).
+        var dictation = Dictation(
+            durationMs: computeDurationMs(from: result),
+            rawTranscript: result.text,
+            cleanTranscript: cleanTranscript,
+            processingMode: mode,
+            status: .completed,
+            hidden: !saveHistory,
+            wordCount: wc
+        )
 
         // Persist audio if enabled and not private; otherwise delete it.
         if saveHistory, shouldSaveAudio?() ?? false {
@@ -277,8 +264,15 @@ public actor DictationService: DictationServiceProtocol {
             try? FileManager.default.removeItem(at: audioURL)
         }
 
-        // Save to database
-        try dictationRepo.save(dictation)
+        // Save to database — strip transcript in private mode so text is never persisted.
+        if saveHistory {
+            try dictationRepo.save(dictation)
+        } else {
+            var privateCopy = dictation
+            privateCopy.rawTranscript = ""
+            privateCopy.cleanTranscript = nil
+            try dictationRepo.save(privateCopy)
+        }
 
         // Update snippet use counts
         if !expandedSnippetIDs.isEmpty {
