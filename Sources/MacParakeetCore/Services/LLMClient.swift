@@ -136,7 +136,10 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
     public func testConnection(config: LLMProviderConfig) async throws {
         let messages = [ChatMessage(role: .user, content: "Hi")]
-        let options = ChatCompletionOptions(maxTokens: 1)
+        // Reasoning models (o1/o3/o4) need more tokens since max_completion_tokens
+        // covers both reasoning and output. 128 is enough for a minimal response.
+        let isReasoning = config.id == .openai && Self.isOpenAIReasoningModel(config.modelName)
+        let options = ChatCompletionOptions(maxTokens: isReasoning ? 128 : 1)
         _ = try await chatCompletion(messages: messages, config: config, options: options)
     }
 
