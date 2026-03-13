@@ -21,11 +21,19 @@ struct TranscriptResultView: View {
 
     @State private var backHovered = false
     @State private var copied = false
+    @State private var summaryCopied = false
+    @State private var copiedMessageId: UUID?
     @State private var exportConfirmation: ExportConfirmation?
     @State private var exportErrorMessage: String?
     @State private var copiedResetTask: Task<Void, Never>?
     @State private var dismissTask: Task<Void, Never>?
     @FocusState private var chatInputFocused: Bool
+
+    private let suggestedPrompts = [
+        "Summarize the key points",
+        "What are the main takeaways?",
+        "List any action items mentioned",
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -292,7 +300,7 @@ struct TranscriptResultView: View {
                 Button {
                     viewModel.selectedTab = tab
                     if tab == .summary { viewModel.summaryBadge = false }
-                    if tab == .chat { chatInputFocused = true }
+                    // Focus is handled by onAppear in chatPane with async delay
                 } label: {
                     HStack(spacing: 4) {
                         Text(tab.rawValue.capitalized)
@@ -376,26 +384,45 @@ struct TranscriptResultView: View {
                                 AIStreamingIndicator()
                             }
 
-                            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                                MarkdownText(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
-                                PulsingCursor()
-                            }
+                            MarkdownText(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
                         }
                     }
                 case .complete:
                     VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                         MarkdownText(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
 
-                        if viewModel.canGenerateSummary {
+                        HStack(spacing: DesignSystem.Spacing.sm) {
                             Button {
-                                let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
-                                viewModel.generateSummary(text: text)
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(viewModel.summary, forType: .string)
+                                summaryCopied = true
+                                copiedResetTask?.cancel()
+                                copiedResetTask = Task {
+                                    try? await Task.sleep(for: .seconds(2))
+                                    summaryCopied = false
+                                }
                             } label: {
-                                Label("Regenerate", systemImage: "arrow.clockwise")
-                                    .font(DesignSystem.Typography.caption)
+                                Label(
+                                    summaryCopied ? "Copied" : "Copy",
+                                    systemImage: summaryCopied ? "checkmark" : "doc.on.doc"
+                                )
+                                .font(DesignSystem.Typography.caption)
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+                            .foregroundStyle(summaryCopied ? DesignSystem.Colors.successGreen : .primary)
+
+                            if viewModel.canGenerateSummary {
+                                Button {
+                                    let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+                                    viewModel.generateSummary(text: text)
+                                } label: {
+                                    Label("Regenerate", systemImage: "arrow.clockwise")
+                                        .font(DesignSystem.Typography.caption)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
                         }
                     }
                 case .error(let message):
@@ -453,12 +480,39 @@ struct TranscriptResultView: View {
                                     Text("Ask a question about this transcript")
                                         .foregroundStyle(DesignSystem.Colors.textPrimary)
                                         .font(DesignSystem.Typography.pageTitle)
-                                    
-                                    Text("The AI can answer questions, extract key points, or explain parts of the transcript.")
+
+                                    Text("Or try one of these:")
                                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                                         .font(DesignSystem.Typography.body)
-                                        .multilineTextAlignment(.center)
-                                        .frame(maxWidth: 320)
+                                }
+
+                                VStack(spacing: DesignSystem.Spacing.sm) {
+                                    ForEach(suggestedPrompts, id: \.self) { prompt in
+                                        Button {
+                                            chatVM.inputText = prompt
+                                            chatVM.sendMessage()
+                                        } label: {
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "sparkle")
+                                                    .font(.system(size: 11))
+                                                    .foregroundStyle(DesignSystem.Colors.accent.opacity(0.7))
+                                                Text(prompt)
+                                                    .font(DesignSystem.Typography.bodySmall)
+                                            }
+                                            .padding(.horizontal, DesignSystem.Spacing.md)
+                                            .padding(.vertical, 8)
+                                            .background(
+                                                Capsule()
+                                                    .fill(DesignSystem.Colors.surfaceElevated)
+                                                    .overlay(
+                                                        Capsule()
+                                                            .stroke(DesignSystem.Colors.border.opacity(0.8), lineWidth: 1)
+                                                    )
+                                            )
+                                        }
+                                        .buttonStyle(.plain)
+                                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                                    }
                                 }
                             }
                             .frame(maxWidth: .infinity)
@@ -485,9 +539,14 @@ struct TranscriptResultView: View {
                 }
                 .onChange(of: chatVM.messages.count) {
                     if let lastID = chatVM.messages.last?.id {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { 
-                            proxy.scrollTo(lastID, anchor: .bottom) 
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            proxy.scrollTo(lastID, anchor: .bottom)
                         }
+                    }
+                }
+                .onChange(of: chatVM.messages.last?.content) {
+                    if let lastID = chatVM.messages.last?.id {
+                        proxy.scrollTo(lastID, anchor: .bottom)
                     }
                 }
             }
@@ -515,7 +574,11 @@ struct TranscriptResultView: View {
                         chatInputFocused = true
                     }
                     .disabled(chatVM.isStreaming || !chatVM.canSendMessage)
-                    .onAppear { chatInputFocused = true }
+                    .onAppear {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                            chatInputFocused = true
+                        }
+                    }
                     .onChange(of: chatVM.isStreaming) { _, isStreaming in
                         if !isStreaming { chatInputFocused = true }
                     }
@@ -580,7 +643,7 @@ struct TranscriptResultView: View {
 
     @ViewBuilder
     private func chatBubble(_ message: ChatDisplayMessage) -> some View {
-        HStack(alignment: .bottom, spacing: DesignSystem.Spacing.sm) {
+        HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
             if message.role == .user { Spacer(minLength: 60) }
 
             if message.role == .assistant {
@@ -593,15 +656,14 @@ struct TranscriptResultView: View {
 
                     SpinnerRingView(size: 16, revolutionDuration: 4.0, tintColor: DesignSystem.Colors.accent)
                 }
-                .padding(.bottom, 4)
             }
 
-            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 2) {
+            VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
                 if message.content.isEmpty && message.isStreaming {
                     // Light sweep loading bar
                     ChatLoadingSweep()
                 } else {
-                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 0) {
                         if message.role == .assistant {
                             MarkdownText(message.content)
                         } else {
@@ -609,9 +671,6 @@ struct TranscriptResultView: View {
                                 .font(DesignSystem.Typography.bodyLarge)
                                 .foregroundStyle(DesignSystem.Colors.onAccent)
                                 .textSelection(.enabled)
-                        }
-                        if message.isStreaming {
-                            PulsingCursor()
                         }
                     }
                     .padding(.horizontal, DesignSystem.Spacing.md)
@@ -623,6 +682,38 @@ struct TranscriptResultView: View {
                                   : DesignSystem.Colors.surfaceElevated.opacity(0.7))
                             .shadow(color: .black.opacity(message.role == .user ? 0.15 : 0.05), radius: 4, y: 2)
                     )
+
+                    // Copy button for assistant messages
+                    if message.role == .assistant && !message.isStreaming && !message.content.isEmpty {
+                        Button {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(message.content, forType: .string)
+                            copiedMessageId = message.id
+                            copiedResetTask?.cancel()
+                            copiedResetTask = Task {
+                                try? await Task.sleep(for: .seconds(2))
+                                copiedMessageId = nil
+                            }
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: copiedMessageId == message.id ? "checkmark" : "doc.on.doc")
+                                    .font(.system(size: 10))
+                                if copiedMessageId == message.id {
+                                    Text("Copied")
+                                        .font(DesignSystem.Typography.micro)
+                                }
+                            }
+                            .foregroundStyle(copiedMessageId == message.id ? DesignSystem.Colors.successGreen : DesignSystem.Colors.textTertiary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(DesignSystem.Colors.surfaceElevated.opacity(0.5))
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .transition(.opacity)
+                    }
                 }
             }
 
