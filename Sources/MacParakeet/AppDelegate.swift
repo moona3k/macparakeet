@@ -311,6 +311,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 configStore: env.llmConfigStore,
                 llmClient: env.llmClient
             )
+            settingsViewModel.onDictationsCleared = { [weak self] in
+                self?.historyViewModel.loadDictations()
+            }
             llmSettingsViewModel.onConfigurationChanged = { [weak self] in
                 self?.refreshLLMAvailability()
             }

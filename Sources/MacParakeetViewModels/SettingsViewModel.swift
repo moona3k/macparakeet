@@ -338,6 +338,9 @@ public final class SettingsViewModel {
         }
     }
 
+    /// Called after dictations are cleared so other VMs (e.g. history) can reload.
+    public var onDictationsCleared: (() -> Void)?
+
     public func clearAllDictations() {
         guard let repo = dictationRepo else { return }
         try? repo.deleteAll()
@@ -348,12 +351,14 @@ public final class SettingsViewModel {
             try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         }
         refreshStats()
+        onDictationsCleared?()
     }
 
     public func resetPrivateStatistics() {
         guard let repo = dictationRepo else { return }
         try? repo.deleteHidden()
         refreshStats()
+        onDictationsCleared?()
     }
 
     public func clearDownloadedYouTubeAudio() {
