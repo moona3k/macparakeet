@@ -25,6 +25,7 @@ struct TranscriptResultView: View {
     @State private var exportErrorMessage: String?
     @State private var copiedResetTask: Task<Void, Never>?
     @State private var dismissTask: Task<Void, Never>?
+    @FocusState private var chatInputFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -291,6 +292,7 @@ struct TranscriptResultView: View {
                 Button {
                     viewModel.selectedTab = tab
                     if tab == .summary { viewModel.summaryBadge = false }
+                    if tab == .chat { chatInputFocused = true }
                 } label: {
                     HStack(spacing: 4) {
                         Text(tab.rawValue.capitalized)
@@ -438,23 +440,29 @@ struct TranscriptResultView: View {
             // Messages
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                    LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                         if chatVM.messages.isEmpty {
-                            VStack(spacing: DesignSystem.Spacing.md) {
-                                Image(systemName: "bubble.left.and.text.bubble.right")
-                                    .font(.system(size: 28))
-                                    .foregroundStyle(.quaternary)
-                                Text("Ask a question about this transcript")
-                                    .foregroundStyle(.secondary)
-                                    .font(DesignSystem.Typography.body)
-                                Text("The AI can answer questions, extract key points, or explain parts of the transcript.")
-                                    .foregroundStyle(.tertiary)
-                                    .font(DesignSystem.Typography.caption)
-                                    .multilineTextAlignment(.center)
-                                    .frame(maxWidth: 280)
+                            VStack(spacing: DesignSystem.Spacing.lg) {
+                                MeditativeMerkabaView(
+                                    size: 64,
+                                    revolutionDuration: 6.0,
+                                    tintColor: DesignSystem.Colors.accent
+                                )
+                                
+                                VStack(spacing: DesignSystem.Spacing.xs) {
+                                    Text("Ask a question about this transcript")
+                                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                                        .font(DesignSystem.Typography.pageTitle)
+                                    
+                                    Text("The AI can answer questions, extract key points, or explain parts of the transcript.")
+                                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                                        .font(DesignSystem.Typography.body)
+                                        .multilineTextAlignment(.center)
+                                        .frame(maxWidth: 320)
+                                }
                             }
                             .frame(maxWidth: .infinity)
-                            .padding(.top, DesignSystem.Spacing.xl)
+                            .padding(.top, DesignSystem.Spacing.hero)
                         }
 
                         ForEach(chatVM.messages) { message in
@@ -473,11 +481,13 @@ struct TranscriptResultView: View {
                             .padding(.horizontal, DesignSystem.Spacing.md)
                         }
                     }
-                    .padding(DesignSystem.Spacing.md)
+                    .padding(DesignSystem.Spacing.lg)
                 }
                 .onChange(of: chatVM.messages.count) {
                     if let lastID = chatVM.messages.last?.id {
-                        withAnimation { proxy.scrollTo(lastID, anchor: .bottom) }
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) { 
+                            proxy.scrollTo(lastID, anchor: .bottom) 
+                        }
                     }
                 }
             }
@@ -493,78 +503,128 @@ struct TranscriptResultView: View {
             // Input bar
             HStack(spacing: DesignSystem.Spacing.sm) {
                 TextField("Ask about this transcript...", text: Bindable(chatVM).inputText)
-                    .textFieldStyle(.roundedBorder)
-                    .onSubmit { chatVM.sendMessage() }
+                    .textFieldStyle(.plain)
+                    .font(DesignSystem.Typography.bodyLarge)
+                    .padding(.horizontal, DesignSystem.Spacing.sm)
+                    .padding(.vertical, 12)
+                    .focused($chatInputFocused)
+                    .onSubmit {
+                        if !chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && chatVM.canSendMessage && !chatVM.isStreaming {
+                            chatVM.sendMessage()
+                        }
+                        chatInputFocused = true
+                    }
                     .disabled(chatVM.isStreaming || !chatVM.canSendMessage)
+                    .onAppear { chatInputFocused = true }
+                    .onChange(of: chatVM.isStreaming) { _, isStreaming in
+                        if !isStreaming { chatInputFocused = true }
+                    }
 
                 if chatVM.isStreaming {
                     Button {
                         chatVM.cancelStreaming()
                     } label: {
                         Image(systemName: "stop.circle.fill")
-                            .font(.system(size: 16))
+                            .font(.system(size: 24))
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .contentShape(Circle())
                 } else {
+                    let canSend = !chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && chatVM.canSendMessage
                     Button {
                         chatVM.sendMessage()
+                        chatInputFocused = true
                     } label: {
                         Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 16))
+                            .font(.system(size: 24))
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(DesignSystem.Colors.accent)
-                    .disabled(chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !chatVM.canSendMessage)
+                    .foregroundStyle(canSend ? DesignSystem.Colors.accent : DesignSystem.Colors.accent.opacity(0.3))
+                    .disabled(!canSend)
+                    .contentShape(Circle())
                 }
 
                 if !chatVM.messages.isEmpty {
+                    Divider()
+                        .frame(height: 20)
+                        .padding(.horizontal, 4)
+                    
                     Button {
                         chatVM.clearHistory()
                     } label: {
                         Image(systemName: "trash")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .contentShape(Rectangle())
+                    .help("Clear Chat History")
                 }
             }
-            .padding(.top, DesignSystem.Spacing.sm)
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .background(
+                Capsule()
+                    .fill(DesignSystem.Colors.surfaceElevated)
+                    .shadow(color: .black.opacity(0.06), radius: 8, y: 4)
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 1)
+            )
+            .padding(.top, DesignSystem.Spacing.md)
+            .padding(.bottom, DesignSystem.Spacing.xs)
+            .padding(.horizontal, DesignSystem.Spacing.xs)
         }
     }
 
     @ViewBuilder
     private func chatBubble(_ message: ChatDisplayMessage) -> some View {
-        HStack {
+        HStack(alignment: .bottom, spacing: DesignSystem.Spacing.sm) {
             if message.role == .user { Spacer(minLength: 60) }
+
+            if message.role == .assistant {
+                // AI Avatar — merkaba persists for all assistant messages
+                ZStack {
+                    Circle()
+                        .fill(DesignSystem.Colors.surfaceElevated)
+                        .frame(width: 28, height: 28)
+                        .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
+
+                    SpinnerRingView(size: 16, revolutionDuration: 4.0, tintColor: DesignSystem.Colors.accent)
+                }
+                .padding(.bottom, 4)
+            }
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 2) {
                 if message.content.isEmpty && message.isStreaming {
-                    // Show premium streaming indicator for empty assistant messages
-                    ChatStreamingPlaceholder()
+                    // Light sweep loading bar
+                    ChatLoadingSweep()
                 } else {
                     HStack(alignment: .firstTextBaseline, spacing: 0) {
                         if message.role == .assistant {
                             MarkdownText(message.content)
                         } else {
                             Text(message.content)
-                                .font(DesignSystem.Typography.body)
+                                .font(DesignSystem.Typography.bodyLarge)
+                                .foregroundStyle(DesignSystem.Colors.onAccent)
                                 .textSelection(.enabled)
                         }
                         if message.isStreaming {
                             PulsingCursor()
                         }
                     }
+                    .padding(.horizontal, DesignSystem.Spacing.md)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16)
+                            .fill(message.role == .user
+                                  ? DesignSystem.Colors.accent
+                                  : DesignSystem.Colors.surfaceElevated.opacity(0.7))
+                            .shadow(color: .black.opacity(message.role == .user ? 0.15 : 0.05), radius: 4, y: 2)
+                    )
                 }
             }
-            .padding(.horizontal, DesignSystem.Spacing.md)
-            .padding(.vertical, DesignSystem.Spacing.sm)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(message.role == .user
-                          ? DesignSystem.Colors.accent.opacity(0.12)
-                          : DesignSystem.Colors.surfaceElevated)
-            )
 
             if message.role == .assistant { Spacer(minLength: 60) }
         }
