@@ -366,9 +366,11 @@ struct TranscriptResultView: View {
                     } else {
                         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                             HStack(spacing: DesignSystem.Spacing.sm) {
-                                Image(systemName: "sparkles")
-                                    .font(.system(size: 11))
-                                    .foregroundStyle(DesignSystem.Colors.accent.opacity(0.6))
+                                SpinnerRingView(
+                                    size: 18,
+                                    revolutionDuration: 3.0,
+                                    tintColor: DesignSystem.Colors.accent
+                                )
                                 AIStreamingIndicator()
                             }
 
@@ -383,26 +385,15 @@ struct TranscriptResultView: View {
                         MarkdownText(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
 
                         if viewModel.canGenerateSummary {
-                            HStack(spacing: DesignSystem.Spacing.sm) {
-                                Button {
-                                    let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
-                                    viewModel.generateSummary(text: text)
-                                } label: {
-                                    Label("Regenerate", systemImage: "arrow.clockwise")
-                                        .font(DesignSystem.Typography.caption)
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-
-                                Button {
-                                    viewModel.dismissSummary()
-                                } label: {
-                                    Label("Dismiss", systemImage: "trash")
-                                        .font(DesignSystem.Typography.caption)
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
+                            Button {
+                                let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+                                viewModel.generateSummary(text: text)
+                            } label: {
+                                Label("Regenerate", systemImage: "arrow.clockwise")
+                                    .font(DesignSystem.Typography.caption)
                             }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
                     }
                 case .error(let message):

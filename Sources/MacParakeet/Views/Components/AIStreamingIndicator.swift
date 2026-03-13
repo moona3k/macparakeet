@@ -68,60 +68,42 @@ extension View {
     }
 }
 
-/// Skeleton placeholder lines for the summary loading state.
-/// Shows 3-4 animated bars that simulate incoming text.
+/// Merkaba-centered skeleton for the summary loading state.
+/// Shows a meditative merkaba spinner with subtle status text.
 struct SummarySkeletonView: View {
-    @State private var isAnimating = false
-
-    private let lineWidths: [CGFloat] = [1.0, 0.85, 0.92, 0.6]
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header area with AI indicator
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.accent)
-                    .opacity(isAnimating ? 0.4 : 1.0)
+        VStack(spacing: DesignSystem.Spacing.lg) {
+            MeditativeMerkabaView(
+                size: 56,
+                revolutionDuration: 4.0,
+                tintColor: DesignSystem.Colors.accent
+            )
 
+            VStack(spacing: DesignSystem.Spacing.xs) {
                 Text("Generating summary")
                     .font(DesignSystem.Typography.bodySmall.weight(.medium))
                     .foregroundStyle(.secondary)
 
                 AIStreamingIndicator()
             }
-
-            // Skeleton lines
-            ForEach(Array(lineWidths.enumerated()), id: \.offset) { index, width in
-                skeletonLine(widthFraction: width, delay: Double(index) * 0.1)
-            }
         }
-        .onAppear {
-            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
-                isAnimating = true
-            }
-        }
-    }
-
-    private func skeletonLine(widthFraction: CGFloat, delay: Double) -> some View {
-        GeometryReader { proxy in
-            RoundedRectangle(cornerRadius: 4)
-                .fill(DesignSystem.Colors.accent.opacity(isAnimating ? 0.06 : 0.12))
-                .frame(width: proxy.size.width * widthFraction, height: 12)
-        }
-        .frame(height: 12)
-        .shimmer()
+        .frame(maxWidth: .infinity)
+        .padding(.top, DesignSystem.Spacing.xl)
     }
 }
 
 /// Placeholder view for empty chat assistant messages during streaming.
+/// Shows a compact merkaba spinner with streaming dots.
 struct ChatStreamingPlaceholder: View {
     var body: some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 11))
-                .foregroundStyle(DesignSystem.Colors.accent.opacity(0.6))
+        HStack(spacing: DesignSystem.Spacing.md) {
+            SpinnerRingView(
+                size: 22,
+                revolutionDuration: 3.0,
+                tintColor: DesignSystem.Colors.accent
+            )
             AIStreamingIndicator()
         }
+        .padding(.vertical, DesignSystem.Spacing.xs)
     }
 }
