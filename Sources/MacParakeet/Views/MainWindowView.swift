@@ -34,7 +34,7 @@ struct MainWindowView: View {
     let historyViewModel: DictationHistoryViewModel
     let settingsViewModel: SettingsViewModel
     let llmSettingsViewModel: LLMSettingsViewModel
-    let chatViewModel: TranscriptChatViewModel?
+    let chatViewModel: TranscriptChatViewModel
     let customWordsViewModel: CustomWordsViewModel
     let textSnippetsViewModel: TextSnippetsViewModel
     let feedbackViewModel: FeedbackViewModel

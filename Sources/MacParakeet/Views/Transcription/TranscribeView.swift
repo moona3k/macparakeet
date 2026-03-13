@@ -19,7 +19,7 @@ private func truncateErrorMessage(_ msg: String) -> String {
 
 struct TranscribeView: View {
     @Bindable var viewModel: TranscriptionViewModel
-    var chatViewModel: TranscriptChatViewModel?
+    var chatViewModel: TranscriptChatViewModel
     private enum PipelineStep: CaseIterable {
         case download
         case convert

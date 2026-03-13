@@ -44,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let textSnippetsViewModel = TextSnippetsViewModel()
     private let feedbackViewModel = FeedbackViewModel()
     private let llmSettingsViewModel = LLMSettingsViewModel()
-    private var chatViewModel: TranscriptChatViewModel?
+    private let chatViewModel = TranscriptChatViewModel()
     private let mainWindowState = MainWindowState()
     private let onboardingWindowController = OnboardingWindowController()
     private var onboardingObserver: Any?
@@ -285,12 +285,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             llmSettingsViewModel.onConfigurationChanged = { [weak self] in
                 self?.refreshLLMAvailability()
             }
-
-            if hasLLMConfig {
-                let cvm = TranscriptChatViewModel()
-                cvm.configure(llmService: env.llmService, transcriptText: "")
-                chatViewModel = cvm
-            }
+            chatViewModel.configure(llmService: env.llmService, transcriptText: "")
 
             maybeShowOnboarding()
         } catch {
@@ -310,24 +305,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private func refreshLLMAvailability() {
         guard let env = appEnvironment else { return }
         let hasConfig = (try? env.llmConfigStore.loadConfig()) != nil
-
-        if hasConfig {
-            transcriptionViewModel.updateLLMAvailability(true, llmService: env.llmService)
-            if chatViewModel == nil {
-                let cvm = TranscriptChatViewModel()
-                cvm.configure(llmService: env.llmService, transcriptText: "")
-                chatViewModel = cvm
-                // Recreate main window to pick up new chatViewModel
-                if mainWindow != nil {
-                    mainWindow?.contentView = nil
-                    createMainWindow()
-                    mainWindow?.makeKeyAndOrderFront(nil)
-                }
-            }
-        } else {
-            transcriptionViewModel.updateLLMAvailability(false)
-            chatViewModel = nil
-        }
+        transcriptionViewModel.updateLLMAvailability(hasConfig, llmService: hasConfig ? env.llmService : nil)
     }
 
     // MARK: - Hotkey

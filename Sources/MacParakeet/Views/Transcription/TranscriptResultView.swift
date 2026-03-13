@@ -15,7 +15,7 @@ private struct ExportConfirmation: Identifiable {
 struct TranscriptResultView: View {
     let transcription: Transcription
     @Bindable var viewModel: TranscriptionViewModel
-    var chatViewModel: TranscriptChatViewModel?
+    var chatViewModel: TranscriptChatViewModel
     var onBack: (() -> Void)?
     var onRetranscribe: ((Transcription) -> Void)?
 
@@ -224,11 +224,13 @@ struct TranscriptResultView: View {
         }
         .onAppear {
             let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
-            chatViewModel?.updateTranscript(text)
+            chatViewModel.cancelStreaming()
+            chatViewModel.updateTranscript(text)
         }
         .onChange(of: transcription.id) {
             let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
-            chatViewModel?.updateTranscript(text)
+            chatViewModel.cancelStreaming()
+            chatViewModel.updateTranscript(text)
             viewModel.selectedTab = .transcript
             viewModel.dismissSummary()
         }
@@ -244,12 +246,7 @@ struct TranscriptResultView: View {
                 case .summary:
                     summaryPane
                 case .chat:
-                    if let chatViewModel {
-                        chatPane(viewModel: chatViewModel)
-                    } else {
-                        Text("Chat unavailable")
-                            .foregroundStyle(.secondary)
-                    }
+                    chatPane(viewModel: chatViewModel)
                 }
             } else {
                 transcriptPane
