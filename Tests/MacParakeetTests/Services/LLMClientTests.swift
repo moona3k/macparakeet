@@ -66,12 +66,33 @@ final class LLMClientTests: XCTestCase {
 
     // MARK: - Auth Headers
 
-    func testAuthHeaderSetFromAPIKey() async throws {
+    func testOpenAIAuthHeaderSetFromAPIKey() async throws {
         var capturedRequest: URLRequest?
 
         MockURLProtocol.handler = { request in
             capturedRequest = request
             return (self.okResponse(for: request), self.validResponseData())
+        }
+
+        let config = LLMProviderConfig.openai(apiKey: "sk-test-key")
+        _ = try await llmClient.chatCompletion(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            config: config,
+            options: .default
+        )
+
+        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "Authorization"), "Bearer sk-test-key")
+        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "Content-Type"), "application/json")
+    }
+
+    // MARK: - Anthropic Native API
+
+    func testAnthropicUsesNativeMessagesEndpoint() async throws {
+        var capturedRequest: URLRequest?
+
+        MockURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), self.validAnthropicResponseData())
         }
 
         let config = LLMProviderConfig.anthropic(apiKey: "sk-ant-test-key")
@@ -81,8 +102,79 @@ final class LLMClientTests: XCTestCase {
             options: .default
         )
 
-        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "Authorization"), "Bearer sk-ant-test-key")
-        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "Content-Type"), "application/json")
+        // Should use /v1/messages, NOT /v1/chat/completions
+        XCTAssertTrue(capturedRequest?.url?.path.hasSuffix("/messages") == true,
+                       "Anthropic should use /messages endpoint, got: \(capturedRequest?.url?.path ?? "nil")")
+        // Should use x-api-key, NOT Bearer
+        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "x-api-key"), "sk-ant-test-key")
+        XCTAssertNil(capturedRequest?.value(forHTTPHeaderField: "Authorization"))
+        // Should include anthropic-version
+        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
+    }
+
+    func testAnthropicExtractsSystemPrompt() async throws {
+        var capturedBody: [String: Any]?
+
+        MockURLProtocol.handler = { request in
+            if let body = self.extractBody(from: request) {
+                capturedBody = body
+            }
+            return (self.okResponse(for: request), self.validAnthropicResponseData())
+        }
+
+        let config = LLMProviderConfig.anthropic(apiKey: "sk-ant-test-key")
+        _ = try await llmClient.chatCompletion(
+            messages: [
+                ChatMessage(role: .system, content: "You are helpful."),
+                ChatMessage(role: .user, content: "Hi"),
+            ],
+            config: config,
+            options: .default
+        )
+
+        // System prompt should be a top-level field, not in messages
+        XCTAssertEqual(capturedBody?["system"] as? String, "You are helpful.")
+        let messages = capturedBody?["messages"] as? [[String: String]]
+        XCTAssertEqual(messages?.count, 1, "System message should be extracted from messages array")
+        XCTAssertEqual(messages?[0]["role"], "user")
+    }
+
+    func testAnthropicResponseParsedCorrectly() async throws {
+        MockURLProtocol.handler = { request in
+            return (self.okResponse(for: request), self.validAnthropicResponseData())
+        }
+
+        let config = LLMProviderConfig.anthropic(apiKey: "sk-ant-test-key")
+        let response = try await llmClient.chatCompletion(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            config: config,
+            options: .default
+        )
+
+        XCTAssertEqual(response.content, "Hello!")
+        XCTAssertEqual(response.model, "claude-sonnet-4-6")
+        XCTAssertEqual(response.usage?.promptTokens, 10)
+        XCTAssertEqual(response.usage?.completionTokens, 5)
+    }
+
+    func testAnthropicIncludesMaxTokens() async throws {
+        var capturedBody: [String: Any]?
+
+        MockURLProtocol.handler = { request in
+            if let body = self.extractBody(from: request) {
+                capturedBody = body
+            }
+            return (self.okResponse(for: request), self.validAnthropicResponseData())
+        }
+
+        let config = LLMProviderConfig.anthropic(apiKey: "sk-ant-test-key")
+        _ = try await llmClient.chatCompletion(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            config: config,
+            options: ChatCompletionOptions(maxTokens: 1000)
+        )
+
+        XCTAssertEqual(capturedBody?["max_tokens"] as? Int, 1000)
     }
 
     func testOllamaUsesNativeAPI() async throws {
@@ -741,6 +833,12 @@ final class LLMClientTests: XCTestCase {
     private func validResponseData() -> Data {
         Data("""
         {"model":"gpt-4o","choices":[{"message":{"content":"OK"}}],"usage":{"prompt_tokens":1,"completion_tokens":1}}
+        """.utf8)
+    }
+
+    private func validAnthropicResponseData() -> Data {
+        Data("""
+        {"model":"claude-sonnet-4-6","content":[{"type":"text","text":"Hello!"}],"usage":{"input_tokens":10,"output_tokens":5},"stop_reason":"end_turn"}
         """.utf8)
     }
 

@@ -35,9 +35,12 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         config: LLMProviderConfig,
         options: ChatCompletionOptions
     ) async throws -> ChatCompletionResponse {
-        // Ollama: use native /api/chat to disable thinking mode (not supported via /v1 compat)
+        // Provider-specific native API paths
         if config.id == .ollama {
             return try await ollamaChatCompletion(messages: messages, config: config, options: options)
+        }
+        if config.id == .anthropic {
+            return try await anthropicChatCompletion(messages: messages, config: config, options: options)
         }
 
         let request = try buildRequest(messages: messages, config: config, options: options, stream: false)
@@ -83,9 +86,11 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         config: LLMProviderConfig,
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error> {
-        // Ollama: use native /api/chat to disable thinking mode
         if config.id == .ollama {
             return ollamaChatCompletionStream(messages: messages, config: config, options: options)
+        }
+        if config.id == .anthropic {
+            return anthropicChatCompletionStream(messages: messages, config: config, options: options)
         }
 
         return openAIChatCompletionStream(messages: messages, config: config, options: options)
@@ -290,6 +295,161 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         )
 
         request.httpBody = try JSONEncoder().encode(body)
+        return request
+    }
+
+    // MARK: - Anthropic Native API
+
+    private func anthropicChatCompletion(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) async throws -> ChatCompletionResponse {
+        let request = try buildAnthropicRequest(messages: messages, config: config, options: options, stream: false)
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw LLMError.connectionFailed(error.localizedDescription)
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw LLMError.connectionFailed("Invalid response.")
+        }
+
+        guard (200...299).contains(http.statusCode) else {
+            throw mapError(statusCode: http.statusCode, data: data)
+        }
+
+        guard let anthropicResponse = try? JSONDecoder().decode(AnthropicResponse.self, from: data) else {
+            throw LLMError.invalidResponse
+        }
+
+        let content = anthropicResponse.content
+            .compactMap { block -> String? in
+                if case .text(let text) = block { return text }
+                return nil
+            }
+            .joined()
+
+        let usage = TokenUsage(
+            promptTokens: anthropicResponse.usage.input_tokens,
+            completionTokens: anthropicResponse.usage.output_tokens
+        )
+
+        return ChatCompletionResponse(content: content, model: anthropicResponse.model, usage: usage)
+    }
+
+    private func anthropicChatCompletionStream(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    let request = try buildAnthropicRequest(messages: messages, config: config, options: options, stream: true)
+
+                    let (bytes, response): (URLSession.AsyncBytes, URLResponse)
+                    do {
+                        (bytes, response) = try await session.bytes(for: request)
+                    } catch {
+                        throw LLMError.connectionFailed(error.localizedDescription)
+                    }
+
+                    guard let http = response as? HTTPURLResponse else {
+                        throw LLMError.connectionFailed("Invalid response.")
+                    }
+
+                    guard (200...299).contains(http.statusCode) else {
+                        var errorData = Data()
+                        for try await byte in bytes {
+                            errorData.append(byte)
+                        }
+                        throw mapError(statusCode: http.statusCode, data: errorData)
+                    }
+
+                    for try await line in bytes.lines {
+                        try Task.checkCancellation()
+
+                        let trimmed = line.trimmingCharacters(in: .whitespaces)
+                        guard trimmed.hasPrefix("data: ") || trimmed.hasPrefix("data:") else { continue }
+
+                        let payload = trimmed.hasPrefix("data: ")
+                            ? String(trimmed.dropFirst(6))
+                            : String(trimmed.dropFirst(5))
+
+                        guard let data = payload.data(using: .utf8),
+                              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                            continue
+                        }
+
+                        let eventType = json["type"] as? String
+
+                        if eventType == "content_block_delta",
+                           let delta = json["delta"] as? [String: Any],
+                           let text = delta["text"] as? String {
+                            continuation.yield(text)
+                        } else if eventType == "message_stop" {
+                            continuation.finish()
+                            return
+                        } else if eventType == "error",
+                                  let error = json["error"] as? [String: Any],
+                                  let message = error["message"] as? String {
+                            throw LLMError.streamingError(message)
+                        }
+                    }
+
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+
+            continuation.onTermination = { _ in
+                task.cancel()
+            }
+        }
+    }
+
+    private func buildAnthropicRequest(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions,
+        stream: Bool
+    ) throws -> URLRequest {
+        let url = config.baseURL.appendingPathComponent("messages")
+
+        var request = URLRequest(url: url, timeoutInterval: stream ? 120 : 30)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+
+        if let apiKey = config.apiKey {
+            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+        }
+
+        let systemPrompt = messages.first(where: { $0.role == .system })?.content
+        let nonSystemMessages = messages.filter { $0.role != .system }
+
+        var body: [String: Any] = [
+            "model": config.modelName,
+            "messages": nonSystemMessages.map { ["role": $0.role.rawValue, "content": $0.content] },
+            "max_tokens": options.maxTokens ?? 4096,
+            "stream": stream,
+        ]
+
+        if let systemPrompt {
+            body["system"] = systemPrompt
+        }
+
+        if let temp = options.temperature {
+            body["temperature"] = temp
+        }
+
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
     }
 
@@ -625,6 +785,38 @@ struct ModelsListResponse: Decodable {
 
     struct ModelEntry: Decodable {
         let id: String
+    }
+}
+
+// MARK: - Anthropic Native API Types
+
+struct AnthropicResponse: Decodable {
+    let model: String
+    let content: [ContentBlock]
+    let usage: AnthropicUsage
+
+    enum ContentBlock: Decodable {
+        case text(String)
+        case other
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let type = try container.decode(String.self, forKey: .type)
+            if type == "text", let text = try container.decodeIfPresent(String.self, forKey: .text) {
+                self = .text(text)
+            } else {
+                self = .other
+            }
+        }
+
+        private enum CodingKeys: String, CodingKey {
+            case type, text
+        }
+    }
+
+    struct AnthropicUsage: Decodable {
+        let input_tokens: Int
+        let output_tokens: Int
     }
 }
 
