@@ -217,6 +217,8 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
     var transcribeCallCount = 0
     var lastFileURL: URL?
     var lastSource: TelemetryTranscriptionSource?
+    var transcribeProgressPhases: [String] = []
+    var transcribeDelayMs: UInt64 = 0
     var transcribeURLCallCount = 0
     var lastURLString: String?
     var transcribeURLProgressPhases: [String] = []
@@ -236,6 +238,14 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
         self.transcribeURLProgressPhases = phases
     }
 
+    func configureProgress(phases: [String]) {
+        self.transcribeProgressPhases = phases
+    }
+
+    func configureDelay(milliseconds: UInt64) {
+        self.transcribeDelayMs = milliseconds
+    }
+
     func configureURLDelay(milliseconds: UInt64) {
         self.transcribeURLDelayMs = milliseconds
     }
@@ -248,6 +258,14 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
         transcribeCallCount += 1
         lastFileURL = fileURL
         lastSource = source
+
+        for phase in transcribeProgressPhases {
+            onProgress?(phase)
+        }
+
+        if transcribeDelayMs > 0 {
+            try await Task.sleep(nanoseconds: transcribeDelayMs * 1_000_000)
+        }
 
         if let error = transcribeError {
             throw error
@@ -269,7 +287,7 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
         }
 
         if transcribeURLDelayMs > 0 {
-            try? await Task.sleep(nanoseconds: transcribeURLDelayMs * 1_000_000)
+            try await Task.sleep(nanoseconds: transcribeURLDelayMs * 1_000_000)
         }
 
         if let error = transcribeError {

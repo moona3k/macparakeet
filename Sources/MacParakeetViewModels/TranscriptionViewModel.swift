@@ -69,6 +69,8 @@ public final class TranscriptionViewModel {
     private var transcriptionService: TranscriptionServiceProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var llmService: LLMServiceProtocol?
+    private var transcriptionTask: Task<Void, Never>?
+    private var activeTranscriptionTaskID: UUID?
     private var summaryTask: Task<Void, Never>?
     private var activeDropRequestID: UUID?
     private var dropPendingCount = 0
@@ -95,31 +97,28 @@ public final class TranscriptionViewModel {
     }
 
     public func transcribeFile(url: URL, source: TelemetryTranscriptionSource = .file) {
-        guard let service = transcriptionService, !isTranscribing else { return }
-        transcribingFileName = url.lastPathComponent
-        beginTranscription(source: .localFile)
+        guard let service = transcriptionService else { return }
+        let taskID = beginNewTranscription(source: .localFile, fileName: url.lastPathComponent)
 
-        Task {
+        transcriptionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
                 let result = try await service.transcribe(fileURL: url, source: source) { [weak self] phase in
-                    DispatchQueue.main.async {
-                        self?.updateProgress(with: phase)
+                    Task { @MainActor [weak self] in
+                        self?.updateProgress(with: phase, taskID: taskID)
                     }
                 }
-                endTranscription()
-                currentTranscription = result
-                loadTranscriptions()
-                autoSummarizeIfNeeded(result)
+                completeSuccessfulTranscription(taskID: taskID, result: result)
+            } catch is CancellationError {
+                completeCancelledTranscription(taskID: taskID)
             } catch {
-                errorMessage = error.localizedDescription
-                endTranscription()
-                loadTranscriptions()
+                completeFailedTranscription(taskID: taskID, error: error)
             }
         }
     }
 
     public func transcribeURL() {
-        guard let service = transcriptionService, !isTranscribing else { return }
+        guard let service = transcriptionService else { return }
         let url = urlInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let videoID = YouTubeURLValidator.extractVideoID(url) else { return }
 
@@ -130,25 +129,22 @@ public final class TranscriptionViewModel {
             return
         }
 
-        transcribingFileName = "YouTube video"
-        beginTranscription(source: .youtubeURL)
+        let taskID = beginNewTranscription(source: .youtubeURL, fileName: "YouTube video")
         urlInput = ""
 
-        Task {
+        transcriptionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
                 let result = try await service.transcribeURL(urlString: url) { [weak self] phase in
-                    DispatchQueue.main.async {
-                        self?.updateProgress(with: phase)
+                    Task { @MainActor [weak self] in
+                        self?.updateProgress(with: phase, taskID: taskID)
                     }
                 }
-                endTranscription()
-                currentTranscription = result
-                loadTranscriptions()
-                autoSummarizeIfNeeded(result)
+                completeSuccessfulTranscription(taskID: taskID, result: result)
+            } catch is CancellationError {
+                completeCancelledTranscription(taskID: taskID)
             } catch {
-                errorMessage = error.localizedDescription
-                endTranscription()
-                loadTranscriptions()
+                completeFailedTranscription(taskID: taskID, error: error)
             }
         }
     }
@@ -211,35 +207,36 @@ public final class TranscriptionViewModel {
     }
 
     public func retranscribe(_ original: Transcription) {
-        guard let service = transcriptionService, !isTranscribing,
+        guard let service = transcriptionService,
               let filePath = original.filePath,
               FileManager.default.fileExists(atPath: filePath) else { return }
 
         let url = URL(fileURLWithPath: filePath)
-        transcribingFileName = original.fileName
-        beginTranscription(source: .localFile)
-        currentTranscription = nil
+        let taskID = beginNewTranscription(source: .localFile, fileName: original.fileName, clearCurrent: true)
 
-        Task {
+        transcriptionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
             do {
                 var result = try await service.transcribe(fileURL: url, source: .file) { [weak self] phase in
-                    DispatchQueue.main.async {
-                        self?.updateProgress(with: phase)
+                    Task { @MainActor [weak self] in
+                        self?.updateProgress(with: phase, taskID: taskID)
                     }
                 }
                 // Preserve original metadata
                 result.fileName = original.fileName
                 result.sourceURL = original.sourceURL
                 try? transcriptionRepo?.save(result)
-                endTranscription()
-                currentTranscription = result
-                loadTranscriptions()
+                completeSuccessfulTranscription(taskID: taskID, result: result)
+            } catch is CancellationError {
+                completeCancelledTranscription(taskID: taskID)
             } catch {
-                errorMessage = error.localizedDescription
-                endTranscription()
-                loadTranscriptions()
+                completeFailedTranscription(taskID: taskID, error: error)
             }
         }
+    }
+
+    public func cancelTranscription() {
+        transcriptionTask?.cancel()
     }
 
     public func deleteTranscription(_ transcription: Transcription) {
@@ -256,6 +253,53 @@ public final class TranscriptionViewModel {
     }
 
     // MARK: - Progress State
+
+    private func beginNewTranscription(
+        source: SourceKind,
+        fileName: String,
+        clearCurrent: Bool = false
+    ) -> UUID {
+        transcriptionTask?.cancel()
+
+        let taskID = UUID()
+        activeTranscriptionTaskID = taskID
+        transcribingFileName = fileName
+        beginTranscription(source: source)
+
+        if clearCurrent {
+            currentTranscription = nil
+        }
+
+        return taskID
+    }
+
+    private func completeSuccessfulTranscription(taskID: UUID, result: Transcription) {
+        guard activeTranscriptionTaskID == taskID else { return }
+        transcriptionTask = nil
+        activeTranscriptionTaskID = nil
+        endTranscription()
+        currentTranscription = result
+        loadTranscriptions()
+        autoSummarizeIfNeeded(result)
+    }
+
+    private func completeFailedTranscription(taskID: UUID, error: Error) {
+        guard activeTranscriptionTaskID == taskID else { return }
+        transcriptionTask = nil
+        activeTranscriptionTaskID = nil
+        errorMessage = error.localizedDescription
+        endTranscription()
+        loadTranscriptions()
+    }
+
+    private func completeCancelledTranscription(taskID: UUID) {
+        guard activeTranscriptionTaskID == taskID else { return }
+        transcriptionTask = nil
+        activeTranscriptionTaskID = nil
+        errorMessage = nil
+        endTranscription()
+        loadTranscriptions()
+    }
 
     private func beginTranscription(source: SourceKind) {
         sourceKind = source
@@ -278,7 +322,10 @@ public final class TranscriptionViewModel {
         progressHeadline = Self.headline(for: .preparing)
     }
 
-    private func updateProgress(with phaseText: String) {
+    private func updateProgress(with phaseText: String, taskID: UUID? = nil) {
+        if let taskID, activeTranscriptionTaskID != taskID {
+            return
+        }
         progress = phaseText
         transcriptionProgress = Self.parseProgressFraction(from: phaseText)
         progressPhase = Self.parsePhase(from: phaseText)

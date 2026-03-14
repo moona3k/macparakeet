@@ -108,6 +108,7 @@ public final class SettingsViewModel {
     public var parakeetStatus: LocalModelStatus = .unknown
     public var parakeetStatusDetail: String = "Not checked yet."
     public var parakeetRepairing = false
+    public var parakeetClearing = false
 
     // Licensing / entitlements
     public var entitlementsSummary: String = ""
@@ -129,6 +130,7 @@ public final class SettingsViewModel {
     private let defaults: UserDefaults
     private let youtubeDownloadsDirPath: @Sendable () -> String
     private let isSpeechModelCached: @Sendable () -> Bool
+    private var isSpeechPipelineActive: () -> Bool = { false }
     private var isApplyingLaunchAtLoginState = false
 
     public init(
@@ -162,7 +164,8 @@ public final class SettingsViewModel {
         checkoutURL: URL?,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
-        sttClient: STTClientProtocol? = nil
+        sttClient: STTClientProtocol? = nil,
+        isSpeechPipelineActive: @escaping () -> Bool = { false }
     ) {
         self.permissionService = permissionService
         self.dictationRepo = dictationRepo
@@ -173,6 +176,7 @@ public final class SettingsViewModel {
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.sttClient = sttClient
+        self.isSpeechPipelineActive = isSpeechPipelineActive
         refreshLaunchAtLoginStatus()
         refreshPermissions()
         refreshStats()
@@ -259,6 +263,7 @@ public final class SettingsViewModel {
     public func repairParakeetModel() {
         guard let sttClient else { return }
         guard !parakeetRepairing else { return }
+        guard !parakeetClearing else { return }
         parakeetRepairing = true
         parakeetStatus = .repairing
         parakeetStatusDetail = "Preparing speech model..."
@@ -287,6 +292,32 @@ public final class SettingsViewModel {
                     self.parakeetStatus = .failed
                     self.parakeetStatusDetail = error.localizedDescription
                 }
+            }
+        }
+    }
+
+    public var canClearModelCache: Bool {
+        sttClient != nil && !parakeetRepairing && !parakeetClearing && !isSpeechPipelineActive()
+    }
+
+    public func clearModelCache() {
+        guard let sttClient else { return }
+        guard canClearModelCache else {
+            parakeetStatusDetail = "Stop dictation or transcription before deleting models."
+            return
+        }
+
+        parakeetClearing = true
+        parakeetStatus = .checking
+        parakeetStatusDetail = "Deleting speech and speaker models..."
+
+        Task {
+            await sttClient.clearModelCache()
+
+            await MainActor.run {
+                self.parakeetClearing = false
+                self.parakeetStatus = .notDownloaded
+                self.parakeetStatusDetail = "Speech and speaker models deleted."
             }
         }
     }

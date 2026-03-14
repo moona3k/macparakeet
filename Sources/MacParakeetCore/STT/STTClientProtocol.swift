@@ -11,6 +11,9 @@ public protocol STTClientProtocol: Sendable {
     /// Check if the STT engine is initialized and ready
     func isReady() async -> Bool
 
+    /// Clear all cached speech and speaker models.
+    func clearModelCache() async
+
     /// Shut down the STT engine
     func shutdown() async
 }

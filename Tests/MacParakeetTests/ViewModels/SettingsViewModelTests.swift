@@ -445,6 +445,59 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.parakeetStatus, .ready)
     }
 
+    func testClearModelCacheClearsModelsAndMarksNotDownloaded() async throws {
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            youtubeDownloadsDirPath: { [youtubeDownloadsTestDir] in
+                youtubeDownloadsTestDir?.path ?? AppPaths.youtubeDownloadsDir
+            },
+            isSpeechModelCached: { false }
+        )
+        let stt = MockSTTClient()
+
+        vm.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sttClient: stt
+        )
+
+        vm.clearModelCache()
+        try await Task.sleep(for: .milliseconds(100))
+
+        let clearCalled = await stt.clearModelCacheCalled
+        XCTAssertTrue(clearCalled)
+        XCTAssertFalse(vm.parakeetClearing)
+        XCTAssertEqual(vm.parakeetStatus, .notDownloaded)
+    }
+
+    func testClearModelCacheIsBlockedWhileSpeechPipelineActive() async {
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            youtubeDownloadsDirPath: { [youtubeDownloadsTestDir] in
+                youtubeDownloadsTestDir?.path ?? AppPaths.youtubeDownloadsDir
+            }
+        )
+        let stt = MockSTTClient()
+
+        vm.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sttClient: stt,
+            isSpeechPipelineActive: { true }
+        )
+
+        vm.clearModelCache()
+
+        let clearCalled = await stt.clearModelCacheCalled
+        XCTAssertFalse(clearCalled)
+        XCTAssertFalse(vm.parakeetClearing)
+        XCTAssertEqual(vm.parakeetStatusDetail, "Stop dictation or transcription before deleting models.")
+    }
+
     // MARK: - Hotkey Trigger
 
     func testHotkeyTriggerDefaultsToFn() {

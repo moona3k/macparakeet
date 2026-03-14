@@ -93,6 +93,26 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(all[0].status, .error)
     }
 
+    func testTranscribeFileCancellationMarksRecordCancelled() async throws {
+        await mockSTT.configure(error: CancellationError())
+
+        let fileURL = URL(fileURLWithPath: "/tmp/test.mp3")
+
+        do {
+            _ = try await service.transcribe(fileURL: fileURL)
+            XCTFail("Should have thrown")
+        } catch is CancellationError {
+            // Expected
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
+
+        let all = try transcriptionRepo.fetchAll(limit: nil)
+        XCTAssertEqual(all.count, 1)
+        XCTAssertEqual(all[0].status, .cancelled)
+        XCTAssertNil(all[0].errorMessage)
+    }
+
     func testTranscribeURLWithoutDownloaderThrows() async throws {
         // Service without youtubeDownloader should throw
         do {

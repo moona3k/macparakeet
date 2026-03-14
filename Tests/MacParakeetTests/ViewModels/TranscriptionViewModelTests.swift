@@ -116,6 +116,64 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.errorMessage, "Error should be cleared when starting new transcription")
     }
 
+    func testCancelTranscriptionResetsToIdleWithoutError() async throws {
+        let expectedResult = Transcription(
+            fileName: "audio.mp3",
+            rawTranscript: "Transcribed text",
+            status: .completed
+        )
+        await mockService.configure(result: expectedResult)
+        await mockService.configureDelay(milliseconds: 500)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        let url = URL(fileURLWithPath: "/tmp/audio.mp3")
+        viewModel.transcribeFile(url: url)
+
+        XCTAssertTrue(viewModel.isTranscribing)
+
+        viewModel.cancelTranscription()
+        try await Task.sleep(for: .milliseconds(100))
+
+        XCTAssertFalse(viewModel.isTranscribing)
+        XCTAssertEqual(viewModel.progress, "")
+        XCTAssertNil(viewModel.errorMessage)
+        XCTAssertNil(viewModel.currentTranscription)
+    }
+
+    func testStartingNewTranscriptionCancelsInFlightRequest() async throws {
+        let firstResult = Transcription(
+            fileName: "first.mp3",
+            rawTranscript: "First result",
+            status: .completed
+        )
+        let secondResult = Transcription(
+            fileName: "second.mp3",
+            rawTranscript: "Second result",
+            status: .completed
+        )
+
+        await mockService.configure(result: firstResult)
+        await mockService.configureDelay(milliseconds: 500)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.transcribeFile(url: URL(fileURLWithPath: "/tmp/first.mp3"))
+        try await Task.sleep(for: .milliseconds(50))
+
+        await mockService.configure(result: secondResult)
+        await mockService.configureDelay(milliseconds: 0)
+        viewModel.transcribeFile(url: URL(fileURLWithPath: "/tmp/second.mp3"))
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertFalse(viewModel.isTranscribing)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Second result")
+        XCTAssertNil(viewModel.errorMessage)
+
+        let callCount = await mockService.transcribeCallCount
+        XCTAssertEqual(callCount, 2)
+    }
+
     // MARK: - Transcribe URL
 
     func testTranscribeURLUpdatesState() async throws {

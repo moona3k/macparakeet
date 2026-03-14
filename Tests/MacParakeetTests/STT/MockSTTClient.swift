@@ -11,6 +11,7 @@ public actor MockSTTClient: STTClientProtocol {
     public var warmUpError: Error?
     public var warmUpFailuresBeforeSuccess: Int = 0
     public var warmUpProgressPhases: [String]?
+    public var clearModelCacheCalled = false
     public var shutdownCalled = false
 
     public init() {}
@@ -79,6 +80,11 @@ public actor MockSTTClient: STTClientProtocol {
 
     public func isReady() async -> Bool {
         ready
+    }
+
+    public func clearModelCache() async {
+        clearModelCacheCalled = true
+        ready = false
     }
 
     public func shutdown() async {

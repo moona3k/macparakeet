@@ -1,6 +1,6 @@
 # FluidAudio 0.12.3 Upgrade Plan
 
-> Status: **ACTIVE**
+> Status: **COMPLETED** — 2026-03-14
 
 ## Overview
 

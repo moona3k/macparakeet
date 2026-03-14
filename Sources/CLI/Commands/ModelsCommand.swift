@@ -10,6 +10,7 @@ struct ModelsCommand: AsyncParsableCommand {
             Status.self,
             WarmUp.self,
             Repair.self,
+            Clear.self,
         ]
     )
 }
@@ -64,6 +65,19 @@ extension ModelsCommand {
                 sttClient: sttClient,
                 log: { print($0) }
             )
+        }
+    }
+
+    struct Clear: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "clear",
+            abstract: "Delete cached speech and speaker models."
+        )
+
+        func run() async throws {
+            let sttClient = STTClient()
+            await sttClient.clearModelCache()
+            print("Parakeet (STT): model cache cleared")
         }
     }
 }

@@ -1,11 +1,13 @@
 import FluidAudio
 import Foundation
+import os
 
 /// STT client backed by FluidAudio CoreML/ANE runtime.
 public actor STTClient: STTClientProtocol {
     private var manager: AsrManager?
     private var models: AsrModels?
     private var initializationTask: Task<Void, Error>?
+    private var warmUpProgressHandler: (@Sendable (String) -> Void)?
     private let modelVersion: AsrModelVersion
 
     public init(modelVersion: AsrModelVersion = .v3) {
@@ -45,43 +47,29 @@ public actor STTClient: STTClientProtocol {
         onProgress?(0, 100)
 
         do {
+            try Task.checkCancellation()
             let result = try await manager.transcribe(audioURL, source: .system)
             let words = Self.mergeTokenTimingsIntoWords(result.tokenTimings)
             onProgress?(100, 100)
             return STTResult(text: result.text, words: words)
         } catch {
-            throw Self.mapTranscriptionError(error)
+            throw try Self.mapTranscriptionError(error)
         }
     }
 
     public func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {
-        let cacheDir = AsrModels.defaultCacheDirectory(for: modelVersion)
-        let isCached = AsrModels.modelsExist(at: cacheDir, version: modelVersion)
-        let modelDownloadProgressTask: Task<Void, Never>? = if !isCached, let onProgress {
-            Task {
-                await Self.emitModelDownloadProgress(
-                    requiredModelNames: Array(AsrModels.requiredModelNames),
-                    cacheDirectory: cacheDir,
-                    onProgress: onProgress
-                )
-            }
-        } else {
-            nil
-        }
+        warmUpProgressHandler = onProgress
         defer {
-            modelDownloadProgressTask?.cancel()
+            warmUpProgressHandler = nil
         }
 
-        if !isCached {
-            onProgress?(Self.modelDownloadProgressMessage(completedCount: 0, totalCount: AsrModels.requiredModelNames.count))
-        }
         onProgress?("Loading model into memory...")
 
         do {
             try await ensureInitialized()
             onProgress?("Ready")
         } catch {
-            throw Self.mapWarmUpError(error)
+            throw try Self.mapWarmUpError(error)
         }
     }
 
@@ -96,6 +84,12 @@ public actor STTClient: STTClientProtocol {
         manager?.cleanup()
         manager = nil
         models = nil
+        warmUpProgressHandler = nil
+    }
+
+    public func clearModelCache() async {
+        await shutdown()
+        DownloadUtils.clearAllModelCaches()
     }
 
     public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {
@@ -116,8 +110,42 @@ public actor STTClient: STTClientProtocol {
         }
 
         let version = modelVersion
+        let warmUpProgressHandler = self.warmUpProgressHandler
         let task = Task {
-            let downloadedModels = try await AsrModels.downloadAndLoad(version: version)
+            let lastProgressUpdate = OSAllocatedUnfairLock(initialState: Date.distantPast)
+            let lastProgressMessage = OSAllocatedUnfairLock(initialState: "")
+            let progressHandler: DownloadUtils.ProgressHandler?
+            if let warmUpProgressHandler {
+                let progressCallback: @Sendable (String) -> Void = warmUpProgressHandler
+                progressHandler = { progress in
+                    guard let message = Self.warmUpProgressMessage(from: progress) else { return }
+                    let now = Date()
+                    let shouldEmit = lastProgressUpdate.withLock { lastUpdate in
+                        guard now.timeIntervalSince(lastUpdate) >= 0.25 else {
+                            return false
+                        }
+                        lastUpdate = now
+                        return true
+                    }
+                    guard shouldEmit else { return }
+
+                    let isNewMessage = lastProgressMessage.withLock { lastMessage in
+                        guard lastMessage != message else { return false }
+                        lastMessage = message
+                        return true
+                    }
+                    guard isNewMessage else { return }
+
+                    progressCallback(message)
+                }
+            } else {
+                progressHandler = nil
+            }
+
+            let downloadedModels = try await AsrModels.downloadAndLoad(
+                version: version,
+                progressHandler: progressHandler
+            )
             let asrManager = AsrManager(config: .default)
             try await asrManager.initialize(models: downloadedModels)
             completeInitialization(models: downloadedModels, manager: asrManager)
@@ -139,14 +167,20 @@ public actor STTClient: STTClientProtocol {
         self.initializationTask = nil
     }
 
-    private nonisolated static func mapWarmUpError(_ error: Error) -> STTError {
+    private nonisolated static func mapWarmUpError(_ error: Error) throws -> STTError {
+        if error is CancellationError {
+            throw error
+        }
         if let mapped = mapCommonError(error) {
             return mapped
         }
         return .engineStartFailed(error.localizedDescription)
     }
 
-    private nonisolated static func mapTranscriptionError(_ error: Error) -> STTError {
+    private nonisolated static func mapTranscriptionError(_ error: Error) throws -> STTError {
+        if error is CancellationError {
+            throw error
+        }
         if let mapped = mapCommonError(error) {
             return mapped
         }
@@ -154,6 +188,10 @@ public actor STTClient: STTClientProtocol {
     }
 
     private nonisolated static func mapCommonError(_ error: Error) -> STTError? {
+        if error is CancellationError {
+            return nil
+        }
+
         if let sttError = error as? STTError {
             return sttError
         }
@@ -182,43 +220,17 @@ public actor STTClient: STTClientProtocol {
         return nil
     }
 
-    private nonisolated static func emitModelDownloadProgress(
-        requiredModelNames: [String],
-        cacheDirectory: URL,
-        onProgress: @escaping @Sendable (String) -> Void
-    ) async {
-        let sortedModelNames = requiredModelNames.sorted()
-        var lastCompletedCount = -1
-
-        while !Task.isCancelled {
-            let completedCount = sortedModelNames.reduce(into: 0) { count, name in
-                let modelPath = cacheDirectory.appendingPathComponent(name)
-                if FileManager.default.fileExists(atPath: modelPath.path) {
-                    count += 1
-                }
-            }
-
-            if completedCount != lastCompletedCount {
-                lastCompletedCount = completedCount
-                onProgress(modelDownloadProgressMessage(completedCount: completedCount, totalCount: sortedModelNames.count))
-            }
-
-            if completedCount >= sortedModelNames.count {
-                return
-            }
-
-            try? await Task.sleep(nanoseconds: 350_000_000)
+    private nonisolated static func warmUpProgressMessage(from progress: DownloadUtils.DownloadProgress) -> String? {
+        switch progress.phase {
+        case .listing:
+            return "Preparing speech model download..."
+        case .downloading(let completedFiles, let totalFiles):
+            guard totalFiles > 0 else { return nil }
+            let percent = max(0, min(100, Int(progress.fractionCompleted * 100.0)))
+            return "Downloading speech model... \(percent)% (\(completedFiles)/\(totalFiles))"
+        case .compiling:
+            return "Compiling speech model..."
         }
-    }
-
-    private nonisolated static func modelDownloadProgressMessage(completedCount: Int, totalCount: Int) -> String {
-        guard totalCount > 0 else {
-            return "Downloading speech model..."
-        }
-
-        let boundedCompleted = max(0, min(completedCount, totalCount))
-        let percent = Int((Double(boundedCompleted) / Double(totalCount) * 100.0).rounded())
-        return "Downloading speech model... \(percent)% (\(boundedCompleted)/\(totalCount))"
     }
 
     private nonisolated static func mergeTokenTimingsIntoWords(_ tokenTimings: [TokenTiming]?) -> [TimestampedWord] {

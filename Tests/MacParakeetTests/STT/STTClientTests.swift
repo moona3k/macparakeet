@@ -79,4 +79,11 @@ final class STTClientTests: XCTestCase {
         XCTAssertTrue(called)
     }
 
+    func testMockSTTClientClearModelCache() async {
+        let mock = MockSTTClient()
+        await mock.clearModelCache()
+        let called = await mock.clearModelCacheCalled
+        XCTAssertTrue(called)
+    }
+
 }

@@ -66,6 +66,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var hasPresentedHotkeyUnavailableAlert = false
     private let dictationLog = Logger(subsystem: "com.macparakeet.app", category: "DictationFlow")
 
+    private var isSpeechPipelineActive: Bool {
+        if transcriptionViewModel.isTranscribing || isStartRecordingInFlight {
+            return true
+        }
+
+        if recordingTask != nil || overlayActionTask != nil {
+            return true
+        }
+
+        guard let overlayViewModel else { return false }
+        switch overlayViewModel.state {
+        case .recording, .processing:
+            return true
+        case .ready, .cancelled, .success, .noSpeech, .error:
+            return false
+        }
+    }
+
     // MARK: - App Lifecycle
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -303,7 +321,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 checkoutURL: env.checkoutURL,
                 customWordRepo: env.customWordRepo,
                 snippetRepo: env.snippetRepo,
-                sttClient: env.sttClient
+                sttClient: env.sttClient,
+                isSpeechPipelineActive: { [weak self] in
+                    self?.isSpeechPipelineActive ?? false
+                }
             )
             customWordsViewModel.configure(repo: env.customWordRepo)
             textSnippetsViewModel.configure(repo: env.snippetRepo)

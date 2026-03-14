@@ -255,11 +255,19 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                 ))
             }
 
-            try? transcriptionRepo.updateStatus(
-                id: transcription.id,
-                status: .error,
-                errorMessage: error.localizedDescription
-            )
+            if error is CancellationError {
+                try? transcriptionRepo.updateStatus(
+                    id: transcription.id,
+                    status: .cancelled,
+                    errorMessage: nil
+                )
+            } else {
+                try? transcriptionRepo.updateStatus(
+                    id: transcription.id,
+                    status: .error,
+                    errorMessage: error.localizedDescription
+                )
+            }
             throw error
         }
     }

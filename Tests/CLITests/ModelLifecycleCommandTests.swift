@@ -74,5 +74,9 @@ private actor StubSTTClient: STTClientProtocol {
         ready
     }
 
+    func clearModelCache() async {
+        ready = false
+    }
+
     func shutdown() async {}
 }
