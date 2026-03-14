@@ -194,6 +194,7 @@ Edit `~/code/macparakeet-website/public/appcast.xml`. **Replace** the existing `
 - `sparkle:edSignature` and `length` from Step 4
 - `pubDate` in RFC 2822 format: `date -R`
 - Release notes in `<description>` CDATA block
+- **Enclosure URL must include a cache-busting query param:** `?v={BUILD_NUMBER}`. Cloudflare CDN caches by full URL including query params, so without this Sparkle may download a stale cached DMG and fail with "improperly signed". R2 ignores query params and serves the correct object.
 
 Get build info:
 ```bash
@@ -243,7 +244,7 @@ npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
 | Problem | Cause | Fix |
 |---------|-------|-----|
 | App crashes at launch (dyld) | Sparkle.framework missing from bundle | Build script should catch this. If bypassed, re-run `build_app_bundle.sh` |
-| "Improperly signed" update error | R2 file doesn't match appcast signature | Re-upload the **exact same DMG** you ran `sign_update` on. Verify sizes match |
+| "Improperly signed" update error | R2 file doesn't match appcast signature, OR Cloudflare CDN cached an old DMG | Re-upload the **exact same DMG** you ran `sign_update` on. Verify sizes match. **Always use `?v={BUILD_NUMBER}` in the appcast enclosure URL** to bust Cloudflare's CDN cache |
 | Appcast not updating | Cloudflare Pages cache / build not triggered | Deploy manually: `npx wrangler pages deploy dist --project-name macparakeet-website` |
 | `notarytool` auth failure | Keychain profile missing | Run `xcrun notarytool store-credentials "AC_PASSWORD"` (see Step 2 above) |
 | Update found but same version | Build number in appcast ≤ installed build | Ensure `sparkle:version` (build number) is strictly greater |
@@ -293,7 +294,7 @@ Template for a new release:
       ]]></description>
       <pubDate>DATE_RFC2822</pubDate>
       <enclosure
-        url="https://downloads.macparakeet.com/MacParakeet.dmg"
+        url="https://downloads.macparakeet.com/MacParakeet.dmg?v=BUILD_NUMBER"
         sparkle:edSignature="SIGNATURE_FROM_SIGN_UPDATE"
         length="FILE_SIZE_BYTES"
         type="application/octet-stream" />
