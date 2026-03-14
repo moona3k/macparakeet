@@ -166,7 +166,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] UI polish (toggles, sidebar sections, copy improvements)
 - [x] Speaker diarization GUI
 - [ ] Non-blocking transcription progress (bottom bar UX)
-- [ ] App Store submission
+- [x] Distribution: Notarized DMG via macparakeet.com + LemonSqueezy, Sparkle auto-updates
 
 ## Key Patterns
 

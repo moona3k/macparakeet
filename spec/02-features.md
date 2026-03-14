@@ -46,11 +46,11 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  v0.4 - "Polish & Launch"                                        │
-│  "Ship it — diarization, non-blocking progress, App Store"      │
+│  "Ship it — diarization, non-blocking progress, distribution"   │
 ├─────────────────────────────────────────────────────────────────┤
 │  • Speaker diarization (auto-detect, label, name)               │
 │  • Non-blocking transcription progress (bottom bar UX)          │
-│  • App Store submission (sandbox, notarize, privacy policy)     │
+│  • Direct distribution (notarized DMG, Sparkle auto-updates)    │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -1295,44 +1295,20 @@ new scheduling architecture.
 
 ---
 
-### F16: App Store Submission
+### F16: Direct Distribution
 
-**What:** Prepare and submit MacParakeet to the Mac App Store.
+> Status: **IMPLEMENTED**
 
-**Checklist:**
+**What:** Distribute MacParakeet as a notarized DMG via macparakeet.com and LemonSqueezy. Auto-updates via Sparkle.
 
-| Task | Status |
-|------|--------|
-| App Store guidelines review and compliance | [ ] |
-| Hardened runtime enabled | [ ] |
-| App sandboxing (with necessary entitlements) | [ ] |
-| Notarization | [ ] |
-| Privacy policy (hosted on macparakeet.com) | [ ] |
-| App Store screenshots (5 required) | [ ] |
-| App preview video (optional but recommended) | [ ] |
-| App Store description and keywords | [ ] |
-| Pricing tier configuration ($49 one-time) | [ ] |
-| Review notes for Apple (explain permissions) | [ ] |
-| TestFlight beta testing | [ ] |
+**Why not App Store:** MacParakeet bundles FFmpeg and yt-dlp as standalone binaries, uses Accessibility APIs for global hotkeys, and uses LemonSqueezy for licensing. App Store sandboxing would block the bundled binaries and the licensing model conflicts with App Store payments.
 
-**Required entitlements:**
-- Audio input (microphone access for dictation)
-- Accessibility (global hotkey, text insertion)
-- Outgoing network (first-run model downloads, optional license activation/validation, and user-initiated YouTube downloads)
-- Temporary file access (audio processing workspace)
-
-**Privacy policy highlights:**
-- No user content leaves device. Network is only for model/setup artifacts, optional license activation/validation, and user-initiated YouTube downloads.
-- No analytics, no telemetry, no tracking
-- No account required
-- Audio stored only locally, deletable by user
-
-**Acceptance criteria:**
-- [ ] App passes App Store review on first submission
-- [ ] All permissions justified in review notes
-- [ ] Trial (7 days) and Pro tier ($49) configured
-- [ ] Privacy policy live at macparakeet.com/privacy
-- [ ] Screenshots show all major features
+**Distribution pipeline (implemented):**
+- Notarized DMG signed with Developer ID
+- Direct download from downloads.macparakeet.com (Cloudflare R2)
+- LemonSqueezy license key activation ($49 one-time)
+- Sparkle 2 auto-updates via EdDSA-signed appcast
+- Privacy policy live at macparakeet.com/privacy
 
 ---
 
@@ -1476,8 +1452,8 @@ v0.4 Polish & Launch:
       └──────────────────┘
 
       ┌──────────────────┐
-      │ F16: App Store   │ ← Requires all v0.1-v0.3 features
-      │ Submission       │
+      │ F16: Direct      │ ← Requires all v0.1-v0.3 features
+      │ Distribution     │
       └──────────────────┘
 
 

@@ -59,7 +59,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.1 | Core MVP | Dictation + transcription + history + settings | **Implemented** |
 | v0.2 | Clean Pipeline | Deterministic text processing, custom words, snippets | **Implemented** |
 | v0.3 | YouTube & Export | YouTube transcription, export formats | **Implemented** |
-| v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, App Store | **In Progress** |
+| v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **In Progress** |
 
 ## Version Progress
 
@@ -107,7 +107,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Voice stats dashboard
 - [x] UI polish (toggles, sidebar sections, copy improvements)
 - [x] Non-blocking transcription progress (bottom bar UX)
-- [ ] App Store submission (sandbox, notarize, privacy policy)
+- [x] Distribution: Notarized DMG via macparakeet.com + LemonSqueezy, Sparkle auto-updates
 
 ## For AI Coding Assistants
 

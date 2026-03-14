@@ -57,9 +57,9 @@ Drag any audio or video file → get a transcript in seconds.
 - **Auto-Updates** — Automatic background updates via Sparkle
 - **In-App Feedback** — Report bugs, request features, or share feedback (routes to [macparakeet-community](https://github.com/moona3k/macparakeet-community))
 
-### Planned
+### Distribution
 
-- **App Store Submission** — Sandbox, notarize, privacy policy
+- **Direct Download** — Notarized DMG via [macparakeet.com](https://macparakeet.com), LemonSqueezy licensing, Sparkle auto-updates
 
 ## Requirements
 

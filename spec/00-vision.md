@@ -322,7 +322,7 @@ The product surface area is intentionally small. This means fewer bugs, faster i
 
 With 10,000 downloads and a 10% conversion rate:
 - 1,000 Pro purchases at $49 = $49,000 Year 1 revenue
-- Ongoing organic growth from App Store presence and word-of-mouth
+- Ongoing organic growth from SEO, word-of-mouth, and direct distribution
 - Future: major version upgrades (MacParakeet 2.0) as separate paid upgrade if warranted
 
 ---
@@ -379,10 +379,10 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 
 | Metric | Target | How We Measure |
 |--------|--------|----------------|
-| Downloads | 10,000 | App Store Connect |
-| Paid conversions | 1,000 (10% rate) | App Store Connect |
-| Revenue | $49,000 | App Store Connect |
-| App Store rating | 4.5+ stars | App Store reviews |
+| Downloads | 10,000 | Website analytics + LemonSqueezy |
+| Paid conversions | 1,000 (10% rate) | LemonSqueezy |
+| Revenue | $49,000 | LemonSqueezy |
+| User satisfaction | 4.5+ stars equivalent | Community feedback + NPS |
 | Daily active users | 2,000 | Local analytics (opt-in, anonymized) |
 | Dictation sessions/user/day | 5+ | Local metrics |
 
@@ -437,14 +437,14 @@ YouTube transcription and full export pipeline.
 - YouTube URL transcription (yt-dlp + Parakeet)
 - Export formats (.txt, .srt, .vtt, .docx, .pdf, .json)
 
-### v0.4: Polish + App Store
+### v0.4: Polish + Launch
 
-Ship-quality polish. App Store submission.
+Ship-quality polish. Direct distribution via notarized DMG.
 
 - Onboarding flow (permissions, first dictation)
-- App Store compliance (sandboxing, entitlements, review guidelines)
+- Notarized DMG distribution (macparakeet.com + LemonSqueezy)
+- Sparkle auto-updates
 - Marketing site (macparakeet.com)
-- In-app purchase integration (Free/Pro tiers)
 - Accessibility (VoiceOver, keyboard navigation)
 - UI Localization (English UI first, structure for future languages; STT already supports 25 European languages)
 
