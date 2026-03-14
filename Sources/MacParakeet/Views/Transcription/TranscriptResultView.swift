@@ -242,6 +242,8 @@ struct TranscriptResultView: View {
             chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id, chatMessages: viewModel.currentTranscription?.chatMessages)
         }
         .onChange(of: transcription.id) {
+            editingSpeakerId = nil
+            editingSpeakerLabel = ""
             viewModel.selectedTab = .transcript
             viewModel.resetSummaryState()
             viewModel.loadPersistedContent()
@@ -403,6 +405,7 @@ struct TranscriptResultView: View {
                             Button {
                                 NSPasteboard.general.clearContents()
                                 NSPasteboard.general.setString(viewModel.summary, forType: .string)
+                                Telemetry.send(.copyToClipboard(source: .transcription))
                                 summaryCopied = true
                                 copiedResetTask?.cancel()
                                 copiedResetTask = Task {
@@ -767,16 +770,9 @@ struct TranscriptResultView: View {
                             .fill(speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textTertiary)
                             .frame(width: 8, height: 8)
 
-                        if let speaker = transcription.speakers?.first(where: { $0.id == turn.speakerId }) {
-                            speakerLabelView(
-                                speaker: speaker,
-                                color: speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textSecondary
-                            )
-                        } else {
-                            Text(turn.speakerLabel)
-                                .font(DesignSystem.Typography.caption.weight(.semibold))
-                                .foregroundStyle(speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textSecondary)
-                        }
+                        Text(turn.speakerLabel)
+                            .font(DesignSystem.Typography.caption.weight(.semibold))
+                            .foregroundStyle(speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textSecondary)
                     }
                     .padding(.top, DesignSystem.Spacing.sm)
 
@@ -875,13 +871,19 @@ struct TranscriptResultView: View {
                 .font(DesignSystem.Typography.caption.weight(.semibold))
                 .foregroundStyle(color)
                 .textFieldStyle(.plain)
-                .frame(width: 120)
+                .frame(minWidth: 60, maxWidth: 200)
                 .focused($speakerRenameFocused)
+                .task { speakerRenameFocused = true }
                 .onSubmit {
                     commitSpeakerRename()
                 }
                 .onExitCommand {
                     editingSpeakerId = nil
+                }
+                .onChange(of: speakerRenameFocused) {
+                    if !speakerRenameFocused {
+                        commitSpeakerRename()
+                    }
                 }
         } else {
             Text(speaker.label)
@@ -890,7 +892,6 @@ struct TranscriptResultView: View {
                 .onTapGesture {
                     editingSpeakerId = speaker.id
                     editingSpeakerLabel = speaker.label
-                    speakerRenameFocused = true
                 }
                 .help("Click to rename")
         }
@@ -1063,6 +1064,7 @@ struct TranscriptResultView: View {
         let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        Telemetry.send(.copyToClipboard(source: .transcription))
         copiedResetTask?.cancel()
         withAnimation(DesignSystem.Animation.hoverTransition) { copied = true }
         copiedResetTask = Task { @MainActor in
@@ -1158,7 +1160,7 @@ struct TranscriptResultView: View {
             case .pdf: try exportService.exportToPDF(transcription: transcription, url: fileURL)
             case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
             }
-            Telemetry.send("export_used", ["format": format.rawValue])
+            Telemetry.send(.exportUsed(format: format.rawValue))
         } catch {
             exportErrorMessage = error.localizedDescription
             SoundManager.shared.play(.errorSoft)

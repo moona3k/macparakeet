@@ -682,6 +682,19 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(mockRepo.updateSpeakersCalls.isEmpty)
     }
 
+    func testRenameSpeakerSameLabelIsNoOp() {
+        let speakers = [SpeakerInfo(id: "S1", label: "Alice")]
+        let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "Alice")
+
+        XCTAssertTrue(mockRepo.updateSpeakersCalls.isEmpty, "Same label should not trigger DB write")
+    }
+
     func testRenameSpeakerTrimsWhitespace() {
         let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
         let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)

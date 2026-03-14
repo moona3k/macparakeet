@@ -93,13 +93,13 @@ public final class TranscriptionViewModel {
         transcriptions = (try? repo.fetchAll(limit: 50)) ?? []
     }
 
-    public func transcribeFile(url: URL) {
+    public func transcribeFile(url: URL, source: TelemetryTranscriptionSource = .file) {
         guard let service = transcriptionService else { return }
         beginTranscription(source: .localFile)
 
         Task {
             do {
-                let result = try await service.transcribe(fileURL: url) { [weak self] phase in
+                let result = try await service.transcribe(fileURL: url, source: source) { [weak self] phase in
                     DispatchQueue.main.async {
                         self?.updateProgress(with: phase)
                     }
@@ -192,7 +192,7 @@ public final class TranscriptionViewModel {
                     self.dropAccepted = true
                     self.errorMessage = nil
                     onAccepted?()
-                    self.transcribeFile(url: droppedURL)
+                    self.transcribeFile(url: droppedURL, source: .dragDrop)
                 }
             }
         }
@@ -218,7 +218,7 @@ public final class TranscriptionViewModel {
 
         Task {
             do {
-                var result = try await service.transcribe(fileURL: url) { [weak self] phase in
+                var result = try await service.transcribe(fileURL: url, source: .file) { [weak self] phase in
                     DispatchQueue.main.async {
                         self?.updateProgress(with: phase)
                     }
@@ -436,7 +436,7 @@ public final class TranscriptionViewModel {
               var speakers = transcription.speakers else { return }
         guard let index = speakers.firstIndex(where: { $0.id == speakerId }) else { return }
         let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty, speakers[index].label != trimmed else { return }
         speakers[index].label = trimmed
         transcription.speakers = speakers
         currentTranscription = transcription
