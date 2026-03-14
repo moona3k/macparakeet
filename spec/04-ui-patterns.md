@@ -724,6 +724,102 @@ Button to re-run onboarding flow: "Run Onboarding Again..."
 
 ---
 
+## Discover (v0.4)
+
+A curated content feed displayed as a sidebar item with a full-page content view. Discover surfaces tips, quotes, affirmations, and sponsored items fetched from a remote JSON feed (`macparakeet.com/api/discover.json`) with local cache fallback and a bundled default.
+
+### Sidebar Card
+
+The Discover item is **not** part of the regular sidebar `List`. It renders as a pinned card below the sidebar list via `.safeAreaInset(edge: .bottom)`. This keeps it visually distinct and always visible regardless of scroll position.
+
+```
+┌──────────────────┐
+│  Sidebar List     │
+│  ────────────     │
+│  🎤 Transcribe   │
+│  🕒 Dictations   │
+│  📖 Vocabulary   │
+│  💬 Feedback     │
+│  ⚙ Settings      │
+│                   │
+│  ─── pinned ───   │  ← safeAreaInset(edge: .bottom)
+│  ┌──────────────┐ │
+│  │ [icon] Title  │ │  ← DiscoverSidebarCard
+│  │  (2-line max) │ │
+│  └──────────────┘ │
+└──────────────────┘
+
+Card anatomy:
+- 28×28pt accent-tinted icon square (item.icon or "sparkles" fallback)
+- Title: caption.weight(.semibold), 2-line limit
+- Background: accentLight when selected, surfaceElevated on hover, clear otherwise
+- Accent strokeBorder (0.5pt, 40%) when selected
+- Tooltip: item.body
+- Rotates through feed items every 30 seconds
+```
+
+### Content View
+
+Full-page scrollable feed rendered when the Discover sidebar item is selected. Uses the standard `DesignSystem.Animation.contentSwap` transition.
+
+```
+┌──────────────────────────────────────────────────────────┐
+│  Discover                                                │
+│  ───                                                     │  ← accent underline
+│  Intro text...                                           │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │  Title                                    [copy]   │  │  ← hover-reveal copy button
+│  │  Body text...                                      │  │
+│  │  — Attribution                                     │  │
+│  │  [Verify ↗]                                        │  │  ← HTTPS links only
+│  │                               [watermark icon]     │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                          │
+│  ┌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐  │
+│  ╎  Share your thoughts                               ╎  │  ← dashed border card
+│  ╎  [text editor]                    [Submit Thought]  ╎  │
+│  └╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘  │
+└──────────────────────────────────────────────────────────┘
+
+Content types (DiscoverContentType):
+- tip: bodyLarge font, lightbulb.fill watermark
+- quote: serif font (italic), quote.bubble watermark
+- affirmation: rounded font, sparkles watermark
+- sponsored: bodyLarge font, custom icon, "Learn More" link text
+
+Card features:
+- Hover: accent border (20%), elevated shadow
+- Copy button: copies title + body + attribution to clipboard
+- External links: HTTPS-only, opens in default browser
+- Text selection enabled on all text
+```
+
+### Thoughts Submission
+
+Users can submit suggestions via a text form at the bottom of the feed. Submissions POST to `macparakeet.com/api/discover-thoughts` with system info (app version, build, macOS version, chip type). Success shows a confirmation banner that auto-dismisses after 4 seconds.
+
+### Components
+
+| Component | Location | Role |
+|-----------|----------|------|
+| `DiscoverView` | `Views/Discover/` | Full content view (card list + thoughts form) |
+| `DiscoverSidebarCard` | `Views/Discover/` | Pinned sidebar preview card |
+| `DiscoverViewModel` | `MacParakeetViewModels/` | Feed state, sidebar rotation (30s timer), cache + refresh |
+| `DiscoverService` | `MacParakeetCore/Services/` | Feed loading: cache → bundled fallback → empty. Background refresh from remote. |
+| `DiscoverThoughtsService` | `MacParakeetCore/Services/` | POST user thoughts to private endpoint |
+| `DiscoverItem` / `DiscoverFeed` | `MacParakeetCore/Models/DiscoverContent.swift` | Data model (Codable, versioned feed with `featuredIndex`) |
+
+### Data Flow
+
+```
+App launch → DiscoverViewModel.loadCached() → DiscoverService reads disk cache (or bundled fallback)
+          → DiscoverViewModel.refreshInBackground() → DiscoverService fetches remote JSON, writes cache
+          → Sidebar card rotates through items every 30s
+```
+
+---
+
 ## Design System
 
 All design tokens are centralized in `DesignSystem.swift` (`Views/Components/DesignSystem.swift`).
@@ -892,4 +988,4 @@ MacParakeet follows standard macOS patterns:
 
 ---
 
-*Last updated: 2026-02-11*
+*Last updated: 2026-03-14*
