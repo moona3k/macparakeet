@@ -117,7 +117,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-006 | Trial + license key activation | `spec/adr/006-trial-and-license-activation.md` |
 | ADR-007 | FluidAudio CoreML migration (Python elimination) | `spec/adr/007-fluidaudio-coreml-migration.md` |
 | ADR-008 | Local LLM runtime baseline (historical — removed) | `spec/adr/008-local-llm-runtime-and-model.md` |
-| ADR-009 | Custom hotkey support (any single key) | `spec/adr/009-custom-hotkey.md` |
+| ADR-009 | Custom hotkey support (any single key + chord combos) | `spec/adr/009-custom-hotkey.md` |
 | ADR-010 | Speaker diarization via FluidAudio offline pipeline | `spec/adr/010-speaker-diarization.md` |
 | ADR-011 | LLM via cloud API keys + optional local providers | `spec/adr/011-llm-cloud-and-local-providers.md` |
 | ADR-012 | Self-hosted telemetry via Cloudflare (Worker + D1) | `spec/adr/012-telemetry-system.md` |
@@ -155,7 +155,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ### v0.4 Polish + Launch (In Progress)
 - [x] Speaker diarization CLI preview (FluidAudio offline pipeline, ADR-010)
-- [x] Custom hotkey support (any single key, ADR-009)
+- [x] Custom hotkey support (any single key + chord combos, ADR-009)
 - [x] Sparkle auto-updates
 - [x] LLM provider integration (cloud API keys, summary + chat, ADR-011)
 - [x] Private dictation mode (community#14)
