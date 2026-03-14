@@ -149,7 +149,7 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
 
     private func registerLifecycleObservers() {
         NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("NSApplicationWillTerminateNotification"),
+            forName: Notification.Name("NSApplicationWillTerminateNotification"),
             object: nil,
             queue: .main
         ) { [weak self] _ in
@@ -175,7 +175,7 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
             delegate: nil,
             delegateQueue: OperationQueue()
         )
-        sendBatchesSynchronously(events, using: bgSession, timeoutInterval: 5, waitTimeout: 3)
+        sendBatchesSynchronously(events, using: bgSession, timeoutInterval: 3, waitTimeout: 3)
     }
 
     private func sendBatches(
