@@ -46,10 +46,10 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │  v0.4 - "Polish & Launch"                                        │
-│  "Ship it — diarization, batch processing, App Store"           │
+│  "Ship it — diarization, non-blocking progress, App Store"      │
 ├─────────────────────────────────────────────────────────────────┤
 │  • Speaker diarization (auto-detect, label, name)               │
-│  • Batch file processing (queue, progress, batch export)        │
+│  • Non-blocking transcription progress (bottom bar UX)          │
 │  • App Store submission (sandbox, notarize, privacy policy)     │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -1254,44 +1254,36 @@ new scheduling architecture.
 
 ---
 
-### F14: Batch File Processing
+### F14: Non-Blocking Transcription Progress
 
-**What:** Transcribe multiple files at once with a queue view and batch export.
+**What:** Replace the full-screen progress takeover with a compact bottom bar so users can browse old transcripts while a transcription runs.
 
-**Features:**
-- Multi-file drag-and-drop (drop 10 files at once)
-- Processing queue with per-file progress
-- Pause/resume/cancel individual files
-- Batch export: select format, export all results
+**Problem:** Currently, starting a transcription replaces the entire Transcribe tab with a progress card. Users can't view previous transcriptions, and the drop zone disappears. The tab feels "stuck" until processing completes.
 
-**Queue view:**
+**Solution:** Show progress as a sticky bottom bar. The drop zone and recent transcriptions list remain visible (drop zone disabled during transcription). Single-job — no queue.
+
+**Layout during transcription:**
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ Batch Transcription                                    [+ Add]  │
+│ [Drop zone / URL input — disabled during transcription]         │
+│                                                                  │
+│ Recent Transcriptions                                            │
+│  interview.mp3          12:34    [View]                         │
+│  podcast.m4a            45:00    [View]                         │
+│                                                                  │
 ├─────────────────────────────────────────────────────────────────┤
-│                                                                  │
-│  ✓ interview-01.mp3          12:34    Completed    [View] [X]   │
-│  ✓ interview-02.mp3          08:21    Completed    [View] [X]   │
-│  ⟳ podcast-ep42.m4a          45:00    Processing... 67%  [⏸]   │
-│  ○ lecture-recording.wav    1:23:00    Queued              [X]   │
-│  ○ meeting-notes.m4a         30:12    Queued              [X]   │
-│                                                                  │
-│  ──────────────────────────────────────────────────────────────  │
-│  3/5 complete | Est. remaining: 12 min                           │
-│  [Export All as .txt]  [Export All as .srt]  [Cancel All]        │
-│                                                                  │
+│ ⟳ podcast-ep42.m4a  Transcribing... 67%                 [View]  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 **Acceptance criteria:**
-- [ ] Multi-file drag-and-drop accepted
-- [ ] Queue shows status per file (queued, processing, completed, failed)
-- [ ] Progress indicator per file during processing
-- [ ] Can pause/resume/cancel individual files
-- [ ] Batch export in any supported format
-- [ ] Estimated time remaining for queue
-- [ ] Files processed sequentially (or configurable parallelism)
+- [ ] Progress shown as compact bottom bar during transcription
+- [ ] Drop zone and recent transcriptions list remain visible
+- [ ] Drop zone visually disabled (no new drops accepted while transcribing)
+- [ ] "View" button on progress bar shows full progress detail view
+- [ ] Clicking a recent transcription still opens it during transcription
+- [ ] When transcription completes, bottom bar disappears, result is shown
 
 ---
 

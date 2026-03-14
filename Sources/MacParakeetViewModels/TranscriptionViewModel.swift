@@ -41,6 +41,7 @@ public final class TranscriptionViewModel {
     public private(set) var progressPhase: ProgressPhase = .preparing
     public private(set) var progressHeadline: String = "Preparing transcription pipeline"
     public var errorMessage: String?
+    public private(set) var transcribingFileName: String = ""
     public var isDragging = false
     public var urlInput: String = ""
 
@@ -94,7 +95,8 @@ public final class TranscriptionViewModel {
     }
 
     public func transcribeFile(url: URL, source: TelemetryTranscriptionSource = .file) {
-        guard let service = transcriptionService else { return }
+        guard let service = transcriptionService, !isTranscribing else { return }
+        transcribingFileName = url.lastPathComponent
         beginTranscription(source: .localFile)
 
         Task {
@@ -104,8 +106,8 @@ public final class TranscriptionViewModel {
                         self?.updateProgress(with: phase)
                     }
                 }
-                currentTranscription = result
                 endTranscription()
+                currentTranscription = result
                 loadTranscriptions()
                 autoSummarizeIfNeeded(result)
             } catch {
@@ -117,7 +119,7 @@ public final class TranscriptionViewModel {
     }
 
     public func transcribeURL() {
-        guard let service = transcriptionService else { return }
+        guard let service = transcriptionService, !isTranscribing else { return }
         let url = urlInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let videoID = YouTubeURLValidator.extractVideoID(url) else { return }
 
@@ -128,6 +130,7 @@ public final class TranscriptionViewModel {
             return
         }
 
+        transcribingFileName = "YouTube video"
         beginTranscription(source: .youtubeURL)
         urlInput = ""
 
@@ -138,8 +141,8 @@ public final class TranscriptionViewModel {
                         self?.updateProgress(with: phase)
                     }
                 }
-                currentTranscription = result
                 endTranscription()
+                currentTranscription = result
                 loadTranscriptions()
                 autoSummarizeIfNeeded(result)
             } catch {
@@ -208,11 +211,12 @@ public final class TranscriptionViewModel {
     }
 
     public func retranscribe(_ original: Transcription) {
-        guard let service = transcriptionService,
+        guard let service = transcriptionService, !isTranscribing,
               let filePath = original.filePath,
               FileManager.default.fileExists(atPath: filePath) else { return }
 
         let url = URL(fileURLWithPath: filePath)
+        transcribingFileName = original.fileName
         beginTranscription(source: .localFile)
         currentTranscription = nil
 
@@ -227,8 +231,8 @@ public final class TranscriptionViewModel {
                 result.fileName = original.fileName
                 result.sourceURL = original.sourceURL
                 try? transcriptionRepo?.save(result)
-                currentTranscription = result
                 endTranscription()
+                currentTranscription = result
                 loadTranscriptions()
             } catch {
                 errorMessage = error.localizedDescription
@@ -269,6 +273,7 @@ public final class TranscriptionViewModel {
         isTranscribing = false
         progress = ""
         transcriptionProgress = nil
+        transcribingFileName = ""
         progressPhase = .preparing
         progressHeadline = Self.headline(for: .preparing)
     }

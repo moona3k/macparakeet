@@ -20,6 +20,7 @@ private func truncateErrorMessage(_ msg: String) -> String {
 struct TranscribeView: View {
     @Bindable var viewModel: TranscriptionViewModel
     var chatViewModel: TranscriptChatViewModel
+    @State private var showingProgressDetail = false
     private enum PipelineStep: CaseIterable {
         case download
         case convert
@@ -67,18 +68,31 @@ struct TranscribeView: View {
                             viewModel.retranscribe(original)
                         }
                     )
-                } else if viewModel.isTranscribing {
+                } else if showingProgressDetail && viewModel.isTranscribing {
                     transcribingView
                 } else {
                     dropZoneView
+                        .opacity(viewModel.isTranscribing ? 0.5 : 1.0)
+                        .allowsHitTesting(!viewModel.isTranscribing)
                 }
             }
             .animation(DesignSystem.Animation.contentSwap, value: viewModel.isTranscribing)
             .animation(DesignSystem.Animation.contentSwap, value: viewModel.currentTranscription?.id)
+            .animation(DesignSystem.Animation.contentSwap, value: showingProgressDetail)
 
-            if !viewModel.transcriptions.isEmpty && viewModel.currentTranscription == nil && !viewModel.isTranscribing {
+            if !viewModel.transcriptions.isEmpty && viewModel.currentTranscription == nil && !showingProgressDetail {
                 Divider()
                 recentTranscriptionsList
+                    .disabled(viewModel.isTranscribing)
+            }
+
+            if viewModel.isTranscribing && !showingProgressDetail && viewModel.currentTranscription == nil {
+                transcriptionBottomBar
+            }
+        }
+        .onChange(of: viewModel.isTranscribing) { _, isTranscribing in
+            if !isTranscribing {
+                showingProgressDetail = false
             }
         }
     }
@@ -257,6 +271,24 @@ struct TranscribeView: View {
 
     private var transcribingView: some View {
         VStack(spacing: DesignSystem.Spacing.lg) {
+            HStack {
+                Button {
+                    showingProgressDetail = false
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text("Back")
+                            .font(DesignSystem.Typography.caption)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, DesignSystem.Spacing.lg)
+                .padding(.top, DesignSystem.Spacing.md)
+                Spacer()
+            }
+
             Spacer()
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
@@ -273,6 +305,13 @@ struct TranscribeView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Transcription In Progress")
                             .font(DesignSystem.Typography.sectionTitle)
+                        if !viewModel.transcribingFileName.isEmpty {
+                            Text(viewModel.transcribingFileName)
+                                .font(DesignSystem.Typography.bodySmall)
+                                .foregroundStyle(.primary.opacity(0.7))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
                         Text(viewModel.progressHeadline)
                             .font(DesignSystem.Typography.bodySmall)
                             .foregroundStyle(.secondary)
@@ -313,10 +352,6 @@ struct TranscribeView: View {
                 Text("Processing remains local to this Mac. You can keep working while this runs.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
-
-                if let error = viewModel.errorMessage {
-                    errorBanner(error)
-                }
             }
             .padding(DesignSystem.Spacing.lg)
             .frame(maxWidth: 620)
@@ -332,6 +367,56 @@ struct TranscribeView: View {
             .padding(.horizontal, DesignSystem.Spacing.lg)
 
             Spacer()
+        }
+    }
+
+    // MARK: - Bottom Bar
+
+    private var transcriptionBottomBar: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            SpinnerRingView(size: 18, revolutionDuration: 2.0, tintColor: DesignSystem.Colors.accent)
+
+            Text(viewModel.transcribingFileName)
+                .font(DesignSystem.Typography.caption)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            Text("\u{00B7}")
+                .foregroundStyle(.tertiary)
+
+            Text(viewModel.progressHeadline)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            if let fraction = viewModel.transcriptionProgress {
+                Text("\(Int((fraction * 100).rounded()))%")
+                    .font(DesignSystem.Typography.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            Button {
+                showingProgressDetail = true
+            } label: {
+                Text("View")
+                    .font(DesignSystem.Typography.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.accent)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.Layout.buttonCornerRadius)
+                            .fill(DesignSystem.Colors.accent.opacity(0.1))
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .padding(.vertical, DesignSystem.Spacing.sm)
+        .background(DesignSystem.Colors.cardBackground)
+        .overlay(alignment: .top) {
+            Divider()
         }
     }
 

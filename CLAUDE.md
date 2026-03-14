@@ -164,8 +164,8 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] Hide dictation pill toggle
 - [x] Voice stats dashboard
 - [x] UI polish (toggles, sidebar sections, copy improvements)
-- [ ] Speaker diarization GUI
-- [ ] Batch file processing
+- [x] Speaker diarization GUI
+- [ ] Non-blocking transcription progress (bottom bar UX)
 - [ ] App Store submission
 
 ## Key Patterns
