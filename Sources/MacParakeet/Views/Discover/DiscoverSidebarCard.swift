@@ -13,7 +13,7 @@ struct DiscoverSidebarCard: View {
         if let item = viewModel.sidebarItem {
             Button(action: onTap) {
                 HStack(spacing: DesignSystem.Spacing.sm) {
-                    Image(systemName: item.icon)
+                    Image(systemName: item.icon.isEmpty ? "sparkles" : item.icon)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.accent)
                         .frame(width: 28, height: 28)
@@ -22,17 +22,10 @@ struct DiscoverSidebarCard: View {
                                 .fill(DesignSystem.Colors.accent.opacity(0.12))
                         )
 
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(item.title)
-                            .font(DesignSystem.Typography.caption.weight(.semibold))
-                            .lineLimit(1)
-                            .foregroundStyle(.primary)
-
-                        Text(item.body)
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
+                    Text(item.title)
+                        .font(DesignSystem.Typography.caption.weight(.semibold))
+                        .lineLimit(2)
+                        .foregroundStyle(.primary)
                 }
                 .padding(DesignSystem.Spacing.sm)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -49,6 +42,7 @@ struct DiscoverSidebarCard: View {
                 )
             }
             .buttonStyle(.plain)
+            .help(item.body)
             .onHover { hovering in
                 withAnimation(DesignSystem.Animation.hoverTransition) {
                     isHovered = hovering

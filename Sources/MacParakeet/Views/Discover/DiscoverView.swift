@@ -69,20 +69,14 @@ struct DiscoverView: View {
                 .clipped()
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
-                    // Type Badge
-                    Text(typeLabel(item.type).uppercased())
-                        .font(DesignSystem.Typography.micro)
-                        .fontWeight(.bold)
-                        .foregroundStyle(DesignSystem.Colors.accent)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(DesignSystem.Colors.accent.opacity(0.1))
-                        .clipShape(Capsule())
-                    
+                HStack(alignment: .top) {
+                    Text(item.title)
+                        .font(DesignSystem.Typography.sectionTitle)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .textSelection(.enabled)
+
                     Spacer()
-                    
-                    // Copy Button
+
                     Button {
                         copyItem(item)
                     } label: {
@@ -97,17 +91,13 @@ struct DiscoverView: View {
                 }
 
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                    Text(item.title)
-                        .font(DesignSystem.Typography.sectionTitle)
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                        .textSelection(.enabled)
 
                     Text(item.body)
-                        .font(item.type == .quote ? .system(size: 16, weight: .regular, design: .serif) : DesignSystem.Typography.bodyLarge)
+                        .font(bodyFont(for: item.type))
                         .italic(item.type == .quote)
                         .foregroundStyle(DesignSystem.Colors.textPrimary.opacity(0.9))
                         .textSelection(.enabled)
-                        .lineSpacing(item.type == .quote ? 4 : 3)
+                        .lineSpacing(item.type == .quote || item.type == .affirmation ? 4 : 3)
                 }
 
                 if let attribution = item.attribution {
@@ -320,6 +310,14 @@ struct DiscoverView: View {
         }
     }
 
+    private func bodyFont(for type: DiscoverContentType) -> Font {
+        switch type {
+        case .quote: return .system(size: 16, weight: .regular, design: .serif)
+        case .affirmation: return .system(size: 16, weight: .regular, design: .rounded)
+        default: return DesignSystem.Typography.bodyLarge
+        }
+    }
+
     // MARK: - Helpers
 
     private func iconForType(_ item: DiscoverItem) -> String {
@@ -331,12 +329,4 @@ struct DiscoverView: View {
         }
     }
 
-    private func typeLabel(_ type: DiscoverContentType) -> String {
-        switch type {
-        case .tip: return "Tip"
-        case .quote: return "Quote"
-        case .affirmation: return "Affirmation"
-        case .sponsored: return "Sponsored"
-        }
-    }
 }
