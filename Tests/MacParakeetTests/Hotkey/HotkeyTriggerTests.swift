@@ -229,4 +229,174 @@ final class HotkeyTriggerTests: XCTestCase {
         let keyTrigger = HotkeyTrigger.fromKeyCode(119)
         XCTAssertNotEqual(keyTrigger, .fn)
     }
+
+    // MARK: - Chord Factory
+
+    func testChordFactoryProducesCorrectProperties() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        XCTAssertEqual(trigger.kind, .chord)
+        XCTAssertEqual(trigger.keyCode, 25)
+        XCTAssertEqual(trigger.chordModifiers, ["command"])
+        XCTAssertNil(trigger.modifierName)
+    }
+
+    func testChordDisplayNameSingleModifier() {
+        // keyCode 25 = "9" on US keyboard
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        XCTAssertEqual(trigger.displayName, "Command+9")
+    }
+
+    func testChordShortSymbolSingleModifier() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        XCTAssertEqual(trigger.shortSymbol, "⌘9")
+    }
+
+    func testChordDisplayNameMultiModifier() {
+        // keyCode 40 = "K" on US keyboard
+        let trigger = HotkeyTrigger.chord(modifiers: ["command", "shift"], keyCode: 40)
+        XCTAssertEqual(trigger.displayName, "Shift+Command+K")
+    }
+
+    func testChordShortSymbolMultiModifier() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command", "shift"], keyCode: 40)
+        XCTAssertEqual(trigger.shortSymbol, "⇧⌘K")
+    }
+
+    func testChordModifierOrderingIsCanonical() {
+        // Input in wrong order — output should always be ⌃⌥⇧⌘
+        let trigger = HotkeyTrigger.chord(modifiers: ["command", "control", "shift", "option"], keyCode: 25)
+        XCTAssertEqual(trigger.shortSymbol, "⌃⌥⇧⌘9")
+        XCTAssertEqual(trigger.displayName, "Control+Option+Shift+Command+9")
+    }
+
+    func testChordWithFunctionKey() {
+        // keyCode 96 = F5
+        let trigger = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 96)
+        XCTAssertEqual(trigger.displayName, "Option+F5")
+        XCTAssertEqual(trigger.shortSymbol, "⌥F5")
+    }
+
+    // MARK: - Chord Validation
+
+    func testChordValidationDefaultAllowed() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        XCTAssertEqual(trigger.validation, .allowed)
+    }
+
+    func testChordEscapeBlocked() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 53)
+        if case .blocked = trigger.validation {} else {
+            XCTFail("Escape in chord should be blocked")
+        }
+    }
+
+    func testChordCmdTabWarned() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 48)
+        if case .warned(let msg) = trigger.validation {
+            XCTAssertTrue(msg.contains("system shortcut"))
+        } else {
+            XCTFail("Cmd+Tab should produce a warning")
+        }
+    }
+
+    func testChordCmdSpaceWarned() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 49)
+        if case .warned(let msg) = trigger.validation {
+            XCTAssertTrue(msg.contains("system shortcut"))
+        } else {
+            XCTFail("Cmd+Space should produce a warning")
+        }
+    }
+
+    func testChordLetterKeyAllowed() {
+        // Regular letter key with modifier — chords disambiguate from typing
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 0) // 'A'
+        XCTAssertEqual(trigger.validation, .allowed)
+    }
+
+    // MARK: - Chord Codable
+
+    func testCodableRoundtripChord() throws {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command", "shift"], keyCode: 25)
+        let data = try JSONEncoder().encode(trigger)
+        let decoded = try JSONDecoder().decode(HotkeyTrigger.self, from: data)
+        XCTAssertEqual(decoded, trigger)
+        // Factory normalizes to canonical order: ⌃⌥⇧⌘
+        XCTAssertEqual(decoded.chordModifiers, ["shift", "command"])
+    }
+
+    func testBackwardCompatOldJSONWithoutChordModifiers() throws {
+        // Old JSON that doesn't have chordModifiers — should decode fine
+        let json = #"{"kind":"keyCode","keyCode":119}"#
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(HotkeyTrigger.self, from: data)
+        XCTAssertEqual(decoded.kind, .keyCode)
+        XCTAssertEqual(decoded.keyCode, 119)
+        XCTAssertNil(decoded.chordModifiers)
+    }
+
+    func testBackwardCompatOldModifierJSON() throws {
+        let json = #"{"kind":"modifier","modifierName":"fn"}"#
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(HotkeyTrigger.self, from: data)
+        XCTAssertEqual(decoded, .fn)
+        XCTAssertNil(decoded.chordModifiers)
+    }
+
+    // MARK: - Chord Equatable
+
+    func testChordEquality() {
+        let a = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        let b = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        XCTAssertEqual(a, b)
+    }
+
+    func testChordInequalityDifferentModifiers() {
+        let a = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        let b = HotkeyTrigger.chord(modifiers: ["shift"], keyCode: 25)
+        XCTAssertNotEqual(a, b)
+    }
+
+    func testChordInequalityDifferentKey() {
+        let a = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        let b = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 26)
+        XCTAssertNotEqual(a, b)
+    }
+
+    func testChordNotEqualToKeyCode() {
+        let chord = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        let keyCode = HotkeyTrigger.fromKeyCode(25)
+        XCTAssertNotEqual(chord, keyCode)
+    }
+
+    // MARK: - Chord Event Flags
+
+    func testChordEventFlagsCommand() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        // maskCommand = 0x00100000
+        XCTAssertEqual(trigger.chordEventFlags, 0x00100000)
+    }
+
+    func testChordEventFlagsMultiple() {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command", "shift"], keyCode: 25)
+        // maskCommand | maskShift = 0x00100000 | 0x00020000
+        let expected: UInt64 = 0x00100000 | 0x00020000
+        XCTAssertEqual(trigger.chordEventFlags, expected)
+    }
+
+    func testChordEventFlagsNilModifiers() {
+        let trigger = HotkeyTrigger.fromKeyCode(25)
+        XCTAssertEqual(trigger.chordEventFlags, 0)
+    }
+
+    // MARK: - Chord Persistence
+
+    func testSaveAndLoadChord() throws {
+        let trigger = HotkeyTrigger.chord(modifiers: ["command"], keyCode: 25)
+        trigger.save(to: testDefaults)
+
+        let loaded = HotkeyTrigger.current(defaults: testDefaults)
+        XCTAssertEqual(loaded, trigger)
+        XCTAssertEqual(loaded.displayName, "Command+9")
+    }
 }

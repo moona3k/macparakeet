@@ -29,9 +29,16 @@ public final class HotkeyManager {
     /// Bare-tap filtering: true until a non-Escape key is pressed while modifier is held.
     private var bareTap = true
 
+    /// Mask of the 4 relevant modifier bits (⌃⌥⇧⌘) for chord matching.
+    static let relevantModifierBits: UInt64 = HotkeyTrigger.relevantModifierBits
+
+    /// Required modifier flags for `.chord` triggers, precomputed from `trigger.chordEventFlags`.
+    private let requiredChordFlags: UInt64
+
     public init(trigger: HotkeyTrigger = .fn) {
         self.trigger = trigger
         self.targetMask = trigger.kind == .modifier ? Self.mask(for: trigger) : nil
+        self.requiredChordFlags = trigger.chordEventFlags
     }
 
     deinit {
@@ -45,7 +52,7 @@ public final class HotkeyManager {
 
         var eventMask: CGEventMask = (1 << CGEventType.flagsChanged.rawValue)
             | (1 << CGEventType.keyDown.rawValue)
-        if trigger.kind == .keyCode {
+        if trigger.kind == .keyCode || trigger.kind == .chord {
             eventMask |= (1 << CGEventType.keyUp.rawValue)
         }
 
@@ -107,6 +114,8 @@ public final class HotkeyManager {
             return handleModifierEvent(type: type, event: event)
         case .keyCode:
             return handleKeyCodeEvent(type: type, event: event)
+        case .chord:
+            return handleChordEvent(type: type, event: event)
         }
     }
 
@@ -261,6 +270,93 @@ public final class HotkeyManager {
             }
         }
         // flagsChanged events are ignored for keyCode triggers
+
+        return Unmanaged.passUnretained(event)
+    }
+
+    // MARK: - Chord Trigger Path
+
+    private func handleChordEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
+        guard let triggerCode = trigger.keyCode else {
+            return Unmanaged.passUnretained(event)
+        }
+
+        let timestampMs = UInt64(event.timestamp / 1_000_000)
+        let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+
+        if type == .keyDown {
+            if keyCode == triggerCode {
+                // Check required modifiers are held
+                let flags = event.flags.rawValue & Self.relevantModifierBits
+                guard flags & requiredChordFlags == requiredChordFlags else {
+                    return Unmanaged.passUnretained(event)
+                }
+
+                // Edge detection: ignore key-repeat
+                guard !triggerKeyIsPressed else {
+                    return nil // Swallow repeated keyDown
+                }
+                triggerKeyIsPressed = true
+
+                let action = stateMachine.fnDown(timestampMs: timestampMs)
+                handleAction(action)
+
+                if action == .none && stateMachine.state == .waitingForSecondTap {
+                    onReadyForSecondTap?()
+                }
+
+                // Schedule hold timer
+                holdTimer?.cancel()
+                let timer = DispatchWorkItem { [weak self] in
+                    let action = self?.stateMachine.holdTimerFired() ?? .none
+                    self?.handleAction(action)
+                }
+                holdTimer = timer
+                DispatchQueue.main.asyncAfter(
+                    deadline: .now() + .milliseconds(FnKeyStateMachine.tapThresholdMs),
+                    execute: timer
+                )
+
+                return nil // Swallow the trigger key
+            } else if keyCode == 53 { // Escape
+                let action = stateMachine.escapePressed()
+                if action == .none {
+                    onEscapeWhileIdle?()
+                } else {
+                    handleAction(action)
+                }
+            } else {
+                // Gesture interruption
+                if stateMachine.state == .waitingForSecondTap {
+                    stateMachine.reset()
+                    holdTimer?.cancel()
+                }
+            }
+        } else if type == .keyUp {
+            if keyCode == triggerCode {
+                guard triggerKeyIsPressed else {
+                    return nil // Swallow stale keyUp
+                }
+                triggerKeyIsPressed = false
+
+                holdTimer?.cancel()
+                let action = stateMachine.fnUp(timestampMs: timestampMs)
+                handleAction(action)
+
+                return nil // Swallow the trigger key
+            }
+        } else if type == .flagsChanged {
+            // Release-any-part: if a required modifier is released while trigger key is held
+            if triggerKeyIsPressed {
+                let flags = event.flags.rawValue & Self.relevantModifierBits
+                if flags & requiredChordFlags != requiredChordFlags {
+                    triggerKeyIsPressed = false
+                    holdTimer?.cancel()
+                    let action = stateMachine.fnUp(timestampMs: timestampMs)
+                    handleAction(action)
+                }
+            }
+        }
 
         return Unmanaged.passUnretained(event)
     }

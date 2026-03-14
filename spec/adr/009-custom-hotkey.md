@@ -37,3 +37,25 @@ Replace `TriggerKey` enum with a `HotkeyTrigger` struct that supports both modif
 - `HotkeyManager` branches on `trigger.kind` to handle modifier vs keyCode event paths
 - Settings UI uses a "record a shortcut" pattern instead of a dropdown picker
 - Upgrading users with legacy `TriggerKey` values in UserDefaults will seamlessly continue working
+
+## Amendment: Chord Hotkey Support (2026-03-13)
+
+### Context
+
+Community issue #17 requested modifier+key combos (e.g., Cmd+9) because Logitech mice can map buttons to keyboard shortcuts but not to single keys like F13. Chords are the standard macOS hotkey pattern — lower risk than single-key triggers and solve the mouse-mapping problem cleanly.
+
+### Changes
+
+1. **New `.chord` kind** added to `HotkeyTrigger.Kind` — stores `chordModifiers: [String]` (e.g. `["command"]`) alongside `keyCode`.
+2. **Release-any-part stops** — For hold-to-talk with Cmd+9, releasing either Cmd or 9 ends dictation.
+3. **Key swallowed, modifiers passed** — The trigger key event is swallowed; modifier flag changes pass through to the active app.
+4. **Required modifiers must be present** — Mask to 4 relevant bits (⌃⌥⇧⌘) before comparing. Caps Lock, NumPad, etc. are stripped.
+5. **Fn excluded from chord modifiers** — Fn modifies F-key behavior on macOS. Stays as bare modifier only.
+6. **FnKeyStateMachine unchanged** — Key-agnostic. Chords generate the same down/up signals. Both hold-to-talk and double-tap work.
+7. **Modifier names stored as `[String]`** — Not raw `CGEventFlags.rawValue` (has phantom bits). Readable JSON: `{"kind":"chord","keyCode":25,"chordModifiers":["command"]}`.
+8. **HotkeyRecorderView two-phase capture** — Held modifiers show as preview (e.g. "⌘..."); pressing a key with modifiers held creates a chord; releasing all modifiers without a key press creates a bare modifier trigger.
+9. **Validation** — Chords are `.allowed` by default. Escape blocked. Cmd+Tab and Cmd+Space warned (system intercepts them).
+
+### Original decision preserved
+
+Single-key triggers (`.modifier` and `.keyCode`) continue to work exactly as before. Chords are additive.
