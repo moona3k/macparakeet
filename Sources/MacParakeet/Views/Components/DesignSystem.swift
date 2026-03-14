@@ -55,6 +55,26 @@ enum DesignSystem {
         static let playbackTrack = Color.primary.opacity(0.08)
         static let playbackFill = Color.accentColor
 
+        // Speaker diarization palette — distinct, readable in both light/dark
+        static let speakerColors: [Color] = [
+            Color(light: .init(red: 0.20, green: 0.51, blue: 0.84),
+                  dark: .init(red: 0.42, green: 0.68, blue: 0.96)),   // Blue
+            Color(light: .init(red: 0.72, green: 0.33, blue: 0.64),
+                  dark: .init(red: 0.85, green: 0.52, blue: 0.78)),   // Purple
+            Color(light: .init(red: 0.16, green: 0.60, blue: 0.46),
+                  dark: .init(red: 0.30, green: 0.78, blue: 0.62)),   // Teal
+            Color(light: .init(red: 0.82, green: 0.52, blue: 0.14),
+                  dark: .init(red: 0.95, green: 0.68, blue: 0.30)),   // Amber
+            Color(light: .init(red: 0.80, green: 0.28, blue: 0.28),
+                  dark: .init(red: 0.95, green: 0.45, blue: 0.45)),   // Red
+            Color(light: .init(red: 0.40, green: 0.56, blue: 0.24),
+                  dark: .init(red: 0.56, green: 0.76, blue: 0.38)),   // Green
+        ]
+
+        static func speakerColor(for index: Int) -> Color {
+            speakerColors[index % speakerColors.count]
+        }
+
         // YouTube badge
         static let youtubeRed = Color.red
 

@@ -13,7 +13,10 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var wordTimestamps: [WordTimestamp]?
     public var language: String?
     public var speakerCount: Int?
-    public var speakers: [String]?
+    public var speakers: [SpeakerInfo]?
+    public var diarizationSegments: [DiarizationSegmentRecord]?
+    public var summary: String?
+    public var chatMessages: [ChatMessage]?
     public var status: TranscriptionStatus
     public var errorMessage: String?
     public var exportPath: String?
@@ -39,7 +42,10 @@ public struct Transcription: Codable, Identifiable, Sendable {
         wordTimestamps: [WordTimestamp]? = nil,
         language: String? = "en",
         speakerCount: Int? = nil,
-        speakers: [String]? = nil,
+        speakers: [SpeakerInfo]? = nil,
+        diarizationSegments: [DiarizationSegmentRecord]? = nil,
+        summary: String? = nil,
+        chatMessages: [ChatMessage]? = nil,
         status: TranscriptionStatus = .processing,
         errorMessage: String? = nil,
         exportPath: String? = nil,
@@ -58,6 +64,9 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.language = language
         self.speakerCount = speakerCount
         self.speakers = speakers
+        self.diarizationSegments = diarizationSegments
+        self.summary = summary
+        self.chatMessages = chatMessages
         self.status = status
         self.errorMessage = errorMessage
         self.exportPath = exportPath
@@ -71,12 +80,36 @@ public struct WordTimestamp: Codable, Sendable {
     public var startMs: Int
     public var endMs: Int
     public var confidence: Double
+    public var speakerId: String?
 
-    public init(word: String, startMs: Int, endMs: Int, confidence: Double) {
+    public init(word: String, startMs: Int, endMs: Int, confidence: Double, speakerId: String? = nil) {
         self.word = word
         self.startMs = startMs
         self.endMs = endMs
         self.confidence = confidence
+        self.speakerId = speakerId
+    }
+}
+
+public struct SpeakerInfo: Codable, Sendable, Equatable {
+    public var id: String
+    public var label: String
+
+    public init(id: String, label: String) {
+        self.id = id
+        self.label = label
+    }
+}
+
+public struct DiarizationSegmentRecord: Codable, Sendable {
+    public var speakerId: String
+    public var startMs: Int
+    public var endMs: Int
+
+    public init(speakerId: String, startMs: Int, endMs: Int) {
+        self.speakerId = speakerId
+        self.startMs = startMs
+        self.endMs = endMs
     }
 }
 
@@ -86,6 +119,44 @@ extension Transcription: FetchableRecord, PersistableRecord {
     public enum Columns: String, ColumnExpression {
         case id, createdAt, fileName, filePath, fileSizeBytes, durationMs
         case rawTranscript, cleanTranscript, wordTimestamps, language
-        case speakerCount, speakers, status, errorMessage, exportPath, sourceURL, updatedAt
+        case speakerCount, speakers, diarizationSegments, summary, chatMessages
+        case status, errorMessage, exportPath, sourceURL, updatedAt
+    }
+
+    /// Backward-compatible decoding: `speakers` column may contain old `[String]` JSON
+    /// from pre-diarization transcriptions, or new `[SpeakerInfo]` JSON.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        fileName = try container.decode(String.self, forKey: .fileName)
+        filePath = try container.decodeIfPresent(String.self, forKey: .filePath)
+        fileSizeBytes = try container.decodeIfPresent(Int.self, forKey: .fileSizeBytes)
+        durationMs = try container.decodeIfPresent(Int.self, forKey: .durationMs)
+        rawTranscript = try container.decodeIfPresent(String.self, forKey: .rawTranscript)
+        cleanTranscript = try container.decodeIfPresent(String.self, forKey: .cleanTranscript)
+        wordTimestamps = try container.decodeIfPresent([WordTimestamp].self, forKey: .wordTimestamps)
+        language = try container.decodeIfPresent(String.self, forKey: .language)
+        speakerCount = try container.decodeIfPresent(Int.self, forKey: .speakerCount)
+
+        // Try new [SpeakerInfo] format first, fall back to old [String] format
+        if let speakerInfos = try? container.decodeIfPresent([SpeakerInfo].self, forKey: .speakers) {
+            speakers = speakerInfos
+        } else if let oldStrings = try? container.decodeIfPresent([String].self, forKey: .speakers) {
+            speakers = oldStrings.enumerated().map { index, name in
+                SpeakerInfo(id: "S\(index + 1)", label: name)
+            }
+        } else {
+            speakers = nil
+        }
+
+        diarizationSegments = try container.decodeIfPresent([DiarizationSegmentRecord].self, forKey: .diarizationSegments)
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        chatMessages = try container.decodeIfPresent([ChatMessage].self, forKey: .chatMessages)
+        status = try container.decode(TranscriptionStatus.self, forKey: .status)
+        errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
+        exportPath = try container.decodeIfPresent(String.self, forKey: .exportPath)
+        sourceURL = try container.decodeIfPresent(String.self, forKey: .sourceURL)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }

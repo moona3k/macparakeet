@@ -41,8 +41,9 @@ public final class TextSnippetsViewModel {
     public func addSnippet() {
         guard let repo else { return }
         let trimmedTrigger = newTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedExpansion = newExpansion.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTrigger.isEmpty, !trimmedExpansion.isEmpty else { return }
+        let rawExpansion = newExpansion.trimmingCharacters(in: .whitespaces)
+        let processedExpansion = rawExpansion.replacingOccurrences(of: "\\n", with: "\n")
+        guard !trimmedTrigger.isEmpty, !processedExpansion.isEmpty else { return }
 
         // Duplicate check (case-insensitive)
         if snippets.contains(where: { $0.trigger.caseInsensitiveCompare(trimmedTrigger) == .orderedSame }) {
@@ -50,10 +51,11 @@ public final class TextSnippetsViewModel {
             return
         }
 
-        let snippet = TextSnippet(trigger: trimmedTrigger, expansion: trimmedExpansion)
+        let snippet = TextSnippet(trigger: trimmedTrigger, expansion: processedExpansion)
 
         do {
             try repo.save(snippet)
+            Telemetry.send(.snippetAdded)
             newTrigger = ""
             newExpansion = ""
             errorMessage = nil

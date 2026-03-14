@@ -15,7 +15,21 @@ public final class TranscriptionViewModel {
         case downloading
         case converting
         case transcribing
+        case identifyingSpeakers
         case finalizing
+    }
+
+    public enum TranscriptTab: String, CaseIterable, Sendable {
+        case transcript
+        case summary
+        case chat
+    }
+
+    public enum LLMActionState: Equatable {
+        case idle
+        case streaming
+        case complete
+        case error(String)
     }
 
     public var transcriptions: [Transcription] = []
@@ -30,12 +44,31 @@ public final class TranscriptionViewModel {
     public var isDragging = false
     public var urlInput: String = ""
 
+    // LLM state
+    public var llmAvailable: Bool = false
+    public var summary: String = ""
+    public var summaryState: LLMActionState = .idle
+    public var selectedTab: TranscriptTab = .transcript
+    public var summaryBadge: Bool = false
+
     public var isValidURL: Bool {
         YouTubeURLValidator.isYouTubeURL(urlInput)
     }
 
+    public var showTabs: Bool {
+        llmAvailable
+            || currentTranscription?.summary != nil
+            || currentTranscription?.chatMessages?.isEmpty == false
+    }
+
+    public var canGenerateSummary: Bool {
+        llmAvailable && summaryState != .streaming
+    }
+
     private var transcriptionService: TranscriptionServiceProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
+    private var llmService: LLMServiceProtocol?
+    private var summaryTask: Task<Void, Never>?
     private var activeDropRequestID: UUID?
     private var dropPendingCount = 0
     private var dropAccepted = false
@@ -45,10 +78,13 @@ public final class TranscriptionViewModel {
 
     public func configure(
         transcriptionService: TranscriptionServiceProtocol,
-        transcriptionRepo: TranscriptionRepositoryProtocol
+        transcriptionRepo: TranscriptionRepositoryProtocol,
+        llmService: LLMServiceProtocol? = nil
     ) {
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
+        self.llmService = llmService
+        self.llmAvailable = llmService != nil
         loadTranscriptions()
     }
 
@@ -57,13 +93,13 @@ public final class TranscriptionViewModel {
         transcriptions = (try? repo.fetchAll(limit: 50)) ?? []
     }
 
-    public func transcribeFile(url: URL) {
+    public func transcribeFile(url: URL, source: TelemetryTranscriptionSource = .file) {
         guard let service = transcriptionService else { return }
         beginTranscription(source: .localFile)
 
         Task {
             do {
-                let result = try await service.transcribe(fileURL: url) { [weak self] phase in
+                let result = try await service.transcribe(fileURL: url, source: source) { [weak self] phase in
                     DispatchQueue.main.async {
                         self?.updateProgress(with: phase)
                     }
@@ -71,6 +107,7 @@ public final class TranscriptionViewModel {
                 currentTranscription = result
                 endTranscription()
                 loadTranscriptions()
+                autoSummarizeIfNeeded(result)
             } catch {
                 errorMessage = error.localizedDescription
                 endTranscription()
@@ -104,6 +141,7 @@ public final class TranscriptionViewModel {
                 currentTranscription = result
                 endTranscription()
                 loadTranscriptions()
+                autoSummarizeIfNeeded(result)
             } catch {
                 errorMessage = error.localizedDescription
                 endTranscription()
@@ -154,7 +192,7 @@ public final class TranscriptionViewModel {
                     self.dropAccepted = true
                     self.errorMessage = nil
                     onAccepted?()
-                    self.transcribeFile(url: droppedURL)
+                    self.transcribeFile(url: droppedURL, source: .dragDrop)
                 }
             }
         }
@@ -180,7 +218,7 @@ public final class TranscriptionViewModel {
 
         Task {
             do {
-                var result = try await service.transcribe(fileURL: url) { [weak self] phase in
+                var result = try await service.transcribe(fileURL: url, source: .file) { [weak self] phase in
                     DispatchQueue.main.async {
                         self?.updateProgress(with: phase)
                     }
@@ -223,6 +261,8 @@ public final class TranscriptionViewModel {
         progressPhase = .preparing
         progressHeadline = Self.headline(for: .preparing)
         errorMessage = nil
+        resetSummaryState()
+        selectedTab = .transcript
     }
 
     private func endTranscription() {
@@ -248,6 +288,9 @@ public final class TranscriptionViewModel {
         if normalized.contains("convert") {
             return .converting
         }
+        if normalized.contains("identifying speaker") {
+            return .identifyingSpeakers
+        }
         if normalized.contains("transcrib") {
             return .transcribing
         }
@@ -270,6 +313,8 @@ public final class TranscriptionViewModel {
             return "Normalizing audio stream"
         case .transcribing:
             return "Running speech recognition"
+        case .identifyingSpeakers:
+            return "Identifying speakers..."
         case .finalizing:
             return "Finalizing transcript"
         }
@@ -286,5 +331,115 @@ public final class TranscriptionViewModel {
         }
 
         return min(percent, 100) / 100
+    }
+
+    // MARK: - LLM Summary
+
+    private func autoSummarizeIfNeeded(_ transcription: Transcription) {
+        let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+        guard llmAvailable, text.count > 500 else { return }
+        generateSummary(text: text)
+    }
+
+    public func generateSummary(text: String) {
+        guard let llmService, summaryState != .streaming else { return }
+        summary = ""
+        summaryState = .streaming
+        summaryBadge = false
+
+        // Capture ID before async work — currentTranscription may change mid-stream
+        let targetID = currentTranscription?.id
+
+        summaryTask = Task {
+            do {
+                let stream = llmService.summarizeStream(transcript: text)
+                for try await token in stream {
+                    summary += token
+                }
+                guard !Task.isCancelled else { return }
+                // Discard if user navigated to a different transcription mid-stream
+                guard currentTranscription?.id == targetID else { return }
+                summaryState = .complete
+                if let targetID {
+                    currentTranscription?.summary = summary
+                    try? transcriptionRepo?.updateSummary(id: targetID, summary: summary)
+                }
+                if selectedTab != .summary {
+                    summaryBadge = true
+                }
+            } catch is CancellationError {
+                // Cancellation is expected (navigation, config change) — handled by cancelSummary()
+            } catch {
+                guard currentTranscription?.id == targetID else { return }
+                summaryState = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    public func cancelSummary() {
+        summaryTask?.cancel()
+        summaryTask = nil
+        if summaryState == .streaming {
+            summaryState = summary.isEmpty ? .idle : .complete
+        }
+    }
+
+    /// Clears in-memory summary state without touching the database.
+    /// Used when switching between transcriptions to avoid destroying saved summaries.
+    public func resetSummaryState() {
+        cancelSummary()
+        summary = ""
+        summaryState = .idle
+        summaryBadge = false
+    }
+
+    /// Clears the summary and persists the removal to the database.
+    /// Used when the user explicitly dismisses a summary.
+    public func dismissSummary() {
+        cancelSummary()
+        summary = ""
+        summaryState = .idle
+        summaryBadge = false
+        if let id = currentTranscription?.id {
+            currentTranscription?.summary = nil
+            try? transcriptionRepo?.updateSummary(id: id, summary: nil)
+        }
+    }
+
+    public func loadPersistedContent() {
+        // Refresh from DB to pick up persisted summary/chat that may not be
+        // reflected in the stale list copy of the transcription.
+        if let id = currentTranscription?.id,
+           let fresh = try? transcriptionRepo?.fetch(id: id) {
+            currentTranscription = fresh
+        }
+        if let saved = currentTranscription?.summary, !saved.isEmpty {
+            summary = saved
+            summaryState = .complete
+        }
+    }
+
+    public func updateCurrentTranscriptionChatMessages(id: UUID, chatMessages: [ChatMessage]?) {
+        guard currentTranscription?.id == id else { return }
+        currentTranscription?.chatMessages = chatMessages
+    }
+
+    public func updateLLMAvailability(_ available: Bool, llmService: LLMServiceProtocol? = nil) {
+        self.llmAvailable = available
+        self.llmService = llmService
+    }
+
+    // MARK: - Speaker Rename
+
+    public func renameSpeaker(id speakerId: String, to newLabel: String) {
+        guard var transcription = currentTranscription,
+              var speakers = transcription.speakers else { return }
+        guard let index = speakers.firstIndex(where: { $0.id == speakerId }) else { return }
+        let trimmed = newLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, speakers[index].label != trimmed else { return }
+        speakers[index].label = trimmed
+        transcription.speakers = speakers
+        currentTranscription = transcription
+        try? transcriptionRepo?.updateSpeakers(id: transcription.id, speakers: speakers)
     }
 }

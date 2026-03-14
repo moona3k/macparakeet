@@ -35,6 +35,9 @@ struct TranscribeCommand: AsyncParsableCommand {
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
+    @Flag(help: "Disable speaker diarization.")
+    var noDiarize: Bool = false
+
     @Flag(help: "Enable entitlement/trial checks to mirror GUI gating behavior.")
     var enforceEntitlements: Bool = false
 
@@ -74,6 +77,8 @@ struct TranscribeCommand: AsyncParsableCommand {
             await entitlementsService.refreshValidationIfNeeded()
         }
 
+        let diarizationService: DiarizationService? = noDiarize ? nil : DiarizationService()
+
         let service = TranscriptionService(
             audioProcessor: audioProcessor,
             sttClient: sttClient,
@@ -94,7 +99,8 @@ struct TranscribeCommand: AsyncParsableCommand {
                     return UserDefaults.standard.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
                 }
             },
-            youtubeDownloader: youtubeDownloader
+            youtubeDownloader: youtubeDownloader,
+            diarizationService: diarizationService
         )
 
         let result: Transcription
@@ -164,8 +170,31 @@ struct TranscribeCommand: AsyncParsableCommand {
             let sec = seconds % 60
             print("Duration: \(min)m \(sec)s")
         }
+        if let speakers = t.speakers, !speakers.isEmpty {
+            print("Speakers: \(speakers.map(\.label).joined(separator: ", "))")
+        }
         print()
-        print(t.cleanTranscript ?? t.rawTranscript ?? "(no transcript)")
+
+        // Show transcript with speaker labels at turn changes when available
+        if let words = t.wordTimestamps, !words.isEmpty,
+           let speakers = t.speakers, !speakers.isEmpty,
+           words.contains(where: { $0.speakerId != nil }) {
+            let speakerMap = Dictionary(uniqueKeysWithValues: speakers.map { ($0.id, $0.label) })
+            var lastSpeakerId: String? = nil
+            for w in words {
+                if let sid = w.speakerId {
+                    if sid != lastSpeakerId, let label = speakerMap[sid] {
+                        print()
+                        print("\(label):")
+                    }
+                    lastSpeakerId = sid
+                }
+                Swift.print(w.word, terminator: " ")
+            }
+            print()
+        } else {
+            print(t.cleanTranscript ?? t.rawTranscript ?? "(no transcript)")
+        }
         print()
 
         if let words = t.wordTimestamps, !words.isEmpty {
@@ -173,7 +202,8 @@ struct TranscribeCommand: AsyncParsableCommand {
             for w in words {
                 let start = String(format: "%.2f", Double(w.startMs) / 1000.0)
                 let end = String(format: "%.2f", Double(w.endMs) / 1000.0)
-                print("[\(start)-\(end)] \(w.word) (\(String(format: "%.0f", w.confidence * 100))%)")
+                let speaker = w.speakerId.map { " [\($0)]" } ?? ""
+                print("[\(start)-\(end)] \(w.word) (\(String(format: "%.0f", w.confidence * 100))%)\(speaker)")
             }
         }
     }

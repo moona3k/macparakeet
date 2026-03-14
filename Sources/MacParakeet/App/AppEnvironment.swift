@@ -14,12 +14,18 @@ final class AppEnvironment {
     let dictationService: DictationService
     let transcriptionService: TranscriptionService
     let youtubeDownloader: YouTubeDownloader
+    let diarizationService: DiarizationService
     let clipboardService: ClipboardService
     let exportService: ExportService
     let permissionService: PermissionService
     let accessibilityService: AccessibilityService
     let entitlementsService: EntitlementsService
+    let launchAtLoginService: LaunchAtLoginService
     let checkoutURL: URL?
+    let telemetryService: TelemetryService
+    let llmClient: LLMClient
+    let llmConfigStore: LLMConfigStore
+    let llmService: LLMService
 
     init() throws {
         // Ensure required runtime directories exist (db, dictations, temp).
@@ -46,6 +52,7 @@ final class AppEnvironment {
         exportService = ExportService()
         permissionService = PermissionService()
         accessibilityService = AccessibilityService()
+        launchAtLoginService = LaunchAtLoginService()
 
         // Licensing / entitlements (basic guards: 7-day trial + license unlock).
         //
@@ -85,6 +92,7 @@ final class AppEnvironment {
         }
 
         youtubeDownloader = YouTubeDownloader()
+        diarizationService = DiarizationService()
 
         dictationService = DictationService(
             audioProcessor: audioProcessor,
@@ -95,11 +103,22 @@ final class AppEnvironment {
                 // Defaults to true if unset (matches Settings UI default).
                 UserDefaults.standard.object(forKey: "saveAudioRecordings") as? Bool ?? true
             },
+            shouldSaveDictationHistory: {
+                UserDefaults.standard.object(forKey: "saveDictationHistory") as? Bool ?? true
+            },
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: processingModeClosure
         )
+
+        telemetryService = TelemetryService()
+        Telemetry.configure(telemetryService)
+        Telemetry.send(.appLaunched)
+
+        llmClient = LLMClient()
+        llmConfigStore = LLMConfigStore()
+        llmService = LLMService(client: llmClient, configStore: llmConfigStore)
 
         transcriptionService = TranscriptionService(
             audioProcessor: audioProcessor,
@@ -113,7 +132,8 @@ final class AppEnvironment {
                 // Defaults to true if unset (matches Settings UI default).
                 UserDefaults.standard.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
             },
-            youtubeDownloader: youtubeDownloader
+            youtubeDownloader: youtubeDownloader,
+            diarizationService: diarizationService
         )
     }
 }

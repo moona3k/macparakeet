@@ -58,8 +58,10 @@ xcrun notarytool history --keychain-profile "AC_PASSWORD"
 Then:
 
 ```bash
-NOTARYTOOL_PROFILE="AC_PASSWORD" scripts/dist/sign_notarize.sh
+scripts/dist/sign_notarize.sh
 ```
+
+The script defaults `NOTARYTOOL_PROFILE` to `AC_PASSWORD`. Override with `NOTARYTOOL_PROFILE="other" scripts/dist/sign_notarize.sh` if needed.
 
 Outputs:
 - `dist/MacParakeet.app` (signed + stapled)
@@ -98,28 +100,248 @@ Confirm `content-length`, `last-modified`, and `etag` match the newly uploaded D
 
 ## Full release workflow
 
+**IMPORTANT:** Follow these steps in exact order. Do NOT re-upload the DMG after signing for Sparkle — the file size must match the appcast signature. If another agent is running a parallel build, coordinate to avoid overwriting the R2 object.
+
+This pipeline serves **two audiences** with the same DMG:
+- **New users** download from `downloads.macparakeet.com/MacParakeet.dmg`
+- **Existing users** get prompted via Sparkle auto-update (checks `appcast.xml`)
+
+### Pre-flight
+
+Before building, verify the codebase is ready:
+
 ```bash
-# 1. Build app bundle (auto-downloads static FFmpeg)
-scripts/dist/build_app_bundle.sh
+# All tests must pass
+swift test
 
-# 2. Sign + notarize (creates .app and .dmg)
-NOTARYTOOL_PROFILE="AC_PASSWORD" scripts/dist/sign_notarize.sh
+# Check currently deployed version
+curl -s "https://macparakeet.com/appcast.xml" | grep -E "sparkle:version|sparkle:shortVersionString"
+```
 
-# 3. Upload DMG to R2
+Decide on the version number (see Version bumping below).
+
+### Version bumping
+
+The build script accepts `VERSION` and `BUILD_NUMBER` env vars:
+
+```bash
+VERSION=0.1.1 scripts/dist/build_app_bundle.sh   # set version explicitly
+scripts/dist/build_app_bundle.sh                   # defaults: VERSION=0.1.0, BUILD_NUMBER=UTC timestamp
+```
+
+- **Patch bump** (0.1.x): Bug fixes, UX improvements to existing features
+- **Minor bump** (0.x.0): New user-facing features (e.g., speaker diarization GUI, batch processing)
+- **Build number**: Auto-generated UTC timestamp — always increases, which is what Sparkle uses to detect updates
+- Both new downloads (R2 DMG) and existing users (Sparkle appcast) get the same DMG
+
+### Step 1: Build
+
+```bash
+VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
+```
+
+Verify: Look for `Embedded Sparkle.framework` and `Adding @executable_path/../Frameworks to rpath` in the output. The script will `exit 1` if Sparkle is missing.
+
+### Step 2: Sign + notarize
+
+```bash
+scripts/dist/sign_notarize.sh
+```
+
+The script defaults `NOTARYTOOL_PROFILE` to `AC_PASSWORD`. Both app and DMG are signed, notarized, and stapled. Wait for both "Accepted" statuses.
+
+Verify:
+```bash
+spctl --assess --type execute --verbose=4 dist/MacParakeet.app
+# Expected: "accepted / source=Notarized Developer ID"
+```
+
+### Step 3: Upload DMG to R2
+
+```bash
 npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
   --file dist/MacParakeet.dmg \
   --content-type "application/x-apple-diskimage" \
   --remote
-
-# 4. Verify fresh object metadata (cache-busted HEAD)
-curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?ts=$(date +%s)" | head -10
-
-# 5. Website download buttons already point to:
-#    https://downloads.macparakeet.com/MacParakeet.dmg
 ```
+
+Verify — **the file size MUST match `dist/MacParakeet.dmg` exactly:**
+```bash
+LOCAL_SIZE=$(stat -f%z dist/MacParakeet.dmg)
+REMOTE_SIZE=$(curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?ts=$(date +%s)" | grep -i content-length | awk '{print $2}' | tr -d '\r')
+echo "Local: $LOCAL_SIZE  Remote: $REMOTE_SIZE"
+# These MUST be identical. If not, re-upload — another process may have overwritten the object.
+```
+
+### Step 4: Sign DMG for Sparkle
+
+```bash
+.build/artifacts/sparkle/Sparkle/bin/sign_update dist/MacParakeet.dmg
+```
+
+This outputs two values you need for the appcast:
+```
+sparkle:edSignature="..." length="..."
+```
+
+**The `length` must match the R2 `content-length` from Step 3.** If they differ, something went wrong — do NOT proceed.
+
+### Step 5: Update appcast.xml
+
+Edit `~/code/macparakeet-website/public/appcast.xml`. **Replace** the existing `<item>` (single DMG URL = single item, not multiple) with:
+- `sparkle:version` = build number from `dist/MacParakeet.app/Contents/Info.plist` (`CFBundleVersion`)
+- `sparkle:shortVersionString` = version from Info.plist (`CFBundleShortVersionString`)
+- `sparkle:edSignature` and `length` from Step 4
+- `pubDate` in RFC 2822 format: `date -R`
+- Release notes in `<description>` CDATA block
+- **Enclosure URL must include a cache-busting query param:** `?v={BUILD_NUMBER}`. Cloudflare CDN caches by full URL including query params, so without this Sparkle may download a stale cached DMG and fail with "improperly signed". R2 ignores query params and serves the correct object.
+
+Get build info:
+```bash
+plutil -p dist/MacParakeet.app/Contents/Info.plist | grep -E "CFBundleVersion|CFBundleShortVersionString"
+```
+
+### Step 6: Deploy website
+
+```bash
+cd ~/code/macparakeet-website
+git add public/appcast.xml
+git commit -m "Update appcast.xml with vX.Y.Z build BUILDNUMBER"
+git push
+# Then deploy to Cloudflare Pages:
+npx astro build && npx wrangler pages deploy dist --project-name macparakeet-website --branch main
+```
+
+Verify appcast is live:
+```bash
+curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep "sparkle:version"
+```
+
+### Step 7: Verify end-to-end
+
+1. Confirm R2 file size matches appcast `length`
+2. Confirm appcast `sparkle:version` is newer than the installed app's build number
+3. Launch the app → "Check for Updates..." from the menu bar → should find and validate the update
+
+### Quick reference (copy-paste)
+
+```bash
+# Full pipeline — run from macparakeet repo root
+swift test                                         # pre-flight: all tests must pass
+VERSION=X.Y.Z scripts/dist/build_app_bundle.sh     # set version explicitly
+scripts/dist/sign_notarize.sh
+npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
+  --file dist/MacParakeet.dmg --content-type "application/x-apple-diskimage" --remote
+.build/artifacts/sparkle/Sparkle/bin/sign_update dist/MacParakeet.dmg
+# → Edit ~/code/macparakeet-website/public/appcast.xml with signature + build info
+# → cd ~/code/macparakeet-website && git add -A && git commit && git push
+# → npx astro build && npx wrangler pages deploy dist --project-name macparakeet-website --branch main
+# → Verify: curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep sparkle:version
+```
+
+### Common pitfalls
+
+| Problem | Cause | Fix |
+|---------|-------|-----|
+| App crashes at launch (dyld) | Sparkle.framework missing from bundle | Build script should catch this. If bypassed, re-run `build_app_bundle.sh` |
+| "Improperly signed" update error | R2 file doesn't match appcast signature, OR Cloudflare CDN cached an old DMG | Re-upload the **exact same DMG** you ran `sign_update` on. Verify sizes match. **Always use `?v={BUILD_NUMBER}` in the appcast enclosure URL** to bust Cloudflare's CDN cache |
+| Appcast not updating | Cloudflare Pages cache / build not triggered | Deploy manually: `npx wrangler pages deploy dist --project-name macparakeet-website` |
+| `notarytool` auth failure | Keychain profile missing | Run `xcrun notarytool store-credentials "AC_PASSWORD"` (see Step 2 above) |
+| Update found but same version | Build number in appcast ≤ installed build | Ensure `sparkle:version` (build number) is strictly greater |
+
+## Auto-Updates (Sparkle)
+
+MacParakeet uses [Sparkle 2](https://sparkle-project.org/) for in-app auto-updates. Users are prompted when a new version is available — no manual DMG download needed.
+
+### How it works
+
+1. On launch, Sparkle checks `https://macparakeet.com/appcast.xml` for new versions
+2. If a newer version exists, a native update dialog appears
+3. User clicks "Install Update" → Sparkle downloads the DMG, replaces the app, relaunches
+
+### EdDSA signing keys
+
+The private key is stored in the developer's macOS Keychain (generated once via `generate_keys`). The public key is embedded in `Info.plist` as `SUPublicEDKey`.
+
+To retrieve the public key or verify the Keychain entry:
+
+```bash
+.build/artifacts/sparkle/Sparkle/bin/generate_keys
+```
+
+### Appcast
+
+The appcast XML lives in the [macparakeet-website](https://github.com/moona3k/macparakeet-website) repo at `public/appcast.xml` and is served at `https://macparakeet.com/appcast.xml`.
+
+Template for a new release:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>MacParakeet Updates</title>
+    <item>
+      <title>Version X.Y.Z</title>
+      <link>https://macparakeet.com</link>
+      <sparkle:version>BUILD_NUMBER</sparkle:version>
+      <sparkle:shortVersionString>X.Y.Z</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.2</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h2>What's New</h2>
+        <ul>
+          <li>Feature or fix description</li>
+        </ul>
+      ]]></description>
+      <pubDate>DATE_RFC2822</pubDate>
+      <enclosure
+        url="https://downloads.macparakeet.com/MacParakeet.dmg?v=BUILD_NUMBER"
+        sparkle:edSignature="SIGNATURE_FROM_SIGN_UPDATE"
+        length="FILE_SIZE_BYTES"
+        type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>
+```
+
+### Signing an update
+
+```bash
+# Sign the DMG and get the signature + length for appcast.xml
+.build/artifacts/sparkle/Sparkle/bin/sign_update dist/MacParakeet.dmg
+```
+
+This outputs `sparkle:edSignature="..."` and `length="..."` — paste both into the appcast `<enclosure>` element.
+
+### Auto-generate appcast from a directory of releases
+
+```bash
+# Place all versioned DMGs in a directory, then:
+.build/artifacts/sparkle/Sparkle/bin/generate_appcast /path/to/releases/
+```
+
+This generates/updates `appcast.xml` with signatures and optional delta updates.
+
+### Info.plist keys
+
+These are set automatically by `build_app_bundle.sh`:
+
+| Key | Value |
+|-----|-------|
+| `SUFeedURL` | `https://macparakeet.com/appcast.xml` |
+| `SUPublicEDKey` | `2aqRU0Agz+xxZwt0kLybmKz/SAvZUsyn+z9fU0I6ynY=` |
+
+### Settings UI
+
+Users can control auto-update behavior in Settings > Updates:
+- Toggle automatic update checks
+- Toggle automatic update downloads
+- Manual "Check for Updates..." button
+
+"Check for Updates..." is also available in the app menu and menu bar dropdown.
 
 ## Notes
 
+- **Sparkle.framework must be embedded in the .app bundle.** The `build_app_bundle.sh` script copies it to `Contents/Frameworks/`. If the framework is missing, the app will crash immediately at launch with a dyld `Library not loaded: @rpath/Sparkle.framework` error. The script now fails the build if Sparkle.framework cannot be found — do not bypass this check.
 - The scripts default to a single-arch Release build. For a universal binary:
 
 ```bash

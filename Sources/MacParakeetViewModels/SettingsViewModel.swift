@@ -16,18 +16,33 @@ public final class SettingsViewModel {
 
     // General
     public var launchAtLogin: Bool {
-        didSet { defaults.set(launchAtLogin, forKey: "launchAtLogin") }
+        didSet {
+            guard !isApplyingLaunchAtLoginState else { return }
+            applyLaunchAtLoginChange(launchAtLogin)
+        }
     }
+    public var launchAtLoginDetail: String = ""
+    public var launchAtLoginError: String?
     public var menuBarOnlyMode: Bool {
         didSet {
             defaults.set(menuBarOnlyMode, forKey: AppPreferences.menuBarOnlyModeKey)
             NotificationCenter.default.post(name: Notification.Name("macparakeet.menuBarOnlyModeDidChange"), object: nil)
+            Telemetry.send(.settingChanged(setting: .menuBarOnly))
         }
     }
     public var showIdlePill: Bool {
         didSet {
             defaults.set(showIdlePill, forKey: "showIdlePill")
             NotificationCenter.default.post(name: Notification.Name("macparakeet.showIdlePillDidChange"), object: nil)
+            Telemetry.send(.settingChanged(setting: .hidePill))
+        }
+    }
+    public var telemetryEnabled: Bool {
+        didSet {
+            defaults.set(telemetryEnabled, forKey: AppPreferences.telemetryEnabledKey)
+            if !telemetryEnabled {
+                Telemetry.send(.telemetryOptedOut)
+            }
         }
     }
 
@@ -36,6 +51,7 @@ public final class SettingsViewModel {
         didSet {
             hotkeyTrigger.save(to: defaults)
             NotificationCenter.default.post(name: Notification.Name("macparakeet.hotkeyTriggerDidChange"), object: nil)
+            Telemetry.send(.hotkeyCustomized)
         }
     }
     public var silenceAutoStop: Bool {
@@ -53,17 +69,30 @@ public final class SettingsViewModel {
                 return
             }
             defaults.set(processingMode, forKey: "processingMode")
+            Telemetry.send(.processingModeChanged(mode: processingMode))
         }
     }
     public var customWordCount: Int = 0
     public var snippetCount: Int = 0
 
     // Storage
+    public var saveDictationHistory: Bool {
+        didSet {
+            defaults.set(saveDictationHistory, forKey: "saveDictationHistory")
+            Telemetry.send(.settingChanged(setting: .saveHistory))
+        }
+    }
     public var saveAudioRecordings: Bool {
-        didSet { defaults.set(saveAudioRecordings, forKey: "saveAudioRecordings") }
+        didSet {
+            defaults.set(saveAudioRecordings, forKey: "saveAudioRecordings")
+            Telemetry.send(.settingChanged(setting: .audioRetention))
+        }
     }
     public var saveTranscriptionAudio: Bool {
-        didSet { defaults.set(saveTranscriptionAudio, forKey: "saveTranscriptionAudio") }
+        didSet {
+            defaults.set(saveTranscriptionAudio, forKey: "saveTranscriptionAudio")
+            Telemetry.send(.settingChanged(setting: .saveTranscriptionAudio))
+        }
     }
 
     // Permission status
@@ -95,10 +124,12 @@ public final class SettingsViewModel {
     private var customWordRepo: CustomWordRepositoryProtocol?
     private var snippetRepo: TextSnippetRepositoryProtocol?
     private var entitlementsService: EntitlementsService?
+    private var launchAtLoginService: LaunchAtLoginControlling?
     private var sttClient: STTClientProtocol?
     private let defaults: UserDefaults
     private let youtubeDownloadsDirPath: @Sendable () -> String
     private let isSpeechModelCached: @Sendable () -> Bool
+    private var isApplyingLaunchAtLoginState = false
 
     public init(
         defaults: UserDefaults = .standard,
@@ -111,11 +142,13 @@ public final class SettingsViewModel {
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
         menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
         showIdlePill = defaults.object(forKey: "showIdlePill") as? Bool ?? true
+        telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
         hotkeyTrigger = HotkeyTrigger.current(defaults: defaults)
         silenceAutoStop = defaults.bool(forKey: "silenceAutoStop")
         let delay = defaults.double(forKey: "silenceDelay")
         silenceDelay = delay == 0 ? 2.0 : delay
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: "processingMode"))
+        saveDictationHistory = defaults.object(forKey: "saveDictationHistory") as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: "saveAudioRecordings") as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
     }
@@ -125,6 +158,7 @@ public final class SettingsViewModel {
         dictationRepo: DictationRepositoryProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
         entitlementsService: EntitlementsService,
+        launchAtLoginService: LaunchAtLoginControlling? = nil,
         checkoutURL: URL?,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
@@ -134,14 +168,27 @@ public final class SettingsViewModel {
         self.dictationRepo = dictationRepo
         self.transcriptionRepo = transcriptionRepo
         self.entitlementsService = entitlementsService
+        self.launchAtLoginService = launchAtLoginService
         self.checkoutURL = checkoutURL
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.sttClient = sttClient
+        refreshLaunchAtLoginStatus()
         refreshPermissions()
         refreshStats()
         refreshEntitlements()
         refreshModelStatus()
+    }
+
+    public func refreshLaunchAtLoginStatus() {
+        guard let service = launchAtLoginService else {
+            launchAtLoginDetail = ""
+            launchAtLoginError = nil
+            return
+        }
+
+        applyLaunchAtLoginStatus(service.currentStatus())
+        launchAtLoginError = nil
     }
 
     public func refreshPermissions() {
@@ -158,7 +205,7 @@ public final class SettingsViewModel {
     public func refreshStats() {
         guard let repo = dictationRepo else { return }
         if let stats = try? repo.stats() {
-            dictationCount = stats.totalCount
+            dictationCount = stats.visibleCount
         }
         customWordCount = (try? customWordRepo?.fetchAll().count) ?? 0
         snippetCount = (try? snippetRepo?.fetchAll().count) ?? 0
@@ -313,6 +360,9 @@ public final class SettingsViewModel {
         }
     }
 
+    /// Called after dictations are cleared so other VMs (e.g. history) can reload.
+    public var onDictationsCleared: (() -> Void)?
+
     public func clearAllDictations() {
         guard let repo = dictationRepo else { return }
         try? repo.deleteAll()
@@ -323,6 +373,14 @@ public final class SettingsViewModel {
             try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         }
         refreshStats()
+        onDictationsCleared?()
+    }
+
+    public func resetPrivateStatistics() {
+        guard let repo = dictationRepo else { return }
+        try? repo.deleteHidden()
+        refreshStats()
+        onDictationsCleared?()
     }
 
     public func clearDownloadedYouTubeAudio() {
@@ -371,6 +429,30 @@ public final class SettingsViewModel {
             return Dictation.ProcessingMode.raw.rawValue
         }
         return rawValue
+    }
+
+    private func applyLaunchAtLoginChange(_ enabled: Bool) {
+        defaults.set(enabled, forKey: "launchAtLogin")
+        launchAtLoginError = nil
+
+        guard let service = launchAtLoginService else { return }
+
+        do {
+            let updatedStatus = try service.setEnabled(enabled)
+            applyLaunchAtLoginStatus(updatedStatus)
+        } catch {
+            let fallbackStatus = service.currentStatus()
+            applyLaunchAtLoginStatus(fallbackStatus)
+            launchAtLoginError = error.localizedDescription
+        }
+    }
+
+    private func applyLaunchAtLoginStatus(_ status: LaunchAtLoginStatus) {
+        isApplyingLaunchAtLoginState = true
+        launchAtLogin = status.isEnabled
+        defaults.set(status.isEnabled, forKey: "launchAtLogin")
+        isApplyingLaunchAtLoginState = false
+        launchAtLoginDetail = status.detailText
     }
 
     private func runWithRetry(

@@ -96,14 +96,17 @@ let result = try await asrManager.transcribe(
 
 This runs a secondary CTC encoder (110M params) alongside the primary TDT encoder. Memory doubles from ~66MB to ~130MB when active. Optimal at 1-50 terms.
 
-### Additional Capabilities
+### Additional Capabilities (via FluidAudio)
 
 | Capability | Model | Details |
 |-----------|-------|---------|
 | Streaming ASR | Parakeet EOU 1.1B | Real-time with end-of-utterance detection, 160ms-1600ms chunks |
-| Speaker diarization | Pyannote + WeSpeaker | 15% DER, available for v0.4 |
+| Speaker diarization (offline) | Pyannote community-1 + WeSpeaker v2 + VBx clustering | ~15% DER (VoxConverse, CoreML), ~130 MB models, unlimited speakers. See ADR-010. |
+| Speaker diarization (streaming) | Sortformer (NVIDIA) | ~32% DER, 4 speaker max. Not used — see ADR-010 for rationale. |
 | Voice activity detection | Silero | 96% accuracy, 1220x RTF |
 | Custom vocabulary | CTC/TDT keyword boosting | 99.3% recall, 110M secondary encoder |
+
+**Note:** ASR (Parakeet TDT) and diarization (pyannote/WeSpeaker) are entirely separate model pipelines. Parakeet does NOT include diarization. Both are bundled in the FluidAudio SDK — no additional dependencies needed.
 
 ---
 
@@ -147,11 +150,15 @@ struct TimestampedWord: Sendable {
 Dictation:
   AudioRecorder → AVAudioPCMBuffer → AudioConverter.resampleBuffer() → AsrManager.transcribe() → STTResult
 
-File transcription:
+File transcription (v0.4+):
   FFmpeg (video demux) → .wav → AudioConverter.resampleAudioFile() → AsrManager.transcribe() → STTResult
+                                                                    → OfflineDiarizerManager.process() → DiarizationResult
+                                                                    → Merge word timestamps + speaker segments
 
-YouTube:
-  yt-dlp (standalone) → .m4a → FFmpeg (if needed) → AudioConverter.resampleAudioFile() → AsrManager.transcribe() → STTResult
+YouTube (v0.4+):
+  yt-dlp → .m4a → FFmpeg → AudioConverter.resampleAudioFile() → AsrManager.transcribe() → STTResult
+                                                               → OfflineDiarizerManager.process() → DiarizationResult
+                                                               → Merge word timestamps + speaker segments
 ```
 
 ---
@@ -256,3 +263,84 @@ Recommended: 8 GB RAM (Apple Silicon)
 - For dictation, latency is the primary concern — sub-100ms after warm-up
 - For file transcription, throughput matters more — progress reporting keeps the UI responsive
 - ANE and GPU run simultaneously — STT never competes with LLM for processing cycles
+
+---
+
+## Speaker Diarization (v0.4)
+
+> See [ADR-010](adr/010-speaker-diarization.md) for the full decision record.
+
+Speaker diarization ("who spoke when") uses FluidAudio's **offline diarization pipeline**, which is entirely separate from the Parakeet ASR pipeline. It applies to file transcription and YouTube transcription only — not dictation.
+
+### Pipeline
+
+Three-stage pipeline, all via FluidAudio's `OfflineDiarizerManager`:
+
+```
+Audio → Pyannote community-1 (WHEN) → WeSpeaker v2 (WHO) → VBx clustering (GROUP) → Speaker segments
+```
+
+1. **Segmentation** (Pyannote community-1): Powerset segmentation detects speech/silence boundaries and speaker changes at frame level
+2. **Embedding extraction** (WeSpeaker v2): Produces 256-dim voice fingerprints for each speech segment
+3. **Clustering** (VBx + AHC warm start): Groups embeddings by voice similarity to assign consistent speaker IDs
+
+### Models
+
+| Component | Model | Size | License |
+|-----------|-------|------|---------|
+| Segmentation | Pyannote community-1 (powerset) | ~50 MB | CC-BY-4.0 |
+| Filter bank | Fbank feature extractor | ~1 MB | Apache 2.0 |
+| Embeddings | WeSpeaker v2 (256-dim) | ~40 MB | Apache 2.0 |
+| PLDA scoring | PLDA rho model + psi parameters | ~10 MB | Apache 2.0 |
+
+**Total**: ~130 MB (one-time download, cached at `~/Library/Application Support/FluidAudio/Models/`)
+
+### Integration with ASR
+
+ASR and diarization run on the same audio, then results are merged:
+
+```
+Audio file
+  ├─→ AsrManager.transcribe()                → word timestamps + text
+  └─→ OfflineDiarizerManager.process()        → speaker segments + IDs
+                    ↓
+         Merge by time overlap
+                    ↓
+         WordTimestamp entries with speakerId
+```
+
+Each word's time range is compared against diarization speaker segments. The speaker with the most overlap is assigned to that word. Words in silence gaps or overlapping speech zones (trimmed by the offline pipeline) get `speakerId = nil`.
+
+**Diarization is non-fatal.** If diarization fails (`noSpeechDetected`, model error, etc.), the ASR result is still persisted. Speaker fields remain nil and the transcript displays without speaker attribution.
+
+### API
+
+```swift
+let config = OfflineDiarizerConfig()
+let manager = OfflineDiarizerManager(config: config)
+try await manager.prepareModels()
+
+let result = try await manager.process(url)
+for segment in result.segments {
+    // segment.speakerId — e.g. "speaker_0", "speaker_1" (FluidAudio format; DiarizationService normalizes to "S1", "S2")
+    // segment.startTimeSeconds, segment.endTimeSeconds
+}
+```
+
+### Performance
+
+| Metric | Value |
+|--------|-------|
+| DER (VoxConverse) | ~15% |
+| DER (AMI) | ~17.7% |
+| Speed | 64-122x RTF (config-dependent) |
+| Memory | ~100 MB models + minimal working RAM |
+| 1 hour audio | ~30-56 seconds processing |
+| Total (ASR + diarization) | ~53-79 seconds per hour of audio |
+
+### What's NOT included
+
+- **No streaming diarization** — file transcription is batch, no need for real-time
+- **No Sortformer** — 4-speaker hard limit and 32% DER (see ADR-010)
+- **No cross-file speaker identity** — Speaker 1 in file A is not linked to Speaker 1 in file B
+- **No dictation diarization** — single speaker by design

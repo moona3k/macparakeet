@@ -65,7 +65,7 @@ struct DictationsSubcommand: ParsableCommand {
 
         let stats = try repo.stats()
         print()
-        print("Total: \(stats.totalCount) dictations")
+        print("Total: \(stats.visibleCount) dictations")
     }
 }
 

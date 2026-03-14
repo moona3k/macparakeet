@@ -276,7 +276,7 @@ final class DictationHistoryViewModelTests: XCTestCase {
 
     func testStatsLoadedOnConfigure() {
         mockRepo.dictations = [
-            Dictation(durationMs: 5000, rawTranscript: "Hello world test")
+            Dictation(durationMs: 5000, rawTranscript: "Hello world test", wordCount: 3)
         ]
 
         viewModel.configure(dictationRepo: mockRepo)

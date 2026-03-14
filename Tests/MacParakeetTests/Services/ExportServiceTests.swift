@@ -348,15 +348,69 @@ final class ExportServiceTests: XCTestCase {
         let tempURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("test_export_\(UUID().uuidString).pdf")
 
-        // PDF export uses NSPrintOperation which must be on MainActor
-        try MainActor.assumeIsolated {
-            try exportService.exportToPDF(transcription: transcription, url: tempURL)
-        }
+        try exportService.exportToPDF(transcription: transcription, url: tempURL)
 
         XCTAssertTrue(FileManager.default.fileExists(atPath: tempURL.path))
-        let attributes = try FileManager.default.attributesOfItem(atPath: tempURL.path)
-        let fileSize = attributes[.size] as? Int64 ?? 0
-        XCTAssertGreaterThan(fileSize, 0)
+        let data = try Data(contentsOf: tempURL)
+        XCTAssertGreaterThan(data.count, 0)
+        // Verify it's a valid PDF (starts with %PDF magic bytes)
+        let header = String(data: data.prefix(5), encoding: .ascii)
+        XCTAssertEqual(header, "%PDF-")
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    func testExportToPDFWithTimestamps() throws {
+        let transcription = Transcription(
+            fileName: "timestamped.mp3",
+            rawTranscript: "Hello world this is a test",
+            wordTimestamps: [
+                WordTimestamp(word: "Hello", startMs: 0, endMs: 500, confidence: 0.99),
+                WordTimestamp(word: "world", startMs: 500, endMs: 1000, confidence: 0.98),
+                WordTimestamp(word: "this", startMs: 1000, endMs: 1500, confidence: 0.97),
+                WordTimestamp(word: "is", startMs: 1500, endMs: 1800, confidence: 0.99),
+                WordTimestamp(word: "a", startMs: 1800, endMs: 2000, confidence: 0.99),
+                WordTimestamp(word: "test.", startMs: 2000, endMs: 2500, confidence: 0.95),
+            ],
+            status: .completed
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_ts_\(UUID().uuidString).pdf")
+
+        try exportService.exportToPDF(transcription: transcription, url: tempURL)
+
+        let data = try Data(contentsOf: tempURL)
+        let header = String(data: data.prefix(5), encoding: .ascii)
+        XCTAssertEqual(header, "%PDF-")
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    func testExportToPDFWithSpeakers() throws {
+        let transcription = Transcription(
+            fileName: "interview.mp3",
+            rawTranscript: "Hello. Hi there.",
+            wordTimestamps: [
+                WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "spk_0"),
+                WordTimestamp(word: "Hi", startMs: 1000, endMs: 1300, confidence: 0.98, speakerId: "spk_1"),
+                WordTimestamp(word: "there.", startMs: 1300, endMs: 1800, confidence: 0.97, speakerId: "spk_1"),
+            ],
+            speakers: [
+                SpeakerInfo(id: "spk_0", label: "Speaker 1"),
+                SpeakerInfo(id: "spk_1", label: "Speaker 2"),
+            ],
+            status: .completed
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_spk_\(UUID().uuidString).pdf")
+
+        try exportService.exportToPDF(transcription: transcription, url: tempURL)
+
+        let data = try Data(contentsOf: tempURL)
+        let header = String(data: data.prefix(5), encoding: .ascii)
+        XCTAssertEqual(header, "%PDF-")
 
         try? FileManager.default.removeItem(at: tempURL)
     }
@@ -407,5 +461,138 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(content.contains("1\n00:00:00,000 --> 00:00:05,000\nHello world"))
 
         try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    // MARK: - Speaker Labels
+
+    func testFormatSRTWithSpeakers() {
+        let words = [
+            WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+            WordTimestamp(word: "Hi.", startMs: 600, endMs: 1000, confidence: 0.98, speakerId: "S1"),
+            WordTimestamp(word: "Goodbye.", startMs: 2000, endMs: 2500, confidence: 0.97, speakerId: "S2"),
+            WordTimestamp(word: "Bye.", startMs: 2600, endMs: 3000, confidence: 0.96, speakerId: "S2"),
+        ]
+        let speakers = [
+            SpeakerInfo(id: "S1", label: "Alice"),
+            SpeakerInfo(id: "S2", label: "Bob"),
+        ]
+
+        let srt = exportService.formatSRT(words: words, speakers: speakers)
+        XCTAssertTrue(srt.contains("Alice: Hello. Hi."))
+        XCTAssertTrue(srt.contains("Bob: Goodbye. Bye."))
+    }
+
+    func testFormatVTTWithSpeakers() {
+        let words = [
+            WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+            WordTimestamp(word: "Hi.", startMs: 600, endMs: 1000, confidence: 0.98, speakerId: "S1"),
+            WordTimestamp(word: "Goodbye.", startMs: 2000, endMs: 2500, confidence: 0.97, speakerId: "S2"),
+            WordTimestamp(word: "Bye.", startMs: 2600, endMs: 3000, confidence: 0.96, speakerId: "S2"),
+        ]
+        let speakers = [
+            SpeakerInfo(id: "S1", label: "Alice"),
+            SpeakerInfo(id: "S2", label: "Bob"),
+        ]
+
+        let vtt = exportService.formatVTT(words: words, speakers: speakers)
+        XCTAssertTrue(vtt.hasPrefix("WEBVTT\n"))
+        XCTAssertTrue(vtt.contains("<v Alice>Hello. Hi.</v>"))
+        XCTAssertTrue(vtt.contains("<v Bob>Goodbye. Bye.</v>"))
+    }
+
+    func testCueSplitsOnSpeakerChange() {
+        let words = [
+            WordTimestamp(word: "Hi", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+            WordTimestamp(word: "there", startMs: 500, endMs: 1000, confidence: 0.98, speakerId: "S2"),
+        ]
+
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertEqual(cues.count, 2)
+        XCTAssertEqual(cues[0].speakerId, "S1")
+        XCTAssertEqual(cues[0].text, "Hi")
+        XCTAssertEqual(cues[1].speakerId, "S2")
+        XCTAssertEqual(cues[1].text, "there")
+    }
+
+    func testFormatMarkdownWithSpeakers() {
+        let transcription = Transcription(
+            fileName: "interview.mp3",
+            durationMs: 5000,
+            wordTimestamps: [
+                WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Hi.", startMs: 600, endMs: 1000, confidence: 0.98, speakerId: "S1"),
+                WordTimestamp(word: "Goodbye.", startMs: 2000, endMs: 2500, confidence: 0.97, speakerId: "S2"),
+                WordTimestamp(word: "Bye.", startMs: 2600, endMs: 3000, confidence: 0.96, speakerId: "S2"),
+            ],
+            language: "en",
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed
+        )
+
+        let md = exportService.formatMarkdown(transcription: transcription)
+        XCTAssertTrue(md.contains("**Alice**"))
+        XCTAssertTrue(md.contains("**Bob**"))
+    }
+
+    func testSRTWithoutSpeakersHasNoLabels() {
+        let words = [
+            WordTimestamp(word: "Hello", startMs: 0, endMs: 500, confidence: 0.99),
+            WordTimestamp(word: "world.", startMs: 600, endMs: 1000, confidence: 0.98),
+        ]
+
+        let srt = exportService.formatSRT(words: words)
+        // Cue text should not have "Speaker:" prefix — just the text directly
+        XCTAssertTrue(srt.contains("\nHello world.\n"))
+    }
+
+    func testExportToTxtWithSpeakers() throws {
+        let transcription = Transcription(
+            fileName: "interview.mp3",
+            durationMs: 5000,
+            wordTimestamps: [
+                WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Hi.", startMs: 600, endMs: 1000, confidence: 0.98, speakerId: "S1"),
+                WordTimestamp(word: "Goodbye.", startMs: 2000, endMs: 2500, confidence: 0.97, speakerId: "S2"),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed
+        )
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("test-speakers.txt")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try exportService.exportToTxt(transcription: transcription, url: url)
+        let content = try String(contentsOf: url, encoding: .utf8)
+
+        XCTAssertTrue(content.contains("Alice:"))
+        XCTAssertTrue(content.contains("Bob:"))
+        XCTAssertTrue(content.contains("Hello. Hi."))
+        XCTAssertTrue(content.contains("Goodbye."))
+    }
+
+    func testExportToTxtWithTimestampsNoSpeakers() throws {
+        let transcription = Transcription(
+            fileName: "mono.mp3",
+            durationMs: 2000,
+            wordTimestamps: [
+                WordTimestamp(word: "Hello", startMs: 0, endMs: 500, confidence: 0.99),
+                WordTimestamp(word: "world.", startMs: 600, endMs: 1000, confidence: 0.98),
+            ],
+            status: .completed
+        )
+
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("test-no-speakers.txt")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try exportService.exportToTxt(transcription: transcription, url: url)
+        let content = try String(contentsOf: url, encoding: .utf8)
+
+        // Should still use word timestamps path (no speaker labels)
+        XCTAssertTrue(content.contains("Hello world."))
+        XCTAssertFalse(content.contains("Speaker"))
     }
 }

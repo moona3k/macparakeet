@@ -10,11 +10,14 @@ public protocol DictationRepositoryProtocol: Sendable {
     func deleteAll() throws
     func clearMissingAudioPaths() throws
     func deleteEmpty() throws -> Int
+    func deleteHidden() throws
     func stats() throws -> DictationStats
 }
 
 public struct DictationStats: Sendable, Equatable {
     public let totalCount: Int
+    /// Count of non-hidden (visible) dictations only. Use for UI that operates on visible rows (e.g. "Clear All").
+    public let visibleCount: Int
     public let totalDurationMs: Int
     public let totalWords: Int
     public let longestDurationMs: Int
@@ -22,10 +25,11 @@ public struct DictationStats: Sendable, Equatable {
     public let weeklyStreak: Int
     public let dictationsThisWeek: Int
 
-    public static let empty = DictationStats(totalCount: 0, totalDurationMs: 0)
+    public static let empty = DictationStats(totalCount: 0, visibleCount: 0, totalDurationMs: 0)
 
     public init(
         totalCount: Int,
+        visibleCount: Int = 0,
         totalDurationMs: Int,
         totalWords: Int = 0,
         longestDurationMs: Int = 0,
@@ -34,6 +38,7 @@ public struct DictationStats: Sendable, Equatable {
         dictationsThisWeek: Int = 0
     ) {
         self.totalCount = totalCount
+        self.visibleCount = visibleCount
         self.totalDurationMs = totalDurationMs
         self.totalWords = totalWords
         self.longestDurationMs = longestDurationMs
@@ -95,6 +100,7 @@ public final class DictationRepository: DictationRepositoryProtocol {
     public func fetchAll(limit: Int? = nil) throws -> [Dictation] {
         try dbQueue.read { db in
             var request = Dictation
+                .filter(Dictation.Columns.hidden == false)
                 .order(Dictation.Columns.createdAt.desc)
             if let limit {
                 request = request.limit(limit)
@@ -114,7 +120,7 @@ public final class DictationRepository: DictationRepositoryProtocol {
             if let limit {
                 sql = """
                     SELECT * FROM dictations
-                    WHERE rawTranscript LIKE ? OR cleanTranscript LIKE ?
+                    WHERE hidden = 0 AND (rawTranscript LIKE ? OR cleanTranscript LIKE ?)
                     ORDER BY createdAt DESC
                     LIMIT ?
                 """
@@ -122,7 +128,7 @@ public final class DictationRepository: DictationRepositoryProtocol {
             } else {
                 sql = """
                     SELECT * FROM dictations
-                    WHERE rawTranscript LIKE ? OR cleanTranscript LIKE ?
+                    WHERE hidden = 0 AND (rawTranscript LIKE ? OR cleanTranscript LIKE ?)
                     ORDER BY createdAt DESC
                 """
                 return try Dictation.fetchAll(db, sql: sql, arguments: [likePattern, likePattern])
@@ -138,7 +144,7 @@ public final class DictationRepository: DictationRepositoryProtocol {
 
     public func deleteAll() throws {
         try dbQueue.write { db in
-            _ = try Dictation.deleteAll(db)
+            try db.execute(sql: "DELETE FROM dictations WHERE hidden = 0")
         }
     }
 
@@ -146,6 +152,7 @@ public final class DictationRepository: DictationRepositoryProtocol {
         try dbQueue.write { db in
             let dictations = try Dictation
                 .filter(Dictation.Columns.audioPath != nil)
+                .filter(Dictation.Columns.hidden == false)
                 .fetchAll(db)
 
             for var dictation in dictations {
@@ -160,47 +167,44 @@ public final class DictationRepository: DictationRepositoryProtocol {
     public func deleteEmpty() throws -> Int {
         try dbQueue.write { db in
             try db.execute(
-                sql: "DELETE FROM dictations WHERE TRIM(rawTranscript) = '' OR rawTranscript IS NULL"
+                sql: "DELETE FROM dictations WHERE hidden = 0 AND (TRIM(rawTranscript) = '' OR rawTranscript IS NULL)"
             )
             return db.changesCount
         }
     }
 
+    public func deleteHidden() throws {
+        try dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM dictations WHERE hidden = 1")
+        }
+    }
+
     public func stats() throws -> DictationStats {
         try dbQueue.read { db in
-            // Numeric aggregates in SQL
+            // Numeric aggregates in SQL — includes hidden rows for complete stats
             let row = try Row.fetchOne(db, sql: """
                 SELECT
                     COUNT(*) AS cnt,
+                    SUM(CASE WHEN hidden = 0 THEN 1 ELSE 0 END) AS visibleCnt,
                     COALESCE(SUM(durationMs), 0) AS totalDur,
                     COALESCE(MAX(durationMs), 0) AS maxDur,
                     CASE WHEN COUNT(*) > 0
                         THEN COALESCE(SUM(durationMs), 0) / COUNT(*)
                         ELSE 0
-                    END AS avgDur
+                    END AS avgDur,
+                    COALESCE(SUM(wordCount), 0) AS totalWords
                 FROM dictations
                 WHERE status = 'completed'
                 """)
 
             let count: Int = row?["cnt"] ?? 0
+            let visibleCount: Int = row?["visibleCnt"] ?? 0
             let totalDuration: Int = row?["totalDur"] ?? 0
             let maxDuration: Int = row?["maxDur"] ?? 0
             let avgDuration: Int = row?["avgDur"] ?? 0
+            let totalWords: Int = row?["totalWords"] ?? 0
 
-            // Word count + dates computed in Swift for correctness
-            // (SQL REPLACE-based space collapsing is bounded; Swift split is exact)
-            let transcripts = try String.fetchAll(
-                db,
-                sql: """
-                    SELECT COALESCE(cleanTranscript, rawTranscript)
-                    FROM dictations
-                    WHERE status = 'completed'
-                    """
-            )
-            let totalWords = transcripts.reduce(0) { total, text in
-                total + Self.countWords(in: text)
-            }
-
+            // Weekly streak includes all completed rows (hidden contribute to streak)
             let dates = try Date.fetchAll(
                 db,
                 sql: "SELECT createdAt FROM dictations WHERE status = 'completed' ORDER BY createdAt DESC"
@@ -209,6 +213,7 @@ public final class DictationRepository: DictationRepositoryProtocol {
 
             return DictationStats(
                 totalCount: count,
+                visibleCount: visibleCount,
                 totalDurationMs: totalDuration,
                 totalWords: totalWords,
                 longestDurationMs: maxDuration,

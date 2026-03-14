@@ -23,9 +23,9 @@ final class DictationStatsQueryTests: XCTestCase {
     }
 
     func testStatsOnlyCountsCompleted() throws {
-        try repo.save(Dictation(durationMs: 1000, rawTranscript: "Hello world", status: .completed))
-        try repo.save(Dictation(durationMs: 2000, rawTranscript: "Recording in progress", status: .recording))
-        try repo.save(Dictation(durationMs: 3000, rawTranscript: "Had an error", status: .error))
+        try repo.save(Dictation(durationMs: 1000, rawTranscript: "Hello world", status: .completed, wordCount: 2))
+        try repo.save(Dictation(durationMs: 2000, rawTranscript: "Recording in progress", status: .recording, wordCount: 3))
+        try repo.save(Dictation(durationMs: 3000, rawTranscript: "Had an error", status: .error, wordCount: 3))
 
         let stats = try repo.stats()
         XCTAssertEqual(stats.totalCount, 1)
@@ -33,22 +33,24 @@ final class DictationStatsQueryTests: XCTestCase {
     }
 
     func testStatsWordCount() throws {
-        try repo.save(Dictation(durationMs: 1000, rawTranscript: "Hello world"))
-        try repo.save(Dictation(durationMs: 2000, rawTranscript: "One two three four"))
+        try repo.save(Dictation(durationMs: 1000, rawTranscript: "Hello world", wordCount: 2))
+        try repo.save(Dictation(durationMs: 2000, rawTranscript: "One two three four", wordCount: 4))
 
         let stats = try repo.stats()
         XCTAssertEqual(stats.totalWords, 6) // 2 + 4
     }
 
     func testStatsPrefersCleanTranscriptForWordCount() throws {
+        // wordCount should reflect the clean transcript word count (set by caller)
         try repo.save(Dictation(
             durationMs: 1000,
             rawTranscript: "uh um like hello world you know",
-            cleanTranscript: "hello world"
+            cleanTranscript: "hello world",
+            wordCount: 2
         ))
 
         let stats = try repo.stats()
-        XCTAssertEqual(stats.totalWords, 2) // "hello world" not the raw version
+        XCTAssertEqual(stats.totalWords, 2)
     }
 
     func testStatsLongestDuration() throws {
@@ -83,36 +85,35 @@ final class DictationStatsQueryTests: XCTestCase {
     }
 
     func testStatsMultipleConsecutiveSpacesCountCorrectly() throws {
-        try repo.save(Dictation(durationMs: 1000, rawTranscript: "hello   world"))
+        try repo.save(Dictation(durationMs: 1000, rawTranscript: "hello   world", wordCount: 2))
 
         let stats = try repo.stats()
         XCTAssertEqual(stats.totalWords, 2)
     }
 
     func testStatsLongWhitespaceRunCountsCorrectly() throws {
-        // 10 consecutive spaces — needs more than 3 REPLACE rounds
-        try repo.save(Dictation(durationMs: 1000, rawTranscript: "hello          world"))
+        try repo.save(Dictation(durationMs: 1000, rawTranscript: "hello          world", wordCount: 2))
 
         let stats = try repo.stats()
         XCTAssertEqual(stats.totalWords, 2)
     }
 
     func testStatsNewlinesCountAsWordBoundaries() throws {
-        try repo.save(Dictation(durationMs: 1000, rawTranscript: "hello\nworld"))
+        try repo.save(Dictation(durationMs: 1000, rawTranscript: "hello\nworld", wordCount: 2))
 
         let stats = try repo.stats()
         XCTAssertEqual(stats.totalWords, 2)
     }
 
     func testStatsTabsCountAsWordBoundaries() throws {
-        try repo.save(Dictation(durationMs: 1000, rawTranscript: "hello\tworld\tfoo"))
+        try repo.save(Dictation(durationMs: 1000, rawTranscript: "hello\tworld\tfoo", wordCount: 3))
 
         let stats = try repo.stats()
         XCTAssertEqual(stats.totalWords, 3)
     }
 
     func testStatsMixedWhitespaceCountsCorrectly() throws {
-        try repo.save(Dictation(durationMs: 1000, rawTranscript: "hello \n\t  world"))
+        try repo.save(Dictation(durationMs: 1000, rawTranscript: "hello \n\t  world", wordCount: 2))
 
         let stats = try repo.stats()
         XCTAssertEqual(stats.totalWords, 2)
@@ -166,7 +167,7 @@ final class DictationStatsQueryTests: XCTestCase {
 
     func testDictationsThisWeekFromDatabase() throws {
         // Save a dictation with "now" date
-        try repo.save(Dictation(durationMs: 1000, rawTranscript: "Today"))
+        try repo.save(Dictation(durationMs: 1000, rawTranscript: "Today", wordCount: 1))
 
         let stats = try repo.stats()
         XCTAssertGreaterThanOrEqual(stats.dictationsThisWeek, 1)

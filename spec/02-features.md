@@ -50,7 +50,6 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 ├─────────────────────────────────────────────────────────────────┤
 │  • Speaker diarization (auto-detect, label, name)               │
 │  • Batch file processing (queue, progress, batch export)        │
-│  • Whisper mode (optimized for quiet speech)                    │
 │  • App Store submission (sandbox, notarize, privacy policy)     │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -1179,7 +1178,9 @@ new scheduling architecture.
 
 ### F13: Speaker Diarization
 
-**What:** Automatically detect and label different speakers in recordings.
+**What:** Automatically detect and label different speakers in file transcriptions.
+
+**Scope:** File transcription and YouTube transcription only. Dictation is single-speaker by design.
 
 **Features:**
 - Automatic speaker segmentation (detect speaker changes)
@@ -1187,6 +1188,7 @@ new scheduling architecture.
 - Manual renaming: click speaker label to assign real name
 - Speaker colors in transcript view (visual differentiation)
 - Per-speaker analytics: speaking time, word count
+- Always-on for file transcription (Option-key alternate to skip for power users)
 
 **Transcript with speakers:**
 
@@ -1218,20 +1220,37 @@ new scheduling architecture.
 **Export with speakers:**
 - All export formats (F12) support speaker labels when diarization is available
 - SRT/VTT: speaker name prefix per subtitle
-- JSON: `speaker` field per segment and per word
+- TXT/Markdown: speaker label before each turn
+- DOCX/PDF: speaker name in bold before each turn
+- JSON: `speakerId` field per word in `wordTimestamps`
 
 **Technical notes:**
-- Parakeet TDT includes diarization capability
-- May require post-processing for accuracy improvement
-- Speaker embedding comparison for cross-file consistency (future)
+- Uses FluidAudio's offline diarization pipeline (separate from ASR, see ADR-010)
+- Three-stage pipeline: pyannote community-1 (segmentation) + WeSpeaker v2 (embeddings) + VBx (clustering)
+- ~15% DER on VoxConverse (CoreML), ~11.2% PyTorch reference — competitive with commercial APIs
+- ~130 MB additional model download (one-time, cached alongside ASR models)
+- Runs after ASR completes, merges speaker segments with word-level timestamps by time overlap
+- Diarization is non-fatal — if it fails, ASR result is still persisted without speaker data
+- Stable speaker IDs (`"S1"`, `"S2"`) stored on words; display labels in separate mapping (rename is O(1))
+- Overlapping speech regions are trimmed (exclusive output) — words in overlap zones may lack speaker assignment
+- No cross-file speaker identity (Speaker 1 in file A is not linked to Speaker 1 in file B)
+- Single-speaker files correctly return one speaker label with no overhead
+- Total file transcription time: ~53-79 seconds per hour of audio (ASR ~23s + diarization ~30-56s)
 
 **Acceptance criteria:**
-- [ ] Speakers automatically detected and separated in transcript
-- [ ] Speaker labels displayed in transcript view with colors
-- [ ] Click speaker label to rename with real name
-- [ ] Speaking time and word count per speaker
-- [ ] Export includes speaker information in all formats
-- [ ] Works with 2-10 speakers
+- [x] Speakers automatically detected and separated in transcript
+- [ ] Speaker labels displayed in transcript view with colors (Step 8 — UI PR)
+- [ ] Click speaker label to rename with real name (Step 8 — UI PR)
+- [ ] Speaking time (from diarization segments) and word count per speaker (Step 8 — UI PR)
+- [x] Export includes speaker information in all formats
+- [x] SRT/VTT cues split at speaker boundaries
+- [x] Works with 2+ speakers (no artificial upper limit)
+- [x] Diarization models downloaded during onboarding (~130 MB)
+- [x] Single-speaker files handled gracefully (one speaker label)
+- [x] Diarization failure is non-fatal (ASR result preserved)
+- [x] Progress shows "Identifying speakers..." headline
+- [ ] Option-key (⌥) alternate skips diarization for per-run fast transcription (Step 8 — UI PR)
+- [x] CLI: `macparakeet-cli transcribe` runs diarization by default, `--no-diarize` to skip
 
 ---
 
@@ -1276,28 +1295,9 @@ new scheduling architecture.
 
 ---
 
-### F15: Whisper Mode
+### F15: Whisper Mode — REMOVED
 
-**What:** Optimized dictation mode for whispered or quiet speech, designed for open offices, libraries, and shared spaces.
-
-**How it works:**
-- Activated via settings toggle or overlay mode switcher
-- Increases microphone sensitivity / gain
-- Adjusts Parakeet parameters for low-energy speech
-- Tuned for close-to-mouth microphone use (laptop mic, AirPods, headset)
-
-**Use cases:**
-- Open office dictation without disturbing colleagues
-- Library or quiet workspace
-- Shared hotel room or coffee shop
-- Podium microphone close to mouth
-
-**Acceptance criteria:**
-- [ ] Whisper mode activatable from settings or overlay
-- [ ] Noticeably better accuracy for whispered/quiet speech
-- [ ] Works with built-in Mac mic, AirPods, and headset mics
-- [ ] No significant accuracy loss for normal volume speech
-- [ ] Visual indicator in overlay when whisper mode is active
+> **Removed:** Parakeet TDT is a fixed CoreML model with no tunable parameters for low-energy speech. "Whisper Mode" would amount to a mic gain preset — not a real STT feature. Users can adjust mic sensitivity in macOS System Settings. Removed to avoid shipping marketing fluff as a feature.
 
 ---
 
@@ -1482,11 +1482,6 @@ v0.4 Polish & Launch:
       └──────────────────┘
 
       ┌──────────────────┐
-      │ F15: Whisper     │ ← Extends F1 (dictation audio capture)
-      │ Mode             │
-      └──────────────────┘
-
-      ┌──────────────────┐
       │ F16: App Store   │ ← Requires all v0.1-v0.3 features
       │ Submission       │
       └──────────────────┘
@@ -1494,7 +1489,7 @@ v0.4 Polish & Launch:
 
 Cross-cutting dependency:
 
-      Parakeet STT ──► F1, F2, F11, F13, F14, F15
+      Parakeet STT ──► F1, F2, F11, F13, F14
       Accessibility ──► F1 (hotkey + paste)
       FFmpeg ──────────► F2, F11, F14
       yt-dlp ──────────► F11

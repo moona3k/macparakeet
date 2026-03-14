@@ -50,9 +50,10 @@ APP_DIR="$DIST_DIR/${APP_NAME}.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 MACOS_DIR="$CONTENTS_DIR/MacOS"
 RESOURCES_DIR="$CONTENTS_DIR/Resources"
+FRAMEWORKS_DIR="$CONTENTS_DIR/Frameworks"
 
 rm -rf "$APP_DIR"
-mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
+mkdir -p "$MACOS_DIR" "$RESOURCES_DIR" "$FRAMEWORKS_DIR"
 
 build_swiftpm() {
   if [[ "$SKIP_BUILD" == "1" ]]; then
@@ -295,6 +296,50 @@ else
   echo "Skipping Node bundling (BUNDLE_NODE=0)"
 fi
 
+# Embed Sparkle.framework for auto-updates.
+#
+# Sparkle is linked via @rpath and must live in Contents/Frameworks/.
+# For xcodebuild, the framework is produced in the derived-data product dir.
+# For SwiftPM, it's in .build/<triple>/release/.
+echo "Embedding Sparkle.framework…"
+SPARKLE_FW=""
+if [[ "$BUILD_SYSTEM" == "xcodebuild" ]]; then
+  SPARKLE_FW="$XCODE_DERIVED_DATA/Build/Products/Release/PackageFrameworks/Sparkle.framework"
+  # Fallback: xcodebuild may place it differently
+  if [[ ! -d "$SPARKLE_FW" ]]; then
+    SPARKLE_FW="$(find "$XCODE_DERIVED_DATA" -type d -name "Sparkle.framework" -path "*/Release/*" 2>/dev/null | head -n 1)"
+  fi
+else
+  SPARKLE_FW="$(find "$ROOT_DIR/.build" -type d -name "Sparkle.framework" -not -path "*/artifacts/*" 2>/dev/null | head -n 1)"
+fi
+
+if [[ -z "$SPARKLE_FW" || ! -d "$SPARKLE_FW" ]]; then
+  # Last resort: use the xcframework artifact directly
+  SPARKLE_FW="$ROOT_DIR/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework"
+fi
+
+if [[ -d "$SPARKLE_FW" ]]; then
+  rm -rf "$FRAMEWORKS_DIR/Sparkle.framework"
+  cp -R "$SPARKLE_FW" "$FRAMEWORKS_DIR/"
+  echo "Embedded Sparkle.framework from: $SPARKLE_FW"
+
+  # Ensure the binary's rpath includes Contents/Frameworks/ (standard macOS location).
+  # xcodebuild may set @executable_path/../lib instead.
+  BINARY="$MACOS_DIR/$APP_NAME"
+  if ! otool -l "$BINARY" | grep -q '@executable_path/../Frameworks'; then
+    echo "Adding @executable_path/../Frameworks to rpath…"
+    install_name_tool -add_rpath @executable_path/../Frameworks "$BINARY"
+  fi
+else
+  echo "Error: Sparkle.framework not found — app will crash at launch without it." >&2
+  echo "Searched:" >&2
+  echo "  $XCODE_DERIVED_DATA/Build/Products/Release/PackageFrameworks/Sparkle.framework" >&2
+  echo "  $XCODE_DERIVED_DATA (find)" >&2
+  echo "  $ROOT_DIR/.build (find)" >&2
+  echo "  $ROOT_DIR/.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework" >&2
+  exit 1
+fi
+
 # Copy app icon into Resources.
 ICON_SRC="$ROOT_DIR/Assets/AppIcon.icns"
 if [[ -f "$ICON_SRC" ]]; then
@@ -355,6 +400,10 @@ cat >"$INFO_PLIST" <<EOF
   <true/>
   <key>NSMicrophoneUsageDescription</key>
   <string>MacParakeet needs microphone access for dictation.</string>
+  <key>SUFeedURL</key>
+  <string>https://macparakeet.com/appcast.xml</string>
+  <key>SUPublicEDKey</key>
+  <string>2aqRU0Agz+xxZwt0kLybmKz/SAvZUsyn+z9fU0I6ynY=</string>
 $(printf "%b" "$LICENSING_PLIST")
 </dict>
 </plist>

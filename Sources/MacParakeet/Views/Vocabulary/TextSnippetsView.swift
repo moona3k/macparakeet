@@ -81,6 +81,14 @@ struct TextSnippetsView: View {
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(.secondary)
             }
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+                Image(systemName: "return")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                Text("Type \\n in the expansion to insert a line break. Example: trigger \"new paragraph\" with expansion \\n\\n inserts a blank line.")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
@@ -139,7 +147,7 @@ struct TextSnippetsView: View {
                     .tint(DesignSystem.Colors.accent)
                     .disabled(
                         viewModel.newTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            || viewModel.newExpansion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            || viewModel.newExpansion.trimmingCharacters(in: .whitespaces).isEmpty
                     )
                 }
             }
@@ -169,7 +177,7 @@ struct TextSnippetsView: View {
                         .opacity(snippet.isEnabled ? 1.0 : 0.55)
                 }
 
-                Text("Expands to: \(snippet.expansion)")
+                Text("Expands to: \(snippet.expansion.replacingOccurrences(of: "\n", with: " ↵ "))")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)

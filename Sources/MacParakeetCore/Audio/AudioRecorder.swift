@@ -1,18 +1,25 @@
 import AVFoundation
 import Foundation
+import os
+import OSLog
 
 /// Manages microphone recording via AVAudioEngine.
 /// Captures audio, converts to 16kHz mono, and writes to a temporary WAV file.
 public actor AudioRecorder {
+    private let logger = Logger(subsystem: "com.macparakeet.core", category: "AudioRecorder")
     private var audioEngine: AVAudioEngine?
     private var audioFile: AVAudioFile?
-    private var sampleCount: Int = 0
+    /// Thread-safe sample counter updated synchronously from the audio tap callback.
+    /// Using OSAllocatedUnfairLock because the tap runs on the real-time audio thread,
+    /// and actor-hopped Tasks would race with stop() on the actor queue.
+    private let sampleCounter = OSAllocatedUnfairLock(initialState: 0)
     private var currentAudioLevel: Float = 0.0
     private var outputURL: URL?
     private var recording = false
 
-    /// Minimum samples before sending to STT (Parakeet Metal allocator guard)
-    private static let minimumSamples = 81
+    /// Minimum samples before sending to STT.
+    /// FluidAudio requires at least 1 second of 16kHz audio (16,000 samples).
+    private static let minimumSamples = 16_000
 
     public init() {}
 
@@ -28,15 +35,16 @@ public actor AudioRecorder {
     public func start() throws {
         guard !recording else { return }
 
-        // Diagnostic: check mic permission
         let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-        print("[AudioRecorder] Mic permission status: \(authStatus.rawValue) (0=notDetermined, 1=restricted, 2=denied, 3=authorized)")
+        logger.debug("mic_permission_status=\(authStatus.rawValue, privacy: .public)")
 
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
         let inputFormat = inputNode.outputFormat(forBus: 0)
 
-        print("[AudioRecorder] Input format: sampleRate=\(inputFormat.sampleRate), channels=\(inputFormat.channelCount), commonFormat=\(inputFormat.commonFormat.rawValue)")
+        logger.debug(
+            "input_format sample_rate=\(inputFormat.sampleRate, privacy: .public) channels=\(inputFormat.channelCount, privacy: .public) common_format=\(inputFormat.commonFormat.rawValue, privacy: .public)"
+        )
 
         // Target: 16kHz mono Float32
         guard let outputFormat = AVAudioFormat(
@@ -45,7 +53,7 @@ public actor AudioRecorder {
             channels: 1,
             interleaved: false
         ) else {
-            print("[AudioRecorder] ERROR: Failed to create output format")
+            logger.error("failed_to_create_output_format")
             throw AudioProcessorError.recordingFailed("Failed to create output format")
         }
 
@@ -60,7 +68,7 @@ public actor AudioRecorder {
 
         // Install converter + tap
         guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
-            print("[AudioRecorder] ERROR: Failed to create audio converter from \(inputFormat) to \(outputFormat)")
+            logger.error("failed_to_create_audio_converter")
             throw AudioProcessorError.recordingFailed("Failed to create audio converter")
         }
 
@@ -95,7 +103,7 @@ public actor AudioRecorder {
             if status == .haveData {
                 do {
                     try file.write(from: convertedBuffer)
-                    Task { await self?.addSamples(Int(convertedBuffer.frameLength)) }
+                    self?.sampleCounter.withLock { $0 += Int(convertedBuffer.frameLength) }
                 } catch {
                     // Log but don't crash
                 }
@@ -107,12 +115,12 @@ public actor AudioRecorder {
         self.audioEngine = engine
         self.audioFile = file
         self.outputURL = url
-        self.sampleCount = 0
+        self.sampleCounter.withLock { $0 = 0 }
         self.recording = true
     }
 
     /// Stop recording and return the path to the recorded WAV file.
-    /// Throws if the recording is too short (< 81 samples).
+    /// Throws `insufficientSamples` if the recording is shorter than 1 second.
     public func stop() throws -> URL {
         guard recording else {
             throw AudioProcessorError.recordingFailed("Not recording")
@@ -129,6 +137,8 @@ public actor AudioRecorder {
             throw AudioProcessorError.recordingFailed("No output file")
         }
 
+        let sampleCount = sampleCounter.withLock { $0 }
+        logger.debug("stop sampleCount=\(sampleCount, privacy: .public)")
         guard sampleCount >= Self.minimumSamples else {
             // Clean up the too-short file
             try? FileManager.default.removeItem(at: url)
@@ -146,7 +156,4 @@ public actor AudioRecorder {
         currentAudioLevel = currentAudioLevel * 0.3 + normalized * 0.7
     }
 
-    private func addSamples(_ count: Int) {
-        sampleCount += count
-    }
 }

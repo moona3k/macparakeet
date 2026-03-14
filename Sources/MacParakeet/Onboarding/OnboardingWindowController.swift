@@ -15,6 +15,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     func show(
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
+        diarizationService: DiarizationServiceProtocol? = nil,
         onFinish: @escaping () -> Void,
         onOpenMainApp: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
@@ -28,7 +29,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
 
         let vm = OnboardingViewModel(
             permissionService: permissionService,
-            sttClient: sttClient
+            sttClient: sttClient,
+            diarizationService: diarizationService
         )
         viewModel = vm
         let view = OnboardingFlowView(

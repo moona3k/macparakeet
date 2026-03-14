@@ -148,6 +148,41 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.4 — Add diarizationSegments to transcriptions (speaker diarization)
+        migrator.registerMigration("v0.4-transcription-diarization-segments") { db in
+            try db.alter(table: "transcriptions") { t in
+                t.add(column: "diarizationSegments", .text)
+            }
+        }
+
+        // v0.4 — Add LLM content columns to transcriptions (summary + chat persistence)
+        migrator.registerMigration("v0.4-transcription-llm-content") { db in
+            try db.alter(table: "transcriptions") { t in
+                t.add(column: "summary", .text)
+                t.add(column: "chatMessages", .text)
+            }
+        }
+
+        // v0.5 — Private dictation mode: hidden flag + wordCount column
+        migrator.registerMigration("v0.5-private-dictation") { db in
+            try db.alter(table: "dictations") { t in
+                t.add(column: "hidden", .boolean).notNull().defaults(to: false)
+                t.add(column: "wordCount", .integer).notNull().defaults(to: 0)
+            }
+            // Backfill wordCount for existing completed rows.
+            // Use DatabaseValue to safely skip rows with corrupt/non-UUID ids.
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT id, COALESCE(cleanTranscript, rawTranscript) AS text
+                FROM dictations WHERE status = 'completed'
+            """)
+            for row in rows {
+                guard let id = UUID.fromDatabaseValue(row["id"] as DatabaseValue) else { continue }
+                let text: String = row["text"] ?? ""
+                let wc = text.split(whereSeparator: \.isWhitespace).count
+                try db.execute(sql: "UPDATE dictations SET wordCount = ? WHERE id = ?", arguments: [wc, id])
+            }
+        }
+
         try migrator.migrate(dbQueue)
     }
 }

@@ -96,6 +96,33 @@ final class TextSnippetsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.filteredSnippets.first?.trigger, "my signature")
     }
 
+    func testAddSnippetWithNewlineToken() {
+        viewModel.newTrigger = "new paragraph"
+        viewModel.newExpansion = "\\n\\n"
+        viewModel.addSnippet()
+
+        XCTAssertEqual(viewModel.snippets.count, 1)
+        XCTAssertEqual(viewModel.snippets.first?.expansion, "\n\n")
+    }
+
+    func testAddSnippetWithMixedNewlineToken() {
+        viewModel.newTrigger = "my address"
+        viewModel.newExpansion = "123 Main St\\nCity"
+        viewModel.addSnippet()
+
+        XCTAssertEqual(viewModel.snippets.count, 1)
+        XCTAssertEqual(viewModel.snippets.first?.expansion, "123 Main St\nCity")
+    }
+
+    func testAddSnippetNewlineOnlyExpansion() {
+        viewModel.newTrigger = "new line"
+        viewModel.newExpansion = "\\n"
+        viewModel.addSnippet()
+
+        XCTAssertEqual(viewModel.snippets.count, 1)
+        XCTAssertEqual(viewModel.snippets.first?.expansion, "\n")
+    }
+
     func testFilteredSnippetsEmptySearch() {
         viewModel.newTrigger = "test"
         viewModel.newExpansion = "expansion"

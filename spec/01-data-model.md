@@ -108,10 +108,11 @@ CREATE TABLE transcriptions (
     durationMs INTEGER,                                -- Audio/video duration in milliseconds
     rawTranscript TEXT,                                 -- Unprocessed STT output (nullable while processing)
     cleanTranscript TEXT,                               -- Post-processed text
-    wordTimestamps TEXT,                                -- JSON: [{"word":"Hello","startMs":0,"endMs":500,"confidence":0.98}]
+    wordTimestamps TEXT,                                -- JSON: [{"word":"Hello","startMs":0,"endMs":500,"confidence":0.98,"speakerId":"S1"}]
     language TEXT DEFAULT 'en',                         -- Detected or specified language code
     speakerCount INTEGER,                              -- Number of detected speakers (v0.4 diarization)
-    speakers TEXT,                                      -- JSON: ["Speaker 1","Speaker 2"] (v0.4 diarization)
+    speakers TEXT,                                      -- JSON: [{"id":"S1","label":"Speaker 1"},{"id":"S2","label":"Sarah"}] (v0.4 diarization)
+    diarizationSegments TEXT,                           -- JSON: [{"speakerId":"S1","startMs":0,"endMs":5000},...] (v0.4 diarization)
     status TEXT NOT NULL DEFAULT 'processing',          -- 'processing', 'completed', 'error', 'cancelled'
     errorMessage TEXT,                                  -- Error details if status='error'
     exportPath TEXT,                                    -- Path to last export (nullable)
@@ -128,6 +129,13 @@ CREATE INDEX idx_transcriptions_created_at ON transcriptions(createdAt DESC);
 - `filePath` is nullable because the original file may be moved or deleted after transcription.
 - `sourceURL` distinguishes URL-sourced transcriptions (YouTube) from local file transcriptions. Added in v0.3.
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
+
+**Diarization data (v0.4):**
+- `speakerCount`: Number of detected speakers (e.g., 2). Nil if diarization not run or failed.
+- `speakers`: JSON array of `SpeakerInfo` objects mapping stable IDs to display labels (e.g., `[{"id":"S1","label":"Speaker 1"},{"id":"S2","label":"Sarah"}]`). Rename updates the `label` field only — no word rewrite needed.
+- `diarizationSegments`: JSON array of raw diarization segments (e.g., `[{"speakerId":"S1","startMs":0,"endMs":5000}]`). Used for accurate speaking time analytics. Nil if diarization not run or failed.
+- Speaker assignment per word is stored via `speakerId` on each `WordTimestamp` entry using **stable IDs** (`"S1"`, `"S2"`) — not display labels. Display labels are resolved via the `speakers` mapping.
+- All diarization fields are nullable. If diarization fails, ASR result is still persisted with these fields as nil.
 
 ---
 
@@ -244,7 +252,8 @@ struct Transcription: Codable, Identifiable {
     var wordTimestamps: [WordTimestamp]?
     var language: String?
     var speakerCount: Int?
-    var speakers: [String]?
+    var speakers: [SpeakerInfo]?
+    var diarizationSegments: [DiarizationSegmentRecord]?
     var status: TranscriptionStatus
     var errorMessage: String?
     var exportPath: String?
@@ -256,6 +265,18 @@ struct Transcription: Codable, Identifiable {
         var startMs: Int
         var endMs: Int
         var confidence: Double
+        var speakerId: String?    // v0.4 diarization — stable ID e.g. "S1" (nullable for pre-diarization transcriptions)
+    }
+
+    struct SpeakerInfo: Codable, Sendable {
+        var id: String            // Stable ID from diarization: "S1", "S2"
+        var label: String         // Display label: "Speaker 1" or user-assigned name e.g. "Sarah"
+    }
+
+    struct DiarizationSegmentRecord: Codable, Sendable {
+        var speakerId: String     // "S1", "S2"
+        var startMs: Int
+        var endMs: Int
     }
 
     enum TranscriptionStatus: String, Codable {
@@ -416,6 +437,13 @@ migrator.registerMigration("v0.3-transcription-source-url") { db in
         t.add(column: "sourceURL", .text)
     }
 }
+
+// v0.4 — Speaker diarization segments
+migrator.registerMigration("v0.4-transcription-diarization-segments") { db in
+    try db.alter(table: "transcriptions") { t in
+        t.add(column: "diarizationSegments", .text)  // JSON: [{"speakerId":"S1","startMs":0,"endMs":5000}]
+    }
+}
 ```
 
 ### Migration Rules
@@ -444,7 +472,7 @@ These might be needed someday but are explicitly deferred:
 
 - **`settings`** -- Use `UserDefaults` / plist. No need for a settings table.
 - **`exports`** -- Track via `exportPath` on `transcriptions`. No separate table.
-- **`speakers`** -- Speaker labels live as JSON on `transcriptions`. Normalize only if diarization becomes a first-class feature.
+- **`speakers`** -- Speaker labels and per-word speaker IDs live as JSON on `transcriptions` (v0.4 diarization). No separate table needed — speaker identity is per-transcription, not cross-file. Revisit only if cross-file speaker recognition is added.
 - **`usage_stats`** -- Derive from existing tables via queries. No separate tracking table.
 
 ---
@@ -520,4 +548,4 @@ let processing = try dbQueue.read { db in
 
 ---
 
-*Last updated: 2026-02-10*
+*Last updated: 2026-03-04*

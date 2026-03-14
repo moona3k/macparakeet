@@ -1,5 +1,6 @@
 import Foundation
 import MacParakeetCore
+import OSLog
 #if canImport(Metal)
 import Metal
 #endif
@@ -7,6 +8,7 @@ import Metal
 @MainActor
 @Observable
 public final class OnboardingViewModel {
+    private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "OnboardingViewModel")
     public enum Step: Int, CaseIterable, Identifiable, Sendable {
         case welcome
         case microphone
@@ -49,6 +51,7 @@ public final class OnboardingViewModel {
 
     private let permissionService: PermissionServiceProtocol
     private let sttClient: STTClientProtocol
+    private let diarizationService: DiarizationServiceProtocol?
     private let isRuntimeSupported: @Sendable () -> Bool
     private let availableDiskBytes: @Sendable () -> Int64?
     private let isNetworkReachable: @Sendable () async -> Bool
@@ -66,6 +69,7 @@ public final class OnboardingViewModel {
     public init(
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
+        diarizationService: DiarizationServiceProtocol? = nil,
         isRuntimeSupported: (@Sendable () -> Bool)? = nil,
         availableDiskBytes: (@Sendable () -> Int64?)? = nil,
         isNetworkReachable: (@Sendable () async -> Bool)? = nil,
@@ -75,6 +79,7 @@ public final class OnboardingViewModel {
     ) {
         self.permissionService = permissionService
         self.sttClient = sttClient
+        self.diarizationService = diarizationService
         self.isRuntimeSupported = isRuntimeSupported ?? { Self.defaultRuntimeSupportedCheck() }
         self.availableDiskBytes = availableDiskBytes ?? { Self.defaultAvailableDiskBytes() }
         self.isNetworkReachable = isNetworkReachable ?? { await Self.defaultNetworkReachabilityCheck() }
@@ -210,6 +215,25 @@ public final class OnboardingViewModel {
                             let fraction = Self.parseProgressFraction(from: message)
                             self.engineState = .working(message: message, progress: fraction)
                         }
+                    }
+                }
+
+                // Prepare diarization models (non-fatal)
+                if let diarizationService = self.diarizationService {
+                    await MainActor.run {
+                        guard self.engineGeneration == generation else { return }
+                        self.engineState = .working(message: "Speaker models: downloading...", progress: nil)
+                    }
+                    do {
+                        try await diarizationService.prepareModels(onProgress: { [weak self] msg in
+                            Task { @MainActor [weak self] in
+                                guard let self, self.engineGeneration == generation else { return }
+                                self.engineState = .working(message: "Speaker models: \(msg)", progress: nil)
+                            }
+                        })
+                    } catch {
+                        // Diarization model prep failure is non-fatal
+                        logger.error("diarization_model_prep_failed error=\(error.localizedDescription, privacy: .public)")
                     }
                 }
 

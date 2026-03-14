@@ -7,6 +7,7 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
     var dictations: [Dictation] = []
     var deleteCalledWith: [UUID] = []
     var deleteAllCalled = false
+    var deleteHiddenCalled = false
     var savedDictations: [Dictation] = []
     var statsCallCount = 0
 
@@ -25,15 +26,17 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
     }
 
     func fetchAll(limit: Int?) throws -> [Dictation] {
-        let sorted = dictations.sorted { $0.createdAt > $1.createdAt }
+        let sorted = dictations.filter { !$0.hidden }.sorted { $0.createdAt > $1.createdAt }
         if let limit { return Array(sorted.prefix(limit)) }
         return sorted
     }
 
     func search(query: String, limit: Int?) throws -> [Dictation] {
         let filtered = dictations.filter {
-            $0.rawTranscript.localizedCaseInsensitiveContains(query)
+            !$0.hidden && (
+                $0.rawTranscript.localizedCaseInsensitiveContains(query)
                 || ($0.cleanTranscript?.localizedCaseInsensitiveContains(query) ?? false)
+            )
         }
         let sorted = filtered.sorted { $0.createdAt > $1.createdAt }
         if let limit { return Array(sorted.prefix(limit)) }
@@ -48,7 +51,7 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
 
     func deleteAll() throws {
         deleteAllCalled = true
-        dictations.removeAll()
+        dictations.removeAll { !$0.hidden }
     }
 
     func clearMissingAudioPaths() throws {
@@ -57,28 +60,32 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
 
     func deleteEmpty() throws -> Int {
         let before = dictations.count
-        dictations.removeAll { $0.rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        dictations.removeAll {
+            !$0.hidden && $0.rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
         return before - dictations.count
+    }
+
+    func deleteHidden() throws {
+        deleteHiddenCalled = true
+        dictations.removeAll { $0.hidden }
     }
 
     func stats() throws -> DictationStats {
         statsCallCount += 1
         let completed = dictations.filter { $0.status == .completed }
         let totalDuration = completed.reduce(0) { $0 + $1.durationMs }
-        let totalWords = completed.reduce(0) { total, d in
-            let text = (d.cleanTranscript ?? d.rawTranscript).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { return total }
-            // Split on any whitespace run (matches SQL normalization: \n\r\t → space, then collapse)
-            return total + text.split(whereSeparator: \.isWhitespace).count
-        }
+        let totalWords = completed.reduce(0) { $0 + $1.wordCount }
         let maxDuration = completed.map(\.durationMs).max() ?? 0
         let avgDuration = completed.isEmpty ? 0 : totalDuration / completed.count
 
         let dates = completed.map(\.createdAt)
         let (streak, thisWeek) = DictationRepository.computeWeeklyStreak(from: dates)
 
+        let visible = completed.filter { !$0.hidden }
         return DictationStats(
             totalCount: completed.count,
+            visibleCount: visible.count,
             totalDurationMs: totalDuration,
             totalWords: totalWords,
             longestDurationMs: maxDuration,
@@ -95,6 +102,9 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var transcriptions: [Transcription] = []
     var deleteCalledWith: [UUID] = []
     var deleteAllCalled = false
+    var updateSummaryCalls: [(id: UUID, summary: String?)] = []
+    var updateChatMessagesCalls: [(id: UUID, chatMessages: [ChatMessage]?)] = []
+    var updateSpeakersCalls: [(id: UUID, speakers: [SpeakerInfo]?)] = []
 
     func save(_ transcription: Transcription) throws {
         if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
@@ -140,12 +150,62 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         }
     }
 
+    func updateSummary(id: UUID, summary: String?) throws {
+        updateSummaryCalls.append((id: id, summary: summary))
+        if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
+            transcriptions[idx].summary = summary
+            transcriptions[idx].updatedAt = Date()
+        }
+    }
+
+    func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {
+        updateChatMessagesCalls.append((id: id, chatMessages: chatMessages))
+        if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
+            transcriptions[idx].chatMessages = chatMessages
+            transcriptions[idx].updatedAt = Date()
+        }
+    }
+
+    func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws {
+        updateSpeakersCalls.append((id: id, speakers: speakers))
+        if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
+            transcriptions[idx].speakers = speakers
+            transcriptions[idx].updatedAt = Date()
+        }
+    }
+
     func clearStoredAudioPathsForURLTranscriptions() throws {
         for i in transcriptions.indices {
             if transcriptions[i].sourceURL != nil {
                 transcriptions[i].filePath = nil
             }
         }
+    }
+}
+
+// MARK: - MockLaunchAtLoginService
+
+final class MockLaunchAtLoginService: LaunchAtLoginControlling {
+    var status: LaunchAtLoginStatus
+    var setEnabledCalls: [Bool] = []
+    var errorToThrow: Error?
+
+    init(status: LaunchAtLoginStatus = .disabled, errorToThrow: Error? = nil) {
+        self.status = status
+        self.errorToThrow = errorToThrow
+    }
+
+    func currentStatus() -> LaunchAtLoginStatus {
+        status
+    }
+
+    func setEnabled(_ enabled: Bool) throws -> LaunchAtLoginStatus {
+        setEnabledCalls.append(enabled)
+        if let errorToThrow {
+            throw errorToThrow
+        }
+        status = enabled ? .enabled : .disabled
+        return status
     }
 }
 
@@ -156,6 +216,7 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
     var transcribeError: Error?
     var transcribeCallCount = 0
     var lastFileURL: URL?
+    var lastSource: TelemetryTranscriptionSource?
     var transcribeURLCallCount = 0
     var lastURLString: String?
     var transcribeURLProgressPhases: [String] = []
@@ -179,9 +240,14 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
         self.transcribeURLDelayMs = milliseconds
     }
 
-    func transcribe(fileURL: URL, onProgress: (@Sendable (String) -> Void)? = nil) async throws -> Transcription {
+    func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        onProgress: (@Sendable (String) -> Void)? = nil
+    ) async throws -> Transcription {
         transcribeCallCount += 1
         lastFileURL = fileURL
+        lastSource = source
 
         if let error = transcribeError {
             throw error
@@ -299,6 +365,104 @@ final class MockTextSnippetRepository: TextSnippetRepositoryProtocol, @unchecked
             if let idx = snippets.firstIndex(where: { $0.id == id }) {
                 snippets[idx].useCount += 1
             }
+        }
+    }
+}
+
+// MARK: - MockLLMService
+
+final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
+    var summarizeResult = "Mock summary"
+    var chatResult = "Mock chat response"
+    var streamTokens: [String] = ["Hello", " world"]
+    var streamDelayNs: UInt64 = 0
+    var errorToThrow: Error?
+    var summarizeCallCount = 0
+    var chatCallCount = 0
+    var lastChatQuestion: String?
+    var lastChatHistory: [ChatMessage]?
+
+    func summarize(transcript: String) async throws -> String {
+        summarizeCallCount += 1
+        if let error = errorToThrow { throw error }
+        return summarizeResult
+    }
+
+    func chat(question: String, transcript: String, history: [ChatMessage]) async throws -> String {
+        chatCallCount += 1
+        if let error = errorToThrow { throw error }
+        return chatResult
+    }
+
+    func transform(text: String, prompt: String) async throws -> String {
+        if let error = errorToThrow { throw error }
+        return "Mock transform"
+    }
+
+    func summarizeStream(transcript: String) -> AsyncThrowingStream<String, Error> {
+        summarizeCallCount += 1
+        let tokens = streamTokens
+        let error = errorToThrow
+        let delay = streamDelayNs
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                if let error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                for token in tokens {
+                    if delay > 0 {
+                        try? await Task.sleep(nanoseconds: delay)
+                    }
+                    guard !Task.isCancelled else { return }
+                    continuation.yield(token)
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func chatStream(question: String, transcript: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
+        chatCallCount += 1
+        lastChatQuestion = question
+        lastChatHistory = history
+        let tokens = streamTokens
+        let error = errorToThrow
+        let delay = streamDelayNs
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                if let error {
+                    continuation.finish(throwing: error)
+                    return
+                }
+                for token in tokens {
+                    if delay > 0 {
+                        try? await Task.sleep(nanoseconds: delay)
+                    }
+                    guard !Task.isCancelled else { return }
+                    continuation.yield(token)
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error> {
+        let tokens = streamTokens
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                for token in tokens {
+                    if streamDelayNs > 0 {
+                        try? await Task.sleep(nanoseconds: streamDelayNs)
+                    }
+                    guard !Task.isCancelled else { return }
+                    continuation.yield(token)
+                }
+                continuation.finish()
+            }
+            continuation.onTermination = { _ in task.cancel() }
         }
     }
 }

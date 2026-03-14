@@ -131,10 +131,10 @@ struct MeditativeMerkabaView: View {
                 .frame(width: size, height: size)
 
             // Triangle 1 — clockwise
-            meditativeTriangle(rotation: rotationCW, strokeOpacity: 0.15, vertexOpacity: vertexPulse)
+            meditativeTriangle(rotation: rotationCW, strokeOpacity: 0.25, vertexOpacity: vertexPulse)
 
             // Triangle 2 — counter-clockwise
-            meditativeTriangle(rotation: rotationCCW, strokeOpacity: 0.08, vertexOpacity: vertexPulse * 0.6)
+            meditativeTriangle(rotation: rotationCCW, strokeOpacity: 0.15, vertexOpacity: vertexPulse * 0.6)
 
             // Center nexus
             ZStack {
@@ -168,7 +168,7 @@ struct MeditativeMerkabaView: View {
     private func meditativeTriangle(rotation: Double, strokeOpacity: Double, vertexOpacity: Double) -> some View {
         ZStack {
             TriangleShape()
-                .stroke(effectiveColor.opacity(strokeOpacity), lineWidth: 0.8)
+                .stroke(effectiveColor.opacity(strokeOpacity), lineWidth: size > 80 ? 1.0 : 0.8)
                 .frame(width: radius * 2, height: radius * 2)
 
             ForEach(0..<3, id: \.self) { i in
@@ -176,10 +176,17 @@ struct MeditativeMerkabaView: View {
                 let x = Foundation.cos(angle) * radius
                 let y = Foundation.sin(angle) * radius
 
-                Circle()
-                    .fill(effectiveColor.opacity(vertexOpacity))
-                    .frame(width: size * 0.05, height: size * 0.05)
-                    .offset(x: x, y: y)
+                ZStack {
+                    Circle()
+                        .fill(effectiveColor.opacity(vertexOpacity * 0.3))
+                        .frame(width: size * 0.15, height: size * 0.15)
+                        .blur(radius: size * 0.06)
+
+                    Circle()
+                        .fill(effectiveColor.opacity(vertexOpacity))
+                        .frame(width: size * 0.07, height: size * 0.07)
+                }
+                .offset(x: x, y: y)
             }
         }
         .rotationEffect(.degrees(rotation))

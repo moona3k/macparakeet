@@ -13,6 +13,8 @@ public struct Dictation: Codable, Identifiable, Sendable {
     public var status: DictationStatus
     public var errorMessage: String?
     public var updatedAt: Date
+    public var hidden: Bool
+    public var wordCount: Int
 
     public enum ProcessingMode: String, Codable, Sendable {
         case raw
@@ -53,7 +55,9 @@ public struct Dictation: Codable, Identifiable, Sendable {
         processingMode: ProcessingMode = .raw,
         status: DictationStatus = .completed,
         errorMessage: String? = nil,
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        hidden: Bool = false,
+        wordCount: Int = 0
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -66,6 +70,8 @@ public struct Dictation: Codable, Identifiable, Sendable {
         self.status = status
         self.errorMessage = errorMessage
         self.updatedAt = updatedAt
+        self.hidden = hidden
+        self.wordCount = wordCount
     }
 }
 
@@ -91,5 +97,6 @@ extension Dictation: FetchableRecord, PersistableRecord {
     public enum Columns: String, ColumnExpression {
         case id, createdAt, durationMs, rawTranscript, cleanTranscript
         case audioPath, pastedToApp, processingMode, status, errorMessage, updatedAt
+        case hidden, wordCount
     }
 }

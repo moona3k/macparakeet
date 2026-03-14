@@ -57,6 +57,7 @@ public final class CustomWordsViewModel {
 
         do {
             try repo.save(word)
+            Telemetry.send(.customWordAdded)
             newWord = ""
             newReplacement = ""
             errorMessage = nil

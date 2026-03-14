@@ -129,6 +129,7 @@ public final class DictationHistoryViewModel {
         let text = dictation.cleanTranscript ?? dictation.rawTranscript
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        Telemetry.send(.copyToClipboard(source: .history))
 
         copiedResetTask?.cancel()
         copiedDictationId = dictation.id
@@ -181,6 +182,7 @@ public final class DictationHistoryViewModel {
             playbackDelegate = delegate
             playingDictationId = dictation.id
             isPlaying = true
+            Telemetry.send(.historyReplayed)
             playbackDuration = player.duration
             playbackCurrentTime = 0
             startPlaybackTimer()
@@ -217,6 +219,7 @@ public final class DictationHistoryViewModel {
             loadDictations(shouldRefreshStats: false)
             return
         }
+        Telemetry.send(.historySearched)
         searchDebounceTask = Task {
             try? await Task.sleep(for: .milliseconds(300))
             guard !Task.isCancelled else { return }

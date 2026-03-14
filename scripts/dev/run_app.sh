@@ -20,6 +20,14 @@ if [[ ! -x "$APP_BIN" ]]; then
   exit 1
 fi
 
+# Sparkle.framework is built to $PRODUCT_DIR but the binary's @rpath looks in
+# $PRODUCT_DIR/PackageFrameworks. Symlink so dyld can find it at runtime.
+PKGFW_DIR="$PRODUCT_DIR/PackageFrameworks"
+mkdir -p "$PKGFW_DIR"
+if [[ -d "$PRODUCT_DIR/Sparkle.framework" && ! -e "$PKGFW_DIR/Sparkle.framework" ]]; then
+  ln -s "$PRODUCT_DIR/Sparkle.framework" "$PKGFW_DIR/Sparkle.framework"
+fi
+
 echo "[2/4] Stopping existing MacParakeet processes…"
 pkill -f "/Applications/MacParakeet.app/Contents/MacOS/MacParakeet" || true
 pkill -f "$ROOT_DIR/dist/MacParakeet.app/Contents/MacOS/MacParakeet" || true

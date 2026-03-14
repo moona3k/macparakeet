@@ -240,4 +240,30 @@ final class TextProcessingPipelineTests: XCTestCase {
         let result = pipeline.cleanWhitespace(in: "   ")
         XCTAssertEqual(result, "")
     }
+
+    func testCleanSpacesAroundNewlines() {
+        let result = pipeline.cleanWhitespace(in: "Hello, \n world")
+        XCTAssertEqual(result, "Hello,\nworld")
+    }
+
+    func testCleanSpacesAroundDoubleNewline() {
+        let result = pipeline.cleanWhitespace(in: "Hello, \n\n world")
+        XCTAssertEqual(result, "Hello,\n\nworld")
+    }
+
+    func testNewlineSnippetExpansionEndToEnd() {
+        let snippets = [
+            TextSnippet(trigger: "enter", expansion: "\n")
+        ]
+        let result = pipeline.process(text: "Hello, enter world", customWords: [], snippets: snippets)
+        XCTAssertEqual(result.text, "Hello,\nworld")
+    }
+
+    func testDoubleNewlineSnippetExpansionEndToEnd() {
+        let snippets = [
+            TextSnippet(trigger: "new paragraph", expansion: "\n\n")
+        ]
+        let result = pipeline.process(text: "Hello, new paragraph world", customWords: [], snippets: snippets)
+        XCTAssertEqual(result.text, "Hello,\n\nworld")
+    }
 }

@@ -1,8 +1,8 @@
-# ADR-002: No Cloud Processing
+# ADR-002: Local-First Processing
 
-> Status: **Accepted**
+> Status: **Accepted** (Amended 2026-03-11)
 > Date: 2026-02-08
-> Note: Core decision (100% local) unchanged. LLM references (Qwen3-8B, command mode, AI refinement) are historical — LLM support removed 2026-02-23 (see ADR-008).
+> Amended: 2026-03-11 — Refined scope from "no cloud processing" to "local-first" with opt-in LLM providers (ADR-011)
 
 ## Context
 
@@ -16,71 +16,87 @@ Meanwhile, local-only alternatives (MacWhisper, VoiceInk, BetterDictation) have 
 
 ## Decision
 
-**100% local processing.** No audio, text, or user data is sent to any server, ever. The only network call the app makes is user-initiated YouTube URL downloads (for file transcription), which fetches a public video -- not user data. Downloaded YouTube audio is stored locally only (retained by default, user-configurable cleanup).
+**Local-first processing.** The core product — transcription and dictation — is 100% local. Audio never leaves the device.
 
-This applies to:
+LLM-powered features (summarization, chat, transforms) use external providers configured by the user. This is opt-in, explicit, and text-only — audio is never sent.
+
+### What is always local (non-negotiable)
 
 - **STT**: Parakeet TDT 0.6B-v3 runs locally via FluidAudio CoreML on ANE (ADR-001, ADR-007)
+- **Audio capture**: All microphone and file audio stays on-device
 - **Text processing**: Deterministic pipeline runs locally (ADR-004)
-- **LLM features**: Qwen3-8B runs locally via MLX-Swift for command mode and advanced text modes
-- **Updates**: Standard macOS app update mechanisms (Sparkle or App Store)
+- **Database**: All dictations, transcriptions, history stored locally (SQLite/GRDB)
 - **Analytics**: None. No telemetry, no crash reporting, no usage tracking.
+
+### What uses external providers (opt-in, user-configured)
+
+- **LLM features**: Summarization, chat-with-transcript, custom transforms (ADR-011)
+  - Transcript *text* (not audio) is sent to the user's chosen provider
+  - User configures their own API key or local provider (Ollama/LM Studio)
+  - No default provider — user must explicitly opt in
+  - Features work without any provider configured (they're just unavailable)
+
+### What uses the network (user-initiated)
+
+- **YouTube downloads**: Fetches public videos for transcription (user-initiated)
+- **License activation**: One-time LemonSqueezy API call (user-initiated)
+- **yt-dlp updates**: Optional self-update check (non-blocking)
 
 ## Rationale
 
-### Privacy is the brand
+### Audio privacy is the brand
 
-"Your voice never leaves your Mac" is not just a feature -- it is the core brand promise. In a market where the leading competitor sends audio to cloud servers, local-only processing is MacParakeet's primary differentiator for privacy-conscious users.
+"Your voice never leaves your Mac" remains the core promise. This is unchanged. Audio — the sensitive data — is always processed locally on the ANE. What changed is recognizing that *transcript text* has a different privacy profile than *audio recordings*, and users should choose their own tradeoff.
 
-### Consistency over peak quality
+### The quality gap is real
 
-A cloud LLM (GPT-4, Claude) would produce better results for command mode and advanced text refinement. However:
+A local 8B model produces mediocre summaries. Cloud models (Claude, GPT-4) produce excellent ones. We tried local-only LLM (Qwen3-8B, ADR-008) and removed it because the quality wasn't worth the complexity. The "bring your own provider" approach delivers better quality with less code and zero resource impact.
 
-- Local LLM (Qwen3-8B) produces **acceptable** results for the use cases that matter (reformatting, expanding abbreviations, command interpretation).
-- Local processing is **consistently fast** -- no variance based on server load, network, or time of day.
-- Users can always re-dictate or manually edit. The cost of a slightly less polished LLM output is low; the cost of a 20-second delay or privacy breach is high.
+### Privacy is a spectrum, not binary
 
-### No subscription required
+| Configuration | Audio leaves device? | Text leaves device? | Quality |
+|--------------|---------------------|---------------------|---------|
+| No provider (default) | No | No | No LLM features |
+| Ollama / LM Studio | No | No (localhost) | Good (local model) |
+| Cloud API key | No | Yes (user-initiated) | Excellent |
 
-Cloud processing requires ongoing server costs, which necessitates subscription pricing. Local-only processing has zero marginal cost per user, enabling our one-time purchase model (ADR-003).
+Users make an informed choice. The UI makes the tradeoff explicit. Apple Intelligence follows the same pattern — on-device by default, cloud with user consent for complex tasks.
+
+### One-time purchase still works
+
+Cloud LLM costs are paid directly by the user to their provider (Anthropic, OpenAI, etc.). MacParakeet has zero server costs, zero marginal cost per user. The one-time purchase model (ADR-003) is unaffected.
 
 ### Market validation
 
-- MacWhisper ($30, local-only) has strong sales and user loyalty
-- VoiceInk ($39.99, local-only, open source) has a growing community
-- Reddit threads consistently show users preferring local alternatives to WisprFlow
-- Apple's own direction (on-device Siri, Apple Intelligence) validates the local-first approach
+- Cursor ($20/mo) — bring your own API key for AI features
+- Raycast — optional AI features with user's API key
+- Char (fastrepl/char) — meeting transcription with cloud + Ollama + LM Studio support
+- Apple Intelligence — on-device default, Private Cloud Compute for complex tasks
 
 ## Consequences
 
 ### Positive
 
-- Zero privacy concerns -- audio never leaves the device
-- Consistent performance regardless of network conditions
-- Works offline (airplane, poor connectivity, restricted networks)
-- No server costs, enabling one-time purchase pricing
-- No dependency on third-party cloud services
-- Simple architecture -- no networking layer, no auth, no API keys
+- Audio never leaves the device — core privacy promise intact
+- Transcription works fully offline — no degradation
+- LLM features use best-available models (Claude, GPT-4) without bundling a runtime
+- Local-only users can use Ollama/LM Studio
+- Zero resource impact from LLM (no GPU memory, no model downloads)
+- One-time purchase pricing preserved
+- App Store compatible
 
 ### Negative
 
-- **LLM quality ceiling**: Qwen3-8B (4-bit quantized, local) is less capable than GPT-4 or Claude for complex text transformation. Command mode and formal rewriting will be "good enough" rather than "excellent."
-- **No internet required, but model download is**: First launch requires downloading Parakeet (~6 GB CoreML bundle) and Qwen3 (~5 GB) models. After that, fully offline.
-- **No cloud backup or sync**: User data stays on-device. If the Mac is lost, dictation history is lost. This is intentional -- users who want cloud backup can use macOS iCloud or Time Machine.
+- **Messaging complexity**: "100% local" was simpler than "local-first with opt-in cloud." Must be communicated clearly and honestly.
+- **Cloud LLM features require internet**: Summarization/chat won't work offline unless user runs Ollama. Transcription still works offline.
+- **Transcript text exposure**: When using cloud providers, transcript text is sent to third-party servers. Must be clear in UI. Users with sensitive content should use Ollama or skip LLM features.
+- **No cloud backup or sync**: User data stays on-device. If the Mac is lost, dictation history is lost. This is intentional.
 - **No collaborative features**: Real-time sharing, team vocabularies, or cross-device sync would require cloud infrastructure. These are out of scope.
-
-## Trade-offs Considered
-
-| Approach | Quality | Privacy | Latency | Cost |
-|----------|---------|---------|---------|------|
-| Cloud-only (WisprFlow) | High | Low | Variable (20-30s peak) | Subscription |
-| Hybrid (local STT + cloud LLM) | Medium-High | Medium | Fast STT, slow LLM | Subscription |
-| **Local-only (our choice)** | **Medium** | **High** | **Consistent, fast** | **One-time** |
-
-The hybrid approach was considered and rejected. It would compromise the privacy promise ("your voice never leaves your Mac" becomes "your voice stays local but your text goes to a server"), complicate the architecture, and still require subscription pricing for cloud LLM costs.
 
 ## References
 
+- ADR-011: LLM via cloud API keys + optional local providers
+- ADR-008: Previous local LLM approach (HISTORICAL — removed 2026-02-23)
 - WisprFlow Trustpilot reviews: 2.8/5 average, common complaints about delays and reliability
 - Reddit r/macapps sentiment: strong preference for local processing
 - Apple Intelligence strategy: on-device processing as default, cloud only for complex tasks with user consent

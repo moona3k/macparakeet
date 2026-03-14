@@ -56,6 +56,7 @@ public final class AudioFileConverter: Sendable {
     /// Build the FFmpeg command arguments (useful for testing)
     public func ffmpegArguments(inputPath: String, outputPath: String) -> [String] {
         [
+            "-nostdin",
             "-i", inputPath,
             "-ar", "16000",
             "-ac", "1",
@@ -76,6 +77,7 @@ public final class AudioFileConverter: Sendable {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ffmpegPath)
         process.arguments = [
+            "-nostdin",          // Don't read stdin (prevents SIGTTIN stop signal)
             "-i", inputURL.path,
             "-ar", "16000",      // 16kHz sample rate
             "-ac", "1",          // mono

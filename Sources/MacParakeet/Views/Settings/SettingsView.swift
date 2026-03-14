@@ -1,4 +1,5 @@
 import Foundation
+import Sparkle
 import SwiftUI
 import AppKit
 import MacParakeetCore
@@ -6,10 +7,23 @@ import MacParakeetViewModels
 
 struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
+    @Bindable var llmSettingsViewModel: LLMSettingsViewModel
+    let updater: SPUUpdater
 
+    @State private var automaticallyChecksForUpdates: Bool
+    @State private var automaticallyDownloadsUpdates: Bool
     @State private var showClearAllAlert = false
     @State private var showClearYouTubeAudioAlert = false
+    @State private var showResetPrivateStatsAlert = false
     @State private var copiedBuildIdentity = false
+
+    init(viewModel: SettingsViewModel, llmSettingsViewModel: LLMSettingsViewModel, updater: SPUUpdater) {
+        self.viewModel = viewModel
+        self.llmSettingsViewModel = llmSettingsViewModel
+        self.updater = updater
+        self._automaticallyChecksForUpdates = State(initialValue: updater.automaticallyChecksForUpdates)
+        self._automaticallyDownloadsUpdates = State(initialValue: updater.automaticallyDownloadsUpdates)
+    }
 
     var body: some View {
         ScrollView {
@@ -17,9 +31,12 @@ struct SettingsView: View {
                 headerCard
                 generalCard
                 dictationCard
+                aiProviderCard
                 storageCard
                 localModelsCard
                 permissionsCard
+                privacyCard
+                updatesCard
                 onboardingCard
                 aboutCard
             }
@@ -34,6 +51,14 @@ struct SettingsView: View {
         } message: {
             Text("This will permanently delete all \(viewModel.dictationCount) dictation\(viewModel.dictationCount == 1 ? "" : "s") and their audio files. This cannot be undone.")
         }
+        .alert("Reset Private Statistics?", isPresented: $showResetPrivateStatsAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                viewModel.resetPrivateStatistics()
+            }
+        } message: {
+            Text("This will delete all accumulated statistics from private dictations. This cannot be undone.")
+        }
         .alert("Clear Downloaded YouTube Audio?", isPresented: $showClearYouTubeAudioAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Clear Audio", role: .destructive) {
@@ -43,6 +68,7 @@ struct SettingsView: View {
             Text("This will permanently delete all downloaded YouTube audio files and detach them from existing transcriptions.")
         }
         .onAppear {
+            viewModel.refreshLaunchAtLoginStatus()
             viewModel.refreshPermissions()
             viewModel.refreshStats()
             viewModel.refreshEntitlements()
@@ -110,6 +136,23 @@ struct SettingsView: View {
                     isOn: $viewModel.launchAtLogin
                 )
 
+                if !viewModel.launchAtLoginDetail.isEmpty || viewModel.launchAtLoginError != nil {
+                    VStack(alignment: .leading, spacing: 4) {
+                        if !viewModel.launchAtLoginDetail.isEmpty {
+                            Text(viewModel.launchAtLoginDetail)
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let error = viewModel.launchAtLoginError {
+                            Text(error)
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(DesignSystem.Colors.errorRed)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 Divider()
 
                 settingsToggleRow(
@@ -175,6 +218,18 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - AI Provider
+
+    private var aiProviderCard: some View {
+        settingsCard(
+            title: "AI Provider",
+            subtitle: "Optional. Powers transcript summaries and chat.",
+            icon: "brain"
+        ) {
+            LLMSettingsView(viewModel: llmSettingsViewModel)
+        }
+    }
+
     // MARK: - Storage
 
     private var storageCard: some View {
@@ -184,6 +239,14 @@ struct SettingsView: View {
             icon: "internaldrive"
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
+                settingsToggleRow(
+                    title: "Save dictation history",
+                    detail: "When off, dictations are transcribed and pasted but not saved. Voice stats still tracked.",
+                    isOn: $viewModel.saveDictationHistory
+                )
+
+                Divider()
+
                 settingsToggleRow(
                     title: "Save audio recordings",
                     detail: "Keep audio alongside your dictation history.",
@@ -230,6 +293,11 @@ struct SettingsView: View {
 
                         Button("Clear Downloaded YouTube Audio...", role: .destructive) {
                             showClearYouTubeAudioAlert = true
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Reset Private Statistics...", role: .destructive) {
+                            showResetPrivateStatsAlert = true
                         }
                         .buttonStyle(.bordered)
                     }
@@ -291,6 +359,67 @@ struct SettingsView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(DesignSystem.Colors.accent)
+                }
+            }
+        }
+    }
+
+    // MARK: - Privacy
+
+    private var privacyCard: some View {
+        settingsCard(
+            title: "Privacy",
+            subtitle: "Your audio and transcriptions never leave your device.",
+            icon: "hand.raised"
+        ) {
+            settingsToggleRow(
+                title: "Help improve MacParakeet",
+                detail: "Send non-identifying usage statistics like feature popularity and performance metrics. No personal data is collected.",
+                isOn: $viewModel.telemetryEnabled
+            )
+        }
+    }
+
+    // MARK: - Updates
+
+    private var updatesCard: some View {
+        settingsCard(
+            title: "Updates",
+            subtitle: "Keep MacParakeet up to date.",
+            icon: "arrow.triangle.2.circlepath"
+        ) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                HStack {
+                    Toggle("Automatically check for updates", isOn: $automaticallyChecksForUpdates)
+                        .onChange(of: automaticallyChecksForUpdates) { _, newValue in
+                            updater.automaticallyChecksForUpdates = newValue
+                        }
+                        .font(DesignSystem.Typography.body)
+                }
+
+                HStack {
+                    Toggle("Automatically download updates", isOn: $automaticallyDownloadsUpdates)
+                        .onChange(of: automaticallyDownloadsUpdates) { _, newValue in
+                            updater.automaticallyDownloadsUpdates = newValue
+                        }
+                        .font(DesignSystem.Typography.body)
+                        .disabled(!automaticallyChecksForUpdates)
+                }
+
+                Divider()
+
+                HStack {
+                    rowText(
+                        title: "Manual check",
+                        detail: "Check for a new version right now."
+                    )
+                    Spacer()
+                    Button("Check for Updates...") {
+                        updater.checkForUpdates()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(DesignSystem.Colors.accent)
+                    .disabled(!updater.canCheckForUpdates)
                 }
             }
         }

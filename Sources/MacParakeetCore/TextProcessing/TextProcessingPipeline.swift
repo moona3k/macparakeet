@@ -180,6 +180,17 @@ public struct TextProcessingPipeline: Sendable {
             )
         }
 
+        // 4a2: Clean spaces around newlines, preserving newline count
+        // "Hello, \n world" → "Hello,\nworld"
+        // "Hello, \n\n world" → "Hello,\n\nworld" (paragraph break preserved)
+        if let regex = try? NSRegularExpression(pattern: " *(\n+) *") {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: "$1"
+            )
+        }
+
         // 4b: Remove space before punctuation
         if let regex = try? NSRegularExpression(pattern: "\\s+([.!?,;:])") {
             result = regex.stringByReplacingMatches(

@@ -1,5 +1,6 @@
 import AppKit
 import OSLog
+import Sparkle
 import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
@@ -9,6 +10,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Menu Bar
 
     private var statusItem: NSStatusItem?
+
+    // MARK: - Auto-Update
+
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     // MARK: - Windows
 
@@ -43,6 +52,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let customWordsViewModel = CustomWordsViewModel()
     private let textSnippetsViewModel = TextSnippetsViewModel()
     private let feedbackViewModel = FeedbackViewModel()
+    private let llmSettingsViewModel = LLMSettingsViewModel()
+    private let chatViewModel = TranscriptChatViewModel()
     private let mainWindowState = MainWindowState()
     private let onboardingWindowController = OnboardingWindowController()
     private var onboardingObserver: Any?
@@ -52,6 +63,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private var showIdlePillObserver: Any?
     private var hotkeyMenuItem: NSMenuItem?
     private var reopenOnboardingOnNextActivate = false
+    private var hasPresentedHotkeyUnavailableAlert = false
     private let dictationLog = Logger(subsystem: "com.macparakeet.app", category: "DictationFlow")
 
     // MARK: - App Lifecycle
@@ -161,6 +173,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // App menu
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
+
+        let checkForUpdatesItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = updaterController
+        appMenu.addItem(checkForUpdatesItem)
+        appMenu.addItem(NSMenuItem.separator())
+
         appMenu.addItem(NSMenuItem(title: "Quit MacParakeet", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
@@ -228,6 +250,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: ","
         ))
 
+        let checkForUpdatesItem = NSMenuItem(
+            title: "Check for Updates...",
+            action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = updaterController
+        menu.addItem(checkForUpdatesItem)
+
+        menu.addItem(NSMenuItem.separator())
+
         menu.addItem(NSMenuItem(
             title: "Quit MacParakeet",
             action: #selector(quitApp),
@@ -255,9 +287,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             }
 
             // Configure view models
+            let hasLLMConfig = (try? env.llmConfigStore.loadConfig()) != nil
             transcriptionViewModel.configure(
                 transcriptionService: env.transcriptionService,
-                transcriptionRepo: env.transcriptionRepo
+                transcriptionRepo: env.transcriptionRepo,
+                llmService: hasLLMConfig ? env.llmService : nil
             )
             historyViewModel.configure(dictationRepo: env.dictationRepo)
             settingsViewModel.configure(
@@ -265,6 +299,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 dictationRepo: env.dictationRepo,
                 transcriptionRepo: env.transcriptionRepo,
                 entitlementsService: env.entitlementsService,
+                launchAtLoginService: env.launchAtLoginService,
                 checkoutURL: env.checkoutURL,
                 customWordRepo: env.customWordRepo,
                 snippetRepo: env.snippetRepo,
@@ -272,6 +307,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             )
             customWordsViewModel.configure(repo: env.customWordRepo)
             textSnippetsViewModel.configure(repo: env.snippetRepo)
+            llmSettingsViewModel.configure(
+                configStore: env.llmConfigStore,
+                llmClient: env.llmClient
+            )
+            settingsViewModel.onDictationsCleared = { [weak self] in
+                self?.historyViewModel.loadDictations()
+            }
+            llmSettingsViewModel.onConfigurationChanged = { [weak self] in
+                self?.refreshLLMAvailability()
+            }
+            chatViewModel.configure(
+                llmService: hasLLMConfig ? env.llmService : nil,
+                transcriptText: "",
+                transcriptionRepo: env.transcriptionRepo
+            )
+            chatViewModel.onChatMessagesChanged = { [weak self] transcriptionID, chatMessages in
+                self?.transcriptionViewModel.updateCurrentTranscriptionChatMessages(
+                    id: transcriptionID,
+                    chatMessages: chatMessages
+                )
+            }
 
             maybeShowOnboarding()
         } catch {
@@ -288,13 +344,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
     }
 
+    private func refreshLLMAvailability() {
+        guard let env = appEnvironment else { return }
+        let hasConfig = (try? env.llmConfigStore.loadConfig()) != nil
+        let service: LLMService? = hasConfig ? env.llmService : nil
+        transcriptionViewModel.updateLLMAvailability(hasConfig, llmService: service)
+        chatViewModel.updateLLMService(service)
+    }
+
     // MARK: - Hotkey
 
     private func setupHotkey() {
         let manager = HotkeyManager(trigger: HotkeyTrigger.current)
 
         manager.onStartRecording = { [weak self] mode in
-            self?.startDictation(mode: mode)
+            self?.startDictation(mode: mode, trigger: .hotkey)
         }
 
         manager.onStopRecording = { [weak self] in
@@ -302,7 +366,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         }
 
         manager.onCancelRecording = { [weak self] in
-            self?.cancelDictation()
+            self?.cancelDictation(reason: .escape)
         }
 
         manager.onReadyForSecondTap = { [weak self] in
@@ -315,6 +379,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         if manager.start() {
             hotkeyManager = manager
+            hasPresentedHotkeyUnavailableAlert = false
+        } else {
+            hotkeyManager = nil
+            presentHotkeyUnavailableAlertIfNeeded()
         }
     }
 
@@ -381,8 +449,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func applyActivationPolicyFromSettings() {
-        let mode = settingsViewModel.menuBarOnlyMode ? NSApplication.ActivationPolicy.accessory : .regular
+        let menuBarOnly = settingsViewModel.menuBarOnlyMode
+        let wasMainWindowVisible = mainWindow?.isVisible ?? false
+        let mode: NSApplication.ActivationPolicy = menuBarOnly ? .accessory : .regular
         NSApp.setActivationPolicy(mode)
+
+        // macOS hides all windows when switching to .accessory policy.
+        // Re-show the main window so the user isn't surprised by it disappearing.
+        if menuBarOnly && wasMainWindowVisible {
+            mainWindow?.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     private var hotkeyMenuTitle: String {
@@ -395,7 +472,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !completed {
             showOnboarding(
                 permissionService: env.permissionService,
-                sttClient: env.sttClient
+                sttClient: env.sttClient,
+                diarizationService: env.diarizationService
             )
         }
     }
@@ -421,17 +499,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let env = appEnvironment else { return }
         showOnboarding(
             permissionService: env.permissionService,
-            sttClient: env.sttClient
+            sttClient: env.sttClient,
+            diarizationService: env.diarizationService
         )
     }
 
     private func showOnboarding(
         permissionService: PermissionServiceProtocol,
-        sttClient: STTClientProtocol
+        sttClient: STTClientProtocol,
+        diarizationService: DiarizationServiceProtocol? = nil
     ) {
         onboardingWindowController.show(
             permissionService: permissionService,
             sttClient: sttClient,
+            diarizationService: diarizationService,
             onFinish: { [weak self] in
                 self?.reopenOnboardingOnNextActivate = false
                 self?.refreshHotkeyAfterPermissions()
@@ -461,7 +542,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard overlayController == nil else { return }
         let vm = IdlePillViewModel()
         vm.onStartDictation = { [weak self] in
-            self?.startDictation(mode: .persistent)
+            self?.startDictation(mode: .persistent, trigger: .pillClick)
         }
         idlePillViewModel = vm
 
@@ -551,7 +632,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: - Dictation Flow
 
-    private func startDictation(mode: FnKeyStateMachine.RecordingMode) {
+    private func startDictation(
+        mode: FnKeyStateMachine.RecordingMode,
+        trigger: TelemetryDictationTrigger = .hotkey
+    ) {
         guard let env = appEnvironment else { return }
 
         // Cancel any pending ready dismiss timer
@@ -634,7 +718,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             do {
                 self.isStartRecordingInFlight = true
                 self.dictationLog.debug("dictationService.startRecording begin generation=\(gen)")
-                try await env.dictationService.startRecording()
+                let telemetryMode: TelemetryDictationMode = switch mode {
+                case .persistent: .persistent
+                case .holdToTalk: .hold
+                }
+                try await env.dictationService.startRecording(
+                    context: DictationTelemetryContext(trigger: trigger, mode: telemetryMode)
+                )
                 self.isStartRecordingInFlight = false
                 let stateAfterStart = await env.dictationService.state
                 self.dictationLog.debug(
@@ -842,7 +932,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var cancelTask: Task<Void, Never>?
 
-    private func cancelDictation() {
+    private func cancelDictation(reason: TelemetryDictationCancelReason = .ui) {
         recordingTask?.cancel()
         recordingTask = nil
         isStartRecordingInFlight = false
@@ -915,7 +1005,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             guard self.overlayGeneration == gen else { return }
 
             // Soft cancel immediately: stop capture but keep audio briefly so Undo can proceed.
-            await env.dictationService.cancelRecording()
+            await env.dictationService.cancelRecording(reason: reason)
 
             // Sync state machine — may have been triggered via UI button, not Esc
             // (Esc path already transitions the state machine to cancelWindow.)
@@ -1086,7 +1176,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     ) async -> Bool {
         do {
             dictationLog.notice("dictation_paste_started generation=\(generation) length=\(transcript.count)")
-            try await clipboardService.pasteText(transcript)
+            try await clipboardService.pasteText(transcript + " ")
             return true
         } catch {
             let bucket = commandFailureBucket(for: error)
@@ -1243,9 +1333,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             transcriptionViewModel: transcriptionViewModel,
             historyViewModel: historyViewModel,
             settingsViewModel: settingsViewModel,
+            llmSettingsViewModel: llmSettingsViewModel,
+            chatViewModel: chatViewModel,
             customWordsViewModel: customWordsViewModel,
             textSnippetsViewModel: textSnippetsViewModel,
-            feedbackViewModel: feedbackViewModel
+            feedbackViewModel: feedbackViewModel,
+            updater: updaterController.updater
         )
 
         let window = NSWindow(
@@ -1291,6 +1384,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
         let resp = alert.runModal()
         if resp == .alertFirstButtonReturn {
+            openMainWindowToSettings()
+        }
+    }
+
+    private func presentHotkeyUnavailableAlertIfNeeded() {
+        guard !hasPresentedHotkeyUnavailableAlert else { return }
+        guard settingsViewModel.accessibilityGranted == false else { return }
+
+        hasPresentedHotkeyUnavailableAlert = true
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Global Hotkey Unavailable"
+        alert.informativeText =
+            "MacParakeet couldn’t enable the system-wide hotkey because Accessibility access is missing. " +
+            "You can still open the app manually, but dictation shortcuts won’t work until this is enabled."
+        alert.addButton(withTitle: "Open Settings")
+        alert.addButton(withTitle: "Not Now")
+
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
             openMainWindowToSettings()
         }
     }

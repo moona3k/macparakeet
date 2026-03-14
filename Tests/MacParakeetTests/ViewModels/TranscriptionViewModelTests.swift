@@ -468,4 +468,395 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.errorMessage)
         XCTAssertFalse(viewModel.isDragging)
     }
+
+    // MARK: - LLM Integration
+
+    func testLLMAvailableReflectsConfigState() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        XCTAssertFalse(viewModel.llmAvailable, "No LLM service = not available")
+
+        let llm = MockLLMService()
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+        XCTAssertTrue(viewModel.llmAvailable, "With LLM service = available")
+    }
+
+    func testGenerateSummaryStreamsTokens() async throws {
+        let llm = MockLLMService()
+        llm.streamTokens = ["Key ", "points ", "here."]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+
+        viewModel.generateSummary(text: "Some long transcript text")
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(viewModel.summaryState, .complete)
+        XCTAssertEqual(viewModel.summary, "Key points here.")
+    }
+
+    func testGenerateSummaryError() async throws {
+        let llm = MockLLMService()
+        llm.errorToThrow = LLMError.authenticationFailed(nil)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+
+        viewModel.generateSummary(text: "Some text")
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        if case .error = viewModel.summaryState {
+            // Expected
+        } else {
+            XCTFail("Expected error state, got \(viewModel.summaryState)")
+        }
+    }
+
+    func testCancelSummary() {
+        let llm = MockLLMService()
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+
+        viewModel.generateSummary(text: "Text")
+        viewModel.cancelSummary()
+
+        XCTAssertNotEqual(viewModel.summaryState, .streaming)
+    }
+
+    func testDismissSummaryResetsState() async throws {
+        let llm = MockLLMService()
+        llm.streamTokens = ["Summary"]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+
+        viewModel.generateSummary(text: "Text")
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        viewModel.dismissSummary()
+
+        XCTAssertEqual(viewModel.summary, "")
+        XCTAssertEqual(viewModel.summaryState, .idle)
+        XCTAssertFalse(viewModel.summaryBadge)
+    }
+
+    func testAutoSummarizeTriggersForLongTranscript() async throws {
+        let llm = MockLLMService()
+        llm.streamTokens = ["Auto ", "summary"]
+        let longText = String(repeating: "word ", count: 200) // > 500 chars
+
+        let expectedResult = Transcription(
+            fileName: "audio.mp3",
+            rawTranscript: longText,
+            status: .completed
+        )
+        await mockService.configure(result: expectedResult)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+
+        let url = URL(fileURLWithPath: "/tmp/audio.mp3")
+        viewModel.transcribeFile(url: url)
+
+        try await Task.sleep(nanoseconds: 400_000_000)
+
+        XCTAssertEqual(llm.summarizeCallCount, 1)
+        XCTAssertEqual(viewModel.summary, "Auto summary")
+    }
+
+    func testAutoSummarizeSkipsShortTranscript() async throws {
+        let llm = MockLLMService()
+
+        let expectedResult = Transcription(
+            fileName: "audio.mp3",
+            rawTranscript: "Short",
+            status: .completed
+        )
+        await mockService.configure(result: expectedResult)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+
+        let url = URL(fileURLWithPath: "/tmp/audio.mp3")
+        viewModel.transcribeFile(url: url)
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(llm.summarizeCallCount, 0)
+    }
+
+    func testSummaryBadgeSetWhenNotOnSummaryTab() async throws {
+        let llm = MockLLMService()
+        llm.streamTokens = ["Done"]
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+        viewModel.selectedTab = .transcript
+
+        viewModel.generateSummary(text: "Some text to summarize for testing badge behavior")
+
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertTrue(viewModel.summaryBadge)
+    }
+
+    func testUpdateLLMAvailability() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        XCTAssertFalse(viewModel.llmAvailable)
+
+        let llm = MockLLMService()
+        viewModel.updateLLMAvailability(true, llmService: llm)
+        XCTAssertTrue(viewModel.llmAvailable)
+    }
+
+    func testUpdateLLMAvailabilityClearsServiceWhenDisabled() {
+        let llm = MockLLMService()
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+        XCTAssertTrue(viewModel.llmAvailable)
+
+        // Clearing config should nil out the service so summary can't trigger
+        viewModel.updateLLMAvailability(false)
+        XCTAssertFalse(viewModel.llmAvailable)
+
+        // generateSummary should be a no-op now (guards on llmService)
+        viewModel.generateSummary(text: String(repeating: "x", count: 600))
+        XCTAssertEqual(viewModel.summaryState, .idle)
+    }
+
+    // MARK: - Speaker Rename
+
+    func testRenameSpeakerUpdatesInMemoryState() {
+        let speakers = [
+            SpeakerInfo(id: "S1", label: "Speaker 1"),
+            SpeakerInfo(id: "S2", label: "Speaker 2")
+        ]
+        let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "Sarah")
+
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?[0].label, "Sarah")
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?[1].label, "Speaker 2")
+    }
+
+    func testRenameSpeakerPersistsToRepo() {
+        let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "Alice")
+
+        XCTAssertEqual(mockRepo.updateSpeakersCalls.count, 1)
+        XCTAssertEqual(mockRepo.updateSpeakersCalls[0].speakers?[0].label, "Alice")
+    }
+
+    func testRenameSpeakerIgnoresEmptyLabel() {
+        let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "   ")
+
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?[0].label, "Speaker 1")
+        XCTAssertTrue(mockRepo.updateSpeakersCalls.isEmpty)
+    }
+
+    func testRenameSpeakerIgnoresUnknownId() {
+        let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S999", to: "Nobody")
+
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?[0].label, "Speaker 1")
+        XCTAssertTrue(mockRepo.updateSpeakersCalls.isEmpty)
+    }
+
+    func testRenameSpeakerNoOpWithoutCurrentTranscription() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.renameSpeaker(id: "S1", to: "Alice")
+
+        XCTAssertTrue(mockRepo.updateSpeakersCalls.isEmpty)
+    }
+
+    func testRenameSpeakerEmptySpeakersArrayIsNoOp() {
+        let t = Transcription(fileName: "test.mp3", speakers: [], status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "Alice")
+
+        XCTAssertTrue(mockRepo.updateSpeakersCalls.isEmpty)
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?.count, 0)
+    }
+
+    func testRenameSpeakerSameLabelIsNoOp() {
+        let speakers = [SpeakerInfo(id: "S1", label: "Alice")]
+        let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "Alice")
+
+        XCTAssertTrue(mockRepo.updateSpeakersCalls.isEmpty, "Same label should not trigger DB write")
+    }
+
+    func testRenameSpeakerTrimsWhitespace() {
+        let speakers = [SpeakerInfo(id: "S1", label: "Speaker 1")]
+        let t = Transcription(fileName: "test.mp3", speakers: speakers, status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.renameSpeaker(id: "S1", to: "  Alice  ")
+
+        XCTAssertEqual(viewModel.currentTranscription?.speakers?[0].label, "Alice")
+    }
+
+    // MARK: - Tab Visibility
+
+    func testShowTabsTrueWhenLLMAvailable() {
+        let llm = MockLLMService()
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+        XCTAssertTrue(viewModel.showTabs)
+    }
+
+    func testShowTabsTrueWhenSavedSummaryExists() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = Transcription(
+            fileName: "test.mp3", summary: "A summary", status: .completed
+        )
+        XCTAssertFalse(viewModel.llmAvailable)
+        XCTAssertTrue(viewModel.showTabs)
+    }
+
+    func testShowTabsTrueWhenSavedChatExists() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = Transcription(
+            fileName: "test.mp3",
+            chatMessages: [ChatMessage(role: .user, content: "Hi")],
+            status: .completed
+        )
+        XCTAssertFalse(viewModel.llmAvailable)
+        XCTAssertTrue(viewModel.showTabs)
+    }
+
+    func testShowTabsFalseWhenNothingAvailable() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = Transcription(fileName: "test.mp3", status: .completed)
+        XCTAssertFalse(viewModel.showTabs)
+    }
+
+    func testUpdateCurrentTranscriptionChatMessagesUpdatesShowTabs() {
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        let transcription = Transcription(
+            fileName: "test.mp3",
+            chatMessages: [ChatMessage(role: .user, content: "Hi")],
+            status: .completed
+        )
+        viewModel.currentTranscription = transcription
+
+        XCTAssertTrue(viewModel.showTabs)
+
+        viewModel.updateCurrentTranscriptionChatMessages(id: transcription.id, chatMessages: nil)
+
+        XCTAssertFalse(viewModel.showTabs)
+        XCTAssertNil(viewModel.currentTranscription?.chatMessages)
+    }
+
+    // MARK: - Summary Persistence
+
+    func testDismissSummaryPersistsNull() async throws {
+        let llm = MockLLMService()
+        llm.streamTokens = ["Summary"]
+        let t = Transcription(fileName: "test.mp3", status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+        viewModel.currentTranscription = t
+
+        viewModel.generateSummary(text: "Some text")
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(viewModel.summaryState, .complete)
+
+        viewModel.dismissSummary()
+
+        XCTAssertEqual(mockRepo.updateSummaryCalls.last?.summary, nil)
+        XCTAssertNil(viewModel.currentTranscription?.summary)
+    }
+
+    func testGenerateSummaryPersistsResult() async throws {
+        let llm = MockLLMService()
+        llm.streamTokens = ["Persisted ", "summary"]
+        let t = Transcription(fileName: "test.mp3", status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+        viewModel.currentTranscription = t
+
+        viewModel.generateSummary(text: "Some text")
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(viewModel.summaryState, .complete)
+        XCTAssertEqual(mockRepo.updateSummaryCalls.last?.summary, "Persisted summary")
+        XCTAssertEqual(viewModel.currentTranscription?.summary, "Persisted summary")
+    }
+
+    // MARK: - Load Persisted Summary
+
+    func testResetSummaryStateDoesNotPersistToDatabase() async throws {
+        let llm = MockLLMService()
+        llm.streamTokens = ["Summary"]
+        let t = Transcription(fileName: "test.mp3", summary: "Existing summary", status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo, llmService: llm)
+        viewModel.currentTranscription = t
+
+        viewModel.resetSummaryState()
+
+        XCTAssertEqual(viewModel.summary, "")
+        XCTAssertEqual(viewModel.summaryState, .idle)
+        XCTAssertTrue(mockRepo.updateSummaryCalls.isEmpty, "resetSummaryState should NOT touch the database")
+        // The transcription's persisted summary should be untouched
+        XCTAssertEqual(mockRepo.transcriptions[0].summary, "Existing summary")
+    }
+
+    func testLoadPersistedContentRestoresSummary() {
+        let t = Transcription(fileName: "test.mp3", summary: "Saved summary", status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        viewModel.loadPersistedContent()
+
+        XCTAssertEqual(viewModel.summary, "Saved summary")
+        XCTAssertEqual(viewModel.summaryState, .complete)
+    }
+
+    func testLoadPersistedContentRefreshesFromDB() {
+        let t = Transcription(fileName: "test.mp3", status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        // Simulate summary persisted to DB but not in the in-memory currentTranscription
+        mockRepo.transcriptions[0].summary = "DB summary"
+
+        viewModel.loadPersistedContent()
+
+        XCTAssertEqual(viewModel.summary, "DB summary")
+        XCTAssertEqual(viewModel.summaryState, .complete)
+        XCTAssertEqual(viewModel.currentTranscription?.summary, "DB summary")
+    }
 }

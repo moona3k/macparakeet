@@ -23,7 +23,7 @@ Drag any audio or video file → get a transcript in seconds.
 
 - Transcribe a 1-hour podcast in under 25 seconds (155x realtime)
 - Word-level timestamps with confidence scores
-- Export to TXT, Markdown, SRT, and VTT (DOCX planned)
+- Export to TXT, Markdown, SRT, VTT, DOCX, PDF, and JSON
 
 ## Why MacParakeet?
 
@@ -38,26 +38,28 @@ Drag any audio or video file → get a transcript in seconds.
 
 ## Features
 
-### Implemented (v0.1 + v0.2 + partial v0.3)
+### Implemented
 
 - **Blazing Fast** — Parakeet TDT STT, fully local
 - **Multilingual** — 10+ European languages including Spanish, French, German, Italian, Portuguese, and Russian
 - **100% Private** — Audio never leaves your Mac. No accounts. No tracking.
-- **System-Wide Dictation** — Configurable hotkey (Fn default), double-tap (persistent) + hold-to-talk
+- **System-Wide Dictation** — Configurable hotkey (any single key), double-tap (persistent) + hold-to-talk
 - **File Transcription** — Drag-drop audio/video files, word timestamps
 - **Smart Cleanup** — Deterministic 4-step pipeline (filler removal, custom words, snippets, whitespace)
 - **Custom Words** — Domain vocabulary corrections and proper noun casing
-- **Text Snippets** — Natural language triggers expand into longer text
-- **Export** — TXT, Markdown, SRT, and VTT exports + copy to clipboard
+- **Text Snippets** — Natural language triggers expand into longer text (supports `\n` for newlines)
+- **Export** — TXT, Markdown, SRT, VTT, DOCX, PDF, and JSON + copy to clipboard
 - **History** — Dictation + transcription history stored locally (SQLite, searchable)
 - **YouTube Transcription** — Paste a YouTube URL, auto-download audio via yt-dlp, transcribe with Parakeet
-- **YouTube Audio Retention** — Downloaded YouTube audio is kept by default (configurable in Settings > Storage)
-- **In-App Feedback** — Report bugs, request features, or share feedback from the dedicated Feedback tab (routes to [macparakeet-community](https://github.com/moona3k/macparakeet-community))
+- **Private Dictation Mode** — Optionally skip saving dictations to history
+- **AI Summary & Chat** — Summarize transcriptions and ask questions via cloud LLM providers (OpenAI, Anthropic, Ollama, OpenRouter)
+- **Speaker Diarization** — Auto-detect and label speakers in file transcriptions (CLI preview, GUI coming)
+- **Auto-Updates** — Automatic background updates via Sparkle
+- **In-App Feedback** — Report bugs, request features, or share feedback (routes to [macparakeet-community](https://github.com/moona3k/macparakeet-community))
 
 ### Planned
 
-- **More Exports** — DOCX, PDF, and JSON formats
-- **Speaker Diarization** — Auto-detect and label speakers
+- **Speaker Diarization GUI** — Visual speaker labels in the transcript view
 - **Batch Processing** — Queue multiple files for transcription
 
 ## Requirements

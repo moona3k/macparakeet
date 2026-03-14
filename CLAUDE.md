@@ -34,7 +34,8 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 | Competitive research | `docs/competitive-analysis.md` |
 | Brand identity | `docs/brand-identity.md` |
 | UI/UX design overhaul | `docs/design-overhaul.md` |
-| Distribution & signing | `docs/distribution.md` |
+| Distribution, signing & auto-updates | `docs/distribution.md` |
+| Telemetry system | `docs/telemetry.md` |
 | Implementation plans | `plans/` -> active and completed plans |
 
 ## Tech Stack (Locked Decisions)
@@ -47,6 +48,7 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 | STT | Parakeet TDT 0.6B-v3 | Via FluidAudio CoreML/ANE (~2.5% WER, 155x realtime, 25 European languages) |
 | Audio | AVAudioEngine + Core Audio | Mic capture for dictation; FFmpeg (bundled) for video file conversion |
 | YouTube | yt-dlp | Standalone macOS binary, weekly non-blocking auto-update via `--update` |
+| Auto-Update | Sparkle 2 | In-app updates via EdDSA-signed appcast (non-App Store) |
 | Licensing | LemonSqueezy | License key activation, validation API |
 
 ## Product Context
@@ -108,7 +110,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR | Decision | File |
 |-----|----------|------|
 | ADR-001 | Parakeet TDT 0.6B-v3 as primary STT | `spec/adr/001-parakeet-stt.md` |
-| ADR-002 | No cloud processing (100% local) | `spec/adr/002-local-only.md` |
+| ADR-002 | Local-first processing (amended: opt-in LLM providers) | `spec/adr/002-local-only.md` |
 | ADR-003 | One-time purchase pricing ($49) | `spec/adr/003-one-time-purchase.md` |
 | ADR-004 | Deterministic text processing pipeline | `spec/adr/004-deterministic-pipeline.md` |
 | ADR-005 | First-run onboarding flow | `spec/adr/005-onboarding-first-run.md` |
@@ -116,10 +118,13 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-007 | FluidAudio CoreML migration (Python elimination) | `spec/adr/007-fluidaudio-coreml-migration.md` |
 | ADR-008 | Local LLM runtime baseline (historical — removed) | `spec/adr/008-local-llm-runtime-and-model.md` |
 | ADR-009 | Custom hotkey support (any single key) | `spec/adr/009-custom-hotkey.md` |
+| ADR-010 | Speaker diarization via FluidAudio offline pipeline | `spec/adr/010-speaker-diarization.md` |
+| ADR-011 | LLM via cloud API keys + optional local providers | `spec/adr/011-llm-cloud-and-local-providers.md` |
+| ADR-012 | Self-hosted telemetry via Cloudflare (Worker + D1) | `spec/adr/012-telemetry-system.md` |
 
 ## Current Phase
 
-**v0.2 Complete, v0.3 In Progress** -- ~89 source files, ~49 test files, 461 tests passing (`swift test` green)
+**v0.3 Complete, v0.4 In Progress** -- ~113 source files, ~59 test files, 701 tests passing (`swift test` green)
 
 ### v0.1 MVP (Implemented)
 - [x] System-wide dictation: Configurable hotkey (Fn default), double-tap (persistent) + hold-to-talk
@@ -142,17 +147,25 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] Processing modes (raw, clean)
 - [x] In-app feedback form (Feedback sidebar item → Cloudflare Worker → GitHub Issues)
 
-### v0.3 YouTube & Export (In Progress)
+### v0.3 YouTube & Export (Implemented)
 - [x] YouTube URL transcription (yt-dlp + Parakeet, single video)
 - [x] Export formats (TXT, Markdown, SRT, VTT)
 - [x] Export formats (DOCX, PDF, JSON)
 - [x] Drag-and-drop enhancements (menu bar icon support)
-- [ ] Drag-and-drop enhancements (hover states, visual feedback)
 
-### v0.4 Polish + Launch
-- [ ] Speaker diarization
+### v0.4 Polish + Launch (In Progress)
+- [x] Speaker diarization CLI preview (FluidAudio offline pipeline, ADR-010)
+- [x] Custom hotkey support (any single key, ADR-009)
+- [x] Sparkle auto-updates
+- [x] LLM provider integration (cloud API keys, summary + chat, ADR-011)
+- [x] Private dictation mode (community#14)
+- [x] Newline escape in text snippets (community#16)
+- [x] Menu bar drag-and-drop
+- [x] Hide dictation pill toggle
+- [x] Voice stats dashboard
+- [x] UI polish (toggles, sidebar sections, copy improvements)
+- [ ] Speaker diarization GUI
 - [ ] Batch file processing
-- [ ] Whisper Mode (quiet/whispered speech recognition)
 - [ ] App Store submission
 
 ## Key Patterns
@@ -283,7 +296,7 @@ macparakeet/
 │   ├── competitive-analysis.md
 │   ├── brand-identity.md   # Logo, colors, typography, brand voice
 │   ├── design-overhaul.md  # UI/UX redesign spec (warm magical direction)
-│   ├── distribution.md     # Developer ID signing + notarization guide
+│   ├── distribution.md     # Signing, notarization, auto-updates (Sparkle)
 │   └── research/           # Deep dives on competitors, user sentiment
 ├── plans/              # Implementation plans (version controlled)
 │   ├── active/         # Currently being implemented
@@ -495,6 +508,26 @@ Step-by-step guides for frequent development tasks.
 6. Update `spec/kernel/traceability.md`
 7. Commit with test + fix together
 
+### Release a new build (build → sign → notarize → deploy → auto-update)
+
+This pipeline serves **two audiences** with the same DMG:
+- **New users** download from `downloads.macparakeet.com/MacParakeet.dmg`
+- **Existing users** get prompted via Sparkle auto-update (checks `appcast.xml`)
+
+Full guide: `docs/distribution.md`. Quick steps:
+
+0. **Pre-flight:** Run `swift test` (all must pass). Check current deployed version: `curl -s "https://macparakeet.com/appcast.xml" | grep sparkle:shortVersionString`. Decide version bump — patch (0.1.x) for fixes/UX tweaks, minor (0.x.0) for new features.
+1. **Build:** `VERSION=X.Y.Z scripts/dist/build_app_bundle.sh` — creates `dist/MacParakeet.app` with Sparkle.framework embedded
+2. **Sign + notarize:** `scripts/dist/sign_notarize.sh` — signs app + DMG, submits to Apple, staples tickets. Defaults to Keychain profile `AC_PASSWORD`.
+3. **Upload DMG to R2:** `npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg --file dist/MacParakeet.dmg --content-type "application/x-apple-diskimage" --remote`
+4. **Verify R2 file size matches local:** `curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?ts=$(date +%s)" | grep content-length` — must equal `stat -f%z dist/MacParakeet.dmg`. If mismatched, re-upload (another process may have overwritten).
+5. **Sign for Sparkle:** `.build/artifacts/sparkle/Sparkle/bin/sign_update dist/MacParakeet.dmg` — outputs `sparkle:edSignature` and `length` for the appcast
+6. **Update appcast:** Edit `~/code/macparakeet-website/public/appcast.xml` — **replace** the existing `<item>` (single DMG URL = single item) with build number (`CFBundleVersion` from Info.plist via `plutil -p dist/MacParakeet.app/Contents/Info.plist`), version, signature, length, `pubDate` (`date -R`), and user-facing release notes
+7. **Deploy website:** `cd ~/code/macparakeet-website && git add public/appcast.xml && git commit -m "Update appcast.xml with vX.Y.Z build BUILDNUMBER" && git push && npx astro build && npx wrangler pages deploy dist --project-name macparakeet-website --branch main`
+8. **Verify:** `curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep sparkle:version`
+
+**Critical:** The DMG uploaded to R2 must be the **exact same file** you ran `sign_update` on. If the file sizes don't match, Sparkle will reject the update with "improperly signed".
+
 ### Add a CLI command (if CLI target is added)
 
 1. Read relevant spec
@@ -552,8 +585,8 @@ swift test --parallel
 xcodebuild build -scheme MacParakeet -destination 'platform=OS X' -derivedDataPath .build/xcode \
   CODE_SIGN_IDENTITY="Apple Development" DEVELOPMENT_TEAM=FYAF2ZD7RM
 
-# Run GUI app
-.build/xcode/Build/Products/Debug/MacParakeet
+# Run GUI app (recommended: use the dev script which handles framework symlinks)
+scripts/dev/run_app.sh
 
 # Build and run CLI
 swift build --target CLI
@@ -577,7 +610,7 @@ After building, quick smoke test:
 
 ```bash
 # Run the app
-.build/xcode/Build/Products/Debug/MacParakeet
+scripts/dev/run_app.sh
 
 # Run tests
 swift test
@@ -607,9 +640,9 @@ swift test
 
 ### Privacy Guarantees
 
-1. **Offline-first** -- Dictation and file transcription work fully offline. Network is used only for user-initiated YouTube downloads and optional license activation/validation.
+1. **Offline-first** -- Dictation and file transcription work fully offline. Network is used only for user-initiated YouTube downloads, optional license activation/validation, and anonymous telemetry.
 2. **Temp files deleted** -- Audio removed after transcription (unless user saves)
-3. **No analytics** -- Zero telemetry
+3. **Non-identifying telemetry** -- Anonymous, session-scoped usage analytics (opt-out in Settings). No persistent IDs, no IP storage, no content transmitted. See `docs/telemetry.md` and ADR-012.
 4. **No accounts** -- No login, no email, no tracking
 
 ---
