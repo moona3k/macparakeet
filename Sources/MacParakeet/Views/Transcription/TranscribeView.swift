@@ -20,7 +20,7 @@ private func truncateErrorMessage(_ msg: String) -> String {
 struct TranscribeView: View {
     @Bindable var viewModel: TranscriptionViewModel
     var chatViewModel: TranscriptChatViewModel
-    @State private var showingProgressDetail = false
+    @Binding var showingProgressDetail: Bool
     private enum PipelineStep: CaseIterable {
         case download
         case convert
@@ -86,9 +86,7 @@ struct TranscribeView: View {
                     .disabled(viewModel.isTranscribing)
             }
 
-            if viewModel.isTranscribing && !showingProgressDetail && viewModel.currentTranscription == nil {
-                transcriptionBottomBar
-            }
+            // Bottom bar now rendered globally in MainWindowView
         }
         .onChange(of: viewModel.isTranscribing) { _, isTranscribing in
             if !isTranscribing {
@@ -367,56 +365,6 @@ struct TranscribeView: View {
             .padding(.horizontal, DesignSystem.Spacing.lg)
 
             Spacer()
-        }
-    }
-
-    // MARK: - Bottom Bar
-
-    private var transcriptionBottomBar: some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
-            SpinnerRingView(size: 18, revolutionDuration: 2.0, tintColor: DesignSystem.Colors.accent)
-
-            Text(viewModel.transcribingFileName)
-                .font(DesignSystem.Typography.caption)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            Text("\u{00B7}")
-                .foregroundStyle(.tertiary)
-
-            Text(viewModel.progressHeadline)
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-
-            if let fraction = viewModel.transcriptionProgress {
-                Text("\(Int((fraction * 100).rounded()))%")
-                    .font(DesignSystem.Typography.caption.monospacedDigit())
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer()
-
-            Button {
-                showingProgressDetail = true
-            } label: {
-                Text("View")
-                    .font(DesignSystem.Typography.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.accent)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(
-                        RoundedRectangle(cornerRadius: DesignSystem.Layout.buttonCornerRadius)
-                            .fill(DesignSystem.Colors.accent.opacity(0.1))
-                    )
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, DesignSystem.Spacing.lg)
-        .padding(.vertical, DesignSystem.Spacing.sm)
-        .background(DesignSystem.Colors.cardBackground)
-        .overlay(alignment: .top) {
-            Divider()
         }
     }
 
