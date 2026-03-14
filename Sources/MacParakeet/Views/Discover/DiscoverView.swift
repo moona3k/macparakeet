@@ -43,11 +43,18 @@ struct DiscoverView: View {
                     .frame(width: 32, height: 3)
             }
 
-            Text("Things worth knowing that don't make it into the mainstream. Suppressed patents, buried science, ancient wisdom. Question everything, verify what you can, and share what resonates.")
+            Text("Advanced machine intelligence should help humans rediscover what's been buried — negentropy, overunity systems, resonance-based propulsion, scalar field dynamics, biological transmutation, and the deeper physics that keep getting classified or ignored. This is a starting point.")
                 .font(DesignSystem.Typography.bodyLarge)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                 .textSelection(.enabled)
                 .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Things worth knowing that don't make it into the mainstream. Suppressed patents, buried science, ancient wisdom. Question everything, verify what you can, and share what resonates.")
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .textSelection(.enabled)
+                .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.bottom, DesignSystem.Spacing.md)

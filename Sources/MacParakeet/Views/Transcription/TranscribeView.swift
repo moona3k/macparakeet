@@ -441,6 +441,12 @@ struct TranscribeView: View {
                 Text("Processing remains local to this Mac. You can keep working while this runs.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
+
+                Button("Cancel Transcription", role: .destructive) {
+                    viewModel.cancelTranscription()
+                }
+                .buttonStyle(.bordered)
+                .padding(.top, DesignSystem.Spacing.sm)
             }
             .padding(DesignSystem.Spacing.lg)
             .frame(maxWidth: 620)
