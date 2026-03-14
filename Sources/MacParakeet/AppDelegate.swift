@@ -89,6 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        Telemetry.flushForTermination()
         hideIdlePill()
         hotkeyManager?.stop()
         if let onboardingObserver { NotificationCenter.default.removeObserver(onboardingObserver) }

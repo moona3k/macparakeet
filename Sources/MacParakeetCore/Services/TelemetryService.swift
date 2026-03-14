@@ -6,6 +6,7 @@ import OSLog
 public protocol TelemetryServiceProtocol: Sendable {
     func send(_ event: TelemetryEventSpec)
     func flush() async
+    func flushForTermination()
 }
 
 // MARK: - Implementation
@@ -152,11 +153,11 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            self?.flushSyncForTermination()
+            self?.flushForTermination()
         }
     }
 
-    private func flushSyncForTermination() {
+    public func flushForTermination() {
         lock.lock()
         if isEnabled() {
             queue.append(makeTelemetryEvent(
@@ -301,6 +302,10 @@ public enum Telemetry {
     public static func flush() async {
         await configuredService()?.flush()
     }
+
+    public static func flushForTermination() {
+        configuredService()?.flushForTermination()
+    }
 }
 
 // MARK: - No-Op Implementation
@@ -309,4 +314,5 @@ public final class NoOpTelemetryService: TelemetryServiceProtocol {
     public init() {}
     public func send(_ event: TelemetryEventSpec) {}
     public func flush() async {}
+    public func flushForTermination() {}
 }
