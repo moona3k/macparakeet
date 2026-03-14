@@ -347,7 +347,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func setupDiscoverContent() {
-        guard let fallbackURL = Bundle.main.url(forResource: "discover-fallback", withExtension: "json"),
+        guard let fallbackURL = Bundle.module.url(forResource: "discover-fallback", withExtension: "json"),
               let data = try? Data(contentsOf: fallbackURL) else { return }
         let service = DiscoverService(fallbackData: data)
         discoverViewModel.configure(service: service)

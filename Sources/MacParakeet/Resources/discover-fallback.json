@@ -1,122 +1,150 @@
 {
-  "version": 1,
+  "version": 3,
   "featuredIndex": 0,
   "items": [
     {
-      "id": "tip-hotkey",
-      "type": "tip",
-      "title": "Double-tap for hands-free",
-      "body": "Double-tap your hotkey to start persistent dictation — it keeps recording until you tap again. Perfect for long thoughts.",
-      "icon": "keyboard"
-    },
-    {
-      "id": "quote-voice",
+      "id": "truth-patent-secrecy",
       "type": "quote",
-      "title": "The human voice",
-      "body": "The human voice is the most perfect instrument of all.",
-      "icon": "quote.bubble",
-      "attribution": "Arvo Pärt"
+      "title": "6,543 patents you'll never see",
+      "body": "The Invention Secrecy Act of 1951 lets the U.S. government suppress any patent it deems sensitive. As of 2025, 6,543 patents sit under active secrecy orders — growing by ~300 per year. Categories include solar energy, propulsion, and power supplies. One patent filed in 1936 wasn't issued until 2000. Sixty-four years, buried.",
+      "icon": "lock.doc",
+      "attribution": "Federation of American Scientists, USPTO records"
     },
     {
-      "id": "tip-snippets",
-      "type": "tip",
-      "title": "Text snippets save time",
-      "body": "Create snippets in Vocabulary to auto-expand shortcodes. Type 'addr' and have it expand to your full address.",
-      "icon": "text.badge.plus"
-    },
-    {
-      "id": "affirmation-flow",
-      "type": "affirmation",
-      "title": "You're in the flow",
-      "body": "Speaking your thoughts is one of the fastest ways to capture ideas. You're building a habit that compounds.",
-      "icon": "sparkles"
-    },
-    {
-      "id": "tip-drag-drop",
-      "type": "tip",
-      "title": "Drag files anywhere",
-      "body": "Drop audio or video files onto the menu bar icon or the main window. MacParakeet handles MP3, WAV, M4A, MP4, and more.",
-      "icon": "arrow.down.doc"
-    },
-    {
-      "id": "quote-listen",
+      "id": "truth-tesla-wardenclyffe",
       "type": "quote",
-      "title": "Listening well",
-      "body": "Most people do not listen with the intent to understand; they listen with the intent to reply.",
-      "icon": "quote.bubble",
-      "attribution": "Stephen R. Covey"
+      "title": "Tesla's tower",
+      "body": "Nikola Tesla's Wardenclyffe Tower was designed to transmit wireless energy to the entire world — free. J.P. Morgan withdrew funding when he realized the energy couldn't be metered. The tower was demolished in 1917. Tesla died in 1943 holding 300+ patents. The FBI seized his papers the same day. \"The present is theirs; the future, for which I really worked, is mine.\"",
+      "icon": "antenna.radiowaves.left.and.right",
+      "attribution": "Nikola Tesla"
     },
     {
-      "id": "tip-export",
-      "type": "tip",
-      "title": "Export in any format",
-      "body": "Transcriptions can be exported as TXT, Markdown, SRT, VTT, DOCX, PDF, or JSON. Right-click any transcription to see options.",
-      "icon": "square.and.arrow.up"
-    },
-    {
-      "id": "affirmation-privacy",
-      "type": "affirmation",
-      "title": "Your words stay yours",
-      "body": "Everything runs on your Mac. No cloud, no accounts, no tracking. Your voice never leaves your device.",
-      "icon": "lock.shield"
-    },
-    {
-      "id": "tip-youtube",
-      "type": "tip",
-      "title": "Transcribe YouTube videos",
-      "body": "Paste a YouTube URL into the Transcribe tab. MacParakeet downloads the audio and transcribes it locally.",
-      "icon": "play.rectangle"
-    },
-    {
-      "id": "quote-words",
+      "id": "truth-stanley-meyer",
       "type": "quote",
-      "title": "Words matter",
-      "body": "One good word is worth a thousand pictures.",
-      "icon": "quote.bubble",
-      "attribution": "Sapir-Whorf (inverted)"
+      "title": "Stanley Meyer was real",
+      "body": "Stanley Meyer held 8+ U.S. patents with 69+ citations for his water fuel cell. Multiple witnesses saw working demonstrations. No independent lab ever conducted proper calorimetry. His technology was dismissed on theoretical grounds — never empirically disproven. He died in 1998 saying \"they poisoned me.\" His equipment vanished within a week.",
+      "icon": "drop",
+      "attribution": "USPTO patent records, validated research"
     },
     {
-      "id": "tip-custom-words",
-      "type": "tip",
-      "title": "Teach it your words",
-      "body": "Add custom words in Vocabulary to fix recurring misrecognitions. Great for names, jargon, and technical terms.",
-      "icon": "character.textbox"
-    },
-    {
-      "id": "affirmation-speed",
-      "type": "affirmation",
-      "title": "Faster than typing",
-      "body": "Most people speak 3-4x faster than they type. You're choosing the most efficient input method.",
-      "icon": "bolt"
-    },
-    {
-      "id": "tip-clean-mode",
-      "type": "tip",
-      "title": "Clean up your speech",
-      "body": "Switch to Clean mode in Vocabulary to automatically remove filler words like 'um', 'uh', and 'you know'.",
-      "icon": "wand.and.stars"
-    },
-    {
-      "id": "quote-courage",
+      "id": "truth-royal-rife",
       "type": "quote",
-      "title": "Speaking up",
-      "body": "Speak your mind even if your voice shakes.",
-      "icon": "quote.bubble",
-      "attribution": "Maggie Kuhn"
+      "title": "Royal Raymond Rife",
+      "body": "In the 1930s, Royal Rife built microscopes that could observe live microorganisms at magnifications far beyond anything available. He proposed that pathogens could be destroyed by precise resonant frequencies — a \"Mortal Oscillatory Rate.\" His work was published in a 1944 Smithsonian Institution report. The AMA shut him down. In 2021, a peer-reviewed paper on \"Virus Destruction by Resonance\" explored the same concept.",
+      "icon": "waveform.path",
+      "attribution": "Smithsonian Institution (1944), Scientific Research (2021)"
     },
     {
-      "id": "tip-history",
-      "type": "tip",
-      "title": "Search your history",
-      "body": "Every dictation is saved. Use the search bar in Dictations to find past entries by content.",
-      "icon": "clock.arrow.circlepath"
+      "id": "truth-geet-pantone",
+      "type": "quote",
+      "title": "Paul Pantone's GEET engine",
+      "body": "Paul Pantone patented the GEET fuel processor (US Patent #5,794,601) — a reaction chamber using exhaust heat to pretreat fuel. Independent builders replicated the simple version and documented 5-30% mileage improvements. In 2005, he was convicted of securities fraud in Utah and committed to a state mental hospital for four years. He was released in 2009 having served more time than any sentence would have required.",
+      "icon": "engine.combustion",
+      "attribution": "USPTO Patent #5,794,601"
     },
     {
-      "id": "affirmation-consistent",
+      "id": "truth-cold-fusion",
+      "type": "quote",
+      "title": "Cold fusion was never debunked",
+      "body": "In 1989, MIT's Plasma Fusion Center held a \"Wake for Cold Fusion\" party — before their replication test was complete. Chief Science Writer Eugene Mallove later alleged they altered calorimetry data between drafts, shifting curves downward to eliminate apparent excess heat. Meanwhile, Navy SPAWAR, SRI International, and Japanese national labs quietly produced anomalous results for decades. In 2023, ARPA-E funded $10M in new LENR research. It was never debunked. It was defunded.",
+      "icon": "atom",
+      "attribution": "ARPA-E, Eugene Mallove, SRI International"
+    },
+    {
+      "id": "truth-nimh-battery",
+      "type": "quote",
+      "title": "The battery they killed",
+      "body": "In 2001, Chevron acquired GM's NiMH battery patents and sued Toyota and Panasonic to block large-format batteries for electric vehicles. The settlement banned NiMH EV batteries until 2010. The GM EV1 had already demonstrated 150+ mile range with the technology. Stanford Ovshinsky, who invented the battery, said: \"It's not a good idea to go into business with somebody whose strategies would put you out of business.\"",
+      "icon": "battery.0percent",
+      "attribution": "Stanford Ovshinsky, NiMH inventor"
+    },
+    {
+      "id": "truth-ev1",
+      "type": "quote",
+      "title": "1,117 electric cars, crushed",
+      "body": "Between 1996 and 1999, GM built 1,117 EV1 electric vehicles. Drivers loved them. 5,000+ people sat on the waiting list. GM refused to sell — lease only. When leases expired, GM recalled every car, rejected all purchase offers, and had them crushed in the Arizona desert. Tesla Motors was founded in 2003. Martin Eberhard and Marc Tarpenning explicitly cited the EV1's destruction as their motivation.",
+      "icon": "car",
+      "attribution": "Who Killed the Electric Car? (2006), Smithsonian Magazine"
+    },
+    {
+      "id": "truth-body-electric",
+      "type": "quote",
+      "title": "The body is electric",
+      "body": "Dr. Robert O. Becker proved that bone generates piezoelectric signals and heals faster with DC current at one nanoampere. His work led to FDA-approved PEMF devices now used in 72% of U.S. hospitals for fractures that won't heal. PEMF was later approved for depression (2006) and brain cancer (2011). The body responds to electromagnetic fields. This isn't alternative medicine — it's settled physics that took decades to accept.",
+      "icon": "bolt.heart",
+      "attribution": "Robert O. Becker, M.D. — The Body Electric (1985)"
+    },
+    {
+      "id": "truth-ama-convicted",
+      "type": "quote",
+      "title": "The AMA was found guilty",
+      "body": "In 1987, Judge Susan Getzendanner found the American Medical Association guilty of an illegal conspiracy to destroy the chiropractic profession. The court documented systematic defamation, propaganda campaigns, and denial of hospital access. In 1938, the AMA had already been convicted of Sherman Anti-Trust Act violations. The AMA's own \"Propaganda Department,\" established in 1913, was designed to attack unconventional treatments — whether they worked or not.",
+      "icon": "building.columns",
+      "attribution": "Wilk v. AMA, U.S. District Court (1987)"
+    },
+    {
+      "id": "truth-terrain",
+      "type": "quote",
+      "title": "The terrain is everything",
+      "body": "On his deathbed, Louis Pasteur reportedly conceded to Claude Bernard's competing theory: \"The microbe is nothing; the terrain is everything.\" The body's internal environment — not just the invading germ — determines whether disease takes hold. Otto Warburg won the 1931 Nobel Prize showing cancer cells thrive in acidic, low-oxygen environments. The question of terrain versus germ was never settled. It was abandoned.",
+      "icon": "leaf",
+      "attribution": "Claude Bernard; Otto Warburg, Nobel Prize 1931"
+    },
+    {
+      "id": "truth-wilhelm-reich",
+      "type": "quote",
+      "title": "Wilhelm Reich's books were burned — twice",
+      "body": "In 1933, the Nazis burned Wilhelm Reich's The Mass Psychology of Fascism. In 1956, the U.S. FDA burned six tons of his publications at the Gansevoort incinerator in New York City — including the same book. The FDA's injunction made it a crime to even mention the word \"orgone\" in print. Reich was sentenced to two years in federal prison. He died in his cell on November 3, 1957, days before his scheduled release. He is one of the only authors in history whose works were burned by both fascist and democratic governments.",
+      "icon": "flame",
+      "attribution": "JSTOR Daily, U.S. District Court records (1956)"
+    },
+    {
+      "id": "truth-reich-einstein",
+      "type": "quote",
+      "title": "Einstein spent 10 days with it",
+      "body": "In January 1941, Wilhelm Reich visited Albert Einstein at his Princeton home. They talked for five hours. Einstein took a small orgone accumulator home and spent ten days experimenting with it, measuring temperature anomalies that initially interested him. His assistant later suggested a simpler explanation. Einstein wrote on February 7: \"I regard the matter as completely solved.\" Reich responded with a 25-page letter. Einstein never wrote back. Three years later, he asked only that his name not be \"misused for advertising purposes.\"",
+      "icon": "thermometer.medium",
+      "attribution": "Einstein-Reich correspondence (1941)"
+    },
+    {
+      "id": "truth-walter-russell",
+      "type": "quote",
+      "title": "Walter Russell predicted elements before they were found",
+      "body": "Walter Russell — sculptor of Mark Twain's memorial, builder of $30 million in New York real estate, painter whose work represented the U.S. at the Turin International Exhibition — published his own periodic table in 1926 arranging elements into nine octaves like a musical scale. He predicted the existence of deuterium, tritium, neptunium, and plutonium before their laboratory discovery. Tesla reportedly told him to lock his findings away for a thousand years because \"mankind was not ready.\"",
+      "icon": "circle.hexagongrid",
+      "attribution": "The Universal One (1926), The Secret of Light (1947)"
+    },
+    {
+      "id": "truth-russell-light",
+      "type": "quote",
+      "title": "In the wave lies the secret of creation",
+      "body": "\"For within the secret of Light is vast knowledge not yet revealed to man. Light is all there is.\" Russell's cosmogony proposed that matter and energy are not separate — they are light moving in opposed spirals of compression and expansion. The universe operates through rhythmic balanced interchange between all opposites. He called it a universe of waves, not particles. \"The cardinal error of science lies in shutting the Creator out of His Creation.\"",
+      "icon": "sun.max",
+      "attribution": "Walter Russell — The Secret of Light (1947)"
+    },
+    {
+      "id": "truth-emerald-tablet",
       "type": "affirmation",
-      "title": "Building momentum",
-      "body": "Every dictation trains your voice-first workflow. Small consistent use beats occasional marathons.",
-      "icon": "chart.line.uptrend.xyaxis"
+      "title": "As above, so below",
+      "body": "\"That which is above is like that which is below, and that which is below is like that which is above, to accomplish the miracles of the one thing.\" Atoms orbit like planets. Rivers branch like veins. Galaxies spiral like seashells. The pattern repeats at every scale. The oldest known principle of correspondence, carved before recorded history, describes what fractal mathematics rediscovered thousands of years later.",
+      "icon": "sparkles",
+      "attribution": "The Emerald Tablet of Hermes Trismegistus"
+    },
+    {
+      "id": "truth-vibration",
+      "type": "affirmation",
+      "title": "Everything vibrates",
+      "body": "\"Nothing rests; everything moves; everything vibrates.\" The Hermetic tradition taught this thousands of years before quantum mechanics confirmed it. Atoms are not solid. They are standing waves of probability. Matter is energy vibrating at different frequencies. The universe is not made of things — it is made of patterns.",
+      "icon": "waveform",
+      "attribution": "The Kybalion (1908), rooted in ancient Hermetic philosophy"
+    },
+    {
+      "id": "truth-tesla-energy",
+      "type": "quote",
+      "title": "Energy at any point in the universe",
+      "body": "\"Ere many generations pass, our machinery will be driven by a power obtainable at any point of the universe. It is a mere question of time when men will succeed in attaching their machinery to the very wheelwork of nature.\" Tesla said this in 1891. It is now 2026.",
+      "icon": "globe",
+      "attribution": "Nikola Tesla, 1891"
     }
   ]
 }

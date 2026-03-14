@@ -93,7 +93,7 @@ struct MainWindowView: View {
                     case .settings:
                         SettingsView(viewModel: settingsViewModel, llmSettingsViewModel: llmSettingsViewModel, updater: updater)
                     case .discover:
-                        DiscoverView(viewModel: discoverViewModel)
+                        DiscoverView(viewModel: discoverViewModel, feedbackViewModel: feedbackViewModel)
                     }
                 }
                 .animation(DesignSystem.Animation.contentSwap, value: state.selectedItem)
@@ -131,7 +131,7 @@ struct MainWindowView: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
 
-                    Text("LOCAL")
+                    Text("On-device")
                         .font(.system(size: 9, weight: .bold, design: .rounded))
                         .foregroundStyle(DesignSystem.Colors.successGreen)
                         .padding(.horizontal, 6)
@@ -177,6 +177,7 @@ struct MainWindowView: View {
             .buttonStyle(.bordered)
 
             Button {
+                transcriptionViewModel.currentTranscription = nil
                 state.selectedItem = .transcribe
                 state.showingProgressDetail = true
             } label: {

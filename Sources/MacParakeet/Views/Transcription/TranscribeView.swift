@@ -72,8 +72,6 @@ struct TranscribeView: View {
                     transcribingView
                 } else {
                     dropZoneView
-                        .opacity(viewModel.isTranscribing ? 0.5 : 1.0)
-                        .allowsHitTesting(!viewModel.isTranscribing)
                 }
             }
             .animation(DesignSystem.Animation.contentSwap, value: viewModel.isTranscribing)
@@ -83,7 +81,6 @@ struct TranscribeView: View {
             if !viewModel.transcriptions.isEmpty && viewModel.currentTranscription == nil && !showingProgressDetail {
                 Divider()
                 recentTranscriptionsList
-                    .disabled(viewModel.isTranscribing)
             }
 
             // Bottom bar now rendered globally in MainWindowView
@@ -100,6 +97,12 @@ struct TranscribeView: View {
     private var dropZoneView: some View {
         ScrollView {
             VStack(spacing: DesignSystem.Spacing.lg) {
+                if viewModel.isTranscribing {
+                    activeTranscriptionCard
+                        .padding(.horizontal, DesignSystem.Spacing.lg)
+                        .padding(.top, DesignSystem.Spacing.lg)
+                }
+
                 // Portal drop zone — the hero
                 PortalDropZone(
                     isDragging: $viewModel.isDragging,
@@ -111,11 +114,15 @@ struct TranscribeView: View {
                     onBrowse: { openFilePicker() }
                 )
                 .padding(.horizontal, DesignSystem.Spacing.lg)
-                .padding(.top, DesignSystem.Spacing.lg)
+                .padding(.top, viewModel.isTranscribing ? 0 : DesignSystem.Spacing.lg)
+                .opacity(viewModel.isTranscribing ? 0.5 : 1.0)
+                .allowsHitTesting(!viewModel.isTranscribing)
 
                 // YouTube URL card — separate warm card below
                 youTubeCard
                     .padding(.horizontal, DesignSystem.Spacing.lg)
+                    .opacity(viewModel.isTranscribing ? 0.5 : 1.0)
+                    .allowsHitTesting(!viewModel.isTranscribing)
 
                 // Error banner
                 if let error = viewModel.errorMessage {
@@ -127,6 +134,99 @@ struct TranscribeView: View {
         }
     }
 
+    private var activeTranscriptionCard: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.sm) {
+                Text("Active Transcription")
+                    .font(DesignSystem.Typography.sectionTitle)
+
+                statusCapsule(
+                    title: "On-device",
+                    systemImage: "bolt.badge.a.fill",
+                    tint: DesignSystem.Colors.successGreen
+                )
+
+                Spacer()
+            }
+
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(DesignSystem.Colors.accent.opacity(0.12))
+                        .frame(width: 52, height: 52)
+
+                    Image(systemName: phaseSymbol)
+                        .font(.system(size: 19, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.accent)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(viewModel.transcribingFileName.isEmpty ? "Preparing transcription..." : viewModel.transcribingFileName)
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+
+                    Text(viewModel.progressHeadline)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+
+                    Text(viewModel.progress.isEmpty ? "Preparing..." : viewModel.progress)
+                        .font(DesignSystem.Typography.micro)
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                VStack(alignment: .trailing, spacing: 8) {
+                    if let fraction = viewModel.transcriptionProgress {
+                        Text("\(Int((fraction * 100).rounded()))%")
+                            .font(DesignSystem.Typography.body.monospacedDigit().weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    HStack(spacing: DesignSystem.Spacing.sm) {
+                        Button("View Details") {
+                            showingProgressDetail = true
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Cancel", role: .destructive) {
+                            viewModel.cancelTranscription()
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                if let fraction = viewModel.transcriptionProgress {
+                    ProgressView(value: fraction)
+                        .progressViewStyle(.linear)
+                        .tint(DesignSystem.Colors.accent)
+                } else {
+                    ProgressView()
+                        .progressViewStyle(.linear)
+                        .tint(DesignSystem.Colors.accent)
+                }
+
+                Text("Safe to browse elsewhere — this keeps running in the background.")
+                    .font(DesignSystem.Typography.micro)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+            }
+        }
+        .padding(DesignSystem.Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .fill(DesignSystem.Colors.cardBackground)
+                .cardShadow(DesignSystem.Shadows.cardRest)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
+        )
+    }
+
     // MARK: - YouTube Card
 
     private var youTubeCard: some View {
@@ -134,7 +234,7 @@ struct TranscribeView: View {
             HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.sm) {
                 Text("YouTube Transcription")
                     .font(DesignSystem.Typography.sectionTitle)
-                Text("Local")
+                Text("On-device")
                     .font(DesignSystem.Typography.micro)
                     .foregroundStyle(DesignSystem.Colors.successGreen)
                     .padding(.horizontal, 6)
@@ -523,6 +623,22 @@ struct TranscribeView: View {
         case .pending:
             return DesignSystem.Colors.border
         }
+    }
+
+    private func statusCapsule(title: String, systemImage: String, tint: Color) -> some View {
+        HStack(spacing: 4) {
+            Image(systemName: systemImage)
+                .font(.system(size: 9, weight: .bold))
+            Text(title)
+                .font(DesignSystem.Typography.micro)
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(
+            Capsule()
+                .fill(tint.opacity(0.12))
+        )
     }
 
     private func openFilePicker() {
