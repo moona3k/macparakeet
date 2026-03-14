@@ -10,7 +10,7 @@ struct DiscoverSidebarCard: View {
     @State private var isHovered = false
 
     var body: some View {
-        if let item = viewModel.featuredItem {
+        if let item = viewModel.sidebarItem {
             Button(action: onTap) {
                 HStack(spacing: DesignSystem.Spacing.sm) {
                     Image(systemName: item.icon)

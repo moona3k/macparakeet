@@ -1,5 +1,6 @@
 import Sparkle
 import SwiftUI
+import MacParakeetCore
 import MacParakeetViewModels
 
 enum SidebarItem: String, CaseIterable, Identifiable {
@@ -93,7 +94,7 @@ struct MainWindowView: View {
                     case .settings:
                         SettingsView(viewModel: settingsViewModel, llmSettingsViewModel: llmSettingsViewModel, updater: updater)
                     case .discover:
-                        DiscoverView(viewModel: discoverViewModel, feedbackViewModel: feedbackViewModel)
+                        DiscoverView(viewModel: discoverViewModel, thoughtsService: DiscoverThoughtsService())
                     }
                 }
                 .animation(DesignSystem.Animation.contentSwap, value: state.selectedItem)
