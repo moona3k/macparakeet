@@ -135,42 +135,48 @@ public final class AudioFileConverter: Sendable {
         try process.run()
 
         let resumed = OSAllocatedUnfairLock(initialState: false)
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            process.terminationHandler = { _ in
-                let shouldResume = resumed.withLock { done -> Bool in
-                    guard !done else { return false }
-                    done = true
-                    return true
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                process.terminationHandler = { _ in
+                    let shouldResume = resumed.withLock { done -> Bool in
+                        guard !done else { return false }
+                        done = true
+                        return true
+                    }
+                    if shouldResume {
+                        continuation.resume()
+                    }
                 }
-                if shouldResume {
-                    continuation.resume()
-                }
-            }
 
-            DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
-                let shouldResume = resumed.withLock { done -> Bool in
-                    guard !done else { return false }
-                    done = true
-                    return true
+                DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                    let shouldResume = resumed.withLock { done -> Bool in
+                        guard !done else { return false }
+                        done = true
+                        return true
+                    }
+                    if shouldResume {
+                        process.terminate()
+                        continuation.resume(
+                            throwing: AudioProcessorError.conversionFailed("FFmpeg conversion timed out")
+                        )
+                    }
                 }
-                if shouldResume {
-                    process.terminate()
-                    continuation.resume(
-                        throwing: AudioProcessorError.conversionFailed("FFmpeg conversion timed out")
-                    )
-                }
-            }
 
-            if !process.isRunning {
-                let shouldResume = resumed.withLock { done -> Bool in
-                    guard !done else { return false }
-                    done = true
-                    return true
-                }
-                if shouldResume {
-                    continuation.resume()
+                if !process.isRunning {
+                    let shouldResume = resumed.withLock { done -> Bool in
+                        guard !done else { return false }
+                        done = true
+                        return true
+                    }
+                    if shouldResume {
+                        continuation.resume()
+                    }
                 }
             }
+        } onCancel: {
+            process.terminate()
         }
+
+        try Task.checkCancellation()
     }
 }

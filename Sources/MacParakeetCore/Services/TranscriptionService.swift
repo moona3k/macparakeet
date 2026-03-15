@@ -110,6 +110,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             onProgress?("Downloading audio... \(percent)%")
         }
         onProgress?("Downloading audio... 100%")
+        try Task.checkCancellation()
         let keepDownloadedAudio = shouldKeepDownloadedAudio()
 
         var transcription = Transcription(

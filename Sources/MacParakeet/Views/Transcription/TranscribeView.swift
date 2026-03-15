@@ -21,6 +21,7 @@ struct TranscribeView: View {
     @Bindable var viewModel: TranscriptionViewModel
     var chatViewModel: TranscriptChatViewModel
     @Binding var showingProgressDetail: Bool
+    @State private var showCancelConfirmation = false
     private enum PipelineStep: CaseIterable {
         case download
         case convert
@@ -443,10 +444,18 @@ struct TranscribeView: View {
                     .foregroundStyle(.tertiary)
 
                 Button("Cancel Transcription", role: .destructive) {
-                    viewModel.cancelTranscription()
+                    showCancelConfirmation = true
                 }
                 .buttonStyle(.bordered)
                 .padding(.top, DesignSystem.Spacing.sm)
+                .alert("Cancel Transcription?", isPresented: $showCancelConfirmation) {
+                    Button("Cancel Transcription", role: .destructive) {
+                        viewModel.cancelTranscription()
+                    }
+                    Button("Continue", role: .cancel) {}
+                } message: {
+                    Text("This will stop the current transcription. Any progress will be lost.")
+                }
             }
             .padding(DesignSystem.Spacing.lg)
             .frame(maxWidth: 620)
