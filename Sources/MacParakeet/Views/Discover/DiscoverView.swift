@@ -67,13 +67,16 @@ struct DiscoverView: View {
         let isCopied = copiedItemId == item.id
         
         return ZStack(alignment: .bottomTrailing) {
-            // Background Watermark Icon
-            Image(systemName: item.icon.isEmpty ? iconForType(item) : item.icon)
-                .font(.system(size: 80))
-                .foregroundStyle(DesignSystem.Colors.accent.opacity(isHovered ? 0.07 : 0.04))
-                .offset(x: 20, y: 20)
-                .blur(radius: 1)
-                .clipped()
+            // Sacred geometry watermark
+            SacredGeometryView(
+                pattern: sacredGeometryPattern(forIcon: item.icon.isEmpty ? iconForType(item) : item.icon),
+                size: 120,
+                color: DesignSystem.Colors.accent.opacity(isHovered ? 0.14 : 0.08),
+                lineWidth: 0.8
+            )
+            .offset(x: 24, y: 24)
+            .blur(radius: 0.5)
+            .clipped()
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 HStack(alignment: .top) {
