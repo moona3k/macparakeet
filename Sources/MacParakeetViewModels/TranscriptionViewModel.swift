@@ -34,6 +34,7 @@ public final class TranscriptionViewModel {
 
     public var transcriptions: [Transcription] = []
     public var currentTranscription: Transcription?
+    public var pendingDeleteTranscription: Transcription?
     public var isTranscribing = false
     public var progress: String = ""
     public var transcriptionProgress: Double?
@@ -237,6 +238,12 @@ public final class TranscriptionViewModel {
 
     public func cancelTranscription() {
         transcriptionTask?.cancel()
+    }
+
+    public func confirmDelete() {
+        guard let transcription = pendingDeleteTranscription else { return }
+        pendingDeleteTranscription = nil
+        deleteTranscription(transcription)
     }
 
     public func deleteTranscription(_ transcription: Transcription) {

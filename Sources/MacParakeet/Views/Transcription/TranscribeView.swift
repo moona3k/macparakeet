@@ -502,9 +502,47 @@ struct TranscribeView: View {
                 }
                 .buttonStyle(.plain)
                 .listRowSeparator(.hidden)
+                .contextMenu {
+                    Button {
+                        viewModel.currentTranscription = transcription
+                    } label: {
+                        Label("Open", systemImage: "doc.text")
+                    }
+
+                    Divider()
+
+                    Button(role: .destructive) {
+                        viewModel.pendingDeleteTranscription = transcription
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                    }
+                    .disabled(transcription.status == .processing)
+                }
             }
             .listStyle(.plain)
             .frame(maxHeight: 320)
+        }
+        .alert(
+            "Delete Transcription?",
+            isPresented: Binding(
+                get: { viewModel.pendingDeleteTranscription != nil },
+                set: { if !$0 { viewModel.pendingDeleteTranscription = nil } }
+            )
+        ) {
+            Button("Cancel", role: .cancel) {
+                viewModel.pendingDeleteTranscription = nil
+            }
+            Button("Delete", role: .destructive) {
+                viewModel.confirmDelete()
+            }
+        } message: {
+            if let pending = viewModel.pendingDeleteTranscription {
+                if pending.sourceURL != nil {
+                    Text("\"\(pending.fileName)\" and its downloaded audio will be permanently deleted.")
+                } else {
+                    Text("\"\(pending.fileName)\" will be permanently deleted. The original file is not affected.")
+                }
+            }
         }
     }
 
