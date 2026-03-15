@@ -53,6 +53,12 @@ public final class TranscriptionViewModel {
     public var selectedTab: TranscriptTab = .transcript
     public var summaryBadge: Bool = false
 
+    // Model selection state
+    public var currentModelName: String = ""
+    public var currentProviderID: LLMProviderID?
+    public var availableModels: [String] = []
+    public var onModelChanged: (() -> Void)?
+
     public var isValidURL: Bool {
         YouTubeURLValidator.isYouTubeURL(urlInput)
     }
@@ -70,6 +76,7 @@ public final class TranscriptionViewModel {
     private var transcriptionService: TranscriptionServiceProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var llmService: LLMServiceProtocol?
+    private var configStore: LLMConfigStoreProtocol?
     private var transcriptionTask: Task<Void, Never>?
     private var activeTranscriptionTaskID: UUID?
     private var summaryTask: Task<Void, Never>?
@@ -83,12 +90,15 @@ public final class TranscriptionViewModel {
     public func configure(
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
-        llmService: LLMServiceProtocol? = nil
+        llmService: LLMServiceProtocol? = nil,
+        configStore: LLMConfigStoreProtocol? = nil
     ) {
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
         self.llmService = llmService
         self.llmAvailable = llmService != nil
+        self.configStore = configStore
+        refreshModelInfo()
         loadTranscriptions()
     }
 
@@ -486,6 +496,42 @@ public final class TranscriptionViewModel {
     public func updateLLMAvailability(_ available: Bool, llmService: LLMServiceProtocol? = nil) {
         self.llmAvailable = available
         self.llmService = llmService
+        refreshModelInfo()
+    }
+
+    public var modelDisplayName: String {
+        guard !currentModelName.isEmpty else { return "" }
+        if currentProviderID == .openrouter, let slashIndex = currentModelName.firstIndex(of: "/") {
+            return String(currentModelName[currentModelName.index(after: slashIndex)...])
+        }
+        return currentModelName
+    }
+
+    public func refreshModelInfo() {
+        guard let configStore, let config = try? configStore.loadConfig() else {
+            currentModelName = ""
+            currentProviderID = nil
+            availableModels = []
+            return
+        }
+        currentModelName = config.modelName
+        currentProviderID = config.id
+        var models = LLMSettingsViewModel.suggestedModels(for: config.id)
+        if !config.modelName.isEmpty && !models.contains(config.modelName) {
+            models.insert(config.modelName, at: 0)
+        }
+        availableModels = models
+    }
+
+    public func selectModel(_ modelName: String) {
+        guard let configStore else { return }
+        do {
+            try configStore.updateModelName(modelName)
+            currentModelName = modelName
+            onModelChanged?()
+        } catch {
+            refreshModelInfo()
+        }
     }
 
     // MARK: - Speaker Rename

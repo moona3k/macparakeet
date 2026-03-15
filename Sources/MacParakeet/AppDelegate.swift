@@ -294,7 +294,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             transcriptionViewModel.configure(
                 transcriptionService: env.transcriptionService,
                 transcriptionRepo: env.transcriptionRepo,
-                llmService: hasLLMConfig ? env.llmService : nil
+                llmService: hasLLMConfig ? env.llmService : nil,
+                configStore: env.llmConfigStore
             )
             historyViewModel.configure(dictationRepo: env.dictationRepo)
             settingsViewModel.configure(
@@ -323,13 +324,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             chatViewModel.configure(
                 llmService: hasLLMConfig ? env.llmService : nil,
                 transcriptText: "",
-                transcriptionRepo: env.transcriptionRepo
+                transcriptionRepo: env.transcriptionRepo,
+                configStore: env.llmConfigStore
             )
             chatViewModel.onChatMessagesChanged = { [weak self] transcriptionID, chatMessages in
                 self?.transcriptionViewModel.updateCurrentTranscriptionChatMessages(
                     id: transcriptionID,
                     chatMessages: chatMessages
                 )
+            }
+            chatViewModel.onModelChanged = { [weak self] in
+                self?.transcriptionViewModel.refreshModelInfo()
+            }
+            transcriptionViewModel.onModelChanged = { [weak self] in
+                self?.chatViewModel.refreshModelInfo()
             }
 
             maybeShowOnboarding()

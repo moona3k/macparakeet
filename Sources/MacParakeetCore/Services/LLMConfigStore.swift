@@ -10,6 +10,7 @@ public protocol LLMConfigStoreProtocol: Sendable {
     func loadAPIKey(for provider: LLMProviderID) throws -> String?
     func saveAPIKey(_ key: String) throws
     func deleteAPIKey() throws
+    func updateModelName(_ modelName: String) throws
 }
 
 // MARK: - Implementation
@@ -98,5 +99,17 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
             return
         }
         try keychain.delete(Self.apiKeyKeychainKey(for: decoded.id))
+    }
+
+    public func updateModelName(_ modelName: String) throws {
+        guard let existing = try loadConfig() else { return }
+        let updated = LLMProviderConfig(
+            id: existing.id,
+            baseURL: existing.baseURL,
+            apiKey: existing.apiKey,
+            modelName: modelName,
+            isLocal: existing.isLocal
+        )
+        try saveConfig(updated)
     }
 }

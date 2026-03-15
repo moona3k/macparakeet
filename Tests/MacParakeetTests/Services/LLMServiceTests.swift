@@ -101,6 +101,14 @@ final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
             modelName: existing.modelName, isLocal: existing.isLocal
         )
     }
+
+    func updateModelName(_ modelName: String) throws {
+        guard let existing = config else { return }
+        config = LLMProviderConfig(
+            id: existing.id, baseURL: existing.baseURL, apiKey: existing.apiKey,
+            modelName: modelName, isLocal: existing.isLocal
+        )
+    }
 }
 
 final class LLMServiceTests: XCTestCase {
@@ -451,5 +459,25 @@ final class LLMServiceTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    // MARK: - Model Selection
+
+    func testUpdateModelNamePreservesProviderAndBaseURL() throws {
+        mockConfigStore.config = .openai(apiKey: "sk-test", model: "gpt-5.4")
+
+        try mockConfigStore.updateModelName("gpt-5-mini")
+
+        let config = try mockConfigStore.loadConfig()
+        XCTAssertEqual(config?.modelName, "gpt-5-mini")
+        XCTAssertEqual(config?.id, .openai)
+        XCTAssertEqual(config?.apiKey, "sk-test")
+        XCTAssertEqual(config?.isLocal, false)
+    }
+
+    func testUpdateModelNameOnNilConfigIsNoOp() throws {
+        mockConfigStore.config = nil
+        try mockConfigStore.updateModelName("gpt-5-mini")
+        XCTAssertNil(try mockConfigStore.loadConfig())
     }
 }

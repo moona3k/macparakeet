@@ -41,6 +41,7 @@ final class InlineLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     func loadAPIKey(for provider: LLMProviderID) throws -> String? { config.id == provider ? config.apiKey : nil }
     func saveAPIKey(_ key: String) throws { throw KeyValueStoreError.unsupported }
     func deleteAPIKey() throws { throw KeyValueStoreError.unsupported }
+    func updateModelName(_ modelName: String) throws { throw KeyValueStoreError.unsupported }
 }
 
 // MARK: - Inline Options

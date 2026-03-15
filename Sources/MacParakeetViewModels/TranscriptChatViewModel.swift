@@ -23,8 +23,15 @@ public final class TranscriptChatViewModel {
     public var isStreaming: Bool = false
     public var errorMessage: String?
     public var onChatMessagesChanged: ((UUID, [ChatMessage]?) -> Void)?
+    public var onModelChanged: (() -> Void)?
+
+    // Model selection state
+    public var currentModelName: String = ""
+    public var currentProviderID: LLMProviderID?
+    public var availableModels: [String] = []
 
     private var llmService: LLMServiceProtocol?
+    private var configStore: LLMConfigStoreProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var transcriptionId: UUID?
     private var transcriptText: String = ""
@@ -36,16 +43,55 @@ public final class TranscriptChatViewModel {
         llmService != nil
     }
 
+    public var modelDisplayName: String {
+        guard !currentModelName.isEmpty else { return "" }
+        // Strip provider prefix for OpenRouter models (e.g. "anthropic/claude-sonnet-4-6" -> "claude-sonnet-4-6")
+        if currentProviderID == .openrouter, let slashIndex = currentModelName.firstIndex(of: "/") {
+            return String(currentModelName[currentModelName.index(after: slashIndex)...])
+        }
+        return currentModelName
+    }
+
     public init() {}
 
     public func configure(
         llmService: LLMServiceProtocol?,
         transcriptText: String,
-        transcriptionRepo: TranscriptionRepositoryProtocol? = nil
+        transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
+        configStore: LLMConfigStoreProtocol? = nil
     ) {
         self.llmService = llmService
         self.transcriptText = transcriptText
         self.transcriptionRepo = transcriptionRepo
+        self.configStore = configStore
+        refreshModelInfo()
+    }
+
+    public func refreshModelInfo() {
+        guard let configStore, let config = try? configStore.loadConfig() else {
+            currentModelName = ""
+            currentProviderID = nil
+            availableModels = []
+            return
+        }
+        currentModelName = config.modelName
+        currentProviderID = config.id
+        var models = LLMSettingsViewModel.suggestedModels(for: config.id)
+        if !config.modelName.isEmpty && !models.contains(config.modelName) {
+            models.insert(config.modelName, at: 0)
+        }
+        availableModels = models
+    }
+
+    public func selectModel(_ modelName: String) {
+        guard let configStore else { return }
+        do {
+            try configStore.updateModelName(modelName)
+            currentModelName = modelName
+            onModelChanged?()
+        } catch {
+            refreshModelInfo()
+        }
     }
 
     /// Updates the LLM service reference (e.g., when provider config changes).
@@ -53,6 +99,7 @@ public final class TranscriptChatViewModel {
     public func updateLLMService(_ service: LLMServiceProtocol?) {
         cancelStreaming()
         self.llmService = service
+        refreshModelInfo()
     }
 
     public func sendMessage() {

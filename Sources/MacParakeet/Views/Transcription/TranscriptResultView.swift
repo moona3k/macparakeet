@@ -362,14 +362,25 @@ struct TranscriptResultView: View {
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: 280)
 
-                            Button {
-                                let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
-                                viewModel.generateSummary(text: text)
-                            } label: {
-                                Label("Generate Summary", systemImage: "sparkles")
+                            HStack(spacing: DesignSystem.Spacing.sm) {
+                                Button {
+                                    let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+                                    viewModel.generateSummary(text: text)
+                                } label: {
+                                    Label("Generate Summary", systemImage: "sparkles")
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.regular)
+
+                                if !viewModel.availableModels.isEmpty {
+                                    ModelSelectorView(
+                                        currentModel: viewModel.currentModelName,
+                                        displayName: viewModel.modelDisplayName,
+                                        availableModels: viewModel.availableModels,
+                                        onSelect: { viewModel.selectModel($0) }
+                                    )
+                                }
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.regular)
                         } else {
                             Text("Configure an LLM provider in Settings to generate summaries.")
                                 .foregroundStyle(.tertiary)
@@ -433,6 +444,17 @@ struct TranscriptResultView: View {
                                 }
                                 .buttonStyle(.bordered)
                                 .controlSize(.small)
+                            }
+
+                            Spacer()
+
+                            if !viewModel.availableModels.isEmpty {
+                                ModelSelectorView(
+                                    currentModel: viewModel.currentModelName,
+                                    displayName: viewModel.modelDisplayName,
+                                    availableModels: viewModel.availableModels,
+                                    onSelect: { viewModel.selectModel($0) }
+                                )
                             }
                         }
                     }
@@ -593,6 +615,15 @@ struct TranscriptResultView: View {
                     .onChange(of: chatVM.isStreaming) { _, isStreaming in
                         if !isStreaming { chatInputFocused = true }
                     }
+
+                if chatVM.canSendMessage && !chatVM.availableModels.isEmpty {
+                    ModelSelectorView(
+                        currentModel: chatVM.currentModelName,
+                        displayName: chatVM.modelDisplayName,
+                        availableModels: chatVM.availableModels,
+                        onSelect: { chatVM.selectModel($0) }
+                    )
+                }
 
                 if chatVM.isStreaming {
                     Button {
