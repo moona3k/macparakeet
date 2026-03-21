@@ -37,6 +37,7 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
         .telemetryOptedOut,
         .onboardingCompleted,
         .licenseActivated,
+        .licenseActivationFailed,
         .trialStarted,
         .trialExpired,
         .purchaseStarted,

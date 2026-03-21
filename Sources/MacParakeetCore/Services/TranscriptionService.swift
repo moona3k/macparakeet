@@ -195,6 +195,11 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                     throw CancellationError()
                 } catch {
                     logger.error("diarization_failed error=\(error.localizedDescription, privacy: .public)")
+                    Telemetry.send(.errorOccurred(
+                        domain: "diarization",
+                        code: "transcription_diarization_failed",
+                        description: Self.errorType(for: error)
+                    ))
                 }
             }
 
@@ -274,6 +279,6 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     }
 
     private static func errorType(for error: Error) -> String {
-        String(describing: type(of: error))
+        TelemetryErrorClassifier.classify(error)
     }
 }

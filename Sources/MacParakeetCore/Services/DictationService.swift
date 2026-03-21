@@ -357,7 +357,7 @@ public actor DictationService: DictationServiceProtocol {
     }
 
     private static func errorType(for error: Error) -> String {
-        String(describing: type(of: error))
+        TelemetryErrorClassifier.classify(error)
     }
 }
 

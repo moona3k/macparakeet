@@ -27,13 +27,26 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case settingChanged = "setting_changed"
     case telemetryOptedOut = "telemetry_opted_out"
     case onboardingCompleted = "onboarding_completed"
+    case onboardingStep = "onboarding_step"
     case licenseActivated = "license_activated"
+    case licenseActivationFailed = "license_activation_failed"
     case trialStarted = "trial_started"
     case trialExpired = "trial_expired"
     case purchaseStarted = "purchase_started"
     case restoreAttempted = "restore_attempted"
     case restoreSucceeded = "restore_succeeded"
     case restoreFailed = "restore_failed"
+    // Permissions
+    case permissionPrompted = "permission_prompted"
+    case permissionGranted = "permission_granted"
+    case permissionDenied = "permission_denied"
+    // Performance
+    case modelLoaded = "model_loaded"
+    case modelDownloadStarted = "model_download_started"
+    case modelDownloadCompleted = "model_download_completed"
+    case modelDownloadFailed = "model_download_failed"
+    // Errors
+    case errorOccurred = "error_occurred"
 }
 
 public enum TelemetryDictationTrigger: String, Sendable, Equatable {
@@ -63,6 +76,11 @@ public enum TelemetryCopySource: String, Sendable, Equatable {
     case dictation
     case transcription
     case history
+}
+
+public enum TelemetryPermission: String, Sendable, Equatable {
+    case microphone
+    case accessibility
 }
 
 public enum TelemetrySettingName: String, Sendable, Equatable {
@@ -105,13 +123,26 @@ public enum TelemetryEventSpec: Sendable {
     case settingChanged(setting: TelemetrySettingName)
     case telemetryOptedOut
     case onboardingCompleted(durationSeconds: Double?)
+    case onboardingStep(step: String)
     case licenseActivated
+    case licenseActivationFailed(errorType: String)
     case trialStarted
     case trialExpired
     case purchaseStarted
     case restoreAttempted
     case restoreSucceeded
     case restoreFailed(errorType: String?)
+    // Permissions
+    case permissionPrompted(permission: TelemetryPermission)
+    case permissionGranted(permission: TelemetryPermission)
+    case permissionDenied(permission: TelemetryPermission)
+    // Performance
+    case modelLoaded(loadTimeSeconds: Double)
+    case modelDownloadStarted
+    case modelDownloadCompleted(durationSeconds: Double)
+    case modelDownloadFailed(errorType: String)
+    // Errors
+    case errorOccurred(domain: String, code: String, description: String)
 }
 
 extension TelemetryEventSpec {
@@ -143,13 +174,23 @@ extension TelemetryEventSpec {
         case .settingChanged: return .settingChanged
         case .telemetryOptedOut: return .telemetryOptedOut
         case .onboardingCompleted: return .onboardingCompleted
+        case .onboardingStep: return .onboardingStep
         case .licenseActivated: return .licenseActivated
+        case .licenseActivationFailed: return .licenseActivationFailed
         case .trialStarted: return .trialStarted
         case .trialExpired: return .trialExpired
         case .purchaseStarted: return .purchaseStarted
         case .restoreAttempted: return .restoreAttempted
         case .restoreSucceeded: return .restoreSucceeded
         case .restoreFailed: return .restoreFailed
+        case .permissionPrompted: return .permissionPrompted
+        case .permissionGranted: return .permissionGranted
+        case .permissionDenied: return .permissionDenied
+        case .modelLoaded: return .modelLoaded
+        case .modelDownloadStarted: return .modelDownloadStarted
+        case .modelDownloadCompleted: return .modelDownloadCompleted
+        case .modelDownloadFailed: return .modelDownloadFailed
+        case .errorOccurred: return .errorOccurred
         }
     }
 
@@ -232,8 +273,28 @@ extension TelemetryEventSpec {
             return Self.compactProps(
                 ("duration_seconds", durationSeconds.map(Self.format))
             )
+        case .onboardingStep(let step):
+            return ["step": step]
+        case .licenseActivationFailed(let errorType):
+            return ["error_type": errorType]
         case .restoreFailed(let errorType):
             return Self.compactProps(("error_type", errorType))
+        case .permissionPrompted(let permission):
+            return ["permission": permission.rawValue]
+        case .permissionGranted(let permission):
+            return ["permission": permission.rawValue]
+        case .permissionDenied(let permission):
+            return ["permission": permission.rawValue]
+        case .modelLoaded(let loadTimeSeconds):
+            return ["load_time_seconds": Self.format(loadTimeSeconds)]
+        case .modelDownloadStarted:
+            return nil
+        case .modelDownloadCompleted(let durationSeconds):
+            return ["duration_seconds": Self.format(durationSeconds)]
+        case .modelDownloadFailed(let errorType):
+            return ["error_type": errorType]
+        case .errorOccurred(let domain, let code, let description):
+            return ["domain": domain, "code": code, "description": String(description.prefix(512))]
         }
     }
 
@@ -279,13 +340,23 @@ public enum TelemetryImplementedContract {
         .settingChanged: ["setting"],
         .telemetryOptedOut: [],
         .onboardingCompleted: [],
+        .onboardingStep: ["step"],
         .licenseActivated: [],
+        .licenseActivationFailed: ["error_type"],
         .trialStarted: [],
         .trialExpired: [],
         .purchaseStarted: [],
         .restoreAttempted: [],
         .restoreSucceeded: [],
         .restoreFailed: [],
+        .permissionPrompted: ["permission"],
+        .permissionGranted: ["permission"],
+        .permissionDenied: ["permission"],
+        .modelLoaded: ["load_time_seconds"],
+        .modelDownloadStarted: [],
+        .modelDownloadCompleted: ["duration_seconds"],
+        .modelDownloadFailed: ["error_type"],
+        .errorOccurred: ["domain", "code", "description"],
     ]
 
     public static var implementedEventNames: Set<TelemetryEventName> {

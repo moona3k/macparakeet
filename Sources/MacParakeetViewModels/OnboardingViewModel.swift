@@ -93,9 +93,11 @@ public final class OnboardingViewModel {
     }
 
     public func markOnboardingCompleted() -> Completion {
-        let iso = ISO8601DateFormatter().string(from: now())
+        let completedAt = now()
+        let iso = ISO8601DateFormatter().string(from: completedAt)
         defaults.set(iso, forKey: Self.onboardingCompletedKey)
-        return Completion(completedAt: now())
+        Telemetry.send(.onboardingCompleted(durationSeconds: nil))
+        return Completion(completedAt: completedAt)
     }
 
     public func resetOnboarding() {
@@ -121,6 +123,7 @@ public final class OnboardingViewModel {
     public func goNext() {
         guard let next = Step(rawValue: step.rawValue + 1) else { return }
         step = next
+        Telemetry.send(.onboardingStep(step: next.title.lowercased()))
         refresh()
     }
 
@@ -161,21 +164,33 @@ public final class OnboardingViewModel {
 
     public func requestMicrophoneAccess() {
         isBusy = true
+        Telemetry.send(.permissionPrompted(permission: .microphone))
         Task {
             _ = await permissionService.requestMicrophonePermission()
             let mic = await permissionService.checkMicrophonePermission()
             await MainActor.run {
                 self.micStatus = mic
                 self.isBusy = false
+                if mic == .granted {
+                    Telemetry.send(.permissionGranted(permission: .microphone))
+                } else {
+                    Telemetry.send(.permissionDenied(permission: .microphone))
+                }
             }
         }
     }
 
     public func requestAccessibilityAccess(prompt: Bool = true) {
         isBusy = true
+        Telemetry.send(.permissionPrompted(permission: .accessibility))
         _ = permissionService.requestAccessibilityPermission(prompt: prompt)
         accessibilityGranted = permissionService.checkAccessibilityPermission()
         isBusy = false
+        if accessibilityGranted {
+            Telemetry.send(.permissionGranted(permission: .accessibility))
+        } else {
+            Telemetry.send(.permissionDenied(permission: .accessibility))
+        }
     }
 
     public func startEngineWarmUp() {
@@ -187,10 +202,12 @@ public final class OnboardingViewModel {
         engineState = .working(message: message, progress: nil)
 
         Task {
+            let warmUpStartedAt = Date()
             do {
                 try await runEnginePreflight()
                 guard self.engineGeneration == generation else { throw CancellationError() }
 
+                Telemetry.send(.modelDownloadStarted)
                 await MainActor.run {
                     guard self.engineGeneration == generation else { return }
                     self.engineState = .working(
@@ -218,6 +235,9 @@ public final class OnboardingViewModel {
                     }
                 }
 
+                let loadTimeSeconds = Date().timeIntervalSince(warmUpStartedAt)
+                Telemetry.send(.modelDownloadCompleted(durationSeconds: loadTimeSeconds))
+
                 // Prepare diarization models (non-fatal)
                 if let diarizationService = self.diarizationService {
                     await MainActor.run {
@@ -234,6 +254,11 @@ public final class OnboardingViewModel {
                     } catch {
                         // Diarization model prep failure is non-fatal
                         logger.error("diarization_model_prep_failed error=\(error.localizedDescription, privacy: .public)")
+                        Telemetry.send(.errorOccurred(
+                            domain: "diarization",
+                            code: "model_prep_failed",
+                            description: TelemetryErrorClassifier.classify(error)
+                        ))
                     }
                 }
 
@@ -242,7 +267,10 @@ public final class OnboardingViewModel {
                     self.engineState = .ready
                     self.isBusy = false
                 }
+            } catch is CancellationError {
+                // User cancelled — not an error
             } catch {
+                Telemetry.send(.modelDownloadFailed(errorType: TelemetryErrorClassifier.classify(error)))
                 await MainActor.run {
                     guard self.engineGeneration == generation else { return }
                     self.engineState = .failed(message: error.localizedDescription)

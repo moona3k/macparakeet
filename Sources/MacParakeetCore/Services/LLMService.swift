@@ -164,7 +164,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     }
 
     private static func errorType(for error: Error) -> String {
-        String(describing: type(of: error))
+        TelemetryErrorClassifier.classify(error)
     }
 
     private func buildChatMessages(

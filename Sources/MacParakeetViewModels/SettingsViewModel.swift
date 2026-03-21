@@ -42,6 +42,7 @@ public final class SettingsViewModel {
             defaults.set(telemetryEnabled, forKey: AppPreferences.telemetryEnabledKey)
             if !telemetryEnabled {
                 Telemetry.send(.telemetryOptedOut)
+                Task { await Telemetry.flush() }
             }
         }
     }
@@ -303,11 +304,13 @@ public final class SettingsViewModel {
                     self.licensingBusy = false
                     self.applyEntitlementsState(state)
                     self.licenseKeyInput = ""
+                    Telemetry.send(.licenseActivated)
                 }
             } catch {
                 await MainActor.run {
                     self.licensingBusy = false
                     self.licensingError = error.localizedDescription
+                    Telemetry.send(.licenseActivationFailed(errorType: TelemetryErrorClassifier.classify(error)))
                 }
             }
         }
