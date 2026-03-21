@@ -60,7 +60,7 @@ public final class OnboardingViewModel {
     private let now: @Sendable () -> Date
     private var engineGeneration: Int = 0
     private var refreshTask: Task<Void, Never>?
-    private static let progressPercentRegex = try! NSRegularExpression(pattern: #"(\d{1,3})(?:\.\d+)?\s*%"#)
+    private static let progressPercentRegex = try! NSRegularExpression(pattern: #"(\d{1,3}(?:\.\d+)?)\s*%"#)
     private let engineWarmUpAttempts = 3
     private let requiredFirstSetupDiskBytes: Int64 = 7 * 1_024 * 1_024 * 1_024
 
@@ -186,10 +186,11 @@ public final class OnboardingViewModel {
         _ = permissionService.requestAccessibilityPermission(prompt: prompt)
         accessibilityGranted = permissionService.checkAccessibilityPermission()
         isBusy = false
+        // Only emit granted — accessibility check is synchronous and returns false
+        // immediately after prompting (user hasn't clicked yet in System Settings).
+        // Emitting permissionDenied here would fire for nearly every new user.
         if accessibilityGranted {
             Telemetry.send(.permissionGranted(permission: .accessibility))
-        } else {
-            Telemetry.send(.permissionDenied(permission: .accessibility))
         }
     }
 

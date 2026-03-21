@@ -44,7 +44,9 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             Telemetry.send(.llmSummaryUsed(provider: config.id.rawValue))
             return response.content
         } catch {
-            Telemetry.send(.llmSummaryFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+            if !(error is CancellationError) {
+                Telemetry.send(.llmSummaryFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+            }
             throw error
         }
     }
@@ -57,7 +59,9 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             Telemetry.send(.llmChatUsed(provider: config.id.rawValue, messageCount: history.count + 1))
             return response.content
         } catch {
-            Telemetry.send(.llmChatFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+            if !(error is CancellationError) {
+                Telemetry.send(.llmChatFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+            }
             throw error
         }
     }
@@ -92,10 +96,12 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     Telemetry.send(.llmSummaryUsed(provider: config.id.rawValue))
                     continuation.finish()
                 } catch {
-                    Telemetry.send(.llmSummaryFailed(
-                        provider: (try? self.loadConfig())?.id.rawValue ?? "unknown",
-                        errorType: Self.errorType(for: error)
-                    ))
+                    if !(error is CancellationError) {
+                        Telemetry.send(.llmSummaryFailed(
+                            provider: (try? self.loadConfig())?.id.rawValue ?? "unknown",
+                            errorType: Self.errorType(for: error)
+                        ))
+                    }
                     continuation.finish(throwing: error)
                 }
             }
@@ -116,10 +122,12 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     Telemetry.send(.llmChatUsed(provider: config.id.rawValue, messageCount: history.count + 1))
                     continuation.finish()
                 } catch {
-                    Telemetry.send(.llmChatFailed(
-                        provider: (try? self.loadConfig())?.id.rawValue ?? "unknown",
-                        errorType: Self.errorType(for: error)
-                    ))
+                    if !(error is CancellationError) {
+                        Telemetry.send(.llmChatFailed(
+                            provider: (try? self.loadConfig())?.id.rawValue ?? "unknown",
+                            errorType: Self.errorType(for: error)
+                        ))
+                    }
                     continuation.finish(throwing: error)
                 }
             }

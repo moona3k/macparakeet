@@ -85,7 +85,10 @@ public actor AudioRecorder {
         recording = false
         currentAudioLevel = 0.0
 
-        guard let url = outputURL else {
+        let url = outputURL
+        outputURL = nil
+
+        guard let url else {
             throw AudioProcessorError.recordingFailed("No output file")
         }
 

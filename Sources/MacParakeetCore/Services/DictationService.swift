@@ -251,12 +251,21 @@ public actor DictationService: DictationServiceProtocol {
     }
 
     private func processCapturedAudio(audioURL: URL) async throws -> Dictation {
+        // Track whether the audio file is consumed (moved or explicitly deleted).
+        // If an error occurs before that point, clean up the temp file.
+        var audioConsumed = false
+        defer {
+            if !audioConsumed {
+                try? FileManager.default.removeItem(at: audioURL)
+            }
+        }
+
         let result = try await sttClient.transcribe(audioPath: audioURL.path)
         logger.debug("processCapturedAudio transcription complete chars=\(result.text.count)")
 
         let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            try? FileManager.default.removeItem(at: audioURL)
+            // defer will clean up audioURL
             logger.warning("processCapturedAudio empty transcript")
             throw DictationServiceError.emptyTranscript
         }
@@ -294,12 +303,11 @@ public actor DictationService: DictationServiceProtocol {
 
             if (try? FileManager.default.moveItem(at: audioURL, to: destURL)) != nil {
                 dictation.audioPath = destURL.path
-            } else {
-                try? FileManager.default.removeItem(at: audioURL)
+                audioConsumed = true  // moved to permanent storage
             }
-        } else {
-            try? FileManager.default.removeItem(at: audioURL)
+            // If move failed, defer will clean up the temp file
         }
+        // If not saving audio, defer will clean up the temp file
 
         if saveHistory {
             try dictationRepo.save(dictation)

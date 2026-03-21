@@ -66,7 +66,11 @@ public final class SettingsViewModel {
     public var processingMode: String {
         didSet {
             guard Dictation.ProcessingMode(rawValue: processingMode) != nil else {
-                processingMode = Dictation.ProcessingMode.raw.rawValue
+                // didSet doesn't re-trigger when assigning within itself,
+                // so execute side effects explicitly for the fallback.
+                let fallback = Dictation.ProcessingMode.raw.rawValue
+                processingMode = fallback
+                defaults.set(fallback, forKey: "processingMode")
                 return
             }
             defaults.set(processingMode, forKey: "processingMode")
