@@ -125,9 +125,9 @@ public actor DictationService: DictationServiceProtocol {
             Telemetry.send(.dictationStarted(trigger: context.trigger, mode: context.mode))
             logger.debug("startRecording capture started")
         } catch {
+            let device = await audioProcessor.recordingDeviceInfo
             _state = .idle
             recordingStartedAt = nil
-            let device = await audioProcessor.recordingDeviceInfo
             Telemetry.send(.dictationFailed(errorType: Self.errorType(for: error), device: device))
             logger.error("startRecording failed error=\(error.localizedDescription, privacy: .public)")
             throw error
@@ -161,8 +161,10 @@ public actor DictationService: DictationServiceProtocol {
             recordingStartedAt = nil
             return dictation
         } catch {
-            _state = .idle
+            // Snapshot device before setting state to .idle — prevents reentrancy
+            // window where a new startRecording() could overwrite the device info.
             let device = await audioProcessor.recordingDeviceInfo
+            _state = .idle
             if error is DictationServiceError, case DictationServiceError.emptyTranscript = error {
                 Telemetry.send(.dictationEmpty(durationSeconds: currentRecordingDurationSeconds(), device: device))
             } else {
