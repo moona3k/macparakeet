@@ -144,8 +144,8 @@ public struct TextProcessingPipeline: Sendable {
             )
         }
 
-        // 4b: Remove space before punctuation
-        if let regex = try? NSRegularExpression(pattern: "\\s+([.!?,;:])") {
+        // 4b: Remove space before punctuation (only horizontal space, preserve newlines)
+        if let regex = try? NSRegularExpression(pattern: " +([.!?,;:])") {
             result = regex.stringByReplacingMatches(
                 in: result,
                 range: NSRange(result.startIndex..., in: result),

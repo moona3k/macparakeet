@@ -234,4 +234,39 @@ final class TextProcessingPipelineTests: XCTestCase {
         let result = pipeline.process(text: "Hello, new paragraph world", customWords: [], snippets: snippets)
         XCTAssertEqual(result.text, "Hello,\n\nworld")
     }
+
+    // Regression: Parakeet adds punctuation after trigger phrase.
+    // Step 4b's \s+ was eating newlines before punctuation, producing ".." or ",,".
+    // https://github.com/moona3k/macparakeet-community/issues/24
+
+    func testNewlineSnippetPreservedBeforePeriod() {
+        let snippets = [
+            TextSnippet(trigger: "new paragraph", expansion: "\n\n")
+        ]
+        let result = pipeline.process(
+            text: "Please review the attached. New paragraph. Let me know.",
+            customWords: [],
+            snippets: snippets
+        )
+        XCTAssertTrue(result.text.contains("\n\n"), "Newlines must survive when followed by punctuation, got: \(result.text)")
+        XCTAssertFalse(result.text.contains(".."), "Must not collapse newlines into double period")
+    }
+
+    func testNewlineSnippetPreservedBeforeComma() {
+        let snippets = [
+            TextSnippet(trigger: "new paragraph", expansion: "\n\n")
+        ]
+        let result = pipeline.process(
+            text: "Hey, new paragraph, just checking in.",
+            customWords: [],
+            snippets: snippets
+        )
+        XCTAssertTrue(result.text.contains("\n\n"), "Newlines must survive when followed by comma, got: \(result.text)")
+        XCTAssertFalse(result.text.contains(",,"), "Must not collapse newlines into double comma")
+    }
+
+    func testCleanWhitespacePreservesNewlinesBeforePunctuation() {
+        let result = pipeline.cleanWhitespace(in: "Hello.\n\n. World")
+        XCTAssertTrue(result.contains("\n\n"), "Newlines before punctuation must not be stripped, got: \(result)")
+    }
 }
