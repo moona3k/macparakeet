@@ -405,12 +405,12 @@ struct TranscriptResultView: View {
                                 AIStreamingIndicator()
                             }
 
-                            MarkdownText(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
+                            MarkdownContentView(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
                         }
                     }
                 case .complete:
                     VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                        MarkdownText(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
+                        MarkdownContentView(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
 
                         HStack(spacing: DesignSystem.Spacing.sm) {
                             Button {
@@ -709,7 +709,7 @@ struct TranscriptResultView: View {
                 } else {
                     VStack(alignment: .leading, spacing: 0) {
                         if message.role == .assistant {
-                            MarkdownText(message.content)
+                            MarkdownContentView(message.content)
                         } else {
                             Text(message.content)
                                 .font(DesignSystem.Typography.bodyLarge)
