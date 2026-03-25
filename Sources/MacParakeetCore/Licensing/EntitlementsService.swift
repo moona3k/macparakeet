@@ -48,38 +48,12 @@ public actor EntitlementsService: EntitlementsChecking {
     // MARK: - Public API
 
     public func currentState(now: Date = Date()) async -> EntitlementsState {
-        // EARLY ACCESS BYPASS: Always report unlocked so the UI never shows trial/license prompts.
-        // To re-enable, restore the original implementation below.
-        //
-        // Original implementation:
-        //   let licenseKey = (try? store.getString(Keys.licenseKey)).flatMap { $0.isEmpty ? nil : $0 }
-        //   let masked = licenseKey.map(maskKey(_:))
-        //   let lastValidatedAt = (try? store.getString(Keys.lastValidatedISO)).flatMap(parseISO)
-        //   if await isUnlocked(now: now) {
-        //       return EntitlementsState(access: .unlocked, licenseKeyMasked: masked, lastValidatedAt: lastValidatedAt)
-        //   }
-        //   let trialStart = (try? store.getString(Keys.trialStartISO)).flatMap(parseISO) ?? now
-        //   let endsAt = trialStart.addingTimeInterval(trialLength)
-        //   if now < endsAt {
-        //       let days = max(0, daysRemaining(until: endsAt, now: now))
-        //       return EntitlementsState(access: .trialActive(daysRemaining: days, endsAt: endsAt), licenseKeyMasked: masked, lastValidatedAt: lastValidatedAt)
-        //   }
-        //   return EntitlementsState(access: .trialExpired(endedAt: endsAt), licenseKeyMasked: masked, lastValidatedAt: lastValidatedAt)
+        // App is free and open-source (GPL-3.0) — always unlocked.
         return EntitlementsState(access: .unlocked, licenseKeyMasked: nil, lastValidatedAt: nil)
     }
 
     public func assertCanTranscribe(now: Date = Date()) async throws {
-        // EARLY ACCESS BYPASS: All users get unlimited access while the app is free.
-        // To re-enable trial gating, restore the original check:
-        //
-        //   let state = await currentState(now: now)
-        //   switch state.access {
-        //   case .unlocked, .trialActive:
-        //       return
-        //   case .trialExpired:
-        //       throw EntitlementsError.trialExpired
-        //   }
-        return
+        // App is free and open-source (GPL-3.0) — all users have unlimited access.
     }
 
     public func activate(licenseKey: String, now: Date = Date()) async throws -> EntitlementsState {

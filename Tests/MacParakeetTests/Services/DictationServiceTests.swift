@@ -5,21 +5,18 @@ final class DictationServiceTests: XCTestCase {
     var service: DictationService!
     var mockAudio: MockAudioProcessor!
     var mockSTT: MockSTTClient!
-    var mockClipboard: MockClipboardService!
     var dictationRepo: DictationRepository!
 
     override func setUp() async throws {
         let dbManager = try DatabaseManager()
         mockAudio = MockAudioProcessor()
         mockSTT = MockSTTClient()
-        mockClipboard = MockClipboardService()
         dictationRepo = DictationRepository(dbQueue: dbManager.dbQueue)
 
         service = DictationService(
             audioProcessor: mockAudio,
             sttClient: mockSTT,
-            dictationRepo: dictationRepo,
-            clipboardService: mockClipboard
+            dictationRepo: dictationRepo
         )
     }
 

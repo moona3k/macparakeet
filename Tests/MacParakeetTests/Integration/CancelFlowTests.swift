@@ -19,8 +19,7 @@ final class CancelFlowTests: XCTestCase {
         dictationService = DictationService(
             audioProcessor: mockAudio,
             sttClient: mockSTT,
-            dictationRepo: dictationRepo,
-            clipboardService: mockClipboard
+            dictationRepo: dictationRepo
         )
     }
 

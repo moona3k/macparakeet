@@ -47,7 +47,6 @@ public actor DictationService: DictationServiceProtocol {
     private let audioProcessor: AudioProcessorProtocol
     private let sttClient: STTClientProtocol
     private let dictationRepo: DictationRepositoryProtocol
-    private let clipboardService: ClipboardServiceProtocol
     private let shouldSaveAudio: (@Sendable () -> Bool)?
     private let shouldSaveDictationHistory: (@Sendable () -> Bool)?
     private let entitlements: EntitlementsChecking?
@@ -76,7 +75,6 @@ public actor DictationService: DictationServiceProtocol {
         audioProcessor: AudioProcessorProtocol,
         sttClient: STTClientProtocol,
         dictationRepo: DictationRepositoryProtocol,
-        clipboardService: ClipboardServiceProtocol,
         shouldSaveAudio: (@Sendable () -> Bool)? = nil,
         shouldSaveDictationHistory: (@Sendable () -> Bool)? = nil,
         entitlements: EntitlementsChecking? = nil,
@@ -88,7 +86,6 @@ public actor DictationService: DictationServiceProtocol {
         self.audioProcessor = audioProcessor
         self.sttClient = sttClient
         self.dictationRepo = dictationRepo
-        self.clipboardService = clipboardService
         self.shouldSaveAudio = shouldSaveAudio
         self.shouldSaveDictationHistory = shouldSaveDictationHistory
         self.entitlements = entitlements

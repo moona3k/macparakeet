@@ -98,7 +98,6 @@ final class AppEnvironment {
             audioProcessor: audioProcessor,
             sttClient: sttClient,
             dictationRepo: dictationRepo,
-            clipboardService: clipboardService,
             shouldSaveAudio: {
                 // Defaults to true if unset (matches Settings UI default).
                 UserDefaults.standard.object(forKey: "saveAudioRecordings") as? Bool ?? true
