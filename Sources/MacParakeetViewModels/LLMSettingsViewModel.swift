@@ -1,5 +1,6 @@
 import Foundation
 import MacParakeetCore
+import OSLog
 
 @MainActor
 @Observable
@@ -103,6 +104,7 @@ public final class LLMSettingsViewModel {
 
     private var configStore: LLMConfigStoreProtocol?
     private var llmClient: LLMClientProtocol?
+    private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LLMSettingsViewModel")
 
     public init() {}
 
@@ -154,7 +156,11 @@ public final class LLMSettingsViewModel {
 
     public func clearConfiguration() {
         guard let configStore else { return }
-        try? configStore.deleteConfig()
+        do {
+            try configStore.deleteConfig()
+        } catch {
+            logger.error("Failed to delete LLM configuration error=\(error.localizedDescription, privacy: .public)")
+        }
         let apiKey = draft.providerID.isLocal ? "" : ((try? configStore.loadAPIKey(for: draft.providerID)) ?? "")
         draft = .defaults(
             for: draft.providerID,

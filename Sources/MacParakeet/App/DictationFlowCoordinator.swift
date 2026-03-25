@@ -384,30 +384,9 @@ final class DictationFlowCoordinator {
             do {
                 var dictation = try await self.dictationService.stopRecording()
                 guard self.overlayGeneration == gen else { return }
-                vm.state = .success
-                // Resign key window so CGEvent paste targets the user's app
-                // (needed when stop was triggered by clicking the overlay button).
-                controller?.resignKeyWindow()
-                // Brief pause so user sees the checkmark before paste
-                try? await Task.sleep(for: .milliseconds(200))
-                let transcriptToPaste = dictation.cleanTranscript ?? dictation.rawTranscript
-                let didAutoPaste = await self.pasteTranscriptWithFallback(
-                    generation: gen,
-                    transcript: transcriptToPaste,
-                    viewModel: vm
-                )
-                if didAutoPaste {
-                    if let pastedToApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier {
-                        dictation.pastedToApp = pastedToApp
-                        dictation.updatedAt = Date()
-                        try? self.dictationRepo.save(dictation)
-                    }
-                    try? await Task.sleep(for: .milliseconds(800))
-                } else {
-                    try? await Task.sleep(for: .seconds(5))
-                }
-                self.dictationLog.notice(
-                    "dictation_completed generation=\(gen) outcome=success rawChars=\(dictation.rawTranscript.count) cleanChars=\(dictation.cleanTranscript?.count ?? 0) autoPasted=\(didAutoPaste) pastedToApp=\(dictation.pastedToApp ?? "none", privacy: .public)"
+                await self.handleSuccessfulDictation(
+                    &dictation, generation: gen, controller: controller,
+                    viewModel: vm, outcomePrefix: "success"
                 )
             } catch where self.isNoSpeechError(error) {
                 // Brief "no speech" pill — view's onAppear triggers the bar animation
@@ -595,30 +574,9 @@ final class DictationFlowCoordinator {
             do {
                 var dictation = try await self.dictationService.undoCancel()
                 guard self.overlayGeneration == gen else { return }
-                vm.state = .success
-                // Resign key window so CGEvent paste targets the user's app,
-                // not the overlay panel (which became key when Undo was clicked).
-                controller?.resignKeyWindow()
-                // Brief pause so user sees the checkmark before paste
-                try? await Task.sleep(for: .milliseconds(200))
-                let transcriptToPaste = dictation.cleanTranscript ?? dictation.rawTranscript
-                let didAutoPaste = await self.pasteTranscriptWithFallback(
-                    generation: gen,
-                    transcript: transcriptToPaste,
-                    viewModel: vm
-                )
-                if didAutoPaste {
-                    if let pastedToApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier {
-                        dictation.pastedToApp = pastedToApp
-                        dictation.updatedAt = Date()
-                        try? self.dictationRepo.save(dictation)
-                    }
-                    try? await Task.sleep(for: .milliseconds(800))
-                } else {
-                    try? await Task.sleep(for: .seconds(5))
-                }
-                self.dictationLog.notice(
-                    "dictation_completed generation=\(gen) outcome=undo_success rawChars=\(dictation.rawTranscript.count) cleanChars=\(dictation.cleanTranscript?.count ?? 0) autoPasted=\(didAutoPaste)"
+                await self.handleSuccessfulDictation(
+                    &dictation, generation: gen, controller: controller,
+                    viewModel: vm, outcomePrefix: "undo_success"
                 )
             } catch where self.isNoSpeechError(error) {
                 // Brief "no speech" pill — view's onAppear triggers the bar animation
@@ -651,6 +609,46 @@ final class DictationFlowCoordinator {
                 self.showIdlePill()
             }
         }
+    }
+
+    private func handleSuccessfulDictation(
+        _ dictation: inout Dictation,
+        generation: Int,
+        controller: DictationOverlayController?,
+        viewModel: DictationOverlayViewModel,
+        outcomePrefix: String
+    ) async {
+        viewModel.state = .success
+        // Resign key window so CGEvent paste targets the user's app
+        controller?.resignKeyWindow()
+        // Brief pause so user sees the checkmark before paste
+        try? await Task.sleep(for: .milliseconds(200))
+        let transcriptToPaste = dictation.cleanTranscript ?? dictation.rawTranscript
+        let didAutoPaste = await pasteTranscriptWithFallback(
+            generation: generation,
+            transcript: transcriptToPaste,
+            viewModel: viewModel
+        )
+        if didAutoPaste {
+            if let pastedToApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier {
+                dictation.pastedToApp = pastedToApp
+                dictation.updatedAt = Date()
+                do {
+                    try dictationRepo.save(dictation)
+                } catch {
+                    dictationLog.error("Failed to save pastedToApp metadata error=\(error.localizedDescription, privacy: .public)")
+                }
+            }
+            try? await Task.sleep(for: .milliseconds(800))
+        } else {
+            try? await Task.sleep(for: .seconds(5))
+        }
+        let rawChars = dictation.rawTranscript.count
+        let cleanChars = dictation.cleanTranscript?.count ?? 0
+        let app = dictation.pastedToApp ?? "none"
+        dictationLog.notice(
+            "dictation_completed generation=\(generation) outcome=\(outcomePrefix, privacy: .public) rawChars=\(rawChars) cleanChars=\(cleanChars) autoPasted=\(didAutoPaste) pastedToApp=\(app, privacy: .public)"
+        )
     }
 
     private func dismissOverlay() {

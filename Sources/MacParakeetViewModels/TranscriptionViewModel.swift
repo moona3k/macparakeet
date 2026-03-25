@@ -1,5 +1,6 @@
 import Foundation
 import MacParakeetCore
+import OSLog
 import SwiftUI
 
 @MainActor
@@ -84,6 +85,7 @@ public final class TranscriptionViewModel {
     private var activeDropRequestID: UUID?
     private var dropPendingCount = 0
     private var dropAccepted = false
+    private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionViewModel")
 
     public init() {}
 
@@ -236,7 +238,11 @@ public final class TranscriptionViewModel {
                 // Preserve original metadata
                 result.fileName = original.fileName
                 result.sourceURL = original.sourceURL
-                try? transcriptionRepo?.save(result)
+                do {
+                    try transcriptionRepo?.save(result)
+                } catch {
+                    logger.error("Failed to save transcription result error=\(error.localizedDescription, privacy: .public)")
+                }
                 completeSuccessfulTranscription(taskID: taskID, result: result)
             } catch is CancellationError {
                 completeCancelledTranscription(taskID: taskID)
@@ -423,7 +429,11 @@ public final class TranscriptionViewModel {
                 summaryState = .complete
                 if let targetID {
                     currentTranscription?.summary = summary
-                    try? transcriptionRepo?.updateSummary(id: targetID, summary: summary)
+                    do {
+                        try transcriptionRepo?.updateSummary(id: targetID, summary: summary)
+                    } catch {
+                        logger.error("Failed to persist summary error=\(error.localizedDescription, privacy: .public)")
+                    }
                 }
                 if selectedTab != .summary {
                     summaryBadge = true
@@ -463,7 +473,11 @@ public final class TranscriptionViewModel {
         summaryBadge = false
         if let id = currentTranscription?.id {
             currentTranscription?.summary = nil
-            try? transcriptionRepo?.updateSummary(id: id, summary: nil)
+            do {
+                try transcriptionRepo?.updateSummary(id: id, summary: nil)
+            } catch {
+                logger.error("Failed to clear summary error=\(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -537,6 +551,10 @@ public final class TranscriptionViewModel {
         speakers[index].label = trimmed
         transcription.speakers = speakers
         currentTranscription = transcription
-        try? transcriptionRepo?.updateSpeakers(id: transcription.id, speakers: speakers)
+        do {
+            try transcriptionRepo?.updateSpeakers(id: transcription.id, speakers: speakers)
+        } catch {
+            logger.error("Failed to persist speaker rename error=\(error.localizedDescription, privacy: .public)")
+        }
     }
 }

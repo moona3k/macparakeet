@@ -1,5 +1,6 @@
 import Foundation
 import MacParakeetCore
+import OSLog
 
 @MainActor
 @Observable
@@ -142,6 +143,7 @@ public final class SettingsViewModel {
     private let youtubeDownloadsDirPath: @Sendable () -> String
     private let isSpeechModelCached: @Sendable () -> Bool
     private var isApplyingLaunchAtLoginState = false
+    private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "SettingsViewModel")
 
     public init(
         defaults: UserDefaults = .standard,
@@ -378,7 +380,11 @@ public final class SettingsViewModel {
 
     public func clearAllDictations() {
         guard let repo = dictationRepo else { return }
-        try? repo.deleteAll()
+        do {
+            try repo.deleteAll()
+        } catch {
+            logger.error("Failed to delete all dictations error=\(error.localizedDescription, privacy: .public)")
+        }
         // Also remove any saved audio files (best effort).
         let dir = AppPaths.dictationsDir
         if FileManager.default.fileExists(atPath: dir) {
@@ -391,7 +397,11 @@ public final class SettingsViewModel {
 
     public func resetPrivateStatistics() {
         guard let repo = dictationRepo else { return }
-        try? repo.deleteHidden()
+        do {
+            try repo.deleteHidden()
+        } catch {
+            logger.error("Failed to delete hidden dictations error=\(error.localizedDescription, privacy: .public)")
+        }
         refreshStats()
         onDictationsCleared?()
     }
@@ -405,7 +415,11 @@ public final class SettingsViewModel {
         }
         try? fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
 
-        try? transcriptionRepo?.clearStoredAudioPathsForURLTranscriptions()
+        do {
+            try transcriptionRepo?.clearStoredAudioPathsForURLTranscriptions()
+        } catch {
+            logger.error("Failed to clear stored audio paths error=\(error.localizedDescription, privacy: .public)")
+        }
         refreshStats()
     }
 

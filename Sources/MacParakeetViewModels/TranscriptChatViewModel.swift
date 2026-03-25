@@ -1,5 +1,6 @@
 import Foundation
 import MacParakeetCore
+import OSLog
 
 public struct ChatDisplayMessage: Identifiable, Equatable {
     public let id: UUID
@@ -38,6 +39,7 @@ public final class TranscriptChatViewModel {
     private var chatHistory: [ChatMessage] = []
     private var streamingTask: Task<Void, Never>?
     private var streamingAssistantID: UUID?
+    private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptChatViewModel")
 
     public var canSendMessage: Bool {
         llmService != nil
@@ -204,7 +206,11 @@ public final class TranscriptChatViewModel {
     private func persistChatMessages() {
         guard let transcriptionId else { return }
         let toSave = chatHistory.isEmpty ? nil : chatHistory
-        try? transcriptionRepo?.updateChatMessages(id: transcriptionId, chatMessages: toSave)
+        do {
+            try transcriptionRepo?.updateChatMessages(id: transcriptionId, chatMessages: toSave)
+        } catch {
+            logger.error("Failed to persist chat messages error=\(error.localizedDescription, privacy: .public)")
+        }
         onChatMessagesChanged?(transcriptionId, toSave)
     }
 
