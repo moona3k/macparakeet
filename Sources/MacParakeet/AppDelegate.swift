@@ -13,11 +13,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: - Auto-Update
 
+    #if DEBUG
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: false,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
+    #else
     private let updaterController = SPUStandardUpdaterController(
         startingUpdater: true,
         updaterDelegate: nil,
         userDriverDelegate: nil
     )
+    #endif
 
     // MARK: - Windows
 
@@ -791,6 +799,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private func presentHotkeyUnavailableAlertIfNeeded() {
+        #if !DEBUG
         guard !hasPresentedHotkeyUnavailableAlert else { return }
         guard settingsViewModel.accessibilityGranted == false else { return }
 
@@ -810,6 +819,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if response == .alertFirstButtonReturn {
             openMainWindowToSettings()
         }
+        #endif
     }
 }
 
