@@ -12,15 +12,13 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="GPL-3.0 License"></a>
   <img src="https://img.shields.io/badge/macOS-14.2%2B-000000.svg" alt="macOS 14.2+">
   <img src="https://img.shields.io/badge/Swift-6.0-F05138.svg" alt="Swift 6">
-  <img src="https://img.shields.io/badge/tests-807%20passing-brightgreen.svg" alt="807 tests passing">
+  <img src="https://img.shields.io/badge/tests-825%20passing-brightgreen.svg" alt="825 tests passing">
   <img src="https://img.shields.io/badge/Apple%20Silicon-only-333333.svg" alt="Apple Silicon only">
 </p>
 
 ---
 
 MacParakeet runs NVIDIA's Parakeet TDT speech model on Apple's Neural Engine via FluidAudio CoreML. System-wide dictation and file transcription, entirely on your Mac. No cloud. No accounts.
-
-<!-- TODO: add hero screenshot -->
 
 ## Features
 
