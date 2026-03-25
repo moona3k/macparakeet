@@ -38,7 +38,6 @@ final class DictationFlowCoordinator {
     /// Stop requested while startup is in-flight; fulfilled once service reaches recording.
     private var pendingStopGeneration: Int?
     private var idlePillController: IdlePillController?
-    private var idlePillViewModel: IdlePillViewModel?
     /// Monotonic generation id for the dictation UI flow. Any async work must guard this value before
     /// mutating shared UI state or calling into `DictationService` (which is global/shared).
     private var overlayGeneration: Int = 0
@@ -77,7 +76,6 @@ final class DictationFlowCoordinator {
         vm.onStartDictation = { [weak self] in
             self?.startDictation(mode: .persistent, trigger: .pillClick)
         }
-        idlePillViewModel = vm
 
         let controller = IdlePillController(viewModel: vm)
         controller.show()
@@ -87,7 +85,6 @@ final class DictationFlowCoordinator {
     func hideIdlePill() {
         idlePillController?.hide()
         idlePillController = nil
-        idlePillViewModel = nil
     }
 
     // MARK: - Generation
@@ -216,6 +213,7 @@ final class DictationFlowCoordinator {
             } catch {
                 guard self.overlayGeneration == gen else { return }
                 self.dictationLog.notice("dictation_completed generation=\(gen) outcome=entitlements_blocked error=\(error.localizedDescription, privacy: .public)")
+                self.hotkeyManager?.resetToIdle()
                 self.dismissReadyPill(expectedGeneration: gen)
                 self.showIdlePill()
                 self.onPresentEntitlementsAlert(error)
@@ -294,9 +292,9 @@ final class DictationFlowCoordinator {
                     try? await Task.sleep(for: .milliseconds(50))
                 }
             } catch {
-                self.isStartRecordingInFlight = false
                 self.dictationLog.error("dictation_completed generation=\(gen) outcome=start_failed error=\(error.localizedDescription, privacy: .public)")
                 guard !Task.isCancelled, self.overlayGeneration == gen else { return }
+                self.isStartRecordingInFlight = false
                 vm.state = .error(error.localizedDescription)
                 try? await Task.sleep(for: .seconds(5))
                 guard !Task.isCancelled, self.overlayGeneration == gen else { return }
@@ -312,6 +310,8 @@ final class DictationFlowCoordinator {
 
         // Edge case: stop during entitlements check (no overlay created yet).
         guard let vm = overlayViewModel else {
+            recordingTask?.cancel()
+            recordingTask = nil
             hotkeyManager?.resetToIdle()
             showIdlePill()
             return
@@ -361,6 +361,7 @@ final class DictationFlowCoordinator {
                     self.overlayViewModel = nil
                 }
                 if self.overlayGeneration == gen {
+                    self.onMenuBarIconUpdate(.idle)
                     self.hotkeyManager?.resetToIdle()
                     self.showIdlePill()
                 }
@@ -382,6 +383,7 @@ final class DictationFlowCoordinator {
 
             do {
                 var dictation = try await self.dictationService.stopRecording()
+                guard self.overlayGeneration == gen else { return }
                 vm.state = .success
                 // Resign key window so CGEvent paste targets the user's app
                 // (needed when stop was triggered by clicking the overlay button).
@@ -528,12 +530,7 @@ final class DictationFlowCoordinator {
             // enum) to avoid SwiftUI view reconstruction that fights the ring animation.
             for i in stride(from: 4.0, through: 0, by: -1) {
                 try? await Task.sleep(for: .seconds(1))
-                if Task.isCancelled {
-                    // Callers (confirm/undo) handle their own cleanup, but guarantee
-                    // the hotkey is never left stuck in cancelWindow.
-                    self.hotkeyManager?.resetToIdle()
-                    return
-                }
+                if Task.isCancelled { return }
                 guard self.overlayGeneration == gen else { return }
                 vm.cancelTimeRemaining = i
             }
@@ -597,6 +594,7 @@ final class DictationFlowCoordinator {
 
             do {
                 var dictation = try await self.dictationService.undoCancel()
+                guard self.overlayGeneration == gen else { return }
                 vm.state = .success
                 // Resign key window so CGEvent paste targets the user's app,
                 // not the overlay panel (which became key when Undo was clicked).
@@ -722,44 +720,6 @@ final class DictationFlowCoordinator {
 
         if error is ClipboardServiceError {
             return "paste_failed"
-        }
-
-        if let audioError = error as? AudioProcessorError {
-            switch audioError {
-            case .microphonePermissionDenied:
-                return "audio_permission_denied"
-            case .microphoneNotAvailable:
-                return "audio_unavailable"
-            case .recordingFailed:
-                return "audio_recording_failed"
-            case .conversionFailed:
-                return "audio_conversion_failed"
-            case .unsupportedFormat:
-                return "audio_unsupported_format"
-            case .fileTooLarge:
-                return "audio_file_too_large"
-            case .insufficientSamples:
-                return "audio_insufficient_samples"
-            }
-        }
-
-        if let sttError = error as? STTError {
-            switch sttError {
-            case .engineNotRunning:
-                return "stt_engine_not_running"
-            case .engineStartFailed:
-                return "stt_engine_start_failed"
-            case .transcriptionFailed:
-                return "stt_transcription_failed"
-            case .timeout:
-                return "stt_timeout"
-            case .modelNotLoaded:
-                return "stt_model_not_loaded"
-            case .outOfMemory:
-                return "stt_out_of_memory"
-            case .invalidResponse:
-                return "stt_invalid_response"
-            }
         }
 
         return "unknown"
