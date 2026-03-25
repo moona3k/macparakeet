@@ -87,22 +87,14 @@ cd macparakeet
 # Run tests
 swift test
 
-# Build the GUI app (code-signed for Keychain + permissions)
-xcodebuild build \
-  -scheme MacParakeet \
-  -destination 'platform=OS X' \
-  -derivedDataPath .build/xcode \
-  CODE_SIGN_IDENTITY="Apple Development" \
-  DEVELOPMENT_TEAM=YOUR_TEAM_ID
-
-# Launch the built app
+# Build, code-sign, and launch the dev app
 scripts/dev/run_app.sh
 
 # Or open in Xcode
 open Package.swift
 ```
 
-Replace `YOUR_TEAM_ID` with your Apple Developer team identifier. Code signing is required for microphone access and accessibility permissions.
+The dev script builds a signed `.app` bundle (`MacParakeet-Dev.app`) so macOS grants microphone and accessibility permissions. Set `DEVELOPMENT_TEAM=YOUR_TEAM_ID` if the default doesn't match your Apple Developer account.
 
 ### Build the CLI
 

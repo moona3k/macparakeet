@@ -522,12 +522,8 @@ swift test --parallel
 ### Build & Run
 
 ```bash
-# Build GUI app (uses local .build/xcode for derived data)
-# Signing ensures Keychain remembers the app across rebuilds (no repeated password prompts)
-xcodebuild build -scheme MacParakeet -destination 'platform=OS X' -derivedDataPath .build/xcode \
-  CODE_SIGN_IDENTITY="Apple Development" DEVELOPMENT_TEAM=YOUR_TEAM_ID
-
-# Run GUI app (recommended: use the dev script which handles framework symlinks)
+# Build, code-sign, and launch the dev app (creates MacParakeet-Dev.app bundle)
+# Handles xcodebuild, signing, framework symlinks, and .app wrapping for TCC permissions
 scripts/dev/run_app.sh
 
 # Build and run CLI
