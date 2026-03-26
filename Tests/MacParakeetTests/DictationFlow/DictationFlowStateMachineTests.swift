@@ -672,6 +672,8 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.reloadHistory))
         XCTAssertTrue(effects.contains(.showReadyPill))
         XCTAssertTrue(effects.contains(.startReadyDismissTimer))
+        // Must not cancel action task — allow in-flight paste to complete
+        XCTAssertFalse(effects.contains(.cancelActionTask))
     }
 
     func testFinishingStartRequested() {
@@ -689,6 +691,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.reloadHistory))
         XCTAssertTrue(effects.contains(.checkEntitlements))
+        XCTAssertFalse(effects.contains(.cancelActionTask))
     }
 
     func testFinishingSuccessStartRequested() {
@@ -696,12 +699,54 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let gen = m.generation
         _ = m.handle(.transcriptionCompleted(generation: gen))
         XCTAssertEqual(m.state, .finishing(outcome: .success))
+        let oldGen = m.generation
 
-        // Hotkey during success display → start new session
+        // Hotkey during success display → start new session, paste completes in background
         let effects = m.handle(.startRequested(mode: .holdToTalk))
         XCTAssertEqual(m.state, .checkingEntitlements(mode: .holdToTalk))
+        XCTAssertEqual(m.generation, oldGen + 1)
         XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.checkEntitlements))
+        XCTAssertTrue(effects.contains(.reloadHistory))
+        XCTAssertFalse(effects.contains(.cancelActionTask))
+    }
+
+    func testFinishingSuccessReadyPillRequested() {
+        var m = machineInProcessing()
+        let gen = m.generation
+        _ = m.handle(.transcriptionCompleted(generation: gen))
+        XCTAssertEqual(m.state, .finishing(outcome: .success))
+
+        let effects = m.handle(.readyPillRequested)
+        XCTAssertEqual(m.state, .ready)
+        XCTAssertTrue(effects.contains(.showReadyPill))
+        XCTAssertFalse(effects.contains(.cancelActionTask))
+    }
+
+    func testFinishingErrorStartRequested() {
+        var m = machineInProcessing()
+        let gen = m.generation
+        _ = m.handle(.transcriptionFailed(generation: gen, message: "Oops"))
+        XCTAssertEqual(m.state, .finishing(outcome: .error("Oops")))
+
+        let effects = m.handle(.startRequested(mode: .persistent))
+        XCTAssertEqual(m.state, .checkingEntitlements(mode: .persistent))
+        XCTAssertTrue(effects.contains(.checkEntitlements))
+        XCTAssertTrue(effects.contains(.hideOverlay))
+    }
+
+    func testFinishingSuccessStartRequestedIgnoresStaleCallback() {
+        var m = machineInProcessing()
+        let gen = m.generation
+        _ = m.handle(.transcriptionCompleted(generation: gen))
+
+        // Rapid restart from success — paste is in flight
+        _ = m.handle(.startRequested(mode: .persistent))
+        XCTAssertEqual(m.state, .checkingEntitlements(mode: .persistent))
+
+        // Stale paste callback arrives — must be ignored (state mismatch + generation)
+        let effects = m.handle(.pasteSucceeded(generation: gen))
+        XCTAssertTrue(effects.isEmpty)
     }
 
     // MARK: - Full Happy Path
