@@ -323,7 +323,7 @@ public final class SettingsViewModel {
                 await MainActor.run {
                     self.licensingBusy = false
                     self.licensingError = error.localizedDescription
-                    Telemetry.send(.licenseActivationFailed(errorType: TelemetryErrorClassifier.classify(error)))
+                    Telemetry.send(.licenseActivationFailed(errorType: TelemetryErrorClassifier.classify(error), errorDetail: TelemetryErrorClassifier.errorDetail(error)))
                 }
             }
         }

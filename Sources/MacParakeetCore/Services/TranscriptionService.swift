@@ -198,7 +198,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                     Telemetry.send(.errorOccurred(
                         domain: "diarization",
                         code: "transcription_diarization_failed",
-                        description: Self.errorType(for: error)
+                        description: TelemetryErrorClassifier.errorDetail(error)
                     ))
                 }
             }
@@ -257,7 +257,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             } else {
                 Telemetry.send(.transcriptionFailed(
                     source: source,
-                    errorType: Self.errorType(for: error)
+                    errorType: Self.errorType(for: error),
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error)
                 ))
             }
 

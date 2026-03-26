@@ -33,6 +33,30 @@ public enum TelemetryErrorClassifier {
         return "\(nsError.domain).\(nsError.code)"
     }
 
+    /// Returns a privacy-safe error detail string: paths and URLs stripped, truncated to 512 chars.
+    public static func errorDetail(_ error: Error) -> String {
+        var sanitized = error.localizedDescription
+        // Strip file:// URLs (must run before path stripping to catch file:///Users/...)
+        sanitized = sanitized.replacingOccurrences(
+            of: #"file://[^\s\"',)\]]+"#,
+            with: "<path>",
+            options: .regularExpression
+        )
+        // Strip absolute paths: /Users/..., /var/folders/..., /private/..., /tmp/...
+        sanitized = sanitized.replacingOccurrences(
+            of: #"(?:/Volumes/[^\s/]+)?/(?:Users/[^\s/]+|private/var/folders|var/folders|tmp)[^\s\"',)\]]*"#,
+            with: "<path>",
+            options: .regularExpression
+        )
+        // Strip http(s) URLs that may contain video IDs, tokens, or query params
+        sanitized = sanitized.replacingOccurrences(
+            of: #"https?://[^\s\"',)\]]+"#,
+            with: "<url>",
+            options: .regularExpression
+        )
+        return String(sanitized.prefix(512))
+    }
+
     private static func urlErrorCodeName(_ code: URLError.Code) -> String {
         switch code {
         case .notConnectedToInternet: return "notConnectedToInternet"

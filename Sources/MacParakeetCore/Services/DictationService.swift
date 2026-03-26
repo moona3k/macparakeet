@@ -131,7 +131,7 @@ public actor DictationService: DictationServiceProtocol {
             let device = await audioProcessor.recordingDeviceInfo
             _state = .idle
             recordingStartedAt = nil
-            Telemetry.send(.dictationFailed(errorType: Self.errorType(for: error), device: device))
+            Telemetry.send(.dictationFailed(errorType: Self.errorType(for: error), errorDetail: TelemetryErrorClassifier.errorDetail(error), device: device))
             logger.error("startRecording failed error=\(error.localizedDescription, privacy: .public)")
             throw error
         }
@@ -171,7 +171,7 @@ public actor DictationService: DictationServiceProtocol {
             if error is DictationServiceError, case DictationServiceError.emptyTranscript = error {
                 Telemetry.send(.dictationEmpty(durationSeconds: currentRecordingDurationSeconds(), device: device))
             } else {
-                Telemetry.send(.dictationFailed(errorType: Self.errorType(for: error), device: device))
+                Telemetry.send(.dictationFailed(errorType: Self.errorType(for: error), errorDetail: TelemetryErrorClassifier.errorDetail(error), device: device))
             }
             recordingStartedAt = nil
             logger.error("stopRecording failed error=\(error.localizedDescription, privacy: .public)")
@@ -248,7 +248,13 @@ public actor DictationService: DictationServiceProtocol {
             recordingStartedAt = nil
             return dictation
         } catch {
+            let device = await audioProcessor.recordingDeviceInfo
             _state = .idle
+            if error is DictationServiceError, case DictationServiceError.emptyTranscript = error {
+                Telemetry.send(.dictationEmpty(durationSeconds: currentRecordingDurationSeconds(), device: device))
+            } else {
+                Telemetry.send(.dictationFailed(errorType: Self.errorType(for: error), errorDetail: TelemetryErrorClassifier.errorDetail(error), device: device))
+            }
             recordingStartedAt = nil
             throw error
         }

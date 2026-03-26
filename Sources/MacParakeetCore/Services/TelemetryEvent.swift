@@ -98,7 +98,7 @@ public enum TelemetryEventSpec: Sendable {
     case dictationCompleted(durationSeconds: Double, wordCount: Int, mode: TelemetryDictationMode?, device: RecordingDeviceInfo? = nil)
     case dictationCancelled(durationSeconds: Double?, reason: TelemetryDictationCancelReason?, device: RecordingDeviceInfo? = nil)
     case dictationEmpty(durationSeconds: Double?, device: RecordingDeviceInfo? = nil)
-    case dictationFailed(errorType: String, device: RecordingDeviceInfo? = nil)
+    case dictationFailed(errorType: String, errorDetail: String? = nil, device: RecordingDeviceInfo? = nil)
     case transcriptionStarted(source: TelemetryTranscriptionSource, audioDurationSeconds: Double?)
     case transcriptionCompleted(
         source: TelemetryTranscriptionSource,
@@ -107,12 +107,12 @@ public enum TelemetryEventSpec: Sendable {
         wordCount: Int
     )
     case transcriptionCancelled(source: TelemetryTranscriptionSource, audioDurationSeconds: Double?)
-    case transcriptionFailed(source: TelemetryTranscriptionSource, errorType: String)
+    case transcriptionFailed(source: TelemetryTranscriptionSource, errorType: String, errorDetail: String? = nil)
     case exportUsed(format: String)
     case llmSummaryUsed(provider: String)
-    case llmSummaryFailed(provider: String, errorType: String)
+    case llmSummaryFailed(provider: String, errorType: String, errorDetail: String? = nil)
     case llmChatUsed(provider: String, messageCount: Int)
-    case llmChatFailed(provider: String, errorType: String)
+    case llmChatFailed(provider: String, errorType: String, errorDetail: String? = nil)
     case historySearched
     case historyReplayed
     case copyToClipboard(source: TelemetryCopySource)
@@ -125,13 +125,13 @@ public enum TelemetryEventSpec: Sendable {
     case onboardingCompleted(durationSeconds: Double?)
     case onboardingStep(step: String)
     case licenseActivated
-    case licenseActivationFailed(errorType: String)
+    case licenseActivationFailed(errorType: String, errorDetail: String? = nil)
     case trialStarted
     case trialExpired
     case purchaseStarted
     case restoreAttempted
     case restoreSucceeded
-    case restoreFailed(errorType: String?)
+    case restoreFailed(errorType: String?, errorDetail: String? = nil)
     // Permissions
     case permissionPrompted(permission: TelemetryPermission)
     case permissionGranted(permission: TelemetryPermission)
@@ -140,7 +140,7 @@ public enum TelemetryEventSpec: Sendable {
     case modelLoaded(loadTimeSeconds: Double)
     case modelDownloadStarted
     case modelDownloadCompleted(durationSeconds: Double)
-    case modelDownloadFailed(errorType: String)
+    case modelDownloadFailed(errorType: String, errorDetail: String? = nil)
     // Errors
     case errorOccurred(domain: String, code: String, description: String)
 }
@@ -232,8 +232,10 @@ extension TelemetryEventSpec {
             return Self.mergeDevice(Self.compactProps(
                 ("duration_seconds", durationSeconds.map(Self.format))
             ), device)
-        case .dictationFailed(let errorType, let device):
-            return Self.mergeDevice(["error_type": errorType], device)
+        case .dictationFailed(let errorType, let errorDetail, let device):
+            var props = ["error_type": errorType]
+            if let errorDetail { props["error_detail"] = errorDetail }
+            return Self.mergeDevice(props, device)
         case .transcriptionStarted(let source, let audioDurationSeconds):
             return Self.compactProps(
                 ("source", source.rawValue),
@@ -251,18 +253,24 @@ extension TelemetryEventSpec {
                 ("source", source.rawValue),
                 ("audio_duration_seconds", audioDurationSeconds.map(Self.format))
             )
-        case .transcriptionFailed(let source, let errorType):
-            return ["source": source.rawValue, "error_type": errorType]
+        case .transcriptionFailed(let source, let errorType, let errorDetail):
+            var props = ["source": source.rawValue, "error_type": errorType]
+            if let errorDetail { props["error_detail"] = errorDetail }
+            return props
         case .exportUsed(let format):
             return ["format": format]
         case .llmSummaryUsed(let provider):
             return ["provider": provider]
-        case .llmSummaryFailed(let provider, let errorType):
-            return ["provider": provider, "error_type": errorType]
+        case .llmSummaryFailed(let provider, let errorType, let errorDetail):
+            var props = ["provider": provider, "error_type": errorType]
+            if let errorDetail { props["error_detail"] = errorDetail }
+            return props
         case .llmChatUsed(let provider, let messageCount):
             return ["provider": provider, "message_count": "\(messageCount)"]
-        case .llmChatFailed(let provider, let errorType):
-            return ["provider": provider, "error_type": errorType]
+        case .llmChatFailed(let provider, let errorType, let errorDetail):
+            var props = ["provider": provider, "error_type": errorType]
+            if let errorDetail { props["error_detail"] = errorDetail }
+            return props
         case .copyToClipboard(let source):
             return ["source": source.rawValue]
         case .processingModeChanged(let mode):
@@ -275,10 +283,12 @@ extension TelemetryEventSpec {
             )
         case .onboardingStep(let step):
             return ["step": step]
-        case .licenseActivationFailed(let errorType):
-            return ["error_type": errorType]
-        case .restoreFailed(let errorType):
-            return Self.compactProps(("error_type", errorType))
+        case .licenseActivationFailed(let errorType, let errorDetail):
+            var props = ["error_type": errorType]
+            if let errorDetail { props["error_detail"] = errorDetail }
+            return props
+        case .restoreFailed(let errorType, let errorDetail):
+            return Self.compactProps(("error_type", errorType), ("error_detail", errorDetail))
         case .permissionPrompted(let permission):
             return ["permission": permission.rawValue]
         case .permissionGranted(let permission):
@@ -291,8 +301,10 @@ extension TelemetryEventSpec {
             return nil
         case .modelDownloadCompleted(let durationSeconds):
             return ["duration_seconds": Self.format(durationSeconds)]
-        case .modelDownloadFailed(let errorType):
-            return ["error_type": errorType]
+        case .modelDownloadFailed(let errorType, let errorDetail):
+            var props = ["error_type": errorType]
+            if let errorDetail { props["error_detail"] = errorDetail }
+            return props
         case .errorOccurred(let domain, let code, let description):
             return ["domain": domain, "code": code, "description": String(description.prefix(512))]
         }

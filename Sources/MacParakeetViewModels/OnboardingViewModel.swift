@@ -258,7 +258,7 @@ public final class OnboardingViewModel {
                         Telemetry.send(.errorOccurred(
                             domain: "diarization",
                             code: "model_prep_failed",
-                            description: TelemetryErrorClassifier.classify(error)
+                            description: TelemetryErrorClassifier.errorDetail(error)
                         ))
                     }
                 }
@@ -271,7 +271,7 @@ public final class OnboardingViewModel {
             } catch is CancellationError {
                 // User cancelled — not an error
             } catch {
-                Telemetry.send(.modelDownloadFailed(errorType: TelemetryErrorClassifier.classify(error)))
+                Telemetry.send(.modelDownloadFailed(errorType: TelemetryErrorClassifier.classify(error), errorDetail: TelemetryErrorClassifier.errorDetail(error)))
                 await MainActor.run {
                     guard self.engineGeneration == generation else { return }
                     self.engineState = .failed(message: error.localizedDescription)

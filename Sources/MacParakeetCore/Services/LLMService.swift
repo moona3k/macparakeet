@@ -45,6 +45,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             return response.content
         } catch {
             if !(error is CancellationError) {
+                // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
                 Telemetry.send(.llmSummaryFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
             }
             throw error
@@ -60,6 +61,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             return response.content
         } catch {
             if !(error is CancellationError) {
+                // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
                 Telemetry.send(.llmChatFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
             }
             throw error
@@ -97,6 +99,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     continuation.finish()
                 } catch {
                     if !(error is CancellationError) {
+                        // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
                         Telemetry.send(.llmSummaryFailed(
                             provider: (try? self.loadConfig())?.id.rawValue ?? "unknown",
                             errorType: Self.errorType(for: error)
@@ -123,6 +126,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     continuation.finish()
                 } catch {
                     if !(error is CancellationError) {
+                        // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
                         Telemetry.send(.llmChatFailed(
                             provider: (try? self.loadConfig())?.id.rawValue ?? "unknown",
                             errorType: Self.errorType(for: error)
