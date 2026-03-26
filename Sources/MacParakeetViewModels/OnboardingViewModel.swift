@@ -212,7 +212,7 @@ public final class OnboardingViewModel {
                 await MainActor.run {
                     guard self.engineGeneration == generation else { return }
                     self.engineState = .working(
-                        message: "Setting up speech model (Parakeet). This may take a few minutes...",
+                        message: "Downloading speech model (~6 GB). This is a one-time download...",
                         progress: nil
                     )
                 }

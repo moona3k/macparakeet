@@ -816,7 +816,7 @@ struct OnboardingFlowView: View {
         case .hotkey:
             return "Two ways to dictate — pick whichever feels natural."
         case .engine:
-            return "Download and warm up the Parakeet speech model so all features are ready. First setup needs internet once."
+            return "The speech model (~6 GB) downloads once. Usually takes 2–5 minutes on broadband, longer on slower connections."
         case .done:
             return "You're all set. Start dictating or transcribe your first file."
         }
@@ -860,9 +860,9 @@ struct OnboardingFlowView: View {
     private func engineDetail(_ state: OnboardingViewModel.EngineState) -> String {
         switch state {
         case .idle:
-            return "We'll prepare the speech model now. Internet is required once to download it."
+            return "The speech model (~6 GB) will download now. Internet is required this one time only."
         case .working(_, _):
-            return "This can take several minutes on first run while the speech model downloads. Keep MacParakeet online until setup completes."
+            return "Downloading the speech model (~6 GB). This is a one-time download — dictation and transcription work fully offline after this."
         case .ready:
             return "Parakeet speech model is ready."
         case .failed:
@@ -950,7 +950,7 @@ struct OnboardingFlowView: View {
         case .accessibility:
             return "Enable Accessibility to continue."
         case .engine:
-            return "Wait for local model setup to finish."
+            return "Downloading — this can take several minutes. Everything works offline after setup."
         case .welcome, .hotkey, .done:
             return nil
         }
