@@ -7,11 +7,11 @@
 
 A **fast, private, local-first voice app** for macOS with two co-equal modes: system-wide dictation and file transcription. Powered by NVIDIA's Parakeet TDT via FluidAudio CoreML on the Neural Engine.
 
-**North Star:** The fastest, most private voice app for Mac. No cloud. No subscriptions.
+**North Star:** Fast, local-first voice app for Mac.
 
 **Domain:** [macparakeet.com](https://macparakeet.com)
 
-**Pricing:** $49 one-time purchase (Free: 7-day trial)
+**Pricing:** Free and open-source (GPL-3.0)
 
 ## Quick Navigation
 
@@ -59,7 +59,7 @@ MacParakeet is extracted from the OatFlow feature in Oatmeal but is **fully inde
 |---|-------------|---------|
 | **Focus** | Voice dictation + file transcription | Meeting memory + calendar |
 | **Complexity** | Simple, focused | Complex, powerful |
-| **Pricing** | $49 one-time | Freemium + Pro |
+| **Pricing** | Free (GPL-3.0) | Freemium + Pro |
 | **Value prop** | "Fast local transcription" | "Remembers everything" |
 
 ## Product Decisions (Settled)
