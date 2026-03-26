@@ -5,7 +5,11 @@
 <h1 align="center">MacParakeet</h1>
 
 <p align="center">
-  Fast, local-first voice app for Mac.
+  Fast, local-first voice app for Mac. Free and open-source.
+</p>
+
+<p align="center">
+  <a href="https://downloads.macparakeet.com/MacParakeet.dmg"><img src="https://img.shields.io/badge/Download-DMG-E86B3B.svg?style=for-the-badge&logo=apple&logoColor=white" alt="Download DMG"></a>
 </p>
 
 <p align="center">
@@ -14,6 +18,14 @@
   <img src="https://img.shields.io/badge/Swift-6.0-F05138.svg" alt="Swift 6">
   <img src="https://img.shields.io/badge/tests-825%20passing-brightgreen.svg" alt="825 tests passing">
   <img src="https://img.shields.io/badge/Apple%20Silicon-only-333333.svg" alt="Apple Silicon only">
+</p>
+
+<p align="center">
+  <img src="Assets/screenshots/transcribe.png" width="720" alt="MacParakeet — Transcription view">
+</p>
+
+<p align="center">
+  <img src="Assets/screenshots/dictations.png" width="720" alt="MacParakeet — Dictation history and voice stats">
 </p>
 
 ---
