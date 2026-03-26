@@ -261,14 +261,11 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
 
         case (.recording, .cancelRequested(let reason)):
             state = .cancelCountdown
-            var effects: [DictationFlowEffect] = [
+            return [
                 .cancelRecordingTask, .cancelRecording(reason: reason),
                 .showCancelCountdown, .updateMenuBar(.idle), .startCancelCountdown,
+                .notifyHotkeyCancelledByUI,
             ]
-            if reason == .ui {
-                effects.append(.notifyHotkeyCancelledByUI)
-            }
-            return effects
 
         case (.recording, .startRequested(let mode)):
             // Rapid restart: tear down current, start new flow

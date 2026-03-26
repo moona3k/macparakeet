@@ -312,7 +312,8 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.showCancelCountdown))
         XCTAssertTrue(effects.contains(.startCancelCountdown))
         XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
-        XCTAssertFalse(effects.contains(.notifyHotkeyCancelledByUI))
+        // Always emitted (old code always calls notifyCancelledByUI)
+        XCTAssertTrue(effects.contains(.notifyHotkeyCancelledByUI))
     }
 
     func testRecordingCancelRequestedUI() {
