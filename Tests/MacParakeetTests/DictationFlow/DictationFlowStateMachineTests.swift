@@ -186,6 +186,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .idle)
         XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
+        XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         XCTAssertTrue(effects.contains(.presentEntitlementsAlert))
         XCTAssertTrue(effects.contains(.showIdlePill))
     }
@@ -208,6 +209,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.cancelRecordingTask))
         XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
+        XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         XCTAssertTrue(effects.contains(.showIdlePill))
     }
 
@@ -219,6 +221,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .idle)
         XCTAssertTrue(effects.contains(.cancelRecordingTask))
         XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
+        XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
     }
 
     func testCheckingEntitlementsDismissRequested() {
@@ -230,6 +233,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.cancelAllTimers))
         XCTAssertTrue(effects.contains(.cancelRecordingTask))
         XCTAssertTrue(effects.contains(.hideOverlay))
+        XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
     }
 
     // MARK: - Starting Service
@@ -254,6 +258,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.startFailed(generation: gen, message: "Mic error"))
         XCTAssertEqual(m.state, .finishing(outcome: .error("Mic error")))
         XCTAssertTrue(effects.contains(.showError("Mic error")))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
         XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 5)))
     }
@@ -384,6 +389,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.startFailed(generation: gen, message: "Failed"))
         XCTAssertEqual(m.state, .finishing(outcome: .error("Failed")))
         XCTAssertTrue(effects.contains(.showError("Failed")))
+        XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
         XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
     }
 
@@ -421,6 +427,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.transcriptionCompleted(generation: gen))
         XCTAssertEqual(m.state, .finishing(outcome: .success))
         XCTAssertTrue(effects.contains(.showSuccess))
+        XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         XCTAssertTrue(effects.contains(.resignKeyWindow))
         XCTAssertTrue(effects.contains(.pasteTranscript))
     }
@@ -432,6 +439,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.transcriptionFailedNoSpeech(generation: gen))
         XCTAssertEqual(m.state, .finishing(outcome: .noSpeech))
         XCTAssertTrue(effects.contains(.showNoSpeech))
+        XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 3)))
     }
 
@@ -442,6 +450,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.transcriptionFailed(generation: gen, message: "STT error"))
         XCTAssertEqual(m.state, .finishing(outcome: .error("STT error")))
         XCTAssertTrue(effects.contains(.showError("STT error")))
+        XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
         XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 5)))
     }
 
@@ -747,6 +756,24 @@ final class DictationFlowStateMachineTests: XCTestCase {
         // Old generation events should be rejected
         let effects = m.handle(.recordingStarted(generation: oldGen))
         XCTAssertTrue(effects.isEmpty)
+    }
+
+    func testRapidRestartFromRecordingThenEntitlementsDeniedResetsMenuBar() {
+        var m = machineInRecording()
+        // Menu bar was set to .recording when entering recording state
+        let newGen = m.generation
+
+        // Rapid restart → checkingEntitlements
+        _ = m.handle(.startRequested(mode: .persistent))
+        let gen = m.generation
+
+        // Entitlements denied → must reset menu bar to idle
+        let effects = m.handle(.entitlementsDenied(generation: gen))
+        XCTAssertEqual(m.state, .idle)
+        XCTAssertTrue(effects.contains(.updateMenuBar(.idle)),
+                       "Menu bar must reset to idle after rapid restart + entitlement failure")
+        XCTAssertTrue(effects.contains(.hideOverlay))
+        XCTAssertTrue(effects.contains(.showIdlePill))
     }
 
     func testRapidRestartFromCancelCountdown() {
