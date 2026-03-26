@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <em>There are many voice dictation apps, but this one is mine.</em>
+</p>
+
+<p align="center">
   <a href="https://macparakeet.com">macparakeet.com</a>
 </p>
 
@@ -172,5 +176,3 @@ For larger changes, open an issue first to discuss the approach.
 MacParakeet is free software, released under the [GNU General Public License v3.0](LICENSE).
 
 ---
-
-There are many voice dictation apps, but this one is mine.
