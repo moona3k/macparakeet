@@ -173,4 +173,4 @@ MacParakeet is free software, released under the [GNU General Public License v3.
 
 ---
 
-There are many voice apps, but this one is mine.
+There are many voice dictation apps, but this one is mine.
