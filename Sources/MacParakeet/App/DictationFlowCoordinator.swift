@@ -386,7 +386,7 @@ final class DictationFlowCoordinator {
                     if let pastedToApp = NSWorkspace.shared.frontmostApplication?.bundleIdentifier {
                         self.currentDictation?.pastedToApp = pastedToApp
                         self.currentDictation?.updatedAt = Date()
-                        if var d = self.currentDictation {
+                        if let d = self.currentDictation {
                             do {
                                 try self.dictationRepo.save(d)
                             } catch {
