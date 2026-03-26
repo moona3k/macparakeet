@@ -408,6 +408,24 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
                 .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill,
             ]
 
+        case (.finishing, .readyPillRequested):
+            generation += 1
+            state = .ready
+            return [
+                .cancelAllTimers, .cancelActionTask,
+                .hideOverlay, .reloadHistory,
+                .hideIdlePill, .showReadyPill, .startReadyDismissTimer,
+            ]
+
+        case (.finishing, .startRequested(let mode)):
+            generation += 1
+            state = .checkingEntitlements(mode: mode)
+            return [
+                .cancelAllTimers, .cancelActionTask,
+                .hideOverlay, .reloadHistory,
+                .hideIdlePill, .checkEntitlements,
+            ]
+
         case (.finishing, .cancelRequested), (.finishing, .dismissRequested):
             state = .idle
             return [

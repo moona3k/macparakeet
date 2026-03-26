@@ -656,6 +656,54 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .finishing(outcome: .success))
     }
 
+    func testFinishingReadyPillRequested() {
+        var m = machineInProcessing()
+        let gen = m.generation
+        _ = m.handle(.transcriptionFailedNoSpeech(generation: gen))
+        XCTAssertEqual(m.state, .finishing(outcome: .noSpeech))
+        let oldGen = m.generation
+
+        // Hotkey first tap during "no speech" → dismiss and show ready pill
+        let effects = m.handle(.readyPillRequested)
+        XCTAssertEqual(m.state, .ready)
+        XCTAssertEqual(m.generation, oldGen + 1)
+        XCTAssertTrue(effects.contains(.cancelAllTimers))
+        XCTAssertTrue(effects.contains(.hideOverlay))
+        XCTAssertTrue(effects.contains(.reloadHistory))
+        XCTAssertTrue(effects.contains(.showReadyPill))
+        XCTAssertTrue(effects.contains(.startReadyDismissTimer))
+    }
+
+    func testFinishingStartRequested() {
+        var m = machineInProcessing()
+        let gen = m.generation
+        _ = m.handle(.transcriptionFailedNoSpeech(generation: gen))
+        XCTAssertEqual(m.state, .finishing(outcome: .noSpeech))
+        let oldGen = m.generation
+
+        // Hotkey rapid restart during "no speech" → dismiss and start new session
+        let effects = m.handle(.startRequested(mode: .persistent))
+        XCTAssertEqual(m.state, .checkingEntitlements(mode: .persistent))
+        XCTAssertEqual(m.generation, oldGen + 1)
+        XCTAssertTrue(effects.contains(.cancelAllTimers))
+        XCTAssertTrue(effects.contains(.hideOverlay))
+        XCTAssertTrue(effects.contains(.reloadHistory))
+        XCTAssertTrue(effects.contains(.checkEntitlements))
+    }
+
+    func testFinishingSuccessStartRequested() {
+        var m = machineInProcessing()
+        let gen = m.generation
+        _ = m.handle(.transcriptionCompleted(generation: gen))
+        XCTAssertEqual(m.state, .finishing(outcome: .success))
+
+        // Hotkey during success display → start new session
+        let effects = m.handle(.startRequested(mode: .holdToTalk))
+        XCTAssertEqual(m.state, .checkingEntitlements(mode: .holdToTalk))
+        XCTAssertTrue(effects.contains(.hideOverlay))
+        XCTAssertTrue(effects.contains(.checkEntitlements))
+    }
+
     // MARK: - Full Happy Path
 
     func testHappyPathPersistent() {
