@@ -186,7 +186,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
 
         case (.ready, .cancelRequested):
             state = .idle
-            return [.dismissReadyPill, .resetHotkeyStateMachine, .showIdlePill]
+            return [.cancelReadyDismissTimer, .dismissReadyPill, .resetHotkeyStateMachine, .showIdlePill]
 
         case (.ready, .dismissRequested):
             state = .idle
@@ -202,19 +202,19 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
         case (.checkingEntitlements, .entitlementsDenied(let gen)):
             guard gen == generation else { return [] }
             state = .idle
-            return [.resetHotkeyStateMachine, .presentEntitlementsAlert, .showIdlePill]
+            return [.hideOverlay, .resetHotkeyStateMachine, .presentEntitlementsAlert, .showIdlePill]
 
         case (.checkingEntitlements, .cancelRequested):
             state = .idle
-            return [.cancelRecordingTask, .resetHotkeyStateMachine, .showIdlePill]
+            return [.cancelRecordingTask, .hideOverlay, .resetHotkeyStateMachine, .showIdlePill]
 
         case (.checkingEntitlements, .stopRequested):
             state = .idle
-            return [.cancelRecordingTask, .resetHotkeyStateMachine, .showIdlePill]
+            return [.cancelRecordingTask, .hideOverlay, .resetHotkeyStateMachine, .showIdlePill]
 
         case (.checkingEntitlements, .dismissRequested):
             state = .idle
-            return [.cancelAllTimers, .cancelRecordingTask, .resetHotkeyStateMachine, .showIdlePill]
+            return [.cancelAllTimers, .cancelRecordingTask, .hideOverlay, .resetHotkeyStateMachine, .showIdlePill]
 
         // MARK: Starting service
 

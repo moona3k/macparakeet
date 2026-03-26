@@ -146,6 +146,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
 
         let effects = m.handle(.cancelRequested(reason: .escape))
         XCTAssertEqual(m.state, .idle)
+        XCTAssertTrue(effects.contains(.cancelReadyDismissTimer))
         XCTAssertTrue(effects.contains(.dismissReadyPill))
         XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
         XCTAssertTrue(effects.contains(.showIdlePill))
@@ -183,6 +184,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
 
         let effects = m.handle(.entitlementsDenied(generation: gen))
         XCTAssertEqual(m.state, .idle)
+        XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
         XCTAssertTrue(effects.contains(.presentEntitlementsAlert))
         XCTAssertTrue(effects.contains(.showIdlePill))
@@ -204,6 +206,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.cancelRequested(reason: .escape))
         XCTAssertEqual(m.state, .idle)
         XCTAssertTrue(effects.contains(.cancelRecordingTask))
+        XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.resetHotkeyStateMachine))
         XCTAssertTrue(effects.contains(.showIdlePill))
     }
@@ -226,6 +229,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .idle)
         XCTAssertTrue(effects.contains(.cancelAllTimers))
         XCTAssertTrue(effects.contains(.cancelRecordingTask))
+        XCTAssertTrue(effects.contains(.hideOverlay))
     }
 
     // MARK: - Starting Service
