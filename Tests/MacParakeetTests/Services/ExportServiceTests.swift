@@ -1,3 +1,4 @@
+import CoreGraphics
 import XCTest
 @testable import MacParakeetCore
 
@@ -357,6 +358,16 @@ final class ExportServiceTests: XCTestCase {
         let header = String(data: data.prefix(5), encoding: .ascii)
         XCTAssertEqual(header, "%PDF-")
 
+        let stream = try firstPageContentStream(from: tempURL)
+        XCTAssertNotNil(
+            stream.range(of: #"(?m)\b1 0 0 1 72 720 cm\b"#, options: .regularExpression),
+            "Expected PDF page transform to translate only without flipping Y"
+        )
+        XCTAssertNil(
+            stream.range(of: #"(?m)\b1 0 0 -1 [0-9.]+ [0-9.]+ cm\b"#, options: .regularExpression),
+            "PDF content stream should not contain an upside-down Y flip"
+        )
+
         try? FileManager.default.removeItem(at: tempURL)
     }
 
@@ -451,6 +462,31 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(exportService.formatReadableTimestamp(ms: 5000), "0:05")
         XCTAssertEqual(exportService.formatReadableTimestamp(ms: 65000), "1:05")
         XCTAssertEqual(exportService.formatReadableTimestamp(ms: 3661000), "1:01:01")
+    }
+
+    private func firstPageContentStream(from url: URL) throws -> String {
+        guard let document = CGPDFDocument(url as CFURL),
+              let page = document.page(at: 1),
+              let dictionary = page.dictionary else {
+            throw XCTSkip("Unable to open exported PDF for content-stream inspection")
+        }
+
+        var stream: CGPDFStreamRef?
+        guard CGPDFDictionaryGetStream(dictionary, "Contents", &stream),
+              let stream else {
+            throw XCTSkip("Exported PDF did not contain a single page content stream")
+        }
+
+        var format = CGPDFDataFormat.raw
+        guard let streamData = CGPDFStreamCopyData(stream, &format) as Data? else {
+            throw XCTSkip("Unable to decode page content stream")
+        }
+
+        guard let text = String(data: streamData, encoding: .isoLatin1) else {
+            throw XCTSkip("Unable to decode page content stream as Latin-1")
+        }
+
+        return text
     }
 
     // MARK: - Fallback Tests
