@@ -41,105 +41,14 @@ struct TranscriptResultView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header with sonic mandala hero
-            VStack(spacing: DesignSystem.Spacing.md) {
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    if let onBack {
-                        Button(action: onBack) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(backHovered ? .primary : .secondary)
-                                .frame(width: 28, height: 28)
-                                .background(
-                                    Circle()
-                                        .fill(backHovered ? Color.primary.opacity(0.08) : .clear)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .onHover { hovering in
-                            withAnimation(DesignSystem.Animation.hoverTransition) {
-                                backHovered = hovering
-                            }
-                        }
-                        .accessibilityLabel("Back")
-                    }
-
-                    Spacer()
-
-                    // Sonic mandala — hero element
-                    SonicMandalaView(
-                        data: mandalaData,
-                        size: 56,
-                        style: .fullColor
-                    )
-
-                    Spacer()
-
-                    // Duration badge
-                    if let durationMs = transcription.durationMs {
-                        Text(durationMs.formattedDuration)
-                            .font(DesignSystem.Typography.duration)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule()
-                                    .fill(Color.primary.opacity(0.05))
-                            )
-                    }
-                }
-
-                // Title + source URL
-                VStack(spacing: 4) {
-                    Text(transcription.fileName)
-                        .font(DesignSystem.Typography.headline)
-                        .multilineTextAlignment(.center)
-                        .lineLimit(3)
-
-                    if let sourceURL = transcription.sourceURL,
-                       let url = URL(string: sourceURL) {
-                        Button {
-                            NSWorkspace.shared.open(url)
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "play.rectangle.fill")
-                                    .font(.system(size: 10))
-                                    .foregroundStyle(DesignSystem.Colors.youtubeRed.opacity(0.7))
-                                Text(sourceURL)
-                                    .font(DesignSystem.Typography.caption)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                                Image(systemName: "arrow.up.right")
-                                    .font(.system(size: 8, weight: .semibold))
-                            }
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(
-                                RoundedRectangle(cornerRadius: 5)
-                                    .fill(Color.primary.opacity(0.03))
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .onHover { hovering in
-                            if hovering {
-                                NSCursor.pointingHand.push()
-                            } else {
-                                NSCursor.pop()
-                            }
-                        }
-                    }
-                }
-            }
-            .padding(DesignSystem.Spacing.lg)
-
-            SacredGeometryDivider()
+            resultHeaderCard
                 .padding(.horizontal, DesignSystem.Spacing.lg)
+                .padding(.top, DesignSystem.Spacing.lg)
 
             if viewModel.showTabs {
                 tabBar
                     .padding(.horizontal, DesignSystem.Spacing.lg)
-                    .padding(.top, DesignSystem.Spacing.sm)
+                    .padding(.top, DesignSystem.Spacing.md)
             }
 
             GeometryReader { proxy in
@@ -252,6 +161,161 @@ struct TranscriptResultView: View {
         }
     }
 
+    private var transcriptText: String {
+        transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+    }
+
+    private var transcriptWordCount: Int {
+        if let wordTimestamps = transcription.wordTimestamps, !wordTimestamps.isEmpty {
+            return wordTimestamps.count
+        }
+        return transcriptText.split(whereSeparator: \.isWhitespace).count
+    }
+
+    private var speakerCountValue: Int {
+        transcription.speakers?.count ?? transcription.speakerCount ?? 0
+    }
+
+    private var resultHeaderCard: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                if let onBack {
+                    Button(action: onBack) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(backHovered ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary)
+                            .frame(width: 34, height: 34)
+                            .background(
+                                Circle()
+                                    .fill(backHovered ? DesignSystem.Colors.surfaceElevated : DesignSystem.Colors.surface)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .onHover { hovering in
+                        withAnimation(DesignSystem.Animation.hoverTransition) {
+                            backHovered = hovering
+                        }
+                    }
+                    .accessibilityLabel("Back")
+                }
+
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                    HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text(transcription.fileName)
+                                .font(DesignSystem.Typography.pageTitle)
+                                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                                .lineLimit(3)
+
+                            Text("Transcript ready for review, summary, and chat.")
+                                .font(DesignSystem.Typography.bodySmall)
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        }
+
+                        Spacer(minLength: DesignSystem.Spacing.md)
+
+                        SonicMandalaView(
+                            data: mandalaData,
+                            size: 64,
+                            style: .fullColor
+                        )
+                    }
+
+                    HStack(spacing: DesignSystem.Spacing.sm) {
+                        metadataChip(
+                            icon: transcription.sourceURL != nil ? "play.rectangle.fill" : "waveform",
+                            text: transcription.sourceURL != nil ? "YouTube source" : "Local file",
+                            tint: transcription.sourceURL != nil ? DesignSystem.Colors.youtubeRed : DesignSystem.Colors.accent
+                        )
+
+                        if let durationMs = transcription.durationMs {
+                            metadataChip(
+                                icon: "clock",
+                                text: durationMs.formattedDuration,
+                                tint: DesignSystem.Colors.textSecondary
+                            )
+                        }
+
+                        if transcriptWordCount > 0 {
+                            metadataChip(
+                                icon: "text.word.spacing",
+                                text: "\(transcriptWordCount.formatted()) words",
+                                tint: DesignSystem.Colors.textSecondary
+                            )
+                        }
+
+                        if speakerCountValue > 0 {
+                            metadataChip(
+                                icon: "person.2.fill",
+                                text: "\(speakerCountValue) speaker\(speakerCountValue == 1 ? "" : "s")",
+                                tint: DesignSystem.Colors.textSecondary
+                            )
+                        }
+                    }
+
+                    if let sourceURL = transcription.sourceURL,
+                       let url = URL(string: sourceURL) {
+                        Button {
+                            NSWorkspace.shared.open(url)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "link")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text(sourceURL)
+                                    .font(DesignSystem.Typography.caption)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Image(systemName: "arrow.up.right")
+                                    .font(.system(size: 9, weight: .semibold))
+                            }
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(DesignSystem.Colors.surface)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .onHover { hovering in
+                            if hovering {
+                                NSCursor.pointingHand.push()
+                            } else {
+                                NSCursor.pop()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .padding(DesignSystem.Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .fill(DesignSystem.Colors.cardBackground)
+                .cardShadow(DesignSystem.Shadows.cardRest)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
+        )
+    }
+
+    private func metadataChip(icon: String, text: String, tint: Color) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 10, weight: .semibold))
+            Text(text)
+                .font(DesignSystem.Typography.caption.weight(.medium))
+        }
+        .foregroundStyle(tint)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+            Capsule()
+                .fill(tint.opacity(0.10))
+        )
+    }
+
     @ViewBuilder
     private func contentArea(availableWidth: CGFloat) -> some View {
         Group {
@@ -280,14 +344,21 @@ struct TranscriptResultView: View {
 
                 if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
                     timestampedView(words: timestamps)
-                } else if let text = transcription.cleanTranscript ?? transcription.rawTranscript {
-                    Text(text)
+                } else if !transcriptText.isEmpty {
+                    Text(transcriptText)
                         .font(DesignSystem.Typography.bodyLarge)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                         .textSelection(.enabled)
-                        .lineSpacing(4)
+                        .lineSpacing(6)
+                        .padding(DesignSystem.Spacing.lg)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(
+                            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.6))
+                        )
                 } else {
                     Text("No transcript available")
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
             }
             .padding(DesignSystem.Spacing.lg)
@@ -312,7 +383,9 @@ struct TranscriptResultView: View {
                     if tab == .summary { viewModel.summaryBadge = false }
                     // Focus is handled by onAppear in chatPane with async delay
                 } label: {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: tabIcon(tab))
+                            .font(.system(size: 11, weight: .semibold))
                         Text(tab.rawValue.capitalized)
                             .font(DesignSystem.Typography.bodySmall.weight(
                                 viewModel.selectedTab == tab ? .semibold : .regular
@@ -325,18 +398,29 @@ struct TranscriptResultView: View {
                         }
                     }
                     .padding(.horizontal, DesignSystem.Spacing.md)
-                    .padding(.vertical, 6)
+                    .padding(.vertical, 8)
                     .background(
-                        RoundedRectangle(cornerRadius: 6)
+                        Capsule()
                             .fill(viewModel.selectedTab == tab
                                   ? DesignSystem.Colors.accent.opacity(0.12)
                                   : .clear)
                     )
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(viewModel.selectedTab == tab ? DesignSystem.Colors.accent : .secondary)
+                .foregroundStyle(viewModel.selectedTab == tab ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
             }
             Spacer()
+        }
+    }
+
+    private func tabIcon(_ tab: TranscriptionViewModel.TranscriptTab) -> String {
+        switch tab {
+        case .transcript:
+            return "text.alignleft"
+        case .summary:
+            return "sparkles.rectangle.stack"
+        case .chat:
+            return "bubble.left.and.text.bubble.right"
         }
     }
 
@@ -350,14 +434,14 @@ struct TranscriptResultView: View {
                     VStack(spacing: DesignSystem.Spacing.md) {
                         Image(systemName: "text.document")
                             .font(.system(size: 28))
-                            .foregroundStyle(.quaternary)
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
                         Text("No summary yet")
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
                             .font(DesignSystem.Typography.body)
 
                         if viewModel.canGenerateSummary {
                             Text("Summaries are generated automatically after transcription, or you can generate one manually.")
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
                                 .font(DesignSystem.Typography.caption)
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: 280)
@@ -383,7 +467,7 @@ struct TranscriptResultView: View {
                             }
                         } else {
                             Text("Configure an LLM provider in Settings to generate summaries.")
-                                .foregroundStyle(.tertiary)
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
                                 .font(DesignSystem.Typography.caption)
                                 .multilineTextAlignment(.center)
                                 .frame(maxWidth: 280)
@@ -392,73 +476,9 @@ struct TranscriptResultView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, DesignSystem.Spacing.xl)
                 case .streaming:
-                    if viewModel.summary.isEmpty {
-                        SummarySkeletonView()
-                    } else {
-                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                            HStack(spacing: DesignSystem.Spacing.sm) {
-                                SpinnerRingView(
-                                    size: 18,
-                                    revolutionDuration: 3.0,
-                                    tintColor: DesignSystem.Colors.accent
-                                )
-                                AIStreamingIndicator()
-                            }
-
-                            MarkdownContentView(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
-                        }
-                    }
+                    summaryContentCard(isStreaming: true)
                 case .complete:
-                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                        MarkdownContentView(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
-
-                        HStack(spacing: DesignSystem.Spacing.sm) {
-                            Button {
-                                NSPasteboard.general.clearContents()
-                                NSPasteboard.general.setString(viewModel.summary, forType: .string)
-                                Telemetry.send(.copyToClipboard(source: .transcription))
-                                summaryCopied = true
-                                copiedResetTask?.cancel()
-                                copiedResetTask = Task {
-                                    try? await Task.sleep(for: .seconds(2))
-                                    summaryCopied = false
-                                }
-                            } label: {
-                                Label(
-                                    summaryCopied ? "Copied" : "Copy",
-                                    systemImage: summaryCopied ? "checkmark" : "doc.on.doc"
-                                )
-                                .font(DesignSystem.Typography.caption)
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .foregroundStyle(summaryCopied ? DesignSystem.Colors.successGreen : .primary)
-
-                            if viewModel.canGenerateSummary {
-                                Button {
-                                    let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
-                                    viewModel.generateSummary(text: text)
-                                } label: {
-                                    Label("Regenerate", systemImage: "arrow.clockwise")
-                                        .font(DesignSystem.Typography.caption)
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                            }
-
-                            Spacer()
-
-                            if !viewModel.availableModels.isEmpty {
-                                ModelSelectorView(
-                                    currentModel: viewModel.currentModelName,
-                                    displayName: viewModel.modelDisplayName,
-                                    availableModels: viewModel.availableModels,
-                                    disabled: viewModel.summaryState == .streaming,
-                                    onSelect: { viewModel.selectModel($0) }
-                                )
-                            }
-                        }
-                    }
+                    summaryContentCard(isStreaming: false)
                 case .error(let message):
                     VStack(spacing: DesignSystem.Spacing.md) {
                         Image(systemName: "exclamationmark.triangle")
@@ -466,10 +486,10 @@ struct TranscriptResultView: View {
                             .foregroundStyle(DesignSystem.Colors.errorRed.opacity(0.6))
                         Text(message)
                             .font(DesignSystem.Typography.body)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
                             .multilineTextAlignment(.center)
                         Button {
-                            let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+                            let text = transcriptText
                             viewModel.generateSummary(text: text)
                         } label: {
                             Label("Retry", systemImage: "arrow.clockwise")
@@ -493,83 +513,231 @@ struct TranscriptResultView: View {
         )
     }
 
+    private func summaryContentCard(isStreaming: Bool) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(isStreaming ? "Generating summary" : "AI summary")
+                        .font(DesignSystem.Typography.sectionTitle)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    Text(isStreaming ? "Reading the transcript and assembling a concise overview." : "A readable brief you can copy, refine, or regenerate.")
+                        .font(DesignSystem.Typography.bodySmall)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                }
+
+                Spacer()
+
+                if !viewModel.availableModels.isEmpty {
+                    ModelSelectorView(
+                        currentModel: viewModel.currentModelName,
+                        displayName: viewModel.modelDisplayName,
+                        availableModels: viewModel.availableModels,
+                        disabled: viewModel.summaryState == .streaming,
+                        onSelect: { viewModel.selectModel($0) }
+                    )
+                }
+            }
+
+            if isStreaming {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    SpinnerRingView(
+                        size: 18,
+                        revolutionDuration: 3.0,
+                        tintColor: DesignSystem.Colors.accent
+                    )
+                    AIStreamingIndicator()
+                }
+            }
+
+            if viewModel.summary.isEmpty && isStreaming {
+                SummarySkeletonView()
+            } else {
+                MarkdownContentView(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
+                    .padding(DesignSystem.Spacing.lg)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                            .fill(DesignSystem.Colors.surfaceElevated.opacity(0.65))
+                    )
+            }
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(viewModel.summary, forType: .string)
+                    Telemetry.send(.copyToClipboard(source: .transcription))
+                    summaryCopied = true
+                    copiedResetTask?.cancel()
+                    copiedResetTask = Task {
+                        try? await Task.sleep(for: .seconds(2))
+                        summaryCopied = false
+                    }
+                } label: {
+                    Label(
+                        summaryCopied ? "Copied" : "Copy",
+                        systemImage: summaryCopied ? "checkmark" : "doc.on.doc"
+                    )
+                    .font(DesignSystem.Typography.caption)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .foregroundStyle(summaryCopied ? DesignSystem.Colors.successGreen : .primary)
+
+                if viewModel.canGenerateSummary {
+                    Button {
+                        viewModel.generateSummary(text: transcriptText)
+                    } label: {
+                        Label("Regenerate", systemImage: "arrow.clockwise")
+                            .font(DesignSystem.Typography.caption)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(isStreaming)
+                }
+
+                Spacer()
+            }
+        }
+        .padding(DesignSystem.Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surface.opacity(0.55))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.45), lineWidth: 0.5)
+        )
+    }
+
     // MARK: - Chat Pane
 
     @ViewBuilder
     private func chatPane(viewModel chatVM: TranscriptChatViewModel) -> some View {
         VStack(spacing: 0) {
-            // Messages
             ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                        if chatVM.messages.isEmpty {
-                            VStack(spacing: DesignSystem.Spacing.lg) {
-                                MeditativeMerkabaView(
-                                    size: 64,
-                                    revolutionDuration: 6.0,
-                                    tintColor: DesignSystem.Colors.accent
-                                )
-                                
-                                VStack(spacing: DesignSystem.Spacing.xs) {
-                                    Text("Ask a question about this transcript")
-                                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                                        .font(DesignSystem.Typography.pageTitle)
+                VStack(spacing: 0) {
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+                            if !chatVM.canSendMessage {
+                                chatConfigurationBanner
+                            } else if chatVM.messages.isEmpty {
+                                chatEmptyState(chatVM: chatVM)
+                            }
 
-                                    Text("Or try one of these:")
-                                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                                        .font(DesignSystem.Typography.body)
+                            ForEach(chatVM.messages) { message in
+                                chatBubble(message)
+                                    .id(message.id)
+                            }
+
+                            if let error = chatVM.errorMessage {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(DesignSystem.Colors.errorRed)
+                                    Text(error)
+                                        .font(DesignSystem.Typography.caption)
+                                        .foregroundStyle(DesignSystem.Colors.errorRed)
                                 }
+                                .padding(.horizontal, DesignSystem.Spacing.md)
+                            }
+                        }
+                        .padding(DesignSystem.Spacing.lg)
+                    }
+                    .background(DesignSystem.Colors.surface)
 
-                                VStack(spacing: DesignSystem.Spacing.sm) {
-                                    ForEach(suggestedPrompts, id: \.self) { prompt in
-                                        Button {
-                                            chatVM.inputText = prompt
-                                            chatVM.sendMessage()
-                                        } label: {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "sparkle")
-                                                    .font(.system(size: 11))
-                                                    .foregroundStyle(DesignSystem.Colors.accent.opacity(0.7))
-                                                Text(prompt)
-                                                    .font(DesignSystem.Typography.bodySmall)
-                                            }
-                                            .padding(.horizontal, DesignSystem.Spacing.md)
-                                            .padding(.vertical, 8)
-                                            .background(
-                                                Capsule()
-                                                    .fill(DesignSystem.Colors.surfaceElevated)
-                                                    .overlay(
-                                                        Capsule()
-                                                            .stroke(DesignSystem.Colors.border.opacity(0.8), lineWidth: 1)
-                                                    )
-                                            )
-                                        }
-                                        .buttonStyle(.plain)
-                                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    Divider()
+
+                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                        HStack(spacing: DesignSystem.Spacing.sm) {
+                            TextField("Ask about this transcript...", text: Bindable(chatVM).inputText)
+                                .textFieldStyle(.plain)
+                                .font(DesignSystem.Typography.bodyLarge)
+                                .padding(.horizontal, DesignSystem.Spacing.md)
+                                .padding(.vertical, 12)
+                                .focused($chatInputFocused)
+                                .onSubmit {
+                                    if !chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && chatVM.canSendMessage && !chatVM.isStreaming {
+                                        chatVM.sendMessage()
+                                    }
+                                    chatInputFocused = true
+                                }
+                                .disabled(chatVM.isStreaming || !chatVM.canSendMessage)
+                                .onAppear {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                                        chatInputFocused = true
                                     }
                                 }
+                                .onChange(of: chatVM.isStreaming) { _, isStreaming in
+                                    if !isStreaming { chatInputFocused = true }
+                                }
+                                .background(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .fill(DesignSystem.Colors.surfaceElevated)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 1)
+                                )
+
+                            if chatVM.isStreaming {
+                                Button {
+                                    chatVM.cancelStreaming()
+                                } label: {
+                                    Image(systemName: "stop.circle.fill")
+                                        .font(.system(size: 26))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(DesignSystem.Colors.errorRed)
+                                .contentShape(Circle())
+                            } else {
+                                let canSend = !chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && chatVM.canSendMessage
+                                Button {
+                                    chatVM.sendMessage()
+                                    chatInputFocused = true
+                                } label: {
+                                    Image(systemName: "arrow.up.circle.fill")
+                                        .font(.system(size: 26))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(canSend ? DesignSystem.Colors.accent : DesignSystem.Colors.accent.opacity(0.3))
+                                .disabled(!canSend)
+                                .contentShape(Circle())
                             }
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, DesignSystem.Spacing.hero)
                         }
 
-                        ForEach(chatVM.messages) { message in
-                            chatBubble(message)
-                                .id(message.id)
-                        }
+                        HStack(spacing: DesignSystem.Spacing.sm) {
+                            if chatVM.canSendMessage && !chatVM.availableModels.isEmpty {
+                                ModelSelectorView(
+                                    currentModel: chatVM.currentModelName,
+                                    displayName: chatVM.modelDisplayName,
+                                    availableModels: chatVM.availableModels,
+                                    disabled: chatVM.isStreaming,
+                                    onSelect: { chatVM.selectModel($0) }
+                                )
+                            }
 
-                        if let error = chatVM.errorMessage {
-                            HStack(spacing: 6) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundStyle(DesignSystem.Colors.errorRed)
-                                Text(error)
+                            if chatVM.isStreaming {
+                                Text("Streaming response…")
                                     .font(DesignSystem.Typography.caption)
-                                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                                    .foregroundStyle(DesignSystem.Colors.textSecondary)
                             }
-                            .padding(.horizontal, DesignSystem.Spacing.md)
+
+                            Spacer()
+
+                            if !chatVM.messages.isEmpty {
+                                Button {
+                                    chatVM.clearHistory()
+                                } label: {
+                                    Label("Clear Chat", systemImage: "trash")
+                                        .font(DesignSystem.Typography.caption)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            }
                         }
                     }
-                    .padding(DesignSystem.Spacing.lg)
+                    .padding(DesignSystem.Spacing.md)
+                    .background(DesignSystem.Colors.cardBackground)
                 }
                 .onChange(of: chatVM.messages.count) {
                     if let lastID = chatVM.messages.last?.id {
@@ -584,105 +752,15 @@ struct TranscriptResultView: View {
                     }
                 }
             }
-            .background(
-                RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                    .fill(DesignSystem.Colors.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                    .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
-            )
-
-            // Input bar
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                TextField("Ask about this transcript...", text: Bindable(chatVM).inputText)
-                    .textFieldStyle(.plain)
-                    .font(DesignSystem.Typography.bodyLarge)
-                    .padding(.horizontal, DesignSystem.Spacing.sm)
-                    .padding(.vertical, 12)
-                    .focused($chatInputFocused)
-                    .onSubmit {
-                        if !chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && chatVM.canSendMessage && !chatVM.isStreaming {
-                            chatVM.sendMessage()
-                        }
-                        chatInputFocused = true
-                    }
-                    .disabled(chatVM.isStreaming || !chatVM.canSendMessage)
-                    .onAppear {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            chatInputFocused = true
-                        }
-                    }
-                    .onChange(of: chatVM.isStreaming) { _, isStreaming in
-                        if !isStreaming { chatInputFocused = true }
-                    }
-
-                if chatVM.canSendMessage && !chatVM.availableModels.isEmpty {
-                    ModelSelectorView(
-                        currentModel: chatVM.currentModelName,
-                        displayName: chatVM.modelDisplayName,
-                        availableModels: chatVM.availableModels,
-                        disabled: chatVM.isStreaming,
-                        onSelect: { chatVM.selectModel($0) }
-                    )
-                }
-
-                if chatVM.isStreaming {
-                    Button {
-                        chatVM.cancelStreaming()
-                    } label: {
-                        Image(systemName: "stop.circle.fill")
-                            .font(.system(size: 24))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(DesignSystem.Colors.errorRed)
-                    .contentShape(Circle())
-                } else {
-                    let canSend = !chatVM.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && chatVM.canSendMessage
-                    Button {
-                        chatVM.sendMessage()
-                        chatInputFocused = true
-                    } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 24))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(canSend ? DesignSystem.Colors.accent : DesignSystem.Colors.accent.opacity(0.3))
-                    .disabled(!canSend)
-                    .contentShape(Circle())
-                }
-
-                if !chatVM.messages.isEmpty {
-                    Divider()
-                        .frame(height: 20)
-                        .padding(.horizontal, 4)
-                    
-                    Button {
-                        chatVM.clearHistory()
-                    } label: {
-                        Image(systemName: "trash")
-                            .font(.system(size: 14))
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .contentShape(Rectangle())
-                    .help("Clear Chat History")
-                }
-            }
-            .padding(.horizontal, DesignSystem.Spacing.md)
-            .background(
-                Capsule()
-                    .fill(DesignSystem.Colors.surfaceElevated)
-                    .shadow(color: .black.opacity(0.06), radius: 8, y: 4)
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 1)
-            )
-            .padding(.top, DesignSystem.Spacing.md)
-            .padding(.bottom, DesignSystem.Spacing.xs)
-            .padding(.horizontal, DesignSystem.Spacing.xs)
         }
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .fill(DesignSystem.Colors.surface)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
+        )
     }
 
     @ViewBuilder
@@ -691,14 +769,19 @@ struct TranscriptResultView: View {
             if message.role == .user { Spacer(minLength: 60) }
 
             if message.role == .assistant {
-                // AI Avatar — merkaba persists for all assistant messages
                 ZStack {
                     Circle()
                         .fill(DesignSystem.Colors.surfaceElevated)
                         .frame(width: 28, height: 28)
                         .shadow(color: .black.opacity(0.05), radius: 2, y: 1)
 
-                    SpinnerRingView(size: 16, revolutionDuration: 4.0, tintColor: DesignSystem.Colors.accent)
+                    if message.isStreaming {
+                        SpinnerRingView(size: 16, revolutionDuration: 2.0, tintColor: DesignSystem.Colors.accent)
+                    } else {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(DesignSystem.Colors.accent)
+                    }
                 }
             }
 
@@ -717,14 +800,22 @@ struct TranscriptResultView: View {
                                 .textSelection(.enabled)
                         }
                     }
+                    .frame(maxWidth: 620, alignment: .leading)
                     .padding(.horizontal, DesignSystem.Spacing.md)
                     .padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: 16)
                             .fill(message.role == .user
                                   ? DesignSystem.Colors.accent
-                                  : DesignSystem.Colors.surfaceElevated.opacity(0.7))
+                                  : DesignSystem.Colors.surfaceElevated.opacity(0.9))
                             .shadow(color: .black.opacity(message.role == .user ? 0.15 : 0.05), radius: 4, y: 2)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16)
+                            .strokeBorder(
+                                message.role == .user ? DesignSystem.Colors.accent.opacity(0.25) : DesignSystem.Colors.border.opacity(0.45),
+                                lineWidth: 0.5
+                            )
                     )
                     .overlay(alignment: .bottomTrailing) {
                         // Copy button for assistant messages — appears on hover
@@ -774,6 +865,86 @@ struct TranscriptResultView: View {
         }
     }
 
+    private var chatConfigurationBanner: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "brain")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.accent)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Chat needs an AI provider")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Text("Configure Gemini, OpenAI, Anthropic, or another provider in Settings to ask follow-up questions about this transcript.")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+
+            Spacer()
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.accentLight)
+        )
+    }
+
+    private func chatEmptyState(chatVM: TranscriptChatViewModel) -> some View {
+        VStack(spacing: DesignSystem.Spacing.lg) {
+            MeditativeMerkabaView(
+                size: 60,
+                revolutionDuration: 6.0,
+                tintColor: DesignSystem.Colors.accent
+            )
+
+            VStack(spacing: DesignSystem.Spacing.xs) {
+                Text("Ask a question about this transcript")
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .font(DesignSystem.Typography.pageTitle)
+
+                Text("Start with a quick prompt, then keep drilling down.")
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .font(DesignSystem.Typography.body)
+            }
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                ForEach(suggestedPrompts, id: \.self) { prompt in
+                    Button {
+                        chatVM.inputText = prompt
+                        chatVM.sendMessage()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 11))
+                                .foregroundStyle(DesignSystem.Colors.accent.opacity(0.7))
+                            Text(prompt)
+                                .font(DesignSystem.Typography.bodySmall)
+                        }
+                        .padding(.horizontal, DesignSystem.Spacing.md)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(DesignSystem.Colors.surfaceElevated)
+                                .overlay(
+                                    Capsule()
+                                        .stroke(DesignSystem.Colors.border.opacity(0.8), lineWidth: 1)
+                                )
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, DesignSystem.Spacing.hero)
+        .padding(.horizontal, DesignSystem.Spacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.55))
+        )
+    }
+
     // MARK: - Mandala Data
 
     private var mandalaData: MandalaData {
@@ -796,61 +967,30 @@ struct TranscriptResultView: View {
             // Speaker-aware layout: group segments into speaker turns
             let turns = TranscriptSegmenter.groupIntoSpeakerTurns(segments: segments, speakerLabelProvider: speakerLabel(for:))
             ForEach(Array(turns.enumerated()), id: \.offset) { _, turn in
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                    // Speaker label
-                    HStack(spacing: DesignSystem.Spacing.xs) {
-                        Circle()
-                            .fill(speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textTertiary)
-                            .frame(width: 8, height: 8)
-
-                        Text(turn.speakerLabel)
-                            .font(DesignSystem.Typography.caption.weight(.semibold))
-                            .foregroundStyle(speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textSecondary)
-                    }
-                    .padding(.top, DesignSystem.Spacing.sm)
-
-                    // Segments within this turn
-                    ForEach(Array(turn.segments.enumerated()), id: \.offset) { _, segment in
-                        HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
-                            Text("[\(formatTimestamp(ms: segment.startMs))]")
-                                .font(DesignSystem.Typography.timestamp)
-                                .foregroundStyle(.tertiary)
-                                .frame(width: 60, alignment: .leading)
-                                .padding(.vertical, 2)
-                                .padding(.horizontal, 4)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color.primary.opacity(0.03))
-                                )
-
-                            Text(segment.text)
-                                .font(DesignSystem.Typography.bodyLarge)
-                                .textSelection(.enabled)
-                                .lineSpacing(4)
-                        }
-                    }
-                }
+                transcriptTurnCard(
+                    speakerLabel: turn.speakerLabel,
+                    speakerColor: speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textTertiary,
+                    segments: turn.segments.map { ($0.startMs, $0.text) }
+                )
             }
         } else {
-            // No speakers — original layout
+            // No speakers — render as clean transcript segments instead of a flat log.
             ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
-                HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
-                    Text("[\(formatTimestamp(ms: segment.startMs))]")
-                        .font(DesignSystem.Typography.timestamp)
-                        .foregroundStyle(.tertiary)
-                        .frame(width: 60, alignment: .leading)
-                        .padding(.vertical, 2)
-                        .padding(.horizontal, 4)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(Color.primary.opacity(0.03))
-                        )
+                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                    timestampChip(segment.startMs)
 
                     Text(segment.text)
                         .font(DesignSystem.Typography.bodyLarge)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                         .textSelection(.enabled)
-                        .lineSpacing(4)
+                        .lineSpacing(5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .padding(DesignSystem.Spacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .fill(DesignSystem.Colors.surfaceElevated.opacity(0.45))
+                )
             }
         }
     }
@@ -865,38 +1005,42 @@ struct TranscriptResultView: View {
             wordTimestamps: transcription.wordTimestamps
         )
 
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Text("Speaker overview")
+                .font(DesignSystem.Typography.body.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+
             ForEach(speakers, id: \.id) { speaker in
                 let stats = speakerStats[speaker.id]
-                HStack(spacing: DesignSystem.Spacing.sm) {
+                HStack(spacing: DesignSystem.Spacing.md) {
                     Circle()
                         .fill(colorMap[speaker.id] ?? DesignSystem.Colors.textTertiary)
-                        .frame(width: 8, height: 8)
+                        .frame(width: 10, height: 10)
 
-                    speakerLabelView(speaker: speaker, color: colorMap[speaker.id] ?? DesignSystem.Colors.textSecondary)
+                    VStack(alignment: .leading, spacing: 6) {
+                        speakerLabelView(speaker: speaker, color: colorMap[speaker.id] ?? DesignSystem.Colors.textSecondary)
 
-                    if let stats {
-                        Text(formatSpeakingTime(ms: stats.speakingTimeMs))
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(.tertiary)
-
-                        Text("·")
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(.quaternary)
-
-                        Text("\(stats.wordCount) words")
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(.tertiary)
+                        if let stats {
+                            HStack(spacing: DesignSystem.Spacing.sm) {
+                                metadataChip(icon: "clock", text: formatSpeakingTime(ms: stats.speakingTimeMs), tint: DesignSystem.Colors.textSecondary)
+                                metadataChip(icon: "text.word.spacing", text: "\(stats.wordCount.formatted()) words", tint: DesignSystem.Colors.textSecondary)
+                            }
+                        }
                     }
 
                     Spacer()
                 }
+                .padding(DesignSystem.Spacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .fill(DesignSystem.Colors.surfaceElevated.opacity(0.45))
+                )
             }
         }
         .padding(DesignSystem.Spacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.primary.opacity(0.03))
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.25))
         )
     }
 
@@ -952,6 +1096,67 @@ struct TranscriptResultView: View {
             return "\(minutes)m \(seconds)s"
         }
         return "\(seconds)s"
+    }
+
+    private func transcriptTurnCard(
+        speakerLabel: String,
+        speakerColor: Color,
+        segments: [(startMs: Int, text: String)]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Circle()
+                    .fill(speakerColor)
+                    .frame(width: 10, height: 10)
+
+                Text(speakerLabel)
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(speakerColor)
+
+                if let firstStart = segments.first?.startMs {
+                    metadataChip(icon: "clock", text: formatTimestamp(ms: firstStart), tint: DesignSystem.Colors.textSecondary)
+                }
+
+                Spacer()
+            }
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
+                    HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                        timestampChip(segment.startMs)
+
+                        Text(segment.text)
+                            .font(DesignSystem.Typography.bodyLarge)
+                            .foregroundStyle(DesignSystem.Colors.textPrimary)
+                            .textSelection(.enabled)
+                            .lineSpacing(5)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(speakerColor.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .strokeBorder(speakerColor.opacity(0.18), lineWidth: 0.75)
+        )
+    }
+
+    private func timestampChip(_ startMs: Int) -> some View {
+        Text(formatTimestamp(ms: startMs))
+            .font(DesignSystem.Typography.timestamp)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(
+                Capsule()
+                    .fill(DesignSystem.Colors.surface)
+            )
+            .frame(width: 72, alignment: .leading)
     }
 
     // MARK: - Speaker Helpers
