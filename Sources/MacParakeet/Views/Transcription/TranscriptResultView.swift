@@ -541,27 +541,24 @@ struct TranscriptResultView: View {
                 }
             }
 
-            if isStreaming {
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    SpinnerRingView(
-                        size: 18,
-                        revolutionDuration: 3.0,
-                        tintColor: DesignSystem.Colors.accent
-                    )
-                    AIStreamingIndicator()
-                }
-            }
-
             if viewModel.summary.isEmpty && isStreaming {
                 SummarySkeletonView()
             } else {
-                MarkdownContentView(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
-                    .padding(DesignSystem.Spacing.lg)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                            .fill(DesignSystem.Colors.surfaceElevated.opacity(0.65))
-                    )
+                VStack(alignment: .leading, spacing: 0) {
+                    MarkdownContentView(viewModel.summary, font: DesignSystem.Typography.bodyLarge)
+                        .padding(DesignSystem.Spacing.lg)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    if isStreaming {
+                        AIStreamingIndicator()
+                            .padding(.leading, DesignSystem.Spacing.lg)
+                            .padding(.bottom, DesignSystem.Spacing.md)
+                    }
+                }
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .fill(DesignSystem.Colors.surfaceElevated.opacity(0.65))
+                )
             }
 
             HStack(spacing: DesignSystem.Spacing.sm) {

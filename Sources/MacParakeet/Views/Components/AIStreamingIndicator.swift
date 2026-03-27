@@ -31,26 +31,20 @@ struct AIStreamingIndicator: View {
 }
 
 /// Merkaba-centered skeleton for the summary loading state.
-/// Shows a meditative merkaba spinner with subtle status text.
+/// A single, centered merkaba spinner — the card header provides context text.
 struct SummarySkeletonView: View {
     var body: some View {
-        VStack(spacing: DesignSystem.Spacing.md) {
+        VStack(spacing: DesignSystem.Spacing.lg) {
             MeditativeMerkabaView(
-                size: 96,
-                revolutionDuration: 4.0,
+                size: 72,
+                revolutionDuration: 5.0,
                 tintColor: DesignSystem.Colors.accent
             )
 
-            VStack(spacing: DesignSystem.Spacing.sm) {
-                Text("Generating summary")
-                    .font(DesignSystem.Typography.bodySmall.weight(.medium))
-                    .foregroundStyle(.secondary)
-
-                AIStreamingIndicator()
-            }
+            AIStreamingIndicator()
         }
         .frame(maxWidth: .infinity)
-        .padding(.top, DesignSystem.Spacing.xl)
+        .padding(.vertical, DesignSystem.Spacing.xxl)
     }
 }
 
