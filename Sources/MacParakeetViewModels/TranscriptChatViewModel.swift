@@ -166,7 +166,12 @@ public final class TranscriptChatViewModel {
                     }
                 }
 
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled else {
+                    removeStreamingAssistantMessage()
+                    streamingAssistantID = nil
+                    isStreaming = false
+                    return
+                }
 
                 if let idx = messages.firstIndex(where: { $0.id == assistantID }) {
                     messages[idx].isStreaming = false
@@ -337,6 +342,11 @@ public final class TranscriptChatViewModel {
             if let idx = conversations.firstIndex(where: { $0.id == currentConversation.id }) {
                 conversations[idx].messages = toSave
                 conversations[idx].updatedAt = Date()
+                // Move to front so most-recently-updated stays first
+                if idx != 0 {
+                    let updated = conversations.remove(at: idx)
+                    conversations.insert(updated, at: 0)
+                }
             }
         } catch {
             logger.error("Failed to persist chat messages error=\(error.localizedDescription, privacy: .public)")

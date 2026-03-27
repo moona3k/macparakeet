@@ -153,6 +153,8 @@ struct TranscriptResultView: View {
         .onChange(of: transcription.id) {
             editingSpeakerId = nil
             editingSpeakerLabel = ""
+            showConversationPopover = false
+            hoveredConversationId = nil
             viewModel.selectedTab = .transcript
             viewModel.resetSummaryState()
             viewModel.loadPersistedContent()
