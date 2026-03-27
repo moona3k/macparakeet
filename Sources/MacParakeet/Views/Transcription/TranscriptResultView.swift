@@ -30,6 +30,8 @@ struct TranscriptResultView: View {
     @State private var dismissTask: Task<Void, Never>?
     @State private var editingSpeakerId: String?
     @State private var editingSpeakerLabel: String = ""
+    @State private var showConversationPopover = false
+    @State private var hoveredConversationId: UUID?
     @FocusState private var chatInputFocused: Bool
     @FocusState private var speakerRenameFocused: Bool
 
@@ -148,7 +150,7 @@ struct TranscriptResultView: View {
             viewModel.resetSummaryState()
             viewModel.loadPersistedContent()
             let text = viewModel.currentTranscription?.cleanTranscript ?? viewModel.currentTranscription?.rawTranscript ?? ""
-            chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id, chatMessages: viewModel.currentTranscription?.chatMessages)
+            chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id)
         }
         .onChange(of: transcription.id) {
             editingSpeakerId = nil
@@ -157,7 +159,7 @@ struct TranscriptResultView: View {
             viewModel.resetSummaryState()
             viewModel.loadPersistedContent()
             let text = viewModel.currentTranscription?.cleanTranscript ?? viewModel.currentTranscription?.rawTranscript ?? ""
-            chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id, chatMessages: viewModel.currentTranscription?.chatMessages)
+            chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id)
         }
     }
 
@@ -614,6 +616,12 @@ struct TranscriptResultView: View {
     @ViewBuilder
     private func chatPane(viewModel chatVM: TranscriptChatViewModel) -> some View {
         VStack(spacing: 0) {
+            // Chat header with conversation switcher
+            if !chatVM.conversations.isEmpty || !chatVM.messages.isEmpty {
+                chatPaneHeader(chatVM: chatVM)
+                Divider()
+            }
+
             ScrollViewReader { proxy in
                 VStack(spacing: 0) {
                     ScrollView {
@@ -722,18 +730,6 @@ struct TranscriptResultView: View {
                             }
 
                             Spacer()
-
-                            if !chatVM.messages.isEmpty {
-                                Button {
-                                    chatVM.clearHistory()
-                                } label: {
-                                    Label("Clear Chat", systemImage: "trash")
-                                        .font(DesignSystem.Typography.caption)
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.small)
-                                .foregroundStyle(DesignSystem.Colors.textSecondary)
-                            }
                         }
                     }
                     .padding(DesignSystem.Spacing.md)
@@ -761,6 +757,90 @@ struct TranscriptResultView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
         )
+    }
+
+    @ViewBuilder
+    private func chatPaneHeader(chatVM: TranscriptChatViewModel) -> some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Button {
+                showConversationPopover.toggle()
+            } label: {
+                HStack(spacing: 4) {
+                    Text(chatVM.currentConversation?.title ?? "New Chat")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .lineLimit(1)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showConversationPopover, arrowEdge: .bottom) {
+                conversationListPopover(chatVM: chatVM)
+            }
+
+            Spacer()
+
+            Button {
+                chatVM.newChat()
+            } label: {
+                Label("New Chat", systemImage: "plus.bubble")
+                    .font(DesignSystem.Typography.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.vertical, DesignSystem.Spacing.sm)
+        .background(DesignSystem.Colors.cardBackground)
+    }
+
+    @ViewBuilder
+    private func conversationListPopover(chatVM: TranscriptChatViewModel) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(chatVM.conversations) { conversation in
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Text(conversation.title.isEmpty ? "Untitled" : conversation.title)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    if hoveredConversationId == conversation.id {
+                        Button {
+                            chatVM.deleteConversation(conversation)
+                            if chatVM.conversations.isEmpty {
+                                showConversationPopover = false
+                            }
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 11))
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.vertical, DesignSystem.Spacing.sm)
+                .background(
+                    chatVM.currentConversation?.id == conversation.id
+                        ? DesignSystem.Colors.accent.opacity(0.1)
+                        : Color.clear
+                )
+                .contentShape(Rectangle())
+                .onHover { isHovered in
+                    hoveredConversationId = isHovered ? conversation.id : nil
+                }
+                .onTapGesture {
+                    chatVM.switchConversation(conversation)
+                    showConversationPopover = false
+                }
+            }
+        }
+        .frame(minWidth: 200, maxWidth: 300)
+        .padding(.vertical, DesignSystem.Spacing.sm)
     }
 
     @ViewBuilder

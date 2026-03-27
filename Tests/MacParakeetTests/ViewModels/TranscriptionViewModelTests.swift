@@ -796,13 +796,13 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.showTabs)
     }
 
-    func testShowTabsTrueWhenSavedChatExists() {
+    func testShowTabsTrueWhenHasConversations() {
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         viewModel.currentTranscription = Transcription(
             fileName: "test.mp3",
-            chatMessages: [ChatMessage(role: .user, content: "Hi")],
             status: .completed
         )
+        viewModel.hasConversations = true
         XCTAssertFalse(viewModel.llmAvailable)
         XCTAssertTrue(viewModel.showTabs)
     }
@@ -813,21 +813,21 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.showTabs)
     }
 
-    func testUpdateCurrentTranscriptionChatMessagesUpdatesShowTabs() {
+    func testUpdateConversationStatusUpdatesShowTabs() {
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         let transcription = Transcription(
             fileName: "test.mp3",
-            chatMessages: [ChatMessage(role: .user, content: "Hi")],
             status: .completed
         )
         viewModel.currentTranscription = transcription
+        viewModel.hasConversations = true
 
         XCTAssertTrue(viewModel.showTabs)
 
-        viewModel.updateCurrentTranscriptionChatMessages(id: transcription.id, chatMessages: nil)
+        viewModel.updateConversationStatus(id: transcription.id, hasConversations: false)
 
         XCTAssertFalse(viewModel.showTabs)
-        XCTAssertNil(viewModel.currentTranscription?.chatMessages)
+        XCTAssertFalse(viewModel.hasConversations)
     }
 
     // MARK: - Summary Persistence

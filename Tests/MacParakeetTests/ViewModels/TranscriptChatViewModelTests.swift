@@ -7,12 +7,19 @@ final class TranscriptChatViewModelTests: XCTestCase {
     var viewModel: TranscriptChatViewModel!
     var mockService: MockLLMService!
     var mockRepo: MockTranscriptionRepository!
+    var mockConversationRepo: MockChatConversationRepository!
 
     override func setUp() {
         viewModel = TranscriptChatViewModel()
         mockService = MockLLMService()
         mockRepo = MockTranscriptionRepository()
-        viewModel.configure(llmService: mockService, transcriptText: "Test transcript content here.", transcriptionRepo: mockRepo)
+        mockConversationRepo = MockChatConversationRepository()
+        viewModel.configure(
+            llmService: mockService,
+            transcriptText: "Test transcript content here.",
+            transcriptionRepo: mockRepo,
+            conversationRepo: mockConversationRepo
+        )
     }
 
     // MARK: - Initial State
@@ -27,6 +34,9 @@ final class TranscriptChatViewModelTests: XCTestCase {
     // MARK: - Send Message
 
     func testSendMessageAppendsUserAndAssistant() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
         mockService.streamTokens = ["Hello", " there"]
         viewModel.inputText = "What is this about?"
 
@@ -44,6 +54,8 @@ final class TranscriptChatViewModelTests: XCTestCase {
     }
 
     func testSendMessageClearsInput() {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
         viewModel.inputText = "My question"
         viewModel.sendMessage()
         XCTAssertEqual(viewModel.inputText, "")
@@ -56,6 +68,9 @@ final class TranscriptChatViewModelTests: XCTestCase {
     }
 
     func testSendMessageWhileStreamingDoesNotSend() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
         mockService.streamTokens = ["slow"]
         viewModel.inputText = "First"
         viewModel.sendMessage()
@@ -74,6 +89,9 @@ final class TranscriptChatViewModelTests: XCTestCase {
     // MARK: - Error Handling
 
     func testSendMessageWithError() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
         mockService.errorToThrow = LLMError.authenticationFailed(nil)
         viewModel.inputText = "Will fail"
 
@@ -91,6 +109,9 @@ final class TranscriptChatViewModelTests: XCTestCase {
     // MARK: - Clear History
 
     func testClearHistory() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
         mockService.streamTokens = ["response"]
         viewModel.inputText = "Question"
         viewModel.sendMessage()
@@ -108,6 +129,9 @@ final class TranscriptChatViewModelTests: XCTestCase {
     // MARK: - Update Transcript
 
     func testUpdateTranscriptClearsHistory() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
         mockService.streamTokens = ["response"]
         viewModel.inputText = "Question"
         viewModel.sendMessage()
@@ -123,6 +147,8 @@ final class TranscriptChatViewModelTests: XCTestCase {
     // MARK: - Cancel Streaming
 
     func testCancelStreaming() {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
         viewModel.inputText = "Question"
         viewModel.sendMessage()
 
@@ -133,6 +159,9 @@ final class TranscriptChatViewModelTests: XCTestCase {
     }
 
     func testCancelStreamingDoesNotSurfaceError() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
         mockService.streamTokens = ["slow"]
         mockService.streamDelayNs = 200_000_000
         viewModel.inputText = "Question"
@@ -146,6 +175,9 @@ final class TranscriptChatViewModelTests: XCTestCase {
     }
 
     func testUpdateLLMServiceDoesNotClearHistory() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
         mockService.streamTokens = ["response"]
         viewModel.inputText = "Question"
         viewModel.sendMessage()
@@ -169,11 +201,14 @@ final class TranscriptChatViewModelTests: XCTestCase {
 
     func testConfigureWithNilServiceStartsDisabled() {
         let vm = TranscriptChatViewModel()
-        vm.configure(llmService: nil, transcriptText: "Transcript", transcriptionRepo: mockRepo)
+        vm.configure(llmService: nil, transcriptText: "Transcript", transcriptionRepo: mockRepo, conversationRepo: mockConversationRepo)
         XCTAssertFalse(vm.canSendMessage)
     }
 
     func testUpdateLLMServiceSwapsProvider() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
         let newService = MockLLMService()
         newService.streamTokens = ["new", " provider"]
         viewModel.updateLLMService(newService)
@@ -188,13 +223,19 @@ final class TranscriptChatViewModelTests: XCTestCase {
     // MARK: - Persistence
 
     func testLoadTranscriptRestoresPersistedChat() {
+        let transcriptionId = UUID()
         let messages = [
             ChatMessage(role: .user, content: "Question"),
-            ChatMessage(role: .assistant, content: "Answer")
+            ChatMessage(role: .assistant, content: "Answer"),
         ]
-        let id = UUID()
+        let conv = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Restored",
+            messages: messages
+        )
+        mockConversationRepo.conversations = [conv]
 
-        viewModel.loadTranscript("Transcript text", transcriptionId: id, chatMessages: messages)
+        viewModel.loadTranscript("Transcript text", transcriptionId: transcriptionId)
 
         XCTAssertEqual(viewModel.messages.count, 2)
         XCTAssertEqual(viewModel.messages[0].role, .user)
@@ -205,28 +246,24 @@ final class TranscriptChatViewModelTests: XCTestCase {
 
     func testSendMessagePersistsChatHistory() async throws {
         let transcriptionId = UUID()
-        let t = Transcription(id: transcriptionId, fileName: "test.mp3", status: .completed)
-        mockRepo.transcriptions = [t]
-
-        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId, chatMessages: nil)
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
 
         mockService.streamTokens = ["response"]
         viewModel.inputText = "Question"
         viewModel.sendMessage()
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        XCTAssertEqual(mockRepo.updateChatMessagesCalls.count, 2)
-        XCTAssertEqual(mockRepo.updateChatMessagesCalls[0].chatMessages?.count, 1)
-        XCTAssertEqual(mockRepo.updateChatMessagesCalls[0].chatMessages?.first?.role, .user)
-        XCTAssertEqual(mockRepo.updateChatMessagesCalls[1].chatMessages?.count, 2)
+        // First call saves user message, second saves user + assistant
+        XCTAssertEqual(mockConversationRepo.updateMessagesCalls.count, 2)
+        XCTAssertEqual(mockConversationRepo.updateMessagesCalls[0].messages?.count, 1)
+        XCTAssertEqual(mockConversationRepo.updateMessagesCalls[0].messages?.first?.role, .user)
+        XCTAssertEqual(mockConversationRepo.updateMessagesCalls[1].messages?.count, 2)
     }
 
     func testUpdateLLMServiceDuringStreamingRemovesPendingAssistantMessage() async throws {
         let transcriptionId = UUID()
-        let t = Transcription(id: transcriptionId, fileName: "test.mp3", status: .completed)
-        mockRepo.transcriptions = [t]
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
 
-        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId, chatMessages: nil)
         mockService.streamTokens = ["partial", " response"]
         mockService.streamDelayNs = 200_000_000
         viewModel.inputText = "Question"
@@ -239,24 +276,25 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.messages.count, 1)
         XCTAssertEqual(viewModel.messages[0].role, .user)
         XCTAssertEqual(viewModel.messages[0].content, "Question")
-        XCTAssertEqual(mockRepo.updateChatMessagesCalls.last?.chatMessages?.count, 1)
-        XCTAssertEqual(mockRepo.updateChatMessagesCalls.last?.chatMessages?.first?.role, .user)
+        XCTAssertEqual(mockConversationRepo.updateMessagesCalls.last?.messages?.count, 1)
+        XCTAssertEqual(mockConversationRepo.updateMessagesCalls.last?.messages?.first?.role, .user)
     }
 
-    func testClearHistoryPersistsEmptyArray() async throws {
+    func testClearHistoryDeletesConversations() async throws {
         let transcriptionId = UUID()
-        let t = Transcription(id: transcriptionId, fileName: "test.mp3", status: .completed)
-        mockRepo.transcriptions = [t]
-
-        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId, chatMessages: [
-            ChatMessage(role: .user, content: "Hi")
-        ])
+        let conv = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Chat",
+            messages: [ChatMessage(role: .user, content: "Hi")]
+        )
+        mockConversationRepo.conversations = [conv]
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
 
         viewModel.clearHistory()
 
-        // Should persist nil (empty history)
-        XCTAssertEqual(mockRepo.updateChatMessagesCalls.count, 1)
-        XCTAssertNil(mockRepo.updateChatMessagesCalls[0].chatMessages)
+        XCTAssertTrue(viewModel.conversations.isEmpty)
+        XCTAssertNil(viewModel.currentConversation)
+        XCTAssertTrue(mockConversationRepo.deleteCalls.contains(conv.id))
     }
 
     func testCanSendMessageFalseWhenNoService() {
@@ -271,22 +309,24 @@ final class TranscriptChatViewModelTests: XCTestCase {
     // MARK: - Duplicate Question Regression
 
     func testChatHistoryDoesNotDuplicateQuestion() async throws {
-        // Regression: chatHistory was capturing the user message before passing to chatStream,
-        // which then appends the question again via buildChatMessages → double question.
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
         mockService.streamTokens = ["answer"]
         viewModel.inputText = "What happened?"
         viewModel.sendMessage()
 
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        // The history passed to chatStream should NOT contain the current question
-        // (buildChatMessages appends it separately)
         let historyUserMessages = mockService.lastChatHistory?.filter { $0.role == .user } ?? []
         XCTAssertTrue(historyUserMessages.isEmpty, "First message history should be empty — question is passed separately")
         XCTAssertEqual(mockService.lastChatQuestion, "What happened?")
     }
 
     func testMultiTurnHistoryDoesNotDuplicateLatestQuestion() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
         // First turn
         mockService.streamTokens = ["first answer"]
         viewModel.inputText = "First question"
@@ -299,7 +339,6 @@ final class TranscriptChatViewModelTests: XCTestCase {
         viewModel.sendMessage()
         try await Task.sleep(nanoseconds: 200_000_000)
 
-        // History should contain turn 1 (user + assistant) but NOT "Second question"
         let history = mockService.lastChatHistory ?? []
         XCTAssertEqual(history.count, 2, "History should have first user + first assistant")
         XCTAssertEqual(history[0].role, .user)
@@ -307,5 +346,192 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertEqual(history[1].role, .assistant)
         XCTAssertEqual(history[1].content, "first answer")
         XCTAssertEqual(mockService.lastChatQuestion, "Second question")
+    }
+
+    // MARK: - Multi-Conversation
+
+    func testFirstMessageCreatesConversation() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        XCTAssertNil(viewModel.currentConversation)
+
+        mockService.streamTokens = ["answer"]
+        viewModel.inputText = "Hello world"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertNotNil(viewModel.currentConversation)
+        XCTAssertEqual(mockConversationRepo.saveCalls.count, 1)
+        XCTAssertEqual(viewModel.conversations.count, 1)
+    }
+
+    func testAutoTitle() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        mockService.streamTokens = ["response"]
+        viewModel.inputText = "What are the main takeaways from this transcript?"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        let title = viewModel.currentConversation?.title ?? ""
+        XCTAssertTrue(title.count <= 50, "Auto-title should be truncated to 50 chars")
+        XCTAssertTrue(title.hasPrefix("What are the main takeaways"))
+    }
+
+    func testNewChatArchivesCurrentConversation() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        // Send a message to create a conversation
+        mockService.streamTokens = ["answer"]
+        viewModel.inputText = "Question"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        let firstConversationId = viewModel.currentConversation?.id
+        XCTAssertNotNil(firstConversationId)
+        XCTAssertEqual(viewModel.conversations.count, 1)
+
+        // Start new chat
+        viewModel.newChat()
+
+        XCTAssertNil(viewModel.currentConversation)
+        XCTAssertTrue(viewModel.messages.isEmpty)
+        // The old conversation is still in the list
+        XCTAssertEqual(viewModel.conversations.count, 1)
+        XCTAssertEqual(viewModel.conversations[0].id, firstConversationId)
+    }
+
+    func testNewChatDiscardsEmptyConversation() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        // Send a message to create a first conversation
+        mockService.streamTokens = ["answer"]
+        viewModel.inputText = "Question"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        // Start new chat
+        viewModel.newChat()
+
+        // Now start new chat again without sending any message
+        // (currentConversation is nil, so nothing to discard)
+        viewModel.newChat()
+
+        // Should only have 1 conversation (the original one with messages)
+        XCTAssertEqual(viewModel.conversations.count, 1)
+    }
+
+    func testSwitchConversation() async throws {
+        let transcriptionId = UUID()
+        let conv1 = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "First Chat",
+            messages: [ChatMessage(role: .user, content: "Q1")]
+        )
+        let conv2 = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Second Chat",
+            messages: [
+                ChatMessage(role: .user, content: "Q2"),
+                ChatMessage(role: .assistant, content: "A2"),
+            ]
+        )
+        mockConversationRepo.conversations = [conv2, conv1]
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        // Should load most recent (conv2)
+        XCTAssertEqual(viewModel.currentConversation?.id, conv2.id)
+        XCTAssertEqual(viewModel.messages.count, 2)
+
+        // Switch to conv1
+        viewModel.switchConversation(conv1)
+
+        XCTAssertEqual(viewModel.currentConversation?.id, conv1.id)
+        XCTAssertEqual(viewModel.messages.count, 1)
+        XCTAssertEqual(viewModel.messages[0].content, "Q1")
+    }
+
+    func testDeleteConversation() async throws {
+        let transcriptionId = UUID()
+        let conv1 = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Keep",
+            messages: [ChatMessage(role: .user, content: "Q1")]
+        )
+        let conv2 = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Delete",
+            messages: [ChatMessage(role: .user, content: "Q2")]
+        )
+        mockConversationRepo.conversations = [conv1, conv2]
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        // Delete conv1 (current)
+        viewModel.deleteConversation(conv1)
+
+        XCTAssertEqual(viewModel.conversations.count, 1)
+        XCTAssertEqual(viewModel.conversations[0].id, conv2.id)
+        // Should switch to remaining conversation
+        XCTAssertEqual(viewModel.currentConversation?.id, conv2.id)
+        XCTAssertTrue(mockConversationRepo.deleteCalls.contains(conv1.id))
+    }
+
+    func testDeleteLastConversation() async throws {
+        let transcriptionId = UUID()
+        let conv = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Only",
+            messages: [ChatMessage(role: .user, content: "Q")]
+        )
+        mockConversationRepo.conversations = [conv]
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        viewModel.deleteConversation(conv)
+
+        XCTAssertTrue(viewModel.conversations.isEmpty)
+        XCTAssertNil(viewModel.currentConversation)
+        XCTAssertTrue(viewModel.messages.isEmpty)
+    }
+
+    func testConversationListOrder() throws {
+        let transcriptionId = UUID()
+        let older = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Older",
+            messages: [ChatMessage(role: .user, content: "old")],
+            updatedAt: Date(timeIntervalSinceNow: -100)
+        )
+        let newer = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Newer",
+            messages: [ChatMessage(role: .user, content: "new")],
+            updatedAt: Date()
+        )
+        mockConversationRepo.conversations = [older, newer]
+
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        // Most recently updated should be first
+        XCTAssertEqual(viewModel.conversations[0].title, "Newer")
+        XCTAssertEqual(viewModel.conversations[1].title, "Older")
+    }
+
+    func testLoadTranscriptCleansEmptyConversations() {
+        let transcriptionId = UUID()
+        let empty = ChatConversation(transcriptionId: transcriptionId, title: "Empty")
+        let withMessages = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Has Messages",
+            messages: [ChatMessage(role: .user, content: "Hi")]
+        )
+        mockConversationRepo.conversations = [empty, withMessages]
+
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        XCTAssertTrue(mockConversationRepo.deleteEmptyCalls.contains(transcriptionId))
     }
 }

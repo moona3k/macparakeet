@@ -485,6 +485,70 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     }
 }
 
+// MARK: - MockChatConversationRepository
+
+final class MockChatConversationRepository: ChatConversationRepositoryProtocol, @unchecked Sendable {
+    var conversations: [ChatConversation] = []
+    var saveCalls: [ChatConversation] = []
+    var deleteCalls: [UUID] = []
+    var deleteEmptyCalls: [UUID] = []
+    var updateMessagesCalls: [(id: UUID, messages: [ChatMessage]?)] = []
+    var updateTitleCalls: [(id: UUID, title: String)] = []
+
+    func save(_ conversation: ChatConversation) throws {
+        saveCalls.append(conversation)
+        if let idx = conversations.firstIndex(where: { $0.id == conversation.id }) {
+            conversations[idx] = conversation
+        } else {
+            conversations.append(conversation)
+        }
+    }
+
+    func fetch(id: UUID) throws -> ChatConversation? {
+        conversations.first(where: { $0.id == id })
+    }
+
+    func fetchAll(transcriptionId: UUID) throws -> [ChatConversation] {
+        conversations
+            .filter { $0.transcriptionId == transcriptionId }
+            .sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    func delete(id: UUID) throws -> Bool {
+        deleteCalls.append(id)
+        let before = conversations.count
+        conversations.removeAll { $0.id == id }
+        return conversations.count < before
+    }
+
+    func deleteEmpty(transcriptionId: UUID) throws {
+        deleteEmptyCalls.append(transcriptionId)
+        conversations.removeAll {
+            $0.transcriptionId == transcriptionId && $0.messages == nil
+        }
+    }
+
+    func updateMessages(id: UUID, messages: [ChatMessage]?) throws {
+        updateMessagesCalls.append((id: id, messages: messages))
+        if let idx = conversations.firstIndex(where: { $0.id == id }) {
+            conversations[idx].messages = messages
+            conversations[idx].updatedAt = Date()
+        }
+    }
+
+    func updateTitle(id: UUID, title: String) throws {
+        updateTitleCalls.append((id: id, title: title))
+        if let idx = conversations.firstIndex(where: { $0.id == id }) {
+            conversations[idx].title = title
+            conversations[idx].updatedAt = Date()
+        }
+    }
+
+    func hasConversations(transcriptionId: UUID) throws -> Bool {
+        conversations.contains { $0.transcriptionId == transcriptionId }
+    }
+}
+
 // MARK: - MockPermissionService
 
 final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendable {

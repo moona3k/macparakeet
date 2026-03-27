@@ -366,12 +366,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 llmService: hasLLMConfig ? env.llmService : nil,
                 transcriptText: "",
                 transcriptionRepo: env.transcriptionRepo,
-                configStore: env.llmConfigStore
+                configStore: env.llmConfigStore,
+                conversationRepo: env.chatConversationRepo
             )
-            chatViewModel.onChatMessagesChanged = { [weak self] transcriptionID, chatMessages in
-                self?.transcriptionViewModel.updateCurrentTranscriptionChatMessages(
+            chatViewModel.onConversationsChanged = { [weak self] transcriptionID, hasConversations in
+                self?.transcriptionViewModel.updateConversationStatus(
                     id: transcriptionID,
-                    chatMessages: chatMessages
+                    hasConversations: hasConversations
                 )
             }
             chatViewModel.onModelChanged = { [weak self] in

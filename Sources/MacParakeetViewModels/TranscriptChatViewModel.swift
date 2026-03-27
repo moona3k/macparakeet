@@ -23,8 +23,13 @@ public final class TranscriptChatViewModel {
     public var inputText: String = ""
     public var isStreaming: Bool = false
     public var errorMessage: String?
-    public var onChatMessagesChanged: ((UUID, [ChatMessage]?) -> Void)?
+    public var onConversationsChanged: ((UUID, Bool) -> Void)?
     public var onModelChanged: (() -> Void)?
+
+    // Multi-conversation state
+    public var conversations: [ChatConversation] = []
+    public var currentConversation: ChatConversation?
+    public var showConversationPicker: Bool = false
 
     // Model selection state
     public var currentModelName: String = ""
@@ -34,6 +39,7 @@ public final class TranscriptChatViewModel {
     private var llmService: LLMServiceProtocol?
     private var configStore: LLMConfigStoreProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
+    private var conversationRepo: ChatConversationRepositoryProtocol?
     private var transcriptionId: UUID?
     private var transcriptText: String = ""
     private var chatHistory: [ChatMessage] = []
@@ -60,12 +66,14 @@ public final class TranscriptChatViewModel {
         llmService: LLMServiceProtocol?,
         transcriptText: String,
         transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
-        configStore: LLMConfigStoreProtocol? = nil
+        configStore: LLMConfigStoreProtocol? = nil,
+        conversationRepo: ChatConversationRepositoryProtocol? = nil
     ) {
         self.llmService = llmService
         self.transcriptText = transcriptText
         self.transcriptionRepo = transcriptionRepo
         self.configStore = configStore
+        self.conversationRepo = conversationRepo
         refreshModelInfo()
     }
 
@@ -110,6 +118,20 @@ public final class TranscriptChatViewModel {
 
         inputText = ""
         errorMessage = nil
+
+        // Lazy conversation creation on first message
+        if currentConversation == nil {
+            guard let transcriptionId else { return }
+            let title = String(text.prefix(50))
+            var conversation = ChatConversation(transcriptionId: transcriptionId, title: title)
+            do {
+                try conversationRepo?.save(conversation)
+            } catch {
+                logger.error("Failed to save new conversation error=\(error.localizedDescription, privacy: .public)")
+            }
+            currentConversation = conversation
+            conversations.insert(conversation, at: 0)
+        }
 
         let userMessage = ChatDisplayMessage(role: .user, content: text)
         messages.append(userMessage)
@@ -176,13 +198,118 @@ public final class TranscriptChatViewModel {
         clearHistory()
     }
 
-    public func loadTranscript(_ text: String, transcriptionId: UUID?, chatMessages: [ChatMessage]?) {
+    public func loadTranscript(_ text: String, transcriptionId: UUID?) {
         cancelStreaming()
         self.transcriptText = text
         self.transcriptionId = transcriptionId
         self.streamingAssistantID = nil
 
-        if let chatMessages, !chatMessages.isEmpty {
+        guard let transcriptionId else {
+            messages.removeAll()
+            chatHistory.removeAll()
+            conversations.removeAll()
+            currentConversation = nil
+            errorMessage = nil
+            inputText = ""
+            return
+        }
+
+        // Load conversations from repo
+        do {
+            try conversationRepo?.deleteEmpty(transcriptionId: transcriptionId)
+            conversations = try conversationRepo?.fetchAll(transcriptionId: transcriptionId) ?? []
+        } catch {
+            logger.error("Failed to load conversations error=\(error.localizedDescription, privacy: .public)")
+            conversations = []
+        }
+
+        if let mostRecent = conversations.first {
+            loadConversationMessages(mostRecent)
+        } else {
+            messages.removeAll()
+            chatHistory.removeAll()
+            currentConversation = nil
+        }
+
+        errorMessage = nil
+        inputText = ""
+    }
+
+    // MARK: - Multi-Conversation
+
+    public func newChat() {
+        cancelStreaming()
+
+        // If current conversation has no messages, delete it
+        if let current = currentConversation, current.messages == nil || current.messages?.isEmpty == true {
+            _ = try? conversationRepo?.delete(id: current.id)
+            conversations.removeAll { $0.id == current.id }
+        }
+
+        messages.removeAll()
+        chatHistory.removeAll()
+        errorMessage = nil
+        inputText = ""
+        currentConversation = nil
+
+        notifyConversationsChanged()
+    }
+
+    public func switchConversation(_ conversation: ChatConversation) {
+        cancelStreaming()
+
+        // Clean up empty current conversation
+        if let current = currentConversation, current.messages == nil || current.messages?.isEmpty == true {
+            _ = try? conversationRepo?.delete(id: current.id)
+            conversations.removeAll { $0.id == current.id }
+        }
+
+        loadConversationMessages(conversation)
+        errorMessage = nil
+        inputText = ""
+    }
+
+    public func deleteConversation(_ conversation: ChatConversation) {
+        _ = try? conversationRepo?.delete(id: conversation.id)
+        conversations.removeAll { $0.id == conversation.id }
+
+        if currentConversation?.id == conversation.id {
+            if let next = conversations.first {
+                loadConversationMessages(next)
+            } else {
+                messages.removeAll()
+                chatHistory.removeAll()
+                currentConversation = nil
+            }
+        }
+
+        notifyConversationsChanged()
+    }
+
+    /// Clears all conversations for the current transcript (used when retranscribing).
+    public func clearHistory() {
+        messages.removeAll()
+        chatHistory.removeAll()
+        errorMessage = nil
+        inputText = ""
+
+        // Delete all conversations for this transcript
+        if let transcriptionId {
+            for conv in conversations {
+                _ = try? conversationRepo?.delete(id: conv.id)
+            }
+            conversations.removeAll()
+        }
+        currentConversation = nil
+
+        notifyConversationsChanged()
+    }
+
+    // MARK: - Private
+
+    private func loadConversationMessages(_ conversation: ChatConversation) {
+        currentConversation = conversation
+        if let chatMessages = conversation.messages, !chatMessages.isEmpty {
             messages = chatMessages.map { msg in
                 ChatDisplayMessage(role: msg.role, content: msg.content)
             }
@@ -191,27 +318,29 @@ public final class TranscriptChatViewModel {
             messages.removeAll()
             chatHistory.removeAll()
         }
-        errorMessage = nil
-        inputText = ""
-    }
-
-    public func clearHistory() {
-        messages.removeAll()
-        chatHistory.removeAll()
-        errorMessage = nil
-        inputText = ""
-        persistChatMessages()
     }
 
     private func persistChatMessages() {
-        guard let transcriptionId else { return }
+        guard let currentConversation else { return }
         let toSave = chatHistory.isEmpty ? nil : chatHistory
         do {
-            try transcriptionRepo?.updateChatMessages(id: transcriptionId, chatMessages: toSave)
+            try conversationRepo?.updateMessages(id: currentConversation.id, messages: toSave)
+            // Update the local copy
+            self.currentConversation?.messages = toSave
+            if let idx = conversations.firstIndex(where: { $0.id == currentConversation.id }) {
+                conversations[idx].messages = toSave
+                conversations[idx].updatedAt = Date()
+            }
         } catch {
             logger.error("Failed to persist chat messages error=\(error.localizedDescription, privacy: .public)")
         }
-        onChatMessagesChanged?(transcriptionId, toSave)
+        notifyConversationsChanged()
+    }
+
+    private func notifyConversationsChanged() {
+        guard let transcriptionId else { return }
+        let hasConvs = !conversations.isEmpty
+        onConversationsChanged?(transcriptionId, hasConvs)
     }
 
     private func removeStreamingAssistantMessage() {

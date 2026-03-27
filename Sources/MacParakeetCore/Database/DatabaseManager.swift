@@ -183,6 +183,53 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.5 — Chat conversations table (multi-conversation per transcript)
+        migrator.registerMigration("v0.5-chat-conversations") { db in
+            try db.create(table: "chat_conversations") { t in
+                t.column("id", .text).primaryKey()
+                t.column("transcriptionId", .text)
+                    .notNull()
+                    .references("transcriptions", onDelete: .cascade)
+                t.column("title", .text).notNull().defaults(to: "")
+                t.column("messages", .text)
+                t.column("createdAt", .text).notNull()
+                t.column("updatedAt", .text).notNull()
+            }
+            try db.create(
+                index: "idx_chat_conversations_transcription_id",
+                on: "chat_conversations",
+                columns: ["transcriptionId"]
+            )
+
+            // Migrate existing chatMessages from transcriptions into chat_conversations
+            let rows = try Row.fetchAll(db, sql: """
+                SELECT id, chatMessages FROM transcriptions WHERE chatMessages IS NOT NULL
+            """)
+            let now = Date()
+            for row in rows {
+                guard let transcriptionId = UUID.fromDatabaseValue(row["id"] as DatabaseValue) else { continue }
+                let chatMessagesJSON: String = row["chatMessages"]
+
+                // Derive title from first user message
+                var title = "Chat"
+                if let data = chatMessagesJSON.data(using: .utf8),
+                   let messages = try? JSONDecoder().decode([ChatMessage].self, from: data) {
+                    if let firstUser = messages.first(where: { $0.role == .user }) {
+                        title = String(firstUser.content.prefix(50))
+                    }
+                }
+
+                let conversationId = UUID()
+                try db.execute(sql: """
+                    INSERT INTO chat_conversations (id, transcriptionId, title, messages, createdAt, updatedAt)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, arguments: [conversationId, transcriptionId, title, chatMessagesJSON, now, now])
+            }
+
+            // Null out migrated chatMessages (keep column for backward compat)
+            try db.execute(sql: "UPDATE transcriptions SET chatMessages = NULL WHERE chatMessages IS NOT NULL")
+        }
+
         // v0.5 — Remove unused FTS5 infrastructure
         // The FTS5 virtual table + 3 sync triggers were created in v0.1 but never queried
         // (search uses LIKE). This removes the write overhead on every INSERT/UPDATE/DELETE.

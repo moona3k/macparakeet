@@ -65,10 +65,12 @@ public final class TranscriptionViewModel {
         YouTubeURLValidator.isYouTubeURL(urlInput)
     }
 
+    public var hasConversations: Bool = false
+
     public var showTabs: Bool {
         llmAvailable
             || currentTranscription?.summary != nil
-            || currentTranscription?.chatMessages?.isEmpty == false
+            || hasConversations
     }
 
     public var canGenerateSummary: Bool {
@@ -494,9 +496,9 @@ public final class TranscriptionViewModel {
         }
     }
 
-    public func updateCurrentTranscriptionChatMessages(id: UUID, chatMessages: [ChatMessage]?) {
+    public func updateConversationStatus(id: UUID, hasConversations: Bool) {
         guard currentTranscription?.id == id else { return }
-        currentTranscription?.chatMessages = chatMessages
+        self.hasConversations = hasConversations
     }
 
     public func updateLLMAvailability(_ available: Bool, llmService: LLMServiceProtocol? = nil) {
