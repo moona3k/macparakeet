@@ -207,8 +207,8 @@ public final class DatabaseManager: Sendable {
             """)
             let now = Date()
             for row in rows {
-                guard let transcriptionId = row["id"] as String?,
-                      let chatMessagesJSON = row["chatMessages"] as String? else { continue }
+                guard let transcriptionId = String.fromDatabaseValue(row["id"] as DatabaseValue),
+                      let chatMessagesJSON = String.fromDatabaseValue(row["chatMessages"] as DatabaseValue) else { continue }
 
                 // Derive title from first user message
                 var title = "Chat"
