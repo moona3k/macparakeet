@@ -90,9 +90,9 @@ struct TranscriptionThumbnailCard: View {
             } placeholder: {
                 placeholderView
             }
-        } else if transcription.thumbnailURL != nil {
+        } else if let urlString = transcription.thumbnailURL, let url = URL(string: urlString) {
             // Has URL but not cached yet — load from remote
-            AsyncImage(url: URL(string: transcription.thumbnailURL!)) { image in
+            AsyncImage(url: url) { image in
                 image
                     .resizable()
                     .aspectRatio(contentMode: .fill)
@@ -152,9 +152,13 @@ struct TranscriptionThumbnailCard: View {
 // MARK: - Helpers
 
 extension Date {
+    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .short
+        return f
+    }()
+
     var relativeFormatted: String {
-        let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .short
-        return formatter.localizedString(for: self, relativeTo: Date())
+        Self.relativeDateFormatter.localizedString(for: self, relativeTo: Date())
     }
 }

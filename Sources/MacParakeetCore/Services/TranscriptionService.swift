@@ -125,6 +125,14 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         try transcriptionRepo.save(transcription)
         Telemetry.send(.transcriptionStarted(source: .youtube, audioDurationSeconds: nil))
 
+        // Cache YouTube thumbnail locally (non-blocking)
+        if let thumbURL = downloadResult.thumbnailURL {
+            let transcriptionId = transcription.id
+            Task.detached(priority: .utility) {
+                _ = try? await ThumbnailCacheService().downloadThumbnail(from: thumbURL, for: transcriptionId)
+            }
+        }
+
         onProgress?(.transcribing(percent: 0))
         return try await transcribeAudio(
             fileURL: downloadResult.audioFileURL,

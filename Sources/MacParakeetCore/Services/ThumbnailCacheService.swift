@@ -66,7 +66,17 @@ public final class ThumbnailCacheService: Sendable {
         process.standardError = FileHandle.nullDevice
 
         try process.run()
-        process.waitUntilExit()
+
+        // Await termination without blocking the cooperative thread pool
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            process.terminationHandler = { _ in
+                continuation.resume()
+            }
+            if !process.isRunning {
+                continuation.resume()
+                process.terminationHandler = nil
+            }
+        }
 
         guard process.terminationStatus == 0,
               FileManager.default.fileExists(atPath: dest.path) else {

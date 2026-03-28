@@ -74,14 +74,22 @@ public final class TranscriptionLibraryViewModel {
 
     public func toggleFavorite(_ transcription: Transcription) {
         let newValue = !transcription.isFavorite
-        try? transcriptionRepo?.updateFavorite(id: transcription.id, isFavorite: newValue)
-        if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
-            transcriptions[idx].isFavorite = newValue
+        do {
+            try transcriptionRepo?.updateFavorite(id: transcription.id, isFavorite: newValue)
+            if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[idx].isFavorite = newValue
+            }
+        } catch {
+            // DB failed — don't update UI state
         }
     }
 
     public func deleteTranscription(_ transcription: Transcription) {
-        _ = try? transcriptionRepo?.delete(id: transcription.id)
-        transcriptions.removeAll { $0.id == transcription.id }
+        do {
+            _ = try transcriptionRepo?.delete(id: transcription.id)
+            transcriptions.removeAll { $0.id == transcription.id }
+        } catch {
+            // DB failed — don't remove from UI
+        }
     }
 }

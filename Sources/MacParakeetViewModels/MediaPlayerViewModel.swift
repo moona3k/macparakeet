@@ -30,6 +30,7 @@ public final class MediaPlayerViewModel {
     public var playbackMode: PlaybackMode = .none
 
     private var timeObserver: Any?
+    private var loadingTask: Task<Void, Never>?
     private let videoStreamService: VideoStreamService
 
     public init(videoStreamService: VideoStreamService = VideoStreamService()) {
@@ -39,7 +40,10 @@ public final class MediaPlayerViewModel {
     // MARK: - Public API
 
     /// Load media for a transcription. Determines playback mode and sets up AVPlayer.
+    /// Cancels any in-flight load to prevent race conditions on rapid navigation.
     public func load(for transcription: Transcription) async {
+        loadingTask?.cancel()
+
         let mode = Self.detectPlaybackMode(for: transcription)
         playbackMode = mode
 
@@ -50,14 +54,19 @@ public final class MediaPlayerViewModel {
 
         playerState = .loading
 
-        if let sourceURL = transcription.sourceURL {
-            await loadYouTubeStream(sourceURL)
-        } else if let filePath = transcription.filePath {
-            loadLocalFile(filePath)
-        } else {
-            playbackMode = .none
-            playerState = .idle
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            if let sourceURL = transcription.sourceURL {
+                await self.loadYouTubeStream(sourceURL)
+            } else if let filePath = transcription.filePath {
+                self.loadLocalFile(filePath)
+            } else {
+                self.playbackMode = .none
+                self.playerState = .idle
+            }
         }
+        loadingTask = task
+        await task.value
     }
 
     public func seek(toMs ms: Int) {
@@ -77,6 +86,8 @@ public final class MediaPlayerViewModel {
     }
 
     public func cleanup() {
+        loadingTask?.cancel()
+        loadingTask = nil
         if let timeObserver, let player {
             player.removeTimeObserver(timeObserver)
         }
@@ -87,6 +98,7 @@ public final class MediaPlayerViewModel {
         currentTimeMs = 0
         durationMs = 0
         playerState = .idle
+        playbackMode = .none
     }
 
     // MARK: - Playback Mode Detection
@@ -109,10 +121,12 @@ public final class MediaPlayerViewModel {
     private func loadYouTubeStream(_ sourceURL: String) async {
         do {
             let streamURL = try await videoStreamService.streamURL(for: sourceURL)
+            guard !Task.isCancelled else { return }
             let playerItem = AVPlayerItem(url: streamURL)
             setupPlayer(with: playerItem)
             playerState = .ready
         } catch {
+            guard !Task.isCancelled else { return }
             playerState = .error(error.localizedDescription)
         }
     }
@@ -135,10 +149,7 @@ public final class MediaPlayerViewModel {
         // Observe playback time at 10Hz for smooth transcript sync
         let interval = CMTime(seconds: 0.1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserver = avPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.currentTimeMs = Int(time.seconds * 1000)
-            }
+            self?.currentTimeMs = Int(time.seconds * 1000)
         }
 
         // Observe duration once available

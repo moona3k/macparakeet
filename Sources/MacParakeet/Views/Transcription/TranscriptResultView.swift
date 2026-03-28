@@ -92,13 +92,14 @@ struct TranscriptResultView: View {
 
                 transcriptionContentColumn
             }
-        case .audio:
+        case .video, .audio:
+            // Audio mode OR video with panel hidden — show scrubber bar + full-width content
             VStack(spacing: 0) {
                 AudioScrubberBar(viewModel: playerViewModel)
                 Divider()
                 transcriptionContentColumn
             }
-        default:
+        case .none:
             transcriptionContentColumn
         }
     }

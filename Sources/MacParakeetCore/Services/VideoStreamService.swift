@@ -69,13 +69,25 @@ public final class VideoStreamService: Sendable {
         process.standardError = stderrPipe
 
         try process.run()
-        process.waitUntilExit()
 
+        // Read pipes BEFORE waiting (prevents deadlock if output exceeds pipe buffer)
         let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+        let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
+
+        // Await termination without blocking the cooperative thread pool
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            process.terminationHandler = { _ in
+                continuation.resume()
+            }
+            if !process.isRunning {
+                continuation.resume()
+                process.terminationHandler = nil
+            }
+        }
+
         let stdout = String(data: stdoutData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         guard process.terminationStatus == 0, !stdout.isEmpty else {
-            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
             let stderr = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown error"
             logger.error("yt-dlp stream extraction failed: \(stderr)")
             throw VideoStreamError.extractionFailed(stderr)
