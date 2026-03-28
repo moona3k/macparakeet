@@ -50,7 +50,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
                          backing: .buffered,
                          defer: false)
         w.title = "Welcome to MacParakeet"
-        w.isReleasedWhenClosed = false
+        w.isReleasedWhenClosed = true
         w.center()
         w.contentView = hosting
         w.standardWindowButton(.zoomButton)?.isHidden = true
@@ -102,6 +102,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         allowCloseWithoutCompletion = false
         onIncompleteDismiss = nil
         viewModel = nil
+        window?.contentView = nil
         window = nil
     }
 }

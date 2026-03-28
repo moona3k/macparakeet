@@ -41,7 +41,7 @@ struct OnboardingFlowView: View {
             // App header with warm merkaba
             VStack(alignment: .leading, spacing: 8) {
                 HStack(spacing: 12) {
-                    MeditativeMerkabaView(size: 28, revolutionDuration: 6.0, tintColor: DesignSystem.Colors.accent)
+                    MeditativeMerkabaView(size: 28, revolutionDuration: 6.0, tintColor: DesignSystem.Colors.accent, animate: true)
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("MacParakeet")
@@ -338,7 +338,7 @@ struct OnboardingFlowView: View {
                 )
                 .frame(width: 120, height: 120)
 
-                MeditativeMerkabaView(size: 64, revolutionDuration: 5.0, tintColor: DesignSystem.Colors.accent)
+                MeditativeMerkabaView(size: 64, revolutionDuration: 5.0, tintColor: DesignSystem.Colors.accent, animate: true)
                     .opacity(0.8)
             }
             .frame(maxWidth: .infinity)
@@ -634,7 +634,7 @@ struct OnboardingFlowView: View {
                 )
                 .frame(width: 180, height: 180)
 
-                MeditativeMerkabaView(size: 96, revolutionDuration: 4.0, tintColor: DesignSystem.Colors.accent)
+                MeditativeMerkabaView(size: 96, revolutionDuration: 4.0, tintColor: DesignSystem.Colors.accent, animate: true)
                     .opacity(0.85)
             }
             .frame(maxWidth: .infinity)

@@ -25,6 +25,9 @@ struct TriangleShape: Shape {
 
 /// Merkaba-inspired spinner — two counter-rotating triangles with glowing vertices
 /// and a pulsing center. Used in dictation overlay processing state (26x26).
+///
+/// Uses `.shadow()` instead of `.blur()` for vertex/center glow — shadow is
+/// CA-cacheable and avoids per-frame Gaussian rasterization inside rotating layers.
 struct SpinnerRingView: View {
     var size: CGFloat = 26
     var revolutionDuration: Double = 3.0
@@ -46,18 +49,14 @@ struct SpinnerRingView: View {
             triangleLayer(rotation: rotationCW, opacity: 0.7, vertexOpacity: vertexPulse)
             triangleLayer(rotation: rotationCCW, opacity: 0.4, vertexOpacity: vertexPulse * 0.7)
 
-            ZStack {
-                Circle()
-                    .fill(tintColor.opacity(centerPulse * 0.5))
-                    .frame(width: size * 0.385, height: size * 0.385)
-                    .blur(radius: size * 0.154)
-
-                Circle()
-                    .fill(tintColor.opacity(centerPulse))
-                    .frame(width: size * 0.115, height: size * 0.115)
-            }
+            // Center nexus — shadow for glow instead of blur
+            Circle()
+                .fill(tintColor.opacity(centerPulse))
+                .frame(width: size * 0.115, height: size * 0.115)
+                .shadow(color: tintColor.opacity(centerPulse * 0.5), radius: size * 0.154)
         }
         .frame(width: size, height: size)
+        .drawingGroup()
         .onAppear {
             withAnimation(.linear(duration: revolutionDuration).repeatForever(autoreverses: false)) {
                 rotationCW = 360
@@ -92,17 +91,11 @@ struct SpinnerRingView: View {
         let x = Foundation.cos(angle) * radius
         let y = Foundation.sin(angle) * radius
 
-        return ZStack {
-            Circle()
-                .fill(tintColor.opacity(vertexOpacity * 0.3))
-                .frame(width: size * 0.27, height: size * 0.27)
-                .blur(radius: size * 0.115)
-
-            Circle()
-                .fill(tintColor.opacity(vertexOpacity))
-                .frame(width: size * 0.096, height: size * 0.096)
-        }
-        .offset(x: x, y: y)
+        return Circle()
+            .fill(tintColor.opacity(vertexOpacity))
+            .frame(width: size * 0.096, height: size * 0.096)
+            .shadow(color: tintColor.opacity(vertexOpacity * 0.4), radius: size * 0.115)
+            .offset(x: x, y: y)
     }
 }
 
@@ -110,10 +103,14 @@ struct SpinnerRingView: View {
 
 /// Larger, slower merkaba for empty states and idle backgrounds.
 /// Softer opacity, adapts to light/dark mode via `.primary`.
+///
+/// Pass `animate: false` (the default) for decorative/static use — no CPU cost.
+/// Pass `animate: true` only for active loading states (e.g. during drag, streaming).
 struct MeditativeMerkabaView: View {
     var size: CGFloat = 64
     var revolutionDuration: Double = 6.0
     var tintColor: Color? = nil
+    var animate: Bool = false
 
     @State private var rotationCW: Double = 0
     @State private var rotationCCW: Double = 0
@@ -136,32 +133,47 @@ struct MeditativeMerkabaView: View {
             // Triangle 2 — counter-clockwise
             meditativeTriangle(rotation: rotationCCW, strokeOpacity: 0.15, vertexOpacity: vertexPulse * 0.6)
 
-            // Center nexus
-            ZStack {
-                Circle()
-                    .fill(effectiveColor.opacity(centerPulse * 0.4))
-                    .frame(width: size * 0.25, height: size * 0.25)
-                    .blur(radius: size * 0.12)
-
-                Circle()
-                    .fill(effectiveColor.opacity(centerPulse * 1.5))
-                    .frame(width: size * 0.06, height: size * 0.06)
-            }
+            // Center nexus — shadow for glow instead of blur
+            Circle()
+                .fill(effectiveColor.opacity(centerPulse * 1.5))
+                .frame(width: size * 0.06, height: size * 0.06)
+                .shadow(color: effectiveColor.opacity(centerPulse * 0.4), radius: size * 0.12)
         }
         .frame(width: size, height: size)
+        .drawingGroup()
         .onAppear {
-            withAnimation(.linear(duration: revolutionDuration).repeatForever(autoreverses: false)) {
-                rotationCW = 360
+            if animate {
+                startAnimation()
             }
-            withAnimation(.linear(duration: revolutionDuration).repeatForever(autoreverses: false)) {
-                rotationCCW = -360
+        }
+        .onChange(of: animate) { _, newValue in
+            if newValue {
+                startAnimation()
+            } else {
+                stopAnimation()
             }
-            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                centerPulse = 0.5
-            }
-            withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
-                vertexPulse = 0.6
-            }
+        }
+    }
+
+    private func startAnimation() {
+        withAnimation(.linear(duration: revolutionDuration).repeatForever(autoreverses: false)) {
+            rotationCW = 360
+            rotationCCW = -360
+        }
+        withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+            centerPulse = 0.5
+        }
+        withAnimation(.easeInOut(duration: 1.6).repeatForever(autoreverses: true)) {
+            vertexPulse = 0.6
+        }
+    }
+
+    private func stopAnimation() {
+        withAnimation(.linear(duration: 0)) {
+            rotationCW = 0
+            rotationCCW = 0
+            centerPulse = 0.15
+            vertexPulse = 0.3
         }
     }
 
@@ -176,17 +188,11 @@ struct MeditativeMerkabaView: View {
                 let x = Foundation.cos(angle) * radius
                 let y = Foundation.sin(angle) * radius
 
-                ZStack {
-                    Circle()
-                        .fill(effectiveColor.opacity(vertexOpacity * 0.3))
-                        .frame(width: size * 0.15, height: size * 0.15)
-                        .blur(radius: size * 0.06)
-
-                    Circle()
-                        .fill(effectiveColor.opacity(vertexOpacity))
-                        .frame(width: size * 0.07, height: size * 0.07)
-                }
-                .offset(x: x, y: y)
+                Circle()
+                    .fill(effectiveColor.opacity(vertexOpacity))
+                    .frame(width: size * 0.07, height: size * 0.07)
+                    .shadow(color: effectiveColor.opacity(vertexOpacity * 0.4), radius: size * 0.06)
+                    .offset(x: x, y: y)
             }
         }
         .rotationEffect(.degrees(rotation))
