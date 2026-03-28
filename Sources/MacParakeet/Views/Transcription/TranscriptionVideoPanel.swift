@@ -24,9 +24,6 @@ struct TranscriptionVideoPanel: View {
                         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
                 }
 
-                videoInfo
-                    .padding(.top, DesignSystem.Spacing.sm)
-
             case .error(let message):
                 errorState(message: message)
 
@@ -43,7 +40,7 @@ struct TranscriptionVideoPanel: View {
         VStack(spacing: DesignSystem.Spacing.md) {
             ProgressView()
                 .controlSize(.large)
-            Text("Loading video...")
+            Text(loadingMessage)
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
         }
@@ -53,6 +50,15 @@ struct TranscriptionVideoPanel: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .fill(DesignSystem.Colors.surfaceElevated)
         )
+    }
+
+    private var loadingMessage: String {
+        let elapsed = Int(playerViewModel.loadingElapsed)
+        if elapsed < 3 {
+            return "Loading video..."
+        } else {
+            return "Fetching stream from YouTube... (\(elapsed)s)"
+        }
     }
 
     private func errorState(message: String) -> some View {
@@ -100,20 +106,4 @@ struct TranscriptionVideoPanel: View {
         )
     }
 
-    // MARK: - Video Info
-
-    private var videoInfo: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(transcription.fileName)
-                .font(DesignSystem.Typography.body.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textPrimary)
-                .lineLimit(2)
-
-            if let channel = transcription.channelName {
-                Text(channel)
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-            }
-        }
-    }
 }

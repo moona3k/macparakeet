@@ -1,6 +1,7 @@
 import AVFoundation
 import Foundation
 import MacParakeetCore
+import os
 
 // MARK: - Playback Mode
 
@@ -28,12 +29,16 @@ public final class MediaPlayerViewModel {
     public var durationMs: Int = 0
     public var playerState: PlayerState = .idle
     public var playbackMode: PlaybackMode = .none
+    /// Seconds elapsed since loading started (for UX feedback)
+    public var loadingElapsed: TimeInterval = 0
 
     private var timeObserver: Any?
     private var statusObserver: NSKeyValueObservation?
     private var endOfTrackObserver: NSObjectProtocol?
     private var loadingTask: Task<Void, Never>?
+    private var loadingTimerTask: Task<Void, Never>?
     private let videoStreamService: VideoStreamService
+    private let logger = Logger(subsystem: "com.macparakeet", category: "MediaPlayer")
 
     public init(videoStreamService: VideoStreamService = VideoStreamService()) {
         self.videoStreamService = videoStreamService
@@ -55,6 +60,9 @@ public final class MediaPlayerViewModel {
         }
 
         playerState = .loading
+        loadingElapsed = 0
+        startLoadingTimer()
+        logger.info("Loading media: mode=\(String(describing: mode)), source=\(transcription.sourceURL ?? transcription.filePath ?? "none")")
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -66,6 +74,7 @@ public final class MediaPlayerViewModel {
                 self.playbackMode = .none
                 self.playerState = .idle
             }
+            self.stopLoadingTimer()
         }
         loadingTask = task
         await task.value
@@ -90,6 +99,7 @@ public final class MediaPlayerViewModel {
     public func cleanup() {
         loadingTask?.cancel()
         loadingTask = nil
+        stopLoadingTimer()
         if let timeObserver, let player {
             player.removeTimeObserver(timeObserver)
         }
@@ -127,14 +137,20 @@ public final class MediaPlayerViewModel {
     // MARK: - Private
 
     private func loadYouTubeStream(_ sourceURL: String) async {
+        let start = ContinuousClock.now
         do {
+            logger.info("Extracting stream URL via yt-dlp for \(sourceURL)")
             let streamURL = try await videoStreamService.streamURL(for: sourceURL)
+            let extractionTime = ContinuousClock.now - start
+            logger.info("Stream URL extracted in \(extractionTime)")
             guard !Task.isCancelled else { return }
             let playerItem = AVPlayerItem(url: streamURL)
             setupPlayer(with: playerItem)
             playerState = .ready
+            logger.info("YouTube video player ready")
         } catch {
             guard !Task.isCancelled else { return }
+            logger.error("YouTube stream load failed after \(ContinuousClock.now - start): \(error.localizedDescription)")
             playerState = .error(error.localizedDescription)
         }
     }
@@ -191,5 +207,22 @@ public final class MediaPlayerViewModel {
                 self.durationMs = Int(duration.seconds * 1000)
             }
         }
+    }
+
+    private func startLoadingTimer() {
+        loadingTimerTask?.cancel()
+        let start = Date()
+        loadingTimerTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(1))
+                guard !Task.isCancelled, let self else { return }
+                self.loadingElapsed = Date().timeIntervalSince(start)
+            }
+        }
+    }
+
+    private func stopLoadingTimer() {
+        loadingTimerTask?.cancel()
+        loadingTimerTask = nil
     }
 }

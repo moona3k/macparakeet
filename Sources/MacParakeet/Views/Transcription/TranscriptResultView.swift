@@ -81,150 +81,133 @@ struct TranscriptResultView: View {
         switch playerViewModel.playbackMode {
         case .video where showVideoPanel:
             HSplitView {
-                TranscriptionVideoPanel(
-                    transcription: transcription,
-                    playerViewModel: playerViewModel
-                )
-                .frame(
-                    minWidth: DesignSystem.Layout.videoPlayerMinWidth,
-                    idealWidth: 480
-                )
+                videoInfoColumn
+                    .frame(
+                        minWidth: DesignSystem.Layout.videoPlayerMinWidth,
+                        idealWidth: 480
+                    )
 
-                transcriptionContentColumn
+                videoContentColumn
             }
         case .video, .audio:
             // Audio mode OR video with panel hidden — show scrubber bar + full-width content
             VStack(spacing: 0) {
                 AudioScrubberBar(viewModel: playerViewModel)
                 Divider()
-                transcriptionContentColumn
+                fullWidthContentColumn
             }
         case .none:
-            transcriptionContentColumn
+            fullWidthContentColumn
         }
     }
 
-    private var transcriptionContentColumn: some View {
+    // MARK: - Video Split Layout (Left Pane)
+
+    /// Left pane in video mode: header card + video player + action bar
+    private var videoInfoColumn: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            resultHeaderCard
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.top, DesignSystem.Spacing.md)
+
+            TranscriptionVideoPanel(
+                transcription: transcription,
+                playerViewModel: playerViewModel
+            )
+
+            Spacer(minLength: 0)
+
+            Divider()
+
+            actionBar
+        }
+        .alert(
+            "Export Failed",
+            isPresented: Binding(
+                get: { exportErrorMessage != nil },
+                set: { if !$0 { exportErrorMessage = nil } }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                exportErrorMessage = nil
+            }
+        } message: {
+            Text(exportErrorMessage ?? "Unable to export transcript.")
+        }
+    }
+
+    // MARK: - Video Split Layout (Right Pane)
+
+    /// Right pane in video mode: tabs + content (full height, no header/action bar)
+    private var videoContentColumn: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                if viewModel.showTabs {
+                    tabBar
+                }
+                Spacer()
+                Button {
+                    withAnimation(DesignSystem.Animation.contentSwap) {
+                        showVideoPanel = false
+                    }
+                } label: {
+                    Image(systemName: "rectangle.lefthalf.inset.filled.arrow.left")
+                        .font(.system(size: 11))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                }
+                .buttonStyle(.plain)
+                .help("Hide video panel")
+            }
+            .padding(.horizontal, DesignSystem.Spacing.lg)
+            .padding(.top, DesignSystem.Spacing.md)
+
+            contentArea
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .onDisappear {
+            copiedResetTask?.cancel()
+            copiedResetTask = nil
+            dismissTask?.cancel()
+            dismissTask = nil
+        }
+    }
+
+    // MARK: - Full-Width Layout (No Video, Audio, or Hidden Video)
+
+    /// Single-column layout: header + tabs + content + action bar
+    private var fullWidthContentColumn: some View {
         VStack(alignment: .leading, spacing: 0) {
             resultHeaderCard
                 .padding(.horizontal, DesignSystem.Spacing.lg)
                 .padding(.top, DesignSystem.Spacing.lg)
 
-            if playerViewModel.playbackMode == .video && showVideoPanel {
-                // Video mode: show toggle to hide video panel
-                HStack {
-                    if viewModel.showTabs {
-                        tabBar
-                    }
-                    Spacer()
+            HStack {
+                if viewModel.showTabs {
+                    tabBar
+                }
+                Spacer()
+                if playerViewModel.playbackMode == .video && !showVideoPanel {
                     Button {
                         withAnimation(DesignSystem.Animation.contentSwap) {
-                            showVideoPanel = false
+                            showVideoPanel = true
                         }
                     } label: {
-                        Image(systemName: "rectangle.lefthalf.inset.filled.arrow.left")
-                            .font(.system(size: 11))
-                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        Label("Show Video", systemImage: "play.rectangle")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
                     }
                     .buttonStyle(.plain)
-                    .help("Hide video panel")
                 }
-                .padding(.horizontal, DesignSystem.Spacing.lg)
-                .padding(.top, DesignSystem.Spacing.md)
-            } else {
-                HStack {
-                    if viewModel.showTabs {
-                        tabBar
-                    }
-                    Spacer()
-                    if playerViewModel.playbackMode == .video && !showVideoPanel {
-                        Button {
-                            withAnimation(DesignSystem.Animation.contentSwap) {
-                                showVideoPanel = true
-                            }
-                        } label: {
-                            Label("Show Video", systemImage: "play.rectangle")
-                                .font(DesignSystem.Typography.caption)
-                                .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, DesignSystem.Spacing.lg)
-                .padding(.top, DesignSystem.Spacing.md)
             }
+            .padding(.horizontal, DesignSystem.Spacing.lg)
+            .padding(.top, DesignSystem.Spacing.md)
 
             contentArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
 
-            // Action bar
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                Button {
-                    copyToClipboard()
-                } label: {
-                    Label(
-                        copied ? "Copied!" : "Copy",
-                        systemImage: copied ? "checkmark" : "doc.on.clipboard"
-                    )
-                    .foregroundStyle(copied ? DesignSystem.Colors.successGreen : .primary)
-                }
-                .buttonStyle(.bordered)
-
-                Menu {
-                    Section("Document") {
-                        Button { exportToDownloads(format: .txt) } label: {
-                            Label("Plain Text (.txt)", systemImage: "doc.text")
-                        }
-                        Button { exportToDownloads(format: .md) } label: {
-                            Label("Markdown (.md)", systemImage: "text.document")
-                        }
-                        Button { exportToDownloads(format: .docx) } label: {
-                            Label("Word Document (.docx)", systemImage: "doc.richtext")
-                        }
-                        Button { exportToDownloads(format: .pdf) } label: {
-                            Label("PDF Document (.pdf)", systemImage: "doc.viewfinder")
-                        }
-                    }
-
-                    Section("Data") {
-                        Button { exportToDownloads(format: .json) } label: {
-                            Label("Raw Data (.json)", systemImage: "curlybraces")
-                        }
-                    }
-
-                    if hasTimestamps {
-                        Section("Subtitles") {
-                            Button { exportToDownloads(format: .srt) } label: {
-                                Label("SRT (.srt)", systemImage: "captions.bubble")
-                            }
-                            Button { exportToDownloads(format: .vtt) } label: {
-                                Label("WebVTT (.vtt)", systemImage: "captions.bubble.fill")
-                            }
-                        }
-                    }
-                } label: {
-                    Label("Export", systemImage: "arrow.down.doc")
-                }
-                .menuStyle(.borderedButton)
-                .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
-                    exportConfirmationPopover(confirmation)
-                }
-
-                if let onRetranscribe, let filePath = transcription.filePath,
-                   FileManager.default.fileExists(atPath: filePath) {
-                    Button {
-                        onRetranscribe(transcription)
-                    } label: {
-                        Label("Retranscribe", systemImage: "arrow.trianglehead.2.clockwise")
-                    }
-                    .buttonStyle(.bordered)
-                }
-
-                Spacer()
-            }
-            .padding(DesignSystem.Spacing.md)
+            actionBar
         }
         .alert(
             "Export Failed",
@@ -245,6 +228,76 @@ struct TranscriptResultView: View {
             dismissTask?.cancel()
             dismissTask = nil
         }
+    }
+
+    // MARK: - Action Bar
+
+    private var actionBar: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Button {
+                copyToClipboard()
+            } label: {
+                Label(
+                    copied ? "Copied!" : "Copy",
+                    systemImage: copied ? "checkmark" : "doc.on.clipboard"
+                )
+                .foregroundStyle(copied ? DesignSystem.Colors.successGreen : .primary)
+            }
+            .buttonStyle(.bordered)
+
+            Menu {
+                Section("Document") {
+                    Button { exportToDownloads(format: .txt) } label: {
+                        Label("Plain Text (.txt)", systemImage: "doc.text")
+                    }
+                    Button { exportToDownloads(format: .md) } label: {
+                        Label("Markdown (.md)", systemImage: "text.document")
+                    }
+                    Button { exportToDownloads(format: .docx) } label: {
+                        Label("Word Document (.docx)", systemImage: "doc.richtext")
+                    }
+                    Button { exportToDownloads(format: .pdf) } label: {
+                        Label("PDF Document (.pdf)", systemImage: "doc.viewfinder")
+                    }
+                }
+
+                Section("Data") {
+                    Button { exportToDownloads(format: .json) } label: {
+                        Label("Raw Data (.json)", systemImage: "curlybraces")
+                    }
+                }
+
+                if hasTimestamps {
+                    Section("Subtitles") {
+                        Button { exportToDownloads(format: .srt) } label: {
+                            Label("SRT (.srt)", systemImage: "captions.bubble")
+                        }
+                        Button { exportToDownloads(format: .vtt) } label: {
+                            Label("WebVTT (.vtt)", systemImage: "captions.bubble.fill")
+                        }
+                    }
+                }
+            } label: {
+                Label("Export", systemImage: "arrow.down.doc")
+            }
+            .menuStyle(.borderedButton)
+            .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
+                exportConfirmationPopover(confirmation)
+            }
+
+            if let onRetranscribe, let filePath = transcription.filePath,
+               FileManager.default.fileExists(atPath: filePath) {
+                Button {
+                    onRetranscribe(transcription)
+                } label: {
+                    Label("Retranscribe", systemImage: "arrow.trianglehead.2.clockwise")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            Spacer()
+        }
+        .padding(DesignSystem.Spacing.md)
     }
 
     private var transcriptText: String {

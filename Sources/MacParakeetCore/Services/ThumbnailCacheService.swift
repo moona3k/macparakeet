@@ -67,14 +67,24 @@ public final class ThumbnailCacheService: Sendable {
 
         try process.run()
 
-        // Await termination without blocking the cooperative thread pool
+        // Await termination without blocking the cooperative thread pool.
+        // Use a one-shot flag to prevent double-resume (terminationHandler vs isRunning race).
+        let resumed = OSAllocatedUnfairLock(initialState: false)
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             process.terminationHandler = { _ in
-                continuation.resume()
+                let alreadyResumed = resumed.withLock { flag -> Bool in
+                    let was = flag; flag = true; return was
+                }
+                if !alreadyResumed { continuation.resume() }
             }
             if !process.isRunning {
-                continuation.resume()
-                process.terminationHandler = nil
+                let alreadyResumed = resumed.withLock { flag -> Bool in
+                    let was = flag; flag = true; return was
+                }
+                if !alreadyResumed {
+                    continuation.resume()
+                    process.terminationHandler = nil
+                }
             }
         }
 

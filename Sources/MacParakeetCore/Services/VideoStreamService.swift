@@ -22,8 +22,10 @@ public final class VideoStreamService: Sendable {
         // Check cache
         if let cached = cache.withLock({ $0[videoID] }),
            cached.expiresAt > Date() {
+            logger.info("Stream URL cache hit for \(videoID)")
             return cached.url
         }
+        logger.info("Stream URL cache miss for \(videoID), extracting via yt-dlp")
 
         let url = try await extractStreamURL(youtubeURL: youtubeURL)
 
@@ -74,14 +76,24 @@ public final class VideoStreamService: Sendable {
         let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
         let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
 
-        // Await termination without blocking the cooperative thread pool
+        // Await termination without blocking the cooperative thread pool.
+        // Use a one-shot flag to prevent double-resume (terminationHandler vs isRunning race).
+        let resumed = OSAllocatedUnfairLock(initialState: false)
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             process.terminationHandler = { _ in
-                continuation.resume()
+                let alreadyResumed = resumed.withLock { flag -> Bool in
+                    let was = flag; flag = true; return was
+                }
+                if !alreadyResumed { continuation.resume() }
             }
             if !process.isRunning {
-                continuation.resume()
-                process.terminationHandler = nil
+                let alreadyResumed = resumed.withLock { flag -> Bool in
+                    let was = flag; flag = true; return was
+                }
+                if !alreadyResumed {
+                    continuation.resume()
+                    process.terminationHandler = nil
+                }
             }
         }
 
@@ -99,7 +111,7 @@ public final class VideoStreamService: Sendable {
             throw VideoStreamError.invalidStreamURL
         }
 
-        logger.debug("Extracted stream URL for \(youtubeURL)")
+        logger.info("Extracted stream URL for \(youtubeURL)")
         return url
     }
 
