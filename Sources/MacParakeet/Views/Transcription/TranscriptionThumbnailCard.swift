@@ -33,13 +33,13 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
         .overlay(alignment: .topTrailing) {
-            if hovered {
-                moreButton
-                    .transition(.opacity)
-            }
+            moreButton
+                .opacity(hovered ? 1 : 0)
         }
         .animation(DesignSystem.Animation.hoverTransition, value: hovered)
     }
+
+    @State private var moreHovered = false
 
     private var moreButton: some View {
         Menu {
@@ -48,16 +48,18 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
             Image(systemName: "ellipsis")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(width: 24, height: 24)
+                .frame(width: 26, height: 26)
                 .background(
                     Circle()
-                        .fill(.black.opacity(0.6))
+                        .fill(.black.opacity(moreHovered ? 0.8 : 0.6))
                 )
+                .contentShape(Circle())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
         .fixedSize()
         .padding(6)
+        .onHover { moreHovered = $0 }
     }
 
     // MARK: - Thumbnail
