@@ -1,10 +1,13 @@
 import SwiftUI
 import MacParakeetCore
 
+private let sharedThumbnailCache = ThumbnailCacheService()
+
 /// Thumbnail card for displaying a transcription in a grid layout.
-struct TranscriptionThumbnailCard: View {
+struct TranscriptionThumbnailCard<MenuContent: View>: View {
     let transcription: Transcription
     var onTap: () -> Void
+    @ViewBuilder var menuContent: () -> MenuContent
 
     @State private var hovered = false
 
@@ -29,6 +32,32 @@ struct TranscriptionThumbnailCard: View {
         }
         .buttonStyle(.plain)
         .onHover { hovered = $0 }
+        .overlay(alignment: .topTrailing) {
+            if hovered {
+                moreButton
+                    .transition(.opacity)
+            }
+        }
+        .animation(DesignSystem.Animation.hoverTransition, value: hovered)
+    }
+
+    private var moreButton: some View {
+        Menu {
+            menuContent()
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 24, height: 24)
+                .background(
+                    Circle()
+                        .fill(.black.opacity(0.6))
+                )
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .padding(6)
     }
 
     // MARK: - Thumbnail
@@ -76,12 +105,10 @@ struct TranscriptionThumbnailCard: View {
         }
     }
 
-    private static let thumbnailCache = ThumbnailCacheService()
-
     @ViewBuilder
     private var thumbnailContent: some View {
         if let thumbnailURL = transcription.thumbnailURL,
-           let cached = Self.thumbnailCache.cachedThumbnail(for: transcription.id) {
+           let cached = sharedThumbnailCache.cachedThumbnail(for: transcription.id) {
             // Cached thumbnail
             AsyncImage(url: cached) { image in
                 image

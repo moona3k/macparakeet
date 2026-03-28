@@ -61,6 +61,29 @@ struct TranscriptionLibraryView: View {
                         ForEach(viewModel.filteredTranscriptions) { transcription in
                             TranscriptionThumbnailCard(transcription: transcription) {
                                 onSelect(transcription)
+                            } menuContent: {
+                                Button {
+                                    onSelect(transcription)
+                                } label: {
+                                    Label("Open", systemImage: "doc.text")
+                                }
+
+                                Button {
+                                    viewModel.toggleFavorite(transcription)
+                                } label: {
+                                    Label(
+                                        transcription.isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                                        systemImage: transcription.isFavorite ? "star.slash" : "star"
+                                    )
+                                }
+
+                                Divider()
+
+                                Button(role: .destructive) {
+                                    pendingDelete = transcription
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
                             }
                             .contextMenu {
                                 Button {

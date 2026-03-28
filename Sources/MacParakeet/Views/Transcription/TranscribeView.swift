@@ -487,6 +487,21 @@ struct TranscribeView: View {
                     ForEach(Array(viewModel.transcriptions.prefix(8))) { transcription in
                         TranscriptionThumbnailCard(transcription: transcription) {
                             viewModel.currentTranscription = transcription
+                        } menuContent: {
+                            Button {
+                                viewModel.currentTranscription = transcription
+                            } label: {
+                                Label("Open", systemImage: "doc.text")
+                            }
+
+                            Divider()
+
+                            Button(role: .destructive) {
+                                viewModel.pendingDeleteTranscription = transcription
+                            } label: {
+                                Label("Delete", systemImage: "trash")
+                            }
+                            .disabled(transcription.status == .processing)
                         }
                         .contextMenu {
                             Button {
