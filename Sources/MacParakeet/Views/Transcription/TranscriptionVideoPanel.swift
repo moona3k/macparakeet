@@ -33,14 +33,24 @@ struct TranscriptionVideoPanel: View {
                             Button {
                                 playerViewModel.showSubtitles.toggle()
                             } label: {
-                                Image(systemName: playerViewModel.showSubtitles ? "captions.bubble.fill" : "captions.bubble")
-                                    .font(.system(size: 12))
-                                    .foregroundStyle(playerViewModel.showSubtitles ? DesignSystem.Colors.accent : DesignSystem.Colors.textTertiary)
+                                HStack(spacing: 5) {
+                                    Image(systemName: playerViewModel.showSubtitles ? "captions.bubble.fill" : "captions.bubble")
+                                        .font(.system(size: 14, weight: .medium))
+                                    Text("CC")
+                                        .font(.system(size: 12, weight: .semibold))
+                                }
+                                .foregroundStyle(playerViewModel.showSubtitles ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(
+                                    Capsule()
+                                        .fill(playerViewModel.showSubtitles ? DesignSystem.Colors.accent.opacity(0.12) : DesignSystem.Colors.surfaceElevated)
+                                )
                             }
                             .buttonStyle(.plain)
                             .help(playerViewModel.showSubtitles ? "Hide subtitles" : "Show subtitles")
                         }
-                        .padding(.top, 4)
+                        .padding(.top, 6)
                     }
                 }
 
