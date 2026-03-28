@@ -72,7 +72,7 @@ struct TranscriptionVideoPanel: View {
     private var loadingSubtitle: String? {
         let elapsed = Int(playerViewModel.loadingElapsed)
         guard elapsed >= 3 else { return nil }
-        return "This can take 10–15 seconds (\(elapsed)s)"
+        return "Usually 10–20s, longer on slow connections (\(elapsed)s)"
     }
 
     private func errorState(message: String) -> some View {

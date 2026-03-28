@@ -3,7 +3,9 @@ import os
 
 public final class VideoStreamService: Sendable {
     private let logger = Logger(subsystem: "com.macparakeet", category: "VideoStream")
-    private let cache = OSAllocatedUnfairLock(initialState: [String: CachedURL]())
+
+    /// Shared cache across all instances — survives view recreation
+    private static let cache = OSAllocatedUnfairLock(initialState: [String: CachedURL]())
 
     private struct CachedURL: Sendable {
         let url: URL
@@ -13,6 +15,9 @@ public final class VideoStreamService: Sendable {
     /// TTL for cached stream URLs (YouTube URLs typically expire after ~2-6 hours)
     private static let cacheTTL: TimeInterval = 2 * 60 * 60
 
+    /// Timeout for the entire yt-dlp extraction (pipe reads + termination)
+    private static let extractionTimeout: TimeInterval = 30
+
     public init() {}
 
     /// Extract a streaming URL for a YouTube video. Caches per video ID.
@@ -20,18 +25,19 @@ public final class VideoStreamService: Sendable {
         let videoID = YouTubeURLValidator.extractVideoID(youtubeURL) ?? youtubeURL
 
         // Check cache
-        if let cached = cache.withLock({ $0[videoID] }),
+        if let cached = Self.cache.withLock({ $0[videoID] }),
            cached.expiresAt > Date() {
-            logger.info("Stream URL cache hit for \(videoID)")
+            logger.notice("🎯 Cache HIT for \(videoID) (expires in \(Int(cached.expiresAt.timeIntervalSinceNow))s)")
             return cached.url
         }
-        logger.info("Stream URL cache miss for \(videoID), extracting via yt-dlp")
+        logger.notice("❌ Cache MISS for \(videoID), extracting via yt-dlp")
 
         let url = try await extractStreamURL(youtubeURL: youtubeURL)
 
-        cache.withLock {
+        Self.cache.withLock {
             $0[videoID] = CachedURL(url: url, expiresAt: Date().addingTimeInterval(Self.cacheTTL))
         }
+        logger.notice("✅ Cached stream URL for \(videoID) (TTL: \(Int(Self.cacheTTL))s)")
 
         return url
     }
@@ -39,16 +45,16 @@ public final class VideoStreamService: Sendable {
     /// Invalidate cached URL for a video (e.g., after playback error).
     public func invalidateCache(for youtubeURL: String) {
         let videoID = YouTubeURLValidator.extractVideoID(youtubeURL) ?? youtubeURL
-        cache.withLock { $0.removeValue(forKey: videoID) }
+        Self.cache.withLock { $0.removeValue(forKey: videoID) }
+        logger.notice("🗑 Invalidated cache for \(videoID)")
     }
 
     // MARK: - Private
 
-    /// Timeout for yt-dlp stream extraction (seconds)
-    private static let extractionTimeout: TimeInterval = 30
-
     private func extractStreamURL(youtubeURL: String) async throws -> URL {
         let ytDlpPath = try resolveYtDlpPath()
+        logger.notice("▶️ Starting yt-dlp extraction for \(youtubeURL)")
+        logger.notice("  yt-dlp path: \(ytDlpPath)")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ytDlpPath)
@@ -73,68 +79,93 @@ public final class VideoStreamService: Sendable {
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe
 
+        let startTime = ContinuousClock.now
+
         try process.run()
+        logger.notice("  yt-dlp process launched (PID: \(process.processIdentifier))")
 
-        // Read pipes on a background thread to avoid blocking the cooperative pool
-        let stdoutData: Data = await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+        // Wrap EVERYTHING in a single timeout — pipe reads + termination.
+        // If yt-dlp hangs and never closes stdout, the pipe read blocks forever
+        // without this outer timeout.
+        let result: (stdout: Data, stderr: Data) = try await withThrowingTaskGroup(of: (stdout: Data, stderr: Data).self) { group in
+            group.addTask {
+                // Read pipes on background threads (don't block cooperative pool)
+                let stdoutData: Data = await withCheckedContinuation { continuation in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        continuation.resume(returning: stdoutPipe.fileHandleForReading.readDataToEndOfFile())
+                    }
+                }
+                let stderrData: Data = await withCheckedContinuation { continuation in
+                    DispatchQueue.global(qos: .userInitiated).async {
+                        continuation.resume(returning: stderrPipe.fileHandleForReading.readDataToEndOfFile())
+                    }
+                }
+
+                // Wait for process termination
+                let resumed = OSAllocatedUnfairLock(initialState: false)
+                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                    process.terminationHandler = { _ in
+                        let alreadyResumed = resumed.withLock { flag -> Bool in
+                            let was = flag; flag = true; return was
+                        }
+                        if !alreadyResumed { continuation.resume() }
+                    }
+                    if !process.isRunning {
+                        let alreadyResumed = resumed.withLock { flag -> Bool in
+                            let was = flag; flag = true; return was
+                        }
+                        if !alreadyResumed {
+                            continuation.resume()
+                            process.terminationHandler = nil
+                        }
+                    }
+                }
+
+                return (stdout: stdoutData, stderr: stderrData)
             }
+
+            // Timeout task
+            group.addTask {
+                try await Task.sleep(for: .seconds(Self.extractionTimeout))
+                throw VideoStreamError.extractionFailed(
+                    "Stream extraction timed out after \(Int(Self.extractionTimeout))s"
+                )
+            }
+
+            // First task to complete wins — either extraction finishes or timeout fires
+            let value = try await group.next()!
+            // Cancel the loser (timeout or extraction)
+            group.cancelAll()
+            // Kill yt-dlp if it's still running (timeout won the race)
+            if process.isRunning {
+                process.terminate()
+            }
+            return value
         }
-        let stderrData: Data = await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                continuation.resume(returning: stderrPipe.fileHandleForReading.readDataToEndOfFile())
-            }
+
+        let elapsed = ContinuousClock.now - startTime
+        logger.notice("  yt-dlp finished in \(elapsed) (exit: \(process.terminationStatus))")
+
+        let stdout = String(data: result.stdout, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let stderr = String(data: result.stderr, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        if !stderr.isEmpty {
+            logger.notice("  yt-dlp stderr: \(stderr)")
         }
-
-        // Await termination with timeout.
-        // Use a one-shot flag to prevent double-resume.
-        let resumed = OSAllocatedUnfairLock(initialState: false)
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            process.terminationHandler = { _ in
-                let alreadyResumed = resumed.withLock { flag -> Bool in
-                    let was = flag; flag = true; return was
-                }
-                if !alreadyResumed { continuation.resume() }
-            }
-
-            // Timeout — kill the process if yt-dlp hangs
-            DispatchQueue.global().asyncAfter(deadline: .now() + Self.extractionTimeout) {
-                let alreadyResumed = resumed.withLock { flag -> Bool in
-                    let was = flag; flag = true; return was
-                }
-                if !alreadyResumed {
-                    process.terminate()
-                    continuation.resume(throwing: VideoStreamError.extractionFailed("Stream extraction timed out after \(Int(Self.extractionTimeout))s"))
-                }
-            }
-
-            if !process.isRunning {
-                let alreadyResumed = resumed.withLock { flag -> Bool in
-                    let was = flag; flag = true; return was
-                }
-                if !alreadyResumed {
-                    continuation.resume()
-                    process.terminationHandler = nil
-                }
-            }
-        }
-
-        let stdout = String(data: stdoutData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         guard process.terminationStatus == 0, !stdout.isEmpty else {
-            let stderr = String(data: stderrData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "Unknown error"
-            logger.error("yt-dlp stream extraction failed: \(stderr)")
-            throw VideoStreamError.extractionFailed(stderr)
+            logger.error("❌ yt-dlp extraction failed: \(stderr)")
+            throw VideoStreamError.extractionFailed(stderr.isEmpty ? "No output from yt-dlp" : stderr)
         }
 
         // yt-dlp may return multiple URLs (video + audio); take the first
         let urlString = stdout.components(separatedBy: .newlines).first ?? stdout
         guard let url = URL(string: urlString) else {
+            logger.error("❌ Invalid stream URL: \(urlString.prefix(100))")
             throw VideoStreamError.invalidStreamURL
         }
 
-        logger.info("Extracted stream URL for \(youtubeURL)")
+        logger.notice("✅ Extracted stream URL for \(youtubeURL) in \(elapsed)")
         return url
     }
 
