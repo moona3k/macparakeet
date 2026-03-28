@@ -35,6 +35,7 @@ struct TranscriptResultView: View {
     @State private var hoveredConversationId: UUID?
     @State private var playerViewModel = MediaPlayerViewModel()
     @State private var showVideoPanel = true
+    @State private var lastScrolledSegmentMs: Int = -1
     @FocusState private var chatInputFocused: Bool
     @FocusState private var speakerRenameFocused: Bool
 
@@ -64,6 +65,7 @@ struct TranscriptResultView: View {
             editingSpeakerLabel = ""
             showConversationPopover = false
             hoveredConversationId = nil
+            lastScrolledSegmentMs = -1
             viewModel.hasConversations = false
             viewModel.selectedTab = .transcript
             viewModel.resetSummaryState()
@@ -475,32 +477,45 @@ struct TranscriptResultView: View {
     }
 
     private var transcriptPane: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                if let speakers = transcription.speakers, !speakers.isEmpty {
-                    speakerSummaryPanel(speakers: speakers)
-                }
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                    if let speakers = transcription.speakers, !speakers.isEmpty {
+                        speakerSummaryPanel(speakers: speakers)
+                    }
 
-                if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
-                    timestampedView(words: timestamps)
-                } else if !transcriptText.isEmpty {
-                    Text(transcriptText)
-                        .font(DesignSystem.Typography.bodyLarge)
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                        .textSelection(.enabled)
-                        .lineSpacing(6)
-                        .padding(DesignSystem.Spacing.lg)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.6))
-                        )
-                } else {
-                    Text("No transcript available")
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
+                        timestampedView(words: timestamps)
+                    } else if !transcriptText.isEmpty {
+                        Text(transcriptText)
+                            .font(DesignSystem.Typography.bodyLarge)
+                            .foregroundStyle(DesignSystem.Colors.textPrimary)
+                            .textSelection(.enabled)
+                            .lineSpacing(6)
+                            .padding(DesignSystem.Spacing.lg)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(
+                                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                                    .fill(DesignSystem.Colors.surfaceElevated.opacity(0.6))
+                            )
+                    } else {
+                        Text("No transcript available")
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    }
+                }
+                .padding(DesignSystem.Spacing.lg)
+            }
+            .onChange(of: playerViewModel.currentTimeMs) { _, newValue in
+                guard playerViewModel.isPlaying else { return }
+                guard let words = transcription.wordTimestamps, !words.isEmpty else { return }
+                if let targetId = autoScrollTarget(for: newValue, words: words),
+                   targetId != lastScrolledSegmentMs {
+                    lastScrolledSegmentMs = targetId
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        proxy.scrollTo(targetId, anchor: .center)
+                    }
                 }
             }
-            .padding(DesignSystem.Spacing.lg)
         }
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
@@ -1190,6 +1205,7 @@ struct TranscriptResultView: View {
                     speakerColor: speakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textTertiary,
                     segments: turn.segments.map { ($0.startMs, $0.text) }
                 )
+                .id(turn.segments.first?.startMs ?? 0)
             }
         } else {
             // No speakers — render as clean transcript segments instead of a flat log.
@@ -1410,6 +1426,33 @@ struct TranscriptResultView: View {
             return currentMs < segments[index + 1].startMs
         }
         return true // Last segment — active if past its start
+    }
+
+    /// Find the scroll target ID (segment startMs) for the given playback time.
+    /// For speaker-aware transcripts, returns the first segment startMs of the active speaker turn.
+    /// For non-speaker transcripts, returns the active segment's startMs.
+    private func autoScrollTarget(for currentMs: Int, words: [WordTimestamp]) -> Int? {
+        let segments = TranscriptSegmenter.groupIntoSegments(words: words)
+        guard !segments.isEmpty else { return nil }
+        let hasSpeakers = words.contains { $0.speakerId != nil }
+
+        if hasSpeakers {
+            let turns = TranscriptSegmenter.groupIntoSpeakerTurns(segments: segments, speakerLabelProvider: speakerLabel(for:))
+            // Find the last turn whose first segment starts at or before currentMs
+            for turn in turns.reversed() {
+                if let first = turn.segments.first, first.startMs <= currentMs {
+                    return first.startMs
+                }
+            }
+        } else {
+            // Find the last segment that starts at or before currentMs
+            for segment in segments.reversed() {
+                if segment.startMs <= currentMs {
+                    return segment.startMs
+                }
+            }
+        }
+        return nil
     }
 
     // MARK: - Speaker Helpers
