@@ -2,6 +2,8 @@ import Foundation
 import os
 
 public final class ThumbnailCacheService: Sendable {
+    public static let shared = ThumbnailCacheService()
+
     private let cacheDir: String
     private let logger = Logger(subsystem: "com.macparakeet", category: "ThumbnailCache")
 

@@ -91,8 +91,13 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         if Self.isVideoFile(fileURL) {
             let transcriptionId = transcription.id
             let path = fileURL.path
+            let logger = self.logger
             Task.detached(priority: .utility) {
-                _ = try? await ThumbnailCacheService().extractVideoFrame(from: path, for: transcriptionId)
+                do {
+                    _ = try await ThumbnailCacheService.shared.extractVideoFrame(from: path, for: transcriptionId)
+                } catch {
+                    logger.error("Thumbnail extraction failed for \(transcriptionId): \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
 
@@ -137,8 +142,13 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         // Cache YouTube thumbnail locally (non-blocking)
         if let thumbURL = downloadResult.thumbnailURL {
             let transcriptionId = transcription.id
+            let logger = self.logger
             Task.detached(priority: .utility) {
-                _ = try? await ThumbnailCacheService().downloadThumbnail(from: thumbURL, for: transcriptionId)
+                do {
+                    _ = try await ThumbnailCacheService.shared.downloadThumbnail(from: thumbURL, for: transcriptionId)
+                } catch {
+                    logger.error("Thumbnail download failed for \(transcriptionId): \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
 

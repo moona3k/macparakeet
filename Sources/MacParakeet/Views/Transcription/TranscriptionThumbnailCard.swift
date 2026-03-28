@@ -1,7 +1,7 @@
 import SwiftUI
 import MacParakeetCore
 
-private let sharedThumbnailCache = ThumbnailCacheService()
+private let sharedThumbnailCache = ThumbnailCacheService.shared
 
 /// Thumbnail card for displaying a transcription in a grid layout.
 struct TranscriptionThumbnailCard<MenuContent: View>: View {
@@ -38,6 +38,16 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
         }
         .onHover { hovered = $0 }
         .animation(DesignSystem.Animation.hoverTransition, value: hovered)
+        .onAppear {
+            // If not locally cached, trigger background download so it's cached for next render
+            if sharedThumbnailCache.cachedThumbnail(for: transcription.id) == nil,
+               let urlString = transcription.thumbnailURL {
+                let id = transcription.id
+                Task.detached(priority: .utility) {
+                    _ = try? await ThumbnailCacheService.shared.downloadThumbnail(from: urlString, for: id)
+                }
+            }
+        }
     }
 
     @State private var moreHovered = false
