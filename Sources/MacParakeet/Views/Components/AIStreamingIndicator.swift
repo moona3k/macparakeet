@@ -17,13 +17,7 @@ struct AIStreamingIndicator: View {
                         .frame(width: 5, height: 5)
                         .scaleEffect(scale)
                         .opacity(intensity)
-                        .background(
-                            Circle()
-                                .fill(DesignSystem.Colors.accent)
-                                .frame(width: 12, height: 12)
-                                .blur(radius: 4)
-                                .opacity(intensity * 0.4)
-                        )
+                        .shadow(color: DesignSystem.Colors.accent.opacity(intensity * 0.4), radius: 4)
                 }
             }
         }
@@ -84,14 +78,14 @@ struct ChatLoadingSweep: View {
                         )
                         .frame(width: beamWidth, height: geo.size.height)
                         .hueRotation(.degrees(hueRotation))
-                        .blur(radius: 1)
+                        .shadow(color: .white.opacity(0.15), radius: 1)
                         .offset(x: offsetX)
 
                     // Bright leading-edge spark
                     Circle()
                         .fill(.white.opacity(0.9))
                         .frame(width: 4, height: 4)
-                        .blur(radius: 2)
+                        .shadow(color: .white.opacity(0.6), radius: 2)
                         .offset(
                             x: offsetX + beamWidth * 0.72,
                             y: (geo.size.height - 4) / 2

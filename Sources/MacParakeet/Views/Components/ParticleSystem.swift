@@ -16,6 +16,7 @@ struct ParticleField: View {
 
     @State private var particles: [Particle] = []
     @State private var isAnimating = false
+    @State private var animationTimer: Timer?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -39,7 +40,7 @@ struct ParticleField: View {
             startAnimation()
         }
         .onDisappear {
-            isAnimating = false
+            stopAnimation()
         }
     }
 
@@ -67,14 +68,19 @@ struct ParticleField: View {
     }
 
     private func startAnimation() {
-        // Use a timer-based approach for smooth particle motion
-        Timer.scheduledTimer(withTimeInterval: 1.0 / 30.0, repeats: true) { timer in
-            guard isAnimating else {
-                timer.invalidate()
-                return
-            }
+        animationTimer?.invalidate()
+        let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { _ in
+            guard isAnimating else { return }
             updateParticles()
         }
+        RunLoop.main.add(timer, forMode: .common)
+        animationTimer = timer
+    }
+
+    private func stopAnimation() {
+        isAnimating = false
+        animationTimer?.invalidate()
+        animationTimer = nil
     }
 
     private func updateParticles() {
