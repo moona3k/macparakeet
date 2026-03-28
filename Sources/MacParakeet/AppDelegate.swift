@@ -707,6 +707,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     @objc private func transcribeFromYouTubeMenu() {
         guard appEnvironment != nil else { return }
+        transcriptionViewModel.currentTranscription = nil
         mainWindowState.selectedItem = .transcribe
         openMainWindow()
     }
