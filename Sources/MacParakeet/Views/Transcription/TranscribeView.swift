@@ -7,6 +7,7 @@ struct TranscribeView: View {
     @Bindable var viewModel: TranscriptionViewModel
     var chatViewModel: TranscriptChatViewModel
     @Binding var showingProgressDetail: Bool
+    var onNavigateBack: (() -> Void)?
     @State private var showCancelConfirmation = false
     private enum PipelineStep: CaseIterable {
         case download
@@ -50,7 +51,10 @@ struct TranscribeView: View {
                         transcription: transcription,
                         viewModel: viewModel,
                         chatViewModel: chatViewModel,
-                        onBack: { viewModel.currentTranscription = nil },
+                        onBack: {
+                            viewModel.currentTranscription = nil
+                            onNavigateBack?()
+                        },
                         onRetranscribe: { original in
                             viewModel.retranscribe(original)
                         }
@@ -488,36 +492,10 @@ struct TranscribeView: View {
                         TranscriptionThumbnailCard(transcription: transcription) {
                             viewModel.currentTranscription = transcription
                         } menuContent: {
-                            Button {
-                                viewModel.currentTranscription = transcription
-                            } label: {
-                                Label("Open", systemImage: "doc.text")
-                            }
-
-                            Divider()
-
-                            Button(role: .destructive) {
-                                viewModel.pendingDeleteTranscription = transcription
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                            .disabled(transcription.status == .processing)
+                            transcriptionMenuItems(for: transcription)
                         }
                         .contextMenu {
-                            Button {
-                                viewModel.currentTranscription = transcription
-                            } label: {
-                                Label("Open", systemImage: "doc.text")
-                            }
-
-                            Divider()
-
-                            Button(role: .destructive) {
-                                viewModel.pendingDeleteTranscription = transcription
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                            .disabled(transcription.status == .processing)
+                            transcriptionMenuItems(for: transcription)
                         }
                     }
                 }
@@ -550,6 +528,24 @@ struct TranscribeView: View {
     }
 
     // MARK: - Helpers
+
+    @ViewBuilder
+    private func transcriptionMenuItems(for transcription: Transcription) -> some View {
+        Button {
+            viewModel.currentTranscription = transcription
+        } label: {
+            Label("Open", systemImage: "doc.text")
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            viewModel.pendingDeleteTranscription = transcription
+        } label: {
+            Label("Delete", systemImage: "trash")
+        }
+        .disabled(transcription.status == .processing)
+    }
 
     private var phaseSymbol: String {
         switch viewModel.progressPhase {

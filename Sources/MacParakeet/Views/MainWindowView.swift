@@ -83,11 +83,11 @@ struct MainWindowView: View {
                 Group {
                     switch state.selectedItem {
                     case .transcribe:
-                        TranscribeView(viewModel: transcriptionViewModel, chatViewModel: chatViewModel, showingProgressDetail: $state.showingProgressDetail)
+                        TranscribeView(viewModel: transcriptionViewModel, chatViewModel: chatViewModel, showingProgressDetail: $state.showingProgressDetail, onNavigateBack: { state.navigateBack() })
                     case .library:
                         TranscriptionLibraryView(viewModel: libraryViewModel) { transcription in
                             transcriptionViewModel.currentTranscription = transcription
-                            state.selectedItem = .transcribe
+                            state.navigateToTranscription(from: .library)
                         }
                     case .dictations:
                         DictationHistoryView(viewModel: historyViewModel)

@@ -35,6 +35,7 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
         .overlay(alignment: .topTrailing) {
             moreButton
                 .opacity(hovered ? 1 : 0)
+                .allowsHitTesting(hovered)
         }
         .animation(DesignSystem.Animation.hoverTransition, value: hovered)
     }

@@ -62,52 +62,10 @@ struct TranscriptionLibraryView: View {
                             TranscriptionThumbnailCard(transcription: transcription) {
                                 onSelect(transcription)
                             } menuContent: {
-                                Button {
-                                    onSelect(transcription)
-                                } label: {
-                                    Label("Open", systemImage: "doc.text")
-                                }
-
-                                Button {
-                                    viewModel.toggleFavorite(transcription)
-                                } label: {
-                                    Label(
-                                        transcription.isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                                        systemImage: transcription.isFavorite ? "star.slash" : "star"
-                                    )
-                                }
-
-                                Divider()
-
-                                Button(role: .destructive) {
-                                    pendingDelete = transcription
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
+                                libraryMenuItems(for: transcription)
                             }
                             .contextMenu {
-                                Button {
-                                    onSelect(transcription)
-                                } label: {
-                                    Label("Open", systemImage: "doc.text")
-                                }
-
-                                Button {
-                                    viewModel.toggleFavorite(transcription)
-                                } label: {
-                                    Label(
-                                        transcription.isFavorite ? "Remove from Favorites" : "Add to Favorites",
-                                        systemImage: transcription.isFavorite ? "star.slash" : "star"
-                                    )
-                                }
-
-                                Divider()
-
-                                Button(role: .destructive) {
-                                    pendingDelete = transcription
-                                } label: {
-                                    Label("Delete", systemImage: "trash")
-                                }
+                                libraryMenuItems(for: transcription)
                             }
                         }
                     }
@@ -140,6 +98,32 @@ struct TranscriptionLibraryView: View {
             if let pending = pendingDelete {
                 Text("\"\(pending.fileName)\" will be permanently deleted.")
             }
+        }
+    }
+
+    @ViewBuilder
+    private func libraryMenuItems(for transcription: Transcription) -> some View {
+        Button {
+            onSelect(transcription)
+        } label: {
+            Label("Open", systemImage: "doc.text")
+        }
+
+        Button {
+            viewModel.toggleFavorite(transcription)
+        } label: {
+            Label(
+                transcription.isFavorite ? "Remove from Favorites" : "Add to Favorites",
+                systemImage: transcription.isFavorite ? "star.slash" : "star"
+            )
+        }
+
+        Divider()
+
+        Button(role: .destructive) {
+            pendingDelete = transcription
+        } label: {
+            Label("Delete", systemImage: "trash")
         }
     }
 
