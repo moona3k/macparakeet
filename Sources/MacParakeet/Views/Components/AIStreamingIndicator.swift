@@ -32,8 +32,7 @@ struct SummarySkeletonView: View {
             MeditativeMerkabaView(
                 size: 72,
                 revolutionDuration: 5.0,
-                tintColor: DesignSystem.Colors.accent,
-                animate: true
+                tintColor: DesignSystem.Colors.accent
             )
 
             AIStreamingIndicator()

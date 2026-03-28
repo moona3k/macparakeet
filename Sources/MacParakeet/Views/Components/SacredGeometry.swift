@@ -104,13 +104,13 @@ struct SpinnerRingView: View {
 /// Larger, slower merkaba for empty states and idle backgrounds.
 /// Softer opacity, adapts to light/dark mode via `.primary`.
 ///
-/// Pass `animate: false` (the default) for decorative/static use — no CPU cost.
-/// Pass `animate: true` only for active loading states (e.g. during drag, streaming).
+/// Animates by default. Pass `animate: false` for purely static decoration,
+/// or bind to state (e.g. `animate: isDragging`) for interaction-driven animation.
 struct MeditativeMerkabaView: View {
     var size: CGFloat = 64
     var revolutionDuration: Double = 6.0
     var tintColor: Color? = nil
-    var animate: Bool = false
+    var animate: Bool = true
 
     @State private var rotationCW: Double = 0
     @State private var rotationCCW: Double = 0

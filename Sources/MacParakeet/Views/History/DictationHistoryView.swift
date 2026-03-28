@@ -243,7 +243,7 @@ struct DictationHistoryView: View {
         VStack(spacing: DesignSystem.Spacing.lg) {
             Spacer()
 
-            MeditativeMerkabaView(size: 72, revolutionDuration: 8.0, tintColor: DesignSystem.Colors.accent, animate: false)
+            MeditativeMerkabaView(size: 72, revolutionDuration: 8.0, tintColor: DesignSystem.Colors.accent)
                 .opacity(0.4)
 
             VStack(spacing: DesignSystem.Spacing.sm) {
