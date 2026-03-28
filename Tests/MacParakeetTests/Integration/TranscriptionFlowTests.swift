@@ -1,6 +1,7 @@
 import XCTest
 @testable import MacParakeetCore
 
+@MainActor
 final class TranscriptionFlowTests: XCTestCase {
     var transcriptionService: TranscriptionService!
     var mockAudio: MockAudioProcessor!

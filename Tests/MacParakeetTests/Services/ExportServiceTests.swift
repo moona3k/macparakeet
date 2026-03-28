@@ -2,6 +2,7 @@ import CoreGraphics
 import XCTest
 @testable import MacParakeetCore
 
+@MainActor
 final class ExportServiceTests: XCTestCase {
     var exportService: ExportService!
 
@@ -339,7 +340,7 @@ final class ExportServiceTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempURL)
     }
 
-    @MainActor func testExportToPDF() throws {
+    func testExportToPDF() throws {
         let transcription = Transcription(
             fileName: "document.mp3",
             rawTranscript: "PDF export test content",
@@ -369,7 +370,7 @@ final class ExportServiceTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempURL)
     }
 
-    @MainActor func testExportToPDFWithTimestamps() throws {
+    func testExportToPDFWithTimestamps() throws {
         let transcription = Transcription(
             fileName: "timestamped.mp3",
             rawTranscript: "Hello world this is a test",
@@ -396,7 +397,7 @@ final class ExportServiceTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempURL)
     }
 
-    @MainActor func testExportToPDFWithSpeakers() throws {
+    func testExportToPDFWithSpeakers() throws {
         let transcription = Transcription(
             fileName: "interview.mp3",
             rawTranscript: "Hello. Hi there.",
@@ -435,7 +436,7 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(transform.ty, 720, accuracy: 0.001)
     }
 
-    @MainActor func testExportToDocx() throws {
+    func testExportToDocx() throws {
         let transcription = Transcription(
             fileName: "word.mp3",
             rawTranscript: "DOCX export test content",
