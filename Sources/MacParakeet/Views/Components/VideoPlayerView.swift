@@ -86,6 +86,9 @@ final class SubtitleOverlayLabel: NSView {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// Pass all clicks through to the player controls beneath.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
     func update(text: String?) {
         if let text, !text.isEmpty {
             textField.stringValue = text
