@@ -58,7 +58,11 @@ struct TranscriptResultView: View {
         adaptiveLayout
         .onAppear {
             Task {
-                await playerViewModel.load(for: transcription)
+                if showVideoPanel {
+                    await playerViewModel.load(for: transcription)
+                } else {
+                    await playerViewModel.prepare(for: transcription)
+                }
                 if let words = transcription.wordTimestamps, !words.isEmpty {
                     playerViewModel.loadSubtitleCues(from: words)
                 }
@@ -72,7 +76,11 @@ struct TranscriptResultView: View {
         .onChange(of: transcription.id) {
             Task {
                 playerViewModel.cleanup()
-                await playerViewModel.load(for: transcription)
+                if showVideoPanel {
+                    await playerViewModel.load(for: transcription)
+                } else {
+                    await playerViewModel.prepare(for: transcription)
+                }
                 if let words = transcription.wordTimestamps, !words.isEmpty {
                     playerViewModel.loadSubtitleCues(from: words)
                 }
@@ -215,6 +223,12 @@ struct TranscriptResultView: View {
                     Button {
                         withAnimation(DesignSystem.Animation.contentSwap) {
                             showVideoPanel = true
+                        }
+                        // Lazy-load: extract YouTube stream only when user wants video
+                        if playerViewModel.needsVideoStreamLoad {
+                            Task {
+                                await playerViewModel.load(for: transcription)
+                            }
                         }
                     } label: {
                         Label("Show Video", systemImage: "play.rectangle")

@@ -133,8 +133,6 @@ public actor YouTubeDownloader {
                 "--skip-download",
                 "--dump-json",
                 "--no-playlist",
-                "--extractor-args",
-                "youtube:player_client=tv,android",
                 url,
             ],
             captureStdout: true
@@ -197,7 +195,6 @@ public actor YouTubeDownloader {
             args += ["--no-js-runtimes"] + jsRuntimeArgs
         }
         args += ["--ffmpeg-location", ffmpegDir]
-        args += ["--extractor-args", "youtube:player_client=tv,android"]
         args += [
             "-f", "bestaudio/best",
             "--no-playlist",

@@ -62,7 +62,6 @@ public final class VideoStreamService: Sendable {
             "-f", "b",
             "--get-url",
             "--no-playlist",
-            "--extractor-args", "youtube:player_client=tv,android",
             "--", youtubeURL,
         ]
 

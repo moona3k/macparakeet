@@ -35,6 +35,8 @@ public final class MediaPlayerViewModel {
     public var showSubtitles: Bool = false
     /// Current subtitle text to display (nil when between cues or subtitles disabled)
     public var currentSubtitleText: String?
+    /// Whether YouTube stream extraction is still pending (local audio preloaded via prepare())
+    public var needsVideoStreamLoad: Bool = false
 
     private var subtitleCues: [ExportService.SubtitleCue] = []
     private var lastCueIndex: Int = -1
@@ -51,6 +53,39 @@ public final class MediaPlayerViewModel {
     }
 
     // MARK: - Public API
+
+    /// Prepare media without YouTube stream extraction. Sets playback mode and loads
+    /// local audio for the scrubber bar. YouTube stream is deferred until "Show Video".
+    /// This avoids unnecessary yt-dlp calls that trigger YouTube rate limiting.
+    public func prepare(for transcription: Transcription) async {
+        loadingTask?.cancel()
+
+        let mode = Self.detectPlaybackMode(for: transcription)
+        playbackMode = mode
+
+        guard mode != .none else {
+            playerState = .idle
+            return
+        }
+
+        // Local files: load immediately (no rate limiting concern)
+        if transcription.sourceURL == nil {
+            await load(for: transcription)
+            return
+        }
+
+        // YouTube: load local audio file for scrubber bar, defer video stream
+        needsVideoStreamLoad = true
+        if let filePath = transcription.filePath,
+           FileManager.default.fileExists(atPath: filePath) {
+            loadLocalFile(filePath)
+            playerState = .ready
+            logger.info("Prepared YouTube media: loaded local audio, deferring video stream")
+        } else {
+            playerState = .idle
+            logger.info("Prepared YouTube media: no local audio, deferring video stream")
+        }
+    }
 
     /// Load media for a transcription. Determines playback mode and sets up AVPlayer.
     /// Cancels any in-flight load to prevent race conditions on rapid navigation.
@@ -130,6 +165,7 @@ public final class MediaPlayerViewModel {
         durationMs = 0
         playerState = .idle
         playbackMode = .none
+        needsVideoStreamLoad = false
         subtitleCues = []
         lastCueIndex = -1
         currentSubtitleText = nil
@@ -154,6 +190,10 @@ public final class MediaPlayerViewModel {
     // MARK: - Private
 
     private func loadYouTubeStream(_ sourceURL: String) async {
+        // Preserve playback position from local audio preload (if any)
+        let savedTimeMs = currentTimeMs
+        let wasPlaying = isPlaying
+
         let start = ContinuousClock.now
         do {
             logger.info("Extracting stream URL via yt-dlp for \(sourceURL)")
@@ -163,7 +203,15 @@ public final class MediaPlayerViewModel {
             guard !Task.isCancelled else { return }
             let playerItem = AVPlayerItem(url: streamURL)
             setupPlayer(with: playerItem)
+            needsVideoStreamLoad = false
             playerState = .ready
+            // Restore playback position from local audio
+            if savedTimeMs > 0 {
+                seek(toMs: savedTimeMs)
+            }
+            if wasPlaying {
+                player?.play()
+            }
             logger.info("YouTube video player ready")
         } catch {
             guard !Task.isCancelled else { return }
