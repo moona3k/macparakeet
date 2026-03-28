@@ -551,14 +551,19 @@ struct TranscriptResultView: View {
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
         )
         .onAppear {
+            if let existing = scrollMonitor {
+                NSEvent.removeMonitor(existing)
+            }
             scrollMonitor = NSEvent.addLocalMonitorForEvents(matching: .scrollWheel) { event in
                 if self.playerViewModel.isPlaying {
                     self.autoScrollPaused = true
+                    self.lastScrolledSegmentMs = -1
                     self.scrollPauseTask?.cancel()
                     self.scrollPauseTask = Task { @MainActor in
                         try? await Task.sleep(for: .seconds(5))
-                        guard !Task.isCancelled else { return }
-                        self.autoScrollPaused = false
+                        if !Task.isCancelled {
+                            self.autoScrollPaused = false
+                        }
                     }
                 }
                 return event
