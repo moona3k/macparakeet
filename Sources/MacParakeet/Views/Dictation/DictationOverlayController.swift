@@ -213,7 +213,8 @@ final class DictationOverlayViewModel {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { break }
-                self?.recordingElapsedSeconds += 1
+                guard let self else { break }
+                self.recordingElapsedSeconds += 1
             }
         }
     }
@@ -230,7 +231,8 @@ final class DictationOverlayViewModel {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { break }
-                self?.recordingElapsedSeconds += 1
+                guard let self else { break }
+                self.recordingElapsedSeconds += 1
             }
         }
     }

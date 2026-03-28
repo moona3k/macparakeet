@@ -192,6 +192,9 @@ public final class HotkeyManager {
                     handleAction(action)
                 } else {
                     // Not a bare tap (e.g., Ctrl+C) — reset instead of treating as a gesture
+                    if stateMachine.state == .holdToTalk {
+                        handleAction(.cancelRecording)
+                    }
                     stateMachine.reset()
                 }
                 bareTap = true

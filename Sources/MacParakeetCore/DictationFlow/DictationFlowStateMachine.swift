@@ -284,6 +284,14 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
 
         // MARK: Pending stop
 
+        case (.pendingStop, .startRequested(let mode)):
+            generation += 1
+            state = .checkingEntitlements(mode: mode)
+            return [
+                .cancelAllTimers, .cancelRecordingTask, .cancelRecording(reason: .ui),
+                .hideOverlay, .hideIdlePill, .checkEntitlements,
+            ]
+
         case (.pendingStop, .recordingStarted(let gen)):
             guard gen == generation else { return [] }
             state = .processing
@@ -311,6 +319,14 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             ]
 
         // MARK: Processing
+
+        case (.processing, .startRequested(let mode)):
+            generation += 1
+            state = .checkingEntitlements(mode: mode)
+            return [
+                .cancelAllTimers, .cancelActionTask,
+                .hideOverlay, .hideIdlePill, .checkEntitlements,
+            ]
 
         case (.processing, .transcriptionCompleted(let gen)):
             guard gen == generation else { return [] }
@@ -342,7 +358,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             return [
                 .cancelCancelCountdown, .cancelActionTask,
                 .undoCancelAndTranscribe, .showProcessingState,
-                .updateMenuBar(.processing),
+                .updateMenuBar(.processing), .resetHotkeyStateMachine,
             ]
 
         case (.cancelCountdown, .cancelConfirmedImmediate):
@@ -368,7 +384,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             return [
                 .cancelCancelCountdown, .cancelActionTask,
                 .confirmCancel, .hideOverlay,
-                .hideIdlePill, .checkEntitlements,
+                .hideIdlePill, .checkEntitlements, .resetHotkeyStateMachine,
             ]
 
         case (.cancelCountdown, .dismissRequested):
