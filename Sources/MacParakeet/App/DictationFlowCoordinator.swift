@@ -184,7 +184,7 @@ final class DictationFlowCoordinator {
                 }
             }
             readyDismissTimer = timer
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(800), execute: timer)
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(FnKeyStateMachine.tapThresholdMs), execute: timer)
 
         case .showRecordingOverlay(let mode):
             // Reuse existing overlay if it's in ready state (seamless transition)
@@ -449,7 +449,7 @@ final class DictationFlowCoordinator {
                 }
             }
             readyDismissTimer = timer
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(800), execute: timer)
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(FnKeyStateMachine.tapThresholdMs), execute: timer)
 
         case .cancelReadyDismissTimer:
             readyDismissTimer?.cancel()
