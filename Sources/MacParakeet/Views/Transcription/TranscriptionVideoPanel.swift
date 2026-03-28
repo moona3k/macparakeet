@@ -19,9 +19,29 @@ struct TranscriptionVideoPanel: View {
 
             case .ready:
                 if let player = playerViewModel.player {
-                    VideoPlayerView(player: player)
+                    VStack(spacing: 0) {
+                        VideoPlayerView(
+                            player: player,
+                            subtitleText: playerViewModel.showSubtitles ? playerViewModel.currentSubtitleText : nil
+                        )
                         .aspectRatio(16/9, contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
+
+                        // CC toggle
+                        HStack {
+                            Spacer()
+                            Button {
+                                playerViewModel.showSubtitles.toggle()
+                            } label: {
+                                Image(systemName: playerViewModel.showSubtitles ? "captions.bubble.fill" : "captions.bubble")
+                                    .font(.system(size: 12))
+                                    .foregroundStyle(playerViewModel.showSubtitles ? DesignSystem.Colors.accent : DesignSystem.Colors.textTertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .help(playerViewModel.showSubtitles ? "Hide subtitles" : "Show subtitles")
+                        }
+                        .padding(.top, 4)
+                    }
                 }
 
             case .error(let message):

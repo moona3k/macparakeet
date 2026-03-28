@@ -253,17 +253,17 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     // MARK: - Subtitle Cue Building
 
-    struct SubtitleCue {
-        let startMs: Int
-        let endMs: Int
-        let text: String
-        let speakerId: String?
+    public struct SubtitleCue: Sendable {
+        public let startMs: Int
+        public let endMs: Int
+        public let text: String
+        public let speakerId: String?
     }
 
-    /// Groups word timestamps into subtitle cues suitable for SRT/VTT.
+    /// Groups word timestamps into subtitle cues suitable for SRT/VTT and overlay display.
     /// Rules: max ~12 words per cue, break on sentence-ending punctuation,
     /// break on long pauses (>800ms), max ~7 seconds per cue, break on speaker change.
-    func buildSubtitleCues(from words: [WordTimestamp]) -> [SubtitleCue] {
+    public func buildSubtitleCues(from words: [WordTimestamp]) -> [SubtitleCue] {
         guard !words.isEmpty else { return [] }
 
         var cues: [SubtitleCue] = []

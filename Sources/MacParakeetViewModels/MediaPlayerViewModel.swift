@@ -31,7 +31,13 @@ public final class MediaPlayerViewModel {
     public var playbackMode: PlaybackMode = .none
     /// Seconds elapsed since loading started (for UX feedback)
     public var loadingElapsed: TimeInterval = 0
+    /// Whether subtitle overlay is visible on the video player
+    public var showSubtitles: Bool = false
+    /// Current subtitle text to display (nil when between cues or subtitles disabled)
+    public var currentSubtitleText: String?
 
+    private var subtitleCues: [ExportService.SubtitleCue] = []
+    private var lastCueIndex: Int = -1
     private var timeObserver: Any?
     private var statusObserver: NSKeyValueObservation?
     private var endOfTrackObserver: NSObjectProtocol?
@@ -96,6 +102,13 @@ public final class MediaPlayerViewModel {
         // isPlaying is updated by the KVO observer on timeControlStatus
     }
 
+    /// Load subtitle cues from word timestamps for overlay display.
+    public func loadSubtitleCues(from words: [WordTimestamp]) {
+        subtitleCues = ExportService().buildSubtitleCues(from: words)
+        lastCueIndex = -1
+        currentSubtitleText = nil
+    }
+
     public func cleanup() {
         loadingTask?.cancel()
         loadingTask = nil
@@ -117,6 +130,10 @@ public final class MediaPlayerViewModel {
         durationMs = 0
         playerState = .idle
         playbackMode = .none
+        subtitleCues = []
+        lastCueIndex = -1
+        currentSubtitleText = nil
+        showSubtitles = false
     }
 
     // MARK: - Playback Mode Detection
@@ -175,10 +192,14 @@ public final class MediaPlayerViewModel {
         let avPlayer = AVPlayer(playerItem: item)
         self.player = avPlayer
 
-        // Observe playback time at 10Hz for smooth transcript sync
+        // Observe playback time at 10Hz for smooth transcript sync + subtitle updates
         let interval = CMTime(seconds: 0.1, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
         timeObserver = avPlayer.addPeriodicTimeObserver(forInterval: interval, queue: .main) { [weak self] time in
-            self?.currentTimeMs = Int(time.seconds * 1000)
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.currentTimeMs = Int(time.seconds * 1000)
+                self.updateSubtitleText()
+            }
         }
 
         // Drive isPlaying from AVPlayer's actual timeControlStatus via KVO
@@ -224,5 +245,44 @@ public final class MediaPlayerViewModel {
     private func stopLoadingTimer() {
         loadingTimerTask?.cancel()
         loadingTimerTask = nil
+    }
+
+    /// Binary search for the subtitle cue matching the current playback time.
+    /// Only updates `currentSubtitleText` when the active cue changes.
+    private func updateSubtitleText() {
+        guard showSubtitles, !subtitleCues.isEmpty else {
+            if currentSubtitleText != nil { currentSubtitleText = nil }
+            return
+        }
+        let ms = currentTimeMs
+
+        // Quick check: is the last known cue still active?
+        if lastCueIndex >= 0, lastCueIndex < subtitleCues.count {
+            let cue = subtitleCues[lastCueIndex]
+            if ms >= cue.startMs && ms <= cue.endMs {
+                return // Still on the same cue
+            }
+        }
+
+        // Binary search for the cue containing currentTimeMs
+        var lo = 0, hi = subtitleCues.count - 1
+        var found = -1
+        while lo <= hi {
+            let mid = (lo + hi) / 2
+            let cue = subtitleCues[mid]
+            if ms < cue.startMs {
+                hi = mid - 1
+            } else if ms > cue.endMs {
+                lo = mid + 1
+            } else {
+                found = mid
+                break
+            }
+        }
+
+        if found != lastCueIndex {
+            lastCueIndex = found
+            currentSubtitleText = found >= 0 ? subtitleCues[found].text : nil
+        }
     }
 }

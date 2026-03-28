@@ -50,6 +50,9 @@ struct TranscriptResultView: View {
         .onAppear {
             Task {
                 await playerViewModel.load(for: transcription)
+                if let words = transcription.wordTimestamps, !words.isEmpty {
+                    playerViewModel.loadSubtitleCues(from: words)
+                }
             }
             viewModel.resetSummaryState()
             viewModel.loadPersistedContent()
@@ -60,6 +63,9 @@ struct TranscriptResultView: View {
             Task {
                 playerViewModel.cleanup()
                 await playerViewModel.load(for: transcription)
+                if let words = transcription.wordTimestamps, !words.isEmpty {
+                    playerViewModel.loadSubtitleCues(from: words)
+                }
             }
             editingSpeakerId = nil
             editingSpeakerLabel = ""
