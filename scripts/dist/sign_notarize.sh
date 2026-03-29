@@ -222,7 +222,27 @@ APPLESCRIPT
   codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG_PATH"
 
   echo "Notarizing DMG…"
-  xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARYTOOL_PROFILE" --wait
+  # Submit without --wait (crashes with bus error on macOS 15+), then poll.
+  DMG_SUBMIT_OUT=$(xcrun notarytool submit "$DMG_PATH" --keychain-profile "$NOTARYTOOL_PROFILE" 2>&1)
+  echo "$DMG_SUBMIT_OUT"
+  DMG_SUBMISSION_ID=$(echo "$DMG_SUBMIT_OUT" | grep '  id:' | head -1 | awk '{print $2}')
+  if [[ -z "$DMG_SUBMISSION_ID" ]]; then
+    echo "Error: Failed to extract DMG submission ID"
+    exit 1
+  fi
+  echo "Polling DMG notarization status for $DMG_SUBMISSION_ID..."
+  while true; do
+    DMG_STATUS=$(xcrun notarytool info "$DMG_SUBMISSION_ID" --keychain-profile "$NOTARYTOOL_PROFILE" 2>&1)
+    if echo "$DMG_STATUS" | grep -q "status: Accepted"; then
+      echo "DMG notarization accepted!"
+      break
+    elif echo "$DMG_STATUS" | grep -q "status: Invalid"; then
+      echo "DMG notarization REJECTED:"
+      echo "$DMG_STATUS"
+      exit 1
+    fi
+    sleep 15
+  done
 
   echo "Stapling DMG…"
   xcrun stapler staple "$DMG_PATH"
