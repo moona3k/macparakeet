@@ -29,14 +29,14 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                 headerCard
-                generalCard
                 dictationCard
                 aiProviderCard
                 storageCard
-                localModelsCard
-                permissionsCard
-                privacyCard
+                generalCard
                 updatesCard
+                localModelsCard
+                privacyCard
+                permissionsCard
                 onboardingCard
                 aboutCard
             }
@@ -123,9 +123,9 @@ struct SettingsView: View {
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
                 settingsToggleRow(
-                    title: "Menu bar only mode",
-                    detail: "Hide the Dock icon and run from the menu bar only.",
-                    isOn: $viewModel.menuBarOnlyMode
+                    title: "Show dictation pill at all times",
+                    detail: "When off, the pill hides until you press the hotkey.",
+                    isOn: $viewModel.showIdlePill
                 )
 
                 Divider()
@@ -156,9 +156,9 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
-                    title: "Show dictation pill at all times",
-                    detail: "When off, the pill hides until you press the hotkey.",
-                    isOn: $viewModel.showIdlePill
+                    title: "Menu bar only mode",
+                    detail: "Hide the Dock icon and run from the menu bar only.",
+                    isOn: $viewModel.menuBarOnlyMode
                 )
             }
         }
