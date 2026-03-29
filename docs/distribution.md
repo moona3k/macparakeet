@@ -150,7 +150,7 @@ Verify: Look for `Embedded Sparkle.framework` and `Adding @executable_path/../Fr
 scripts/dist/sign_notarize.sh
 ```
 
-The script defaults `NOTARYTOOL_PROFILE` to `AC_PASSWORD`. Both app and DMG are signed, notarized, and stapled. Wait for both "Accepted" statuses.
+The script defaults `NOTARYTOOL_PROFILE` to `AC_PASSWORD`. Both app and DMG are signed, notarized, and stapled. The script submits and polls for completion — **never use `notarytool submit --wait`** (it crashes with a bus error; see gotcha #1 below).
 
 Verify:
 ```bash
@@ -250,6 +250,75 @@ npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
 | Appcast not updating | Cloudflare Pages cache / build not triggered | Deploy manually: `npx wrangler pages deploy dist --project-name macparakeet-website` |
 | `notarytool` auth failure | Keychain profile missing | Run `xcrun notarytool store-credentials "AC_PASSWORD"` (see Step 2 above) |
 | Update found but same version | Build number in appcast ≤ installed build | Ensure `sparkle:version` (build number) is strictly greater |
+| `notarytool` bus error / crash | Using `--wait` flag | **Never use `xcrun notarytool submit --wait`.** Submit without `--wait`, then poll with `xcrun notarytool info <submission-id>`. See gotcha #1 below. |
+| TCC permissions silently fail | User ran app from DMG volume instead of /Applications | DMG must include Applications symlink. See gotcha #3 below. |
+
+### Known gotchas (hard-won lessons)
+
+These are bugs and edge cases discovered during actual releases. Read before your first release.
+
+#### 1. `notarytool --wait` crashes with bus error
+
+**Never use the `--wait` flag** with `xcrun notarytool submit`. It crashes with a bus error (EXC_BAD_ACCESS) on some macOS versions. This is an Apple bug that has persisted across multiple Xcode releases.
+
+**Instead:** Submit without `--wait` and poll for completion:
+
+```bash
+# Submit (returns a submission ID)
+xcrun notarytool submit dist/MacParakeet.dmg --keychain-profile "AC_PASSWORD"
+# Note the submission ID from the output
+
+# Poll until status is "Accepted" or "Invalid"
+xcrun notarytool info <SUBMISSION_ID> --keychain-profile "AC_PASSWORD"
+```
+
+The `sign_notarize.sh` script already handles this correctly — it submits and polls in a loop. If you're running notarization manually, never add `--wait`.
+
+#### 2. Cloudflare CDN caches R2 objects — Sparkle cache-busting is mandatory
+
+Cloudflare CDN caches R2 objects with a ~4 hour TTL based on the full URL including query params. If the appcast enclosure URL is a bare `MacParakeet.dmg` without a cache-busting param, Sparkle may download a **stale cached DMG** from a previous release and reject it with "improperly signed".
+
+**The fix:** Always include `?v={BUILD_NUMBER}` in the appcast enclosure URL:
+
+```xml
+<enclosure
+  url="https://downloads.macparakeet.com/MacParakeet.dmg?v=20260329195139"
+  ...
+/>
+```
+
+R2 ignores query params and serves the current object. Cloudflare CDN treats the new URL as a cache miss and fetches fresh. Each build has a unique build number, so each release gets its own cache slot.
+
+**How to verify:** After uploading, compare local and remote file sizes:
+
+```bash
+LOCAL_SIZE=$(stat -f%z dist/MacParakeet.dmg)
+REMOTE_SIZE=$(curl -sI "https://downloads.macparakeet.com/MacParakeet.dmg?v=$(plutil -extract CFBundleVersion raw dist/MacParakeet.app/Contents/Info.plist)" | grep -i content-length | awk '{print $2}' | tr -d '\r')
+echo "Local: $LOCAL_SIZE  Remote: $REMOTE_SIZE"
+# MUST be identical. If not, wait and retry — CDN propagation can take a few seconds.
+```
+
+#### 3. DMG must include Applications symlink
+
+Without `ln -s /Applications` in the DMG staging folder, users run the app from `/Volumes/MacParakeet/` instead of `/Applications/`. macOS TCC will not register apps running from a mounted DMG volume — microphone permission requests silently fail, and the app never appears in System Settings > Privacy & Security > Microphone.
+
+The `sign_notarize.sh` script creates this symlink during DMG creation. If building a DMG manually, always include it:
+
+```bash
+ln -s /Applications dist/dmg-staging/Applications
+```
+
+#### 4. The DMG uploaded to R2 must be the exact file you signed for Sparkle
+
+The Sparkle `sign_update` tool produces an EdDSA signature over the exact bytes of the DMG file. If a different DMG (even with identical content but different creation timestamp) is uploaded to R2, Sparkle will reject the update.
+
+**Pipeline order matters:**
+1. Build → Sign + notarize → DMG created
+2. Upload **that DMG** to R2
+3. Run `sign_update` on **that same DMG**
+4. Put the signature in the appcast
+
+If another process or agent overwrites the R2 object between steps 2 and 3, the signature won't match. Always verify file sizes match after upload (Step 3 in the release workflow).
 
 ## Auto-Updates (Sparkle)
 
