@@ -76,14 +76,22 @@ public final class MediaPlayerViewModel {
 
         // YouTube: load local audio file for scrubber bar, defer video stream
         needsVideoStreamLoad = true
+
+        // Set duration from transcription metadata so the scrubber shows the correct
+        // total time immediately — AVPlayer may fail to read duration from downloaded
+        // audio (e.g. webm/opus format) or the async asset load may not complete yet.
+        if let transcriptionDurationMs = transcription.durationMs, transcriptionDurationMs > 0 {
+            durationMs = transcriptionDurationMs
+        }
+
         if let filePath = transcription.filePath,
            FileManager.default.fileExists(atPath: filePath) {
             loadLocalFile(filePath)
             playerState = .ready
             logger.info("Prepared YouTube media: loaded local audio, deferring video stream")
         } else {
-            playerState = .idle
-            logger.info("Prepared YouTube media: no local audio, deferring video stream")
+            playerState = .ready
+            logger.info("Prepared YouTube media: no local audio file, using transcription duration for scrubber")
         }
     }
 
@@ -98,6 +106,11 @@ public final class MediaPlayerViewModel {
         guard mode != .none else {
             playerState = .idle
             return
+        }
+
+        // Set fallback duration from transcription metadata (STT word timestamps)
+        if let transcriptionDurationMs = transcription.durationMs, transcriptionDurationMs > 0 {
+            durationMs = transcriptionDurationMs
         }
 
         playerState = .loading

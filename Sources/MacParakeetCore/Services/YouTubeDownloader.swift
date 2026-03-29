@@ -196,7 +196,7 @@ public actor YouTubeDownloader {
         }
         args += ["--ffmpeg-location", ffmpegDir]
         args += [
-            "-f", "bestaudio/best",
+            "-f", "bestaudio[ext=m4a]/bestaudio/best",
             "--no-playlist",
             "--retries", "3",
             "--concurrent-fragments", "4",
