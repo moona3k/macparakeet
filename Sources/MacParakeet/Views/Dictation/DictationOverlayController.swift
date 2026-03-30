@@ -259,7 +259,9 @@ final class DictationOverlayViewModel {
         switch state {
         case .ready: return "ready"
         case .recording:
-            if sessionKind == .command { return "commandRecording" }
+            if sessionKind == .command {
+                return recordingMode == .holdToTalk ? "commandHoldToTalk" : "commandRecording"
+            }
             return recordingMode == .holdToTalk ? "holdToTalk" : "recording"
         case .cancelled: return "cancelled"
         case .processing:

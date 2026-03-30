@@ -249,7 +249,11 @@ struct DictationOverlayView: View {
                     .foregroundStyle(.white.opacity(0.45))
             }
 
-            recordingContent
+            if viewModel.recordingMode == .holdToTalk {
+                holdToTalkContent
+            } else {
+                recordingContent
+            }
         }
     }
 
