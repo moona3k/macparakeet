@@ -129,8 +129,9 @@ final class DictationOverlayController {
     /// Determine which element the cursor is over and update the tooltip.
     /// The pill is centered in the panel. Left zone = cancel, right zone = stop.
     private func updateHoverTooltip(at point: NSPoint, in bounds: NSRect) {
-        guard case .recording = overlayViewModel.state else {
-            // No hover tooltips in ready, cancelled, processing, success, noSpeech, or error states
+        guard case .recording = overlayViewModel.state,
+              overlayViewModel.recordingMode == .persistent else {
+            // No hover tooltips in hold-to-talk (no buttons), ready, cancelled, processing, success, noSpeech, or error states
             overlayViewModel.hoverTooltip = nil
             return
         }

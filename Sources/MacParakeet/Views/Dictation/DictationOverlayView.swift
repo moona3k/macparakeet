@@ -120,6 +120,8 @@ struct DictationOverlayView: View {
                 Group {
                     if viewModel.sessionKind == .command {
                         commandRecordingContent
+                    } else if viewModel.recordingMode == .holdToTalk {
+                        holdToTalkContent
                     } else {
                         recordingContent
                     }
@@ -156,7 +158,29 @@ struct DictationOverlayView: View {
             .frame(width: 44, height: 14)
     }
 
-    // MARK: - Recording State
+    // MARK: - Hold-to-Talk State
+
+    /// Red dot + timer + waveform — no buttons needed since releasing Fn stops recording.
+    private var holdToTalkContent: some View {
+        HStack(spacing: 12) {
+            // Recording indicator dot
+            Circle()
+                .fill(DesignSystem.Colors.recordingRed)
+                .frame(width: 5, height: 5)
+
+            // Recording timer
+            Text(viewModel.formattedElapsed)
+                .font(.system(size: 12, weight: .medium).monospacedDigit())
+                .foregroundStyle(.white.opacity(0.6))
+                .frame(width: 36)
+
+            // Waveform
+            WaveformView(audioLevel: viewModel.audioLevel)
+                .frame(width: 64)
+        }
+    }
+
+    // MARK: - Recording State (Persistent)
 
     private var isCancelHovered: Bool {
         viewModel.hoverTooltip?.contains("Cancel") == true
