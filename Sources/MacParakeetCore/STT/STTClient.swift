@@ -10,6 +10,87 @@ public actor STTClient: STTClientProtocol {
     private var warmUpProgressHandler: (@Sendable (String) -> Void)?
     private let modelVersion: AsrModelVersion
 
+    // MARK: - Background warm-up (survives ViewModel lifecycle)
+
+    /// Current state of background warm-up, observable from any context.
+    public enum WarmUpState: Sendable, Equatable {
+        case idle
+        case working(message: String, progress: Double?)
+        case ready
+        case failed(message: String)
+    }
+
+    /// The latest warm-up state. Updated during backgroundWarmUp().
+    /// Thread-safe: reads/writes go through the actor.
+    public private(set) var backgroundWarmUpState: WarmUpState = .idle
+
+    /// Active background warm-up task, if any. Lives on the actor — not tied to any ViewModel.
+    private var backgroundWarmUpTask: Task<Void, Never>?
+
+    /// Continuations for anyone observing warm-up progress.
+    private var warmUpObservers: [UUID: AsyncStream<WarmUpState>.Continuation] = [:]
+
+    /// Start warm-up in the background. Safe to call multiple times — joins existing task.
+    /// The download continues even if no one is observing progress.
+    public func backgroundWarmUp() {
+        if case .ready = backgroundWarmUpState { return }
+        if backgroundWarmUpTask != nil { return }
+
+        backgroundWarmUpTask = Task { [weak self] in
+            guard let self else { return }
+            await self.setBackgroundWarmUpState(.working(message: "Checking setup requirements...", progress: nil))
+
+            do {
+                try await self.warmUp { [weak self] progressMessage in
+                    guard let self else { return }
+                    Task {
+                        let message = "Speech model: \(progressMessage)"
+                        let fraction = OnboardingProgressParser.parseProgressFraction(from: message)
+                        await self.setBackgroundWarmUpState(.working(message: message, progress: fraction))
+                    }
+                }
+                await self.setBackgroundWarmUpState(.ready)
+            } catch is CancellationError {
+                // Cancelled — don't update state
+            } catch {
+                await self.setBackgroundWarmUpState(.failed(message: error.localizedDescription))
+            }
+            await self.clearBackgroundWarmUpTask()
+        }
+    }
+
+    /// Observe warm-up state changes. Returns an AsyncStream that yields the current state
+    /// immediately, then all subsequent changes. Closing the stream (by letting it go out of
+    /// scope) does NOT cancel the download.
+    public func observeWarmUpProgress() -> (id: UUID, stream: AsyncStream<WarmUpState>) {
+        let id = UUID()
+        let stream = AsyncStream<WarmUpState> { continuation in
+            continuation.yield(backgroundWarmUpState)
+            warmUpObservers[id] = continuation
+            continuation.onTermination = { @Sendable _ in
+                Task { [weak self] in
+                    await self?.removeWarmUpObserver(id: id)
+                }
+            }
+        }
+        return (id, stream)
+    }
+
+    public func removeWarmUpObserver(id: UUID) {
+        warmUpObservers.removeValue(forKey: id)
+    }
+
+    private func setBackgroundWarmUpState(_ state: WarmUpState) {
+        backgroundWarmUpState = state
+        for (_, continuation) in warmUpObservers {
+            continuation.yield(state)
+        }
+    }
+
+    private func clearBackgroundWarmUpTask() {
+        backgroundWarmUpTask = nil
+    }
+
     public init(modelVersion: AsrModelVersion = .v3) {
         self.modelVersion = modelVersion
     }

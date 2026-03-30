@@ -101,6 +101,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         allowCloseWithoutCompletion = false
         onIncompleteDismiss = nil
+        viewModel?.stopObservingWarmUp()
         viewModel = nil
         window?.contentView = nil
         window = nil
