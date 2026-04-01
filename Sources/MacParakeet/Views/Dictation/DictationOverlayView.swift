@@ -93,7 +93,7 @@ struct DictationOverlayView: View {
         default:
             let isReady = if case .ready = viewModel.state { true } else { false }
             pillContent
-                .padding(.horizontal, isReady ? 6 : 10)
+                .padding(.horizontal, isReady ? 6 : 16)
                 .padding(.vertical, isReady ? 4 : 7)
                 .background(
                     Capsule()
