@@ -47,6 +47,8 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case modelDownloadFailed = "model_download_failed"
     // Errors
     case errorOccurred = "error_occurred"
+    // Crashes
+    case crashOccurred = "crash_occurred"
 }
 
 public enum TelemetryDictationTrigger: String, Sendable, Equatable {
@@ -143,6 +145,13 @@ public enum TelemetryEventSpec: Sendable {
     case modelDownloadFailed(errorType: String, errorDetail: String? = nil)
     // Errors
     case errorOccurred(domain: String, code: String, description: String)
+    // Crashes
+    case crashOccurred(
+        crashType: String, signal: String, name: String,
+        crashTimestamp: String, crashAppVer: String,
+        crashOsVer: String, uuid: String,
+        slide: String, stackTrace: String
+    )
 }
 
 extension TelemetryEventSpec {
@@ -191,6 +200,7 @@ extension TelemetryEventSpec {
         case .modelDownloadCompleted: return .modelDownloadCompleted
         case .modelDownloadFailed: return .modelDownloadFailed
         case .errorOccurred: return .errorOccurred
+        case .crashOccurred: return .crashOccurred
         }
     }
 
@@ -307,6 +317,19 @@ extension TelemetryEventSpec {
             return props
         case .errorOccurred(let domain, let code, let description):
             return ["domain": domain, "code": code, "description": String(description.prefix(512))]
+        case .crashOccurred(let crashType, let signal, let name, let crashTimestamp,
+                            let crashAppVer, let crashOsVer, let uuid, let slide, let stackTrace):
+            return Self.compactProps(
+                ("crash_type", crashType),
+                ("signal", signal),
+                ("name", name),
+                ("crash_ts", crashTimestamp),
+                ("crash_app_ver", crashAppVer),
+                ("crash_os_ver", crashOsVer),
+                ("uuid", uuid),
+                ("slide", slide),
+                ("stack_trace", String(stackTrace.prefix(1024)))
+            )
         }
     }
 
@@ -380,6 +403,7 @@ public enum TelemetryImplementedContract {
         .modelDownloadCompleted: ["duration_seconds"],
         .modelDownloadFailed: ["error_type"],
         .errorOccurred: ["domain", "code", "description"],
+        .crashOccurred: ["crash_type", "signal", "name", "crash_ts", "crash_app_ver"],
     ]
 
     public static var implementedEventNames: Set<TelemetryEventName> {

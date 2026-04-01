@@ -116,6 +116,7 @@ final class AppEnvironment {
         telemetryService = TelemetryService()
         Telemetry.configure(telemetryService)
         Telemetry.send(.appLaunched)
+        CrashReporter.sendPendingReport(via: telemetryService)
 
         llmClient = LLMClient()
         llmConfigStore = LLMConfigStore()

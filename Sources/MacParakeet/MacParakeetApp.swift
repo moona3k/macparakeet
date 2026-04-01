@@ -9,6 +9,8 @@ import MacParakeetCore
 @main
 struct MacParakeetApp {
     static func main() {
+        CrashReporter.install()
+
         let app = NSApplication.shared
 
         // Enforce the documented minimum OS version (macOS 14.2+).

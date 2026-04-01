@@ -396,6 +396,22 @@ final class TelemetryServiceTests: XCTestCase {
             .restoreAttempted,
             .restoreSucceeded,
             .restoreFailed(errorType: "storekit"),
+            .permissionPrompted(permission: .microphone),
+            .permissionGranted(permission: .microphone),
+            .permissionDenied(permission: .accessibility),
+            .modelLoaded(loadTimeSeconds: 2.5),
+            .modelDownloadStarted,
+            .modelDownloadCompleted(durationSeconds: 30.0),
+            .modelDownloadFailed(errorType: "network"),
+            .onboardingStep(step: "microphone"),
+            .licenseActivationFailed(errorType: "invalid_key"),
+            .errorOccurred(domain: "STTError", code: "engineFailed", description: "test"),
+            .crashOccurred(
+                crashType: "signal", signal: "11", name: "SIGSEGV",
+                crashTimestamp: "1711900000", crashAppVer: "0.5.1",
+                crashOsVer: "15.3.1", uuid: "A1B2C3D4", slide: "0x100000",
+                stackTrace: "0x1234\n0x5678"
+            ),
         ]
     }
 }

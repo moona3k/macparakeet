@@ -46,6 +46,7 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
         .restoreSucceeded,
         .restoreFailed,
         .appQuit,
+        .crashOccurred,
     ]
 
     public init(
