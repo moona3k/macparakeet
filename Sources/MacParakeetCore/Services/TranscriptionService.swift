@@ -208,7 +208,10 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             if let diarizationService {
                 do {
                     onProgress?(.identifyingSpeakers)
+                    Telemetry.send(.diarizationStarted(source: source))
+                    let diarStartedAt = Date()
                     let diarResult = try await diarizationService.diarize(audioURL: wavURL)
+                    let diarDuration = Date().timeIntervalSince(diarStartedAt)
                     if !diarResult.segments.isEmpty {
                         let mergedWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
                             words: words,
@@ -221,14 +224,19 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                             DiarizationSegmentRecord(speakerId: $0.speakerId, startMs: $0.startMs, endMs: $0.endMs)
                         }
                     }
+                    Telemetry.send(.diarizationCompleted(
+                        source: source,
+                        speakerCount: diarResult.speakerCount,
+                        durationSeconds: diarDuration
+                    ))
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch {
                     logger.error("diarization_failed error=\(error.localizedDescription, privacy: .public)")
-                    Telemetry.send(.errorOccurred(
-                        domain: "diarization",
-                        code: "transcription_diarization_failed",
-                        description: TelemetryErrorClassifier.errorDetail(error)
+                    Telemetry.send(.diarizationFailed(
+                        source: source,
+                        errorType: String(describing: type(of: error)),
+                        errorDetail: TelemetryErrorClassifier.errorDetail(error)
                     ))
                 }
             }

@@ -12,6 +12,9 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case transcriptionCompleted = "transcription_completed"
     case transcriptionCancelled = "transcription_cancelled"
     case transcriptionFailed = "transcription_failed"
+    case diarizationStarted = "diarization_started"
+    case diarizationCompleted = "diarization_completed"
+    case diarizationFailed = "diarization_failed"
     case exportUsed = "export_used"
     case llmSummaryUsed = "llm_summary_used"
     case llmSummaryFailed = "llm_summary_failed"
@@ -111,6 +114,9 @@ public enum TelemetryEventSpec: Sendable {
     )
     case transcriptionCancelled(source: TelemetryTranscriptionSource, audioDurationSeconds: Double?)
     case transcriptionFailed(source: TelemetryTranscriptionSource, errorType: String, errorDetail: String? = nil)
+    case diarizationStarted(source: TelemetryTranscriptionSource)
+    case diarizationCompleted(source: TelemetryTranscriptionSource, speakerCount: Int, durationSeconds: Double)
+    case diarizationFailed(source: TelemetryTranscriptionSource, errorType: String, errorDetail: String? = nil)
     case exportUsed(format: String)
     case llmSummaryUsed(provider: String)
     case llmSummaryFailed(provider: String, errorType: String, errorDetail: String? = nil)
@@ -171,6 +177,9 @@ extension TelemetryEventSpec {
         case .transcriptionCompleted: return .transcriptionCompleted
         case .transcriptionCancelled: return .transcriptionCancelled
         case .transcriptionFailed: return .transcriptionFailed
+        case .diarizationStarted: return .diarizationStarted
+        case .diarizationCompleted: return .diarizationCompleted
+        case .diarizationFailed: return .diarizationFailed
         case .exportUsed: return .exportUsed
         case .llmSummaryUsed: return .llmSummaryUsed
         case .llmSummaryFailed: return .llmSummaryFailed
@@ -268,6 +277,18 @@ extension TelemetryEventSpec {
                 ("audio_duration_seconds", audioDurationSeconds.map(Self.format))
             )
         case .transcriptionFailed(let source, let errorType, let errorDetail):
+            var props = ["source": source.rawValue, "error_type": errorType]
+            if let errorDetail { props["error_detail"] = errorDetail }
+            return props
+        case .diarizationStarted(let source):
+            return ["source": source.rawValue]
+        case .diarizationCompleted(let source, let speakerCount, let durationSeconds):
+            return [
+                "source": source.rawValue,
+                "speaker_count": "\(speakerCount)",
+                "duration_seconds": Self.format(durationSeconds)
+            ]
+        case .diarizationFailed(let source, let errorType, let errorDetail):
             var props = ["source": source.rawValue, "error_type": errorType]
             if let errorDetail { props["error_detail"] = errorDetail }
             return props
@@ -380,6 +401,9 @@ public enum TelemetryImplementedContract {
         .transcriptionCompleted: ["source", "word_count"],
         .transcriptionCancelled: ["source"],
         .transcriptionFailed: ["source", "error_type"],
+        .diarizationStarted: ["source"],
+        .diarizationCompleted: ["source", "speaker_count"],
+        .diarizationFailed: ["source", "error_type"],
         .exportUsed: ["format"],
         .llmSummaryUsed: ["provider"],
         .llmSummaryFailed: ["provider", "error_type"],
