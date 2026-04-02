@@ -388,11 +388,13 @@ final class DictationFlowCoordinator {
                 do {
                     if let action {
                         // Action mode: no trailing space, action replaces the space role
-                        try await self.clipboardService.pasteTextWithAction(
+                        let keystrokeFired = try await self.clipboardService.pasteTextWithAction(
                             transcript,
                             postPasteAction: action
                         )
-                        Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
+                        if keystrokeFired {
+                            Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
+                        }
                     } else {
                         // Normal mode: trailing space as before
                         try await self.clipboardService.pasteText(transcript + " ")
@@ -422,8 +424,13 @@ final class DictationFlowCoordinator {
                     guard !Task.isCancelled else { return }
                     let bucket = self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
-                    await self.clipboardService.copyToClipboard(transcript)
-                    self.sendEvent(.pasteFailed(generation: gen, message: "Copied to clipboard. Press Cmd+V."))
+                    if transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // Pure action-only dictation (e.g., "press return") — nothing to paste
+                        self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
+                    } else {
+                        await self.clipboardService.copyToClipboard(transcript)
+                        self.sendEvent(.pasteFailed(generation: gen, message: "Copied to clipboard. Press Cmd+V."))
+                    }
                 }
             }
 
@@ -516,6 +523,7 @@ final class DictationFlowCoordinator {
         case .cancelActionTask:
             actionTask?.cancel()
             actionTask = nil
+            pendingPostPasteAction = nil
         }
     }
 

@@ -14,9 +14,10 @@ public actor MockClipboardService: ClipboardServiceProtocol {
         pasteCallCount += 1
     }
 
-    public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws {
+    public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool {
         lastPostPasteAction = postPasteAction
         try await pasteText(text)
+        return postPasteAction != nil
     }
 
     public func copyToClipboard(_ text: String) async {

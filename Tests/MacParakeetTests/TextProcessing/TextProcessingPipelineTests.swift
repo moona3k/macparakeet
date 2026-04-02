@@ -376,4 +376,14 @@ final class TextProcessingPipelineTests: XCTestCase {
         XCTAssertEqual(result.text, "Press return and then")
         XCTAssertEqual(result.postPasteAction, .returnKey)
     }
+
+    func testMultiWordTriggerWithFillerGap() {
+        // Filler removal can leave double spaces: "press um return" → "press  return"
+        let snippets = [
+            TextSnippet(trigger: "press return", expansion: "return", action: .returnKey)
+        ]
+        let result = pipeline.process(text: "git status press um return", customWords: [], snippets: snippets)
+        XCTAssertEqual(result.text, "Git status")
+        XCTAssertEqual(result.postPasteAction, .returnKey)
+    }
 }

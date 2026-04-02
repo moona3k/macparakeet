@@ -4,14 +4,9 @@ import OSLog
 
 public protocol ClipboardServiceProtocol: Sendable {
     func pasteText(_ text: String) async throws
-    func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws
+    /// Paste text then simulate a keystroke. Returns `true` if the keystroke was actually fired.
+    func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool
     func copyToClipboard(_ text: String) async
-}
-
-extension ClipboardServiceProtocol {
-    public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws {
-        try await pasteText(text)
-    }
 }
 
 public enum ClipboardServiceError: LocalizedError {
@@ -89,16 +84,17 @@ public final class ClipboardService: ClipboardServiceProtocol {
         pasteboard.setString(text, forType: .string)
     }
 
-    public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws {
+    @discardableResult
+    public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool {
         guard let action = postPasteAction else {
             try await pasteText(text)
-            return
+            return false
         }
 
         // If text is empty (trigger was entire dictation), skip paste — just fire keystroke
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             try simulateKeystroke(action.keyCode)
-            return
+            return true
         }
 
         // Paste text (no trailing space — action replaces the role of the space)
@@ -110,10 +106,13 @@ public final class ClipboardService: ClipboardServiceProtocol {
         do {
             try await Task.sleep(for: .milliseconds(200))
             try simulateKeystroke(action.keyCode)
+            return true
         } catch is CancellationError {
             logger.notice("Post-paste keystroke skipped (task cancelled after paste succeeded)")
+            return false
         } catch {
             logger.error("Post-paste keystroke failed (text was pasted successfully): \(error.localizedDescription, privacy: .public)")
+            return false
         }
     }
 

@@ -420,7 +420,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             guard gen == generation else { return [] }
             state = .idle
             return [
-                .hideOverlay, .reloadHistory,
+                .cancelActionTask, .hideOverlay, .reloadHistory,
                 .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill,
             ]
 
@@ -428,7 +428,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             generation += 1
             state = .ready
             return [
-                .cancelAllTimers,
+                .cancelAllTimers, .cancelActionTask,
                 .hideOverlay, .reloadHistory,
                 .hideIdlePill, .showReadyPill, .startReadyDismissTimer,
             ]
@@ -437,7 +437,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             generation += 1
             state = .checkingEntitlements(mode: mode)
             return [
-                .cancelAllTimers,
+                .cancelAllTimers, .cancelActionTask,
                 .hideOverlay, .reloadHistory,
                 .hideIdlePill, .checkEntitlements,
             ]
