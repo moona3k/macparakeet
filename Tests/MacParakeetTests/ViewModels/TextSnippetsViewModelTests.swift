@@ -131,4 +131,5 @@ final class TextSnippetsViewModelTests: XCTestCase {
         viewModel.searchText = ""
         XCTAssertEqual(viewModel.filteredSnippets.count, 1)
     }
+
 }

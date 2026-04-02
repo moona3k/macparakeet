@@ -96,6 +96,13 @@ final class AppEnvironment {
         youtubeDownloader = YouTubeDownloader()
         diarizationService = DiarizationService()
 
+        let voiceReturnTriggerClosure: @Sendable () -> String? = {
+            let defaults = UserDefaults.standard
+            guard defaults.bool(forKey: "voiceReturnEnabled") else { return nil }
+            let trigger = defaults.string(forKey: "voiceReturnTrigger") ?? "press return"
+            return trigger.isEmpty ? nil : trigger
+        }
+
         dictationService = DictationService(
             audioProcessor: audioProcessor,
             sttClient: sttClient,
@@ -110,6 +117,7 @@ final class AppEnvironment {
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
+            voiceReturnTrigger: voiceReturnTriggerClosure,
             processingMode: processingModeClosure
         )
 

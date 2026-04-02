@@ -8,6 +8,8 @@ import OSLog
 public struct RecordingDeviceInfo: Sendable, Equatable {
     public let deviceName: String
     public let transport: String
+    /// For aggregate devices, the transport of the underlying sub-device (e.g., "bluetooth", "built-in").
+    public let subTransport: String?
     public let sampleRate: Double
     public let channels: UInt32
     public let fallbackUsed: Bool
@@ -168,9 +170,11 @@ public actor AudioRecorder {
         if let resolvedID = AudioDeviceManager.currentInputDevice(of: engine) {
             let name = AudioDeviceManager.deviceName(resolvedID) ?? "unknown"
             let transport = AudioDeviceManager.transportType(resolvedID)
+            let subTransport = AudioDeviceManager.subDeviceTransport(resolvedID)
             _deviceInfo = RecordingDeviceInfo(
                 deviceName: name,
                 transport: AudioDeviceManager.InputDevice.label(for: transport),
+                subTransport: subTransport.map { AudioDeviceManager.InputDevice.label(for: $0) },
                 sampleRate: inputFormat.sampleRate,
                 channels: inputFormat.channelCount,
                 fallbackUsed: overrideDeviceID != nil

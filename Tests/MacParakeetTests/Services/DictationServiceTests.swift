@@ -46,15 +46,16 @@ final class DictationServiceTests: XCTestCase {
         await mockSTT.configure(result: expectedResult)
 
         try await service.startRecording()
-        let dictation = try await service.stopRecording()
+        let result = try await service.stopRecording()
 
-        XCTAssertEqual(dictation.rawTranscript, "Hello world")
-        XCTAssertEqual(dictation.status, .completed)
-        XCTAssertEqual(dictation.processingMode, .raw)
-        XCTAssertEqual(dictation.durationMs, 1000)
+        XCTAssertEqual(result.dictation.rawTranscript, "Hello world")
+        XCTAssertEqual(result.dictation.status, .completed)
+        XCTAssertEqual(result.dictation.processingMode, .raw)
+        XCTAssertEqual(result.dictation.durationMs, 1000)
+        XCTAssertNil(result.postPasteAction)
 
         // Verify saved to DB
-        let fetched = try dictationRepo.fetch(id: dictation.id)
+        let fetched = try dictationRepo.fetch(id: result.dictation.id)
         XCTAssertNotNil(fetched)
         XCTAssertEqual(fetched?.rawTranscript, "Hello world")
     }

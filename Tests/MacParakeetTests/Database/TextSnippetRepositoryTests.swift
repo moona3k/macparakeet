@@ -135,4 +135,28 @@ final class TextSnippetRepositoryTests: XCTestCase {
         // Should not throw for non-existent IDs
         try repo.incrementUseCount(ids: [UUID()])
     }
+
+    // MARK: - Keystroke Action Snippets
+
+    func testSaveAndFetchKeystrokeSnippet() throws {
+        let snippet = TextSnippet(
+            trigger: "press return",
+            expansion: "⏎ Return",
+            action: .returnKey
+        )
+        try repo.save(snippet)
+
+        let fetched = try repo.fetch(id: snippet.id)
+        XCTAssertNotNil(fetched)
+        XCTAssertEqual(fetched?.trigger, "press return")
+        XCTAssertEqual(fetched?.action, .returnKey)
+    }
+
+    func testTextSnippetHasNilAction() throws {
+        let snippet = TextSnippet(trigger: "my sig", expansion: "Best regards")
+        try repo.save(snippet)
+
+        let fetched = try repo.fetch(id: snippet.id)
+        XCTAssertNil(fetched?.action)
+    }
 }

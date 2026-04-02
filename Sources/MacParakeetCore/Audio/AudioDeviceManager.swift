@@ -190,6 +190,30 @@ public enum AudioDeviceManager {
         return InputDevice(id: deviceID, name: name, transportType: transport)
     }
 
+    /// For aggregate devices, resolves the transport type of the first active sub-device.
+    /// Returns nil if the device is not aggregate or has no sub-devices.
+    public static func subDeviceTransport(_ deviceID: AudioDeviceID) -> UInt32? {
+        // Only applies to aggregate devices
+        guard transportType(deviceID) == kAudioDeviceTransportTypeAggregate else { return nil }
+
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioAggregateDevicePropertyActiveSubDeviceList,
+            mScope: kAudioObjectPropertyScopeInput,
+            mElement: kAudioObjectPropertyElementMain
+        )
+
+        var dataSize: UInt32 = 0
+        var status = AudioObjectGetPropertyDataSize(deviceID, &address, 0, nil, &dataSize)
+        guard status == noErr, dataSize > 0 else { return nil }
+
+        let count = Int(dataSize) / MemoryLayout<AudioDeviceID>.size
+        var subDeviceIDs = [AudioDeviceID](repeating: 0, count: count)
+        status = AudioObjectGetPropertyData(deviceID, &address, 0, nil, &dataSize, &subDeviceIDs)
+        guard status == noErr, let firstID = subDeviceIDs.first else { return nil }
+
+        return transportType(firstID)
+    }
+
     // MARK: - Private
 
     /// Checks whether a device has input channels (is a microphone/input device).

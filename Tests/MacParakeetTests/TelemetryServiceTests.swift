@@ -405,6 +405,7 @@ final class TelemetryServiceTests: XCTestCase {
             .modelDownloadFailed(errorType: "network"),
             .onboardingStep(step: "microphone"),
             .licenseActivationFailed(errorType: "invalid_key"),
+            .keystrokeSnippetFired(action: "return"),
             .errorOccurred(domain: "STTError", code: "engineFailed", description: "test"),
             .crashOccurred(
                 crashType: "signal", signal: "11", name: "SIGSEGV",

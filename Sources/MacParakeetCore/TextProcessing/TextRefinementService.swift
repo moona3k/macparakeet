@@ -9,15 +9,18 @@ public struct TextRefinementResult: Sendable {
     public let text: String?
     public let expandedSnippetIDs: Set<UUID>
     public let path: TextRefinementPath
+    public let postPasteAction: KeyAction?
 
     public init(
         text: String?,
         expandedSnippetIDs: Set<UUID>,
-        path: TextRefinementPath
+        path: TextRefinementPath,
+        postPasteAction: KeyAction? = nil
     ) {
         self.text = text
         self.expandedSnippetIDs = expandedSnippetIDs
         self.path = path
+        self.postPasteAction = postPasteAction
     }
 }
 
@@ -31,6 +34,22 @@ public struct TextRefinementService: Sendable {
         snippets: [TextSnippet]
     ) async -> TextRefinementResult {
         guard mode.usesDeterministicPipeline else {
+            // Raw mode: skip full pipeline but still extract trailing action (Voice Return)
+            let actionSnippets = snippets.filter { $0.action != nil && $0.isEnabled }
+            if !actionSnippets.isEmpty {
+                let pipeline = TextProcessingPipeline()
+                let (cleaned, matched) = pipeline.extractTrailingAction(
+                    from: rawText, actionSnippets: actionSnippets
+                )
+                if let matched {
+                    return TextRefinementResult(
+                        text: cleaned,
+                        expandedSnippetIDs: [matched.id],
+                        path: .raw,
+                        postPasteAction: matched.action
+                    )
+                }
+            }
             return TextRefinementResult(
                 text: nil,
                 expandedSnippetIDs: [],
@@ -47,7 +66,8 @@ public struct TextRefinementService: Sendable {
         return TextRefinementResult(
             text: deterministic.text,
             expandedSnippetIDs: deterministic.expandedSnippetIDs,
-            path: .deterministic
+            path: .deterministic,
+            postPasteAction: deterministic.postPasteAction
         )
     }
 }

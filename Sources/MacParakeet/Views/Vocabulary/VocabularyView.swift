@@ -27,6 +27,7 @@ struct VocabularyView: View {
                 } else {
                     pipelineCard
                 }
+                voiceReturnCard
             }
             .padding(DesignSystem.Spacing.lg)
         }
@@ -184,6 +185,65 @@ struct VocabularyView: View {
         }
     }
 
+    // MARK: - Voice Return
+
+    private var voiceReturnCard: some View {
+        vocabularyCard(
+            title: "Voice Return",
+            subtitle: "Submit commands, send messages, or confirm prompts — hands-free.",
+            icon: "return"
+        ) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Toggle(isOn: $settingsViewModel.voiceReturnEnabled) {
+                        Text("Enable Voice Return")
+                            .font(DesignSystem.Typography.body)
+                    }
+                    .toggleStyle(.switch)
+                    .tint(DesignSystem.Colors.accent)
+
+                }
+
+                if settingsViewModel.voiceReturnEnabled {
+                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                        Text("Trigger phrase")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                        TextField("press return", text: $settingsViewModel.voiceReturnTrigger)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(maxWidth: 250)
+                        if settingsViewModel.voiceReturnTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Enter a trigger phrase to activate Voice Return.")
+                                .font(DesignSystem.Typography.micro)
+                                .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                        HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+                            Image(systemName: "info.circle")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                            Text("Say your exact trigger phrase at the end of a dictation to simulate a Return keypress. The trigger must be the last words spoken — if it appears mid-sentence, it's pasted as normal text.")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        let trigger = settingsViewModel.voiceReturnTrigger.isEmpty ? "press return" : settingsViewModel.voiceReturnTrigger
+                        VStack(alignment: .leading, spacing: 4) {
+                            exampleRow(input: "git status \(trigger)", result: "Pastes \"git status\" + presses ⏎", fires: true)
+                            exampleRow(input: "\(trigger)", result: "Just presses ⏎ (nothing to paste)", fires: true)
+                            exampleRow(input: "the \(trigger) was broken", result: "Pastes as-is — trigger is mid-sentence", fires: false)
+                            exampleRow(input: "git status", result: "Pastes as-is — no trigger spoken", fires: false)
+                        }
+                        .padding(.leading, 24)
+                    }
+
+                }
+            }
+        }
+    }
+
     private var rawModeCard: some View {
         vocabularyCard(
             title: "Raw Mode Active",
@@ -269,6 +329,23 @@ struct VocabularyView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .fill(DesignSystem.Colors.surfaceElevated)
         )
+    }
+
+    private func exampleRow(input: String, result: String, fires: Bool) -> some View {
+        HStack(spacing: DesignSystem.Spacing.xs) {
+            Image(systemName: fires ? "checkmark.circle.fill" : "xmark.circle")
+                .font(.system(size: 11))
+                .foregroundStyle(fires ? DesignSystem.Colors.successGreen : .secondary)
+            Text("\"\(input)\"")
+                .font(DesignSystem.Typography.micro.monospaced())
+                .foregroundStyle(.primary)
+            Text("→")
+                .font(DesignSystem.Typography.micro)
+                .foregroundStyle(.tertiary)
+            Text(result)
+                .font(DesignSystem.Typography.micro)
+                .foregroundStyle(.secondary)
+        }
     }
 
     private func capabilityRow(icon: String, text: String) -> some View {

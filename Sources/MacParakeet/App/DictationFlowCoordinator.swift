@@ -48,6 +48,8 @@ final class DictationFlowCoordinator {
     private var currentTrigger: TelemetryDictationTrigger = .hotkey
     /// The Dictation object from the most recent transcription, used for paste + DB save.
     private var currentDictation: Dictation?
+    /// Ephemeral post-paste action from the text processing pipeline (e.g., simulate Return key).
+    private var pendingPostPasteAction: KeyAction?
     /// Error from the most recent entitlements check failure, consumed by presentEntitlementsAlert effect.
     private var lastEntitlementsError: Error?
 
@@ -313,9 +315,10 @@ final class DictationFlowCoordinator {
             let gen = stateMachine.generation
             actionTask = Task { @MainActor in
                 do {
-                    let dictation = try await self.dictationService.stopRecording()
+                    let result = try await self.dictationService.stopRecording()
                     guard !Task.isCancelled else { return }
-                    self.currentDictation = dictation
+                    self.currentDictation = result.dictation
+                    self.pendingPostPasteAction = result.postPasteAction
                     self.sendEvent(.transcriptionCompleted(generation: gen))
                 } catch where self.isNoSpeechError(error) {
                     guard !Task.isCancelled else { return }
@@ -346,9 +349,10 @@ final class DictationFlowCoordinator {
             let gen = stateMachine.generation
             actionTask = Task { @MainActor in
                 do {
-                    let dictation = try await self.dictationService.undoCancel()
+                    let result = try await self.dictationService.undoCancel()
                     guard !Task.isCancelled else { return }
-                    self.currentDictation = dictation
+                    self.currentDictation = result.dictation
+                    self.pendingPostPasteAction = result.postPasteAction
                     self.sendEvent(.transcriptionCompleted(generation: gen))
                 } catch where self.isNoSpeechError(error) {
                     guard !Task.isCancelled else { return }
@@ -378,8 +382,23 @@ final class DictationFlowCoordinator {
                 try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled else { return }
 
+                let action = self.pendingPostPasteAction
+                self.pendingPostPasteAction = nil
+
                 do {
-                    try await self.clipboardService.pasteText(transcript + " ")
+                    if let action {
+                        // Action mode: no trailing space, action replaces the space role
+                        let keystrokeFired = try await self.clipboardService.pasteTextWithAction(
+                            transcript,
+                            postPasteAction: action
+                        )
+                        if keystrokeFired {
+                            Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
+                        }
+                    } else {
+                        // Normal mode: trailing space as before
+                        try await self.clipboardService.pasteText(transcript + " ")
+                    }
                     guard !Task.isCancelled else { return }
 
                     // Save pastedToApp metadata
@@ -405,8 +424,13 @@ final class DictationFlowCoordinator {
                     guard !Task.isCancelled else { return }
                     let bucket = self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
-                    await self.clipboardService.copyToClipboard(transcript)
-                    self.sendEvent(.pasteFailed(generation: gen, message: "Copied to clipboard. Press Cmd+V."))
+                    if transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        // Pure action-only dictation (e.g., "press return") — nothing to paste
+                        self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
+                    } else {
+                        await self.clipboardService.copyToClipboard(transcript)
+                        self.sendEvent(.pasteFailed(generation: gen, message: "Copied to clipboard. Press Cmd+V."))
+                    }
                 }
             }
 
@@ -415,6 +439,7 @@ final class DictationFlowCoordinator {
         case .reloadHistory:
             onHistoryReload()
             currentDictation = nil
+            pendingPostPasteAction = nil
 
         // MARK: App integration
 
@@ -498,6 +523,7 @@ final class DictationFlowCoordinator {
         case .cancelActionTask:
             actionTask?.cancel()
             actionTask = nil
+            pendingPostPasteAction = nil
         }
     }
 

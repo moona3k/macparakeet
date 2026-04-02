@@ -63,6 +63,14 @@ public final class SettingsViewModel {
         didSet { defaults.set(silenceDelay, forKey: "silenceDelay") }
     }
 
+    // Voice Return
+    public var voiceReturnEnabled: Bool {
+        didSet { defaults.set(voiceReturnEnabled, forKey: "voiceReturnEnabled") }
+    }
+    public var voiceReturnTrigger: String {
+        didSet { defaults.set(voiceReturnTrigger, forKey: "voiceReturnTrigger") }
+    }
+
     // Processing
     public var processingMode: String {
         didSet {
@@ -161,6 +169,8 @@ public final class SettingsViewModel {
         silenceAutoStop = defaults.bool(forKey: "silenceAutoStop")
         let delay = defaults.double(forKey: "silenceDelay")
         silenceDelay = delay == 0 ? 2.0 : delay
+        voiceReturnEnabled = defaults.bool(forKey: "voiceReturnEnabled")
+        voiceReturnTrigger = defaults.string(forKey: "voiceReturnTrigger") ?? "press return"
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: "processingMode"))
         saveDictationHistory = defaults.object(forKey: "saveDictationHistory") as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: "saveAudioRecordings") as? Bool ?? true

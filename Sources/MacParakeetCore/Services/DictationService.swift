@@ -22,12 +22,12 @@ public struct DictationTelemetryContext: Sendable, Equatable {
 
 public protocol DictationServiceProtocol: Sendable {
     func startRecording(context: DictationTelemetryContext) async throws
-    func stopRecording() async throws -> Dictation
+    func stopRecording() async throws -> DictationResult
     func cancelRecording(reason: TelemetryDictationCancelReason?) async
     /// Confirm cancel immediately (discard any pending audio and reset to idle).
     func confirmCancel() async
-    /// Undo a soft-cancel: transcribe the cancelled recording and return a Dictation.
-    func undoCancel() async throws -> Dictation
+    /// Undo a soft-cancel: transcribe the cancelled recording and return a DictationResult.
+    func undoCancel() async throws -> DictationResult
     var state: DictationState { get async }
     var audioLevel: Float { get async }
 }
@@ -52,6 +52,7 @@ public actor DictationService: DictationServiceProtocol {
     private let entitlements: EntitlementsChecking?
     private let customWordRepo: CustomWordRepositoryProtocol?
     private let snippetRepo: TextSnippetRepositoryProtocol?
+    private let voiceReturnTrigger: @Sendable () -> String?
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
     private let textRefinementService: TextRefinementService
     private let cancelWindow: Duration
@@ -80,6 +81,7 @@ public actor DictationService: DictationServiceProtocol {
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
+        voiceReturnTrigger: (@Sendable () -> String?)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
         cancelWindow: Duration = .seconds(5)
     ) {
@@ -91,6 +93,7 @@ public actor DictationService: DictationServiceProtocol {
         self.entitlements = entitlements
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
+        self.voiceReturnTrigger = voiceReturnTrigger ?? { nil }
         self.processingMode = processingMode ?? { .raw }
         self.textRefinementService = TextRefinementService()
         self.cancelWindow = cancelWindow
@@ -137,7 +140,7 @@ public actor DictationService: DictationServiceProtocol {
         }
     }
 
-    public func stopRecording() async throws -> Dictation {
+    public func stopRecording() async throws -> DictationResult {
         guard case .recording = _state else {
             logger.warning("stopRecording rejected state=\(self.debugStateLabel(self._state), privacy: .public)")
             throw DictationServiceError.notRecording
@@ -150,19 +153,19 @@ public actor DictationService: DictationServiceProtocol {
             let audioURL = try await audioProcessor.stopCapture()
             let device = await audioProcessor.recordingDeviceInfo
             logger.debug("stopRecording capture stopped url=\(audioURL.path, privacy: .public)")
-            let dictation = try await processCapturedAudio(audioURL: audioURL)
-            _state = .success(dictation)
+            let result = try await processCapturedAudio(audioURL: audioURL)
+            _state = .success(result.dictation)
             Telemetry.send(.dictationCompleted(
-                durationSeconds: Double(dictation.durationMs) / 1000.0,
-                wordCount: dictation.wordCount,
+                durationSeconds: Double(result.dictation.durationMs) / 1000.0,
+                wordCount: result.dictation.wordCount,
                 mode: currentTelemetryContext.mode,
                 device: device
             ))
-            logger.debug("stopRecording success rawChars=\(dictation.rawTranscript.count) cleanChars=\(dictation.cleanTranscript?.count ?? 0)")
+            logger.debug("stopRecording success rawChars=\(result.dictation.rawTranscript.count) cleanChars=\(result.dictation.cleanTranscript?.count ?? 0)")
             try? await Task.sleep(for: .milliseconds(500))
             _state = .idle
             recordingStartedAt = nil
-            return dictation
+            return result
         } catch {
             // Snapshot device before setting state to .idle — prevents reentrancy
             // window where a new startRecording() could overwrite the device info.
@@ -218,7 +221,7 @@ public actor DictationService: DictationServiceProtocol {
         _state = .idle
     }
 
-    public func undoCancel() async throws -> Dictation {
+    public func undoCancel() async throws -> DictationResult {
         guard case .cancelled = _state else {
             throw DictationServiceError.notCancelled
         }
@@ -234,19 +237,19 @@ public actor DictationService: DictationServiceProtocol {
 
         _state = .processing
         do {
-            let dictation = try await processCapturedAudio(audioURL: audioURL)
+            let result = try await processCapturedAudio(audioURL: audioURL)
             let device = await audioProcessor.recordingDeviceInfo
-            _state = .success(dictation)
+            _state = .success(result.dictation)
             Telemetry.send(.dictationCompleted(
-                durationSeconds: Double(dictation.durationMs) / 1000.0,
-                wordCount: dictation.wordCount,
+                durationSeconds: Double(result.dictation.durationMs) / 1000.0,
+                wordCount: result.dictation.wordCount,
                 mode: currentTelemetryContext.mode,
                 device: device
             ))
             try? await Task.sleep(for: .milliseconds(500))
             _state = .idle
             recordingStartedAt = nil
-            return dictation
+            return result
         } catch {
             let device = await audioProcessor.recordingDeviceInfo
             _state = .idle
@@ -276,7 +279,7 @@ public actor DictationService: DictationServiceProtocol {
         pendingCancelledAudioURL = nil
     }
 
-    private func processCapturedAudio(audioURL: URL) async throws -> Dictation {
+    private func processCapturedAudio(audioURL: URL) async throws -> DictationResult {
         // Track whether the audio file is consumed (moved or explicitly deleted).
         // If an error occurs before that point, clean up the temp file.
         var audioConsumed = false
@@ -304,6 +307,16 @@ public actor DictationService: DictationServiceProtocol {
             catch { logger.error("Failed to load custom words: \(error.localizedDescription)") }
             do { snippets = try snippetRepo?.fetchEnabled() ?? [] }
             catch { logger.error("Failed to load text snippets: \(error.localizedDescription)") }
+        }
+
+        // Voice Return: inject synthetic action snippet regardless of mode
+        // (raw mode extracts trailing action without running the full pipeline)
+        if let trigger = voiceReturnTrigger(), !trigger.isEmpty {
+            snippets.append(TextSnippet(
+                trigger: trigger,
+                expansion: KeyAction.returnKey.label,
+                action: .returnKey
+            ))
         }
         let refinement = await textRefinementService.refine(
             rawText: result.text,
@@ -355,7 +368,7 @@ public actor DictationService: DictationServiceProtocol {
             try? snippetRepo?.incrementUseCount(ids: refinement.expandedSnippetIDs)
         }
 
-        return dictation
+        return DictationResult(dictation: dictation, postPasteAction: refinement.postPasteAction)
     }
 
     private func computeDurationMs(from result: STTResult) -> Int {

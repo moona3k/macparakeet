@@ -1,8 +1,11 @@
 import AppKit
 import Foundation
+import OSLog
 
 public protocol ClipboardServiceProtocol: Sendable {
     func pasteText(_ text: String) async throws
+    /// Paste text then simulate a keystroke. Returns `true` if the keystroke was actually fired.
+    func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool
     func copyToClipboard(_ text: String) async
 }
 
@@ -26,6 +29,8 @@ public enum ClipboardServiceError: LocalizedError {
 /// Handles clipboard save/restore and paste simulation via Cmd+V.
 @MainActor
 public final class ClipboardService: ClipboardServiceProtocol {
+    private let logger = Logger(subsystem: "com.macparakeet.core", category: "ClipboardService")
+
     public init() {}
 
     /// Paste text into the active app by:
@@ -79,7 +84,62 @@ public final class ClipboardService: ClipboardServiceProtocol {
         pasteboard.setString(text, forType: .string)
     }
 
+    @discardableResult
+    public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool {
+        guard let action = postPasteAction else {
+            try await pasteText(text)
+            return false
+        }
+
+        // If text is empty (trigger was entire dictation), skip paste — just fire keystroke
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            try simulateKeystroke(action.keyCode)
+            return true
+        }
+
+        // Paste text (no trailing space — action replaces the role of the space)
+        try await pasteText(text)
+
+        // After paste succeeds, the keystroke phase is entirely non-fatal.
+        // Task.sleep can throw CancellationError — catch it alongside keystroke errors
+        // so cancellation during the 200ms delay doesn't surface as a paste failure.
+        do {
+            try await Task.sleep(for: .milliseconds(200))
+            try simulateKeystroke(action.keyCode)
+            return true
+        } catch is CancellationError {
+            logger.notice("Post-paste keystroke skipped (task cancelled after paste succeeded)")
+            return false
+        } catch {
+            logger.error("Post-paste keystroke failed (text was pasted successfully): \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
     // MARK: - Private
+
+    private func simulateKeystroke(_ keyCode: UInt16) throws {
+        guard AXIsProcessTrusted() else {
+            throw ClipboardServiceError.accessibilityPermissionRequired
+        }
+
+        guard let source = CGEventSource(stateID: .hidSystemState) else {
+            throw ClipboardServiceError.eventSourceUnavailable
+        }
+
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false) else {
+            throw ClipboardServiceError.eventCreationFailed
+        }
+
+        // Explicitly clear modifier flags — .hidSystemState source may inherit
+        // stray modifiers if the user happens to hold a key during dictation.
+        keyDown.flags = []
+        keyUp.flags = []
+
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
+    }
 
     private func simulatePaste() throws {
         guard AXIsProcessTrusted() else {

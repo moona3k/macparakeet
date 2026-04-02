@@ -7,6 +7,7 @@ public struct TextSnippet: Codable, Identifiable, Sendable {
     public var expansion: String
     public var isEnabled: Bool
     public var useCount: Int
+    public var action: KeyAction?
     public var createdAt: Date
     public var updatedAt: Date
 
@@ -16,6 +17,7 @@ public struct TextSnippet: Codable, Identifiable, Sendable {
         expansion: String,
         isEnabled: Bool = true,
         useCount: Int = 0,
+        action: KeyAction? = nil,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -24,6 +26,7 @@ public struct TextSnippet: Codable, Identifiable, Sendable {
         self.expansion = expansion
         self.isEnabled = isEnabled
         self.useCount = useCount
+        self.action = action
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

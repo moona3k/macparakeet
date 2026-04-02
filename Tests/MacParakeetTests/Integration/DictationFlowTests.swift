@@ -51,7 +51,8 @@ final class DictationFlowTests: XCTestCase {
         XCTAssertTrue(captureStarted)
 
         // 3. Stop recording → triggers STT → save
-        let dictation = try await dictationService.stopRecording()
+        let result = try await dictationService.stopRecording()
+        let dictation = result.dictation
 
         // 4. Verify transcription
         XCTAssertEqual(dictation.rawTranscript, "Send email to Sarah about the Q1 budget review")

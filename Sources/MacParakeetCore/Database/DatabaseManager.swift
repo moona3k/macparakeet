@@ -250,6 +250,13 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.7 — Keystroke action snippets (issue #40)
+        migrator.registerMigration("v0.7-snippet-key-action") { db in
+            try db.alter(table: "text_snippets") { t in
+                t.add(column: "action", .text)
+            }
+        }
+
         try migrator.migrate(dbQueue)
     }
 }

@@ -131,9 +131,9 @@ final class CancelFlowTests: XCTestCase {
         await mockSTT.configure(result: sttResult)
 
         try await dictationService.startRecording()
-        let dictation = try await dictationService.stopRecording()
+        let result = try await dictationService.stopRecording()
 
-        XCTAssertEqual(dictation.durationMs, 800, "Duration should be end of last word")
+        XCTAssertEqual(result.dictation.durationMs, 800, "Duration should be end of last word")
     }
 
     /// Duration estimation when no word timestamps
@@ -142,10 +142,10 @@ final class CancelFlowTests: XCTestCase {
         await mockSTT.configure(result: sttResult)
 
         try await dictationService.startRecording()
-        let dictation = try await dictationService.stopRecording()
+        let result = try await dictationService.stopRecording()
 
         // 3 words * 150ms estimate = 450
-        XCTAssertEqual(dictation.durationMs, 450)
+        XCTAssertEqual(result.dictation.durationMs, 450)
     }
 
     /// After an STT error, state should recover to idle so a new recording can start
@@ -209,8 +209,8 @@ final class CancelFlowTests: XCTestCase {
         try await dictationService.startRecording()
         await dictationService.cancelRecording()
 
-        let dictation = try await dictationService.undoCancel()
-        XCTAssertEqual(dictation.rawTranscript, "Hello world")
+        let result = try await dictationService.undoCancel()
+        XCTAssertEqual(result.dictation.rawTranscript, "Hello world")
 
         let all = try dictationRepo.fetchAll(limit: nil)
         XCTAssertEqual(all.count, 1)

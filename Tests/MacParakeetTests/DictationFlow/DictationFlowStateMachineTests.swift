@@ -672,8 +672,8 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.reloadHistory))
         XCTAssertTrue(effects.contains(.showReadyPill))
         XCTAssertTrue(effects.contains(.startReadyDismissTimer))
-        // Must not cancel action task — allow in-flight paste to complete
-        XCTAssertFalse(effects.contains(.cancelActionTask))
+        // Cancel action task to prevent stale paste from prior flow
+        XCTAssertTrue(effects.contains(.cancelActionTask))
     }
 
     func testFinishingStartRequested() {
@@ -691,7 +691,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.reloadHistory))
         XCTAssertTrue(effects.contains(.checkEntitlements))
-        XCTAssertFalse(effects.contains(.cancelActionTask))
+        XCTAssertTrue(effects.contains(.cancelActionTask))
     }
 
     func testFinishingSuccessStartRequested() {
@@ -701,14 +701,14 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .finishing(outcome: .success))
         let oldGen = m.generation
 
-        // Hotkey during success display → start new session, paste completes in background
+        // Hotkey during success display → cancel stale paste, start new session
         let effects = m.handle(.startRequested(mode: .holdToTalk))
         XCTAssertEqual(m.state, .checkingEntitlements(mode: .holdToTalk))
         XCTAssertEqual(m.generation, oldGen + 1)
         XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.checkEntitlements))
         XCTAssertTrue(effects.contains(.reloadHistory))
-        XCTAssertFalse(effects.contains(.cancelActionTask))
+        XCTAssertTrue(effects.contains(.cancelActionTask))
     }
 
     func testFinishingSuccessReadyPillRequested() {
@@ -720,7 +720,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.readyPillRequested)
         XCTAssertEqual(m.state, .ready)
         XCTAssertTrue(effects.contains(.showReadyPill))
-        XCTAssertFalse(effects.contains(.cancelActionTask))
+        XCTAssertTrue(effects.contains(.cancelActionTask))
     }
 
     func testFinishingErrorStartRequested() {
