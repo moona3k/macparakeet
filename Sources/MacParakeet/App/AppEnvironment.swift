@@ -99,7 +99,8 @@ final class AppEnvironment {
         let voiceReturnTriggerClosure: @Sendable () -> String? = {
             let defaults = UserDefaults.standard
             guard defaults.bool(forKey: "voiceReturnEnabled") else { return nil }
-            let trigger = defaults.string(forKey: "voiceReturnTrigger") ?? "press return"
+            let trigger = (defaults.string(forKey: "voiceReturnTrigger") ?? "press return")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
             return trigger.isEmpty ? nil : trigger
         }
 
