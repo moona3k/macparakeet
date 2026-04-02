@@ -212,6 +212,11 @@ struct VocabularyView: View {
                         TextField("press return", text: $settingsViewModel.voiceReturnTrigger)
                             .textFieldStyle(.roundedBorder)
                             .frame(maxWidth: 250)
+                        if settingsViewModel.voiceReturnTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                            Text("Enter a trigger phrase to activate Voice Return.")
+                                .font(DesignSystem.Typography.micro)
+                                .foregroundStyle(DesignSystem.Colors.warningAmber)
+                        }
                     }
 
                     VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
