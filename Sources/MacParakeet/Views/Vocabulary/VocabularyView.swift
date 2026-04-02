@@ -190,7 +190,7 @@ struct VocabularyView: View {
     private var voiceReturnCard: some View {
         vocabularyCard(
             title: "Voice Return",
-            subtitle: "Press Return with your voice — useful for terminal commands.",
+            subtitle: "Submit commands, send messages, or confirm prompts — hands-free.",
             icon: "return"
         ) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
