@@ -104,12 +104,14 @@ public final class ClipboardService: ClipboardServiceProtocol {
         // Paste text (no trailing space — action replaces the role of the space)
         try await pasteText(text)
 
-        // Wait for paste to land in the receiving app before sending keystroke
-        try await Task.sleep(for: .milliseconds(200))
-
-        // After paste succeeds, keystroke failure is non-fatal
+        // After paste succeeds, the keystroke phase is entirely non-fatal.
+        // Task.sleep can throw CancellationError — catch it alongside keystroke errors
+        // so cancellation during the 200ms delay doesn't surface as a paste failure.
         do {
+            try await Task.sleep(for: .milliseconds(200))
             try simulateKeystroke(action.keyCode)
+        } catch is CancellationError {
+            logger.notice("Post-paste keystroke skipped (task cancelled after paste succeeded)")
         } catch {
             logger.error("Post-paste keystroke failed (text was pasted successfully): \(error.localizedDescription, privacy: .public)")
         }
