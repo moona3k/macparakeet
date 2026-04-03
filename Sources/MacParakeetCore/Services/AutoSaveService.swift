@@ -26,7 +26,7 @@ public enum AutoSaveFormat: String, Codable, CaseIterable, Sendable {
 /// Reads configuration from UserDefaults; does nothing when auto-save is disabled
 /// or no folder is configured.
 @MainActor
-public final class AutoSaveService: Sendable {
+public final class AutoSaveService {
     private let exportService: ExportServiceProtocol
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "AutoSaveService")

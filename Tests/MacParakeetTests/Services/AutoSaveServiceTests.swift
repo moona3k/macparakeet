@@ -179,7 +179,8 @@ final class AutoSaveServiceTests: XCTestCase {
         let service = makeService()
 
         let url = service.buildFileURL(for: transcription, format: .md, in: tempDir)
-        XCTAssertFalse(url.lastPathComponent.contains("/"))
+        // Verify the file lands in the target folder (not nested via unsanitized path separators)
+        XCTAssertEqual(url.deletingLastPathComponent().standardizedFileURL, tempDir.standardizedFileURL)
         XCTAssertFalse(url.lastPathComponent.contains(":"))
         XCTAssertTrue(url.lastPathComponent.hasSuffix(".md"))
     }
