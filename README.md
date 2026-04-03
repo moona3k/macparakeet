@@ -24,7 +24,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="GPL-3.0 License"></a>
   <img src="https://img.shields.io/badge/macOS-14.2%2B-000000.svg" alt="macOS 14.2+">
   <img src="https://img.shields.io/badge/Swift-6.0-F05138.svg" alt="Swift 6">
-  <img src="https://img.shields.io/badge/tests-1020%20passing-brightgreen.svg" alt="1020 tests passing">
+  <img src="https://img.shields.io/badge/tests-1090%20passing-brightgreen.svg" alt="1090 tests passing">
   <img src="https://img.shields.io/badge/Apple%20Silicon-only-333333.svg" alt="Apple Silicon only">
 </p>
 
@@ -78,7 +78,7 @@ First launch downloads the speech model (~6 GB). After that, dictation and trans
 ```bash
 git clone https://github.com/moona3k/macparakeet.git
 cd macparakeet
-swift test                # 1020 tests
+swift test                # 1090 tests
 scripts/dev/run_app.sh    # build, sign, launch
 ```
 

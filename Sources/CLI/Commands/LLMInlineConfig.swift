@@ -72,62 +72,44 @@ struct LLMInlineOptions: ParsableArguments {
             nil
         }
 
+        let client = RoutingLLMClient()
+
+        let providerConfig: LLMProviderConfig
+        var localCLIConfig: LocalCLIConfig?
+
         switch providerID {
         case .anthropic:
             guard let key = apiKey else { throw ValidationError("--api-key is required for Anthropic") }
-            return InlineLLMExecutionContext(
-                context: LLMExecutionContext(
-                    providerConfig: .anthropic(apiKey: key, model: model ?? "claude-sonnet-4-6", baseURL: overrideURL)
-                ),
-                client: RoutingLLMClient()
-            )
+            providerConfig = .anthropic(apiKey: key, model: model ?? "claude-sonnet-4-6", baseURL: overrideURL)
         case .openai:
             guard let key = apiKey else { throw ValidationError("--api-key is required for OpenAI") }
-            return InlineLLMExecutionContext(
-                context: LLMExecutionContext(
-                    providerConfig: .openai(apiKey: key, model: model ?? "gpt-4.1", baseURL: overrideURL)
-                ),
-                client: RoutingLLMClient()
-            )
+            providerConfig = .openai(apiKey: key, model: model ?? "gpt-4.1", baseURL: overrideURL)
         case .gemini:
             guard let key = apiKey else { throw ValidationError("--api-key is required for Gemini") }
-            return InlineLLMExecutionContext(
-                context: LLMExecutionContext(
-                    providerConfig: .gemini(apiKey: key, model: model ?? "gemini-2.5-flash", baseURL: overrideURL)
-                ),
-                client: RoutingLLMClient()
-            )
+            providerConfig = .gemini(apiKey: key, model: model ?? "gemini-2.5-flash", baseURL: overrideURL)
         case .openrouter:
             guard let key = apiKey else { throw ValidationError("--api-key is required for OpenRouter") }
-            return InlineLLMExecutionContext(
-                context: LLMExecutionContext(
-                    providerConfig: .openrouter(apiKey: key, model: model ?? "anthropic/claude-sonnet-4", baseURL: overrideURL)
-                ),
-                client: RoutingLLMClient()
-            )
+            providerConfig = .openrouter(apiKey: key, model: model ?? "anthropic/claude-sonnet-4", baseURL: overrideURL)
         case .ollama:
-            return InlineLLMExecutionContext(
-                context: LLMExecutionContext(
-                    providerConfig: .ollama(model: model ?? "qwen3.5:4b", baseURL: overrideURL)
-                ),
-                client: RoutingLLMClient()
-            )
+            providerConfig = .ollama(model: model ?? "qwen3.5:4b", baseURL: overrideURL)
         case .localCLI:
             guard let rawCommand = command,
                   !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw ValidationError("--command is required for cli provider (e.g. 'claude -p')")
             }
-            let cliConfig = LocalCLIConfig(
+            providerConfig = .localCLI()
+            localCLIConfig = LocalCLIConfig(
                 commandTemplate: rawCommand.trimmingCharacters(in: .whitespacesAndNewlines)
             )
-            return InlineLLMExecutionContext(
-                context: LLMExecutionContext(
-                    providerConfig: .localCLI(),
-                    localCLIConfig: cliConfig
-                ),
-                client: RoutingLLMClient()
-            )
         }
+
+        return InlineLLMExecutionContext(
+            context: LLMExecutionContext(
+                providerConfig: providerConfig,
+                localCLIConfig: localCLIConfig
+            ),
+            client: client
+        )
     }
 
     func buildConfig() throws -> LLMProviderConfig {
