@@ -136,7 +136,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         defaultModelName: String,
         cliConfig: LocalCLIConfig? = nil
     ) -> Self {
-        LLMSettingsDraft(
+        let selectedCLITemplate = cliConfig.map { LocalCLITemplate.inferredTemplate(for: $0.commandTemplate) } ?? nil
+        return LLMSettingsDraft(
             providerID: providerID,
             apiKeyInput: providerID.requiresAPIKey ? apiKey : "",
             suggestedModelName: defaultModelName,
@@ -144,7 +145,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             customModelName: "",
             baseURLOverride: "",
             commandTemplate: cliConfig?.commandTemplate ?? "",
-            selectedCLITemplate: nil,
+            selectedCLITemplate: selectedCLITemplate,
             cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout
         )
     }
@@ -157,6 +158,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         cliConfig: LocalCLIConfig? = nil
     ) -> Self {
         let isSuggestedModel = suggestedModels.contains(config.modelName)
+        let selectedCLITemplate = cliConfig.map { LocalCLITemplate.inferredTemplate(for: $0.commandTemplate) } ?? nil
         return LLMSettingsDraft(
             providerID: config.id,
             apiKeyInput: config.apiKey ?? "",
@@ -165,7 +167,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             customModelName: isSuggestedModel ? "" : config.modelName,
             baseURLOverride: config.baseURL.absoluteString == defaultBaseURL ? "" : config.baseURL.absoluteString,
             commandTemplate: cliConfig?.commandTemplate ?? "",
-            selectedCLITemplate: nil,
+            selectedCLITemplate: selectedCLITemplate,
             cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout
         )
     }

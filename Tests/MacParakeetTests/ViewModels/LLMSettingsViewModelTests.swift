@@ -383,6 +383,25 @@ final class LLMSettingsViewModelTests: XCTestCase {
         )
     }
 
+    func testLoadsExistingLocalCLIConfigRehydratesPresetSelection() throws {
+        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        try cliStore.save(
+            LocalCLIConfig(
+                commandTemplate: "claude -p --model haiku",
+                timeoutSeconds: 45
+            )
+        )
+        mockConfigStore.config = .localCLI()
+
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient, cliConfigStore: cliStore)
+
+        XCTAssertEqual(viewModel.selectedProviderID, .localCLI)
+        XCTAssertEqual(viewModel.commandTemplate, "claude -p --model haiku")
+        XCTAssertEqual(viewModel.selectedCLITemplate, .claudeCode)
+        XCTAssertEqual(viewModel.cliTimeoutSeconds, 45)
+    }
+
     func testLocalCLICanSaveWithCommand() {
         let cliStore = LocalCLIConfigStore(defaults: UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!)
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient, cliConfigStore: cliStore)

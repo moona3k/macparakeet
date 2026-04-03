@@ -576,10 +576,7 @@ public final class LocalCLIExecutor: Sendable {
         _ fileActions: inout posix_spawn_file_actions_t?,
         path: UnsafePointer<CChar>
     ) -> Bool {
-        if #available(macOS 26.0, *) {
-            return posix_spawn_file_actions_addchdir(&fileActions, path) == 0
-        }
-        return posix_spawn_file_actions_addchdir_np(&fileActions, path) == 0
+        posix_spawn_file_actions_addchdir_np(&fileActions, path) == 0
     }
 
     private static func withSpawnCStringArray<R>(
@@ -750,6 +747,10 @@ public final class LocalCLIExecutor: Sendable {
 
     // MARK: - PATH Discovery
 
+    private static let defaultPATH = "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin"
+    private static let pathStartMarker = "__MACPARAKEET_PATH_START__"
+    private static let pathEndMarker = "__MACPARAKEET_PATH_END__"
+
     /// Returns the user's full shell PATH. Apps launched from Finder/Dock
     /// inherit a minimal PATH that lacks Homebrew, nvm, etc.
     private func preferredPATH(fallback: String?) -> String {
@@ -758,23 +759,68 @@ public final class LocalCLIExecutor: Sendable {
         }
 
         if let discovered = Self.discoverPATH() {
-            cachedPATH.withLock { $0 = discovered }
-            return discovered
+            let merged = Self.mergedPATH([discovered, fallback, Self.defaultPATH]) ?? Self.defaultPATH
+            cachedPATH.withLock { $0 = merged }
+            return merged
         }
 
-        return fallback ?? "/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin"
+        return Self.mergedPATH([fallback, Self.defaultPATH]) ?? Self.defaultPATH
     }
 
-    /// Spawns a login shell to capture the user's PATH.
-    /// Uses `-lc` (login, non-interactive) to source .zprofile/.zlogin
-    /// without triggering interactive .zshrc hooks that could hang.
+    /// Probes the user's configured shell first, then widely used shells,
+    /// to recover a usable PATH for Finder-launched app processes.
+    static func discoverPATH(timeout: Double = 3) -> String? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let script = """
+        printf '%s\\n' '\(pathStartMarker)'
+        printf '%s\\n' "$PATH"
+        printf '%s\\n' '\(pathEndMarker)'
+        """
+
+        for executableURL in candidatePATHProbeShellURLs() {
+            for arguments in pathProbeArguments(forShellPath: executableURL.path, script: script) {
+                let remaining = deadline.timeIntervalSinceNow
+                guard remaining > 0 else { return nil }
+
+                if let discovered = discoverPATH(
+                    executableURL: executableURL,
+                    arguments: arguments,
+                    timeout: min(1.5, remaining)
+                ) {
+                    return discovered
+                }
+            }
+        }
+
+        let remaining = deadline.timeIntervalSinceNow
+        guard remaining > 0 else { return nil }
+        return discoverPATHWithPathHelper(timeout: min(1, remaining))
+    }
+
+    /// Executes a specific PATH probe process and extracts the marked PATH.
     static func discoverPATH(
         executableURL: URL = URL(fileURLWithPath: "/bin/zsh"),
         arguments: [String] = [
             "-lc",
-            "echo __MACPARAKEET_PATH_START__; print -r -- $PATH; echo __MACPARAKEET_PATH_END__",
+            "printf '%s\\n' '__MACPARAKEET_PATH_START__'; printf '%s\\n' \"$PATH\"; printf '%s\\n' '__MACPARAKEET_PATH_END__'",
         ],
         timeout: Double = 3
+    ) -> String? {
+        guard let output = processOutput(
+            executableURL: executableURL,
+            arguments: arguments,
+            timeout: timeout
+        ) else {
+            return nil
+        }
+
+        return parseMarkedPATH(in: output)
+    }
+
+    static func processOutput(
+        executableURL: URL,
+        arguments: [String],
+        timeout: Double
     ) -> String? {
         let process = Process()
         process.executableURL = executableURL
@@ -820,19 +866,126 @@ public final class LocalCLIExecutor: Sendable {
 
         guard readGroup.wait(timeout: .now() + 1) == .success else { return nil }
 
-        let output = String(data: outputData, encoding: .utf8) ?? ""
-        let startMarker = "__MACPARAKEET_PATH_START__"
-        let endMarker = "__MACPARAKEET_PATH_END__"
+        return String(data: outputData, encoding: .utf8) ?? ""
+    }
 
-        guard let startRange = output.range(of: startMarker),
-              let endRange = output.range(of: endMarker, range: startRange.upperBound..<output.endIndex)
+    static func candidatePATHProbeShellURLs(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        fileManager: FileManager = .default
+    ) -> [URL] {
+        let userShell = userLoginShellURL()?.path
+        let candidatePaths = [
+            environment["SHELL"],
+            userShell,
+            "/bin/zsh",
+            "/opt/homebrew/bin/zsh",
+            "/usr/local/bin/zsh",
+            "/bin/bash",
+            "/opt/homebrew/bin/bash",
+            "/usr/local/bin/bash",
+            "/opt/homebrew/bin/fish",
+            "/usr/local/bin/fish",
+            "/usr/bin/fish",
+            "/bin/sh",
+        ]
+
+        var seen = Set<String>()
+        return candidatePaths.compactMap { path in
+            guard let path,
+                  path.hasPrefix("/"),
+                  seen.insert(path).inserted,
+                  fileManager.isExecutableFile(atPath: path)
+            else {
+                return nil
+            }
+            return URL(fileURLWithPath: path)
+        }
+    }
+
+    static func pathProbeArguments(forShellPath shellPath: String, script: String) -> [[String]] {
+        let shellName = URL(fileURLWithPath: shellPath).lastPathComponent.lowercased()
+
+        switch shellName {
+        case "zsh", "bash":
+            return [
+                ["-i", "-l", "-c", script],
+                ["-l", "-c", script],
+            ]
+        case "fish":
+            return [
+                ["-i", "-l", "-c", script],
+                ["-l", "-c", script],
+                ["-c", script],
+            ]
+        default:
+            return [["-c", script]]
+        }
+    }
+
+    static func userLoginShellURL() -> URL? {
+        guard let pwdEntry = getpwuid(getuid()),
+              let shell = pwdEntry.pointee.pw_shell
+        else {
+            return nil
+        }
+
+        let path = String(cString: shell).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: path)
+    }
+
+    static func discoverPATHWithPathHelper(timeout: Double) -> String? {
+        guard let output = processOutput(
+            executableURL: URL(fileURLWithPath: "/usr/libexec/path_helper"),
+            arguments: ["-s"],
+            timeout: timeout
+        ) else {
+            return nil
+        }
+
+        return parsePathHelperPATH(in: output)
+    }
+
+    static func parseMarkedPATH(in output: String) -> String? {
+        guard let startRange = output.range(of: pathStartMarker),
+              let endRange = output.range(of: pathEndMarker, range: startRange.upperBound..<output.endIndex)
         else {
             return nil
         }
 
         let path = output[startRange.upperBound..<endRange.lowerBound]
             .trimmingCharacters(in: .whitespacesAndNewlines)
-
         return path.isEmpty ? nil : path
+    }
+
+    static func parsePathHelperPATH(in output: String) -> String? {
+        let lines = output.split(separator: "\n")
+        for rawLine in lines {
+            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard line.hasPrefix("PATH=") else { continue }
+
+            let assignment = line.dropFirst("PATH=".count)
+            let value = assignment.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)
+                .first?
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'")) ?? ""
+            return value.isEmpty ? nil : String(value)
+        }
+        return nil
+    }
+
+    static func mergedPATH(_ values: [String?]) -> String? {
+        var components: [String] = []
+        var seen = Set<String>()
+
+        for value in values {
+            guard let value else { continue }
+            for component in value.split(separator: ":").map(String.init) {
+                let trimmed = component.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty, seen.insert(trimmed).inserted else { continue }
+                components.append(trimmed)
+            }
+        }
+
+        return components.isEmpty ? nil : components.joined(separator: ":")
     }
 }

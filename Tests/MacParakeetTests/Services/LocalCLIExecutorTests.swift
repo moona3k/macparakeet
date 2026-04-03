@@ -334,4 +334,64 @@ final class LocalCLIExecutorTests: XCTestCase {
 
         XCTAssertEqual(path, "/tmp/discovered/path")
     }
+
+    func testPathProbeArgumentsPreferInteractiveLoginForZshAndBash() {
+        let script = "echo path"
+
+        XCTAssertEqual(
+            LocalCLIExecutor.pathProbeArguments(forShellPath: "/bin/zsh", script: script),
+            [
+                ["-i", "-l", "-c", script],
+                ["-l", "-c", script],
+            ]
+        )
+        XCTAssertEqual(
+            LocalCLIExecutor.pathProbeArguments(forShellPath: "/bin/bash", script: script),
+            [
+                ["-i", "-l", "-c", script],
+                ["-l", "-c", script],
+            ]
+        )
+    }
+
+    func testPathProbeArgumentsCoverFishAndFallbackShells() {
+        let script = "echo path"
+
+        XCTAssertEqual(
+            LocalCLIExecutor.pathProbeArguments(forShellPath: "/opt/homebrew/bin/fish", script: script),
+            [
+                ["-i", "-l", "-c", script],
+                ["-l", "-c", script],
+                ["-c", script],
+            ]
+        )
+        XCTAssertEqual(
+            LocalCLIExecutor.pathProbeArguments(forShellPath: "/bin/sh", script: script),
+            [["-c", script]]
+        )
+    }
+
+    func testParsePathHelperPATH() {
+        let output = """
+        PATH="/usr/local/bin:/usr/bin:/bin"; export PATH;
+        MANPATH="/usr/share/man"; export MANPATH;
+        """
+
+        XCTAssertEqual(
+            LocalCLIExecutor.parsePathHelperPATH(in: output),
+            "/usr/local/bin:/usr/bin:/bin"
+        )
+    }
+
+    func testMergedPATHPreservesOrderAndDeduplicates() {
+        XCTAssertEqual(
+            LocalCLIExecutor.mergedPATH([
+                "/usr/local/bin:/usr/bin",
+                "/usr/bin:/bin",
+                nil,
+                "/opt/homebrew/bin:/bin",
+            ]),
+            "/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin"
+        )
+    }
 }
