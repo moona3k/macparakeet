@@ -8,6 +8,24 @@ final class TranscriptionViewModelTests: XCTestCase {
     var mockService: MockTranscriptionService!
     var mockRepo: MockTranscriptionRepository!
 
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        pollInterval: Duration = .milliseconds(10),
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while !condition() {
+            if clock.now >= deadline {
+                XCTFail("Timed out waiting for condition", file: file, line: line)
+                return
+            }
+            try await Task.sleep(for: pollInterval)
+        }
+    }
+
     override func setUp() {
         mockService = MockTranscriptionService()
         mockRepo = MockTranscriptionRepository()
@@ -273,7 +291,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.urlInput = "https://youtu.be/dQw4w9WgXcQ"
         viewModel.transcribeURL()
 
-        try await Task.sleep(for: .milliseconds(50))
+        try await waitUntil { self.viewModel.transcriptionProgress == 0.42 }
         let progress = try XCTUnwrap(viewModel.transcriptionProgress)
         XCTAssertEqual(progress, 0.42, accuracy: 0.0001)
     }
@@ -293,7 +311,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.urlInput = "https://youtu.be/dQw4w9WgXcQ"
         viewModel.transcribeURL()
 
-        try await Task.sleep(for: .milliseconds(50))
+        try await waitUntil { self.viewModel.transcriptionProgress == 0.42 }
         let progress = try XCTUnwrap(viewModel.transcriptionProgress)
         XCTAssertEqual(progress, 0.42, accuracy: 0.0001)
     }
@@ -316,7 +334,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.urlInput = "https://youtu.be/dQw4w9WgXcQ"
         viewModel.transcribeURL()
 
-        try await Task.sleep(for: .milliseconds(50))
+        try await waitUntil { self.viewModel.progressPhase == .converting }
         XCTAssertNil(viewModel.transcriptionProgress, "Non-percent phase should clear stale progress values")
     }
 
@@ -337,7 +355,7 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.sourceKind, .youtubeURL)
 
-        try await Task.sleep(for: .milliseconds(50))
+        try await waitUntil { self.viewModel.progressPhase == .transcribing }
         XCTAssertEqual(viewModel.progressPhase, .transcribing)
         XCTAssertEqual(viewModel.sourceKind, .youtubeURL)
         XCTAssertEqual(viewModel.progressHeadline, "Running speech recognition")
