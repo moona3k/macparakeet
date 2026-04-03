@@ -110,6 +110,67 @@ final class CLIHelpersTests: XCTestCase {
         }
     }
 
+    func testFindDictationThrowsEmptyIDForWhitespace() throws {
+        let db = try DatabaseManager()
+        let repo = DictationRepository(dbQueue: db.dbQueue)
+
+        XCTAssertThrowsError(try findDictation(id: "   ", repo: repo)) { error in
+            guard let lookupError = error as? CLILookupError else {
+                return XCTFail("Expected CLILookupError")
+            }
+            if case .emptyID = lookupError {} else {
+                XCTFail("Expected .emptyID, got \(lookupError)")
+            }
+        }
+    }
+
+    // MARK: - Ambiguous Prefix
+
+    func testFindTranscriptionThrowsAmbiguousForSharedPrefix() throws {
+        let db = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+
+        // Two UUIDs that share the prefix "AABBCCDD"
+        let uuid1 = UUID(uuidString: "AABBCCDD-1111-1111-1111-111111111111")!
+        let uuid2 = UUID(uuidString: "AABBCCDD-2222-2222-2222-222222222222")!
+
+        let t1 = Transcription(id: uuid1, fileName: "a.mp3", status: .completed)
+        let t2 = Transcription(id: uuid2, fileName: "b.mp3", status: .completed)
+        try repo.save(t1)
+        try repo.save(t2)
+
+        XCTAssertThrowsError(try findTranscription(id: "AABBCCDD", repo: repo)) { error in
+            guard let lookupError = error as? CLILookupError else {
+                return XCTFail("Expected CLILookupError, got \(error)")
+            }
+            if case .ambiguous = lookupError {} else {
+                XCTFail("Expected .ambiguous, got \(lookupError)")
+            }
+        }
+    }
+
+    func testFindDictationThrowsAmbiguousForSharedPrefix() throws {
+        let db = try DatabaseManager()
+        let repo = DictationRepository(dbQueue: db.dbQueue)
+
+        let uuid1 = UUID(uuidString: "BBCCDDEE-1111-1111-1111-111111111111")!
+        let uuid2 = UUID(uuidString: "BBCCDDEE-2222-2222-2222-222222222222")!
+
+        let d1 = Dictation(id: uuid1, durationMs: 1000, rawTranscript: "First")
+        let d2 = Dictation(id: uuid2, durationMs: 2000, rawTranscript: "Second")
+        try repo.save(d1)
+        try repo.save(d2)
+
+        XCTAssertThrowsError(try findDictation(id: "BBCCDDEE", repo: repo)) { error in
+            guard let lookupError = error as? CLILookupError else {
+                return XCTFail("Expected CLILookupError, got \(error)")
+            }
+            if case .ambiguous = lookupError {} else {
+                XCTFail("Expected .ambiguous, got \(lookupError)")
+            }
+        }
+    }
+
     // MARK: - resolvedDatabasePath
 
     func testResolvedDatabasePathReturnsAppPathWhenNil() {

@@ -24,14 +24,11 @@ final class ExportCommandTests: XCTestCase {
     }
 
     @MainActor func testExportToTxtWritesFile() throws {
-        let db = try DatabaseManager()
-        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
         let t = Transcription(
             fileName: "export-test.mp3",
             rawTranscript: "This is the transcript content",
             status: .completed
         )
-        try repo.save(t)
 
         let exportService = ExportService()
         let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -46,15 +43,12 @@ final class ExportCommandTests: XCTestCase {
     }
 
     @MainActor func testExportToMarkdownWritesFile() throws {
-        let db = try DatabaseManager()
-        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
         let t = Transcription(
             fileName: "markdown-test.mp3",
             durationMs: 120_000,
             rawTranscript: "Markdown transcript",
             status: .completed
         )
-        try repo.save(t)
 
         let exportService = ExportService()
         let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory())

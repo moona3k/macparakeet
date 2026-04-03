@@ -35,7 +35,7 @@ final class StatsCommandTests: XCTestCase {
         let db = try DatabaseManager()
         let repo = DictationRepository(dbQueue: db.dbQueue)
 
-        var visible = Dictation(durationMs: 3000, rawTranscript: "Visible", wordCount: 1)
+        let visible = Dictation(durationMs: 3000, rawTranscript: "Visible", wordCount: 1)
         var hidden = Dictation(durationMs: 4000, rawTranscript: "Hidden", wordCount: 1)
         hidden.hidden = true
         try repo.save(visible)
@@ -53,7 +53,7 @@ final class StatsCommandTests: XCTestCase {
         let repo = TranscriptionRepository(dbQueue: db.dbQueue)
 
         let t1 = Transcription(fileName: "a.mp3", status: .completed)
-        var t2 = Transcription(fileName: "b.mp3", status: .completed)
+        let t2 = Transcription(fileName: "b.mp3", status: .completed)
         try repo.save(t1)
         try repo.save(t2)
 
