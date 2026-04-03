@@ -50,37 +50,41 @@ struct LLMSettingsView: View {
                 Divider()
             }
 
-            // Model name
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Model")
-                        .font(DesignSystem.Typography.body)
-                    Text("The model to use for AI features.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: DesignSystem.Spacing.md)
-                modelPicker
-            }
-
-            // Advanced: Base URL override
-            DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
+            if viewModel.selectedProviderID == .localCLI {
+                cliSettingsSection
+            } else {
+                // Model name
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Base URL")
+                        Text("Model")
                             .font(DesignSystem.Typography.body)
-                        Text("Override the default API endpoint.")
+                        Text("The model to use for AI features.")
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(.secondary)
                     }
                     Spacer(minLength: DesignSystem.Spacing.md)
-                    TextField("https://...", text: $viewModel.baseURLOverride)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 220)
+                    modelPicker
                 }
-                .padding(.top, DesignSystem.Spacing.sm)
+
+                // Advanced: Base URL override
+                DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Base URL")
+                                .font(DesignSystem.Typography.body)
+                            Text("Override the default API endpoint.")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: DesignSystem.Spacing.md)
+                        TextField("https://...", text: $viewModel.baseURLOverride)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 220)
+                    }
+                    .padding(.top, DesignSystem.Spacing.sm)
+                }
+                .font(DesignSystem.Typography.caption)
             }
-            .font(DesignSystem.Typography.caption)
 
             Divider()
 
@@ -123,7 +127,6 @@ struct LLMSettingsView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(DesignSystem.Colors.accent)
-                .disabled(!viewModel.canSave)
                 .disabled(!viewModel.canSave)
 
                 if viewModel.isConfigured {
@@ -168,8 +171,71 @@ struct LLMSettingsView: View {
     }
 
     @ViewBuilder
+    private var cliSettingsSection: some View {
+        // Template picker
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("CLI Tool")
+                    .font(DesignSystem.Typography.body)
+                Text("Choose a preset or enter a custom command.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            Picker("Template", selection: $viewModel.selectedCLITemplate) {
+                Text("Custom").tag(LocalCLITemplate?.none)
+                ForEach(LocalCLITemplate.allCases, id: \.self) { template in
+                    Text(template.displayName).tag(Optional(template))
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 160)
+        }
+
+        Divider()
+
+        // Command editor
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Command")
+                    .font(DesignSystem.Typography.body)
+                Text("Prompt is passed via stdin and environment variables. Presets run from an app-owned working directory.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            TextField("claude -p", text: $viewModel.commandTemplate)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .frame(width: 220)
+        }
+
+        Divider()
+
+        // Timeout
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Timeout")
+                    .font(DesignSystem.Typography.body)
+                Text("Maximum seconds to wait for a response.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            TextField("120", value: $viewModel.cliTimeoutSeconds, format: .number)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 80)
+            Text("seconds")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
     private var privacyInfo: some View {
         let isLocal = viewModel.selectedProviderID.isLocal
+        let isCLI = viewModel.selectedProviderID == .localCLI
         HStack(spacing: DesignSystem.Spacing.sm) {
             Image(systemName: isLocal ? "lock.fill" : "arrow.up.right.circle")
                 .font(.system(size: 12))
@@ -177,7 +243,9 @@ struct LLMSettingsView: View {
 
             Text(isLocal
                  ? "Everything stays on your device."
-                 : "Transcription is always local. AI features send transcript text to your chosen provider.")
+                 : isCLI
+                    ? "Runs via CLI on your device. The tool may send data to its cloud service."
+                    : "Transcription is always local. AI features send transcript text to your chosen provider.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }

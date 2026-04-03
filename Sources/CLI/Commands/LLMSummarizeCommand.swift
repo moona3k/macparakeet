@@ -24,8 +24,11 @@ struct LLMSummarizeCommand: AsyncParsableCommand {
             throw ExitCode.failure
         }
 
-        let config = try llm.buildConfig()
-        let service = LLMService(configStore: InlineLLMConfigStore(config: config))
+        let execution = try llm.buildExecutionContext()
+        let service = LLMService(
+            client: execution.client,
+            contextResolver: StaticLLMExecutionContextResolver(context: execution.context)
+        )
 
         if stream {
             let tokenStream = service.summarizeStream(transcript: text)

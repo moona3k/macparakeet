@@ -6,6 +6,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         case missingAPIKey
         case missingCustomModel
         case invalidBaseURL
+        case missingCommandTemplate
 
         public var errorDescription: String? {
             switch self {
@@ -15,6 +16,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
                 return "Enter a custom model ID."
             case .invalidBaseURL:
                 return "Enter a valid base URL."
+            case .missingCommandTemplate:
+                return "Enter a CLI command."
             }
         }
     }
@@ -26,13 +29,21 @@ public struct LLMSettingsDraft: Equatable, Sendable {
     public var customModelName: String
     public var baseURLOverride: String
 
+    // Local CLI fields
+    public var commandTemplate: String
+    public var selectedCLITemplate: LocalCLITemplate?
+    public var cliTimeoutSeconds: Double
+
     public init(
         providerID: LLMProviderID = .openai,
         apiKeyInput: String = "",
         suggestedModelName: String = "gpt-5.4",
         useCustomModel: Bool = false,
         customModelName: String = "",
-        baseURLOverride: String = ""
+        baseURLOverride: String = "",
+        commandTemplate: String = "",
+        selectedCLITemplate: LocalCLITemplate? = nil,
+        cliTimeoutSeconds: Double = LocalCLIConfig.defaultTimeout
     ) {
         self.providerID = providerID
         self.apiKeyInput = apiKeyInput
@@ -40,10 +51,13 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         self.useCustomModel = useCustomModel
         self.customModelName = customModelName
         self.baseURLOverride = baseURLOverride
+        self.commandTemplate = commandTemplate
+        self.selectedCLITemplate = selectedCLITemplate
+        self.cliTimeoutSeconds = max(LocalCLIConfig.minimumTimeout, cliTimeoutSeconds)
     }
 
     public var requiresAPIKey: Bool {
-        !providerID.isLocal
+        providerID.requiresAPIKey
     }
 
     public var trimmedAPIKey: String {
@@ -62,7 +76,14 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         useCustomModel ? trimmedCustomModelName : suggestedModelName.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    public var trimmedCommandTemplate: String {
+        commandTemplate.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     public var validationError: ValidationError? {
+        if providerID == .localCLI {
+            return trimmedCommandTemplate.isEmpty ? .missingCommandTemplate : nil
+        }
         if requiresAPIKey && trimmedAPIKey.isEmpty {
             return .missingAPIKey
         }
@@ -82,6 +103,10 @@ public struct LLMSettingsDraft: Equatable, Sendable {
     public func buildConfig(defaultBaseURL: String) throws -> LLMProviderConfig {
         if let validationError {
             throw validationError
+        }
+
+        if providerID == .localCLI {
+            return .localCLI()
         }
 
         let baseURL: URL
@@ -108,15 +133,20 @@ public struct LLMSettingsDraft: Equatable, Sendable {
     public static func defaults(
         for providerID: LLMProviderID,
         apiKey: String,
-        defaultModelName: String
+        defaultModelName: String,
+        cliConfig: LocalCLIConfig? = nil
     ) -> Self {
-        LLMSettingsDraft(
+        let selectedCLITemplate = cliConfig.map { LocalCLITemplate.inferredTemplate(for: $0.commandTemplate) } ?? nil
+        return LLMSettingsDraft(
             providerID: providerID,
-            apiKeyInput: providerID.isLocal ? "" : apiKey,
+            apiKeyInput: providerID.requiresAPIKey ? apiKey : "",
             suggestedModelName: defaultModelName,
             useCustomModel: false,
             customModelName: "",
-            baseURLOverride: ""
+            baseURLOverride: "",
+            commandTemplate: cliConfig?.commandTemplate ?? "",
+            selectedCLITemplate: selectedCLITemplate,
+            cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout
         )
     }
 
@@ -124,16 +154,21 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         _ config: LLMProviderConfig,
         suggestedModels: [String],
         defaultModelName: String,
-        defaultBaseURL: String
+        defaultBaseURL: String,
+        cliConfig: LocalCLIConfig? = nil
     ) -> Self {
         let isSuggestedModel = suggestedModels.contains(config.modelName)
+        let selectedCLITemplate = cliConfig.map { LocalCLITemplate.inferredTemplate(for: $0.commandTemplate) } ?? nil
         return LLMSettingsDraft(
             providerID: config.id,
             apiKeyInput: config.apiKey ?? "",
             suggestedModelName: isSuggestedModel ? config.modelName : defaultModelName,
             useCustomModel: !isSuggestedModel,
             customModelName: isSuggestedModel ? "" : config.modelName,
-            baseURLOverride: config.baseURL.absoluteString == defaultBaseURL ? "" : config.baseURL.absoluteString
+            baseURLOverride: config.baseURL.absoluteString == defaultBaseURL ? "" : config.baseURL.absoluteString,
+            commandTemplate: cliConfig?.commandTemplate ?? "",
+            selectedCLITemplate: selectedCLITemplate,
+            cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout
         )
     }
 }

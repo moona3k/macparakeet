@@ -10,6 +10,7 @@ public enum LLMError: Error, LocalizedError, Sendable {
     case providerError(String)
     case streamingError(String)
     case invalidResponse
+    case cliError(String)
 
     public var errorDescription: String? {
         switch self {
@@ -34,6 +35,8 @@ public enum LLMError: Error, LocalizedError, Sendable {
             return "Streaming error: \(detail)"
         case .invalidResponse:
             return "Invalid response from provider."
+        case .cliError(let detail):
+            return "CLI error: \(detail)"
         }
     }
 }

@@ -100,20 +100,60 @@ public final class LLMSettingsViewModel {
         draft.validationError?.localizedDescription
     }
 
+    // Local CLI properties
+    public var commandTemplate: String {
+        get { draft.commandTemplate }
+        set {
+            var nextDraft = draft
+            nextDraft.commandTemplate = newValue
+            // Clear template picker when user manually edits the command
+            if let template = nextDraft.selectedCLITemplate,
+               newValue != template.defaultCommand {
+                nextDraft.selectedCLITemplate = nil
+            }
+            updateDraft(nextDraft)
+        }
+    }
+
+    public var selectedCLITemplate: LocalCLITemplate? {
+        get { draft.selectedCLITemplate }
+        set {
+            var nextDraft = draft
+            nextDraft.selectedCLITemplate = newValue
+            if let template = newValue {
+                nextDraft.commandTemplate = template.defaultCommand
+                nextDraft.cliTimeoutSeconds = template.defaultConfig.timeoutSeconds
+            }
+            updateDraft(nextDraft)
+        }
+    }
+
+    public var cliTimeoutSeconds: Double {
+        get { draft.cliTimeoutSeconds }
+        set {
+            var nextDraft = draft
+            nextDraft.cliTimeoutSeconds = max(LocalCLIConfig.minimumTimeout, newValue)
+            updateDraft(nextDraft)
+        }
+    }
+
     public var onConfigurationChanged: (() -> Void)?
 
     private var configStore: LLMConfigStoreProtocol?
     private var llmClient: LLMClientProtocol?
+    private var cliConfigStore: LocalCLIConfigStore?
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LLMSettingsViewModel")
 
     public init() {}
 
     public func configure(
         configStore: LLMConfigStoreProtocol,
-        llmClient: LLMClientProtocol
+        llmClient: LLMClientProtocol,
+        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
     ) {
         self.configStore = configStore
         self.llmClient = llmClient
+        self.cliConfigStore = cliConfigStore
         loadExistingConfig()
     }
 
@@ -122,6 +162,16 @@ public final class LLMSettingsViewModel {
         do {
             let config = try buildConfig(from: draft)
             try configStore.saveConfig(config)
+
+            // Save CLI config separately when using Local CLI
+            if draft.providerID == .localCLI {
+                let cliConfig = LocalCLIConfig(
+                    commandTemplate: draft.trimmedCommandTemplate,
+                    timeoutSeconds: draft.cliTimeoutSeconds
+                )
+                try cliConfigStore?.save(cliConfig)
+            }
+
             saveState = .saved
             onConfigurationChanged?()
         } catch {
@@ -133,9 +183,16 @@ public final class LLMSettingsViewModel {
         guard let llmClient else { return }
 
         let snapshot = draft
-        let config: LLMProviderConfig
+        let context: LLMExecutionContext
         do {
-            config = try buildConfig(from: snapshot)
+            let config = try buildConfig(from: snapshot)
+            context = LLMExecutionContext(
+                providerConfig: config,
+                localCLIConfig: snapshot.providerID == .localCLI ? LocalCLIConfig(
+                    commandTemplate: snapshot.trimmedCommandTemplate,
+                    timeoutSeconds: snapshot.cliTimeoutSeconds
+                ) : nil
+            )
         } catch {
             connectionTestState = .error(error.localizedDescription)
             return
@@ -144,7 +201,7 @@ public final class LLMSettingsViewModel {
         connectionTestState = .testing
         Task {
             do {
-                try await llmClient.testConnection(config: config)
+                try await llmClient.testConnection(context: context)
                 guard draft == snapshot else { return }
                 connectionTestState = .success
             } catch {
@@ -156,16 +213,26 @@ public final class LLMSettingsViewModel {
 
     public func clearConfiguration() {
         guard let configStore else { return }
+        // Use the persisted provider to decide what to delete. The draft may
+        // point at an unsaved provider switch in Settings.
+        let storedProviderID = (try? configStore.loadConfig())?.id
+        let preservedCLIConfig = draft.providerID == .localCLI && storedProviderID != .localCLI
+            ? cliConfigStore?.load()
+            : nil
         do {
             try configStore.deleteConfig()
         } catch {
             logger.error("Failed to delete LLM configuration error=\(error.localizedDescription, privacy: .public)")
         }
-        let apiKey = draft.providerID.isLocal ? "" : ((try? configStore.loadAPIKey(for: draft.providerID)) ?? "")
+        if storedProviderID == .localCLI {
+            cliConfigStore?.delete()
+        }
+        let apiKey = draft.providerID.requiresAPIKey ? ((try? configStore.loadAPIKey(for: draft.providerID)) ?? "") : ""
         draft = .defaults(
             for: draft.providerID,
             apiKey: apiKey,
-            defaultModelName: Self.defaultModelName(for: draft.providerID)
+            defaultModelName: Self.defaultModelName(for: draft.providerID),
+            cliConfig: preservedCLIConfig
         )
         connectionTestState = .idle
         saveState = .idle
@@ -185,22 +252,26 @@ public final class LLMSettingsViewModel {
 
     private func applyProviderChange(to providerID: LLMProviderID) {
         guard draft.providerID != providerID else { return }
-        let apiKey = providerID.isLocal ? "" : ((try? configStore?.loadAPIKey(for: providerID)) ?? "")
+        let apiKey = providerID.requiresAPIKey ? ((try? configStore?.loadAPIKey(for: providerID)) ?? "") : ""
+        let cliConfig = providerID == .localCLI ? cliConfigStore?.load() : nil
         let nextDraft = LLMSettingsDraft.defaults(
             for: providerID,
             apiKey: apiKey,
-            defaultModelName: Self.defaultModelName(for: providerID)
+            defaultModelName: Self.defaultModelName(for: providerID),
+            cliConfig: cliConfig
         )
         updateDraft(nextDraft)
     }
 
     private func loadExistingConfig() {
         guard let configStore, let config = try? configStore.loadConfig() else { return }
+        let cliConfig = config.id == .localCLI ? cliConfigStore?.load() : nil
         draft = .fromStoredConfig(
             config,
             suggestedModels: Self.suggestedModels(for: config.id),
             defaultModelName: Self.defaultModelName(for: config.id),
-            defaultBaseURL: Self.defaultBaseURL(for: config.id)
+            defaultBaseURL: Self.defaultBaseURL(for: config.id),
+            cliConfig: cliConfig
         )
         connectionTestState = .idle
         saveState = .idle
@@ -260,6 +331,7 @@ public final class LLMSettingsViewModel {
             "qwen3:8b",
             "mistral",
         ]
+        case .localCLI: return []
         }
     }
 
@@ -274,6 +346,7 @@ public final class LLMSettingsViewModel {
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta/openai"
         case .openrouter: return "https://openrouter.ai/api/v1"
         case .ollama: return "http://localhost:11434/v1"
+        case .localCLI: return "http://localhost"
         }
     }
 }

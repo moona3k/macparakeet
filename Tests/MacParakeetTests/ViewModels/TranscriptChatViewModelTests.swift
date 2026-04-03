@@ -205,6 +205,54 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertFalse(vm.canSendMessage)
     }
 
+    func testRefreshModelInfoShowsLocalCLIPresetName() throws {
+        let defaults = UserDefaults(suiteName: "test.chat.localcli.\(UUID().uuidString)")!
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        try cliStore.save(
+            LocalCLIConfig(commandTemplate: "codex exec --skip-git-repo-check --model gpt-5.4-mini")
+        )
+
+        let configStore = MockLLMConfigStore()
+        configStore.config = .localCLI()
+
+        let vm = TranscriptChatViewModel()
+        vm.configure(
+            llmService: mockService,
+            transcriptText: "Transcript",
+            transcriptionRepo: mockRepo,
+            configStore: configStore,
+            conversationRepo: mockConversationRepo,
+            cliConfigStore: cliStore
+        )
+
+        XCTAssertEqual(vm.currentProviderID, .localCLI)
+        XCTAssertEqual(vm.currentModelName, "Codex")
+        XCTAssertEqual(vm.modelDisplayName, "Codex")
+        XCTAssertEqual(vm.availableModels, ["Codex"])
+    }
+
+    func testRefreshModelInfoShowsCustomCLILabel() throws {
+        let defaults = UserDefaults(suiteName: "test.chat.customcli.\(UUID().uuidString)")!
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        try cliStore.save(LocalCLIConfig(commandTemplate: "python llm_wrapper.py"))
+
+        let configStore = MockLLMConfigStore()
+        configStore.config = .localCLI()
+
+        let vm = TranscriptChatViewModel()
+        vm.configure(
+            llmService: mockService,
+            transcriptText: "Transcript",
+            transcriptionRepo: mockRepo,
+            configStore: configStore,
+            conversationRepo: mockConversationRepo,
+            cliConfigStore: cliStore
+        )
+
+        XCTAssertEqual(vm.modelDisplayName, "Custom CLI")
+        XCTAssertEqual(vm.availableModels, ["Custom CLI"])
+    }
+
     func testUpdateLLMServiceSwapsProvider() async throws {
         let transcriptionId = UUID()
         viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)

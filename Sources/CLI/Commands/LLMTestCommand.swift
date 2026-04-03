@@ -11,13 +11,13 @@ struct LLMTestCommand: AsyncParsableCommand {
     @OptionGroup var llm: LLMInlineOptions
 
     func run() async throws {
-        let config = try llm.buildConfig()
+        let execution = try llm.buildExecutionContext()
+        let config = execution.context.providerConfig
 
         print("Testing connection to \(config.id.displayName) (\(config.modelName))...")
 
-        let client = LLMClient()
         do {
-            try await client.testConnection(config: config)
+            try await execution.client.testConnection(context: execution.context)
             print("Connection successful.")
         } catch let error as LLMError {
             print("Connection failed: \(error.errorDescription ?? String(describing: error))")

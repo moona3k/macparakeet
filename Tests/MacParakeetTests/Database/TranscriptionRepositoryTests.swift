@@ -92,6 +92,25 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(all.count, 0)
     }
 
+    // MARK: - Search
+
+    func testSearchMatchesUnicodeCaseInsensitively() throws {
+        try repo.save(
+            Transcription(
+                fileName: "CAFÉ-notes.m4a",
+                rawTranscript: "Travel guide for İSTANBUL",
+                cleanTranscript: "Met at the Café",
+                status: .completed
+            )
+        )
+
+        let fileNameResults = try repo.search(query: "café", limit: nil)
+        XCTAssertEqual(fileNameResults.count, 1)
+
+        let transcriptResults = try repo.search(query: "istanbul", limit: nil)
+        XCTAssertEqual(transcriptResults.count, 1)
+    }
+
     // MARK: - Status Transitions
 
     func testUpdateStatus() throws {

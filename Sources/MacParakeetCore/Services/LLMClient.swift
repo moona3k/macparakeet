@@ -5,20 +5,54 @@ import Foundation
 public protocol LLMClientProtocol: Sendable {
     func chatCompletion(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) async throws -> ChatCompletionResponse
 
     func chatCompletionStream(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error>
 
-    func testConnection(config: LLMProviderConfig) async throws
+    func testConnection(context: LLMExecutionContext) async throws
 
     /// Fetches available model IDs from the provider's /models endpoint.
-    func listModels(config: LLMProviderConfig) async throws -> [String]
+    func listModels(context: LLMExecutionContext) async throws -> [String]
+}
+
+public extension LLMClientProtocol {
+    func chatCompletion(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) async throws -> ChatCompletionResponse {
+        try await chatCompletion(
+            messages: messages,
+            context: LLMExecutionContext(providerConfig: config),
+            options: options
+        )
+    }
+
+    func chatCompletionStream(
+        messages: [ChatMessage],
+        config: LLMProviderConfig,
+        options: ChatCompletionOptions
+    ) -> AsyncThrowingStream<String, Error> {
+        chatCompletionStream(
+            messages: messages,
+            context: LLMExecutionContext(providerConfig: config),
+            options: options
+        )
+    }
+
+    func testConnection(config: LLMProviderConfig) async throws {
+        try await testConnection(context: LLMExecutionContext(providerConfig: config))
+    }
+
+    func listModels(config: LLMProviderConfig) async throws -> [String] {
+        try await listModels(context: LLMExecutionContext(providerConfig: config))
+    }
 }
 
 // MARK: - Implementation
@@ -32,9 +66,10 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
     public func chatCompletion(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) async throws -> ChatCompletionResponse {
+        let config = context.providerConfig
         // Provider-specific native API paths
         if config.id == .ollama {
             return try await ollamaChatCompletion(messages: messages, config: config, options: options)
@@ -83,9 +118,10 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
     public func chatCompletionStream(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error> {
+        let config = context.providerConfig
         if config.id == .ollama {
             return ollamaChatCompletionStream(messages: messages, config: config, options: options)
         }
@@ -456,17 +492,19 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         return request
     }
 
-    public func testConnection(config: LLMProviderConfig) async throws {
+    public func testConnection(context: LLMExecutionContext) async throws {
+        let config = context.providerConfig
         let messages = [ChatMessage(role: .user, content: "Hi")]
         // Models that use reasoning tokens (o1/o3/o4, gpt-5.x) need more budget since
         // max_completion_tokens covers both reasoning and visible output.
         // 128 is enough for a minimal response. Older models can use 1 to minimize cost.
         let needsMoreTokens = config.id == .openai && Self.openAIRequiresMaxCompletionTokens(config.modelName)
         let options = ChatCompletionOptions(maxTokens: needsMoreTokens ? 128 : 1)
-        _ = try await chatCompletion(messages: messages, config: config, options: options)
+        _ = try await chatCompletion(messages: messages, context: context, options: options)
     }
 
-    public func listModels(config: LLMProviderConfig) async throws -> [String] {
+    public func listModels(context: LLMExecutionContext) async throws -> [String] {
+        let config = context.providerConfig
         let url = config.baseURL.appendingPathComponent("models")
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.httpMethod = "GET"

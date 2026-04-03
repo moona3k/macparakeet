@@ -4,6 +4,11 @@ import MacParakeetCore
 
 // MARK: - Shared Helpers
 
+struct InlineLLMExecutionContext {
+    let context: LLMExecutionContext
+    let client: any LLMClientProtocol
+}
+
 func validateBaseURL(_ value: String) throws -> URL {
     guard let url = URL(string: value),
           let scheme = url.scheme?.lowercased(),
@@ -27,28 +32,11 @@ func readInput(_ path: String) throws -> String {
     }
 }
 
-final class InlineLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
-    private let config: LLMProviderConfig
-
-    init(config: LLMProviderConfig) {
-        self.config = config
-    }
-
-    func loadConfig() throws -> LLMProviderConfig? { config }
-    func saveConfig(_ config: LLMProviderConfig) throws { throw KeyValueStoreError.unsupported }
-    func deleteConfig() throws { throw KeyValueStoreError.unsupported }
-    func loadAPIKey() throws -> String? { config.apiKey }
-    func loadAPIKey(for provider: LLMProviderID) throws -> String? { config.id == provider ? config.apiKey : nil }
-    func saveAPIKey(_ key: String) throws { throw KeyValueStoreError.unsupported }
-    func deleteAPIKey() throws { throw KeyValueStoreError.unsupported }
-    func updateModelName(_ modelName: String) throws { throw KeyValueStoreError.unsupported }
-}
-
 // MARK: - Inline Options
 
 /// Shared options for CLI commands that call an LLM provider directly (no Keychain).
 struct LLMInlineOptions: ParsableArguments {
-    @Option(name: .long, help: "Provider: anthropic, openai, gemini, openrouter, ollama.")
+    @Option(name: .long, help: "Provider: anthropic, openai, gemini, openrouter, ollama, cli.")
     var provider: String
 
     @Option(name: .long, help: "API key.")
@@ -60,13 +48,23 @@ struct LLMInlineOptions: ParsableArguments {
     @Option(name: .long, help: "Base URL override (e.g. https://us.api.openai.com/v1).")
     var baseURL: String?
 
+    @Option(name: .long, help: "CLI command for cli provider (e.g. 'claude -p').")
+    var command: String?
+
     @Flag(name: .long, help: "Mark provider as local (smaller context budget).")
     var local: Bool = false
 
-    func buildConfig() throws -> LLMProviderConfig {
-        guard let providerID = LLMProviderID(rawValue: provider) else {
-            throw ValidationError("Unknown provider '\(provider)'. Options: anthropic, openai, gemini, openrouter, ollama")
+    private func providerID() throws -> LLMProviderID {
+        // Accept "cli" as a short alias for "localCLI"
+        let normalized = provider == "cli" ? "localCLI" : provider
+        guard let providerID = LLMProviderID(rawValue: normalized) else {
+            throw ValidationError("Unknown provider '\(provider)'. Options: anthropic, openai, gemini, openrouter, ollama, cli")
         }
+        return providerID
+    }
+
+    func buildExecutionContext() throws -> InlineLLMExecutionContext {
+        let providerID = try providerID()
 
         let overrideURL: URL? = if let urlStr = baseURL {
             try validateBaseURL(urlStr)
@@ -74,21 +72,47 @@ struct LLMInlineOptions: ParsableArguments {
             nil
         }
 
+        let client = RoutingLLMClient()
+
+        let providerConfig: LLMProviderConfig
+        var localCLIConfig: LocalCLIConfig?
+
         switch providerID {
         case .anthropic:
             guard let key = apiKey else { throw ValidationError("--api-key is required for Anthropic") }
-            return .anthropic(apiKey: key, model: model ?? "claude-sonnet-4-6", baseURL: overrideURL)
+            providerConfig = .anthropic(apiKey: key, model: model ?? "claude-sonnet-4-6", baseURL: overrideURL)
         case .openai:
             guard let key = apiKey else { throw ValidationError("--api-key is required for OpenAI") }
-            return .openai(apiKey: key, model: model ?? "gpt-4.1", baseURL: overrideURL)
+            providerConfig = .openai(apiKey: key, model: model ?? "gpt-4.1", baseURL: overrideURL)
         case .gemini:
             guard let key = apiKey else { throw ValidationError("--api-key is required for Gemini") }
-            return .gemini(apiKey: key, model: model ?? "gemini-2.5-flash", baseURL: overrideURL)
+            providerConfig = .gemini(apiKey: key, model: model ?? "gemini-2.5-flash", baseURL: overrideURL)
         case .openrouter:
             guard let key = apiKey else { throw ValidationError("--api-key is required for OpenRouter") }
-            return .openrouter(apiKey: key, model: model ?? "anthropic/claude-sonnet-4", baseURL: overrideURL)
+            providerConfig = .openrouter(apiKey: key, model: model ?? "anthropic/claude-sonnet-4", baseURL: overrideURL)
         case .ollama:
-            return .ollama(model: model ?? "qwen3.5:4b", baseURL: overrideURL)
+            providerConfig = .ollama(model: model ?? "qwen3.5:4b", baseURL: overrideURL)
+        case .localCLI:
+            guard let rawCommand = command,
+                  !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ValidationError("--command is required for cli provider (e.g. 'claude -p')")
+            }
+            providerConfig = .localCLI()
+            localCLIConfig = LocalCLIConfig(
+                commandTemplate: rawCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
         }
+
+        return InlineLLMExecutionContext(
+            context: LLMExecutionContext(
+                providerConfig: providerConfig,
+                localCLIConfig: localCLIConfig
+            ),
+            client: client
+        )
+    }
+
+    func buildConfig() throws -> LLMProviderConfig {
+        try buildExecutionContext().context.providerConfig
     }
 }

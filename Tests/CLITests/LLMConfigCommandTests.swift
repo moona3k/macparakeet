@@ -1,6 +1,7 @@
 import ArgumentParser
 import XCTest
 @testable import CLI
+@testable import MacParakeetCore
 
 final class LLMConfigCommandTests: XCTestCase {
     func testValidateCustomBaseURLAcceptsAbsoluteHTTPURL() throws {
@@ -41,6 +42,30 @@ final class LLMConfigCommandTests: XCTestCase {
         let config = try options.buildConfig()
         XCTAssertEqual(config.id, .ollama)
         XCTAssertEqual(config.baseURL.absoluteString, "http://127.0.0.1:11435/v1")
+    }
+
+    func testLocalCLIExecutionContextRoutesThroughCLIClient() async throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "cli",
+            "--command", "echo OK",
+        ])
+
+        let context = try options.buildExecutionContext()
+
+        XCTAssertEqual(context.context.providerConfig.id, .localCLI)
+        XCTAssertEqual(context.context.localCLIConfig?.commandTemplate, "echo OK")
+        try await context.client.testConnection(context: context.context)
+    }
+
+    func testLocalCLIRejectsWhitespaceOnlyCommand() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "cli",
+            "--command", "   \n  ",
+        ])
+
+        XCTAssertThrowsError(try options.buildExecutionContext()) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
     }
 
 }

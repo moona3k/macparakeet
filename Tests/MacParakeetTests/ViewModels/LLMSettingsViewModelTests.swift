@@ -360,4 +360,169 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.requiresAPIKey)
         XCTAssertEqual(viewModel.modelName, "anthropic/claude-opus-4-6")
     }
+
+    // MARK: - Local CLI
+
+    func testLocalCLIDoesNotRequireAPIKey() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+        XCTAssertFalse(viewModel.requiresAPIKey)
+    }
+
+    func testLocalCLIConnectionUsesInjectedClient() async throws {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+        viewModel.commandTemplate = "echo OK"
+
+        viewModel.testConnection()
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(viewModel.connectionTestState, .success)
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .localCLI)
+        XCTAssertEqual(mockClient.capturedContext?.localCLIConfig?.commandTemplate, "echo OK")
+    }
+
+    func testLocalCLITemplatePopulatesCommand() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+
+        viewModel.selectedCLITemplate = .claudeCode
+        XCTAssertEqual(viewModel.commandTemplate, "claude -p --model haiku")
+
+        viewModel.selectedCLITemplate = .codex
+        XCTAssertEqual(
+            viewModel.commandTemplate,
+            "codex exec --skip-git-repo-check --model gpt-5.4-mini"
+        )
+    }
+
+    func testLoadsExistingLocalCLIConfigRehydratesPresetSelection() throws {
+        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        try cliStore.save(
+            LocalCLIConfig(
+                commandTemplate: "claude -p --model haiku",
+                timeoutSeconds: 45
+            )
+        )
+        mockConfigStore.config = .localCLI()
+
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient, cliConfigStore: cliStore)
+
+        XCTAssertEqual(viewModel.selectedProviderID, .localCLI)
+        XCTAssertEqual(viewModel.commandTemplate, "claude -p --model haiku")
+        XCTAssertEqual(viewModel.selectedCLITemplate, .claudeCode)
+        XCTAssertEqual(viewModel.cliTimeoutSeconds, 45)
+    }
+
+    func testLocalCLICanSaveWithCommand() {
+        let cliStore = LocalCLIConfigStore(defaults: UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!)
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient, cliConfigStore: cliStore)
+        viewModel.selectedProviderID = .localCLI
+        viewModel.commandTemplate = "claude -p --model haiku"
+
+        XCTAssertTrue(viewModel.canSave)
+        viewModel.saveConfiguration()
+        XCTAssertEqual(viewModel.saveState, .saved)
+
+        // Verify CLI config was persisted
+        let saved = cliStore.load()
+        XCTAssertEqual(saved?.commandTemplate, "claude -p --model haiku")
+    }
+
+    func testLocalCLITimeoutClampsToMinimum() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+
+        viewModel.cliTimeoutSeconds = 1
+
+        XCTAssertEqual(viewModel.cliTimeoutSeconds, LocalCLIConfig.minimumTimeout)
+    }
+
+    func testLocalCLISaveDuringConnectionTestDoesNotRestoreStaleCommand() async throws {
+        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        try cliStore.save(LocalCLIConfig(commandTemplate: "echo OLD", timeoutSeconds: 10))
+
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient, cliConfigStore: cliStore)
+        viewModel.selectedProviderID = .localCLI
+        viewModel.commandTemplate = "sleep 0.2; cat >/dev/null; echo OK"
+        viewModel.cliTimeoutSeconds = 10
+
+        viewModel.testConnection()
+        viewModel.commandTemplate = "echo SAVED"
+        viewModel.saveConfiguration()
+
+        try await Task.sleep(nanoseconds: 500_000_000)
+
+        XCTAssertEqual(cliStore.load()?.commandTemplate, "echo SAVED")
+        XCTAssertEqual(viewModel.connectionTestState, .idle)
+    }
+
+    func testClearKeepsSavedLocalCLIConfigAfterUnsavedProviderSwitch() throws {
+        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        try cliStore.save(
+            LocalCLIConfig(
+                commandTemplate: "codex exec --skip-git-repo-check --model gpt-5.4-mini",
+                timeoutSeconds: 15
+            )
+        )
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient, cliConfigStore: cliStore)
+        viewModel.selectedProviderID = .localCLI
+        XCTAssertEqual(
+            viewModel.commandTemplate,
+            "codex exec --skip-git-repo-check --model gpt-5.4-mini"
+        )
+
+        viewModel.clearConfiguration()
+
+        XCTAssertNil(mockConfigStore.config)
+        XCTAssertEqual(
+            cliStore.load()?.commandTemplate,
+            "codex exec --skip-git-repo-check --model gpt-5.4-mini"
+        )
+        XCTAssertEqual(viewModel.selectedProviderID, .localCLI)
+        XCTAssertEqual(
+            viewModel.commandTemplate,
+            "codex exec --skip-git-repo-check --model gpt-5.4-mini"
+        )
+        XCTAssertEqual(viewModel.cliTimeoutSeconds, 15)
+    }
+
+    func testLocalCLICannotSaveWithoutCommand() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+        viewModel.commandTemplate = ""
+
+        XCTAssertFalse(viewModel.canSave)
+    }
+
+    func testLocalCLITemplateClears_onManualEdit() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+
+        viewModel.selectedCLITemplate = .claudeCode
+        XCTAssertEqual(viewModel.commandTemplate, "claude -p --model haiku")
+        XCTAssertEqual(viewModel.selectedCLITemplate, .claudeCode)
+
+        // Manually editing clears the template selection
+        viewModel.commandTemplate = "my-custom-tool"
+        XCTAssertNil(viewModel.selectedCLITemplate)
+    }
+
+    func testSwitchToLocalCLIAndBack() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .localCLI
+        XCTAssertFalse(viewModel.requiresAPIKey)
+        XCTAssertTrue(viewModel.availableModels.isEmpty)
+
+        viewModel.selectedProviderID = .openai
+        XCTAssertTrue(viewModel.requiresAPIKey)
+        XCTAssertFalse(viewModel.availableModels.isEmpty)
+    }
 }

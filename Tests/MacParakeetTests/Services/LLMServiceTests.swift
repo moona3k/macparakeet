@@ -5,7 +5,7 @@ import XCTest
 
 final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var capturedMessages: [ChatMessage] = []
-    var capturedConfig: LLMProviderConfig?
+    var capturedContext: LLMExecutionContext?
     var capturedOptions: ChatCompletionOptions?
     var responseContent = "Mock response"
     var responseModel = "mock-model"
@@ -15,22 +15,22 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
 
     func chatCompletion(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) async throws -> ChatCompletionResponse {
         capturedMessages = messages
-        capturedConfig = config
+        capturedContext = context
         capturedOptions = options
         return ChatCompletionResponse(content: responseContent, model: responseModel)
     }
 
     func chatCompletionStream(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error> {
         capturedMessages = messages
-        capturedConfig = config
+        capturedContext = context
         capturedOptions = options
         let tokens = streamTokens ?? [responseContent]
         return AsyncThrowingStream { continuation in
@@ -41,8 +41,8 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         }
     }
 
-    func testConnection(config: LLMProviderConfig) async throws {
-        capturedConfig = config
+    func testConnection(context: LLMExecutionContext) async throws {
+        capturedContext = context
         if testConnectionDelayNs > 0 {
             try await Task.sleep(nanoseconds: testConnectionDelayNs)
         }
@@ -52,9 +52,29 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var modelsList: [String] = ["mock-model-1", "mock-model-2"]
     var listModelsError: Error?
 
-    func listModels(config: LLMProviderConfig) async throws -> [String] {
+    func listModels(context: LLMExecutionContext) async throws -> [String] {
+        capturedContext = context
         if let error = listModelsError { throw error }
         return modelsList
+    }
+}
+
+final class MockLLMExecutionContextResolver: LLMExecutionContextResolving, @unchecked Sendable {
+    let configStore: MockLLMConfigStore
+    var localCLIConfig: LocalCLIConfig?
+
+    init(configStore: MockLLMConfigStore, localCLIConfig: LocalCLIConfig? = nil) {
+        self.configStore = configStore
+        self.localCLIConfig = localCLIConfig
+    }
+
+    func resolveContext() throws -> LLMExecutionContext? {
+        guard let config = try configStore.loadConfig() else { return nil }
+        let resolvedLocalCLIConfig = config.id == .localCLI ? localCLIConfig : nil
+        return LLMExecutionContext(
+            providerConfig: config,
+            localCLIConfig: resolvedLocalCLIConfig
+        )
     }
 }
 
@@ -114,13 +134,15 @@ final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
 final class LLMServiceTests: XCTestCase {
     var mockClient: MockLLMClient!
     var mockConfigStore: MockLLMConfigStore!
+    var mockContextResolver: MockLLMExecutionContextResolver!
     var service: LLMService!
 
     override func setUp() {
         mockClient = MockLLMClient()
         mockConfigStore = MockLLMConfigStore()
         mockConfigStore.config = .openai(apiKey: "sk-test")
-        service = LLMService(client: mockClient, configStore: mockConfigStore)
+        mockContextResolver = MockLLMExecutionContextResolver(configStore: mockConfigStore)
+        service = LLMService(client: mockClient, contextResolver: mockContextResolver)
     }
 
     // MARK: - Not Configured

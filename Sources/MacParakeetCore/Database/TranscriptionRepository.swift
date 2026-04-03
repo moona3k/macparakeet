@@ -72,25 +72,24 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol {
             let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return [] }
 
-            let escaped = trimmed
-                .replacingOccurrences(of: "\\", with: "\\\\")
-                .replacingOccurrences(of: "%", with: "\\%")
-                .replacingOccurrences(of: "_", with: "\\_")
-            let likePattern = "%\(escaped)%"
+            let normalizedQuery = UnicodeSearch.makeKey(trimmed)
+            let cursor = try Transcription
+                .order(Transcription.Columns.createdAt.desc)
+                .fetchCursor(db)
 
-            var sql = """
-                SELECT * FROM transcriptions
-                WHERE fileName LIKE ? ESCAPE '\\'
-                   OR rawTranscript LIKE ? ESCAPE '\\'
-                   OR cleanTranscript LIKE ? ESCAPE '\\'
-                ORDER BY createdAt DESC
-                """
-            var args: [any DatabaseValueConvertible] = [likePattern, likePattern, likePattern]
-            if let limit {
-                sql += " LIMIT ?"
-                args.append(limit)
+            var results: [Transcription] = []
+            while let transcription = try cursor.next() {
+                guard UnicodeSearch.contains(transcription.fileName, normalizedQuery: normalizedQuery)
+                    || (transcription.rawTranscript.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
+                    || (transcription.cleanTranscript.map { UnicodeSearch.contains($0, normalizedQuery: normalizedQuery) } ?? false)
+                else { continue }
+
+                results.append(transcription)
+                if let limit, results.count >= limit {
+                    break
+                }
             }
-            return try Transcription.fetchAll(db, sql: sql, arguments: StatementArguments(args))
+            return results
         }
     }
 

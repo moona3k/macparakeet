@@ -82,6 +82,7 @@ public final class TranscriptionViewModel {
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var llmService: LLMServiceProtocol?
     private var configStore: LLMConfigStoreProtocol?
+    private var cliConfigStore: LocalCLIConfigStore?
     private var transcriptionTask: Task<Void, Never>?
     private var activeTranscriptionTaskID: UUID?
     private var summaryTask: Task<Void, Never>?
@@ -96,13 +97,15 @@ public final class TranscriptionViewModel {
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
         llmService: LLMServiceProtocol? = nil,
-        configStore: LLMConfigStoreProtocol? = nil
+        configStore: LLMConfigStoreProtocol? = nil,
+        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
     ) {
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
         self.llmService = llmService
         self.llmAvailable = llmService != nil
         self.configStore = configStore
+        self.cliConfigStore = cliConfigStore
         refreshModelInfo()
         loadTranscriptions()
     }
@@ -556,8 +559,18 @@ public final class TranscriptionViewModel {
             availableModels = []
             return
         }
-        currentModelName = config.modelName
         currentProviderID = config.id
+        if config.id == .localCLI {
+            let displayName = cliConfigStore
+                .flatMap { $0.load() }
+                .map { LocalCLITemplate.displayName(for: $0.commandTemplate) }
+                ?? "Custom CLI"
+            currentModelName = displayName
+            availableModels = [displayName]
+            return
+        }
+
+        currentModelName = config.modelName
         var models = LLMSettingsViewModel.suggestedModels(for: config.id)
         if !config.modelName.isEmpty && !models.contains(config.modelName) {
             models.insert(config.modelName, at: 0)
@@ -566,7 +579,7 @@ public final class TranscriptionViewModel {
     }
 
     public func selectModel(_ modelName: String) {
-        guard let configStore else { return }
+        guard let configStore, currentProviderID != .localCLI else { return }
         do {
             try configStore.updateModelName(modelName)
             currentModelName = modelName
