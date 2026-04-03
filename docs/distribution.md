@@ -190,13 +190,17 @@ sparkle:edSignature="..." length="..."
 
 ### Step 5: Update appcast.xml
 
-Edit `~/code/macparakeet-website/public/appcast.xml`. **Replace** the existing `<item>` (single DMG URL = single item, not multiple) with:
+Edit `~/code/macparakeet-website/public/appcast.xml`. **Prepend** a new `<item>` at the top of the channel (keep all previous items — Sparkle shows release notes for ALL versions newer than the user's installed version, so users who skip versions see the full changelog).
+
+New item needs:
 - `sparkle:version` = build number from `dist/MacParakeet.app/Contents/Info.plist` (`CFBundleVersion`)
 - `sparkle:shortVersionString` = version from Info.plist (`CFBundleShortVersionString`)
 - `sparkle:edSignature` and `length` from Step 4
 - `pubDate` in RFC 2822 format: `date -R`
-- Release notes in `<description>` CDATA block
+- Release notes in `<description>` CDATA block — only what's new in THIS version (don't duplicate notes from previous items)
 - **Enclosure URL must include a cache-busting query param:** `?v={BUILD_NUMBER}`. Cloudflare CDN caches by full URL including query params, so without this Sparkle may download a stale cached DMG and fail with "improperly signed". R2 ignores query params and serves the correct object.
+
+Keep ~10 most recent items. Prune older ones when the list gets long. Only the newest item's enclosure URL is used for download — old items just provide their release notes.
 
 Get build info:
 ```bash
@@ -344,13 +348,9 @@ To retrieve the public key or verify the Keychain entry:
 
 The appcast XML lives in the [macparakeet-website](https://github.com/moona3k/macparakeet-website) repo at `public/appcast.xml` and is served at `https://macparakeet.com/appcast.xml`.
 
-Template for a new release:
+Template for a new item (prepend to existing items in `appcast.xml`):
 
 ```xml
-<?xml version="1.0" encoding="utf-8"?>
-<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
-  <channel>
-    <title>MacParakeet Updates</title>
     <item>
       <title>Version X.Y.Z</title>
       <link>https://macparakeet.com</link>
@@ -370,9 +370,9 @@ Template for a new release:
         length="FILE_SIZE_BYTES"
         type="application/octet-stream" />
     </item>
-  </channel>
-</rss>
 ```
+
+**Important:** Don't replace existing items — prepend the new one. Sparkle shows all items newer than the user's installed version. Keep ~10 items for users who skip versions.
 
 ### Signing an update
 
