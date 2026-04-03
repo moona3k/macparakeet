@@ -27,8 +27,10 @@ struct ModelSelectorView: View {
                 Text(displayName)
                     .font(DesignSystem.Typography.micro)
                     .lineLimit(1)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.system(size: 8, weight: .semibold))
+                if availableModels.count > 1 {
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 8, weight: .semibold))
+                }
             }
             .foregroundStyle(.secondary)
         }

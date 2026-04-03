@@ -40,6 +40,21 @@ public enum LocalCLITemplate: String, CaseIterable, Sendable, Codable {
     public var defaultConfig: LocalCLIConfig {
         LocalCLIConfig(commandTemplate: defaultCommand)
     }
+
+    public static func inferredTemplate(for commandTemplate: String) -> LocalCLITemplate? {
+        let trimmed = commandTemplate.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if trimmed == "claude" || trimmed.hasPrefix("claude ") {
+            return .claudeCode
+        }
+        if trimmed == "codex" || trimmed.hasPrefix("codex ") {
+            return .codex
+        }
+        return nil
+    }
+
+    public static func displayName(for commandTemplate: String) -> String {
+        inferredTemplate(for: commandTemplate)?.displayName ?? "Custom CLI"
+    }
 }
 
 // MARK: - Errors

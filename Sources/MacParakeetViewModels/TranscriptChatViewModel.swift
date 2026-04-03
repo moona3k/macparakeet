@@ -38,6 +38,7 @@ public final class TranscriptChatViewModel {
 
     private var llmService: LLMServiceProtocol?
     private var configStore: LLMConfigStoreProtocol?
+    private var cliConfigStore: LocalCLIConfigStore?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var conversationRepo: ChatConversationRepositoryProtocol?
     private var transcriptionId: UUID?
@@ -67,13 +68,15 @@ public final class TranscriptChatViewModel {
         transcriptText: String,
         transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
         configStore: LLMConfigStoreProtocol? = nil,
-        conversationRepo: ChatConversationRepositoryProtocol? = nil
+        conversationRepo: ChatConversationRepositoryProtocol? = nil,
+        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
     ) {
         self.llmService = llmService
         self.transcriptText = transcriptText
         self.transcriptionRepo = transcriptionRepo
         self.configStore = configStore
         self.conversationRepo = conversationRepo
+        self.cliConfigStore = cliConfigStore
         refreshModelInfo()
     }
 
@@ -84,8 +87,18 @@ public final class TranscriptChatViewModel {
             availableModels = []
             return
         }
-        currentModelName = config.modelName
         currentProviderID = config.id
+        if config.id == .localCLI {
+            let displayName = cliConfigStore
+                .flatMap { $0.load() }
+                .map { LocalCLITemplate.displayName(for: $0.commandTemplate) }
+                ?? "Custom CLI"
+            currentModelName = displayName
+            availableModels = [displayName]
+            return
+        }
+
+        currentModelName = config.modelName
         var models = LLMSettingsViewModel.suggestedModels(for: config.id)
         if !config.modelName.isEmpty && !models.contains(config.modelName) {
             models.insert(config.modelName, at: 0)
@@ -94,7 +107,7 @@ public final class TranscriptChatViewModel {
     }
 
     public func selectModel(_ modelName: String) {
-        guard let configStore else { return }
+        guard let configStore, currentProviderID != .localCLI else { return }
         do {
             try configStore.updateModelName(modelName)
             currentModelName = modelName

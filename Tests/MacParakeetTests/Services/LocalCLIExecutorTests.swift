@@ -43,6 +43,20 @@ final class LocalCLIExecutorTests: XCTestCase {
         XCTAssertEqual(LocalCLITemplate.codex.displayName, "Codex")
     }
 
+    func testTemplateInferenceAndDisplayNames() {
+        XCTAssertEqual(
+            LocalCLITemplate.inferredTemplate(for: "claude -p --model sonnet"),
+            .claudeCode
+        )
+        XCTAssertEqual(
+            LocalCLITemplate.inferredTemplate(for: "codex exec --model gpt-5.4"),
+            .codex
+        )
+        XCTAssertNil(LocalCLITemplate.inferredTemplate(for: "my-wrapper --run codex"))
+        XCTAssertEqual(LocalCLITemplate.displayName(for: "codex exec --model gpt-5.4"), "Codex")
+        XCTAssertEqual(LocalCLITemplate.displayName(for: "python llm_wrapper.py"), "Custom CLI")
+    }
+
     // MARK: - Prompt Formatting
 
     func testFormatFullPromptWithSystem() {

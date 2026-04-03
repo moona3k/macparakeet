@@ -32,6 +32,50 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.transcriptions.isEmpty)
     }
 
+    func testConfigureShowsLocalCLIPresetName() throws {
+        let defaults = UserDefaults(suiteName: "test.summary.localcli.\(UUID().uuidString)")!
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        try cliStore.save(
+            LocalCLIConfig(commandTemplate: "claude -p --model haiku")
+        )
+
+        let configStore = MockLLMConfigStore()
+        configStore.config = .localCLI()
+
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            llmService: MockLLMService(),
+            configStore: configStore,
+            cliConfigStore: cliStore
+        )
+
+        XCTAssertEqual(viewModel.currentProviderID, .localCLI)
+        XCTAssertEqual(viewModel.currentModelName, "Claude Code")
+        XCTAssertEqual(viewModel.modelDisplayName, "Claude Code")
+        XCTAssertEqual(viewModel.availableModels, ["Claude Code"])
+    }
+
+    func testConfigureShowsCustomCLILabel() throws {
+        let defaults = UserDefaults(suiteName: "test.summary.customcli.\(UUID().uuidString)")!
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        try cliStore.save(LocalCLIConfig(commandTemplate: "python llm_wrapper.py"))
+
+        let configStore = MockLLMConfigStore()
+        configStore.config = .localCLI()
+
+        viewModel.configure(
+            transcriptionService: mockService,
+            transcriptionRepo: mockRepo,
+            llmService: MockLLMService(),
+            configStore: configStore,
+            cliConfigStore: cliStore
+        )
+
+        XCTAssertEqual(viewModel.modelDisplayName, "Custom CLI")
+        XCTAssertEqual(viewModel.availableModels, ["Custom CLI"])
+    }
+
     // MARK: - Transcribe File
 
     func testTranscribeFileUpdatesState() async throws {
