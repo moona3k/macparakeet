@@ -111,10 +111,12 @@ CREATE INDEX idx_events_session ON events(session);
 | Event | Props | Question It Answers |
 |---|---|---|
 | `dictation_started` | `trigger` (hotkey, pill_click, menu_bar) | How do people start dictating? |
-| `dictation_completed` | `duration_seconds`, `word_count`, `mode` (hold, persistent) | How long are dictations? Which mode is popular? |
-| `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, silence) | Are people cancelling often? Why? |
-| `dictation_empty` | `duration_seconds` | Are people getting empty results? (quality signal) |
-| `dictation_failed` | `error_type` | Core feature failures — blind spot without this |
+| `dictation_completed` | `duration_seconds`, `word_count`, `mode` (hold, persistent), `device_*` | How long are dictations? Which mode is popular? |
+| `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, silence), `device_*` | Are people cancelling often? Why? |
+| `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
+| `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
+
+> **Device props** (optional, included when available): `device_name`, `device_transport`, `device_sub_transport`, `device_sample_rate`, `device_channels`, `device_fallback`. These help diagnose audio quality issues tied to specific microphone configurations without identifying the user.
 
 ### 3. Transcription — "Is file transcription valuable?"
 
@@ -124,6 +126,14 @@ CREATE INDEX idx_events_session ON events(session);
 | `transcription_completed` | `source`, `audio_duration_seconds`, `processing_seconds`, `word_count` | Real-world performance metrics |
 | `transcription_cancelled` | `source`, `audio_duration_seconds` | Are people abandoning long jobs? |
 | `transcription_failed` | `source`, `error_type` | What's breaking? |
+
+### 3b. Speaker Diarization — "Is speaker detection working?"
+
+| Event | Props | Question It Answers |
+|---|---|---|
+| `diarization_started` | — | How often is diarization used? |
+| `diarization_completed` | `duration_seconds`, `speaker_count` | How long does it take? How many speakers? |
+| `diarization_failed` | `error_type`, `error_detail` | What breaks in diarization? |
 
 ### 4. Feature Adoption — "What features matter?"
 
@@ -137,6 +147,7 @@ CREATE INDEX idx_events_session ON events(session);
 | `history_searched` | — | Is search useful? |
 | `history_replayed` | — | Do people re-listen to audio? |
 | `copy_to_clipboard` | `source` (dictation, transcription, history) | How do people get text out? |
+| `keystroke_snippet_fired` | — | Are keystroke action snippets being used? |
 
 ### 5. Settings & Customization — "How do people configure the app?"
 
@@ -151,7 +162,7 @@ CREATE INDEX idx_events_session ON events(session);
 
 ### 6. Licensing — "Is the business working?"
 
-> Note: Trial/licensing is not active yet (app is free during development). These events are included for when licensing is enabled.
+> Note: App is now free/GPL-3.0. Most licensing events are dead code (trial, purchase, restore). Only `license_activated` and `license_activation_failed` are wired — kept for the historical $0 LemonSqueezy product.
 
 | Event | Props | Question It Answers |
 |---|---|---|
@@ -172,7 +183,6 @@ CREATE INDEX idx_events_session ON events(session);
 | `model_loaded` | `load_time_seconds` | How long does model warmup take on different chips? |
 | `model_download_started` | — | First-run experience tracking |
 | `model_download_completed` | `duration_seconds` | How long is the 6 GB download? |
-| `model_download_cancelled` | — | Are people abandoning the download? |
 | `model_download_failed` | `error_type` | Are downloads failing? |
 
 ### 8. Permissions — "Is onboarding smooth?"
@@ -188,6 +198,7 @@ CREATE INDEX idx_events_session ON events(session);
 | Event | Props | Question It Answers |
 |---|---|---|
 | `error_occurred` | `domain`, `code`, `description` | What errors are users hitting? |
+| `crash_occurred` | `crash_type`, `signal`, `reason`, `stack_trace`, `crash_app_ver`, `crash_os_ver` | What crashes are happening? |
 
 > **Important:** `error_occurred` includes a `description` field for full error visibility. The **Cloudflare Worker redacts PII server-side** before storage:
 > - File paths (`/Users/...`, `~/...`) → `[PATH]`
@@ -406,4 +417,5 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 - **Crash reporting** — If Apple's built-in crash reports (Xcode Organizer) aren't sufficient, add Sentry later
 - **A/B testing** — Not needed now, but the event infrastructure supports it
 - **Funnel analysis** — Can be done with SQL (session-based event sequences)
-- **Speaker diarization telemetry** — Add events when diarization ships to GUI
+- **~~Speaker diarization telemetry~~** — ✅ Shipped: `diarization_started`, `diarization_completed`, `diarization_failed`
+- **Clean up dead licensing events** — Remove unfired trial/purchase/restore event names from Swift enum and worker allowlist

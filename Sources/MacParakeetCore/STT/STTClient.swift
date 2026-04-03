@@ -155,8 +155,12 @@ public actor STTClient: STTClientProtocol {
 
         onProgress?("Loading model into memory...")
 
+        let start = ContinuousClock.now
         do {
             try await ensureInitialized()
+            let elapsed = start.duration(to: .now)
+            let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
+            Telemetry.send(.modelLoaded(loadTimeSeconds: seconds))
             onProgress?("Ready")
         } catch {
             throw try Self.mapWarmUpError(error)
