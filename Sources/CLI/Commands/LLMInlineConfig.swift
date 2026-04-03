@@ -36,7 +36,7 @@ func readInput(_ path: String) throws -> String {
 
 /// Shared options for CLI commands that call an LLM provider directly (no Keychain).
 struct LLMInlineOptions: ParsableArguments {
-    @Option(name: .long, help: "Provider: anthropic, openai, gemini, openrouter, ollama, localCLI.")
+    @Option(name: .long, help: "Provider: anthropic, openai, gemini, openrouter, ollama, cli.")
     var provider: String
 
     @Option(name: .long, help: "API key.")
@@ -48,15 +48,17 @@ struct LLMInlineOptions: ParsableArguments {
     @Option(name: .long, help: "Base URL override (e.g. https://us.api.openai.com/v1).")
     var baseURL: String?
 
-    @Option(name: .long, help: "CLI command for localCLI provider (e.g. 'claude -p').")
+    @Option(name: .long, help: "CLI command for cli provider (e.g. 'claude -p').")
     var command: String?
 
     @Flag(name: .long, help: "Mark provider as local (smaller context budget).")
     var local: Bool = false
 
     private func providerID() throws -> LLMProviderID {
-        guard let providerID = LLMProviderID(rawValue: provider) else {
-            throw ValidationError("Unknown provider '\(provider)'. Options: anthropic, openai, gemini, openrouter, ollama, localCLI")
+        // Accept "cli" as a short alias for "localCLI"
+        let normalized = provider == "cli" ? "localCLI" : provider
+        guard let providerID = LLMProviderID(rawValue: normalized) else {
+            throw ValidationError("Unknown provider '\(provider)'. Options: anthropic, openai, gemini, openrouter, ollama, cli")
         }
         return providerID
     }
@@ -113,7 +115,7 @@ struct LLMInlineOptions: ParsableArguments {
         case .localCLI:
             guard let rawCommand = command,
                   !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw ValidationError("--command is required for localCLI provider (e.g. 'claude -p')")
+                throw ValidationError("--command is required for cli provider (e.g. 'claude -p')")
             }
             let cliConfig = LocalCLIConfig(
                 commandTemplate: rawCommand.trimmingCharacters(in: .whitespacesAndNewlines)

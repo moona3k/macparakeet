@@ -46,7 +46,7 @@ final class LLMConfigCommandTests: XCTestCase {
 
     func testLocalCLIExecutionContextRoutesThroughCLIClient() async throws {
         let options = try LLMInlineOptions.parse([
-            "--provider", "localCLI",
+            "--provider", "cli",
             "--command", "echo OK",
         ])
 
@@ -59,7 +59,7 @@ final class LLMConfigCommandTests: XCTestCase {
 
     func testLocalCLIRejectsWhitespaceOnlyCommand() throws {
         let options = try LLMInlineOptions.parse([
-            "--provider", "localCLI",
+            "--provider", "cli",
             "--command", "   \n  ",
         ])
 
