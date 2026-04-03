@@ -215,7 +215,7 @@ swift run macparakeet-cli flow snippets delete <ID>
 
 ## LLM Commands
 
-All LLM commands require `--provider` and `--api-key` (except Ollama which is local).
+All LLM commands require `--provider` and `--api-key` (except Ollama and Local CLI).
 
 ### Supported Providers
 
@@ -226,6 +226,7 @@ All LLM commands require `--provider` and `--api-key` (except Ollama which is lo
 | `gemini` | gemini-2.5-flash | Yes |
 | `openrouter` | anthropic/claude-sonnet-4 | Yes |
 | `ollama` | qwen3.5:4b | No (local) |
+| `cli` | N/A (tool decides) | No (tool manages auth) |
 
 ### Test Connection
 
@@ -273,6 +274,23 @@ All LLM commands accept these additional options:
 - `--base-url <url>` — Custom API endpoint (http:// or https://)
 - `--local` — Mark provider as local (smaller context budget)
 - `--stream` — Stream response token-by-token (summarize, chat, transform)
+- `--command <cmd>` — CLI command template (Local CLI provider only)
+
+### Local CLI Provider
+
+```bash
+# Test a CLI tool
+swift run macparakeet-cli llm test-connection --provider cli --command "claude -p --model haiku"
+
+# Summarize via Claude Code
+swift run macparakeet-cli llm summarize transcript.txt --provider cli --command "claude -p --model haiku"
+
+# Use Codex
+swift run macparakeet-cli llm summarize transcript.txt --provider cli --command "codex exec --model gpt-5.4-mini"
+
+# Custom command
+swift run macparakeet-cli llm chat transcript.txt --provider cli --command "my-tool --stdin" --question "Key points?"
+```
 
 ## Feedback
 

@@ -11,7 +11,7 @@ This spec defines how MacParakeet integrates LLM-powered features via external p
 ## Goals
 
 1. Deliver transcript summarization, chat, and custom transforms via user-configured LLM providers.
-2. Support cloud APIs (Claude, GPT, Gemini) and local runtimes (Ollama, LM Studio) through one protocol.
+2. Support cloud APIs (Claude, GPT, Gemini), local runtimes (Ollama, LM Studio), and CLI tools (Claude Code, Codex) through one protocol.
 3. Keep transcription 100% local — only transcript text is sent to LLM providers, never audio.
 4. LLM features are optional — the app is fully functional without any provider configured.
 
@@ -20,7 +20,7 @@ This spec defines how MacParakeet integrates LLM-powered features via external p
 1. Bundling any LLM runtime or model (no mlx-swift-lm, no llama.cpp, no model downloads).
 2. Dictation-time LLM processing (no Command Mode, no AI refinement during dictation).
 3. Building a hosted backend or proxy service.
-4. Multi-provider routing or automatic fallback between providers.
+4. Automatic fallback between providers.
 
 ---
 
@@ -29,8 +29,10 @@ This spec defines how MacParakeet integrates LLM-powered features via external p
 ```
 User triggers LLM action (Summary / Chat / Transform)
     → LLMService (builds prompt with transcript context)
-    → LLMClient (URLSession, POST /v1/chat/completions)
-    → Provider (cloud API or localhost)
+    → LLMExecutionContextResolver (resolves provider config + CLI config)
+    → RoutingLLMClient
+        → .localCLI: LocalCLILLMClient → LocalCLIExecutor (posix_spawn)
+        → .other:    LLMClient (URLSession, POST /v1/chat/completions)
     → Response streamed back to UI
 ```
 
@@ -71,6 +73,9 @@ One protocol, one SSE parser, one code path. If Anthropic-specific features (pro
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
 | LM Studio | Local | `http://localhost:1234/v1` | Optional `Authorization: Bearer` |
 | Custom | Either | User-provided | Optional |
+| Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
+
+**Local CLI:** Users with Claude Code or Codex subscriptions can use their CLI tools directly. The app runs the configured command as a subprocess via `posix_spawn`, delivering prompts via stdin and `MACPARAKEET_*` environment variables. No API key needed — the CLI tool manages its own authentication. Built-in presets for Claude Code (`claude -p --model haiku`) and Codex (`codex exec --model gpt-5.4-mini`), or any custom command. See PR #47.
 
 ---
 
@@ -94,6 +99,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case ollama
     case lmstudio
     case custom
+    case localCLI    // CLI tools (claude -p, codex exec) — no HTTP, no API key
 }
 ```
 
@@ -182,6 +188,7 @@ public enum LLMError: Error, LocalizedError, Sendable {
     case notConfigured             // No provider set up
     case connectionFailed(String)  // Network/localhost unreachable
     case authenticationFailed      // Invalid API key
+    case cliError(String)          // Local CLI subprocess failure
     case rateLimited               // Provider rate limit
     case modelNotFound(String)     // Model name invalid
     case contextTooLong            // Transcript exceeds model context
@@ -364,7 +371,7 @@ Custom transforms are stored in UserDefaults (not the database) because they're 
 
 ## CLI Support
 
-All CLI LLM commands require `--provider` and `--api-key` (except Ollama). Supported providers: `anthropic`, `openai`, `gemini`, `openrouter`, `ollama`.
+All CLI LLM commands require `--provider` and `--api-key` (except Ollama and Local CLI). Supported providers: `anthropic`, `openai`, `gemini`, `openrouter`, `ollama`, `cli`.
 
 ```bash
 # Test provider connectivity
@@ -380,7 +387,13 @@ macparakeet-cli llm chat transcript.txt --provider openai --api-key sk-... --que
 macparakeet-cli llm transform input.txt --provider anthropic --api-key sk-ant-... --prompt "Make formal"
 ```
 
-Additional options: `--model`, `--base-url`, `--local`, `--stream`. Use `-` as input to read from stdin.
+```bash
+# Local CLI provider (no API key needed)
+macparakeet-cli llm test-connection --provider cli --command "claude -p --model haiku"
+macparakeet-cli llm summarize transcript.txt --provider cli --command "claude -p --model haiku"
+```
+
+Additional options: `--model`, `--base-url`, `--local`, `--stream`, `--command` (Local CLI only). Use `-` as input to read from stdin.
 
 CLI LLM commands use ephemeral inline config (not shared with GUI UserDefaults/Keychain).
 

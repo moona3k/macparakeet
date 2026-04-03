@@ -44,8 +44,11 @@ All providers use the OpenAI-compatible chat completions API (`POST /v1/chat/com
 | Google (Gemini) | Cloud | `https://generativelanguage.googleapis.com/v1beta/openai` | API key (`Authorization: Bearer`) |
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | API key (`Authorization: Bearer`) |
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
+| Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 
 > Note: LM Studio is accessible via Ollama or any OpenAI-compatible endpoint configuration — no dedicated provider needed.
+
+**Amendment (2026-04-03): Local CLI provider.** Users with Claude Code or Codex subscriptions can use their CLI tools (`claude -p`, `codex exec`, or any custom command) for summaries, chat, and transforms — no separate API key needed. The CLI tool runs as a subprocess via `posix_spawn` with process group management. Prompts are delivered via stdin and `MACPARAKEET_*` environment variables. This extends the provider model without changing the `LLMClientProtocol` — a `RoutingLLMClient` dispatches `.localCLI` contexts to `LocalCLILLMClient` and everything else to the HTTP `LLMClient`. See PR #47.
 
 **Note:** Anthropic offers both a native Messages API and an OpenAI-compatible endpoint. We use the OpenAI-compatible endpoint for simplicity — one protocol for all providers. If Anthropic-specific features (prompt caching, extended thinking) are needed later, the client can branch on `config.id == .anthropic` internally with zero API change for consumers.
 
@@ -135,21 +138,20 @@ Users who want local-only LLM can install Ollama (`brew install ollama && ollama
 │           │                                              │
 │           ▼                                              │
 │  ┌──────────────────┐    ┌──────────────────────────┐   │
-│  │  LLMClient       │───▶│  Provider Config          │   │
-│  │  (URLSession)    │    │  - baseURL                │   │
-│  │                  │    │  - apiKey (optional)       │   │
-│  │  POST /v1/chat/  │    │  - model name             │   │
-│  │  completions     │    │  - isLocal                 │   │
+│  │ RoutingLLMClient │───▶│  LLMExecutionContext      │   │
+│  │                  │    │  - providerConfig          │   │
+│  │  .localCLI ──▶ LocalCLILLMClient                  │   │
+│  │  .other ────▶ LLMClient (HTTP)                    │   │
 │  └──────────────────┘    └──────────────────────────┘   │
-│           │                                              │
-└───────────┼──────────────────────────────────────────────┘
-            │
-            ▼
-   ┌─────────────────┐   ┌──────────────────┐
-   │  Cloud API       │   │  Local Runtime   │
-   │  (Claude/GPT/    │   │  (Ollama/        │
-   │   Gemini)        │   │   LM Studio)     │
-   └─────────────────┘   └──────────────────┘
+│           │                        │                     │
+└───────────┼────────────────────────┼─────────────────────┘
+            │                        │
+            ▼                        ▼
+   ┌─────────────────┐   ┌──────────────────┐   ┌────────────────┐
+   │  Cloud API       │   │  Local Runtime   │   │  CLI Tool      │
+   │  (Claude/GPT/    │   │  (Ollama/        │   │  (claude -p,   │
+   │   Gemini)        │   │   LM Studio)     │   │   codex exec)  │
+   └─────────────────┘   └──────────────────┘   └────────────────┘
 ```
 
 ### Key Types
@@ -165,8 +167,9 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
 }
 
 public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
-    case anthropic, openai, gemini, openrouter, ollama
+    case anthropic, openai, gemini, openrouter, ollama, localCLI
     // Note: LM Studio is accessible via Ollama or any OpenAI-compatible endpoint configuration.
+    // localCLI runs CLI tools (claude -p, codex exec) as subprocesses — no HTTP, no API key.
 }
 
 /// Client — handles HTTP via OpenAI-compatible protocol
