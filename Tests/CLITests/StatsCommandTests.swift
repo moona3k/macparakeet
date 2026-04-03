@@ -48,6 +48,20 @@ final class StatsCommandTests: XCTestCase {
         XCTAssertEqual(stats.totalCount, 2)
     }
 
+    func testTranscriptionCountUsesEfficientQuery() throws {
+        let db = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+
+        XCTAssertEqual(try repo.count(), 0)
+
+        let t1 = Transcription(fileName: "a.mp3", status: .completed)
+        let t2 = Transcription(fileName: "b.mp3", status: .completed)
+        try repo.save(t1)
+        try repo.save(t2)
+
+        XCTAssertEqual(try repo.count(), 2)
+    }
+
     func testTranscriptionCountAndFavorites() throws {
         let db = try DatabaseManager()
         let repo = TranscriptionRepository(dbQueue: db.dbQueue)

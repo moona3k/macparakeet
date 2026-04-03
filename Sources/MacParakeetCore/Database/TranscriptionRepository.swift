@@ -6,6 +6,8 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func fetch(id: UUID) throws -> Transcription?
     func fetchAll(limit: Int?) throws -> [Transcription]
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription?
+    func count() throws -> Int
+    func search(query: String, limit: Int?) throws -> [Transcription]
     func delete(id: UUID) throws -> Bool
     func deleteAll() throws
     func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws
@@ -19,6 +21,8 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
 
 extension TranscriptionRepositoryProtocol {
     public func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription? { nil }
+    public func count() throws -> Int { try fetchAll(limit: nil).count }
+    public func search(query: String, limit: Int?) throws -> [Transcription] { [] }
     public func clearStoredAudioPathsForURLTranscriptions() throws {}
     public func updateSummary(id: UUID, summary: String?) throws {}
     public func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
@@ -54,6 +58,39 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol {
                 request = request.limit(limit)
             }
             return try request.fetchAll(db)
+        }
+    }
+
+    public func count() throws -> Int {
+        try dbQueue.read { db in
+            try Transcription.fetchCount(db)
+        }
+    }
+
+    public func search(query: String, limit: Int? = nil) throws -> [Transcription] {
+        try dbQueue.read { db in
+            let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return [] }
+
+            let escaped = trimmed
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "%", with: "\\%")
+                .replacingOccurrences(of: "_", with: "\\_")
+            let likePattern = "%\(escaped)%"
+
+            var sql = """
+                SELECT * FROM transcriptions
+                WHERE fileName LIKE ? ESCAPE '\\'
+                   OR rawTranscript LIKE ? ESCAPE '\\'
+                   OR cleanTranscript LIKE ? ESCAPE '\\'
+                ORDER BY createdAt DESC
+                """
+            var args: [any DatabaseValueConvertible] = [likePattern, likePattern, likePattern]
+            if let limit {
+                sql += " LIMIT ?"
+                args.append(limit)
+            }
+            return try Transcription.fetchAll(db, sql: sql, arguments: StatementArguments(args))
         }
     }
 
