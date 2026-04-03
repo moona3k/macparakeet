@@ -9,10 +9,13 @@ struct CLI: AsyncParsableCommand {
         subcommands: [
             TranscribeCommand.self,
             HistoryCommand.self,
+            ExportCommand.self,
+            StatsCommand.self,
             HealthCommand.self,
             ModelsCommand.self,
             FlowCommand.self,
             LLMCommand.self,
+            FeedbackCommand.self,
         ],
         defaultSubcommand: nil
     )

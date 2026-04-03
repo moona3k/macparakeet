@@ -110,7 +110,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] Menu bar app with main window + sidebar navigation
 - [x] Basic export (TXT/Markdown/SRT/VTT + copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + substring search)
-- [x] Internal dev CLI tool: `macparakeet-cli transcribe`, `history`, `health`, `flow`
+- [x] Internal dev CLI tool: `macparakeet-cli transcribe`, `history`, `export`, `stats`, `health`, `flow`, `llm`, `feedback`
 - [x] STT engine (Parakeet TDT via FluidAudio CoreML/ANE)
 
 ### v0.2 Clean Pipeline (Implemented)

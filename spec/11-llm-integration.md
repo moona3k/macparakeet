@@ -1,6 +1,6 @@
 # 11 - LLM Integration
 
-> Status: **ACTIVE** - Authoritative, current
+> Status: **IMPLEMENTED** - Done, still accurate (CLI command signatures updated 2026-04-02)
 > Supersedes: Previous HISTORICAL version (local Qwen3-8B via mlx-swift-lm, removed 2026-02-23)
 > ADR: ADR-011 (Cloud API keys + optional local providers)
 
@@ -364,21 +364,25 @@ Custom transforms are stored in UserDefaults (not the database) because they're 
 
 ## CLI Support
 
+All CLI LLM commands require `--provider` and `--api-key` (except Ollama). Supported providers: `anthropic`, `openai`, `gemini`, `openrouter`, `ollama`.
+
 ```bash
+# Test provider connectivity
+macparakeet-cli llm test-connection --provider openai --api-key sk-...
+
 # Summarize a transcript file
-macparakeet-cli llm summarize --file transcript.txt
+macparakeet-cli llm summarize transcript.txt --provider anthropic --api-key sk-ant-...
 
-# Chat with a transcript
-macparakeet-cli llm chat --file transcript.txt "What were the action items?"
+# Chat with a transcript (--question flag required)
+macparakeet-cli llm chat transcript.txt --provider openai --api-key sk-... --question "What were the action items?"
 
-# Transform text
-macparakeet-cli llm transform --prompt "Make formal" "hey can u send me that doc"
-
-# List configured provider
-macparakeet-cli llm status
+# Transform text with custom instruction
+macparakeet-cli llm transform input.txt --provider anthropic --api-key sk-ant-... --prompt "Make formal"
 ```
 
-CLI reads provider config from the same UserDefaults/Keychain as the GUI app.
+Additional options: `--model`, `--base-url`, `--local`, `--stream`. Use `-` as input to read from stdin.
+
+CLI LLM commands use ephemeral inline config (not shared with GUI UserDefaults/Keychain).
 
 ---
 
