@@ -76,7 +76,7 @@ final class LocalCLIExecutorTests: XCTestCase {
     func testSuccessfulExecution() async throws {
         let executor = LocalCLIExecutor()
 
-        let config = LocalCLIConfig(commandTemplate: "echo 'test output'", timeoutSeconds: 10)
+        let config = LocalCLIConfig(commandTemplate: "printf 'test output'", timeoutSeconds: 10)
         let output = try await executor.execute(
             systemPrompt: "", userPrompt: "ignored", config: config
         )
@@ -88,11 +88,27 @@ final class LocalCLIExecutorTests: XCTestCase {
         let output = try await executor.execute(
             systemPrompt: "",
             userPrompt: "",
-            config: LocalCLIConfig(commandTemplate: "pwd", timeoutSeconds: 10)
+            config: LocalCLIConfig(commandTemplate: "printf '%s' \"$PWD\"", timeoutSeconds: 10)
         )
 
         let workingDirectory = try LocalCLIExecutor.executionWorkingDirectory()
         XCTAssertEqual(output, workingDirectory.path)
+    }
+
+    func testSuccessfulExecutionPreservesStdoutWhitespace() async throws {
+        let executor = LocalCLIExecutor()
+
+        let config = LocalCLIConfig(
+            commandTemplate: "printf '\\n  indented\\n'",
+            timeoutSeconds: 10
+        )
+        let output = try await executor.execute(
+            systemPrompt: "",
+            userPrompt: "",
+            config: config
+        )
+
+        XCTAssertEqual(output, "\n  indented\n")
     }
 
     func testStdinDelivery() async throws {
@@ -170,7 +186,7 @@ final class LocalCLIExecutorTests: XCTestCase {
         let pidPath = directory.appendingPathComponent("child.txt").path
 
         let config = LocalCLIConfig(
-            commandTemplate: "sleep 30 & echo $! > \(shellQuote(pidPath)); echo ok",
+            commandTemplate: "sleep 30 & echo $! > \(shellQuote(pidPath)); printf ok",
             timeoutSeconds: 30
         )
 
@@ -205,7 +221,7 @@ final class LocalCLIExecutorTests: XCTestCase {
             commandTemplate: """
             sh -c 'sleep 30 </dev/null >/dev/null 2>&1 & echo $! > \(shellQuote(grandchildPIDPath))' &
             while [ ! -f \(shellQuote(grandchildPIDPath)) ]; do sleep 0.01; done
-            echo ok
+            printf ok
             """,
             timeoutSeconds: 30
         )

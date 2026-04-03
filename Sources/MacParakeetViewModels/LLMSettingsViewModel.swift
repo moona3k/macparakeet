@@ -198,17 +198,10 @@ public final class LLMSettingsViewModel {
             return
         }
 
-        let connectionTestClient: any LLMClientProtocol
-        if snapshot.providerID == .localCLI {
-            connectionTestClient = LocalCLILLMClient()
-        } else {
-            connectionTestClient = llmClient
-        }
-
         connectionTestState = .testing
         Task {
             do {
-                try await connectionTestClient.testConnection(context: context)
+                try await llmClient.testConnection(context: context)
                 guard draft == snapshot else { return }
                 connectionTestState = .success
             } catch {

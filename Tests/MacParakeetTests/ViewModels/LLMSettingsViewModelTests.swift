@@ -369,6 +369,20 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.requiresAPIKey)
     }
 
+    func testLocalCLIConnectionUsesInjectedClient() async throws {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+        viewModel.commandTemplate = "echo OK"
+
+        viewModel.testConnection()
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(viewModel.connectionTestState, .success)
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.id, .localCLI)
+        XCTAssertEqual(mockClient.capturedContext?.localCLIConfig?.commandTemplate, "echo OK")
+    }
+
     func testLocalCLITemplatePopulatesCommand() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .localCLI

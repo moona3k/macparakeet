@@ -209,7 +209,7 @@ public final class LocalCLIExecutor: Sendable {
     ///   - systemPrompt: System-level instructions for the LLM.
     ///   - userPrompt: User-facing prompt content.
     ///   - config: Explicit CLI execution configuration.
-    /// - Returns: The CLI's stdout output, trimmed.
+    /// - Returns: The CLI's stdout output verbatim.
     public func execute(
         systemPrompt: String,
         userPrompt: String,
@@ -459,8 +459,7 @@ public final class LocalCLIExecutor: Sendable {
 
                     Self.stopProcess(processID, state: state)
 
-                    let stdout = (String(data: stdoutData, encoding: .utf8) ?? "")
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                    let stdout = String(data: stdoutData, encoding: .utf8) ?? ""
                     let stderr = (String(data: stderrData, encoding: .utf8) ?? "")
                         .trimmingCharacters(in: .whitespacesAndNewlines)
 
