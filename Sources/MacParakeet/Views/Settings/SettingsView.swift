@@ -30,6 +30,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                 headerCard
                 dictationCard
+                transcriptionCard
                 aiProviderCard
                 storageCard
                 generalCard
@@ -215,6 +216,22 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+    }
+
+    // MARK: - Transcription
+
+    private var transcriptionCard: some View {
+        settingsCard(
+            title: "Transcription",
+            subtitle: "Options for file and YouTube transcription.",
+            icon: "doc.text"
+        ) {
+            settingsToggleRow(
+                title: "Speaker detection",
+                detail: "Identify who said what. Adds a few seconds of processing time.",
+                isOn: $viewModel.speakerDiarization
+            )
         }
     }
 

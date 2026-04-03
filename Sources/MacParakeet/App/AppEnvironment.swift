@@ -143,6 +143,9 @@ final class AppEnvironment {
                 // Defaults to true if unset (matches Settings UI default).
                 UserDefaults.standard.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
             },
+            shouldDiarize: {
+                UserDefaults.standard.object(forKey: "speakerDiarization") as? Bool ?? false
+            },
             youtubeDownloader: youtubeDownloader,
             diarizationService: diarizationService
         )

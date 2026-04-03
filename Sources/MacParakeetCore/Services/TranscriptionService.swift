@@ -38,6 +38,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
     private let textRefinementService: TextRefinementService
     private let shouldKeepDownloadedAudio: @Sendable () -> Bool
+    private let shouldDiarize: @Sendable () -> Bool
     private let youtubeDownloader: YouTubeDownloading?
     private let diarizationService: DiarizationServiceProtocol?
 
@@ -50,6 +51,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
+        shouldDiarize: (@Sendable () -> Bool)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil,
         diarizationService: DiarizationServiceProtocol? = nil
     ) {
@@ -62,6 +64,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         self.processingMode = processingMode ?? { .raw }
         self.textRefinementService = TextRefinementService()
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
+        self.shouldDiarize = shouldDiarize ?? { true }
         self.youtubeDownloader = youtubeDownloader
         self.diarizationService = diarizationService
     }
@@ -205,7 +208,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             transcription.wordTimestamps = words
             transcription.durationMs = result.words.last?.endMs
 
-            if let diarizationService {
+            if let diarizationService, shouldDiarize() {
                 do {
                     onProgress?(.identifyingSpeakers)
                     Telemetry.send(.diarizationStarted(source: source))

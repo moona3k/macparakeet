@@ -109,6 +109,14 @@ public final class SettingsViewModel {
         }
     }
 
+    // Transcription
+    public var speakerDiarization: Bool {
+        didSet {
+            defaults.set(speakerDiarization, forKey: "speakerDiarization")
+            Telemetry.send(.settingChanged(setting: .speakerDiarization))
+        }
+    }
+
     // Permission status
     public var microphoneGranted = false
     public var accessibilityGranted = false
@@ -175,6 +183,7 @@ public final class SettingsViewModel {
         saveDictationHistory = defaults.object(forKey: "saveDictationHistory") as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: "saveAudioRecordings") as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
+        speakerDiarization = defaults.object(forKey: "speakerDiarization") as? Bool ?? false
     }
 
     public func configure(
