@@ -24,7 +24,7 @@ final class AppEnvironment {
     let launchAtLoginService: LaunchAtLoginService
     let checkoutURL: URL?
     let telemetryService: TelemetryService
-    let llmClient: LLMClient
+    let llmClient: RoutingLLMClient
     let llmConfigStore: LLMConfigStore
     let llmService: LLMService
 
@@ -127,7 +127,7 @@ final class AppEnvironment {
         Telemetry.send(.appLaunched)
         CrashReporter.sendPendingReport(via: telemetryService)
 
-        llmClient = LLMClient()
+        llmClient = RoutingLLMClient()
         llmConfigStore = LLMConfigStore()
         llmService = LLMService(client: llmClient, configStore: llmConfigStore)
 

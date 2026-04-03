@@ -8,6 +8,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case gemini
     case openrouter
     case ollama
+    case localCLI
 
     public var displayName: String {
         switch self {
@@ -16,16 +17,26 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
         case .gemini: return "Google Gemini"
         case .openrouter: return "OpenRouter"
         case .ollama: return "Ollama"
+        case .localCLI: return "Local CLI"
         }
     }
 
+    /// Whether the provider runs inference on-device (affects context budget).
+    /// Local CLI tools typically forward to cloud APIs, so this is `false`.
     public var isLocal: Bool {
         switch self {
         case .ollama: return true
-        case .anthropic, .openai, .gemini, .openrouter: return false
+        case .anthropic, .openai, .gemini, .openrouter, .localCLI: return false
         }
     }
 
+    /// Whether the provider needs an API key to function.
+    public var requiresAPIKey: Bool {
+        switch self {
+        case .ollama, .localCLI: return false
+        case .anthropic, .openai, .gemini, .openrouter: return true
+        }
+    }
 
 }
 
@@ -109,6 +120,17 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
             apiKey: nil,
             modelName: model,
             isLocal: true
+        )
+    }
+
+    /// Local CLI provider — actual config (command, timeout) stored in `LocalCLIConfigStore`.
+    public static func localCLI() -> LLMProviderConfig {
+        LLMProviderConfig(
+            id: .localCLI,
+            baseURL: URL(string: "http://localhost")!,
+            apiKey: nil,
+            modelName: "cli",
+            isLocal: false
         )
     }
 

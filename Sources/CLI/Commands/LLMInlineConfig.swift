@@ -48,7 +48,7 @@ final class InlineLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
 
 /// Shared options for CLI commands that call an LLM provider directly (no Keychain).
 struct LLMInlineOptions: ParsableArguments {
-    @Option(name: .long, help: "Provider: anthropic, openai, gemini, openrouter, ollama.")
+    @Option(name: .long, help: "Provider: anthropic, openai, gemini, openrouter, ollama, localCLI.")
     var provider: String
 
     @Option(name: .long, help: "API key.")
@@ -60,12 +60,15 @@ struct LLMInlineOptions: ParsableArguments {
     @Option(name: .long, help: "Base URL override (e.g. https://us.api.openai.com/v1).")
     var baseURL: String?
 
+    @Option(name: .long, help: "CLI command for localCLI provider (e.g. 'claude -p').")
+    var command: String?
+
     @Flag(name: .long, help: "Mark provider as local (smaller context budget).")
     var local: Bool = false
 
     func buildConfig() throws -> LLMProviderConfig {
         guard let providerID = LLMProviderID(rawValue: provider) else {
-            throw ValidationError("Unknown provider '\(provider)'. Options: anthropic, openai, gemini, openrouter, ollama")
+            throw ValidationError("Unknown provider '\(provider)'. Options: anthropic, openai, gemini, openrouter, ollama, localCLI")
         }
 
         let overrideURL: URL? = if let urlStr = baseURL {
@@ -89,6 +92,13 @@ struct LLMInlineOptions: ParsableArguments {
             return .openrouter(apiKey: key, model: model ?? "anthropic/claude-sonnet-4", baseURL: overrideURL)
         case .ollama:
             return .ollama(model: model ?? "qwen3.5:4b", baseURL: overrideURL)
+        case .localCLI:
+            guard let cmd = command else {
+                throw ValidationError("--command is required for localCLI provider (e.g. 'claude -p')")
+            }
+            let cliConfig = LocalCLIConfig(commandTemplate: cmd)
+            try LocalCLIConfigStore().save(cliConfig)
+            return .localCLI()
         }
     }
 }

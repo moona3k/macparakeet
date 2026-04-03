@@ -360,4 +360,53 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.requiresAPIKey)
         XCTAssertEqual(viewModel.modelName, "anthropic/claude-opus-4-6")
     }
+
+    // MARK: - Local CLI
+
+    func testLocalCLIDoesNotRequireAPIKey() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+        XCTAssertFalse(viewModel.requiresAPIKey)
+    }
+
+    func testLocalCLITemplatePopulatesCommand() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+
+        viewModel.selectedCLITemplate = .claudeCode
+        XCTAssertEqual(viewModel.commandTemplate, "claude -p")
+
+        viewModel.selectedCLITemplate = .codex
+        XCTAssertEqual(viewModel.commandTemplate, "codex exec")
+    }
+
+    func testLocalCLICanSaveWithCommand() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+        viewModel.commandTemplate = "claude -p"
+
+        XCTAssertTrue(viewModel.canSave)
+        viewModel.saveConfiguration()
+        XCTAssertEqual(viewModel.saveState, .saved)
+    }
+
+    func testLocalCLICannotSaveWithoutCommand() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .localCLI
+        viewModel.commandTemplate = ""
+
+        XCTAssertFalse(viewModel.canSave)
+    }
+
+    func testSwitchToLocalCLIAndBack() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .localCLI
+        XCTAssertFalse(viewModel.requiresAPIKey)
+        XCTAssertTrue(viewModel.availableModels.isEmpty)
+
+        viewModel.selectedProviderID = .openai
+        XCTAssertTrue(viewModel.requiresAPIKey)
+        XCTAssertFalse(viewModel.availableModels.isEmpty)
+    }
 }
