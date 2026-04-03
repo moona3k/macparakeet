@@ -237,9 +237,9 @@ struct LLMSettingsView: View {
         let isLocal = viewModel.selectedProviderID.isLocal
         let isCLI = viewModel.selectedProviderID == .localCLI
         HStack(spacing: DesignSystem.Spacing.sm) {
-            Image(systemName: isLocal ? "lock.fill" : isCLI ? "terminal" : "arrow.up.right.circle")
+            Image(systemName: isLocal ? "lock.fill" : "arrow.up.right.circle")
                 .font(.system(size: 12))
-                .foregroundStyle(isLocal ? DesignSystem.Colors.successGreen : isCLI ? .secondary : DesignSystem.Colors.warningAmber)
+                .foregroundStyle(isLocal ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
 
             Text(isLocal
                  ? "Everything stays on your device."
