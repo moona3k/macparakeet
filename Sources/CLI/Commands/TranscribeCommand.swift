@@ -57,13 +57,7 @@ struct TranscribeCommand: AsyncParsableCommand {
 
         // Set up services
         try AppPaths.ensureDirectories()
-        let dbPathOpt = database?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let resolvedDBPath = (dbPathOpt?.isEmpty == false) ? dbPathOpt! : AppPaths.databasePath
-        if resolvedDBPath != AppPaths.databasePath {
-            let dir = URL(fileURLWithPath: resolvedDBPath).deletingLastPathComponent()
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        }
-        let dbManager = try DatabaseManager(path: resolvedDBPath)
+        let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
         let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
         let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
         let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
