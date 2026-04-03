@@ -183,9 +183,16 @@ public final class LLMSettingsViewModel {
         guard let llmClient else { return }
 
         let snapshot = draft
-        let config: LLMProviderConfig
+        let context: LLMExecutionContext
         do {
-            config = try buildConfig(from: snapshot)
+            let config = try buildConfig(from: snapshot)
+            context = LLMExecutionContext(
+                providerConfig: config,
+                localCLIConfig: snapshot.providerID == .localCLI ? LocalCLIConfig(
+                    commandTemplate: snapshot.trimmedCommandTemplate,
+                    timeoutSeconds: snapshot.cliTimeoutSeconds
+                ) : nil
+            )
         } catch {
             connectionTestState = .error(error.localizedDescription)
             return
@@ -193,10 +200,7 @@ public final class LLMSettingsViewModel {
 
         let connectionTestClient: any LLMClientProtocol
         if snapshot.providerID == .localCLI {
-            connectionTestClient = LocalCLILLMClient(overrideConfig: LocalCLIConfig(
-                commandTemplate: snapshot.trimmedCommandTemplate,
-                timeoutSeconds: snapshot.cliTimeoutSeconds
-            ))
+            connectionTestClient = LocalCLILLMClient()
         } else {
             connectionTestClient = llmClient
         }
@@ -204,7 +208,7 @@ public final class LLMSettingsViewModel {
         connectionTestState = .testing
         Task {
             do {
-                try await connectionTestClient.testConnection(config: config)
+                try await connectionTestClient.testConnection(context: context)
                 guard draft == snapshot else { return }
                 connectionTestState = .success
             } catch {

@@ -134,11 +134,9 @@ public final class LocalCLIExecutor: Sendable {
         }
     }
 
-    private let configStore: LocalCLIConfigStore
     private let cachedPATH: OSAllocatedUnfairLock<String?>
 
-    public init(configStore: LocalCLIConfigStore = LocalCLIConfigStore()) {
-        self.configStore = configStore
+    public init() {
         self.cachedPATH = OSAllocatedUnfairLock(initialState: nil)
     }
 
@@ -146,27 +144,26 @@ public final class LocalCLIExecutor: Sendable {
     /// - Parameters:
     ///   - systemPrompt: System-level instructions for the LLM.
     ///   - userPrompt: User-facing prompt content.
-    ///   - config: Optional override config; reads from store if nil.
+    ///   - config: Explicit CLI execution configuration.
     /// - Returns: The CLI's stdout output, trimmed.
     public func execute(
         systemPrompt: String,
         userPrompt: String,
-        config: LocalCLIConfig? = nil
+        config: LocalCLIConfig
     ) async throws -> String {
-        let resolvedConfig = try resolveConfig(config)
         let fullPrompt = Self.formatFullPrompt(system: systemPrompt, user: userPrompt)
 
         return try await runProcess(
-            commandTemplate: resolvedConfig.commandTemplate,
+            commandTemplate: config.commandTemplate,
             systemPrompt: systemPrompt,
             userPrompt: userPrompt,
             fullPrompt: fullPrompt,
-            timeout: resolvedConfig.timeoutSeconds
+            timeout: config.timeoutSeconds
         )
     }
 
     /// Quick test: runs the configured command with a minimal prompt.
-    public func testConnection(config: LocalCLIConfig? = nil) async throws {
+    public func testConnection(config: LocalCLIConfig) async throws {
         let output = try await execute(
             systemPrompt: "You are a helpful assistant.",
             userPrompt: "Reply with OK",
@@ -193,17 +190,6 @@ public final class LocalCLIExecutor: Sendable {
     }
 
     // MARK: - Private
-
-    private func resolveConfig(_ override: LocalCLIConfig?) throws -> LocalCLIConfig {
-        if let override { return override }
-        guard let stored = configStore.load() else {
-            throw LocalCLIError.commandNotConfigured
-        }
-        guard !stored.commandTemplate.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw LocalCLIError.commandNotConfigured
-        }
-        return stored
-    }
 
     private func runProcess(
         commandTemplate: String,
@@ -276,12 +262,12 @@ public final class LocalCLIExecutor: Sendable {
 
                     readGroup.enter()
                     DispatchQueue.global(qos: .utility).async {
-                        stdoutData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                        stdoutData = (try? outputPipe.fileHandleForReading.readToEnd()) ?? Data()
                         readGroup.leave()
                     }
                     readGroup.enter()
                     DispatchQueue.global(qos: .utility).async {
-                        stderrData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                        stderrData = (try? errorPipe.fileHandleForReading.readToEnd()) ?? Data()
                         readGroup.leave()
                     }
 
@@ -495,7 +481,7 @@ public final class LocalCLIExecutor: Sendable {
 
         guard process.terminationStatus == 0 else { return nil }
 
-        let output = String(data: stdoutPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let output = String(data: (try? stdoutPipe.fileHandleForReading.readToEnd()) ?? Data(), encoding: .utf8) ?? ""
         let startMarker = "__MACPARAKEET_PATH_START__"
         let endMarker = "__MACPARAKEET_PATH_END__"
 

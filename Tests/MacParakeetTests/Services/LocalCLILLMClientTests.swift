@@ -42,13 +42,11 @@ final class LocalCLILLMClientTests: XCTestCase {
     // MARK: - Chat Completion
 
     func testChatCompletionViaEcho() async throws {
-        let defaults = UserDefaults(suiteName: "test.cli.client.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
         let config = LocalCLIConfig(commandTemplate: "echo 'summary result'", timeoutSeconds: 10)
-        try store.save(config)
 
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
         let client = LocalCLILLMClient(executor: executor)
+        let context = LLMExecutionContext(providerConfig: .localCLI(), localCLIConfig: config)
 
         let messages = [
             ChatMessage(role: .system, content: "Summarize."),
@@ -56,7 +54,7 @@ final class LocalCLILLMClientTests: XCTestCase {
         ]
         let response = try await client.chatCompletion(
             messages: messages,
-            config: .localCLI(),
+            context: context,
             options: .default
         )
 
@@ -68,17 +66,15 @@ final class LocalCLILLMClientTests: XCTestCase {
     // MARK: - Streaming
 
     func testStreamYieldsSingleChunk() async throws {
-        let defaults = UserDefaults(suiteName: "test.cli.client.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
         let config = LocalCLIConfig(commandTemplate: "echo 'streamed'", timeoutSeconds: 10)
-        try store.save(config)
 
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
         let client = LocalCLILLMClient(executor: executor)
+        let context = LLMExecutionContext(providerConfig: .localCLI(), localCLIConfig: config)
 
         let messages = [ChatMessage(role: .user, content: "test")]
         let stream = client.chatCompletionStream(
-            messages: messages, config: .localCLI(), options: .default
+            messages: messages, context: context, options: .default
         )
 
         var chunks: [String] = []
@@ -94,25 +90,23 @@ final class LocalCLILLMClientTests: XCTestCase {
 
     func testListModelsReturnsEmpty() async throws {
         let client = LocalCLILLMClient()
-        let models = try await client.listModels(config: .localCLI())
+        let models = try await client.listModels(context: LLMExecutionContext(providerConfig: .localCLI()))
         XCTAssertTrue(models.isEmpty)
     }
 
     // MARK: - Error Mapping
 
     func testCLIErrorMappedToLLMError() async throws {
-        let defaults = UserDefaults(suiteName: "test.cli.client.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
         let config = LocalCLIConfig(commandTemplate: "exit 1", timeoutSeconds: 10)
-        try store.save(config)
 
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
         let client = LocalCLILLMClient(executor: executor)
+        let context = LLMExecutionContext(providerConfig: .localCLI(), localCLIConfig: config)
 
         let messages = [ChatMessage(role: .user, content: "test")]
         do {
             _ = try await client.chatCompletion(
-                messages: messages, config: .localCLI(), options: .default
+                messages: messages, context: context, options: .default
             )
             XCTFail("Expected LLMError.cliError")
         } catch let error as LLMError {
@@ -121,6 +115,26 @@ final class LocalCLILLMClientTests: XCTestCase {
             } else {
                 XCTFail("Expected cliError, got \(error)")
             }
+        }
+    }
+
+    func testMissingLocalCLIConfigMapsToLLMError() async throws {
+        let client = LocalCLILLMClient()
+        let messages = [ChatMessage(role: .user, content: "test")]
+
+        do {
+            _ = try await client.chatCompletion(
+                messages: messages,
+                context: LLMExecutionContext(providerConfig: .localCLI()),
+                options: .default
+            )
+            XCTFail("Expected LLMError.cliError")
+        } catch let error as LLMError {
+            guard case .cliError(let detail) = error else {
+                XCTFail("Expected cliError, got \(error)")
+                return
+            }
+            XCTAssertTrue(detail.contains("not configured"))
         }
     }
 }

@@ -16,29 +16,29 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
 
     public func chatCompletion(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) async throws -> ChatCompletionResponse {
-        try await client(for: config).chatCompletion(messages: messages, config: config, options: options)
+        try await client(for: context).chatCompletion(messages: messages, context: context, options: options)
     }
 
     public func chatCompletionStream(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error> {
-        client(for: config).chatCompletionStream(messages: messages, config: config, options: options)
+        client(for: context).chatCompletionStream(messages: messages, context: context, options: options)
     }
 
-    public func testConnection(config: LLMProviderConfig) async throws {
-        try await client(for: config).testConnection(config: config)
+    public func testConnection(context: LLMExecutionContext) async throws {
+        try await client(for: context).testConnection(context: context)
     }
 
-    public func listModels(config: LLMProviderConfig) async throws -> [String] {
-        try await client(for: config).listModels(config: config)
+    public func listModels(context: LLMExecutionContext) async throws -> [String] {
+        try await client(for: context).listModels(context: context)
     }
 
-    private func client(for config: LLMProviderConfig) -> LLMClientProtocol {
-        config.id == .localCLI ? cliClient : httpClient
+    private func client(for context: LLMExecutionContext) -> LLMClientProtocol {
+        context.providerConfig.id == .localCLI ? cliClient : httpClient
     }
 }

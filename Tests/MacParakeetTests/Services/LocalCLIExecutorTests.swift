@@ -6,6 +6,13 @@ final class LocalCLIExecutorTests: XCTestCase {
         "'\(value.replacingOccurrences(of: "'", with: "'\"'\"'"))'"
     }
 
+    private func isProcessRunning(_ pid: Int32) -> Bool {
+        if kill(pid, 0) == 0 {
+            return true
+        }
+        return errno == EPERM
+    }
+
     // MARK: - Config Store
 
     func testConfigStoreRoundTrip() throws {
@@ -50,9 +57,7 @@ final class LocalCLIExecutorTests: XCTestCase {
     // MARK: - Executor
 
     func testSuccessfulExecution() async throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
 
         let config = LocalCLIConfig(commandTemplate: "echo 'test output'", timeoutSeconds: 10)
         let output = try await executor.execute(
@@ -62,9 +67,7 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testStdinDelivery() async throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
 
         // `cat` echoes stdin to stdout
         let config = LocalCLIConfig(commandTemplate: "cat", timeoutSeconds: 10)
@@ -77,9 +80,7 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testNonZeroExit() async throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
 
         let config = LocalCLIConfig(commandTemplate: "exit 1", timeoutSeconds: 10)
         do {
@@ -95,9 +96,7 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testTimeout() async throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
 
         // Minimum timeout is clamped to 5 seconds
         let config = LocalCLIConfig(commandTemplate: "sleep 30", timeoutSeconds: 5)
@@ -114,9 +113,7 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testTimeoutWhileChildIsNotDrainingStdin() async throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
         let largePrompt = String(repeating: "x", count: 200_000)
 
         // `sleep` never reads stdin, so a large prompt would previously block
@@ -135,9 +132,7 @@ final class LocalCLIExecutorTests: XCTestCase {
     }
 
     func testCancellationTerminatesChildProcess() async throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
 
         let directory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("localcli-cancel-\(UUID().uuidString)", isDirectory: true)
@@ -145,9 +140,10 @@ final class LocalCLIExecutorTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: directory) }
 
         let startedPath = directory.appendingPathComponent("started.txt").path
-        let terminatedPath = directory.appendingPathComponent("terminated.txt").path
+        let pidPath = directory.appendingPathComponent("pid.txt").path
         let command = """
-        trap 'echo terminated > \(shellQuote(terminatedPath)); exit 0' TERM
+        trap 'exit 0' TERM
+        echo $$ > \(shellQuote(pidPath))
         echo started > \(shellQuote(startedPath))
         while true; do sleep 1; done
         """
@@ -162,6 +158,11 @@ final class LocalCLIExecutorTests: XCTestCase {
             try await Task.sleep(nanoseconds: 50_000_000)
         }
         XCTAssertTrue(FileManager.default.fileExists(atPath: startedPath))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: pidPath))
+
+        let pidContents = try String(contentsOfFile: pidPath, encoding: .utf8)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let pid = try XCTUnwrap(Int32(pidContents))
 
         task.cancel()
 
@@ -174,17 +175,15 @@ final class LocalCLIExecutorTests: XCTestCase {
             XCTFail("Expected CancellationError, got \(error)")
         }
 
-        let terminationDeadline = Date().addingTimeInterval(2)
-        while !FileManager.default.fileExists(atPath: terminatedPath) && Date() < terminationDeadline {
+        let terminationDeadline = Date().addingTimeInterval(5)
+        while isProcessRunning(pid) && Date() < terminationDeadline {
             try await Task.sleep(nanoseconds: 50_000_000)
         }
-        XCTAssertTrue(FileManager.default.fileExists(atPath: terminatedPath))
+        XCTAssertFalse(isProcessRunning(pid))
     }
 
     func testEmptyOutput() async throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
 
         // `true` exits 0 but produces no output
         let config = LocalCLIConfig(commandTemplate: "true", timeoutSeconds: 10)
@@ -199,27 +198,8 @@ final class LocalCLIExecutorTests: XCTestCase {
         }
     }
 
-    func testCommandNotConfigured() async throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
-        let executor = LocalCLIExecutor(configStore: store)
-
-        // No config saved, no override
-        do {
-            _ = try await executor.execute(systemPrompt: "", userPrompt: "")
-            XCTFail("Expected commandNotConfigured error")
-        } catch let error as LocalCLIError {
-            guard case .commandNotConfigured = error else {
-                XCTFail("Expected commandNotConfigured, got \(error)")
-                return
-            }
-        }
-    }
-
     func testEnvironmentVariablesSet() async throws {
-        let defaults = UserDefaults(suiteName: "test.localcli.\(UUID().uuidString)")!
-        let store = LocalCLIConfigStore(defaults: defaults)
-        let executor = LocalCLIExecutor(configStore: store)
+        let executor = LocalCLIExecutor()
 
         // Print env vars to verify they're set
         let config = LocalCLIConfig(

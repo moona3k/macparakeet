@@ -5,7 +5,7 @@ import MacParakeetCore
 // MARK: - Shared Helpers
 
 struct InlineLLMExecutionContext {
-    let config: LLMProviderConfig
+    let context: LLMExecutionContext
     let client: any LLMClientProtocol
 }
 
@@ -30,23 +30,6 @@ func readInput(_ path: String) throws -> String {
         let url = URL(fileURLWithPath: path)
         return try String(contentsOf: url, encoding: .utf8)
     }
-}
-
-final class InlineLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
-    private let config: LLMProviderConfig
-
-    init(config: LLMProviderConfig) {
-        self.config = config
-    }
-
-    func loadConfig() throws -> LLMProviderConfig? { config }
-    func saveConfig(_ config: LLMProviderConfig) throws { throw KeyValueStoreError.unsupported }
-    func deleteConfig() throws { throw KeyValueStoreError.unsupported }
-    func loadAPIKey() throws -> String? { config.apiKey }
-    func loadAPIKey(for provider: LLMProviderID) throws -> String? { config.id == provider ? config.apiKey : nil }
-    func saveAPIKey(_ key: String) throws { throw KeyValueStoreError.unsupported }
-    func deleteAPIKey() throws { throw KeyValueStoreError.unsupported }
-    func updateModelName(_ modelName: String) throws { throw KeyValueStoreError.unsupported }
 }
 
 // MARK: - Inline Options
@@ -91,47 +74,61 @@ struct LLMInlineOptions: ParsableArguments {
         case .anthropic:
             guard let key = apiKey else { throw ValidationError("--api-key is required for Anthropic") }
             return InlineLLMExecutionContext(
-                config: .anthropic(apiKey: key, model: model ?? "claude-sonnet-4-6", baseURL: overrideURL),
+                context: LLMExecutionContext(
+                    providerConfig: .anthropic(apiKey: key, model: model ?? "claude-sonnet-4-6", baseURL: overrideURL)
+                ),
                 client: RoutingLLMClient()
             )
         case .openai:
             guard let key = apiKey else { throw ValidationError("--api-key is required for OpenAI") }
             return InlineLLMExecutionContext(
-                config: .openai(apiKey: key, model: model ?? "gpt-4.1", baseURL: overrideURL),
+                context: LLMExecutionContext(
+                    providerConfig: .openai(apiKey: key, model: model ?? "gpt-4.1", baseURL: overrideURL)
+                ),
                 client: RoutingLLMClient()
             )
         case .gemini:
             guard let key = apiKey else { throw ValidationError("--api-key is required for Gemini") }
             return InlineLLMExecutionContext(
-                config: .gemini(apiKey: key, model: model ?? "gemini-2.5-flash", baseURL: overrideURL),
+                context: LLMExecutionContext(
+                    providerConfig: .gemini(apiKey: key, model: model ?? "gemini-2.5-flash", baseURL: overrideURL)
+                ),
                 client: RoutingLLMClient()
             )
         case .openrouter:
             guard let key = apiKey else { throw ValidationError("--api-key is required for OpenRouter") }
             return InlineLLMExecutionContext(
-                config: .openrouter(apiKey: key, model: model ?? "anthropic/claude-sonnet-4", baseURL: overrideURL),
+                context: LLMExecutionContext(
+                    providerConfig: .openrouter(apiKey: key, model: model ?? "anthropic/claude-sonnet-4", baseURL: overrideURL)
+                ),
                 client: RoutingLLMClient()
             )
         case .ollama:
             return InlineLLMExecutionContext(
-                config: .ollama(model: model ?? "qwen3.5:4b", baseURL: overrideURL),
+                context: LLMExecutionContext(
+                    providerConfig: .ollama(model: model ?? "qwen3.5:4b", baseURL: overrideURL)
+                ),
                 client: RoutingLLMClient()
             )
         case .localCLI:
-            guard let cmd = command else {
+            guard let rawCommand = command,
+                  !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw ValidationError("--command is required for localCLI provider (e.g. 'claude -p')")
             }
-            let cliConfig = LocalCLIConfig(commandTemplate: cmd)
+            let cliConfig = LocalCLIConfig(
+                commandTemplate: rawCommand.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
             return InlineLLMExecutionContext(
-                config: .localCLI(),
-                client: RoutingLLMClient(
-                    cliClient: LocalCLILLMClient(overrideConfig: cliConfig)
-                )
+                context: LLMExecutionContext(
+                    providerConfig: .localCLI(),
+                    localCLIConfig: cliConfig
+                ),
+                client: RoutingLLMClient()
             )
         }
     }
 
     func buildConfig() throws -> LLMProviderConfig {
-        try buildExecutionContext().config
+        try buildExecutionContext().context.providerConfig
     }
 }

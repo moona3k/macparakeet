@@ -5,28 +5,24 @@ import Foundation
 /// plugs transparently into `LLMService` via `RoutingLLMClient`.
 public final class LocalCLILLMClient: LLMClientProtocol, Sendable {
     private let executor: LocalCLIExecutor
-    private let overrideConfig: LocalCLIConfig?
 
-    public init(
-        executor: LocalCLIExecutor = LocalCLIExecutor(),
-        overrideConfig: LocalCLIConfig? = nil
-    ) {
+    public init(executor: LocalCLIExecutor = LocalCLIExecutor()) {
         self.executor = executor
-        self.overrideConfig = overrideConfig
     }
 
     public func chatCompletion(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) async throws -> ChatCompletionResponse {
         let (system, user) = Self.extractPrompts(from: messages)
 
         do {
+            let config = try localCLIConfig(from: context)
             let output = try await executor.execute(
                 systemPrompt: system,
                 userPrompt: user,
-                config: overrideConfig
+                config: config
             )
             return ChatCompletionResponse(content: output, model: "cli")
         } catch let error as LLMError {
@@ -38,14 +34,14 @@ public final class LocalCLILLMClient: LLMClientProtocol, Sendable {
 
     public func chatCompletionStream(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     let response = try await self.chatCompletion(
-                        messages: messages, config: config, options: options
+                        messages: messages, context: context, options: options
                     )
                     continuation.yield(response.content)
                     continuation.finish()
@@ -57,9 +53,9 @@ public final class LocalCLILLMClient: LLMClientProtocol, Sendable {
         }
     }
 
-    public func testConnection(config: LLMProviderConfig) async throws {
+    public func testConnection(context: LLMExecutionContext) async throws {
         do {
-            try await executor.testConnection(config: overrideConfig)
+            try await executor.testConnection(config: try localCLIConfig(from: context))
         } catch let error as LLMError {
             throw error
         } catch {
@@ -67,11 +63,18 @@ public final class LocalCLILLMClient: LLMClientProtocol, Sendable {
         }
     }
 
-    public func listModels(config: LLMProviderConfig) async throws -> [String] {
+    public func listModels(context: LLMExecutionContext) async throws -> [String] {
         []
     }
 
     // MARK: - Private
+
+    private func localCLIConfig(from context: LLMExecutionContext) throws -> LocalCLIConfig {
+        guard let config = context.localCLIConfig else {
+            throw LocalCLIError.commandNotConfigured
+        }
+        return config
+    }
 
     /// Splits a message array into (system prompt, user prompt) strings.
     /// Non-system messages preserve role labels for multi-turn context.

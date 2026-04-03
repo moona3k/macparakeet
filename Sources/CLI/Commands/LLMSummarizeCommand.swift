@@ -27,7 +27,7 @@ struct LLMSummarizeCommand: AsyncParsableCommand {
         let execution = try llm.buildExecutionContext()
         let service = LLMService(
             client: execution.client,
-            configStore: InlineLLMConfigStore(config: execution.config)
+            contextResolver: StaticLLMExecutionContextResolver(context: execution.context)
         )
 
         if stream {

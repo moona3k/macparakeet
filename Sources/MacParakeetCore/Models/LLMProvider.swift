@@ -123,7 +123,7 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
         )
     }
 
-    /// Local CLI provider — actual config (command, timeout) stored in `LocalCLIConfigStore`.
+    /// Local CLI provider — command and timeout are carried in `LLMExecutionContext`.
     public static func localCLI() -> LLMProviderConfig {
         LLMProviderConfig(
             id: .localCLI,

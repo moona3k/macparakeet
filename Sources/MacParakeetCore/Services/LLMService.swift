@@ -16,7 +16,7 @@ public protocol LLMServiceProtocol: Sendable {
 
 public final class LLMService: LLMServiceProtocol, Sendable {
     private let client: LLMClientProtocol
-    private let configStore: LLMConfigStoreProtocol
+    private let contextResolver: any LLMExecutionContextResolving
 
     // Context budgets (characters)
     internal static let cloudContextBudget = 100_000
@@ -24,23 +24,38 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     public init(
         client: LLMClientProtocol = LLMClient(),
-        configStore: LLMConfigStoreProtocol = LLMConfigStore()
+        contextResolver: any LLMExecutionContextResolving = StoredLLMExecutionContextResolver()
     ) {
         self.client = client
-        self.configStore = configStore
+        self.contextResolver = contextResolver
+    }
+
+    public convenience init(
+        client: LLMClientProtocol = LLMClient(),
+        configStore: LLMConfigStoreProtocol = LLMConfigStore(),
+        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
+    ) {
+        self.init(
+            client: client,
+            contextResolver: StoredLLMExecutionContextResolver(
+                configStore: configStore,
+                cliConfigStore: cliConfigStore
+            )
+        )
     }
 
     // MARK: - Sync Variants
 
     public func summarize(transcript: String) async throws -> String {
-        let config = try loadConfig()
+        let context = try loadContext()
+        let config = context.providerConfig
         let truncated = Self.truncateMiddle(transcript, limit: contextBudget(for: config))
         let messages = [
             ChatMessage(role: .system, content: Prompts.summary),
             ChatMessage(role: .user, content: truncated),
         ]
         do {
-            let response = try await client.chatCompletion(messages: messages, config: config, options: .default)
+            let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
             Telemetry.send(.llmSummaryUsed(provider: config.id.rawValue))
             return response.content
         } catch {
@@ -53,10 +68,11 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     }
 
     public func chat(question: String, transcript: String, history: [ChatMessage]) async throws -> String {
-        let config = try loadConfig()
+        let context = try loadContext()
+        let config = context.providerConfig
         let messages = buildChatMessages(question: question, transcript: transcript, history: history, config: config)
         do {
-            let response = try await client.chatCompletion(messages: messages, config: config, options: .default)
+            let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
             Telemetry.send(.llmChatUsed(provider: config.id.rawValue, messageCount: history.count + 1))
             return response.content
         } catch {
@@ -69,13 +85,14 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     }
 
     public func transform(text: String, prompt: String) async throws -> String {
-        let config = try loadConfig()
+        let context = try loadContext()
+        let config = context.providerConfig
         let truncated = Self.truncateMiddle(text, limit: contextBudget(for: config))
         let messages = [
             ChatMessage(role: .system, content: Prompts.transform),
             ChatMessage(role: .user, content: "Transform the following text according to this instruction: \(prompt)\n\n---\n\n\(truncated)"),
         ]
-        let response = try await client.chatCompletion(messages: messages, config: config, options: .default)
+        let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
         return response.content
     }
 
@@ -84,14 +101,17 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     public func summarizeStream(transcript: String) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
+                var provider = "unknown"
                 do {
-                    let config = try self.loadConfig()
+                    let context = try self.loadContext()
+                    let config = context.providerConfig
+                    provider = config.id.rawValue
                     let truncated = Self.truncateMiddle(transcript, limit: self.contextBudget(for: config))
                     let messages = [
                         ChatMessage(role: .system, content: Prompts.summary),
                         ChatMessage(role: .user, content: truncated),
                     ]
-                    let stream = self.client.chatCompletionStream(messages: messages, config: config, options: .default)
+                    let stream = self.client.chatCompletionStream(messages: messages, context: context, options: .default)
                     for try await token in stream {
                         continuation.yield(token)
                     }
@@ -101,7 +121,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     if !(error is CancellationError) {
                         // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
                         Telemetry.send(.llmSummaryFailed(
-                            provider: (try? self.loadConfig())?.id.rawValue ?? "unknown",
+                            provider: provider,
                             errorType: Self.errorType(for: error)
                         ))
                     }
@@ -115,10 +135,13 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     public func chatStream(question: String, transcript: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
+                var provider = "unknown"
                 do {
-                    let config = try self.loadConfig()
+                    let context = try self.loadContext()
+                    let config = context.providerConfig
+                    provider = config.id.rawValue
                     let messages = self.buildChatMessages(question: question, transcript: transcript, history: history, config: config)
-                    let stream = self.client.chatCompletionStream(messages: messages, config: config, options: .default)
+                    let stream = self.client.chatCompletionStream(messages: messages, context: context, options: .default)
                     for try await token in stream {
                         continuation.yield(token)
                     }
@@ -128,7 +151,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     if !(error is CancellationError) {
                         // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
                         Telemetry.send(.llmChatFailed(
-                            provider: (try? self.loadConfig())?.id.rawValue ?? "unknown",
+                            provider: provider,
                             errorType: Self.errorType(for: error)
                         ))
                     }
@@ -143,13 +166,14 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let config = try self.loadConfig()
+                    let context = try self.loadContext()
+                    let config = context.providerConfig
                     let truncated = Self.truncateMiddle(text, limit: self.contextBudget(for: config))
                     let messages = [
                         ChatMessage(role: .system, content: Prompts.transform),
                         ChatMessage(role: .user, content: "Transform the following text according to this instruction: \(prompt)\n\n---\n\n\(truncated)"),
                     ]
-                    let stream = self.client.chatCompletionStream(messages: messages, config: config, options: .default)
+                    let stream = self.client.chatCompletionStream(messages: messages, context: context, options: .default)
                     for try await token in stream {
                         continuation.yield(token)
                     }
@@ -164,11 +188,11 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     // MARK: - Private Helpers
 
-    private func loadConfig() throws -> LLMProviderConfig {
-        guard let config = try configStore.loadConfig() else {
+    private func loadContext() throws -> LLMExecutionContext {
+        guard let context = try contextResolver.resolveContext() else {
             throw LLMError.notConfigured
         }
-        return config
+        return context
     }
 
     private func contextBudget(for config: LLMProviderConfig) -> Int {

@@ -52,8 +52,9 @@ final class LLMConfigCommandTests: XCTestCase {
 
         let context = try options.buildExecutionContext()
 
-        XCTAssertEqual(context.config.id, .localCLI)
-        try await context.client.testConnection(config: context.config)
+        XCTAssertEqual(context.context.providerConfig.id, .localCLI)
+        XCTAssertEqual(context.context.localCLIConfig?.commandTemplate, "echo OK")
+        try await context.client.testConnection(context: context.context)
     }
 
 }

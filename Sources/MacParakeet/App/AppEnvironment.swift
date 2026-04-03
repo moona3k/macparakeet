@@ -129,7 +129,13 @@ final class AppEnvironment {
 
         llmClient = RoutingLLMClient()
         llmConfigStore = LLMConfigStore()
-        llmService = LLMService(client: llmClient, configStore: llmConfigStore)
+        llmService = LLMService(
+            client: llmClient,
+            contextResolver: StoredLLMExecutionContextResolver(
+                configStore: llmConfigStore,
+                cliConfigStore: LocalCLIConfigStore()
+            )
+        )
 
         transcriptionService = TranscriptionService(
             audioProcessor: audioProcessor,
