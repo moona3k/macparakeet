@@ -21,7 +21,7 @@ final class LocalCLIExecutorTests: XCTestCase {
 
         XCTAssertNil(store.load())
 
-        let config = LocalCLIConfig(commandTemplate: "claude -p", timeoutSeconds: 90)
+        let config = LocalCLIConfig(commandTemplate: "claude -p --model haiku", timeoutSeconds: 90)
         try store.save(config)
 
         let loaded = store.load()
@@ -34,8 +34,8 @@ final class LocalCLIExecutorTests: XCTestCase {
     // MARK: - Templates
 
     func testTemplateDefaults() {
-        XCTAssertEqual(LocalCLITemplate.claudeCode.defaultCommand, "claude -p")
-        XCTAssertEqual(LocalCLITemplate.codex.defaultCommand, "codex exec")
+        XCTAssertEqual(LocalCLITemplate.claudeCode.defaultCommand, "claude -p --model haiku")
+        XCTAssertEqual(LocalCLITemplate.codex.defaultCommand, "codex exec --model gpt-5.4-mini")
         XCTAssertEqual(LocalCLITemplate.claudeCode.displayName, "Claude Code")
         XCTAssertEqual(LocalCLITemplate.codex.displayName, "Codex")
     }

@@ -32,8 +32,8 @@ public enum LocalCLITemplate: String, CaseIterable, Sendable, Codable {
 
     public var defaultCommand: String {
         switch self {
-        case .claudeCode: return "claude -p"
-        case .codex: return "codex exec"
+        case .claudeCode: return "claude -p --model haiku"
+        case .codex: return "codex exec --model gpt-5.4-mini"
         }
     }
 

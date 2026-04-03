@@ -32,7 +32,7 @@ final class LLMExecutionContextResolverTests: XCTestCase {
 
         let defaults = UserDefaults(suiteName: "test.llm.context.\(UUID().uuidString)")!
         let cliConfigStore = LocalCLIConfigStore(defaults: defaults)
-        try cliConfigStore.save(LocalCLIConfig(commandTemplate: "codex exec", timeoutSeconds: 45))
+        try cliConfigStore.save(LocalCLIConfig(commandTemplate: "codex exec --model gpt-5.4-mini", timeoutSeconds: 45))
 
         let resolver = StoredLLMExecutionContextResolver(
             configStore: configStore,
@@ -41,7 +41,7 @@ final class LLMExecutionContextResolverTests: XCTestCase {
 
         let context = try resolver.resolveContext()
         XCTAssertEqual(context?.providerConfig.id, .localCLI)
-        XCTAssertEqual(context?.localCLIConfig?.commandTemplate, "codex exec")
+        XCTAssertEqual(context?.localCLIConfig?.commandTemplate, "codex exec --model gpt-5.4-mini")
         XCTAssertEqual(context?.localCLIConfig?.timeoutSeconds, 45)
     }
 }

@@ -374,17 +374,17 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.selectedProviderID = .localCLI
 
         viewModel.selectedCLITemplate = .claudeCode
-        XCTAssertEqual(viewModel.commandTemplate, "claude -p")
+        XCTAssertEqual(viewModel.commandTemplate, "claude -p --model haiku")
 
         viewModel.selectedCLITemplate = .codex
-        XCTAssertEqual(viewModel.commandTemplate, "codex exec")
+        XCTAssertEqual(viewModel.commandTemplate, "codex exec --model gpt-5.4-mini")
     }
 
     func testLocalCLICanSaveWithCommand() {
         let cliStore = LocalCLIConfigStore(defaults: UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!)
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient, cliConfigStore: cliStore)
         viewModel.selectedProviderID = .localCLI
-        viewModel.commandTemplate = "claude -p"
+        viewModel.commandTemplate = "claude -p --model haiku"
 
         XCTAssertTrue(viewModel.canSave)
         viewModel.saveConfiguration()
@@ -392,7 +392,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         // Verify CLI config was persisted
         let saved = cliStore.load()
-        XCTAssertEqual(saved?.commandTemplate, "claude -p")
+        XCTAssertEqual(saved?.commandTemplate, "claude -p --model haiku")
     }
 
     func testLocalCLITimeoutClampsToMinimum() {
@@ -437,7 +437,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.selectedProviderID = .localCLI
 
         viewModel.selectedCLITemplate = .claudeCode
-        XCTAssertEqual(viewModel.commandTemplate, "claude -p")
+        XCTAssertEqual(viewModel.commandTemplate, "claude -p --model haiku")
         XCTAssertEqual(viewModel.selectedCLITemplate, .claudeCode)
 
         // Manually editing clears the template selection
