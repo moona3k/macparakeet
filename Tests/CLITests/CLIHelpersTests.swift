@@ -32,7 +32,12 @@ final class CLIHelpersTests: XCTestCase {
         let repo = TranscriptionRepository(dbQueue: db.dbQueue)
 
         XCTAssertThrowsError(try findTranscription(id: "FFFFFFFF-0000-0000-0000-000000000000", repo: repo)) { error in
-            XCTAssertTrue(error is CLILookupError)
+            guard let lookupError = error as? CLILookupError else {
+                return XCTFail("Expected CLILookupError, got \(error)")
+            }
+            if case .notFound = lookupError {} else {
+                XCTFail("Expected .notFound, got \(lookupError)")
+            }
         }
     }
 
@@ -92,7 +97,12 @@ final class CLIHelpersTests: XCTestCase {
         let repo = DictationRepository(dbQueue: db.dbQueue)
 
         XCTAssertThrowsError(try findDictation(id: "FFFFFFFF-0000-0000-0000-000000000000", repo: repo)) { error in
-            XCTAssertTrue(error is CLILookupError)
+            guard let lookupError = error as? CLILookupError else {
+                return XCTFail("Expected CLILookupError, got \(error)")
+            }
+            if case .notFound = lookupError {} else {
+                XCTFail("Expected .notFound, got \(lookupError)")
+            }
         }
     }
 

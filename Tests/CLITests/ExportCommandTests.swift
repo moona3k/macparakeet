@@ -81,8 +81,36 @@ final class ExportCommandTests: XCTestCase {
         try exportService.exportToSRT(transcription: t, url: tmpURL)
 
         let content = try String(contentsOf: tmpURL, encoding: .utf8)
+        // Verify SRT timestamp format (HH:MM:SS,mmm) — not just "-->" which the fallback also emits
+        XCTAssertTrue(content.contains("00:00:00,000 --> 00:00:01,100"), "Expected SRT timestamps from word-level data")
         XCTAssertTrue(content.contains("Hello world"))
-        XCTAssertTrue(content.contains("-->"))
+        // Verify cue numbering (SRT-specific, not in VTT)
+        XCTAssertTrue(content.hasPrefix("1\n"))
+    }
+
+    @MainActor func testExportToVTTWritesFile() throws {
+        let t = Transcription(
+            fileName: "vtt-test.mp3",
+            rawTranscript: "Good morning",
+            wordTimestamps: [
+                WordTimestamp(word: "Good", startMs: 0, endMs: 400, confidence: 0.98),
+                WordTimestamp(word: "morning", startMs: 500, endMs: 1000, confidence: 0.97),
+            ],
+            status: .completed
+        )
+
+        let exportService = ExportService()
+        let tmpURL = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("vtt-test-\(UUID().uuidString).vtt")
+        defer { try? FileManager.default.removeItem(at: tmpURL) }
+
+        try exportService.exportToVTT(transcription: t, url: tmpURL)
+
+        let content = try String(contentsOf: tmpURL, encoding: .utf8)
+        XCTAssertTrue(content.hasPrefix("WEBVTT"), "VTT must start with WEBVTT header")
+        // VTT uses period not comma: HH:MM:SS.mmm
+        XCTAssertTrue(content.contains("00:00:00.000 --> 00:00:01.000"), "Expected VTT timestamps")
+        XCTAssertTrue(content.contains("Good morning"))
     }
 
     @MainActor func testExportToJSONWritesFile() throws {
