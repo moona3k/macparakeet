@@ -2,17 +2,6 @@ import XCTest
 @testable import CLI
 @testable import MacParakeetCore
 
-/// Mirrors the filter logic from SearchTranscriptionsSubcommand.run()
-/// so tests catch drift between test and production code.
-private func searchTranscriptions(_ all: [Transcription], query: String, limit: Int = 20) -> [Transcription] {
-    let queryLower = query.lowercased()
-    return Array(all.filter { t in
-        t.fileName.lowercased().contains(queryLower)
-            || (t.rawTranscript?.lowercased().contains(queryLower) ?? false)
-            || (t.cleanTranscript?.lowercased().contains(queryLower) ?? false)
-    }.prefix(limit))
-}
-
 final class HistoryCommandTests: XCTestCase {
 
     // MARK: - Delete Dictation
@@ -83,7 +72,7 @@ final class HistoryCommandTests: XCTestCase {
         try repo.save(t1)
         try repo.save(t2)
 
-        let results = searchTranscriptions(try repo.fetchAll(), query: "meeting")
+        let results = try repo.search(query: "meeting")
         XCTAssertEqual(results.count, 1)
         XCTAssertEqual(results.first?.id, t1.id)
     }
@@ -97,7 +86,7 @@ final class HistoryCommandTests: XCTestCase {
         try repo.save(t1)
         try repo.save(t2)
 
-        let results = searchTranscriptions(try repo.fetchAll(), query: "fox")
+        let results = try repo.search(query: "fox")
         XCTAssertEqual(results.count, 1)
         XCTAssertEqual(results.first?.id, t1.id)
     }
@@ -112,7 +101,7 @@ final class HistoryCommandTests: XCTestCase {
         try repo.save(t2)
 
         // "proposal" only exists in cleanTranscript
-        let results = searchTranscriptions(try repo.fetchAll(), query: "proposal")
+        let results = try repo.search(query: "proposal")
         XCTAssertEqual(results.count, 1)
         XCTAssertEqual(results.first?.id, t1.id)
     }
@@ -126,7 +115,7 @@ final class HistoryCommandTests: XCTestCase {
             try repo.save(t)
         }
 
-        let results = searchTranscriptions(try repo.fetchAll(), query: "common", limit: 3)
+        let results = try repo.search(query: "common", limit: 3)
         XCTAssertEqual(results.count, 3)
     }
 }

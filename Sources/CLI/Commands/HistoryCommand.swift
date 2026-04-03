@@ -165,14 +165,7 @@ struct SearchTranscriptionsSubcommand: ParsableCommand {
         try AppPaths.ensureDirectories()
         let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
         let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-        let all = try repo.fetchAll()
-
-        let queryLower = query.lowercased()
-        let results = all.filter { t in
-            t.fileName.lowercased().contains(queryLower)
-                || (t.rawTranscript?.lowercased().contains(queryLower) ?? false)
-                || (t.cleanTranscript?.lowercased().contains(queryLower) ?? false)
-        }.prefix(limit)
+        let results = try repo.search(query: query, limit: limit)
 
         if results.isEmpty {
             print("No transcriptions matching \"\(query)\".")

@@ -18,7 +18,7 @@ struct StatsCommand: ParsableCommand {
         let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
 
         let stats = try dictationRepo.stats()
-        let transcriptionCount = try transcriptionRepo.fetchAll().count
+        let transcriptionCount = try transcriptionRepo.count()
         let favoriteCount = try transcriptionRepo.fetchFavorites().count
 
         if stats.visibleCount == 0 && transcriptionCount == 0 {
