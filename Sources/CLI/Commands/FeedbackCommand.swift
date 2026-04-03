@@ -20,7 +20,7 @@ struct FeedbackCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "feedback",
         abstract: "Submit feedback from the CLI.",
-        discussion: "Categories: bug, feature, other."
+        discussion: "Categories: bug, feature, other. Quote multi-word messages: macparakeet-cli feedback \"Found a bug with...\""
     )
 
     @Option(name: .shortAndLong, help: "Category: bug, feature, other.")

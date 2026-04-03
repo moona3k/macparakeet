@@ -219,14 +219,9 @@ struct DeleteDictationSubcommand: ParsableCommand {
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
 
         let dictation = try findDictation(id: id, repo: repo)
-        let deleted = try repo.delete(id: dictation.id)
-
-        if deleted {
-            let preview = String(dictation.rawTranscript.prefix(60))
-            print("Deleted dictation: \"\(preview)\"")
-        } else {
-            print("Dictation not found.")
-        }
+        _ = try repo.delete(id: dictation.id)
+        let preview = String(dictation.rawTranscript.prefix(60))
+        print("Deleted dictation: \"\(preview)\"")
     }
 }
 
@@ -248,13 +243,8 @@ struct DeleteTranscriptionSubcommand: ParsableCommand {
         let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
 
         let transcription = try findTranscription(id: id, repo: repo)
-        let deleted = try repo.delete(id: transcription.id)
-
-        if deleted {
-            print("Deleted transcription: \"\(transcription.fileName)\"")
-        } else {
-            print("Transcription not found.")
-        }
+        _ = try repo.delete(id: transcription.id)
+        print("Deleted transcription: \"\(transcription.fileName)\"")
     }
 }
 

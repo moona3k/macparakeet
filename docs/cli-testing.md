@@ -29,7 +29,7 @@ macparakeet-cli
 │   ├── dictations [--limit]             List recent dictations (default)
 │   ├── transcriptions [--limit]         List recent transcriptions
 │   ├── search <query> [--limit]         Search dictation history
-│   ├── search-transcriptions <query>    Search transcriptions by keyword
+│   ├── search-transcriptions <query> [--limit]  Search transcriptions by keyword
 │   ├── delete-dictation <id>            Delete a dictation by ID
 │   ├── delete-transcription <id>        Delete a transcription by ID
 │   ├── favorites                        List favorite transcriptions
