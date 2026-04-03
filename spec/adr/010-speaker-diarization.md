@@ -113,11 +113,11 @@ If diarization fails (e.g. `noSpeechDetected`, model error, timeout), the ASR re
 - Per-speaker analytics (speaking time, word count)
 - All export formats include speaker labels when available
 - Progress: "Identifying speakers..." sublabel with time estimate during diarization phase
-- Settings toggle to enable/disable diarization (off by default)
+- Settings toggle to enable/disable diarization (on by default)
 
 ### Always-on vs opt-in
 
-> **Amendment (2026-04-02):** The original decision was "always-on, no global toggle." This has been revised to **opt-in via a Settings toggle (off by default)**. See rationale below.
+> **Amendment (2026-04-02):** The original decision was "always-on, no global toggle." This has been revised to **a Settings toggle (on by default)**. See rationale below.
 
 ~~For file transcription, always run it — users transcribing files almost always want to know who said what.~~ **Revised:** Diarization is controlled by a "Speaker detection" toggle in Settings (on by default). Users who don't need speaker attribution can disable it for faster transcriptions.
 
