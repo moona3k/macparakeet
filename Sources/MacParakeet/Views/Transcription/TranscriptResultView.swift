@@ -653,14 +653,13 @@ struct TranscriptResultView: View {
     // MARK: - Tab Bar
 
     private var orderedTabs: [TranscriptionViewModel.TranscriptTab] {
-        var tabs: [TranscriptionViewModel.TranscriptTab] = [.transcript]
+        var tabs: [TranscriptionViewModel.TranscriptTab] = [.transcript, .chat]
         if summaryViewModel.isStreaming {
             tabs.append(.streaming)
         }
         for summary in summaryViewModel.summaries {
             tabs.append(.summary(id: summary.id))
         }
-        tabs.append(.chat)
         return tabs
     }
 
