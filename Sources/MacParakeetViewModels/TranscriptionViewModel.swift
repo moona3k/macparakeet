@@ -438,7 +438,7 @@ public final class TranscriptionViewModel {
         case .transcribing:
             return "Runs entirely on-device using the Neural Engine"
         case .identifyingSpeakers:
-            return "Adds ~30\u{2013}60s per hour of audio. Labels are approximate \u{2014} click to rename."
+            return "May take several minutes per hour of audio. Speaker labels are approximate \u{2014} click to rename."
         default:
             return nil
         }
