@@ -151,7 +151,10 @@ public final class ClipboardService: ClipboardServiceProtocol {
             throw ClipboardServiceError.eventSourceUnavailable
         }
 
-        let vKeyCode = virtualKeyCode(for: "v")
+        // Resolve the shortcut under the same Command-modified layout state that
+        // the generated CGEvents will carry. This preserves layouts such as
+        // "Dvorak - QWERTY ⌘" that intentionally remap only while Command is held.
+        let vKeyCode = virtualKeyCode(for: "v", modifierKeyState: UInt32(cmdKey >> 8))
 
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false) else {
@@ -165,7 +168,7 @@ public final class ClipboardService: ClipboardServiceProtocol {
         keyUp.post(tap: .cghidEventTap)
     }
 
-    private func virtualKeyCode(for character: Character) -> CGKeyCode {
+    private func virtualKeyCode(for character: Character, modifierKeyState: UInt32 = 0) -> CGKeyCode {
         let fallbackKeyCode: CGKeyCode = 0x09
         let layoutSource = TISCopyCurrentKeyboardLayoutInputSource().takeRetainedValue()
 
@@ -188,7 +191,7 @@ public final class ClipboardService: ClipboardServiceProtocol {
                 keyboardLayout,
                 keyCode,
                 UInt16(kUCKeyActionDown),
-                0,
+                modifierKeyState,
                 UInt32(LMGetKbdType()),
                 UInt32(kUCKeyTranslateNoDeadKeysBit),
                 &deadKeyState,
