@@ -791,30 +791,44 @@ struct TranscriptResultView: View {
     }
 
     private var generateTabButton: some View {
-        Image(systemName: "plus")
-            .font(.system(size: 12, weight: .semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-            .foregroundStyle(
-                summaryViewModel.canGenerateSummary
-                    ? DesignSystem.Colors.textSecondary
-                    : DesignSystem.Colors.textTertiary
-            )
-            .onTapGesture {
-                guard summaryViewModel.canGenerateSummary else { return }
-                showGeneratePopover = true
-            }
-            .popover(isPresented: $showGeneratePopover) {
-                summaryGenerationPopover
-                    .frame(width: 420)
-                    .padding(DesignSystem.Spacing.lg)
-            }
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel("New prompt generation")
-            .onHover { hovering in
+        HStack(spacing: 6) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 11, weight: .semibold))
+            Text("Summarize")
+                .font(DesignSystem.Typography.bodySmall.weight(.medium))
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(summaryViewModel.canGenerateSummary ? DesignSystem.Colors.accent.opacity(0.08) : .clear)
+        )
+        .overlay(
+            Capsule()
+                .strokeBorder(summaryViewModel.canGenerateSummary ? DesignSystem.Colors.accent.opacity(0.2) : .clear, lineWidth: 1)
+        )
+        .contentShape(Capsule())
+        .foregroundStyle(
+            summaryViewModel.canGenerateSummary
+                ? DesignSystem.Colors.accent
+                : DesignSystem.Colors.textTertiary
+        )
+        .onTapGesture {
+            guard summaryViewModel.canGenerateSummary else { return }
+            showGeneratePopover = true
+        }
+        .popover(isPresented: $showGeneratePopover) {
+            summaryGenerationPopover
+                .frame(width: 420)
+                .padding(DesignSystem.Spacing.lg)
+        }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("New prompt generation")
+        .onHover { hovering in
+            if summaryViewModel.canGenerateSummary {
                 if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
             }
+        }
     }
 
     private func tabIcon(_ tab: TranscriptionViewModel.TranscriptTab) -> String {
