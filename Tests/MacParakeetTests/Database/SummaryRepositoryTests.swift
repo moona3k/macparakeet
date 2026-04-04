@@ -21,7 +21,7 @@ final class SummaryRepositoryTests: XCTestCase {
         let transcription = try makeTranscription()
         let older = Summary(
             transcriptionId: transcription.id,
-            promptName: "General Summary",
+            promptName: "Concise Summary",
             promptContent: Prompt.defaultSummaryPrompt.content,
             content: "Older",
             createdAt: Date(timeIntervalSince1970: 10),
@@ -47,7 +47,7 @@ final class SummaryRepositoryTests: XCTestCase {
         try repo.save(
             Summary(
                 transcriptionId: transcription.id,
-                promptName: "General Summary",
+                promptName: "Concise Summary",
                 promptContent: Prompt.defaultSummaryPrompt.content,
                 content: "One"
             )
@@ -69,7 +69,7 @@ final class SummaryRepositoryTests: XCTestCase {
         let transcription = try makeTranscription()
         let summary = Summary(
             transcriptionId: transcription.id,
-            promptName: "General Summary",
+            promptName: "Concise Summary",
             promptContent: Prompt.defaultSummaryPrompt.content,
             content: "Delete me"
         )
@@ -84,7 +84,7 @@ final class SummaryRepositoryTests: XCTestCase {
         try repo.save(
             Summary(
                 transcriptionId: transcription.id,
-                promptName: "General Summary",
+                promptName: "Concise Summary",
                 promptContent: Prompt.defaultSummaryPrompt.content,
                 content: "One"
             )
@@ -108,7 +108,7 @@ final class SummaryRepositoryTests: XCTestCase {
         try repo.save(
             Summary(
                 transcriptionId: transcription.id,
-                promptName: "General Summary",
+                promptName: "Concise Summary",
                 promptContent: Prompt.defaultSummaryPrompt.content,
                 content: "One"
             )

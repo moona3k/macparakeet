@@ -20,19 +20,19 @@ final class PromptsViewModelTests: XCTestCase {
 
         viewModel.addPrompt()
 
-        XCTAssertEqual(viewModel.prompts.count, 8)
+        XCTAssertEqual(viewModel.prompts.count, 3)
         XCTAssertEqual(viewModel.prompts.last?.name, "Standup Notes")
         XCTAssertFalse(viewModel.prompts.last?.isBuiltIn ?? true)
     }
 
     func testAddPromptRejectsDuplicateNameCaseInsensitive() {
-        viewModel.newName = "general summary"
+        viewModel.newName = "concise summary"
         viewModel.newContent = "Duplicate"
 
         viewModel.addPrompt()
 
-        XCTAssertEqual(viewModel.prompts.count, 7)
-        XCTAssertEqual(viewModel.errorMessage, "'general summary' already exists")
+        XCTAssertEqual(viewModel.prompts.count, 2)
+        XCTAssertEqual(viewModel.errorMessage, "'concise summary' already exists")
     }
 
     func testAddPromptValidationClearsWhenFieldsChange() {
@@ -50,7 +50,7 @@ final class PromptsViewModelTests: XCTestCase {
     }
 
     func testToggleVisibilityChangesPromptState() {
-        let prompt = viewModel.prompts.first { $0.name == "Meeting Notes" }!
+        let prompt = viewModel.prompts.first { $0.name == "Detailed Summary" }!
 
         viewModel.toggleVisibility(prompt)
 
@@ -58,7 +58,7 @@ final class PromptsViewModelTests: XCTestCase {
     }
 
     func testRestoreDefaultsShowsAllBuiltIns() {
-        let prompt = viewModel.prompts.first { $0.name == "Meeting Notes" }!
+        let prompt = viewModel.prompts.first { $0.name == "Detailed Summary" }!
         viewModel.toggleVisibility(prompt)
         XCTAssertFalse(viewModel.prompts.first(where: { $0.id == prompt.id })?.isVisible ?? true)
 

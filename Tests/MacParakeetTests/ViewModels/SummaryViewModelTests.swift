@@ -27,8 +27,8 @@ final class SummaryViewModelTests: XCTestCase {
             transcriptionRepo: transcriptionRepo
         )
 
-        XCTAssertEqual(viewModel.visiblePrompts.count, 7)
-        XCTAssertEqual(viewModel.selectedPrompt?.name, "General Summary")
+        XCTAssertEqual(viewModel.visiblePrompts.count, 2)
+        XCTAssertEqual(viewModel.selectedPrompt?.name, "Concise Summary")
     }
 
     func testConfigureShowsLocalCLIPresetName() throws {
@@ -151,7 +151,7 @@ final class SummaryViewModelTests: XCTestCase {
         summaryRepo.summaries = [
             Summary(
                 transcriptionId: transcriptionA,
-                promptName: "General Summary",
+                promptName: "Concise Summary",
                 promptContent: Prompt.defaultSummaryPrompt.content,
                 content: "A1",
                 createdAt: Date(timeIntervalSince1970: 10),
@@ -159,7 +159,7 @@ final class SummaryViewModelTests: XCTestCase {
             ),
             Summary(
                 transcriptionId: transcriptionB,
-                promptName: "General Summary",
+                promptName: "Concise Summary",
                 promptContent: Prompt.defaultSummaryPrompt.content,
                 content: "B1",
                 createdAt: Date(timeIntervalSince1970: 20),
@@ -186,7 +186,7 @@ final class SummaryViewModelTests: XCTestCase {
         var mirroredLegacySummary: String?
         let summary = Summary(
             transcriptionId: transcriptionID,
-            promptName: "General Summary",
+            promptName: "Concise Summary",
             promptContent: Prompt.defaultSummaryPrompt.content,
             content: "Delete me"
         )

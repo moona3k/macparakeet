@@ -688,7 +688,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         mockSummaryRepo.summaries = [
             Summary(
                 transcriptionId: transcription.id,
-                promptName: "General Summary",
+                promptName: "Concise Summary",
                 promptContent: Prompt.defaultSummaryPrompt.content,
                 content: "A summary"
             )
@@ -755,7 +755,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         mockSummaryRepo.summaries = [
             Summary(
                 transcriptionId: t.id,
-                promptName: "General Summary",
+                promptName: "Concise Summary",
                 promptContent: Prompt.defaultSummaryPrompt.content,
                 content: "Migrated summary"
             )

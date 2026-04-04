@@ -301,9 +301,9 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     private enum Prompts {
         static let summary = """
-            You are a helpful assistant that summarizes transcripts. Provide a clear, \
-            concise summary that captures the key points, decisions, and action items. \
-            Use bullet points for clarity. Keep the summary under 500 words.
+            Summarize this transcript clearly and concisely. Capture the key points, \
+            decisions, and action items. Use bullet points for clarity. Keep it under \
+            500 words.
             """
 
         static let chat = """

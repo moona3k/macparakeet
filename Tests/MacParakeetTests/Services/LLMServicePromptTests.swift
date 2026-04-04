@@ -60,6 +60,6 @@ final class LLMServicePromptTests: XCTestCase {
         )
 
         XCTAssertEqual(client.capturedMessages.first?.role, .system)
-        XCTAssertTrue(client.capturedMessages.first?.content.contains("summarizes transcripts") ?? false)
+        XCTAssertTrue(client.capturedMessages.first?.content.contains("Summarize this transcript") ?? false)
     }
 }

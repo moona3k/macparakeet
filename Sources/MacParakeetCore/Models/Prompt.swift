@@ -46,9 +46,9 @@ public struct Prompt: Codable, Identifiable, Sendable {
     public static func builtInSummaryPrompts(now: Date = Date()) -> [Prompt] {
         [
             Prompt(
-                name: "General Summary",
+                name: "Concise Summary",
                 content: """
-                    You are a helpful assistant that summarizes transcripts. Provide a clear, concise summary that captures the key points, decisions, and action items. Use bullet points for clarity. Keep the summary under 500 words.
+                    Summarize this transcript clearly and concisely. Capture the key points, decisions, and action items. Use bullet points for clarity. Keep it under 500 words.
                     """,
                 category: .summary,
                 isBuiltIn: true,
@@ -58,74 +58,14 @@ public struct Prompt: Codable, Identifiable, Sendable {
                 updatedAt: now
             ),
             Prompt(
-                name: "Meeting Notes",
+                name: "Detailed Summary",
                 content: """
-                    Summarize this transcript as structured meeting notes. Include: a one-line meeting purpose, attendees mentioned, key discussion points as bullet points, decisions made, and action items with owners if mentioned. Use clear headings.
+                    Provide a comprehensive, structured summary of this transcript. Organize by topic with clear headings. Include key discussion points, decisions made, action items with owners if mentioned, and any notable quotes or insights. Be thorough — capture the full substance of the conversation.
                     """,
                 category: .summary,
                 isBuiltIn: true,
                 isVisible: true,
                 sortOrder: 1,
-                createdAt: now,
-                updatedAt: now
-            ),
-            Prompt(
-                name: "Action Items",
-                content: """
-                    Extract all action items, tasks, and commitments from this transcript. For each item include: what needs to be done, who is responsible (if mentioned), and any deadline or timeline mentioned. Format as a numbered list. If no clear action items exist, say so.
-                    """,
-                category: .summary,
-                isBuiltIn: true,
-                isVisible: true,
-                sortOrder: 2,
-                createdAt: now,
-                updatedAt: now
-            ),
-            Prompt(
-                name: "Key Quotes",
-                content: """
-                    Extract the most important and notable quotes from this transcript. Include exact wording where possible, with enough surrounding context to understand the significance. Attribute quotes to speakers if identified. List 5–10 quotes, ordered by importance.
-                    """,
-                category: .summary,
-                isBuiltIn: true,
-                isVisible: true,
-                sortOrder: 3,
-                createdAt: now,
-                updatedAt: now
-            ),
-            Prompt(
-                name: "Study Notes",
-                content: """
-                    Summarize this transcript as study notes. Extract key concepts, definitions, and explanations. Organize by topic with clear headings. Include any examples or analogies that aid understanding. End with a brief list of key terms.
-                    """,
-                category: .summary,
-                isBuiltIn: true,
-                isVisible: true,
-                sortOrder: 4,
-                createdAt: now,
-                updatedAt: now
-            ),
-            Prompt(
-                name: "Bullet Points",
-                content: """
-                    Summarize this transcript as a concise bullet-point list. Each bullet should capture one distinct point, fact, or idea. Aim for 10–20 bullets. No sub-bullets. Order by importance, not chronology.
-                    """,
-                category: .summary,
-                isBuiltIn: true,
-                isVisible: true,
-                sortOrder: 5,
-                createdAt: now,
-                updatedAt: now
-            ),
-            Prompt(
-                name: "Executive Brief",
-                content: """
-                    Write a 2–3 paragraph executive brief of this transcript. First paragraph: the core topic and why it matters. Second paragraph: key findings, decisions, or conclusions. Third paragraph (if needed): next steps or open questions. Write for a busy reader who needs the essential takeaway in under 60 seconds.
-                    """,
-                category: .summary,
-                isBuiltIn: true,
-                isVisible: true,
-                sortOrder: 6,
                 createdAt: now,
                 updatedAt: now
             ),

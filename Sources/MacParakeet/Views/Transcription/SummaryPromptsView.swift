@@ -124,8 +124,8 @@ struct SummaryPromptsView: View {
                     Text("Write your prompt instructions...")
                         .font(DesignSystem.Typography.body)
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
-                        .padding(.top, 8)
-                        .padding(.leading, 5)
+                        .padding(.top, 7)
+                        .padding(.leading, 6)
                         .allowsHitTesting(false)
                 }
             }
@@ -216,8 +216,8 @@ struct SummaryPromptsView: View {
                     Text("Write your prompt instructions...")
                         .font(DesignSystem.Typography.body)
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
-                        .padding(.top, 8)
-                        .padding(.leading, 5)
+                        .padding(.top, 7)
+                        .padding(.leading, 6)
                         .allowsHitTesting(false)
                 }
             }
