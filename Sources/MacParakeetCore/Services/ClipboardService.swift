@@ -188,7 +188,10 @@ public final class ClipboardService: ClipboardServiceProtocol {
         }
         let keyboardLayout = UnsafeRawPointer(layoutBytes).assumingMemoryBound(to: UCKeyboardLayout.self)
 
-        let target = String(character).utf16.first!
+        guard let target = String(character).utf16.first else {
+            logger.error("Failed to encode character for paste shortcut lookup; falling back to QWERTY keycode 0x09")
+            return fallbackKeyCode
+        }
 
         for keyCode: UInt16 in 0..<128 {
             var deadKeyState: UInt32 = 0
