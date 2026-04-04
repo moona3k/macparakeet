@@ -99,7 +99,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**v0.6 Complete** -- ~155 source files, ~80 test files, 1126 tests passing (`swift test` green)
+**v0.6 Complete, v0.7 In Progress** -- ~166 source files, ~87 test files, 1156 tests passing (`swift test` green)
 
 ### v0.1 MVP (Implemented)
 - [x] System-wide dictation: Configurable hotkey (Fn default), double-tap (persistent) + hold-to-talk
@@ -161,6 +161,14 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - [x] Synced transcript highlighting + clickable timestamp seeking
 - [x] Transcription library view with thumbnail grid, filters, search
 - [x] Two side-by-side input cards on home page
+
+### v0.7 Prompt Library & Multi-Summary (In Progress)
+- [ ] Prompt Library (community + custom prompts, CRUD, visibility toggle)
+- [ ] Multi-summary per transcript (tab-based navigation, queued pipeline)
+- [ ] Extra instructions field layered on selected prompt
+- [ ] Prompt management sheet (hide community, CRUD custom)
+- [ ] SummaryViewModel extracted from TranscriptionViewModel
+- [ ] Migration from `transcriptions.summary` → `summaries` table
 
 ## Key Patterns
 
