@@ -3,6 +3,7 @@
 > Status: **IMPLEMENTED** - Done, still accurate (CLI command signatures updated 2026-04-02)
 > Supersedes: Previous HISTORICAL version (local Qwen3-8B via mlx-swift-lm, removed 2026-02-23)
 > ADR: ADR-011 (Cloud API keys + optional local providers)
+> Note: §1 (Transcript Summary) and §3 (Custom Transforms) are superseded by [spec/12-processing-layer.md](12-processing-layer.md) — Prompt Library + multi-summary architecture. Provider protocol, chat, and CLI sections remain current.
 
 This spec defines how MacParakeet integrates LLM-powered features via external providers.
 

@@ -20,7 +20,8 @@
 | 08 | [Error Handling](08-error-handling.md) | Error philosophy, categories, recovery | Active |
 | 09 | [Testing](09-testing.md) | Testing strategy, patterns, guidelines | Active |
 | 10 | [AI Coding Method](10-ai-coding-method.md) | Spec-driven coding philosophy and kernel methodology | Active |
-| 11 | [LLM Integration](11-llm-integration.md) | Local LLM architecture (historical — removed) | Historical |
+| 11 | [LLM Integration](11-llm-integration.md) | LLM providers, summary, chat, transforms | Implemented (§1 summary superseded by spec/12) |
+| 12 | [Processing Layer](12-processing-layer.md) | Prompt library, multi-summary, actions & workflows vision | Active |
 
 ## Root Decisions (Locked)
 
@@ -51,6 +52,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-010](adr/010-speaker-diarization.md) | Speaker diarization via FluidAudio offline pipeline |
 | [ADR-011](adr/011-llm-cloud-and-local-providers.md) | LLM via cloud API keys + optional local providers |
 | [ADR-012](adr/012-telemetry-system.md) | Self-hosted telemetry via Cloudflare (Worker + D1) |
+| [ADR-013](adr/013-prompt-library-multi-summary.md) | Prompt Library + multi-summary architecture |
 
 ## Version Roadmap
 
@@ -62,6 +64,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data & Reliability | Private dictation, video metadata, multi-conversation chat, FTS5 cleanup, favorites | **Implemented** |
 | v0.6 | Video Player & UI Revamp | Embedded video playback, split-pane detail view, library grid, thumbnail cards | **Implemented** |
+| v0.7 | Prompt Library & Multi-Summary | Prompt library, multi-summary per transcript, custom instructions | **Planned** |
 
 ## Version Progress
 

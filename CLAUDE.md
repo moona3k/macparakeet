@@ -29,7 +29,8 @@ A **fast, private, local-first voice app** for macOS with two co-equal modes: sy
 | Error handling | `spec/08-error-handling.md` |
 | Testing strategy | `spec/09-testing.md` |
 | AI coding methodology | `spec/10-ai-coding-method.md` |
-| LLM integration (historical) | `spec/11-llm-integration.md` |
+| LLM integration | `spec/11-llm-integration.md` |
+| Processing layer (prompts, actions, workflows) | `spec/12-processing-layer.md` |
 | ADRs (locked decisions) | `spec/adr/` -> individual decision records |
 | CLI testing guide | `docs/cli-testing.md` |
 | Brand identity | `docs/brand-identity.md` |
@@ -94,6 +95,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-010 | Speaker diarization via FluidAudio offline pipeline | `spec/adr/010-speaker-diarization.md` |
 | ADR-011 | LLM via cloud API keys + optional local providers | `spec/adr/011-llm-cloud-and-local-providers.md` |
 | ADR-012 | Self-hosted telemetry via Cloudflare (Worker + D1) | `spec/adr/012-telemetry-system.md` |
+| ADR-013 | Prompt Library + multi-summary architecture | `spec/adr/013-prompt-library-multi-summary.md` |
 
 ## Current Phase
 
