@@ -50,6 +50,7 @@ struct TranscriptResultView: View {
     @State private var scrollPauseTask: Task<Void, Never>?
     @State private var scrollMonitor: Any?
     @State private var showSummaryPrompts = false
+    @State private var showExtraInstructions = false
     @FocusState private var chatInputFocused: Bool
     @FocusState private var speakerRenameFocused: Bool
 
@@ -788,7 +789,10 @@ struct TranscriptResultView: View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             HStack(spacing: DesignSystem.Spacing.sm) {
                 Menu {
-                    ForEach(summaryViewModel.visiblePrompts) { prompt in
+                    let builtIn = summaryViewModel.visiblePrompts.filter(\.isBuiltIn)
+                    let custom = summaryViewModel.visiblePrompts.filter { !$0.isBuiltIn }
+
+                    ForEach(builtIn) { prompt in
                         Button {
                             summaryViewModel.selectedPrompt = prompt
                         } label: {
@@ -797,6 +801,24 @@ struct TranscriptResultView: View {
                                 if prompt.id == summaryViewModel.selectedPrompt?.id {
                                     Spacer()
                                     Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+
+                    if !custom.isEmpty {
+                        Divider()
+
+                        ForEach(custom) { prompt in
+                            Button {
+                                summaryViewModel.selectedPrompt = prompt
+                            } label: {
+                                HStack {
+                                    Text(prompt.name)
+                                    if prompt.id == summaryViewModel.selectedPrompt?.id {
+                                        Spacer()
+                                        Image(systemName: "checkmark")
+                                    }
                                 }
                             }
                         }
@@ -845,8 +867,22 @@ struct TranscriptResultView: View {
                 .disabled(!summaryViewModel.canGenerateSummary || transcriptText.isEmpty)
             }
 
-            TextField("Extra instructions (optional)", text: $summaryViewModel.extraInstructions)
-                .textFieldStyle(.roundedBorder)
+            if showExtraInstructions || !summaryViewModel.extraInstructions.isEmpty {
+                TextField("Add extra instructions...", text: $summaryViewModel.extraInstructions)
+                    .textFieldStyle(.roundedBorder)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+            } else {
+                Button {
+                    withAnimation(DesignSystem.Animation.contentSwap) {
+                        showExtraInstructions = true
+                    }
+                } label: {
+                    Label("Add instructions", systemImage: "plus")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                }
+                .buttonStyle(.plain)
+            }
 
             if !summaryViewModel.canGenerateSummary {
                 Text("Configure an LLM provider in Settings to generate summaries.")
@@ -873,19 +909,31 @@ struct TranscriptResultView: View {
     ) -> some View {
         let isExpanded = summaryID.map { summaryViewModel.expandedSummaryIDs.contains($0) } ?? true
         return VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
                 Button {
                     if let summaryID {
-                        summaryViewModel.toggleExpanded(summaryID)
+                        withAnimation(DesignSystem.Animation.contentSwap) {
+                            summaryViewModel.toggleExpanded(summaryID)
+                        }
                     }
                 } label: {
-                    HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+                    HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        Text(promptName)
-                            .font(DesignSystem.Typography.sectionTitle)
-                            .foregroundStyle(DesignSystem.Colors.textPrimary)
+                            .frame(width: 12, height: 20, alignment: .center)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(promptName)
+                                .font(DesignSystem.Typography.sectionTitle)
+                                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                            if !isExpanded && !content.isEmpty {
+                                Text(content.prefix(100).replacingOccurrences(of: "\n", with: " "))
+                                    .font(DesignSystem.Typography.caption)
+                                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                            }
+                        }
                     }
                     .contentShape(Rectangle())
                 }
@@ -895,7 +943,7 @@ struct TranscriptResultView: View {
 
                 if isStreaming {
                     AIStreamingIndicator()
-                } else {
+                } else if isExpanded {
                     Button {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(content, forType: .string)
@@ -917,8 +965,11 @@ struct TranscriptResultView: View {
                     .controlSize(.small)
 
                     if let summary = summaryViewModel.summaries.first(where: { $0.id == summaryID }) {
-                        Button("Delete", role: .destructive) {
+                        Button(role: .destructive) {
                             summaryViewModel.pendingDeleteSummary = summary
+                        } label: {
+                            Text("Delete")
+                                .font(DesignSystem.Typography.caption)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)

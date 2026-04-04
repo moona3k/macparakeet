@@ -116,18 +116,29 @@ struct SummaryPromptsView: View {
             TextField("Prompt name", text: $viewModel.newName)
                 .textFieldStyle(.roundedBorder)
 
-            TextEditor(text: $viewModel.newContent)
-                .font(DesignSystem.Typography.body)
-                .frame(minHeight: 140)
-                .padding(8)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(DesignSystem.Colors.surfaceElevated.opacity(0.65))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.5)
-                )
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $viewModel.newContent)
+                    .font(DesignSystem.Typography.body)
+                    .scrollContentBackground(.hidden)
+                if viewModel.newContent.isEmpty {
+                    Text("Write your prompt instructions...")
+                        .font(DesignSystem.Typography.body)
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .padding(.top, 8)
+                        .padding(.leading, 5)
+                        .allowsHitTesting(false)
+                }
+            }
+            .frame(minHeight: 140)
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                    .fill(DesignSystem.Colors.surfaceElevated)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                    .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.5)
+            )
 
             HStack {
                 Spacer()
@@ -196,18 +207,29 @@ struct SummaryPromptsView: View {
             TextField("Prompt name", text: $editName)
                 .textFieldStyle(.roundedBorder)
 
-            TextEditor(text: $editContent)
-                .font(DesignSystem.Typography.body)
-                .frame(minHeight: 220)
-                .padding(8)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(DesignSystem.Colors.surfaceElevated.opacity(0.65))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.5)
-                )
+            ZStack(alignment: .topLeading) {
+                TextEditor(text: $editContent)
+                    .font(DesignSystem.Typography.body)
+                    .scrollContentBackground(.hidden)
+                if editContent.isEmpty {
+                    Text("Write your prompt instructions...")
+                        .font(DesignSystem.Typography.body)
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .padding(.top, 8)
+                        .padding(.leading, 5)
+                        .allowsHitTesting(false)
+                }
+            }
+            .frame(minHeight: 220)
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                    .fill(DesignSystem.Colors.surfaceElevated)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                    .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.5)
+            )
 
             HStack {
                 Spacer()
