@@ -166,10 +166,14 @@ public final class ClipboardService: ClipboardServiceProtocol {
     }
 
     private func virtualKeyCode(for character: Character) -> CGKeyCode {
-        let inputSource = TISCopyCurrentKeyboardInputSource().takeRetainedValue()
-        guard let layoutDataRef = TISGetInputSourceProperty(inputSource, kTISPropertyUnicodeKeyLayoutData) else {
-            return 0x09
+        let fallbackKeyCode: CGKeyCode = 0x09
+        let layoutSource = TISCopyCurrentKeyboardLayoutInputSource().takeRetainedValue()
+
+        guard let layoutDataRef = TISGetInputSourceProperty(layoutSource, kTISPropertyUnicodeKeyLayoutData) else {
+            logger.error("Failed to resolve keyboard layout data for paste shortcut; falling back to QWERTY keycode 0x09")
+            return fallbackKeyCode
         }
+
         let layoutData = unsafeBitCast(layoutDataRef, to: CFData.self)
         let keyboardLayout = unsafeBitCast(CFDataGetBytePtr(layoutData), to: UnsafePointer<UCKeyboardLayout>.self)
 
@@ -197,6 +201,8 @@ public final class ClipboardService: ClipboardServiceProtocol {
                 return CGKeyCode(keyCode)
             }
         }
-        return 0x09
+
+        logger.error("Failed to resolve virtual keycode for character '\(String(character), privacy: .public)'; falling back to QWERTY keycode 0x09")
+        return fallbackKeyCode
     }
 }
