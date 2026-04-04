@@ -679,14 +679,15 @@ struct TranscriptResultView: View {
     // MARK: - Tab Bar
 
     private var orderedTabs: [TranscriptionViewModel.TranscriptTab] {
-        var tabs: [TranscriptionViewModel.TranscriptTab] = [.transcript, .chat]
-        // Oldest first so new tabs appear on the right
+        var tabs: [TranscriptionViewModel.TranscriptTab] = [.transcript]
+        // Summaries right after transcript, oldest first so new tabs appear on the right
         for summary in summaryViewModel.summaries.reversed() {
             tabs.append(.summary(id: summary.id))
         }
         if summaryViewModel.isStreaming {
             tabs.append(.streaming)
         }
+        tabs.append(.chat)
         return tabs
     }
 
@@ -697,7 +698,7 @@ struct TranscriptResultView: View {
                     tabCapsule(for: tab)
                 }
 
-                if summaryViewModel.canGenerateSummary {
+                if summaryViewModel.hasSummaryGenerationCapability {
                     generateTabButton
                 }
 
@@ -764,8 +765,13 @@ struct TranscriptResultView: View {
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, 8)
         .contentShape(Capsule())
-        .foregroundStyle(DesignSystem.Colors.textSecondary)
+        .foregroundStyle(
+            summaryViewModel.canGenerateSummary
+                ? DesignSystem.Colors.textSecondary
+                : DesignSystem.Colors.textTertiary
+        )
         .onTapGesture {
+            guard summaryViewModel.canGenerateSummary else { return }
             showGeneratePopover = true
         }
         .popover(isPresented: $showGeneratePopover) {

@@ -39,6 +39,10 @@ public final class SummaryViewModel {
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "SummaryViewModel")
 
     public var canGenerateSummary: Bool {
+        llmService != nil && !isStreaming
+    }
+
+    public var hasSummaryGenerationCapability: Bool {
         llmService != nil
     }
 
@@ -227,8 +231,7 @@ public final class SummaryViewModel {
         prompt: Prompt,
         extraInstructions: String?
     ) {
-        guard let llmService else { return }
-        if isStreaming { cancelStreaming() }
+        guard let llmService, !isStreaming else { return }
 
         currentTranscriptionID = transcriptionId
         errorMessage = nil

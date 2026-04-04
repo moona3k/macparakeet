@@ -146,6 +146,45 @@ final class SummaryViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.badgedSummaryID)
     }
 
+    func testGenerateSummaryWhileStreamingIgnoresSecondRequest() async throws {
+        let transcriptionID = UUID()
+        let secondPrompt = Prompt(
+            name: "Action Items",
+            content: "Extract action items only.",
+            isBuiltIn: false,
+            sortOrder: 99
+        )
+        promptRepo.prompts.append(secondPrompt)
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            summaryRepo: summaryRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        llm.streamTokens = ["First ", "summary"]
+        llm.streamDelayNs = 150_000_000
+
+        viewModel.generateSummary(transcript: "Transcript", transcriptionId: transcriptionID)
+        try await Task.sleep(for: .milliseconds(25))
+
+        XCTAssertTrue(viewModel.isStreaming)
+        XCTAssertFalse(viewModel.canGenerateSummary)
+        XCTAssertEqual(llm.summarizeCallCount, 1)
+        XCTAssertEqual(viewModel.streamingPromptName, "Concise Summary")
+
+        viewModel.selectedPrompt = secondPrompt
+        viewModel.generateSummary(transcript: "Transcript", transcriptionId: transcriptionID)
+
+        XCTAssertEqual(llm.summarizeCallCount, 1)
+        XCTAssertEqual(viewModel.streamingPromptName, "Concise Summary")
+
+        try await Task.sleep(for: .milliseconds(350))
+
+        XCTAssertEqual(summaryRepo.saveCalls.count, 1)
+        XCTAssertEqual(summaryRepo.saveCalls[0].promptName, "Concise Summary")
+        XCTAssertEqual(viewModel.summaries.first?.promptName, "Concise Summary")
+    }
+
     func testRegenerateSummaryReplacesExistingSummaryForPrompt() async throws {
         let transcriptionID = UUID()
         let existing = Summary(
