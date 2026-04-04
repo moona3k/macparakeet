@@ -678,15 +678,14 @@ struct TranscriptResultView: View {
     // MARK: - Tab Bar
 
     private var orderedTabs: [TranscriptionViewModel.TranscriptTab] {
-        var tabs: [TranscriptionViewModel.TranscriptTab] = [.transcript]
-        // Summaries right after transcript, oldest first so new tabs appear on the right
+        var tabs: [TranscriptionViewModel.TranscriptTab] = [.transcript, .chat]
+        // Generated content after the fixed tabs, oldest first so new tabs appear on the right
         for summary in summaryViewModel.summaries.reversed() {
             tabs.append(.summary(id: summary.id))
         }
         for generation in summaryViewModel.pendingGenerations {
             tabs.append(.generation(id: generation.id))
         }
-        tabs.append(.chat)
         return tabs
     }
 
@@ -768,38 +767,30 @@ struct TranscriptResultView: View {
     }
 
     private var generateTabButton: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 10, weight: .semibold))
-            Text("Summarize")
-                .font(DesignSystem.Typography.bodySmall.weight(.medium))
-        }
-        .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.vertical, 8)
-        .background(
-            Capsule()
-                .fill(DesignSystem.Colors.accent.opacity(0.10))
-        )
-        .contentShape(Capsule())
-        .foregroundStyle(
-            summaryViewModel.canGenerateSummary
-                ? DesignSystem.Colors.accent
-                : DesignSystem.Colors.textTertiary
-        )
-        .onTapGesture {
-            guard summaryViewModel.canGenerateSummary else { return }
-            showGeneratePopover = true
-        }
-        .popover(isPresented: $showGeneratePopover) {
-            summaryGenerationPopover
-                .frame(width: 420)
-                .padding(DesignSystem.Spacing.lg)
-        }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityLabel("Generate summary")
-        .onHover { hovering in
-            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-        }
+        Image(systemName: "plus")
+            .font(.system(size: 12, weight: .semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .foregroundStyle(
+                summaryViewModel.canGenerateSummary
+                    ? DesignSystem.Colors.textSecondary
+                    : DesignSystem.Colors.textTertiary
+            )
+            .onTapGesture {
+                guard summaryViewModel.canGenerateSummary else { return }
+                showGeneratePopover = true
+            }
+            .popover(isPresented: $showGeneratePopover) {
+                summaryGenerationPopover
+                    .frame(width: 420)
+                    .padding(DesignSystem.Spacing.lg)
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel("New prompt generation")
+            .onHover { hovering in
+                if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+            }
     }
 
     private func tabIcon(_ tab: TranscriptionViewModel.TranscriptTab) -> String {
