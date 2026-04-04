@@ -147,7 +147,8 @@ struct SummaryPromptsView: View {
                 } label: {
                     Label("Add Prompt", systemImage: "plus")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
+                .tint(DesignSystem.Colors.accent)
             }
         }
     }
@@ -242,6 +243,7 @@ struct SummaryPromptsView: View {
                     viewModel.updatePrompt(prompt, name: editName, content: editContent)
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.return, modifiers: .command)
             }
         }
         .padding(DesignSystem.Spacing.xl)

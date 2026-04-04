@@ -27,6 +27,7 @@ struct TranscriptResultView: View {
     @State private var speakerOverviewExpanded = false
     @State private var copied = false
     @State private var summaryCopied = false
+    @State private var copiedSummaryID: UUID?
     @State private var copiedMessageId: UUID?
     @State private var hoveredMessageId: UUID?
     @State private var exportConfirmation: ExportConfirmation?
@@ -725,23 +726,19 @@ struct TranscriptResultView: View {
                 }
 
                 if summaryViewModel.summaries.isEmpty && !summaryViewModel.isStreaming {
-                    VStack(spacing: DesignSystem.Spacing.md) {
-                        Image(systemName: "text.document")
-                            .font(.system(size: 28))
+                    VStack(spacing: DesignSystem.Spacing.sm) {
+                        Spacer()
+                            .frame(height: DesignSystem.Spacing.xl)
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 24))
                             .foregroundStyle(DesignSystem.Colors.textTertiary)
-                        Text("No summaries yet")
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
-                            .font(DesignSystem.Typography.body)
-
                         Text(
                             summaryViewModel.canGenerateSummary
-                                ? "Pick a prompt and generate a summary. Each run is kept as a separate card."
-                                : "Configure an LLM provider in Settings to generate summaries."
+                                ? "Choose a prompt and generate."
+                                : "Configure an LLM provider in Settings."
                         )
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .font(DesignSystem.Typography.caption)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 320)
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .font(DesignSystem.Typography.body)
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, DesignSystem.Spacing.xl)
@@ -781,7 +778,7 @@ struct TranscriptResultView: View {
                 summaryViewModel.pendingDeleteSummary = nil
             }
         } message: {
-            Text("This summary cannot be undone.")
+            Text("This action cannot be undone.")
         }
     }
 
@@ -864,6 +861,7 @@ struct TranscriptResultView: View {
                     )
                 }
                 .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.return, modifiers: .command)
                 .disabled(!summaryViewModel.canGenerateSummary || transcriptText.isEmpty)
             }
 
@@ -879,9 +877,10 @@ struct TranscriptResultView: View {
                 } label: {
                     Label("Add instructions", systemImage: "plus")
                         .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .foregroundStyle(DesignSystem.Colors.accent)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderless)
+                .contentShape(Rectangle())
             }
 
             if !summaryViewModel.canGenerateSummary {
@@ -934,23 +933,24 @@ struct TranscriptResultView: View {
                 if isStreaming {
                     AIStreamingIndicator()
                 } else if isExpanded {
+                    let isCopied = copiedSummaryID == summaryID
                     Button {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(content, forType: .string)
                         Telemetry.send(.copyToClipboard(source: .transcription))
-                        summaryCopied = true
+                        copiedSummaryID = summaryID
                         copiedResetTask?.cancel()
                         copiedResetTask = Task {
                             try? await Task.sleep(for: .seconds(2))
-                            summaryCopied = false
+                            copiedSummaryID = nil
                         }
                     } label: {
                         HStack(spacing: DesignSystem.Spacing.xs) {
-                            Image(systemName: summaryCopied ? "checkmark" : "doc.on.doc")
-                            Text(summaryCopied ? "Copied" : "Copy")
+                            Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                            Text(isCopied ? "Copied" : "Copy")
                         }
                         .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(summaryCopied ? DesignSystem.Colors.successGreen : .primary)
+                        .foregroundStyle(isCopied ? DesignSystem.Colors.successGreen : .primary)
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -975,13 +975,12 @@ struct TranscriptResultView: View {
                 if content.isEmpty && isStreaming {
                     SummarySkeletonView()
                 } else {
+                    Divider()
+                        .opacity(0.5)
                     MarkdownContentView(content, font: DesignSystem.Typography.bodyLarge)
-                        .padding(DesignSystem.Spacing.lg)
+                        .padding(.horizontal, DesignSystem.Spacing.sm)
+                        .padding(.bottom, DesignSystem.Spacing.xs)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(
-                            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.65))
-                        )
                 }
             }
         }
