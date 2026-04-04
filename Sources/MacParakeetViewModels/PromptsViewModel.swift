@@ -5,8 +5,12 @@ import MacParakeetCore
 @Observable
 public final class PromptsViewModel {
     public var prompts: [Prompt] = []
-    public var newName: String = ""
-    public var newContent: String = ""
+    public var newName: String = "" {
+        didSet { resetValidationError() }
+    }
+    public var newContent: String = "" {
+        didSet { resetValidationError() }
+    }
     public var errorMessage: String?
     public var pendingDeletePrompt: Prompt?
     public var editingPrompt: Prompt?
@@ -142,5 +146,9 @@ public final class PromptsViewModel {
 
     private func normalized(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func resetValidationError() {
+        errorMessage = nil
     }
 }

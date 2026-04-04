@@ -35,6 +35,20 @@ final class PromptsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.errorMessage, "'general summary' already exists")
     }
 
+    func testAddPromptValidationClearsWhenFieldsChange() {
+        viewModel.addPrompt()
+        XCTAssertEqual(viewModel.errorMessage, "Prompt name and content are required.")
+
+        viewModel.newName = "Hello"
+        XCTAssertNil(viewModel.errorMessage)
+
+        viewModel.addPrompt()
+        XCTAssertEqual(viewModel.errorMessage, "Prompt name and content are required.")
+
+        viewModel.newContent = "Prompt content"
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
     func testToggleVisibilityChangesPromptState() {
         let prompt = viewModel.prompts.first { $0.name == "Meeting Notes" }!
 
