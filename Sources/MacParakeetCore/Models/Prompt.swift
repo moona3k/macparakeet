@@ -44,30 +44,49 @@ public struct Prompt: Codable, Identifiable, Sendable {
     }
 
     public static func builtInSummaryPrompts(now: Date = Date()) -> [Prompt] {
+        loadCommunityPrompts(now: now)
+    }
+
+    /// Loads community prompts from the bundled JSON file.
+    private static func loadCommunityPrompts(now: Date) -> [Prompt] {
+        guard let url = Bundle.module.url(forResource: "community-prompts", withExtension: "json"),
+              let data = try? Data(contentsOf: url),
+              let entries = try? JSONDecoder().decode([CommunityPromptEntry].self, from: data) else {
+            return fallbackPrompts(now: now)
+        }
+        return entries.map { entry in
+            Prompt(
+                name: entry.name,
+                content: entry.content,
+                category: Category(rawValue: entry.category) ?? .summary,
+                isBuiltIn: true,
+                isVisible: true,
+                sortOrder: entry.sortOrder,
+                createdAt: now,
+                updatedAt: now
+            )
+        }
+    }
+
+    private struct CommunityPromptEntry: Decodable {
+        let name: String
+        let content: String
+        let category: String
+        let sortOrder: Int
+    }
+
+    /// Hardcoded fallback in case the JSON bundle is missing.
+    private static func fallbackPrompts(now: Date) -> [Prompt] {
         [
             Prompt(
                 name: "Concise Summary",
-                content: """
-                    Summarize this transcript clearly and concisely. Capture the key points, decisions, and action items. Use bullet points for clarity. Keep it under 500 words.
-                    """,
-                category: .summary,
-                isBuiltIn: true,
-                isVisible: true,
-                sortOrder: 0,
-                createdAt: now,
-                updatedAt: now
+                content: "Summarize this transcript clearly and concisely. Capture the key points, decisions, and action items. Use bullet points for clarity. Keep it under 500 words.",
+                category: .summary, isBuiltIn: true, sortOrder: 0, createdAt: now, updatedAt: now
             ),
             Prompt(
                 name: "Detailed Summary",
-                content: """
-                    Provide a comprehensive, structured summary of this transcript. Organize by topic with clear headings. Include key discussion points, decisions made, action items with owners if mentioned, and any notable quotes or insights. Be thorough — capture the full substance of the conversation.
-                    """,
-                category: .summary,
-                isBuiltIn: true,
-                isVisible: true,
-                sortOrder: 1,
-                createdAt: now,
-                updatedAt: now
+                content: "Provide a comprehensive, structured summary of this transcript. Organize by topic with clear headings. Include key discussion points, decisions made, action items with owners if mentioned, and any notable quotes or insights. Be thorough — capture the full substance of the conversation.",
+                category: .summary, isBuiltIn: true, sortOrder: 1, createdAt: now, updatedAt: now
             ),
         ]
     }

@@ -72,9 +72,14 @@ struct SummaryPromptsView: View {
     private var builtInSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             HStack {
-                Text("Built-In")
+                Text("Community")
                     .font(DesignSystem.Typography.sectionTitle)
                 Spacer()
+                if let url = URL(string: "https://github.com/moona3k/macparakeet/blob/main/Sources/MacParakeetCore/Resources/community-prompts.json") {
+                    Link("Suggest a prompt", destination: url)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Button("Restore Defaults") {
                     viewModel.restoreDefaults()
                 }
@@ -91,7 +96,7 @@ struct SummaryPromptsView: View {
 
     private var customSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            Text("Custom")
+            Text("My Prompts")
                 .font(DesignSystem.Typography.sectionTitle)
 
             if viewModel.prompts.contains(where: { !$0.isBuiltIn }) {
@@ -101,7 +106,7 @@ struct SummaryPromptsView: View {
                     }
                 }
             } else {
-                Text("No custom prompts yet.")
+                Text("No prompts yet.")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
             }

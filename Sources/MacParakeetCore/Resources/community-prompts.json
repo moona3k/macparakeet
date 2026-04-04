@@ -1,0 +1,14 @@
+[
+  {
+    "name": "Concise Summary",
+    "content": "Summarize this transcript clearly and concisely. Capture the key points, decisions, and action items. Use bullet points for clarity. Keep it under 500 words.",
+    "category": "summary",
+    "sortOrder": 0
+  },
+  {
+    "name": "Detailed Summary",
+    "content": "Provide a comprehensive, structured summary of this transcript. Organize by topic with clear headings. Include key discussion points, decisions made, action items with owners if mentioned, and any notable quotes or insights. Be thorough — capture the full substance of the conversation.",
+    "category": "summary",
+    "sortOrder": 1
+  }
+]
