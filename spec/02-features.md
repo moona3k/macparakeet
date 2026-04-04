@@ -74,6 +74,18 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
+│  v0.7 - "Processing Layer"                                       │
+│  "Prompt library, multi-summary, custom instructions"            │
+├─────────────────────────────────────────────────────────────────┤
+│  • Prompt Library (community + custom, CRUD, visibility)         │
+│  • Multiple summaries per transcript (tab-based navigation)      │
+│  • Extra instructions field layered on selected prompt           │
+│  • Queued summary generation (single-worker pipeline)            │
+│  • Prompt management sheet                                       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
 │  Future - "Platform"                                             │
 ├─────────────────────────────────────────────────────────────────┤
 │  • iOS companion                                                 │
@@ -1451,27 +1463,61 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 
 ---
 
+## v0.7 — Processing Layer (In Progress)
+
+Prompt library and multi-summary system. Users control how AI processes transcripts via reusable prompts. See [spec/12-processing-layer.md](12-processing-layer.md) and [ADR-013](adr/013-prompt-library-multi-summary.md).
+
+### F28: Prompt Library
+
+> Status: **IN PROGRESS**
+
+**What:** Reusable prompt templates stored in SQLite. Community prompts ship with the app and can be hidden but not edited or deleted. Users can create, edit, and delete custom prompts.
+
+**Acceptance criteria:**
+- [ ] Community prompts available on first launch from built-in seed
+- [ ] Community prompts can be hidden but not edited or deleted
+- [ ] Custom prompts can be created, edited, and deleted via management sheet
+- [ ] Prompt management accessible from the generation popover
+- [ ] Default community prompt used for auto-summary
+
+### F29: Multi-Summary
+
+> Status: **IN PROGRESS**
+
+**What:** Multiple summaries per transcript, each from a different prompt. Summaries are tab-based, with pending generations appearing immediately.
+
+**Acceptance criteria:**
+- [ ] User can select a prompt from the generation popover
+- [ ] Generating a summary creates a new summary record (does not overwrite)
+- [ ] Multiple summaries displayed as tabs, pending generations appear immediately
+- [ ] User can add extra instructions layered on top of selected prompt
+- [ ] Queued summary pipeline (single-worker, sequential execution)
+- [ ] Auto-summary after transcription uses default community prompt
+- [ ] Existing transcriptions with summaries display migrated data correctly
+
+---
+
 ## Future Features (Post-Launch)
 
-### F28: iOS Companion App
+### F30: iOS Companion App
 Share transcripts between Mac and iPhone. Capture in-person conversations on iPhone.
 
-### F29: Translation
+### F31: Translation
 Translate transcribed text to other languages. Implementation approach TBD (local model or API).
 
-### F30: API / Shortcuts Integration
+### F32: API / Shortcuts Integration
 Expose transcription as a macOS Shortcut action. Enable automation: "When I receive a voice memo, transcribe it."
 
-### F31: Team Vocabulary Sharing
+### F33: Team Vocabulary Sharing
 Export/import custom word lists and snippet packs. Share domain-specific vocabulary with team members.
 
-### F32: Vibe Coding Integrations
+### F34: Vibe Coding Integrations
 Deep integration with code editors:
 - **Cursor / VS Code:** Dictate code with context-aware formatting
 - **Xcode:** Swift-specific dictation mode
 - **Terminal:** Voice commands for git, build, test
 
-### F33: Context Awareness
+### F35: Context Awareness
 Read surrounding text from the active app via macOS Accessibility APIs (AXUIElement) to produce better transcriptions. Knows "React" in a code editor, "react" in a therapy note. All processing local -- no screen content ever leaves device.
 
 ---

@@ -65,7 +65,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data & Reliability | Private dictation, video metadata, multi-conversation chat, FTS5 cleanup, favorites | **Implemented** |
 | v0.6 | Video Player & UI Revamp | Embedded video playback, split-pane detail view, library grid, thumbnail cards | **Implemented** |
-| v0.7 | Prompt Library & Multi-Summary | Prompt library, multi-summary per transcript, custom instructions | **Planned** |
+| v0.7 | Prompt Library & Multi-Summary | Prompt library, multi-summary per transcript, custom instructions | **In Progress** |
 
 ## Version Progress
 
@@ -142,6 +142,22 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Transcription library view with thumbnail grid
 - [x] Library filter bar (All/YouTube/Local/Favorites)
 - [x] Library search and sort
+
+### v0.7 Prompt Library & Multi-Summary (In Progress)
+
+- [ ] `prompts` table + community prompt seeds
+- [ ] `summaries` table (one-to-many per transcription, cascade delete)
+- [ ] Prompt model + repository (CRUD, visibility toggle, built-in guard)
+- [ ] Summary model + repository (CRUD, replace for regeneration)
+- [ ] SummaryViewModel (extracted from TranscriptionViewModel)
+- [ ] PromptsViewModel (CRUD, validation, restore defaults)
+- [ ] Prompt picker + generation bar with model selector
+- [ ] Extra instructions field
+- [ ] Multi-summary tab navigation + queued pipeline
+- [ ] Management sheet (hide community, CRUD custom)
+- [ ] LLMService accepts custom system prompt
+- [ ] Migration from `transcriptions.summary` → `summaries`
+- [ ] Auto-summary uses default community prompt
 
 ## For AI Coding Assistants
 

@@ -17,6 +17,7 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 
 ┌──────────────────┐       ┌─────────────────────────┐
 │  transcriptions  │◄──FK──│   chat_conversations    │  v0.5 — Multi-conversation chat
+│                  │◄──FK──│      summaries          │  v0.7 — Multi-summary per transcript
 └──────────────────┘       └─────────────────────────┘
    v0.1 — File transcription records
 
@@ -27,9 +28,13 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 ┌──────────────────┐
 │  text_snippets   │   v0.2 — Trigger → expansion shortcuts
 └──────────────────┘
+
+┌──────────────────┐
+│     prompts      │   v0.7 — Reusable prompt templates
+└──────────────────┘
 ```
 
-Tables are self-contained domains with one exception: `chat_conversations` has a foreign key to `transcriptions` with cascading delete (deleting a transcription removes its conversations).
+Tables are self-contained domains with two exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete.
 
 ---
 
@@ -195,6 +200,61 @@ CREATE INDEX idx_chat_conversations_transcription_id ON chat_conversations(trans
 - `messages` is a JSON array of `ChatMessage` objects, decoded via GRDB's `Codable` pattern.
 - `title` is auto-derived from the first user message (up to 50 chars) during creation or migration.
 - Legacy `chatMessages` field on `transcriptions` is nulled out after migration but kept for backward compatibility.
+
+---
+
+### `prompts` (v0.7)
+
+Reusable prompt templates for LLM-powered transcript processing. Community prompts are seeded during migration; custom prompts support full CRUD. Community prompts can be hidden but not edited or deleted.
+
+```sql
+CREATE TABLE prompts (
+    id        TEXT PRIMARY KEY,                          -- UUID string
+    name      TEXT NOT NULL,                              -- Display name ("Concise Summary", "Action Items")
+    content   TEXT NOT NULL,                              -- The actual instruction text
+    category  TEXT NOT NULL DEFAULT 'summary',            -- .summary (extensible to .transform)
+    isBuiltIn INTEGER NOT NULL DEFAULT 0,                 -- Community prompt — hide only, no edit/delete
+    isVisible INTEGER NOT NULL DEFAULT 1,                 -- false = hidden from picker
+    sortOrder INTEGER NOT NULL DEFAULT 0,                 -- Display ordering
+    createdAt TEXT NOT NULL,                              -- ISO 8601 timestamp
+    updatedAt TEXT NOT NULL                               -- ISO 8601 timestamp
+);
+
+CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
+```
+
+**Notes:**
+- `name` has a case-insensitive unique index — no duplicate names across community and custom prompts.
+- `isBuiltIn` prompts are seeded from `Prompt.builtInSummaryPrompts()` during migration. The repository layer enforces the hide-only invariant (delete returns `false` for built-in prompts).
+- `category` scopes prompts to their use case (`.summary` today, `.transform` reserved for future).
+
+---
+
+### `summaries` (v0.7)
+
+Stores generated summaries per transcription. Each transcript can have multiple summaries from different prompts. Summaries snapshot the prompt content used at generation time for reproducibility.
+
+```sql
+CREATE TABLE summaries (
+    id                TEXT PRIMARY KEY,                    -- UUID string
+    transcriptionId   TEXT NOT NULL                        -- FK to transcriptions
+        REFERENCES transcriptions(id) ON DELETE CASCADE,
+    promptName        TEXT NOT NULL,                       -- Snapshot: prompt name at generation time
+    promptContent     TEXT NOT NULL,                       -- Snapshot: full prompt text used
+    extraInstructions TEXT,                                -- User's per-run extra instructions (if any)
+    content           TEXT NOT NULL,                       -- The generated summary text
+    createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
+    updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
+);
+
+CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
+```
+
+**Notes:**
+- `transcriptionId` has a cascading delete — deleting a transcription removes all its summaries.
+- `promptName` and `promptContent` are snapshots, not references to the `prompts` table. Editing or deleting a prompt after generation doesn't change the summary's metadata.
+- Legacy `transcriptions.summary` column is preserved and mirrors the newest completed summary for backward compatibility with existing export paths.
+- Migration from existing data: `transcriptions.summary` values migrate into `summaries` with the default community prompt's name and content.
 
 ---
 
@@ -375,6 +435,56 @@ struct ChatConversation: Codable, Identifiable {
 
 extension ChatConversation: FetchableRecord, PersistableRecord {
     static let databaseTableName = "chat_conversations"
+}
+```
+
+### Prompt
+
+```swift
+import Foundation
+import GRDB
+
+struct Prompt: Codable, Identifiable, Sendable {
+    var id: UUID
+    var name: String
+    var content: String
+    var category: Category
+    var isBuiltIn: Bool
+    var isVisible: Bool
+    var sortOrder: Int
+    var createdAt: Date
+    var updatedAt: Date
+
+    enum Category: String, Codable, Sendable {
+        case summary
+        case transform
+    }
+}
+
+extension Prompt: FetchableRecord, PersistableRecord {
+    static let databaseTableName = "prompts"
+}
+```
+
+### Summary
+
+```swift
+import Foundation
+import GRDB
+
+struct Summary: Codable, Identifiable, Sendable {
+    var id: UUID
+    var transcriptionId: UUID
+    var promptName: String
+    var promptContent: String
+    var extraInstructions: String?
+    var content: String
+    var createdAt: Date
+    var updatedAt: Date
+}
+
+extension Summary: FetchableRecord, PersistableRecord {
+    static let databaseTableName = "summaries"
 }
 ```
 
@@ -565,6 +675,9 @@ migrator.registerMigration("v0.5-transcription-video-metadata") { db in
 | `transcriptions.channelName` | v0.5 | YouTube channel name |
 | `transcriptions.videoDescription` | v0.5 | YouTube video description |
 | `transcriptions.isFavorite` | v0.5 | User favorite marker |
+| `text_snippets.action` | v0.7 | Keystroke action type for snippet |
+| `prompts` | v0.7 | Reusable prompt templates (community + custom) |
+| `summaries` | v0.7 | Multi-summary per transcription (FK → transcriptions, cascade delete) |
 
 ### Tables NOT Planned (YAGNI)
 
@@ -646,4 +759,4 @@ let processing = try dbQueue.read { db in
 
 ---
 
-*Last updated: 2026-03-27*
+*Last updated: 2026-04-04*
