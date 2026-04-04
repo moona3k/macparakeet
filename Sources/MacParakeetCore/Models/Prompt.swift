@@ -43,40 +43,9 @@ public struct Prompt: Codable, Identifiable, Sendable {
         builtInSummaryPrompts()[0]
     }
 
+    /// Community prompts defined as Swift constants.
+    /// The canonical list also lives in Resources/community-prompts.json for community PRs.
     public static func builtInSummaryPrompts(now: Date = Date()) -> [Prompt] {
-        loadCommunityPrompts(now: now)
-    }
-
-    /// Loads community prompts from the bundled JSON file.
-    private static func loadCommunityPrompts(now: Date) -> [Prompt] {
-        guard let url = Bundle.module.url(forResource: "community-prompts", withExtension: "json"),
-              let data = try? Data(contentsOf: url),
-              let entries = try? JSONDecoder().decode([CommunityPromptEntry].self, from: data) else {
-            return fallbackPrompts(now: now)
-        }
-        return entries.map { entry in
-            Prompt(
-                name: entry.name,
-                content: entry.content,
-                category: Category(rawValue: entry.category) ?? .summary,
-                isBuiltIn: true,
-                isVisible: true,
-                sortOrder: entry.sortOrder,
-                createdAt: now,
-                updatedAt: now
-            )
-        }
-    }
-
-    private struct CommunityPromptEntry: Decodable {
-        let name: String
-        let content: String
-        let category: String
-        let sortOrder: Int
-    }
-
-    /// Hardcoded fallback in case the JSON bundle is missing.
-    private static func fallbackPrompts(now: Date) -> [Prompt] {
         [
             Prompt(
                 name: "Concise Summary",
