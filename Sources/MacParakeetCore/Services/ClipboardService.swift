@@ -1,4 +1,5 @@
 import AppKit
+import Carbon
 import Foundation
 import OSLog
 
@@ -30,8 +31,15 @@ public enum ClipboardServiceError: LocalizedError {
 @MainActor
 public final class ClipboardService: ClipboardServiceProtocol {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "ClipboardService")
+    private let pasteShortcutKeyResolver: PasteShortcutKeyResolver
 
-    public init() {}
+    public init() {
+        pasteShortcutKeyResolver = PasteShortcutKeyResolver()
+    }
+
+    init(pasteShortcutKeyResolver: PasteShortcutKeyResolver) {
+        self.pasteShortcutKeyResolver = pasteShortcutKeyResolver
+    }
 
     /// Paste text into the active app by:
     /// 1. Saving current clipboard
@@ -146,13 +154,17 @@ public final class ClipboardService: ClipboardServiceProtocol {
             throw ClipboardServiceError.accessibilityPermissionRequired
         }
 
-        // Cmd+V: virtual key 0x09 = 'v'
         guard let source = CGEventSource(stateID: .hidSystemState) else {
             throw ClipboardServiceError.eventSourceUnavailable
         }
 
-        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: true),
-              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: false) else {
+        // Resolve the shortcut under the same Command-modified layout state that
+        // the generated CGEvents will carry. This preserves layouts such as
+        // "Dvorak - QWERTY ⌘" that intentionally remap only while Command is held.
+        let vKeyCode = pasteShortcutKeyResolver.virtualKeyCode(for: "v", modifierKeyState: UInt32(cmdKey >> 8))
+
+        guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
+              let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false) else {
             throw ClipboardServiceError.eventCreationFailed
         }
 
