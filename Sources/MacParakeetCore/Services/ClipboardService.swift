@@ -31,8 +31,15 @@ public enum ClipboardServiceError: LocalizedError {
 @MainActor
 public final class ClipboardService: ClipboardServiceProtocol {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "ClipboardService")
+    private let pasteShortcutKeyResolver: PasteShortcutKeyResolver
 
-    public init() {}
+    public init() {
+        pasteShortcutKeyResolver = PasteShortcutKeyResolver()
+    }
+
+    init(pasteShortcutKeyResolver: PasteShortcutKeyResolver) {
+        self.pasteShortcutKeyResolver = pasteShortcutKeyResolver
+    }
 
     /// Paste text into the active app by:
     /// 1. Saving current clipboard
@@ -154,7 +161,7 @@ public final class ClipboardService: ClipboardServiceProtocol {
         // Resolve the shortcut under the same Command-modified layout state that
         // the generated CGEvents will carry. This preserves layouts such as
         // "Dvorak - QWERTY ⌘" that intentionally remap only while Command is held.
-        let vKeyCode = virtualKeyCode(for: "v", modifierKeyState: UInt32(cmdKey >> 8))
+        let vKeyCode = pasteShortcutKeyResolver.virtualKeyCode(for: "v", modifierKeyState: UInt32(cmdKey >> 8))
 
         guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
               let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false) else {
@@ -166,57 +173,5 @@ public final class ClipboardService: ClipboardServiceProtocol {
 
         keyUp.flags = .maskCommand
         keyUp.post(tap: .cghidEventTap)
-    }
-
-    private func virtualKeyCode(for character: Character, modifierKeyState: UInt32 = 0) -> CGKeyCode {
-        let fallbackKeyCode: CGKeyCode = 0x09
-        guard let layoutSourceRef = TISCopyCurrentKeyboardLayoutInputSource() else {
-            logger.error("Failed to get current keyboard input source; falling back to QWERTY keycode 0x09")
-            return fallbackKeyCode
-        }
-        let layoutSource = layoutSourceRef.takeRetainedValue()
-
-        guard let layoutDataRef = TISGetInputSourceProperty(layoutSource, kTISPropertyUnicodeKeyLayoutData) else {
-            logger.error("Failed to resolve keyboard layout data for paste shortcut; falling back to QWERTY keycode 0x09")
-            return fallbackKeyCode
-        }
-
-        let layoutData = Unmanaged<CFData>.fromOpaque(layoutDataRef).takeUnretainedValue()
-        guard let layoutBytes = CFDataGetBytePtr(layoutData) else {
-            logger.error("Failed to access keyboard layout bytes for paste shortcut; falling back to QWERTY keycode 0x09")
-            return fallbackKeyCode
-        }
-        let keyboardLayout = UnsafeRawPointer(layoutBytes).assumingMemoryBound(to: UCKeyboardLayout.self)
-
-        guard let target = String(character).utf16.first else {
-            logger.error("Failed to encode character for paste shortcut lookup; falling back to QWERTY keycode 0x09")
-            return fallbackKeyCode
-        }
-
-        for keyCode: UInt16 in 0..<128 {
-            var deadKeyState: UInt32 = 0
-            var length = 0
-            var chars = [UniChar](repeating: 0, count: 4)
-
-            let status = UCKeyTranslate(
-                keyboardLayout,
-                keyCode,
-                UInt16(kUCKeyActionDown),
-                modifierKeyState,
-                UInt32(LMGetKbdType()),
-                UInt32(kUCKeyTranslateNoDeadKeysMask),
-                &deadKeyState,
-                chars.count,
-                &length,
-                &chars
-            )
-
-            if status == noErr && length > 0 && chars[0] == target {
-                return CGKeyCode(keyCode)
-            }
-        }
-
-        logger.error("Failed to resolve virtual keycode for character '\(String(character), privacy: .public)'; falling back to QWERTY keycode 0x09")
-        return fallbackKeyCode
     }
 }
