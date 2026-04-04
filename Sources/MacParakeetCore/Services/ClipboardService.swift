@@ -204,7 +204,7 @@ public final class ClipboardService: ClipboardServiceProtocol {
                 UInt16(kUCKeyActionDown),
                 modifierKeyState,
                 UInt32(LMGetKbdType()),
-                UInt32(kUCKeyTranslateNoDeadKeysBit),
+                UInt32(kUCKeyTranslateNoDeadKeysMask),
                 &deadKeyState,
                 chars.count,
                 &length,
