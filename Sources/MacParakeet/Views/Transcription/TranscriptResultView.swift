@@ -51,7 +51,6 @@ struct TranscriptResultView: View {
     @State private var scrollPauseTask: Task<Void, Never>?
     @State private var scrollMonitor: Any?
     @State private var showSummaryPrompts = false
-    @State private var showExtraInstructions = false
     @State private var showGeneratePopover = false
     @FocusState private var chatInputFocused: Bool
     @FocusState private var speakerRenameFocused: Bool
@@ -758,16 +757,22 @@ struct TranscriptResultView: View {
     }
 
     private var generateTabButton: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "plus")
-                .font(.system(size: 11, weight: .semibold))
+        HStack(spacing: 5) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 10, weight: .semibold))
+            Text("Summarize")
+                .font(DesignSystem.Typography.bodySmall.weight(.medium))
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, 8)
+        .background(
+            Capsule()
+                .fill(DesignSystem.Colors.accent.opacity(0.10))
+        )
         .contentShape(Capsule())
         .foregroundStyle(
             summaryViewModel.canGenerateSummary
-                ? DesignSystem.Colors.textSecondary
+                ? DesignSystem.Colors.accent
                 : DesignSystem.Colors.textTertiary
         )
         .onTapGesture {
@@ -776,10 +781,11 @@ struct TranscriptResultView: View {
         }
         .popover(isPresented: $showGeneratePopover) {
             summaryGenerationPopover
-                .frame(width: 380)
+                .frame(width: 420)
                 .padding(DesignSystem.Spacing.lg)
         }
         .accessibilityAddTraits(.isButton)
+        .accessibilityLabel("Generate summary")
         .onHover { hovering in
             if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
         }
@@ -926,39 +932,25 @@ struct TranscriptResultView: View {
 
     private var summaryGenerationPopover: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            Menu {
-                let builtIn = summaryViewModel.visiblePrompts.filter(\.isBuiltIn)
-                let custom = summaryViewModel.visiblePrompts.filter { !$0.isBuiltIn }
+            // Prompt chips + manage button
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                promptChips
 
-                ForEach(builtIn) { prompt in
-                    promptMenuItem(prompt)
-                }
+                Spacer()
 
-                if !custom.isEmpty {
-                    Divider()
-
-                    ForEach(custom) { prompt in
-                        promptMenuItem(prompt)
-                    }
-                }
-
-                Divider()
-
-                Button("Manage Prompts...") {
+                Button {
                     showGeneratePopover = false
                     showSummaryPrompts = true
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                    Text(summaryViewModel.selectedPrompt?.name ?? "Choose Prompt")
-                        .lineLimit(1)
-                    Image(systemName: "chevron.up.chevron.down")
-                        .font(.system(size: 10, weight: .semibold))
-                }
+                .buttonStyle(.borderless)
+                .help("Manage prompts")
             }
-            .menuStyle(.borderedButton)
 
+            // Model selector
             if !summaryViewModel.availableModels.isEmpty {
                 ModelSelectorView(
                     currentModel: summaryViewModel.currentModelName,
@@ -969,22 +961,10 @@ struct TranscriptResultView: View {
                 )
             }
 
-            if showExtraInstructions || !summaryViewModel.extraInstructions.isEmpty {
-                TextField("Add extra instructions...", text: $summaryViewModel.extraInstructions)
-                    .textFieldStyle(.roundedBorder)
-            } else {
-                Button {
-                    withAnimation(DesignSystem.Animation.contentSwap) {
-                        showExtraInstructions = true
-                    }
-                } label: {
-                    Label("Add instructions", systemImage: "plus")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.accent)
-                }
-                .buttonStyle(.borderless)
-                .contentShape(Rectangle())
-            }
+            // Extra instructions — always visible
+            TextField("Extra instructions (optional)", text: $summaryViewModel.extraInstructions)
+                .textFieldStyle(.roundedBorder)
+                .font(DesignSystem.Typography.bodySmall)
 
             if let errorMessage = summaryViewModel.errorMessage {
                 Text(errorMessage)
@@ -992,6 +972,7 @@ struct TranscriptResultView: View {
                     .foregroundStyle(DesignSystem.Colors.errorRed)
             }
 
+            // Generate button
             HStack {
                 Spacer()
                 Button {
@@ -1011,20 +992,42 @@ struct TranscriptResultView: View {
         }
     }
 
-    private func promptMenuItem(_ prompt: Prompt) -> some View {
-        let hasExisting = summaryViewModel.summaries.contains { $0.promptName == prompt.name }
-        return Button {
-            summaryViewModel.selectedPrompt = prompt
-        } label: {
-            HStack {
-                Text(prompt.name)
-                if hasExisting {
-                    Text("·")
-                        .foregroundStyle(.secondary)
+    private var promptChips: some View {
+        let prompts = summaryViewModel.visiblePrompts
+        return FlowLayout(spacing: 6) {
+            ForEach(prompts) { prompt in
+                let isSelected = summaryViewModel.selectedPrompt?.id == prompt.id
+                let hasExisting = summaryViewModel.summaries.contains { $0.promptName == prompt.name }
+
+                HStack(spacing: 4) {
+                    Text(prompt.name)
+                        .font(DesignSystem.Typography.caption.weight(isSelected ? .semibold : .regular))
+                        .lineLimit(1)
+                    if hasExisting {
+                        Circle()
+                            .fill(DesignSystem.Colors.accent)
+                            .frame(width: 5, height: 5)
+                    }
                 }
-                if prompt.id == summaryViewModel.selectedPrompt?.id {
-                    Spacer()
-                    Image(systemName: "checkmark")
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(isSelected ? DesignSystem.Colors.accent.opacity(0.15) : DesignSystem.Colors.surfaceElevated)
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(isSelected ? DesignSystem.Colors.accent.opacity(0.4) : DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.5)
+                )
+                .foregroundStyle(isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.textPrimary)
+                .contentShape(Capsule())
+                .onTapGesture {
+                    withAnimation(DesignSystem.Animation.selectionChange) {
+                        summaryViewModel.selectedPrompt = prompt
+                    }
+                }
+                .onHover { hovering in
+                    if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
                 }
             }
         }
