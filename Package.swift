@@ -53,8 +53,7 @@ let package = Package(
                 .product(name: "GRDB", package: "GRDB.swift"),
                 .product(name: "FluidAudio", package: "FluidAudio")
             ],
-            path: "Sources/MacParakeetCore",
-            resources: [.process("Resources")]
+            path: "Sources/MacParakeetCore"
         ),
         // ViewModels library (testable, depends on Core + AppKit/SwiftUI)
         .target(
