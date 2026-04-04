@@ -875,16 +875,7 @@ struct TranscriptResultView: View {
                 }
 
                 if summaryViewModel.streamingContent.isEmpty {
-                    VStack(spacing: DesignSystem.Spacing.md) {
-                        Spacer().frame(height: DesignSystem.Spacing.xl)
-                        ProgressView()
-                            .controlSize(.small)
-                        Text("Generating summary...")
-                            .font(DesignSystem.Typography.body)
-                            .foregroundStyle(DesignSystem.Colors.textTertiary)
-                        Spacer().frame(height: DesignSystem.Spacing.xl)
-                    }
-                    .frame(maxWidth: .infinity)
+                    SummarySkeletonView()
                 } else {
                     MarkdownContentView(summaryViewModel.streamingContent, font: DesignSystem.Typography.bodyLarge)
                         .frame(maxWidth: .infinity, alignment: .leading)
