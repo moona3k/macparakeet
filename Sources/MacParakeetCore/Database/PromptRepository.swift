@@ -52,7 +52,9 @@ public final class PromptRepository: PromptRepositoryProtocol {
 
     public func delete(id: UUID) throws -> Bool {
         try dbQueue.write { db in
-            try Prompt.deleteOne(db, key: id)
+            guard let prompt = try Prompt.fetchOne(db, key: id) else { return false }
+            guard !prompt.isBuiltIn else { return false }
+            return try Prompt.deleteOne(db, key: id)
         }
     }
 

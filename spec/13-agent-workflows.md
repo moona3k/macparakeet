@@ -1,6 +1,6 @@
 # 13 - Agent Workflows, Voice Control & External Automation
 
-> Status: **DRAFT** — Exploratory, not yet authoritative
+> Status: **PROPOSAL** — Exploratory, not yet authoritative
 > Related: [spec/12-processing-layer.md](12-processing-layer.md) (implemented prompt library + multi-summary), [spec/11-llm-integration.md](11-llm-integration.md) (provider architecture), [ADR-011](adr/011-llm-cloud-and-local-providers.md) (cloud + local providers), [ADR-013](adr/013-prompt-library-multi-summary.md) (prompt library foundation)
 
 This document captures the future design space that was split out of `spec/12`: typed actions, workflows, agent profiles, voice control, and Apple Shortcuts / App Intents integration. It is a roadmap and architecture exploration, not a locked implementation contract.

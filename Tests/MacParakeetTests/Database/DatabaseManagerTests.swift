@@ -15,6 +15,7 @@ final class DatabaseManagerTests: XCTestCase {
         "v0.5-chat-conversations",
         "v0.5-drop-unused-fts",
         "v0.5-transcription-video-metadata",
+        "v0.7-snippet-key-action",
     ]
 
     func testInMemoryDatabaseCreates() throws {
@@ -108,7 +109,8 @@ final class DatabaseManagerTests: XCTestCase {
                     isEnabled INTEGER NOT NULL DEFAULT 1,
                     useCount INTEGER NOT NULL DEFAULT 0,
                     createdAt TEXT NOT NULL,
-                    updatedAt TEXT NOT NULL
+                    updatedAt TEXT NOT NULL,
+                    action TEXT
                 )
             """)
 
