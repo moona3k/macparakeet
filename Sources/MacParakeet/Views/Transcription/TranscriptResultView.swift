@@ -797,6 +797,20 @@ struct TranscriptResultView: View {
                     HStack {
                         Spacer()
 
+                        Button {
+                            summaryViewModel.regenerateSummary(summary, transcript: transcriptText)
+                            viewModel.selectedTab = .streaming
+                        } label: {
+                            HStack(spacing: DesignSystem.Spacing.xs) {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Regenerate")
+                            }
+                            .font(DesignSystem.Typography.caption)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(!summaryViewModel.canGenerateSummary || transcriptText.isEmpty)
+
                         let isCopied = copiedSummaryID == summaryID
                         Button {
                             NSPasteboard.general.clearContents()
@@ -911,34 +925,14 @@ struct TranscriptResultView: View {
                 let custom = summaryViewModel.visiblePrompts.filter { !$0.isBuiltIn }
 
                 ForEach(builtIn) { prompt in
-                    Button {
-                        summaryViewModel.selectedPrompt = prompt
-                    } label: {
-                        HStack {
-                            Text(prompt.name)
-                            if prompt.id == summaryViewModel.selectedPrompt?.id {
-                                Spacer()
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
+                    promptMenuItem(prompt)
                 }
 
                 if !custom.isEmpty {
                     Divider()
 
                     ForEach(custom) { prompt in
-                        Button {
-                            summaryViewModel.selectedPrompt = prompt
-                        } label: {
-                            HStack {
-                                Text(prompt.name)
-                                if prompt.id == summaryViewModel.selectedPrompt?.id {
-                                    Spacer()
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
+                        promptMenuItem(prompt)
                     }
                 }
 
@@ -1007,6 +1001,25 @@ struct TranscriptResultView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.return, modifiers: .command)
                 .disabled(!summaryViewModel.canGenerateSummary || transcriptText.isEmpty)
+            }
+        }
+    }
+
+    private func promptMenuItem(_ prompt: Prompt) -> some View {
+        let hasExisting = summaryViewModel.summaries.contains { $0.promptName == prompt.name }
+        return Button {
+            summaryViewModel.selectedPrompt = prompt
+        } label: {
+            HStack {
+                Text(prompt.name)
+                if hasExisting {
+                    Text("·")
+                        .foregroundStyle(.secondary)
+                }
+                if prompt.id == summaryViewModel.selectedPrompt?.id {
+                    Spacer()
+                    Image(systemName: "checkmark")
+                }
             }
         }
     }

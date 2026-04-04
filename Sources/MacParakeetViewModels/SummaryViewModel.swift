@@ -39,7 +39,7 @@ public final class SummaryViewModel {
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "SummaryViewModel")
 
     public var canGenerateSummary: Bool {
-        llmService != nil && !isStreaming
+        llmService != nil
     }
 
     public var modelDisplayName: String {
@@ -187,6 +187,21 @@ public final class SummaryViewModel {
         )
     }
 
+    public func regenerateSummary(_ summary: Summary, transcript: String) {
+        let prompt = Prompt(
+            name: summary.promptName,
+            content: summary.promptContent,
+            isBuiltIn: false,
+            sortOrder: 0
+        )
+        startGeneration(
+            transcript: transcript,
+            transcriptionId: summary.transcriptionId,
+            prompt: prompt,
+            extraInstructions: summary.extraInstructions
+        )
+    }
+
     public func autoSummarize(transcript: String, transcriptionId: UUID) {
         guard transcript.count > Self.autoSummaryTranscriptLengthThreshold else { return }
         startGeneration(
@@ -212,7 +227,8 @@ public final class SummaryViewModel {
         prompt: Prompt,
         extraInstructions: String?
     ) {
-        guard let llmService, !isStreaming else { return }
+        guard let llmService else { return }
+        if isStreaming { cancelStreaming() }
 
         currentTranscriptionID = transcriptionId
         errorMessage = nil
@@ -244,6 +260,16 @@ public final class SummaryViewModel {
                     createdAt: timestamp,
                     updatedAt: timestamp
                 )
+                // Remove existing summary for the same prompt (regenerate in-place)
+                // Done AFTER save so cancellation can't lose the old summary
+                if let existing = summaries.first(where: {
+                    $0.transcriptionId == targetTranscriptionID && $0.promptName == prompt.name
+                }) {
+                    _ = try? summaryRepo?.delete(id: existing.id)
+                    summaries.removeAll { $0.id == existing.id }
+                    onDeletedSummary?(existing.id)
+                }
+
                 try summaryRepo?.save(summary)
                 try transcriptionRepo?.updateSummary(id: targetTranscriptionID, summary: summary.content)
                 onLegacySummaryChanged?(targetTranscriptionID, summary.content)
