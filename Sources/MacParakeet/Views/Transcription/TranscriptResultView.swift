@@ -654,11 +654,12 @@ struct TranscriptResultView: View {
 
     private var orderedTabs: [TranscriptionViewModel.TranscriptTab] {
         var tabs: [TranscriptionViewModel.TranscriptTab] = [.transcript, .chat]
+        // Oldest first so new tabs appear on the right
+        for summary in summaryViewModel.summaries.reversed() {
+            tabs.append(.summary(id: summary.id))
+        }
         if summaryViewModel.isStreaming {
             tabs.append(.streaming)
-        }
-        for summary in summaryViewModel.summaries {
-            tabs.append(.summary(id: summary.id))
         }
         return tabs
     }
@@ -683,16 +684,15 @@ struct TranscriptResultView: View {
     private func tabCapsule(for tab: TranscriptionViewModel.TranscriptTab) -> some View {
         let isSelected = viewModel.selectedTab == tab
 
+        let isStreamingTab = { if case .streaming = tab { return true } else { return false } }()
+
         return HStack(spacing: 6) {
             Image(systemName: tabIcon(tab))
                 .font(.system(size: 11, weight: .semibold))
+                .symbolEffect(.pulse, options: .repeating, isActive: isStreamingTab)
             Text(tabLabel(tab))
                 .font(DesignSystem.Typography.bodySmall.weight(isSelected ? .semibold : .regular))
                 .lineLimit(1)
-
-            if case .streaming = tab {
-                AIStreamingIndicator()
-            }
 
             if case .summary(let id) = tab, summaryViewModel.badgedSummaryID == id {
                 Circle()
