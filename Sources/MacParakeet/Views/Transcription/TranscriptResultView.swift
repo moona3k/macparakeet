@@ -682,14 +682,15 @@ struct TranscriptResultView: View {
     // MARK: - Tab Bar
 
     private var orderedTabs: [TranscriptionViewModel.TranscriptTab] {
-        var tabs: [TranscriptionViewModel.TranscriptTab] = [.transcript, .chat]
-        // Generated content after the fixed tabs, oldest first so new tabs appear on the right
+        var tabs: [TranscriptionViewModel.TranscriptTab] = [.transcript]
+        // Generated content after transcript, oldest first so new tabs appear on the right
         for summary in summaryViewModel.summaries.reversed() {
             tabs.append(.summary(id: summary.id))
         }
         for generation in summaryViewModel.pendingGenerations {
             tabs.append(.generation(id: generation.id))
         }
+        tabs.append(.chat)
         return tabs
     }
 
@@ -727,19 +728,24 @@ struct TranscriptResultView: View {
         }()
 
         return HStack(spacing: 6) {
-            Image(systemName: isCopiedTab ? "checkmark" : tabIcon(tab))
+            Image(systemName: tabIcon(tab))
                 .font(.system(size: 11, weight: .semibold))
                 .symbolEffect(.pulse, options: .repeating, isActive: isStreamingTab)
-                .contentTransition(.symbolEffect(.replace))
-            Text(isCopiedTab ? "Copied" : tabLabel(tab))
+            Text(tabLabel(tab))
                 .font(DesignSystem.Typography.bodySmall.weight(isSelected ? .semibold : .regular))
                 .lineLimit(1)
-                .contentTransition(.numericText())
 
-            if case .summary(let id) = tab, summaryViewModel.badgedSummaryID == id, !isCopiedTab {
+            if case .summary(let id) = tab, summaryViewModel.badgedSummaryID == id {
                 Circle()
                     .fill(DesignSystem.Colors.accent)
                     .frame(width: 6, height: 6)
+            }
+
+            if isCopiedTab {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(DesignSystem.Colors.successGreen)
+                    .transition(.opacity)
             }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
@@ -749,8 +755,8 @@ struct TranscriptResultView: View {
                 .fill(isSelected ? DesignSystem.Colors.accent.opacity(0.12) : .clear)
         )
         .contentShape(Capsule())
-        .foregroundStyle(isCopiedTab ? DesignSystem.Colors.successGreen : isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
-        .animation(DesignSystem.Animation.selectionChange, value: isCopiedTab)
+        .foregroundStyle(isSelected ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
+        .animation(.easeInOut(duration: 0.3), value: isCopiedTab)
         .onTapGesture {
             viewModel.selectedTab = tab
         }
@@ -762,9 +768,9 @@ struct TranscriptResultView: View {
                     NSPasteboard.general.setString(summary.content, forType: .string)
                     Telemetry.send(.copyToClipboard(source: .transcription))
                     copiedSummaryID = id
-                    copiedResetTask?.cancel()
-                    copiedResetTask = Task {
-                        try? await Task.sleep(for: .seconds(2))
+                    summaryCopiedResetTask?.cancel()
+                    summaryCopiedResetTask = Task {
+                        try? await Task.sleep(for: .seconds(1.5))
                         copiedSummaryID = nil
                     }
                 }
@@ -873,7 +879,7 @@ struct TranscriptResultView: View {
                             copiedSummaryID = summaryID
                             summaryCopiedResetTask?.cancel()
                             summaryCopiedResetTask = Task {
-                                try? await Task.sleep(for: .seconds(2))
+                                try? await Task.sleep(for: .seconds(1))
                                 copiedSummaryID = nil
                             }
                         } label: {
