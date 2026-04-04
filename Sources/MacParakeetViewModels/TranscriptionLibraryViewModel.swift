@@ -64,7 +64,7 @@ public final class TranscriptionLibraryViewModel {
     public func loadTranscriptions() {
         do {
             transcriptions = (try transcriptionRepo?.fetchAll(limit: nil) ?? [])
-                .filter { $0.status == .completed }
+                .filter { $0.status != .processing }
         } catch {
             logger.error("Failed to load transcriptions: \(error.localizedDescription)")
             transcriptions = []

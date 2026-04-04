@@ -41,10 +41,10 @@ final class TranscriptionLibraryViewModelTests: XCTestCase {
 
         vm.loadTranscriptions()
 
-        XCTAssertEqual(vm.transcriptions.count, 1)
-        XCTAssertEqual(vm.transcriptions.first?.fileName, "done.mp3")
-        XCTAssertEqual(vm.filteredTranscriptions.count, 1)
-        XCTAssertEqual(vm.filteredTranscriptions.first?.fileName, "done.mp3")
+        XCTAssertEqual(vm.transcriptions.count, 3)
+        XCTAssertEqual(Set(vm.transcriptions.map(\.fileName)), ["done.mp3", "cancelled.mp3", "failed.mp3"])
+        XCTAssertEqual(vm.filteredTranscriptions.count, 3)
+        XCTAssertEqual(Set(vm.filteredTranscriptions.map(\.fileName)), ["done.mp3", "cancelled.mp3", "failed.mp3"])
     }
 
     // MARK: - Filter
