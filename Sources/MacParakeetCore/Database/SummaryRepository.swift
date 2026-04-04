@@ -3,10 +3,20 @@ import GRDB
 
 public protocol SummaryRepositoryProtocol: Sendable {
     func save(_ summary: Summary) throws
+    func replace(_ summary: Summary, deletingExistingID: UUID?) throws
     func fetchAll(transcriptionId: UUID) throws -> [Summary]
     func delete(id: UUID) throws -> Bool
     func deleteAll(transcriptionId: UUID) throws
     func hasSummaries(transcriptionId: UUID) throws -> Bool
+}
+
+public extension SummaryRepositoryProtocol {
+    func replace(_ summary: Summary, deletingExistingID: UUID?) throws {
+        try save(summary)
+        if let deletingExistingID, deletingExistingID != summary.id {
+            _ = try delete(id: deletingExistingID)
+        }
+    }
 }
 
 public final class SummaryRepository: SummaryRepositoryProtocol {
@@ -19,6 +29,15 @@ public final class SummaryRepository: SummaryRepositoryProtocol {
     public func save(_ summary: Summary) throws {
         try dbQueue.write { db in
             try summary.save(db)
+        }
+    }
+
+    public func replace(_ summary: Summary, deletingExistingID: UUID?) throws {
+        try dbQueue.write { db in
+            try summary.save(db)
+            if let deletingExistingID, deletingExistingID != summary.id {
+                _ = try Summary.deleteOne(db, key: deletingExistingID)
+            }
         }
     }
 

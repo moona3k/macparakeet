@@ -556,6 +556,7 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
 final class MockSummaryRepository: SummaryRepositoryProtocol, @unchecked Sendable {
     var summaries: [Summary] = []
     var saveCalls: [Summary] = []
+    var replaceCalls: [(summary: Summary, deletingExistingID: UUID?)] = []
     var deleteCalls: [UUID] = []
 
     func save(_ summary: Summary) throws {
@@ -564,6 +565,14 @@ final class MockSummaryRepository: SummaryRepositoryProtocol, @unchecked Sendabl
             summaries[index] = summary
         } else {
             summaries.append(summary)
+        }
+    }
+
+    func replace(_ summary: Summary, deletingExistingID: UUID?) throws {
+        replaceCalls.append((summary: summary, deletingExistingID: deletingExistingID))
+        try save(summary)
+        if let deletingExistingID {
+            _ = try delete(id: deletingExistingID)
         }
     }
 

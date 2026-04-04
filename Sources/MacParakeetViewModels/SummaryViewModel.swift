@@ -260,17 +260,10 @@ public final class SummaryViewModel {
                     createdAt: timestamp,
                     updatedAt: timestamp
                 )
-                // Remove existing summary for the same prompt (regenerate in-place)
-                // Done AFTER save so cancellation can't lose the old summary
-                if let existing = summaries.first(where: {
+                let existing = summaries.first(where: {
                     $0.transcriptionId == targetTranscriptionID && $0.promptName == prompt.name
-                }) {
-                    _ = try? summaryRepo?.delete(id: existing.id)
-                    summaries.removeAll { $0.id == existing.id }
-                    onDeletedSummary?(existing.id)
-                }
-
-                try summaryRepo?.save(summary)
+                })
+                try summaryRepo?.replace(summary, deletingExistingID: existing?.id)
                 try transcriptionRepo?.updateSummary(id: targetTranscriptionID, summary: summary.content)
                 onLegacySummaryChanged?(targetTranscriptionID, summary.content)
 
@@ -280,7 +273,14 @@ public final class SummaryViewModel {
                 streamingContent = ""
 
                 if currentTranscriptionID == targetTranscriptionID {
+                    if let existing {
+                        if badgedSummaryID == existing.id { badgedSummaryID = nil }
+                        summaries.removeAll { $0.id == existing.id }
+                    }
                     summaries.insert(summary, at: 0)
+                }
+                if let existing {
+                    onDeletedSummary?(existing.id)
                 }
                 onSummariesChanged?(targetTranscriptionID, true)
                 onSelectSummaryTab?(summary.id)

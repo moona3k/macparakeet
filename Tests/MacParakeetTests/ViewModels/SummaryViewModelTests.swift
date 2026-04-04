@@ -146,6 +146,47 @@ final class SummaryViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.badgedSummaryID)
     }
 
+    func testRegenerateSummaryReplacesExistingSummaryForPrompt() async throws {
+        let transcriptionID = UUID()
+        let existing = Summary(
+            transcriptionId: transcriptionID,
+            promptName: "Concise Summary",
+            promptContent: Prompt.defaultSummaryPrompt.content,
+            content: "Old summary",
+            createdAt: Date(timeIntervalSince1970: 10),
+            updatedAt: Date(timeIntervalSince1970: 10)
+        )
+        summaryRepo.summaries = [existing]
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            summaryRepo: summaryRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.loadSummaries(transcriptionId: transcriptionID)
+        llm.streamTokens = ["New ", "summary"]
+
+        var deletedSummaryID: UUID?
+        var selectedSummaryID: UUID?
+        viewModel.onDeletedSummary = { deletedSummaryID = $0 }
+        viewModel.onSelectSummaryTab = { selectedSummaryID = $0 }
+
+        viewModel.regenerateSummary(existing, transcript: "Transcript")
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertEqual(summaryRepo.replaceCalls.count, 1)
+        XCTAssertEqual(summaryRepo.replaceCalls[0].deletingExistingID, existing.id)
+        XCTAssertEqual(summaryRepo.deleteCalls, [existing.id])
+        XCTAssertEqual(summaryRepo.summaries.count, 1)
+        XCTAssertEqual(summaryRepo.summaries.first?.content, "New summary")
+        XCTAssertEqual(viewModel.summaries.count, 1)
+        XCTAssertEqual(viewModel.summaries.first?.content, "New summary")
+        XCTAssertEqual(deletedSummaryID, existing.id)
+        XCTAssertEqual(selectedSummaryID, viewModel.summaries.first?.id)
+        XCTAssertEqual(transcriptionRepo.updateSummaryCalls.last?.summary, "New summary")
+    }
+
     func testLoadSummariesSwitchesTranscriptions() {
         let transcriptionA = UUID()
         let transcriptionB = UUID()

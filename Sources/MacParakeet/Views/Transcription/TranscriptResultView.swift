@@ -130,6 +130,22 @@ struct TranscriptResultView: View {
         }) {
             SummaryPromptsView(viewModel: promptsViewModel)
         }
+        .alert(
+            "Delete Summary?",
+            isPresented: Binding(
+                get: { summaryViewModel.pendingDeleteSummary != nil },
+                set: { if !$0 { summaryViewModel.pendingDeleteSummary = nil } }
+            )
+        ) {
+            Button("Delete", role: .destructive) {
+                summaryViewModel.confirmDelete()
+            }
+            Button("Cancel", role: .cancel) {
+                summaryViewModel.pendingDeleteSummary = nil
+            }
+        } message: {
+            Text("This action cannot be undone.")
+        }
     }
 
     @ViewBuilder
@@ -861,22 +877,6 @@ struct TranscriptResultView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
         )
-        .alert(
-            "Delete Summary?",
-            isPresented: Binding(
-                get: { summaryViewModel.pendingDeleteSummary != nil },
-                set: { if !$0 { summaryViewModel.pendingDeleteSummary = nil } }
-            )
-        ) {
-            Button("Delete", role: .destructive) {
-                summaryViewModel.confirmDelete()
-            }
-            Button("Cancel", role: .cancel) {
-                summaryViewModel.pendingDeleteSummary = nil
-            }
-        } message: {
-            Text("This action cannot be undone.")
-        }
     }
 
     private var streamingSummaryPane: some View {
