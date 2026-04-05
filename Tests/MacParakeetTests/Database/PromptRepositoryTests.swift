@@ -100,4 +100,52 @@ final class PromptRepositoryTests: XCTestCase {
             expectedExecutiveBrief.id
         )
     }
+
+    func testReconcileDoesNotOverwriteCustomPromptSharingBuiltInName() throws {
+        let dbURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("prompt-custom-conflict-\(UUID().uuidString).sqlite")
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+
+        let customID = UUID()
+        let customContent = "My custom executive summary format."
+
+        do {
+            let manager = try DatabaseManager(path: dbURL.path)
+            try manager.dbQueue.write { db in
+                try db.execute(
+                    sql: "DELETE FROM prompts WHERE name = ?",
+                    arguments: ["Executive Brief"]
+                )
+                try db.execute(
+                    sql: """
+                        INSERT INTO prompts (
+                            id, name, content, category, isBuiltIn, isVisible, isAutoRun, sortOrder, createdAt, updatedAt
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                    arguments: [
+                        customID.uuidString,
+                        "Executive Brief",
+                        customContent,
+                        Prompt.Category.summary.rawValue,
+                        false,
+                        true,
+                        false,
+                        99,
+                        Date(),
+                        Date(),
+                    ]
+                )
+            }
+        }
+
+        let reopenedManager = try DatabaseManager(path: dbURL.path)
+        let reopenedRepo = PromptRepository(dbQueue: reopenedManager.dbQueue)
+        let prompts = try reopenedRepo.fetchAll()
+
+        let executiveBrief = try XCTUnwrap(prompts.first(where: { $0.name == "Executive Brief" }))
+        XCTAssertEqual(executiveBrief.id, customID)
+        XCTAssertEqual(executiveBrief.content, customContent)
+        XCTAssertFalse(executiveBrief.isBuiltIn)
+        XCTAssertEqual(prompts.filter { $0.name == "Executive Brief" }.count, 1)
+    }
 }

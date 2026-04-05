@@ -391,6 +391,7 @@ public final class DatabaseManager: Sendable {
                         SELECT id
                         FROM prompts
                         WHERE name = ? COLLATE NOCASE
+                          AND isBuiltIn = 1
                         LIMIT 1
                         """,
                     arguments: [prompt.name]
@@ -411,6 +412,24 @@ public final class DatabaseManager: Sendable {
                             legacyPromptID,
                         ]
                     )
+                    continue
+                }
+
+                // A custom prompt already owns this name. Preserve the user's prompt and
+                // skip re-inserting the built-in because names are globally unique today.
+                let hasCustomPromptWithSameName = try Bool.fetchOne(
+                    db,
+                    sql: """
+                        SELECT EXISTS(
+                            SELECT 1
+                            FROM prompts
+                            WHERE name = ? COLLATE NOCASE
+                              AND isBuiltIn = 0
+                        )
+                        """,
+                    arguments: [prompt.name]
+                ) ?? false
+                if hasCustomPromptWithSameName {
                     continue
                 }
 

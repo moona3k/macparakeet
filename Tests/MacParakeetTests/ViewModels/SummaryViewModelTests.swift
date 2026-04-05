@@ -146,6 +146,31 @@ final class SummaryViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.badgedSummaryID)
     }
 
+    func testGenerateSummaryRequiresSelectedVisiblePrompt() {
+        for index in promptRepo.prompts.indices {
+            promptRepo.prompts[index].isVisible = false
+            promptRepo.prompts[index].isAutoRun = false
+        }
+
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            summaryRepo: summaryRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+
+        XCTAssertTrue(viewModel.canGenerateSummary)
+        XCTAssertFalse(viewModel.canGenerateManualSummary)
+        XCTAssertTrue(viewModel.visiblePrompts.isEmpty)
+        XCTAssertNil(viewModel.selectedPrompt)
+
+        let generationID = viewModel.generateSummary(transcript: "Transcript", transcriptionId: UUID())
+
+        XCTAssertNil(generationID)
+        XCTAssertEqual(llm.summarizeCallCount, 0)
+        XCTAssertTrue(viewModel.pendingGenerations.isEmpty)
+    }
+
     func testGenerateSummaryWhileStreamingQueuesSecondRequest() async throws {
         let transcriptionID = UUID()
         let secondPrompt = Prompt(
@@ -485,5 +510,31 @@ final class SummaryViewModelTests: XCTestCase {
         XCTAssertEqual(summaryRepo.saveCalls.first?.promptName, queuedPrompt.name)
         XCTAssertEqual(summaryRepo.saveCalls.first?.content, "Queued summary")
         XCTAssertEqual(viewModel.pendingGenerations.count, 0)
+    }
+
+    func testPendingGenerationsAreScopedToTranscription() {
+        let transcriptionA = UUID()
+        let transcriptionB = UUID()
+        let pendingA = SummaryViewModel.PendingGeneration(
+            transcriptionId: transcriptionA,
+            promptName: "General Summary",
+            promptContent: "Prompt A",
+            extraInstructions: nil,
+            transcript: "Transcript A"
+        )
+        let pendingB = SummaryViewModel.PendingGeneration(
+            transcriptionId: transcriptionB,
+            promptName: "Action Items",
+            promptContent: "Prompt B",
+            extraInstructions: nil,
+            transcript: "Transcript B"
+        )
+
+        viewModel.pendingGenerations = [pendingA, pendingB]
+
+        XCTAssertEqual(viewModel.pendingGenerations(for: transcriptionA).map(\.id), [pendingA.id])
+        XCTAssertEqual(viewModel.pendingGenerations(for: transcriptionB).map(\.id), [pendingB.id])
+        XCTAssertTrue(viewModel.hasPendingGeneration(promptName: "General Summary", transcriptionId: transcriptionA))
+        XCTAssertFalse(viewModel.hasPendingGeneration(promptName: "General Summary", transcriptionId: transcriptionB))
     }
 }

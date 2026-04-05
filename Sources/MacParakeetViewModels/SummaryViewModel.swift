@@ -78,6 +78,10 @@ public final class SummaryViewModel {
         llmService != nil
     }
 
+    public var canGenerateManualSummary: Bool {
+        llmService != nil && selectedPrompt != nil
+    }
+
     public var hasSummaryGenerationCapability: Bool {
         llmService != nil
     }
@@ -181,10 +185,6 @@ public final class SummaryViewModel {
         }
     }
 
-    private func fetchDefaultPrompt() -> Prompt {
-        (try? promptRepo?.fetchAutoRunPrompts().first) ?? Prompt.defaultPrompt
-    }
-
     public func loadVisiblePrompts() {
         guard let promptRepo else { return }
         do {
@@ -231,6 +231,16 @@ public final class SummaryViewModel {
         pendingGenerations.first(where: { $0.id == id })
     }
 
+    public func pendingGenerations(for transcriptionId: UUID) -> [PendingGeneration] {
+        pendingGenerations.filter { $0.transcriptionId == transcriptionId }
+    }
+
+    public func hasPendingGeneration(promptName: String, transcriptionId: UUID) -> Bool {
+        pendingGenerations.contains {
+            $0.transcriptionId == transcriptionId && $0.promptName == promptName
+        }
+    }
+
     public func confirmDelete() {
         guard let summary = pendingDeleteSummary else { return }
         pendingDeleteSummary = nil
@@ -256,7 +266,7 @@ public final class SummaryViewModel {
 
     @discardableResult
     public func generateSummary(transcript: String, transcriptionId: UUID) -> UUID? {
-        let prompt = selectedPrompt ?? fetchDefaultPrompt()
+        guard let prompt = selectedPrompt else { return nil }
         return enqueueGeneration(
             transcript: transcript,
             transcriptionId: transcriptionId,
