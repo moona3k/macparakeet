@@ -330,6 +330,8 @@ public final class DatabaseManager: Sendable {
 
     private func reconcileBuiltInPrompts() throws {
         let builtInPrompts = Prompt.builtInSummaryPrompts(now: Date())
+        let canonicalIDs = builtInPrompts.map { $0.id }
+        
         try dbQueue.write { db in
             for prompt in builtInPrompts {
                 if let existing = try Prompt.fetchOne(db, key: prompt.id) {
@@ -368,7 +370,7 @@ public final class DatabaseManager: Sendable {
                             WHERE id = ?
                             """,
                         arguments: [
-                            prompt.id.uuidString,
+                            prompt.id,
                             prompt.name,
                             prompt.content,
                             prompt.category.rawValue,
@@ -382,6 +384,15 @@ public final class DatabaseManager: Sendable {
 
                 try prompt.insert(db)
             }
+
+            // Delete any built-in prompts that are no longer in the canonical list
+            try db.execute(
+                sql: """
+                    DELETE FROM prompts
+                    WHERE isBuiltIn = 1 AND id NOT IN (\(canonicalIDs.map { _ in "?" }.joined(separator: ",")))
+                    """,
+                arguments: StatementArguments(canonicalIDs)
+            )
         }
     }
 }
