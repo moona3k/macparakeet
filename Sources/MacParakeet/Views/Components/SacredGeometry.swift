@@ -113,7 +113,7 @@ struct MeditativeMerkabaView: View {
     var animate: Bool = true
 
     @State private var rotationCW: Double = 0
-    @State private var rotationCCW: Double = 0
+    @State private var rotationCCW: Double = 60
     @State private var centerPulse: Double = 0.15
     @State private var vertexPulse: Double = 0.3
 
@@ -130,7 +130,7 @@ struct MeditativeMerkabaView: View {
             // Triangle 1 — clockwise
             meditativeTriangle(rotation: rotationCW, strokeOpacity: 0.25, vertexOpacity: vertexPulse)
 
-            // Triangle 2 — counter-clockwise
+            // Triangle 2 — counter-clockwise (offset 60° for Star of David)
             meditativeTriangle(rotation: rotationCCW, strokeOpacity: 0.15, vertexOpacity: vertexPulse * 0.6)
 
             // Center nexus — shadow for glow instead of blur
@@ -158,7 +158,9 @@ struct MeditativeMerkabaView: View {
     private func startAnimation() {
         withAnimation(.linear(duration: revolutionDuration).repeatForever(autoreverses: false)) {
             rotationCW = 360
-            rotationCCW = -360
+        }
+        withAnimation(.linear(duration: revolutionDuration).repeatForever(autoreverses: false)) {
+            rotationCCW = 60 - 360
         }
         withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
             centerPulse = 0.5
@@ -171,7 +173,7 @@ struct MeditativeMerkabaView: View {
     private func stopAnimation() {
         withAnimation(.linear(duration: 0)) {
             rotationCW = 0
-            rotationCCW = 0
+            rotationCCW = 60
             centerPulse = 0.15
             vertexPulse = 0.3
         }
