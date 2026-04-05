@@ -124,15 +124,15 @@ public extension AudioChunker {
     static func extractSamples(from buffer: AVAudioPCMBuffer) -> [Float]? {
         let frameCount = Int(buffer.frameLength)
         guard frameCount > 0 else { return nil }
+        let channelCount = Int(buffer.format.channelCount)
+        guard channelCount > 0 else { return nil }
 
         if let channelData = buffer.floatChannelData {
-            return Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
+            return downmixFloatChannels(channelData, frameCount: frameCount, channelCount: channelCount)
         }
 
         if let channelData = buffer.int16ChannelData {
-            return Array(UnsafeBufferPointer(start: channelData[0], count: frameCount)).map {
-                Float($0) / Float(Int16.max)
-            }
+            return downmixInt16Channels(channelData, frameCount: frameCount, channelCount: channelCount)
         }
 
         return nil
@@ -141,5 +141,55 @@ public extension AudioChunker {
     static func extractAndResample(from buffer: AVAudioPCMBuffer) -> [Float]? {
         guard let samples = extractSamples(from: buffer) else { return nil }
         return resample(samples: samples, fromRate: Int(buffer.format.sampleRate))
+    }
+
+    private static func downmixFloatChannels(
+        _ channelData: UnsafePointer<UnsafeMutablePointer<Float>>,
+        frameCount: Int,
+        channelCount: Int
+    ) -> [Float] {
+        if channelCount == 1 {
+            return Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
+        }
+
+        var mixed = [Float](repeating: 0, count: frameCount)
+        for channelIndex in 0..<channelCount {
+            let channel = UnsafeBufferPointer(start: channelData[channelIndex], count: frameCount)
+            for frameIndex in 0..<frameCount {
+                mixed[frameIndex] += channel[frameIndex]
+            }
+        }
+
+        let scale = 1 / Float(channelCount)
+        for frameIndex in 0..<frameCount {
+            mixed[frameIndex] *= scale
+        }
+        return mixed
+    }
+
+    private static func downmixInt16Channels(
+        _ channelData: UnsafePointer<UnsafeMutablePointer<Int16>>,
+        frameCount: Int,
+        channelCount: Int
+    ) -> [Float] {
+        if channelCount == 1 {
+            return Array(UnsafeBufferPointer(start: channelData[0], count: frameCount)).map {
+                Float($0) / Float(Int16.max)
+            }
+        }
+
+        var mixed = [Float](repeating: 0, count: frameCount)
+        for channelIndex in 0..<channelCount {
+            let channel = UnsafeBufferPointer(start: channelData[channelIndex], count: frameCount)
+            for frameIndex in 0..<frameCount {
+                mixed[frameIndex] += Float(channel[frameIndex]) / Float(Int16.max)
+            }
+        }
+
+        let scale = 1 / Float(channelCount)
+        for frameIndex in 0..<frameCount {
+            mixed[frameIndex] *= scale
+        }
+        return mixed
     }
 }

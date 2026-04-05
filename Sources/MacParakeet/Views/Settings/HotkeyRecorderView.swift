@@ -161,8 +161,18 @@ struct HotkeyRecorderView: View {
                     if name == "fn" {
                         // Fn is bare modifier only — accept immediately on key-down
                         if event.modifierFlags.contains(.function) {
-                            acceptTrigger(.fn, warning: nil)
-                            return event
+                            switch combinedValidation(for: .fn) {
+                            case .blocked(let msg):
+                                validationMessage = msg
+                                validationIsBlocked = true
+                                return event
+                            case .warned(let msg):
+                                acceptTrigger(.fn, warning: msg)
+                                return event
+                            case .allowed:
+                                acceptTrigger(.fn, warning: nil)
+                                return event
+                            }
                         }
                     } else {
                         // Track held chord modifiers for preview
@@ -172,8 +182,18 @@ struct HotkeyRecorderView: View {
                         // If all chord-eligible modifiers released, accept as bare modifier
                         if currentHeld.isEmpty {
                             if let candidate = bareModifierTrigger(for: name) {
-                                acceptTrigger(candidate, warning: nil)
-                                return event
+                                switch combinedValidation(for: candidate) {
+                                case .blocked(let msg):
+                                    validationMessage = msg
+                                    validationIsBlocked = true
+                                    return event
+                                case .warned(let msg):
+                                    acceptTrigger(candidate, warning: msg)
+                                    return event
+                                case .allowed:
+                                    acceptTrigger(candidate, warning: nil)
+                                    return event
+                                }
                             }
                         }
                     }
