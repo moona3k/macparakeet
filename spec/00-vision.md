@@ -1,14 +1,14 @@
 # MacParakeet: Vision & Philosophy
 
 > Status: **ACTIVE** - Authoritative, current
-> The fastest, most private voice app for Mac. No cloud. Free and open-source (GPL-3.0).
+> The fastest, most private voice app for Mac. Fully local speech, optional networked features, free and open-source (GPL-3.0).
 > Pricing amendment: All references to "$49 one-time purchase" and pricing tiers below are historical. MacParakeet is now free and open-source (GPL-3.0) as of v0.5.
 
 ---
 
 ## The North Star
 
-**The fastest, most private voice app for Mac. No cloud. No subscriptions.**
+**The fastest, most private voice app for Mac. Fully local speech when you want it. No subscriptions.**
 
 ```
 +-----------------------------------------------------------------------+
@@ -46,13 +46,13 @@ Everything else exists to make those two modes faster, smarter, and more useful.
 | **Cloud services** (WisprFlow, Otter) | Fast | Your audio on their servers | $12+/mo forever | Simple |
 | **Local apps** (MacWhisper, Superwhisper) | Good | Private | $30-$250 | Complex or expensive |
 | **Apple Dictation** | Slow | Mostly local | Free | Very limited |
-| **MacParakeet** | **Fastest** | **100% local** | **Free (GPL-3.0)** | **Two modes** |
+| **MacParakeet** | **Fastest** | **Can be fully local** | **Free (GPL-3.0)** | **Two modes** |
 
 No existing app nails all four: **Speed + Privacy + Simplicity + Fair Pricing**.
 
 Cloud services send your voice to remote servers, create accounts, charge monthly, and add server latency. Local apps either bury you in settings (MacWhisper has 50+ features) or charge a premium (Superwhisper at $250). Apple Dictation is free but slow, inaccurate, and has no custom vocabulary, no file transcription.
 
-**MacParakeet's answer:** Built from the ground up around Parakeet TDT -- the fastest, most accurate open-source STT model available. 100% local. Two modes. Free. Done.
+**MacParakeet's answer:** Built from the ground up around Parakeet TDT -- the fastest, most accurate open-source STT model available. Fully local speech by default, with optional networked features. Two modes. Free. Done.
 
 ---
 
@@ -66,11 +66,11 @@ Speed changes behavior. When transcription takes 30 seconds, you think about whe
 
 ### 2. Privacy Is the Brand
 
-100% local is not a feature. It is the identity.
+Fully local speech is a core product property, and the app can stay fully local when configured that way.
 
-- Zero cloud. Zero accounts. Zero tracking.
-- Audio never leaves your Mac. Not to our servers, not to anyone's.
-- No email signup. No login. No analytics. Download and use.
+- Local STT. No cloud speech processing, no accounts, no required backend for core speech.
+- Audio never leaves your Mac for dictation or transcription.
+- No email signup. No login. Optional self-hosted telemetry can be disabled in Settings.
 - Works in airplane mode, air-gapped environments, classified settings.
 
 This is not privacy theater ("your data is encrypted in transit"). This is privacy by architecture: there is no server to send data to.
@@ -107,7 +107,7 @@ Every feature is available to everyone, forever. The code is public. Contributio
 | **Product type** | Native macOS app (menu bar + window) |
 | **Core function** | Voice dictation and file transcription |
 | **Target users** | Developers, professionals, writers who want fast private voice input |
-| **Key differentiators** | Parakeet speed + 100% local + free/open-source |
+| **Key differentiators** | Parakeet speed + fully local speech option + free/open-source |
 | **Business model** | Free and open-source (GPL-3.0) |
 | **Platform** | macOS 14.2+, Apple Silicon only |
 
@@ -117,7 +117,7 @@ Every feature is available to everyone, forever. The code is public. Contributio
 
 - **Not a meeting app** -- That is Oatmeal. MacParakeet does not do calendar integration, entity extraction, meeting memory, or action items.
 - **Not a note-taking app** -- It puts text where your cursor is. Your note app is your note app.
-- **Not a cloud service** -- No servers, no accounts, no sync. Local only.
+- **Not a cloud service** -- No hosted transcription backend, no accounts, no sync product. Core speech stays local.
 - **Not an enterprise product** -- Single-user, single-Mac. No admin console, no team management (initially).
 - **Not a mobile app** -- macOS only. Apple Silicon required for Parakeet STT via FluidAudio CoreML on the Neural Engine.
 - **Not a transcription editor** -- Drop a file, get text. We do not build a full editing environment around transcripts.
@@ -243,7 +243,7 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 | **STT Engine** | Parakeet TDT | Cloud AI | Whisper | Whisper | Apple Neural |
 | **Speed (60 min)** | ~23 sec | ~30 sec* | ~2-4 min | ~2-4 min | Real-time only |
 | **WER** | ~2.5% | ~5%** | 7-12% | 7-12% | ~10-15% |
-| **Privacy** | 100% local | Cloud | Local | Local | Mostly local |
+| **Privacy** | Local-first speech | Cloud | Local | Local | Mostly local |
 | **Dictation** | Yes | Yes | No | Yes | Yes |
 | **File transcription** | Yes | No | Yes | Limited | No |
 | **Smart cleanup** | Deterministic | Cloud AI | No | Cloud AI | No |
@@ -256,7 +256,7 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 ### Why We Win Each Segment
 
-- **vs WisprFlow**: Same speed class, but local + free vs $144-180/year. WisprFlow users who care about privacy or cost switch to us.
+- **vs WisprFlow**: Same speed class, but a fully local speech option + free vs $144-180/year. WisprFlow users who care about privacy or cost switch to us.
 - **vs MacWhisper**: Faster (Parakeet vs Whisper), simpler (2 modes vs 50+ features), plus system-wide dictation — and free.
 - **vs Superwhisper**: Free vs $250, Parakeet-first architecture. No contest on price.
 - **vs Apple Dictation**: Faster, more accurate, custom words, file transcription. Same price (free), dramatically more capable.
@@ -276,11 +276,11 @@ We are not a Whisper app that added Parakeet. We built the entire product around
 
 Competitors bolted Parakeet onto existing Whisper architectures. We optimized the entire pipeline for it.
 
-### 2. 100% Local, Zero Compromise
+### 2. Local-First, Zero-Compromise Speech
 
-This is not "local option available." This is "there is no cloud option." The architecture has no server component. There is no API endpoint to send audio to. There is no account system to create.
+This is not "cloud by default with a local mode." Core speech recognition runs entirely on-device. There is no cloud STT path, no account system, and no requirement to send audio anywhere.
 
-This makes our privacy claim unchallengeable. Competitors who offer "local mode" still have cloud infrastructure, still collect accounts, still have terms of service that hedge on data usage. We have none of that.
+Optional network features exist, but they are explicit and separate: transcript text can be sent to user-configured LLM providers, Sparkle checks for updates, YouTube imports download media, and self-hosted telemetry can be disabled. The privacy boundary is simple: speech stays local.
 
 ### 3. Free and Open-Source
 
@@ -433,7 +433,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 | **YouTube downloads** | Standalone yt-dlp | macOS binary, auto-updates via `--update`. No Python needed. |
 | **UI framework** | SwiftUI | Native Mac experience. Menu bar + window. |
 | **Database** | SQLite (GRDB) | Single file. No server. Dictation history, custom words, settings. |
-| **Cloud option** | None | Privacy is the brand. No cloud means no cloud. |
+| **Cloud option** | No cloud STT; optional LLM providers | Core speech stays local. Network use is explicit and opt-in for AI, updates, telemetry, and media download. |
 | **Pricing** | Free (GPL-3.0) | Zero friction. Maximum adoption. Community-driven development. |
 
 ---
@@ -453,7 +453,7 @@ The parakeet bird is known for mimicking speech -- a fitting metaphor for a voic
 | **Parakeet Speed** | 60 min audio in ~23 seconds | Transcription so fast it feels instant |
 | **System-wide Dictation** | Fn to dictate in any app | Voice input everywhere, not just our app |
 | **YouTube Transcription** | Paste a URL, get a transcript | File transcription for the YouTube era |
-| **100% Local** | Zero network, zero accounts | Unchallengeable privacy claim |
+| **Local-First STT** | Speech stays on-device; optional networked AI | Strong privacy claim without pretending the app never uses the network |
 | **Clean Pipeline** | Deterministic text cleanup | Professional output without LLM overhead |
 | **Custom Words** | User-defined vocabulary anchors | Technical terms transcribed correctly every time |
 | **Free & Open-Source** | GPL-3.0, no price, no accounts | Zero friction adoption. Community-driven development. |

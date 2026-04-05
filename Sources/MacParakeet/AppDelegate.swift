@@ -49,7 +49,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     private let libraryViewModel = TranscriptionLibraryViewModel()
     private let llmSettingsViewModel = LLMSettingsViewModel()
     private let chatViewModel = TranscriptChatViewModel()
-    private let summaryViewModel = SummaryViewModel()
+    private let promptResultsViewModel = PromptResultsViewModel()
     private let promptsViewModel = PromptsViewModel()
     private let mainWindowState = MainWindowState()
     private let onboardingWindowController = OnboardingWindowController()
@@ -352,8 +352,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 transcriptionRepo: env.transcriptionRepo,
                 llmService: hasLLMConfig ? env.llmService : nil,
                 configStore: env.llmConfigStore,
-                summaryRepo: env.summaryRepo,
-                summaryViewModel: summaryViewModel
+                promptResultRepo: env.promptResultRepo,
+                promptResultsViewModel: promptResultsViewModel
             )
             historyViewModel.configure(dictationRepo: env.dictationRepo)
             libraryViewModel.configure(transcriptionRepo: env.transcriptionRepo)
@@ -388,10 +388,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 configStore: env.llmConfigStore,
                 conversationRepo: env.chatConversationRepo
             )
-            summaryViewModel.configure(
+            promptResultsViewModel.configure(
                 llmService: hasLLMConfig ? env.llmService : nil,
                 promptRepo: env.promptRepo,
-                summaryRepo: env.summaryRepo,
+                promptResultRepo: env.promptResultRepo,
                 transcriptionRepo: env.transcriptionRepo,
                 configStore: env.llmConfigStore
             )
@@ -402,20 +402,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 )
             }
             chatViewModel.onModelChanged = { [weak self] in
-                self?.summaryViewModel.refreshModelInfo()
+                self?.promptResultsViewModel.refreshModelInfo()
             }
-            summaryViewModel.onModelChanged = { [weak self] in
+            promptResultsViewModel.onModelChanged = { [weak self] in
                 self?.chatViewModel.refreshModelInfo()
             }
-            summaryViewModel.onSummariesChanged = { [weak self] transcriptionID, hasSummaries in
+            promptResultsViewModel.onPromptResultsChanged = { [weak self] transcriptionID, hasPromptResults in
                 guard self?.transcriptionViewModel.currentTranscription?.id == transcriptionID else { return }
-                self?.transcriptionViewModel.hasSummaries = hasSummaries
+                self?.transcriptionViewModel.hasPromptResultTabs = hasPromptResults
             }
-            summaryViewModel.onLegacySummaryChanged = { [weak self] transcriptionID, summary in
+            promptResultsViewModel.onLegacySummaryChanged = { [weak self] transcriptionID, summary in
                 self?.transcriptionViewModel.updateLegacySummary(id: transcriptionID, summary: summary)
             }
-            summaryViewModel.shouldShowBadge = { [weak self] in
-                self?.transcriptionViewModel.selectedTab != .summary
+            promptResultsViewModel.onGenerationCompleted = { [weak self] generationID, promptResultID in
+                self?.transcriptionViewModel.handleGenerationCompleted(generationID, promptResultID: promptResultID)
+            }
+            promptResultsViewModel.onDeletedPromptResult = { [weak self] promptResultID in
+                self?.transcriptionViewModel.handlePromptResultDeleted(promptResultID)
+            }
+            promptResultsViewModel.shouldMarkPromptResultUnread = { [weak self] promptResultID in
+                guard let self else { return true }
+                if case .result(let id) = self.transcriptionViewModel.selectedTab,
+                   id == promptResultID {
+                    return false
+                }
+                return true
             }
             transcriptionViewModel.onTranscribingChanged = { [weak self] isTranscribing in
                 guard let self, !(self.dictationFlowCoordinator?.isDictationActive ?? false) else { return }
@@ -465,7 +476,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         let service: LLMService? = hasConfig ? env.llmService : nil
         transcriptionViewModel.updateLLMAvailability(hasConfig, llmService: service)
         chatViewModel.updateLLMService(service)
-        summaryViewModel.updateLLMService(service)
+        promptResultsViewModel.updateLLMService(service)
     }
 
     // MARK: - Hotkey
@@ -773,7 +784,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             settingsViewModel: settingsViewModel,
             llmSettingsViewModel: llmSettingsViewModel,
             chatViewModel: chatViewModel,
-            summaryViewModel: summaryViewModel,
+            promptResultsViewModel: promptResultsViewModel,
             promptsViewModel: promptsViewModel,
             customWordsViewModel: customWordsViewModel,
             textSnippetsViewModel: textSnippetsViewModel,

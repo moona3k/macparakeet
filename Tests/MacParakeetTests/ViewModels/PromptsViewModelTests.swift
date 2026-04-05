@@ -10,7 +10,7 @@ final class PromptsViewModelTests: XCTestCase {
     override func setUp() {
         viewModel = PromptsViewModel()
         repo = MockPromptRepository()
-        repo.prompts = Prompt.builtInSummaryPrompts()
+        repo.prompts = Prompt.builtInPrompts()
         viewModel.configure(repo: repo)
     }
 
@@ -20,23 +20,37 @@ final class PromptsViewModelTests: XCTestCase {
 
         viewModel.addPrompt()
 
-        XCTAssertEqual(viewModel.prompts.count, 8)
+        XCTAssertEqual(viewModel.prompts.count, 7)
         XCTAssertEqual(viewModel.prompts.last?.name, "Standup Notes")
         XCTAssertFalse(viewModel.prompts.last?.isBuiltIn ?? true)
     }
 
     func testAddPromptRejectsDuplicateNameCaseInsensitive() {
-        viewModel.newName = "general summary"
+        viewModel.newName = "summary"
         viewModel.newContent = "Duplicate"
 
         viewModel.addPrompt()
 
-        XCTAssertEqual(viewModel.prompts.count, 7)
-        XCTAssertEqual(viewModel.errorMessage, "'general summary' already exists")
+        XCTAssertEqual(viewModel.prompts.count, 6)
+        XCTAssertEqual(viewModel.errorMessage, "'summary' already exists")
+    }
+
+    func testAddPromptValidationClearsWhenFieldsChange() {
+        viewModel.addPrompt()
+        XCTAssertEqual(viewModel.errorMessage, "Prompt name and content are required.")
+
+        viewModel.newName = "Hello"
+        XCTAssertNil(viewModel.errorMessage)
+
+        viewModel.addPrompt()
+        XCTAssertEqual(viewModel.errorMessage, "Prompt name and content are required.")
+
+        viewModel.newContent = "Prompt content"
+        XCTAssertNil(viewModel.errorMessage)
     }
 
     func testToggleVisibilityChangesPromptState() {
-        let prompt = viewModel.prompts.first { $0.name == "Meeting Notes" }!
+        let prompt = viewModel.prompts.first { $0.name == "Chapter Breakdown" }!
 
         viewModel.toggleVisibility(prompt)
 
@@ -44,7 +58,7 @@ final class PromptsViewModelTests: XCTestCase {
     }
 
     func testRestoreDefaultsShowsAllBuiltIns() {
-        let prompt = viewModel.prompts.first { $0.name == "Meeting Notes" }!
+        let prompt = viewModel.prompts.first { $0.name == "Chapter Breakdown" }!
         viewModel.toggleVisibility(prompt)
         XCTAssertFalse(viewModel.prompts.first(where: { $0.id == prompt.id })?.isVisible ?? true)
 

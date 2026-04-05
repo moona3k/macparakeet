@@ -5,8 +5,12 @@ import MacParakeetCore
 @Observable
 public final class PromptsViewModel {
     public var prompts: [Prompt] = []
-    public var newName: String = ""
-    public var newContent: String = ""
+    public var newName: String = "" {
+        didSet { resetValidationError() }
+    }
+    public var newContent: String = "" {
+        didSet { resetValidationError() }
+    }
     public var errorMessage: String?
     public var pendingDeletePrompt: Prompt?
     public var editingPrompt: Prompt?
@@ -47,7 +51,7 @@ public final class PromptsViewModel {
         let prompt = Prompt(
             name: trimmedName,
             content: trimmedContent,
-            category: .summary,
+            category: .result,
             isBuiltIn: false,
             isVisible: true,
             sortOrder: nextSortOrder
@@ -94,11 +98,19 @@ public final class PromptsViewModel {
 
     public func toggleVisibility(_ prompt: Prompt) {
         guard let repo else { return }
-        if prompt.name == Prompt.defaultSummaryPrompt.name && prompt.isBuiltIn && prompt.isVisible {
-            return
-        }
         do {
             try repo.toggleVisibility(id: prompt.id)
+            errorMessage = nil
+            loadPrompts()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    public func toggleAutoRun(_ prompt: Prompt) {
+        guard let repo else { return }
+        do {
+            try repo.toggleAutoRun(id: prompt.id)
             errorMessage = nil
             loadPrompts()
         } catch {
@@ -142,5 +154,9 @@ public final class PromptsViewModel {
 
     private func normalized(_ value: String) -> String {
         value.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func resetValidationError() {
+        errorMessage = nil
     }
 }

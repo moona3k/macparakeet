@@ -3,6 +3,20 @@ import GRDB
 @testable import MacParakeetCore
 
 final class DatabaseManagerTests: XCTestCase {
+    private let prePromptLibraryMigrationIDs = [
+        "v0.1-dictations",
+        "v0.1-transcriptions",
+        "v0.2-custom-words",
+        "v0.2-text-snippets",
+        "v0.3-transcription-source-url",
+        "v0.4-transcription-diarization-segments",
+        "v0.4-transcription-llm-content",
+        "v0.5-private-dictation",
+        "v0.5-chat-conversations",
+        "v0.5-drop-unused-fts",
+        "v0.5-transcription-video-metadata",
+        "v0.7-snippet-key-action",
+    ]
 
     func testInMemoryDatabaseCreates() throws {
         let manager = try DatabaseManager()
@@ -64,6 +78,105 @@ final class DatabaseManagerTests: XCTestCase {
             let columns = try db.columns(in: "summaries").map(\.name)
             XCTAssertTrue(columns.contains("updatedAt"), "summaries should have updatedAt column")
         }
+    }
+
+    func testPromptSummaryMigrationPreservesLegacySummaryColumn() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let dbPath = tempDir.appendingPathComponent("prompt_summary_migration_\(UUID().uuidString).db").path
+        let transcriptionID = UUID()
+        let createdAt = Date(timeIntervalSince1970: 1_712_345_678)
+        let legacySummary = "Existing migrated summary"
+
+        let seedQueue = try DatabaseQueue(path: dbPath)
+        try seedQueue.write { db in
+            try db.execute(sql: """
+                CREATE TABLE grdb_migrations (
+                    identifier TEXT NOT NULL PRIMARY KEY
+                )
+            """)
+            for migrationID in prePromptLibraryMigrationIDs {
+                try db.execute(
+                    sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)",
+                    arguments: [migrationID]
+                )
+            }
+
+            try db.execute(sql: """
+                CREATE TABLE text_snippets (
+                    id TEXT PRIMARY KEY,
+                    trigger TEXT NOT NULL,
+                    expansion TEXT NOT NULL,
+                    isEnabled INTEGER NOT NULL DEFAULT 1,
+                    useCount INTEGER NOT NULL DEFAULT 0,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    action TEXT
+                )
+            """)
+
+            try db.execute(sql: """
+                CREATE TABLE transcriptions (
+                    id TEXT PRIMARY KEY,
+                    createdAt TEXT NOT NULL,
+                    fileName TEXT NOT NULL,
+                    filePath TEXT,
+                    fileSizeBytes INTEGER,
+                    durationMs INTEGER,
+                    rawTranscript TEXT,
+                    cleanTranscript TEXT,
+                    wordTimestamps TEXT,
+                    language TEXT DEFAULT 'en',
+                    speakerCount INTEGER,
+                    speakers TEXT,
+                    status TEXT NOT NULL DEFAULT 'processing',
+                    errorMessage TEXT,
+                    exportPath TEXT,
+                    updatedAt TEXT NOT NULL,
+                    sourceURL TEXT,
+                    diarizationSegments TEXT,
+                    summary TEXT,
+                    chatMessages TEXT,
+                    thumbnailURL TEXT,
+                    channelName TEXT,
+                    videoDescription TEXT,
+                    isFavorite INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+
+            try db.execute(
+                sql: """
+                    INSERT INTO transcriptions (
+                        id, createdAt, fileName, updatedAt, summary
+                    ) VALUES (?, ?, ?, ?, ?)
+                """,
+                arguments: [transcriptionID, createdAt, "fixture.wav", createdAt, legacySummary]
+            )
+        }
+
+        let manager = try DatabaseManager(path: dbPath)
+        try manager.dbQueue.read { db in
+            let migratedSummaryCount = try Int.fetchOne(
+                db,
+                sql: "SELECT COUNT(*) FROM summaries WHERE transcriptionId = ?",
+                arguments: [transcriptionID]
+            )
+            let migratedSummaryContent = try String.fetchOne(
+                db,
+                sql: "SELECT content FROM summaries WHERE transcriptionId = ?",
+                arguments: [transcriptionID]
+            )
+            let preservedLegacySummary = try String.fetchOne(
+                db,
+                sql: "SELECT summary FROM transcriptions WHERE id = ?",
+                arguments: [transcriptionID]
+            )
+
+            XCTAssertEqual(migratedSummaryCount, 1)
+            XCTAssertEqual(migratedSummaryContent, legacySummary)
+            XCTAssertEqual(preservedLegacySummary, legacySummary)
+        }
+
+        try? FileManager.default.removeItem(atPath: dbPath)
     }
 
     func testMigrationsAreIdempotent() throws {

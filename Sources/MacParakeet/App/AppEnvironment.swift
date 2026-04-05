@@ -11,7 +11,7 @@ final class AppEnvironment {
     let snippetRepo: TextSnippetRepository
     let chatConversationRepo: ChatConversationRepository
     let promptRepo: PromptRepository
-    let summaryRepo: SummaryRepository
+    let promptResultRepo: PromptResultRepository
     let sttClient: STTClient
     let audioProcessor: AudioProcessor
     let dictationService: DictationService
@@ -45,7 +45,7 @@ final class AppEnvironment {
         snippetRepo = TextSnippetRepository(dbQueue: databaseManager.dbQueue)
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
         promptRepo = PromptRepository(dbQueue: databaseManager.dbQueue)
-        summaryRepo = SummaryRepository(dbQueue: databaseManager.dbQueue)
+        promptResultRepo = PromptResultRepository(dbQueue: databaseManager.dbQueue)
 
         // One-time cleanup on launch
         _ = try? dictationRepo.deleteEmpty()

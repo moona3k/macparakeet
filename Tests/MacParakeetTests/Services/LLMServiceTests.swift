@@ -199,7 +199,7 @@ final class LLMServiceTests: XCTestCase {
 
         XCTAssertEqual(mockClient.capturedMessages.count, 2)
         XCTAssertEqual(mockClient.capturedMessages[0].role, .system)
-        XCTAssertTrue(mockClient.capturedMessages[0].content.contains("summarizes transcripts"))
+        XCTAssertTrue(mockClient.capturedMessages[0].content.contains("Summarize this transcript"))
         XCTAssertEqual(mockClient.capturedMessages[1].role, .user)
         XCTAssertEqual(mockClient.capturedMessages[1].content, "The meeting discussed budgets.")
     }

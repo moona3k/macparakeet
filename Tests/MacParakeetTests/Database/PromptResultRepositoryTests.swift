@@ -1,13 +1,13 @@
 import XCTest
 @testable import MacParakeetCore
 
-final class SummaryRepositoryTests: XCTestCase {
-    var repo: SummaryRepository!
+final class PromptResultRepositoryTests: XCTestCase {
+    var repo: PromptResultRepository!
     var transcriptionRepo: TranscriptionRepository!
 
     override func setUp() async throws {
         let manager = try DatabaseManager()
-        repo = SummaryRepository(dbQueue: manager.dbQueue)
+        repo = PromptResultRepository(dbQueue: manager.dbQueue)
         transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
     }
 
@@ -19,15 +19,15 @@ final class SummaryRepositoryTests: XCTestCase {
 
     func testSaveAndFetchAllOrdersNewestFirst() throws {
         let transcription = try makeTranscription()
-        let older = Summary(
+        let older = PromptResult(
             transcriptionId: transcription.id,
             promptName: "General Summary",
-            promptContent: Prompt.defaultSummaryPrompt.content,
+            promptContent: Prompt.defaultPrompt.content,
             content: "Older",
             createdAt: Date(timeIntervalSince1970: 10),
             updatedAt: Date(timeIntervalSince1970: 10)
         )
-        let newer = Summary(
+        let newer = PromptResult(
             transcriptionId: transcription.id,
             promptName: "Action Items",
             promptContent: "Action items only.",
@@ -42,18 +42,18 @@ final class SummaryRepositoryTests: XCTestCase {
         XCTAssertEqual(fetched.map(\.content), ["Newer", "Older"])
     }
 
-    func testMultipleSummariesPerTranscription() throws {
+    func testMultiplePromptResultsPerTranscription() throws {
         let transcription = try makeTranscription()
         try repo.save(
-            Summary(
+            PromptResult(
                 transcriptionId: transcription.id,
                 promptName: "General Summary",
-                promptContent: Prompt.defaultSummaryPrompt.content,
+                promptContent: Prompt.defaultPrompt.content,
                 content: "One"
             )
         )
         try repo.save(
-            Summary(
+            PromptResult(
                 transcriptionId: transcription.id,
                 promptName: "Action Items",
                 promptContent: "Action items only.",
@@ -62,35 +62,35 @@ final class SummaryRepositoryTests: XCTestCase {
         )
 
         XCTAssertEqual(try repo.fetchAll(transcriptionId: transcription.id).count, 2)
-        XCTAssertTrue(try repo.hasSummaries(transcriptionId: transcription.id))
+        XCTAssertTrue(try repo.hasPromptResults(transcriptionId: transcription.id))
     }
 
-    func testDeleteSingleSummary() throws {
+    func testDeleteSinglePromptResult() throws {
         let transcription = try makeTranscription()
-        let summary = Summary(
+        let promptResult = PromptResult(
             transcriptionId: transcription.id,
             promptName: "General Summary",
-            promptContent: Prompt.defaultSummaryPrompt.content,
+            promptContent: Prompt.defaultPrompt.content,
             content: "Delete me"
         )
-        try repo.save(summary)
+        try repo.save(promptResult)
 
-        XCTAssertTrue(try repo.delete(id: summary.id))
+        XCTAssertTrue(try repo.delete(id: promptResult.id))
         XCTAssertTrue(try repo.fetchAll(transcriptionId: transcription.id).isEmpty)
     }
 
     func testDeleteAllForTranscription() throws {
         let transcription = try makeTranscription()
         try repo.save(
-            Summary(
+            PromptResult(
                 transcriptionId: transcription.id,
                 promptName: "General Summary",
-                promptContent: Prompt.defaultSummaryPrompt.content,
+                promptContent: Prompt.defaultPrompt.content,
                 content: "One"
             )
         )
         try repo.save(
-            Summary(
+            PromptResult(
                 transcriptionId: transcription.id,
                 promptName: "Action Items",
                 promptContent: "Action items only.",
@@ -100,22 +100,22 @@ final class SummaryRepositoryTests: XCTestCase {
 
         try repo.deleteAll(transcriptionId: transcription.id)
 
-        XCTAssertFalse(try repo.hasSummaries(transcriptionId: transcription.id))
+        XCTAssertFalse(try repo.hasPromptResults(transcriptionId: transcription.id))
     }
 
     func testCascadeDeleteOnTranscriptionRemoval() throws {
         let transcription = try makeTranscription()
         try repo.save(
-            Summary(
+            PromptResult(
                 transcriptionId: transcription.id,
                 promptName: "General Summary",
-                promptContent: Prompt.defaultSummaryPrompt.content,
+                promptContent: Prompt.defaultPrompt.content,
                 content: "One"
             )
         )
 
         _ = try transcriptionRepo.delete(id: transcription.id)
 
-        XCTAssertFalse(try repo.hasSummaries(transcriptionId: transcription.id))
+        XCTAssertFalse(try repo.hasPromptResults(transcriptionId: transcription.id))
     }
 }

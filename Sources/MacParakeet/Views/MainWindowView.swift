@@ -44,7 +44,7 @@ struct MainWindowView: View {
     let settingsViewModel: SettingsViewModel
     let llmSettingsViewModel: LLMSettingsViewModel
     let chatViewModel: TranscriptChatViewModel
-    let summaryViewModel: SummaryViewModel
+    let promptResultsViewModel: PromptResultsViewModel
     let promptsViewModel: PromptsViewModel
     let customWordsViewModel: CustomWordsViewModel
     let textSnippetsViewModel: TextSnippetsViewModel
@@ -88,7 +88,7 @@ struct MainWindowView: View {
                         TranscribeView(
                             viewModel: transcriptionViewModel,
                             chatViewModel: chatViewModel,
-                            summaryViewModel: summaryViewModel,
+                            promptResultsViewModel: promptResultsViewModel,
                             promptsViewModel: promptsViewModel,
                             showingProgressDetail: $state.showingProgressDetail,
                             onNavigateBack: { state.navigateBack() }

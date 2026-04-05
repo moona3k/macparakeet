@@ -6,8 +6,10 @@ public protocol PromptRepositoryProtocol: Sendable {
     func fetch(id: UUID) throws -> Prompt?
     func fetchAll() throws -> [Prompt]
     func fetchVisible(category: Prompt.Category?) throws -> [Prompt]
+    func fetchAutoRunPrompts() throws -> [Prompt]
     func delete(id: UUID) throws -> Bool
     func toggleVisibility(id: UUID) throws
+    func toggleAutoRun(id: UUID) throws
     func restoreDefaults() throws
 }
 
@@ -50,9 +52,20 @@ public final class PromptRepository: PromptRepositoryProtocol {
         }
     }
 
+    public func fetchAutoRunPrompts() throws -> [Prompt] {
+        try dbQueue.read { db in
+            try Prompt
+                .filter(Prompt.Columns.isAutoRun == true)
+                .order(Prompt.Columns.sortOrder.asc, Prompt.Columns.name.asc)
+                .fetchAll(db)
+        }
+    }
+
     public func delete(id: UUID) throws -> Bool {
         try dbQueue.write { db in
-            try Prompt.deleteOne(db, key: id)
+            guard let prompt = try Prompt.fetchOne(db, key: id) else { return false }
+            guard !prompt.isBuiltIn else { return false }
+            return try Prompt.deleteOne(db, key: id)
         }
     }
 
@@ -60,6 +73,23 @@ public final class PromptRepository: PromptRepositoryProtocol {
         try dbQueue.write { db in
             guard var prompt = try Prompt.fetchOne(db, key: id) else { return }
             prompt.isVisible.toggle()
+            if !prompt.isVisible {
+                prompt.isAutoRun = false
+            }
+            prompt.updatedAt = Date()
+            try prompt.update(db)
+        }
+    }
+
+    public func toggleAutoRun(id: UUID) throws {
+        try dbQueue.write { db in
+            guard var prompt = try Prompt.fetchOne(db, key: id) else { return }
+            
+            prompt.isAutoRun.toggle()
+            // Auto-run prompts must be visible
+            if prompt.isAutoRun {
+                prompt.isVisible = true
+            }
             prompt.updatedAt = Date()
             try prompt.update(db)
         }

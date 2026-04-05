@@ -140,7 +140,7 @@ static let pipeline = Logger(subsystem: "com.macparakeet.app", category: "pipeli
 
 ## Error Reporting
 
-For v0.1, errors are logged locally only. No telemetry or crash reporting is sent anywhere -- consistent with the local-first philosophy. Users can export logs manually via:
+Errors are always logged locally. If telemetry is enabled, anonymized error events and crash reports may also be sent to MacParakeet's self-hosted telemetry pipeline. Users can export logs manually via:
 
 ```
 Menu Bar > Help > Export Diagnostic Logs

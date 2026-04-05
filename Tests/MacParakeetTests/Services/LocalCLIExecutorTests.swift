@@ -124,6 +124,32 @@ final class LocalCLIExecutorTests: XCTestCase {
         XCTAssertTrue(output.contains("User"))
     }
 
+    func testPromptContentIsNotExposedViaEnvironmentVariables() async throws {
+        let executor = LocalCLIExecutor()
+        let config = LocalCLIConfig(
+            commandTemplate: """
+            printf 'system=%s\\n' "${MACPARAKEET_SYSTEM_PROMPT-unset}"
+            printf 'user=%s\\n' "${MACPARAKEET_USER_PROMPT-unset}"
+            printf 'full=%s\\n' "${MACPARAKEET_FULL_PROMPT-unset}"
+            printf 'stdin='
+            cat
+            """,
+            timeoutSeconds: 10
+        )
+
+        let output = try await executor.execute(
+            systemPrompt: "System secret",
+            userPrompt: "User secret",
+            config: config
+        )
+
+        XCTAssertTrue(output.contains("system=unset"))
+        XCTAssertTrue(output.contains("user=unset"))
+        XCTAssertTrue(output.contains("full=unset"))
+        XCTAssertTrue(output.contains("stdin=System secret"))
+        XCTAssertTrue(output.contains("User secret"))
+    }
+
     func testNonZeroExit() async throws {
         let executor = LocalCLIExecutor()
 
@@ -318,19 +344,22 @@ final class LocalCLIExecutorTests: XCTestCase {
         }
     }
 
-    func testEnvironmentVariablesSet() async throws {
+    func testPromptEnvironmentVariablesAreNotSet() async throws {
         let executor = LocalCLIExecutor()
 
-        // Print env vars to verify they're set
+        // Print env vars to verify prompt content is not propagated via process env.
         let config = LocalCLIConfig(
-            commandTemplate: "echo \"sys:$MACPARAKEET_SYSTEM_PROMPT usr:$MACPARAKEET_USER_PROMPT\"",
+            commandTemplate: """
+            echo "sys:${MACPARAKEET_SYSTEM_PROMPT-unset} usr:${MACPARAKEET_USER_PROMPT-unset} full:${MACPARAKEET_FULL_PROMPT-unset}"
+            """,
             timeoutSeconds: 10
         )
         let output = try await executor.execute(
             systemPrompt: "SysPrompt", userPrompt: "UsrPrompt", config: config
         )
-        XCTAssertTrue(output.contains("sys:SysPrompt"))
-        XCTAssertTrue(output.contains("usr:UsrPrompt"))
+        XCTAssertTrue(output.contains("sys:unset"))
+        XCTAssertTrue(output.contains("usr:unset"))
+        XCTAssertTrue(output.contains("full:unset"))
     }
 
     func testDiscoverPATHDrainsChattyStdoutBeforeWaitingForExit() {

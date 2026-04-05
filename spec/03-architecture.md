@@ -46,13 +46,16 @@
 │  │                               │                                           │  │
 │  │  ┌──────────────┐  ┌────────▼──────────────────────────────────────────┐ │  │
 │  │  │ExportService │  │               Data Layer                          │ │  │
-│  │  │(TXT)         │  │  Models: Dictation, Transcription,               │ │  │
-│  │  └──────────────┘  │          CustomWord, TextSnippet                  │ │  │
-│  │                     │  Repos:  DictationRepository,                     │ │  │
-│  │                     │          TranscriptionRepository,                 │ │  │
-│  │                     │          CustomWordRepository,                    │ │  │
-│  │                     │          TextSnippetRepository                    │ │  │
-│  │                     │  DB:     GRDB (SQLite, single file)              │ │  │
+│  │  │(TXT)         │  │  Models: Dictation, Transcription, Prompt,       │ │  │
+│  │  └──────────────┘  │          Summary, ChatConversation,              │ │  │
+│  │                     │          CustomWord, TextSnippet                 │ │  │
+│  │                     │  Repos:  DictationRepository,                    │ │  │
+│  │                     │          TranscriptionRepository,                │ │  │
+│  │                     │          PromptRepository, SummaryRepository,    │ │  │
+│  │                     │          ChatConversationRepository,             │ │  │
+│  │                     │          CustomWordRepository,                   │ │  │
+│  │                     │          TextSnippetRepository                   │ │  │
+│  │                     │  DB:     GRDB (SQLite, single file)             │ │  │
 │  │                     └──────────────────────────────────────────────────┘ │  │
 │  └────────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                  │
@@ -80,7 +83,7 @@
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**All AI runs on-device.** No network, no API keys, no cloud costs. Privacy is the brand.
+**Core STT runs on-device.** Optional LLM features use configured providers or Local CLI tools, and telemetry/crash reporting are opt-out. The app supports a fully local setup, but it is not network-free in every configuration.
 
 ---
 
@@ -932,10 +935,10 @@ Dictation ready
 
 ### Privacy Guarantees
 
-1. **No cloud processing** — User content is processed locally. Network is only used for one-time model downloads, optional license activation/validation, and user-initiated YouTube downloads.
+1. **No cloud STT** — Speech recognition stays local. Network is used only for explicit surfaces such as model downloads, update checks, optional LLM providers, optional telemetry/crash reporting, licensing, and user-initiated YouTube downloads.
 2. **Temp files cleaned** — Audio files in `$TMPDIR` deleted immediately after transcription
 3. **No accounts** — No login, no email, no user tracking
-4. **No analytics** — Zero telemetry. Not even crash reporting (unless user opts in)
+4. **Telemetry is opt-out** — Self-hosted usage analytics and crash reporting run only while telemetry is enabled
 5. **Audio storage is opt-in** — Dictation audio only saved if user enables "Keep audio" in settings
 6. **Local AI only** — All ML inference happens on-device: STT on the ANE via CoreML
 

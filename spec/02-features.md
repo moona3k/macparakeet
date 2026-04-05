@@ -74,6 +74,18 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
+│  v0.7 - "Processing Layer"                                       │
+│  "Prompt library, multi-summary, custom instructions"            │
+├─────────────────────────────────────────────────────────────────┤
+│  • Prompt Library (community + custom, CRUD, visibility)         │
+│  • Multiple summaries per transcript (tab-based navigation)      │
+│  • Extra instructions field layered on selected prompt           │
+│  • Queued summary generation (single-worker pipeline)            │
+│  • Prompt management sheet                                       │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
 │  Future - "Platform"                                             │
 ├─────────────────────────────────────────────────────────────────┤
 │  • iOS companion                                                 │
@@ -1451,27 +1463,64 @@ Embedded video/audio playback, split-pane detail view, synced transcript highlig
 
 ---
 
+## v0.7 — Processing Layer (Implemented On Current Branch)
+
+Prompt library and multi-summary system. Users control how AI processes transcripts via reusable prompts. See [spec/12-processing-layer.md](12-processing-layer.md) and [ADR-013](adr/013-prompt-library-multi-summary.md).
+
+### F28: Prompt Library
+
+> Status: **IMPLEMENTED ON CURRENT BRANCH**
+
+**What:** Reusable prompt templates stored in SQLite. Community prompts ship with the app and can be hidden but not edited or deleted. Users can create, edit, and delete custom prompts.
+
+**Acceptance criteria:**
+- [x] Built-in/community prompts available on first launch from built-in seed
+- [x] Built-in/community prompts can be hidden but not edited or deleted
+- [x] Prompt cards can be marked auto-run independently of sort order
+- [x] Zero auto-run prompt cards is a supported configuration
+- [x] Custom prompts can be created, edited, and deleted via management sheet
+- [x] Prompt management accessible from the generation popover
+- [x] Auto-run prompt cards stay visible while auto-run is enabled
+
+### F29: Multi-Summary
+
+> Status: **IMPLEMENTED ON CURRENT BRANCH**
+
+**What:** Multiple summaries per transcript, each from a different prompt. Summaries are tab-based, with pending generations appearing immediately.
+
+**Acceptance criteria:**
+- [x] User can select a prompt from the generation popover
+- [x] Generating a summary creates a new summary record (does not overwrite)
+- [x] Multiple summaries displayed as tabs, pending generations appear immediately
+- [x] User can add extra instructions layered on top of selected prompt
+- [x] Queued summary pipeline (single-worker, sequential execution)
+- [x] Auto-run after transcription uses every prompt card marked auto-run
+- [x] If zero prompt cards are marked auto-run, transcription still completes normally and prompt tabs can be added manually
+- [x] Existing transcriptions with summaries display migrated data correctly
+
+---
+
 ## Future Features (Post-Launch)
 
-### F28: iOS Companion App
+### F30: iOS Companion App
 Share transcripts between Mac and iPhone. Capture in-person conversations on iPhone.
 
-### F29: Translation
+### F31: Translation
 Translate transcribed text to other languages. Implementation approach TBD (local model or API).
 
-### F30: API / Shortcuts Integration
+### F32: API / Shortcuts Integration
 Expose transcription as a macOS Shortcut action. Enable automation: "When I receive a voice memo, transcribe it."
 
-### F31: Team Vocabulary Sharing
+### F33: Team Vocabulary Sharing
 Export/import custom word lists and snippet packs. Share domain-specific vocabulary with team members.
 
-### F32: Vibe Coding Integrations
+### F34: Vibe Coding Integrations
 Deep integration with code editors:
 - **Cursor / VS Code:** Dictate code with context-aware formatting
 - **Xcode:** Swift-specific dictation mode
 - **Terminal:** Voice commands for git, build, test
 
-### F33: Context Awareness
+### F35: Context Awareness
 Read surrounding text from the active app via macOS Accessibility APIs (AXUIElement) to produce better transcriptions. Knows "React" in a code editor, "react" in a therapy note. All processing local -- no screen content ever leaves device.
 
 ---
@@ -1497,19 +1546,19 @@ MacParakeet's brand is privacy. These are non-negotiable.
 
 | Requirement | Detail |
 |-------------|--------|
-| No network by default | App works fully offline after one-time model setup unless optional license activation/validation is enabled |
-| No analytics | Zero telemetry, no crash reporting to servers |
-| No telemetry | No usage tracking, no feature analytics |
+| Core offline operation | Dictation and file transcription work fully offline after one-time model setup |
+| Opt-out telemetry | Self-hosted usage analytics and crash reporting can be disabled in Settings |
 | No accounts | No email, no login, no registration |
-| No cloud processing | All STT runs locally on Apple Silicon |
+| No cloud STT | All speech recognition runs locally on Apple Silicon |
 | User-controlled storage | Audio saved by default, user can disable or delete |
-| Network only for setup/licensing + YouTube | One-time model downloads during onboarding, optional license activation/validation, and YouTube download |
+| Explicit network surfaces | Model download, update checks, optional LLM providers, optional telemetry/crash reporting, licensing flows, and YouTube download |
 
-**What "100% local" means:**
+**What "supports a fully local setup" means:**
 - Parakeet STT runs on Apple Silicon Neural Engine (ANE) via FluidAudio CoreML -- no cloud API
 - Audio never leaves the device
-- Transcripts never leave the device
-- No "phone home" on launch, no update checks to our servers (App Store handles updates)
+- Transcripts stay local unless the user explicitly enables external AI features
+- Users can remain fully local by sticking to offline/core features and local providers such as Ollama
+- Network access is limited to explicit product surfaces such as updates, telemetry, licensing, and media download
 
 ---
 

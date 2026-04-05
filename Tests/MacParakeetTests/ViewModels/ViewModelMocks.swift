@@ -412,7 +412,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var lastChatHistory: [ChatMessage]?
     var lastSummarySystemPrompt: String?
 
-    func summarize(transcript: String, systemPrompt: String?) async throws -> String {
+    func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         summarizeCallCount += 1
         lastSummarySystemPrompt = systemPrompt
         if let error = errorToThrow { throw error }
@@ -430,7 +430,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         return "Mock transform"
     }
 
-    func summarizeStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
+    func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         summarizeCallCount += 1
         lastSummarySystemPrompt = systemPrompt
         let tokens = streamTokens
@@ -531,6 +531,10 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
         }
     }
 
+    func fetchAutoRunPrompts() throws -> [Prompt] {
+        prompts.filter(\.isAutoRun)
+    }
+
     func delete(id: UUID) throws -> Bool {
         let before = prompts.count
         prompts.removeAll { $0.id == id }
@@ -540,6 +544,18 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
     func toggleVisibility(id: UUID) throws {
         guard let index = prompts.firstIndex(where: { $0.id == id }) else { return }
         prompts[index].isVisible.toggle()
+        if !prompts[index].isVisible {
+            prompts[index].isAutoRun = false
+        }
+        prompts[index].updatedAt = Date()
+    }
+
+    func toggleAutoRun(id: UUID) throws {
+        guard let index = prompts.firstIndex(where: { $0.id == id }) else { return }
+        prompts[index].isAutoRun.toggle()
+        if prompts[index].isAutoRun {
+            prompts[index].isVisible = true
+        }
         prompts[index].updatedAt = Date()
     }
 
@@ -551,41 +567,50 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
     }
 }
 
-// MARK: - MockSummaryRepository
+// MARK: - MockPromptResultRepository
 
-final class MockSummaryRepository: SummaryRepositoryProtocol, @unchecked Sendable {
-    var summaries: [Summary] = []
-    var saveCalls: [Summary] = []
+final class MockPromptResultRepository: PromptResultRepositoryProtocol, @unchecked Sendable {
+    var promptResults: [PromptResult] = []
+    var saveCalls: [PromptResult] = []
+    var replaceCalls: [(promptResult: PromptResult, deletingExistingID: UUID?)] = []
     var deleteCalls: [UUID] = []
 
-    func save(_ summary: Summary) throws {
-        saveCalls.append(summary)
-        if let index = summaries.firstIndex(where: { $0.id == summary.id }) {
-            summaries[index] = summary
+    func save(_ promptResult: PromptResult) throws {
+        saveCalls.append(promptResult)
+        if let index = promptResults.firstIndex(where: { $0.id == promptResult.id }) {
+            promptResults[index] = promptResult
         } else {
-            summaries.append(summary)
+            promptResults.append(promptResult)
         }
     }
 
-    func fetchAll(transcriptionId: UUID) throws -> [Summary] {
-        summaries
+    func replace(_ promptResult: PromptResult, deletingExistingID: UUID?) throws {
+        replaceCalls.append((promptResult: promptResult, deletingExistingID: deletingExistingID))
+        try save(promptResult)
+        if let deletingExistingID {
+            _ = try delete(id: deletingExistingID)
+        }
+    }
+
+    func fetchAll(transcriptionId: UUID) throws -> [PromptResult] {
+        promptResults
             .filter { $0.transcriptionId == transcriptionId }
             .sorted { $0.createdAt > $1.createdAt }
     }
 
     func delete(id: UUID) throws -> Bool {
         deleteCalls.append(id)
-        let before = summaries.count
-        summaries.removeAll { $0.id == id }
-        return summaries.count < before
+        let before = promptResults.count
+        promptResults.removeAll { $0.id == id }
+        return promptResults.count < before
     }
 
     func deleteAll(transcriptionId: UUID) throws {
-        summaries.removeAll { $0.transcriptionId == transcriptionId }
+        promptResults.removeAll { $0.transcriptionId == transcriptionId }
     }
 
-    func hasSummaries(transcriptionId: UUID) throws -> Bool {
-        summaries.contains { $0.transcriptionId == transcriptionId }
+    func hasPromptResults(transcriptionId: UUID) throws -> Bool {
+        promptResults.contains { $0.transcriptionId == transcriptionId }
     }
 }
 

@@ -6,7 +6,7 @@ import MacParakeetViewModels
 struct TranscribeView: View {
     @Bindable var viewModel: TranscriptionViewModel
     var chatViewModel: TranscriptChatViewModel
-    @Bindable var summaryViewModel: SummaryViewModel
+    @Bindable var promptResultsViewModel: PromptResultsViewModel
     @Bindable var promptsViewModel: PromptsViewModel
     @Binding var showingProgressDetail: Bool
     var onNavigateBack: (() -> Void)?
@@ -53,7 +53,7 @@ struct TranscribeView: View {
                         transcription: transcription,
                         viewModel: viewModel,
                         chatViewModel: chatViewModel,
-                        summaryViewModel: summaryViewModel,
+                        promptResultsViewModel: promptResultsViewModel,
                         promptsViewModel: promptsViewModel,
                         onBack: {
                             viewModel.currentTranscription = nil

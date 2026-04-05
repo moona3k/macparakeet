@@ -20,9 +20,10 @@ public final class TranscriptionViewModel {
         case finalizing
     }
 
-    public enum TranscriptTab: String, CaseIterable, Sendable {
+    public enum TranscriptTab: Hashable, Sendable {
         case transcript
-        case summary
+        case result(id: UUID)
+        case generation(id: UUID)
         case chat
     }
 
@@ -36,7 +37,7 @@ public final class TranscriptionViewModel {
     public var transcriptions: [Transcription] = []
     public var currentTranscription: Transcription? {
         didSet {
-            refreshSummaryStatus()
+            refreshPromptResultStatus()
             if currentTranscription == nil {
                 hasConversations = false
             }
@@ -54,13 +55,7 @@ public final class TranscriptionViewModel {
     public private(set) var transcribingFileName: String = ""
     public var isDragging = false
     public var urlInput: String = ""
-    public var hasSummaries: Bool = false {
-        didSet {
-            if !hasSummaries && selectedTab == .summary && !llmAvailable {
-                selectedTab = .transcript
-            }
-        }
-    }
+    public var hasPromptResultTabs: Bool = false
 
     // LLM state
     public var llmAvailable: Bool = false
@@ -76,20 +71,30 @@ public final class TranscriptionViewModel {
 
     public var showTabs: Bool {
         llmAvailable
-            || hasSummaries
+            || hasPromptResultTabs
             || hasConversations
+    }
+
+    public func handlePromptResultDeleted(_ deletedID: UUID) {
+        guard case .result(let selectedID) = selectedTab, selectedID == deletedID else { return }
+        selectedTab = .transcript
+    }
+
+    public func handleGenerationCompleted(_ generationID: UUID, promptResultID: UUID) {
+        guard case .generation(let selectedID) = selectedTab, selectedID == generationID else { return }
+        selectedTab = .result(id: promptResultID)
     }
 
     private var transcriptionService: TranscriptionServiceProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
-    private var summaryRepo: SummaryRepositoryProtocol?
+    private var promptResultRepo: PromptResultRepositoryProtocol?
     private var transcriptionTask: Task<Void, Never>?
     private var activeTranscriptionTaskID: UUID?
     private var activeDropRequestID: UUID?
     private var dropPendingCount = 0
     private var dropAccepted = false
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionViewModel")
-    public var summaryViewModel: SummaryViewModel?
+    public var promptResultsViewModel: PromptResultsViewModel?
 
     public init() {}
 
@@ -98,15 +103,15 @@ public final class TranscriptionViewModel {
         transcriptionRepo: TranscriptionRepositoryProtocol,
         llmService: LLMServiceProtocol? = nil,
         configStore: LLMConfigStoreProtocol? = nil,
-        summaryRepo: SummaryRepositoryProtocol? = nil,
-        summaryViewModel: SummaryViewModel? = nil,
+        promptResultRepo: PromptResultRepositoryProtocol? = nil,
+        promptResultsViewModel: PromptResultsViewModel? = nil,
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
     ) {
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
         self.llmAvailable = llmService != nil
-        self.summaryRepo = summaryRepo
-        self.summaryViewModel = summaryViewModel
+        self.promptResultRepo = promptResultRepo
+        self.promptResultsViewModel = promptResultsViewModel
         loadTranscriptions()
     }
 
@@ -324,7 +329,7 @@ public final class TranscriptionViewModel {
         currentTranscription = result
         loadTranscriptions()
         let text = result.cleanTranscript ?? result.rawTranscript ?? ""
-        summaryViewModel?.autoSummarize(transcript: text, transcriptionId: result.id)
+        promptResultsViewModel?.autoGeneratePromptResults(transcript: text, transcriptionId: result.id)
         autoSaveIfEnabled(result)
     }
 
@@ -449,7 +454,7 @@ public final class TranscriptionViewModel {
            let fresh = try? transcriptionRepo?.fetch(id: id) {
             currentTranscription = fresh
         }
-        refreshSummaryStatus()
+        refreshPromptResultStatus()
     }
 
     public func updateConversationStatus(id: UUID, hasConversations: Bool) {
@@ -484,17 +489,17 @@ public final class TranscriptionViewModel {
         }
     }
 
-    private func refreshSummaryStatus() {
+    private func refreshPromptResultStatus() {
         guard let transcriptionID = currentTranscription?.id else {
-            hasSummaries = false
+            hasPromptResultTabs = false
             return
         }
 
         do {
-            hasSummaries = try summaryRepo?.hasSummaries(transcriptionId: transcriptionID) ?? false
+            hasPromptResultTabs = try promptResultRepo?.hasPromptResults(transcriptionId: transcriptionID) ?? false
         } catch {
-            logger.error("Failed to query summaries error=\(error.localizedDescription, privacy: .public)")
-            hasSummaries = false
+            logger.error("Failed to query prompt results error=\(error.localizedDescription, privacy: .public)")
+            hasPromptResultTabs = false
         }
     }
 }

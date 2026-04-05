@@ -5,7 +5,7 @@
 <h1 align="center">MacParakeet</h1>
 
 <p align="center">
-  Fast, local-first voice app for Mac. Free and open-source.
+  Fast voice app for Mac with fully local speech and optional AI. Free and open-source.
 </p>
 
 <p align="center">
@@ -24,7 +24,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="GPL-3.0 License"></a>
   <img src="https://img.shields.io/badge/macOS-14.2%2B-000000.svg" alt="macOS 14.2+">
   <img src="https://img.shields.io/badge/Swift-6.0-F05138.svg" alt="Swift 6">
-  <img src="https://img.shields.io/badge/tests-1126%20passing-brightgreen.svg" alt="1126 tests passing">
+  <img src="https://img.shields.io/badge/tests-passing-brightgreen.svg" alt="Tests passing">
   <img src="https://img.shields.io/badge/Apple%20Silicon-only-333333.svg" alt="Apple Silicon only">
 </p>
 
@@ -52,7 +52,7 @@ MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio]
 
 **Text cleanup** — Filler word removal, custom word replacements, text snippets with triggers. Deterministic pipeline, no LLM needed.
 
-**AI features** — Optional transcript summaries and chat. Use your existing Claude Code or Codex subscription, or connect any provider (OpenAI, Anthropic, Ollama, OpenRouter) with your own API key. Entirely opt-in.
+**AI features** — Optional transcript summaries and chat. The current branch ships a prompt library with 7 built-in summary prompts plus custom prompts, multi-summary tabs, and queued summary generation. Use Claude Code or Codex via Local CLI, or connect OpenAI, Anthropic, Google Gemini, Ollama, or OpenRouter. Entirely opt-in, with a fully local setup available when you stay on local providers/features.
 
 ### Performance
 
@@ -78,7 +78,7 @@ First launch downloads the speech model (~6 GB). After that, dictation and trans
 ```bash
 git clone https://github.com/moona3k/macparakeet.git
 cd macparakeet
-swift test                # 1126 tests
+swift test
 scripts/dev/run_app.sh    # build, sign, launch
 ```
 
@@ -109,10 +109,10 @@ All speech recognition runs on the Neural Engine. Your audio never leaves your M
 
 - **No cloud STT.** The model runs on-device. No audio is transmitted.
 - **No accounts.** No login, no email, no registration.
-- **Anonymous telemetry.** Non-identifying usage analytics, opt-out in Settings. No persistent IDs, no IP storage, no content transmitted. [Source code is right here](Sources/MacParakeetCore/Services/TelemetryService.swift) — verify it yourself.
+- **Opt-out telemetry.** Non-identifying usage analytics and crash reporting go to a self-hosted endpoint only when telemetry is enabled. No persistent IDs, no IP storage, and no transcript/audio content is transmitted. [Source code is right here](Sources/MacParakeetCore/Services/TelemetryService.swift) — verify it yourself.
 - **Temp files cleaned up.** Audio deleted after transcription unless you save it.
 
-**What does use the network:** AI summaries and chat connect to LLM providers — either via CLI tools (Claude Code, Codex) or your own API keys. YouTube transcription downloads video via yt-dlp. Telemetry pings our server unless you opt out. Core dictation and transcription are fully offline.
+**What does use the network:** AI summaries and chat connect to configured LLM providers or CLI tools when you choose them. Sparkle checks for app updates. YouTube transcription downloads video via yt-dlp. Telemetry and crash reports go to our self-hosted server unless you opt out. Core dictation and transcription remain fully offline, and the app supports a 100% local setup when you use only local features/providers.
 
 **Note:** Builds from source also send telemetry by default. Opt out in Settings or set `MACPARAKEET_TELEMETRY_URL` to override.
 

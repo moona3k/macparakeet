@@ -219,8 +219,6 @@ public final class LocalCLIExecutor: Sendable {
 
         return try await runProcess(
             commandTemplate: config.commandTemplate,
-            systemPrompt: systemPrompt,
-            userPrompt: userPrompt,
             fullPrompt: fullPrompt,
             timeout: config.timeoutSeconds
         )
@@ -290,8 +288,6 @@ public final class LocalCLIExecutor: Sendable {
 
     private func runProcess(
         commandTemplate: String,
-        systemPrompt: String,
-        userPrompt: String,
         fullPrompt: String,
         timeout: Double
     ) async throws -> String {
@@ -309,12 +305,6 @@ public final class LocalCLIExecutor: Sendable {
 
                     var environment = ProcessInfo.processInfo.environment
                     environment["PATH"] = preferredPATH(fallback: environment["PATH"])
-                    // Env vars are capped to avoid hitting macOS exec arg+env size limits
-                    // (~256KB). Full prompt content is always available via stdin.
-                    let envLimit = 32_000
-                    environment["MACPARAKEET_SYSTEM_PROMPT"] = String(systemPrompt.prefix(envLimit))
-                    environment["MACPARAKEET_USER_PROMPT"] = String(userPrompt.prefix(envLimit))
-                    environment["MACPARAKEET_FULL_PROMPT"] = String(fullPrompt.prefix(envLimit))
 
                     let inputPipe = Pipe()
                     let outputPipe = Pipe()

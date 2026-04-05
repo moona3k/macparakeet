@@ -12,8 +12,8 @@ This spec defines how MacParakeet integrates LLM-powered features via external p
 ## Goals
 
 1. Deliver transcript summarization, chat, and custom transforms via user-configured LLM providers.
-2. Support cloud APIs (Claude, GPT, Gemini), local runtimes (Ollama, LM Studio), and CLI tools (Claude Code, Codex) through one protocol.
-3. Keep transcription 100% local — only transcript text is sent to LLM providers, never audio.
+2. Support cloud APIs (Anthropic, OpenAI, Gemini, OpenRouter), local runtimes (Ollama), and CLI tools (Claude Code, Codex) through one shared service layer.
+3. Keep core speech processing local and preserve a fully local setup when users stick to local providers/features — only transcript text is sent to LLM providers, never audio.
 4. LLM features are optional — the app is fully functional without any provider configured.
 
 ## Non-Goals
@@ -27,42 +27,36 @@ This spec defines how MacParakeet integrates LLM-powered features via external p
 
 ## Architecture
 
-```
+```text
 User triggers LLM action (Summary / Chat / Transform)
     → LLMService (builds prompt with transcript context)
     → LLMExecutionContextResolver (resolves provider config + CLI config)
     → RoutingLLMClient
         → .localCLI: LocalCLILLMClient → LocalCLIExecutor (posix_spawn)
-        → .other:    LLMClient (URLSession, POST /v1/chat/completions)
+        → .other:    LLMClient (URLSession)
+            → .anthropic: POST /v1/messages
+            → .ollama:    POST /api/chat
+            → .openai/.gemini/.openrouter: POST /chat/completions
     → Response streamed back to UI
 ```
 
 ### Provider Protocol
 
-All providers use the OpenAI-compatible chat completions API:
+The current branch does not flatten every provider into one wire protocol. `RoutingLLMClient` shares one high-level interface, but transport branches by provider:
 
-```
-POST {baseURL}/chat/completions
-Content-Type: application/json
-Authorization: Bearer {apiKey}
+- **Anthropic** uses the native Messages API (`POST /v1/messages`).
+- **Ollama** uses the native chat API (`POST /api/chat`) so thinking can be disabled.
+- **OpenAI, Gemini, and OpenRouter** use the OpenAI-compatible chat completions API (`POST /chat/completions` off each provider's configured base URL).
+- **Local CLI** is not HTTP at all; prompts are passed to a subprocess via stdin/environment.
 
-{
-  "model": "{modelName}",
-  "messages": [
-    {"role": "system", "content": "..."},
-    {"role": "user", "content": "..."}
-  ],
-  "stream": true
-}
+Streaming is provider-specific under the hood:
 
-SSE format: data: {"choices": [{"delta": {"content": "token"}}]}
-Terminator: data: [DONE]
+- Anthropic streams event frames from the Messages API.
+- OpenAI-compatible providers stream SSE `data:` lines.
+- Ollama streams NDJSON chat chunks.
+- Local CLI yields stdout incrementally.
 
-Parser must handle: empty delta objects, role-only frames,
-finish_reason frames, and blank data: lines between events.
-```
-
-One protocol, one SSE parser, one code path. If Anthropic-specific features (prompt caching, extended thinking) are needed later, the client can branch on `config.id == .anthropic` internally with zero API change for consumers.
+The service boundary stays stable even though the transport is mixed.
 
 ### Supported Providers
 
@@ -72,8 +66,7 @@ One protocol, one SSE parser, one code path. If Anthropic-specific features (pro
 | OpenAI | Cloud | `https://api.openai.com/v1` | `Authorization: Bearer` |
 | Google Gemini | Cloud | `https://generativelanguage.googleapis.com/v1beta/openai` | `Authorization: Bearer` |
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
-| LM Studio | Local | `http://localhost:1234/v1` | Optional `Authorization: Bearer` |
-| Custom | Either | User-provided | Optional |
+| OpenRouter | Cloud | `https://openrouter.ai/api/v1` | `Authorization: Bearer` |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 
 **Local CLI:** Users with Claude Code or Codex subscriptions can use their CLI tools directly. The app runs the configured command as a subprocess via `posix_spawn`, delivering prompts via stdin and `MACPARAKEET_*` environment variables. No API key needed — the CLI tool manages its own authentication. Built-in presets for Claude Code (`claude -p --model haiku`) and Codex (`codex exec --model gpt-5.4-mini`), or any custom command. See PR #47.
@@ -90,16 +83,15 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
     public let baseURL: URL
     public let apiKey: String?         // nil for local providers; client injects Bearer ollama for Ollama
     public let modelName: String       // e.g. "claude-sonnet-4-20250514", "llama3.2"
-    public let isLocal: Bool           // true for Ollama/LM Studio/local custom
+    public let isLocal: Bool           // true for Ollama on the current branch
 }
 
 public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case anthropic
     case openai
     case gemini
+    case openrouter
     case ollama
-    case lmstudio
-    case custom
     case localCLI    // CLI tools (claude -p, codex exec) — no HTTP, no API key
 }
 ```
@@ -113,19 +105,22 @@ public protocol LLMClientProtocol: Sendable {
     /// Single response
     func chatCompletion(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) async throws -> ChatCompletionResponse
 
     /// Streaming response
     func chatCompletionStream(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error>
 
     /// Verify provider is reachable and auth is valid
-    func testConnection(config: LLMProviderConfig) async throws
+    func testConnection(context: LLMExecutionContext) async throws
+
+    /// Fetch available models when supported by the provider
+    func listModels(context: LLMExecutionContext) async throws -> [String]
 }
 
 public struct ChatMessage: Codable, Sendable {
@@ -159,7 +154,7 @@ public struct TokenUsage: Sendable {
 ```swift
 public protocol LLMServiceProtocol: Sendable {
     /// Generate a summary of a transcript
-    func summarize(transcript: String) async throws -> String
+    func summarize(transcript: String, systemPrompt: String?) async throws -> String
 
     /// Chat about a transcript (maintains conversation context)
     func chat(
@@ -172,7 +167,7 @@ public protocol LLMServiceProtocol: Sendable {
     func transform(text: String, prompt: String) async throws -> String
 
     /// Streaming variants
-    func summarizeStream(transcript: String) -> AsyncThrowingStream<String, Error>
+    func summarizeStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
     func chatStream(
         question: String,
         transcript: String,
@@ -246,6 +241,8 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 
 ### 3. Custom Transforms
 
+> Historical note: the dedicated custom-transform concept below was the original design. The current branch routes this behavior through the Prompt Library in [spec/12-processing-layer.md](12-processing-layer.md) rather than a separate Settings-managed transform list.
+
 **Trigger:** Context menu or toolbar action on selected text (transcript view or dictation history).
 
 **Built-in transforms (not user-editable, shipped with app):**
@@ -270,6 +267,8 @@ Respond with only the transformed text. Do not add explanations or preamble.
 
 ## UI
 
+> Historical note: the transcript chat surface is current, but the dedicated Custom Transforms settings sketch below predates the Prompt Library implementation in [spec/12-processing-layer.md](12-processing-layer.md).
+
 ### Settings > Intelligence
 
 ```
@@ -287,8 +286,7 @@ Respond with only the transformed text. Do not add explanations or preamble.
 │  │   AI features send transcript text to   │ │
 │  │   your chosen provider.                 │ │
 │  │                                         │ │
-│  │   For fully local AI, use Ollama or     │ │
-│  │   LM Studio.                            │ │
+│  │   For fully local AI, use Ollama.       │ │
 │  └─────────────────────────────────────────┘ │
 │                                              │
 │  Custom Transforms                           │
@@ -349,6 +347,8 @@ Respond with only the transformed text. Do not add explanations or preamble.
 
 ## Data Model Changes
 
+> Historical note: this section predates the Prompt Library in [spec/12-processing-layer.md](12-processing-layer.md). The `summary` column shipped, but prompt persistence now lives in the prompt/summary model described in spec/12 rather than a standalone custom-transform store.
+
 ### Transcription table (existing, add column)
 
 ```sql
@@ -366,7 +366,7 @@ struct CustomTransform: Codable, Identifiable {
 }
 ```
 
-Custom transforms are stored in UserDefaults (not the database) because they're preferences, not user data. Built-in transforms are hardcoded and not editable.
+Custom transforms were the original plan. The current branch instead routes summary/transform prompting through the Prompt Library architecture in [spec/12-processing-layer.md](12-processing-layer.md).
 
 ---
 
@@ -394,7 +394,7 @@ macparakeet-cli llm test-connection --provider cli --command "claude -p --model 
 macparakeet-cli llm summarize transcript.txt --provider cli --command "claude -p --model haiku"
 ```
 
-Additional options: `--model`, `--base-url`, `--local`, `--stream`, `--command` (Local CLI only). Use `-` as input to read from stdin.
+Additional options: `--model`, `--base-url`, `--stream`, `--command` (Local CLI only). Use `-` as input to read from stdin.
 
 CLI LLM commands use ephemeral inline config (not shared with GUI UserDefaults/Keychain).
 
@@ -419,7 +419,7 @@ CLI LLM commands use ephemeral inline config (not shared with GUI UserDefaults/K
 ### What We Skip
 
 - Actual LLM output quality (depends on external model, not our code).
-- Ollama/LM Studio installation or model management.
+- Ollama installation or model management.
 - Cloud provider uptime or rate limits.
 
 ---
@@ -429,9 +429,9 @@ CLI LLM commands use ephemeral inline config (not shared with GUI UserDefaults/K
 1. User can configure any supported provider in Settings.
 2. API keys are stored in Keychain, never in plain text.
 3. "Test Connection" button verifies provider reachability and auth.
-4. Summary button produces a streamed summary for any transcript.
+4. Summary, chat, and transform actions route through `LLMService` and stream results in the current UI/CLI surfaces.
 5. Chat panel supports multi-turn conversation with transcript context.
-6. Custom transforms can be created, edited, and deleted.
+6. Prompt-driven transforms remain supported through `LLMService`, with Prompt Library details defined in [spec/12-processing-layer.md](12-processing-layer.md).
 7. All LLM features are unavailable (greyed out with explanation) when no provider is configured.
 8. Transcription continues to work fully offline regardless of LLM configuration.
 9. Privacy notice in Settings clearly explains what data is sent where.

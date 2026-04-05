@@ -1,7 +1,7 @@
 import Foundation
 import GRDB
 
-public struct Summary: Codable, Identifiable, Sendable {
+public struct PromptResult: Codable, Identifiable, Sendable {
     public var id: UUID
     public var transcriptionId: UUID
     public var promptName: String
@@ -32,7 +32,7 @@ public struct Summary: Codable, Identifiable, Sendable {
     }
 }
 
-extension Summary: FetchableRecord, PersistableRecord {
+extension PromptResult: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "summaries"
 
     public enum Columns: String, ColumnExpression {

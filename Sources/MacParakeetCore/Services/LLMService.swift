@@ -3,22 +3,38 @@ import Foundation
 // MARK: - Protocol
 
 public protocol LLMServiceProtocol: Sendable {
-    func summarize(transcript: String, systemPrompt: String?) async throws -> String
+    func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String
     func chat(question: String, transcript: String, history: [ChatMessage]) async throws -> String
     func transform(text: String, prompt: String) async throws -> String
 
-    func summarizeStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
+    func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
     func chatStream(question: String, transcript: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error>
     func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error>
 }
 
 public extension LLMServiceProtocol {
+    func generatePromptResult(transcript: String) async throws -> String {
+        try await generatePromptResult(transcript: transcript, systemPrompt: nil)
+    }
+
+    func generatePromptResultStream(transcript: String) -> AsyncThrowingStream<String, Error> {
+        generatePromptResultStream(transcript: transcript, systemPrompt: nil)
+    }
+
     func summarize(transcript: String) async throws -> String {
-        try await summarize(transcript: transcript, systemPrompt: nil)
+        try await generatePromptResult(transcript: transcript, systemPrompt: nil)
+    }
+
+    func summarize(transcript: String, systemPrompt: String?) async throws -> String {
+        try await generatePromptResult(transcript: transcript, systemPrompt: systemPrompt)
     }
 
     func summarizeStream(transcript: String) -> AsyncThrowingStream<String, Error> {
-        summarizeStream(transcript: transcript, systemPrompt: nil)
+        generatePromptResultStream(transcript: transcript, systemPrompt: nil)
+    }
+
+    func summarizeStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
+        generatePromptResultStream(transcript: transcript, systemPrompt: systemPrompt)
     }
 }
 
@@ -56,7 +72,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     // MARK: - Sync Variants
 
-    public func summarize(transcript: String, systemPrompt: String?) async throws -> String {
+    public func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         let context = try loadContext()
         let config = context.providerConfig
         let truncated = Self.truncateMiddle(transcript, limit: contextBudget(for: config))
@@ -66,12 +82,12 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         ]
         do {
             let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
-            Telemetry.send(.llmSummaryUsed(provider: config.id.rawValue))
+            Telemetry.send(.llmPromptResultUsed(provider: config.id.rawValue))
             return response.content
         } catch {
             if !(error is CancellationError) {
                 // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
-                Telemetry.send(.llmSummaryFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+                Telemetry.send(.llmPromptResultFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
             }
             throw error
         }
@@ -108,7 +124,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     // MARK: - Streaming Variants
 
-    public func summarizeStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
+    public func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 var provider = "unknown"
@@ -125,12 +141,12 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     for try await token in stream {
                         continuation.yield(token)
                     }
-                    Telemetry.send(.llmSummaryUsed(provider: config.id.rawValue))
+                    Telemetry.send(.llmPromptResultUsed(provider: config.id.rawValue))
                     continuation.finish()
                 } catch {
                     if !(error is CancellationError) {
                         // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
-                        Telemetry.send(.llmSummaryFailed(
+                        Telemetry.send(.llmPromptResultFailed(
                             provider: provider,
                             errorType: Self.errorType(for: error)
                         ))
@@ -301,9 +317,9 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     private enum Prompts {
         static let summary = """
-            You are a helpful assistant that summarizes transcripts. Provide a clear, \
-            concise summary that captures the key points, decisions, and action items. \
-            Use bullet points for clarity. Keep the summary under 500 words.
+            Summarize this transcript clearly and concisely. Capture the key points, \
+            decisions, and action items. Use bullet points for clarity. Keep it under \
+            500 words.
             """
 
         static let chat = """

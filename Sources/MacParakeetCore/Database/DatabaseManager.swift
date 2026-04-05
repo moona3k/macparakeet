@@ -266,6 +266,7 @@ public final class DatabaseManager: Sendable {
                 t.column("category", .text).notNull().defaults(to: "summary")
                 t.column("isBuiltIn", .boolean).notNull().defaults(to: false)
                 t.column("isVisible", .boolean).notNull().defaults(to: true)
+                t.column("isAutoRun", .boolean).notNull().defaults(to: false)
                 t.column("sortOrder", .integer).notNull().defaults(to: 0)
                 t.column("createdAt", .text).notNull()
                 t.column("updatedAt", .text).notNull()
@@ -275,7 +276,7 @@ public final class DatabaseManager: Sendable {
             """)
 
             let now = Date()
-            for prompt in Prompt.builtInSummaryPrompts(now: now) {
+            for prompt in Prompt.builtInPrompts(now: now) {
                 try prompt.insert(db)
             }
 
@@ -312,20 +313,142 @@ public final class DatabaseManager: Sendable {
                 }
 
                 let createdAt = Date.fromDatabaseValue(row["createdAt"] as DatabaseValue) ?? now
-                let migratedSummary = Summary(
+                let migratedSummary = PromptResult(
                     transcriptionId: transcriptionId,
-                    promptName: Prompt.defaultSummaryPrompt.name,
-                    promptContent: Prompt.defaultSummaryPrompt.content,
+                    promptName: Prompt.defaultPrompt.name,
+                    promptContent: Prompt.defaultPrompt.content,
                     content: summaryText,
                     createdAt: createdAt,
                     updatedAt: createdAt
                 )
                 try migratedSummary.insert(db)
             }
+        }
 
-            try db.execute(sql: "UPDATE transcriptions SET summary = NULL WHERE summary IS NOT NULL")
+        // v0.7.1 - Safely add isDefault for users who already ran v0.7 (from older commit)
+        migrator.registerMigration("v0.7.1-prompt-default") { db in
+            let columns = try db.columns(in: "prompts")
+            // Only add isDefault if neither isDefault nor isAutoRun exists
+            if !columns.contains(where: { $0.name == "isDefault" }) && !columns.contains(where: { $0.name == "isAutoRun" }) {
+                try db.alter(table: "prompts") { t in
+                    t.add(column: "isDefault", .boolean).notNull().defaults(to: false)
+                }
+                try db.execute(sql: """
+                    UPDATE prompts SET isDefault = 1 WHERE name = 'General Summary' AND isBuiltIn = 1
+                """)
+            }
+        }
+
+        // v0.7.2 - Rename isDefault to isAutoRun for multi-auto-run support
+        migrator.registerMigration("v0.7.2-prompt-autorun") { db in
+            let columns = try db.columns(in: "prompts")
+            if columns.contains(where: { $0.name == "isDefault" }) && !columns.contains(where: { $0.name == "isAutoRun" }) {
+                try db.alter(table: "prompts") { t in
+                    t.rename(column: "isDefault", to: "isAutoRun")
+                }
+            } else if !columns.contains(where: { $0.name == "isAutoRun" }) {
+                try db.alter(table: "prompts") { t in
+                    t.add(column: "isAutoRun", .boolean).notNull().defaults(to: false)
+                }
+                try db.execute(sql: """
+                    UPDATE prompts SET isAutoRun = 1 WHERE name = 'General Summary' AND isBuiltIn = 1
+                """)
+            }
+        }
+
+        // v0.7.3 - Ensure all Auto-Run prompts are visible (fixes trapped toggles)
+        migrator.registerMigration("v0.7.3-prompt-autorun-visibility") { db in
+            try db.execute(sql: "UPDATE prompts SET isVisible = 1 WHERE isAutoRun = 1")
         }
 
         try migrator.migrate(dbQueue)
+        try reconcileBuiltInPrompts()
+    }
+
+    private func reconcileBuiltInPrompts() throws {
+        let builtInPrompts = Prompt.builtInPrompts(now: Date())
+        let canonicalIDs = builtInPrompts.map { $0.id }
+        
+        try dbQueue.write { db in
+            for prompt in builtInPrompts {
+                if let existing = try Prompt.fetchOne(db, key: prompt.id) {
+                    try db.execute(
+                        sql: """
+                            UPDATE prompts
+                            SET name = ?, content = ?, category = ?, isBuiltIn = 1, sortOrder = ?, updatedAt = ?
+                            WHERE id = ?
+                            """,
+                        arguments: [
+                            prompt.name,
+                            prompt.content,
+                            prompt.category.rawValue,
+                            prompt.sortOrder,
+                            prompt.updatedAt,
+                            existing.id,
+                        ]
+                    )
+                    continue
+                }
+
+                if let legacyPromptID = try String.fetchOne(
+                    db,
+                    sql: """
+                        SELECT id
+                        FROM prompts
+                        WHERE name = ? COLLATE NOCASE
+                          AND isBuiltIn = 1
+                        LIMIT 1
+                        """,
+                    arguments: [prompt.name]
+                ) {
+                    try db.execute(
+                        sql: """
+                            UPDATE prompts
+                            SET id = ?, name = ?, content = ?, category = ?, isBuiltIn = 1, sortOrder = ?, updatedAt = ?
+                            WHERE id = ?
+                            """,
+                        arguments: [
+                            prompt.id,
+                            prompt.name,
+                            prompt.content,
+                            prompt.category.rawValue,
+                            prompt.sortOrder,
+                            prompt.updatedAt,
+                            legacyPromptID,
+                        ]
+                    )
+                    continue
+                }
+
+                // A custom prompt already owns this name. Preserve the user's prompt and
+                // skip re-inserting the built-in because names are globally unique today.
+                let hasCustomPromptWithSameName = try Bool.fetchOne(
+                    db,
+                    sql: """
+                        SELECT EXISTS(
+                            SELECT 1
+                            FROM prompts
+                            WHERE name = ? COLLATE NOCASE
+                              AND isBuiltIn = 0
+                        )
+                        """,
+                    arguments: [prompt.name]
+                ) ?? false
+                if hasCustomPromptWithSameName {
+                    continue
+                }
+
+                try prompt.insert(db)
+            }
+
+            // Delete any built-in prompts that are no longer in the canonical list
+            try db.execute(
+                sql: """
+                    DELETE FROM prompts
+                    WHERE isBuiltIn = 1 AND id NOT IN (\(canonicalIDs.map { _ in "?" }.joined(separator: ",")))
+                    """,
+                arguments: StatementArguments(canonicalIDs)
+            )
+        }
     }
 }

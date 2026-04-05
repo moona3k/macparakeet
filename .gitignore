@@ -71,3 +71,6 @@ coverage/
 .wrangler/
 output/
 tmp/
+
+# Data recovery
+recup_dir*/
