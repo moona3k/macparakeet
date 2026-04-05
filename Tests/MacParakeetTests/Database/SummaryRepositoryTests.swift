@@ -22,7 +22,7 @@ final class SummaryRepositoryTests: XCTestCase {
         let older = Summary(
             transcriptionId: transcription.id,
             promptName: "General Summary",
-            promptContent: Prompt.defaultSummaryPrompt.content,
+            promptContent: Prompt.defaultPrompt.content,
             content: "Older",
             createdAt: Date(timeIntervalSince1970: 10),
             updatedAt: Date(timeIntervalSince1970: 10)
@@ -48,7 +48,7 @@ final class SummaryRepositoryTests: XCTestCase {
             Summary(
                 transcriptionId: transcription.id,
                 promptName: "General Summary",
-                promptContent: Prompt.defaultSummaryPrompt.content,
+                promptContent: Prompt.defaultPrompt.content,
                 content: "One"
             )
         )
@@ -70,7 +70,7 @@ final class SummaryRepositoryTests: XCTestCase {
         let summary = Summary(
             transcriptionId: transcription.id,
             promptName: "General Summary",
-            promptContent: Prompt.defaultSummaryPrompt.content,
+            promptContent: Prompt.defaultPrompt.content,
             content: "Delete me"
         )
         try repo.save(summary)
@@ -85,7 +85,7 @@ final class SummaryRepositoryTests: XCTestCase {
             Summary(
                 transcriptionId: transcription.id,
                 promptName: "General Summary",
-                promptContent: Prompt.defaultSummaryPrompt.content,
+                promptContent: Prompt.defaultPrompt.content,
                 content: "One"
             )
         )
@@ -109,7 +109,7 @@ final class SummaryRepositoryTests: XCTestCase {
             Summary(
                 transcriptionId: transcription.id,
                 promptName: "General Summary",
-                promptContent: Prompt.defaultSummaryPrompt.content,
+                promptContent: Prompt.defaultPrompt.content,
                 content: "One"
             )
         )

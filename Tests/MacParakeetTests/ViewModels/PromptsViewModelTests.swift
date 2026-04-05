@@ -10,7 +10,7 @@ final class PromptsViewModelTests: XCTestCase {
     override func setUp() {
         viewModel = PromptsViewModel()
         repo = MockPromptRepository()
-        repo.prompts = Prompt.builtInSummaryPrompts()
+        repo.prompts = Prompt.builtInPrompts()
         viewModel.configure(repo: repo)
     }
 

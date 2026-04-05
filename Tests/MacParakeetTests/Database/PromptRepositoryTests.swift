@@ -58,10 +58,10 @@ final class PromptRepositoryTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: dbURL) }
 
         let expectedMeetingNotes = try XCTUnwrap(
-            Prompt.builtInSummaryPrompts().first(where: { $0.name == "Meeting Notes" })
+            Prompt.builtInPrompts().first(where: { $0.name == "Meeting Notes" })
         )
         let expectedExecutiveBrief = try XCTUnwrap(
-            Prompt.builtInSummaryPrompts().first(where: { $0.name == "Executive Brief" })
+            Prompt.builtInPrompts().first(where: { $0.name == "Executive Brief" })
         )
 
         do {
@@ -94,7 +94,7 @@ final class PromptRepositoryTests: XCTestCase {
         XCTAssertEqual(meetingNotes.id, expectedMeetingNotes.id)
         XCTAssertEqual(meetingNotes.content, expectedMeetingNotes.content)
         XCTAssertFalse(meetingNotes.isVisible)
-        XCTAssertEqual(prompts.count, Prompt.builtInSummaryPrompts().count)
+        XCTAssertEqual(prompts.count, Prompt.builtInPrompts().count)
         XCTAssertEqual(
             prompts.first(where: { $0.name == "Executive Brief" })?.id,
             expectedExecutiveBrief.id

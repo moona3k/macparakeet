@@ -98,7 +98,7 @@ public final class PromptsViewModel {
 
     public func toggleVisibility(_ prompt: Prompt) {
         guard let repo else { return }
-        if prompt.name == Prompt.defaultSummaryPrompt.name && prompt.isBuiltIn && prompt.isVisible {
+        if prompt.name == Prompt.defaultPrompt.name && prompt.isBuiltIn && prompt.isVisible {
             return
         }
         do {

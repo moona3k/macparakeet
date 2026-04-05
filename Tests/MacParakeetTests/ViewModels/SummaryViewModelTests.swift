@@ -16,7 +16,7 @@ final class SummaryViewModelTests: XCTestCase {
         promptRepo = MockPromptRepository()
         summaryRepo = MockSummaryRepository()
         transcriptionRepo = MockTranscriptionRepository()
-        promptRepo.prompts = Prompt.builtInSummaryPrompts()
+        promptRepo.prompts = Prompt.builtInPrompts()
     }
 
     func testConfigureLoadsVisiblePromptsAndDefaultSelection() {
@@ -204,7 +204,7 @@ final class SummaryViewModelTests: XCTestCase {
         let existing = Summary(
             transcriptionId: transcriptionID,
             promptName: "General Summary",
-            promptContent: Prompt.defaultSummaryPrompt.content,
+            promptContent: Prompt.defaultPrompt.content,
             extraInstructions: "Focus on decisions.",
             content: "Old summary",
             createdAt: Date(timeIntervalSince1970: 10),
@@ -218,7 +218,7 @@ final class SummaryViewModelTests: XCTestCase {
             transcriptionRepo: transcriptionRepo
         )
         viewModel.loadSummaries(transcriptionId: transcriptionID)
-        viewModel.selectedPrompt = Prompt.defaultSummaryPrompt
+        viewModel.selectedPrompt = Prompt.defaultPrompt
         viewModel.extraInstructions = "Focus on risks."
         llm.streamTokens = ["New ", "summary"]
 
@@ -243,7 +243,7 @@ final class SummaryViewModelTests: XCTestCase {
         let existing = Summary(
             transcriptionId: transcriptionID,
             promptName: "General Summary",
-            promptContent: Prompt.defaultSummaryPrompt.content,
+            promptContent: Prompt.defaultPrompt.content,
             content: "Old summary",
             createdAt: Date(timeIntervalSince1970: 10),
             updatedAt: Date(timeIntervalSince1970: 10)
@@ -287,7 +287,7 @@ final class SummaryViewModelTests: XCTestCase {
         let existing = Summary(
             transcriptionId: transcriptionID,
             promptName: "General Summary",
-            promptContent: Prompt.defaultSummaryPrompt.content,
+            promptContent: Prompt.defaultPrompt.content,
             content: "Old summary",
             createdAt: Date(timeIntervalSince1970: 10),
             updatedAt: Date(timeIntervalSince1970: 10)
@@ -324,7 +324,7 @@ final class SummaryViewModelTests: XCTestCase {
             Summary(
                 transcriptionId: transcriptionA,
                 promptName: "General Summary",
-                promptContent: Prompt.defaultSummaryPrompt.content,
+                promptContent: Prompt.defaultPrompt.content,
                 content: "A1",
                 createdAt: Date(timeIntervalSince1970: 10),
                 updatedAt: Date(timeIntervalSince1970: 10)
@@ -332,7 +332,7 @@ final class SummaryViewModelTests: XCTestCase {
             Summary(
                 transcriptionId: transcriptionB,
                 promptName: "General Summary",
-                promptContent: Prompt.defaultSummaryPrompt.content,
+                promptContent: Prompt.defaultPrompt.content,
                 content: "B1",
                 createdAt: Date(timeIntervalSince1970: 20),
                 updatedAt: Date(timeIntervalSince1970: 20)
@@ -358,7 +358,7 @@ final class SummaryViewModelTests: XCTestCase {
         let summary = Summary(
             transcriptionId: transcriptionID,
             promptName: "General Summary",
-            promptContent: Prompt.defaultSummaryPrompt.content,
+            promptContent: Prompt.defaultPrompt.content,
             content: "Delete me"
         )
         summaryRepo.summaries = [summary]
@@ -395,7 +395,7 @@ final class SummaryViewModelTests: XCTestCase {
 
         try await Task.sleep(for: .milliseconds(200))
 
-        XCTAssertEqual(llm.lastSummarySystemPrompt, Prompt.defaultSummaryPrompt.content)
+        XCTAssertEqual(llm.lastSummarySystemPrompt, Prompt.defaultPrompt.content)
         XCTAssertEqual(summaryRepo.saveCalls.count, 1)
         XCTAssertEqual(transcriptionRepo.updateSummaryCalls.last?.summary, "Auto")
     }
@@ -457,7 +457,7 @@ final class SummaryViewModelTests: XCTestCase {
         llm.streamTokens = ["First ", "summary"]
         llm.streamDelayNs = 200_000_000
 
-        viewModel.selectedPrompt = Prompt.defaultSummaryPrompt
+        viewModel.selectedPrompt = Prompt.defaultPrompt
         _ = viewModel.generateSummary(transcript: "Transcript", transcriptionId: transcriptionA)
         viewModel.selectedPrompt = queuedPrompt
         let queuedGenerationID = viewModel.generateSummary(transcript: "Transcript", transcriptionId: transcriptionA)

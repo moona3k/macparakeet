@@ -189,7 +189,7 @@ public final class SummaryViewModel {
                let refreshed = visiblePrompts.first(where: { $0.id == selectedPrompt.id }) {
                 self.selectedPrompt = refreshed
             } else {
-                self.selectedPrompt = visiblePrompts.first(where: { $0.name == Prompt.defaultSummaryPrompt.name })
+                self.selectedPrompt = visiblePrompts.first(where: { $0.name == Prompt.defaultPrompt.name })
                     ?? visiblePrompts.first
             }
             errorMessage = nil
@@ -252,7 +252,7 @@ public final class SummaryViewModel {
 
     @discardableResult
     public func generateSummary(transcript: String, transcriptionId: UUID) -> UUID? {
-        let prompt = selectedPrompt ?? Prompt.defaultSummaryPrompt
+        let prompt = selectedPrompt ?? Prompt.defaultPrompt
         return enqueueGeneration(
             transcript: transcript,
             transcriptionId: transcriptionId,
@@ -284,7 +284,7 @@ public final class SummaryViewModel {
         return enqueueGeneration(
             transcript: transcript,
             transcriptionId: transcriptionId,
-            prompt: Prompt.defaultSummaryPrompt,
+            prompt: Prompt.defaultPrompt,
             extraInstructions: nil
         )
     }

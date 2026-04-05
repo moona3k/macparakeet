@@ -275,7 +275,7 @@ public final class DatabaseManager: Sendable {
             """)
 
             let now = Date()
-            for prompt in Prompt.builtInSummaryPrompts(now: now) {
+            for prompt in Prompt.builtInPrompts(now: now) {
                 try prompt.insert(db)
             }
 
@@ -314,8 +314,8 @@ public final class DatabaseManager: Sendable {
                 let createdAt = Date.fromDatabaseValue(row["createdAt"] as DatabaseValue) ?? now
                 let migratedSummary = Summary(
                     transcriptionId: transcriptionId,
-                    promptName: Prompt.defaultSummaryPrompt.name,
-                    promptContent: Prompt.defaultSummaryPrompt.content,
+                    promptName: Prompt.defaultPrompt.name,
+                    promptContent: Prompt.defaultPrompt.content,
                     content: summaryText,
                     createdAt: createdAt,
                     updatedAt: createdAt
@@ -329,7 +329,7 @@ public final class DatabaseManager: Sendable {
     }
 
     private func reconcileBuiltInPrompts() throws {
-        let builtInPrompts = Prompt.builtInSummaryPrompts(now: Date())
+        let builtInPrompts = Prompt.builtInPrompts(now: Date())
         let canonicalIDs = builtInPrompts.map { $0.id }
         
         try dbQueue.write { db in

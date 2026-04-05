@@ -689,7 +689,7 @@ final class TranscriptionViewModelTests: XCTestCase {
             Summary(
                 transcriptionId: transcription.id,
                 promptName: "Concise Summary",
-                promptContent: Prompt.defaultSummaryPrompt.content,
+                promptContent: Prompt.defaultPrompt.content,
                 content: "A summary"
             )
         ]
@@ -756,7 +756,7 @@ final class TranscriptionViewModelTests: XCTestCase {
             Summary(
                 transcriptionId: t.id,
                 promptName: "Concise Summary",
-                promptContent: Prompt.defaultSummaryPrompt.content,
+                promptContent: Prompt.defaultPrompt.content,
                 content: "Migrated summary"
             )
         ]
