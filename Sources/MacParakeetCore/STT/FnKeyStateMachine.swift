@@ -30,7 +30,7 @@ public final class FnKeyStateMachine {
     public static let defaultTapThresholdMs: Int = 400
     public static let minimumTapThresholdMs: Int = 50
     public static let maximumTapThresholdMs: Int = 500
-    public static let defaultStartupDebounceMs: Int = 150
+    public static let defaultStartupDebounceMs: Int = 100
 
     /// Cancel window duration (5 seconds)
     public static let cancelWindowMs: Int = 5000
