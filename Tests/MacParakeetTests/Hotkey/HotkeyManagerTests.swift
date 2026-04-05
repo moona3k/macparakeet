@@ -136,8 +136,7 @@ final class HotkeyManagerTests: XCTestCase {
             timestampMs: 1_050
         )
 
-        // Should produce triggerReleased outputs (showReadyForSecondTap for tap gesture)
-        XCTAssertFalse(outputs.isEmpty, "Releasing the trigger should produce outputs")
+        XCTAssertEqual(outputs, [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap])
     }
 
     func testSideSpecificOtherKeyInterruptsWhileHeld() {

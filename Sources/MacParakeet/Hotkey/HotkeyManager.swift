@@ -468,6 +468,11 @@ public final class HotkeyManager {
     public func resetToIdle() {
         cancelStartupTimer()
         cancelHoldTimer()
+        targetModifierWasPressed = false
+        targetModifierGestureIsActive = false
+        triggerKeyIsPressed = false
+        chordModifierReleased = false
+        bareTap = true
         gestureController.reset()
     }
 
