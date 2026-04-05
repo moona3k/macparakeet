@@ -698,7 +698,7 @@ struct TranscriptResultView: View {
         for summary in summaryViewModel.summaries.reversed() {
             tabs.append(.summary(id: summary.id))
         }
-        for generation in summaryViewModel.pendingGenerations {
+        for generation in summaryViewModel.pendingGenerations(for: transcription.id) {
             tabs.append(.generation(id: generation.id))
         }
         tabs.append(.chat)
@@ -719,7 +719,10 @@ struct TranscriptResultView: View {
                 Spacer()
             }
         }
-        .scrollClipDisabled()
+        .mask(
+            Rectangle()
+                .padding(.vertical, -20)
+        )
     }
 
     private func tabCapsule(for tab: TranscriptionViewModel.TranscriptTab) -> some View {
@@ -1089,7 +1092,7 @@ struct TranscriptResultView: View {
                 .buttonStyle(.borderedProminent)
                 .controlSize(.regular)
                 .keyboardShortcut(.return, modifiers: .command)
-                .disabled(!summaryViewModel.canGenerateSummary || transcriptText.isEmpty)
+                .disabled(!summaryViewModel.canGenerateManualSummary || transcriptText.isEmpty)
             }
         }
     }
@@ -1100,7 +1103,10 @@ struct TranscriptResultView: View {
             ForEach(prompts) { prompt in
                 let isSelected = summaryViewModel.selectedPrompt?.id == prompt.id
                 let hasExisting = summaryViewModel.summaries.contains { $0.promptName == prompt.name }
-                    || summaryViewModel.pendingGenerations.contains { $0.promptName == prompt.name }
+                    || summaryViewModel.hasPendingGeneration(
+                        promptName: prompt.name,
+                        transcriptionId: transcription.id
+                    )
 
                 HStack(spacing: 5) {
                     Text(prompt.name)
