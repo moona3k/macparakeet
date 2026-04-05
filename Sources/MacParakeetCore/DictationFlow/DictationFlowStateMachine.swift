@@ -57,6 +57,7 @@ public enum DictationFlowEvent: Equatable, Sendable {
     case startRequested(mode: FnKeyStateMachine.RecordingMode)
     case stopRequested
     case cancelRequested(reason: DictationFlowCancelReason)
+    case discardRequested(showReadyPill: Bool)
     case undoRequested
     case dismissRequested
 
@@ -109,6 +110,7 @@ public enum DictationFlowEffect: Equatable, Sendable {
     case startRecording(mode: FnKeyStateMachine.RecordingMode)
     case stopRecordingAndTranscribe
     case cancelRecording(reason: DictationFlowCancelReason)
+    case discardRecording
     case confirmCancel
     case undoCancelAndTranscribe
 
@@ -212,6 +214,16 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             state = .idle
             return [.cancelRecordingTask, .hideOverlay, .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill]
 
+        case (.checkingEntitlements, .discardRequested(let showReadyPill)):
+            state = showReadyPill ? .ready : .idle
+            var effects: [DictationFlowEffect] = [.cancelRecordingTask]
+            if showReadyPill {
+                effects += [.showReadyPill, .startReadyDismissTimer]
+            } else {
+                effects += [.showIdlePill]
+            }
+            return effects
+
         case (.checkingEntitlements, .dismissRequested):
             state = .idle
             return [.cancelAllTimers, .cancelRecordingTask, .hideOverlay, .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill]
@@ -231,6 +243,16 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
         case (.startingService(let mode), .stopRequested):
             state = .pendingStop(mode: mode)
             return []
+
+        case (.startingService, .discardRequested(let showReadyPill)):
+            state = showReadyPill ? .ready : .idle
+            var effects: [DictationFlowEffect] = [.cancelRecordingTask, .discardRecording, .updateMenuBar(.idle)]
+            if showReadyPill {
+                effects += [.showReadyPill, .startReadyDismissTimer]
+            } else {
+                effects += [.hideOverlay, .showIdlePill]
+            }
+            return effects
 
         case (.startingService, .cancelRequested(let reason)):
             state = .idle
@@ -256,6 +278,19 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
                 .cancelRecordingTask, .stopRecordingAndTranscribe,
                 .showProcessingState, .updateMenuBar(.processing),
             ]
+
+        case (.recording, .discardRequested(let showReadyPill)):
+            state = showReadyPill ? .ready : .idle
+            var effects: [DictationFlowEffect] = [
+                .cancelRecordingTask, .discardRecording,
+                .updateMenuBar(.idle),
+            ]
+            if showReadyPill {
+                effects += [.showReadyPill, .startReadyDismissTimer]
+            } else {
+                effects += [.hideOverlay, .showIdlePill]
+            }
+            return effects
 
         case (.recording, .cancelRequested(let reason)):
             state = .cancelCountdown

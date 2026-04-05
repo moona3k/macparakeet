@@ -8,6 +8,7 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     public var captureError: Error?
     private var _audioLevel: Float = 0.0
     private var _isRecording = false
+    private var startCaptureDelayMs: UInt64 = 0
     public var startCaptureCalled = false
     public var stopCaptureCalled = false
     public var convertCallCount = 0
@@ -31,6 +32,10 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
 
     public func configureCaptureError(_ error: Error) {
         self.captureError = error
+    }
+
+    public func configureStartCaptureDelay(milliseconds: UInt64) {
+        self.startCaptureDelayMs = milliseconds
     }
 
     public func setAudioLevel(_ level: Float) {
@@ -58,6 +63,9 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
 
     public func startCapture() async throws {
         startCaptureCalled = true
+        if startCaptureDelayMs > 0 {
+            try await Task.sleep(for: .milliseconds(Int(startCaptureDelayMs)))
+        }
         if let error = captureError { throw error }
         _isRecording = true
     }

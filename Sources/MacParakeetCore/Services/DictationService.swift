@@ -63,6 +63,7 @@ public actor DictationService: DictationServiceProtocol {
     private var pendingCancelledAudioURL: URL?
     private var currentTelemetryContext = DictationTelemetryContext()
     private var recordingStartedAt: Date?
+    private var activeSessionID: Int = 0
 
     public var state: DictationState {
         _state
@@ -100,6 +101,13 @@ public actor DictationService: DictationServiceProtocol {
     }
 
     public func startRecording(context: DictationTelemetryContext = DictationTelemetryContext()) async throws {
+        try await startRecording(context: context, sessionID: nil)
+    }
+
+    public func startRecording(
+        context: DictationTelemetryContext = DictationTelemetryContext(),
+        sessionID: Int?
+    ) async throws {
         logger.debug("startRecording requested state=\(self.debugStateLabel(self._state), privacy: .public)")
         if let entitlements {
             try await entitlements.assertCanTranscribe(now: Date())
@@ -117,42 +125,66 @@ public actor DictationService: DictationServiceProtocol {
         cancelResetTask?.cancel()
         cancelResetTask = nil
 
+        let requestedSessionID = sessionID ?? activeSessionID + 1
+        activeSessionID = requestedSessionID
         _state = .recording
         do {
             try await audioProcessor.startCapture()
             // Guard against reentrancy: cancel may have run during the await above
             guard case .recording = _state else {
-                let _ = try? await audioProcessor.stopCapture()
+                if await audioProcessor.isRecording,
+                   let audioURL = try? await audioProcessor.stopCapture() {
+                    try? FileManager.default.removeItem(at: audioURL)
+                }
                 recordingStartedAt = nil
+                logger.notice(
+                    "startRecording aborted session=\(requestedSessionID) state=\(self.debugStateLabel(self._state), privacy: .public)"
+                )
                 return
             }
             currentTelemetryContext = context
             recordingStartedAt = Date()
             Telemetry.send(.dictationStarted(trigger: context.trigger, mode: context.mode))
-            logger.debug("startRecording capture started")
+            logger.debug("startRecording capture started session=\(requestedSessionID)")
         } catch {
             let device = await audioProcessor.recordingDeviceInfo
             _state = .idle
             recordingStartedAt = nil
             Telemetry.send(.dictationFailed(errorType: Self.errorType(for: error), errorDetail: TelemetryErrorClassifier.errorDetail(error), device: device))
-            logger.error("startRecording failed error=\(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "startRecording failed session=\(requestedSessionID) error=\(error.localizedDescription, privacy: .public)"
+            )
             throw error
         }
     }
 
     public func stopRecording() async throws -> DictationResult {
+        try await stopRecording(sessionID: nil)
+    }
+
+    public func stopRecording(sessionID: Int?) async throws -> DictationResult {
+        if let sessionID, sessionID != activeSessionID {
+            logger.notice(
+                "stopRecording ignored stale session requested=\(sessionID) active=\(self.activeSessionID)"
+            )
+            throw DictationServiceError.notRecording
+        }
         guard case .recording = _state else {
-            logger.warning("stopRecording rejected state=\(self.debugStateLabel(self._state), privacy: .public)")
+            logger.warning(
+                "stopRecording rejected session=\(sessionID ?? self.activeSessionID) state=\(self.debugStateLabel(self._state), privacy: .public)"
+            )
             throw DictationServiceError.notRecording
         }
 
         _state = .processing
-        logger.debug("stopRecording processing begin")
+        logger.debug("stopRecording processing begin session=\(sessionID ?? self.activeSessionID)")
 
         do {
             let audioURL = try await audioProcessor.stopCapture()
             let device = await audioProcessor.recordingDeviceInfo
-            logger.debug("stopRecording capture stopped url=\(audioURL.path, privacy: .public)")
+            logger.debug(
+                "stopRecording capture stopped session=\(sessionID ?? self.activeSessionID) url=\(audioURL.path, privacy: .public)"
+            )
             let result = try await processCapturedAudio(audioURL: audioURL)
             _state = .success(result.dictation)
             Telemetry.send(.dictationCompleted(
@@ -161,7 +193,9 @@ public actor DictationService: DictationServiceProtocol {
                 mode: currentTelemetryContext.mode,
                 device: device
             ))
-            logger.debug("stopRecording success rawChars=\(result.dictation.rawTranscript.count) cleanChars=\(result.dictation.cleanTranscript?.count ?? 0)")
+            logger.debug(
+                "stopRecording success session=\(sessionID ?? self.activeSessionID) rawChars=\(result.dictation.rawTranscript.count) cleanChars=\(result.dictation.cleanTranscript?.count ?? 0)"
+            )
             try? await Task.sleep(for: .milliseconds(500))
             _state = .idle
             recordingStartedAt = nil
@@ -177,12 +211,27 @@ public actor DictationService: DictationServiceProtocol {
                 Telemetry.send(.dictationFailed(errorType: Self.errorType(for: error), errorDetail: TelemetryErrorClassifier.errorDetail(error), device: device))
             }
             recordingStartedAt = nil
-            logger.error("stopRecording failed error=\(error.localizedDescription, privacy: .public)")
+            logger.error(
+                "stopRecording failed session=\(sessionID ?? self.activeSessionID) error=\(error.localizedDescription, privacy: .public)"
+            )
             throw error
         }
     }
 
     public func cancelRecording(reason: TelemetryDictationCancelReason? = nil) async {
+        await cancelRecording(reason: reason, sessionID: nil)
+    }
+
+    public func cancelRecording(
+        reason: TelemetryDictationCancelReason? = nil,
+        sessionID: Int?
+    ) async {
+        if let sessionID, sessionID != activeSessionID {
+            logger.notice(
+                "cancelRecording ignored stale session requested=\(sessionID) active=\(self.activeSessionID)"
+            )
+            return
+        }
         guard case .recording = _state else { return }
 
         cancelGeneration += 1
@@ -206,6 +255,16 @@ public actor DictationService: DictationServiceProtocol {
     }
 
     public func confirmCancel() async {
+        await confirmCancel(sessionID: nil)
+    }
+
+    public func confirmCancel(sessionID: Int?) async {
+        if let sessionID, sessionID != activeSessionID {
+            logger.notice(
+                "confirmCancel ignored stale session requested=\(sessionID) active=\(self.activeSessionID)"
+            )
+            return
+        }
         cancelGeneration += 1
         cancelResetTask?.cancel()
         cancelResetTask = nil
