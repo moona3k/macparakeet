@@ -50,7 +50,7 @@ struct TranscriptResultView: View {
     @State private var autoScrollPaused = false
     @State private var scrollPauseTask: Task<Void, Never>?
     @State private var scrollMonitor: Any?
-    @State private var showSummaryPrompts = false
+    @State private var showPromptLibrary = false
     @State private var showGeneratePopover = false
     @FocusState private var chatInputFocused: Bool
     @FocusState private var speakerRenameFocused: Bool
@@ -123,11 +123,11 @@ struct TranscriptResultView: View {
             }
             scrollPauseTask?.cancel()
         }
-        .sheet(isPresented: $showSummaryPrompts, onDismiss: {
+        .sheet(isPresented: $showPromptLibrary, onDismiss: {
             promptsViewModel.loadPrompts()
             summaryViewModel.loadVisiblePrompts()
         }) {
-            SummaryPromptsView(viewModel: promptsViewModel)
+            PromptLibraryView(viewModel: promptsViewModel)
         }
         .alert(
             "Delete Summary?",
@@ -838,12 +838,23 @@ struct TranscriptResultView: View {
         case .transcript:
             return "Transcript"
         case .summary(let id):
-            return summaryViewModel.summaries.first(where: { $0.id == id })?.promptName ?? "Summary"
+            guard let summary = summaryViewModel.summaries.first(where: { $0.id == id }) else { return "Summary" }
+            return label(for: summary.promptName, extraInstructions: summary.extraInstructions)
         case .generation(let id):
-            return summaryViewModel.pendingGeneration(id: id)?.promptName ?? "Summary"
+            guard let gen = summaryViewModel.pendingGeneration(id: id) else { return "Summary" }
+            return label(for: gen.promptName, extraInstructions: gen.extraInstructions)
         case .chat:
             return "Chat"
         }
+    }
+
+    private func label(for promptName: String, extraInstructions: String?) -> String {
+        guard let extra = extraInstructions?.trimmingCharacters(in: .whitespacesAndNewlines), !extra.isEmpty else {
+            return promptName
+        }
+        let limit = 16
+        let truncated = extra.count > limit ? String(extra.prefix(limit)) + "..." : extra
+        return "\(promptName) + \"\(truncated)\""
     }
 
     // MARK: - Summary Panes
@@ -1025,7 +1036,7 @@ struct TranscriptResultView: View {
             HStack {
                 Button {
                     showGeneratePopover = false
-                    showSummaryPrompts = true
+                    showPromptLibrary = true
                 } label: {
                     Label("Manage Prompts", systemImage: "slider.horizontal.3")
                 }
