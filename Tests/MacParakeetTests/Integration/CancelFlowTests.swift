@@ -216,6 +216,23 @@ final class CancelFlowTests: XCTestCase {
         XCTAssertEqual(all.count, 1)
     }
 
+    func testConfirmCancelDiscardsActiveRecordingImmediately() async throws {
+        try await dictationService.startRecording()
+
+        await dictationService.confirmCancel()
+
+        let captureStopped = await mockAudio.stopCaptureCalled
+        XCTAssertTrue(captureStopped, "Immediate discard should stop audio capture")
+
+        let state = await dictationService.state
+        if case .idle = state {} else {
+            XCTFail("Expected idle state after immediate discard, got \(state)")
+        }
+
+        let all = try dictationRepo.fetchAll(limit: nil)
+        XCTAssertTrue(all.isEmpty, "Immediate discard should not save to database")
+    }
+
     func testStopRecordingWithEmptyTranscriptThrowsAndDoesNotSave() async throws {
         await mockSTT.configure(result: STTResult(text: "   "))
 

@@ -4,7 +4,7 @@ import Foundation
 /// Detects double-tap (persistent mode) and hold (push-to-talk mode).
 /// Testable without CGEvent — operates on abstract key up/down events.
 public final class FnKeyStateMachine {
-    public enum State: Equatable {
+    public enum State: Equatable, Sendable {
         case idle
         case waitingForSecondTap   // Fn pressed once, waiting to see if double-tap
         case persistent            // Double-tap confirmed, recording
@@ -13,29 +13,39 @@ public final class FnKeyStateMachine {
         case blocked               // Fn blocked during cancel window
     }
 
-    public enum Action: Equatable {
+    public enum Action: Equatable, Sendable {
         case none
         case startRecording(mode: RecordingMode)
         case stopRecording
         case cancelRecording
+        case discardRecording
     }
 
-    public enum RecordingMode: Equatable {
+    public enum RecordingMode: Equatable, Sendable {
         case persistent   // Double-tap: stays on until explicitly stopped
         case holdToTalk   // Hold: stops when Fn released
     }
 
-    /// The 400ms threshold distinguishing taps from holds
-    public static let tapThresholdMs: Int = 400
+    /// Default threshold distinguishing taps from holds.
+    public static let defaultTapThresholdMs: Int = 400
+    public static let minimumTapThresholdMs: Int = 50
+    public static let maximumTapThresholdMs: Int = 500
 
     /// Cancel window duration (5 seconds)
     public static let cancelWindowMs: Int = 5000
 
     public private(set) var state: State = .idle
+    public let tapThresholdMs: Int
     private var fnDownTimestamp: UInt64 = 0  // milliseconds
     private var firstTapTimestamp: UInt64 = 0  // milliseconds
 
-    public init() {}
+    public init(tapThresholdMs: Int = defaultTapThresholdMs) {
+        self.tapThresholdMs = Self.clampTapThresholdMs(tapThresholdMs)
+    }
+
+    public static func clampTapThresholdMs(_ value: Int) -> Int {
+        min(max(value, minimumTapThresholdMs), maximumTapThresholdMs)
+    }
 
     /// Called when Fn key is pressed down
     public func fnDown(timestampMs: UInt64) -> Action {
@@ -43,18 +53,18 @@ public final class FnKeyStateMachine {
         case .idle:
             fnDownTimestamp = timestampMs
             state = .waitingForSecondTap
-            return .none
+            return .startRecording(mode: .holdToTalk)
 
         case .waitingForSecondTap:
             // Second tap within threshold = double-tap
             let elapsed = timestampMs - firstTapTimestamp
-            if elapsed <= Self.tapThresholdMs {
+            if elapsed <= tapThresholdMs {
                 state = .persistent
                 return .startRecording(mode: .persistent)
             } else {
                 // Too slow, treat as new first tap
                 fnDownTimestamp = timestampMs
-                return .none
+                return .startRecording(mode: .holdToTalk)
             }
 
         case .persistent:
@@ -78,16 +88,13 @@ public final class FnKeyStateMachine {
         switch state {
         case .waitingForSecondTap:
             let holdDuration = timestampMs - fnDownTimestamp
-            if holdDuration >= Self.tapThresholdMs {
-                // Held past threshold but holdTimerFired() never ran (main thread was busy).
-                // Reset to idle to avoid misclassifying a long hold as the first tap
-                // of a double-tap, which would arm persistent dictation on the next press.
+            if holdDuration >= tapThresholdMs {
                 state = .idle
-                return .none
+                return .stopRecording
             }
-            // Quick release = first tap of potential double-tap
+            // Quick release = discard provisional capture and wait for the second tap.
             firstTapTimestamp = timestampMs
-            return .none
+            return .discardRecording
 
         case .holdToTalk:
             // Release during hold-to-talk = stop and paste
@@ -103,13 +110,13 @@ public final class FnKeyStateMachine {
         }
     }
 
-    /// Called when the 400ms timer fires (Fn is still held)
+    /// Called when the tap-threshold timer fires while the trigger is still held.
     public func holdTimerFired() -> Action {
         switch state {
         case .waitingForSecondTap:
             // Fn held past threshold = hold-to-talk mode
             state = .holdToTalk
-            return .startRecording(mode: .holdToTalk)
+            return .none
         default:
             return .none
         }

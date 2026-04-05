@@ -57,6 +57,7 @@ public enum DictationFlowEvent: Equatable, Sendable {
     case startRequested(mode: FnKeyStateMachine.RecordingMode)
     case stopRequested
     case cancelRequested(reason: DictationFlowCancelReason)
+    case discardRequested
     case undoRequested
     case dismissRequested
 
@@ -109,6 +110,7 @@ public enum DictationFlowEffect: Equatable, Sendable {
     case startRecording(mode: FnKeyStateMachine.RecordingMode)
     case stopRecordingAndTranscribe
     case cancelRecording(reason: DictationFlowCancelReason)
+    case discardRecording
     case confirmCancel
     case undoCancelAndTranscribe
 
@@ -212,6 +214,10 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             state = .idle
             return [.cancelRecordingTask, .hideOverlay, .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill]
 
+        case (.checkingEntitlements, .discardRequested):
+            state = .ready
+            return [.cancelRecordingTask, .showReadyPill, .startReadyDismissTimer]
+
         case (.checkingEntitlements, .dismissRequested):
             state = .idle
             return [.cancelAllTimers, .cancelRecordingTask, .hideOverlay, .resetHotkeyStateMachine, .updateMenuBar(.idle), .showIdlePill]
@@ -231,6 +237,10 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
         case (.startingService(let mode), .stopRequested):
             state = .pendingStop(mode: mode)
             return []
+
+        case (.startingService, .discardRequested):
+            state = .ready
+            return [.cancelRecordingTask, .discardRecording, .showReadyPill, .updateMenuBar(.idle), .startReadyDismissTimer]
 
         case (.startingService, .cancelRequested(let reason)):
             state = .idle
@@ -255,6 +265,13 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
             return [
                 .cancelRecordingTask, .stopRecordingAndTranscribe,
                 .showProcessingState, .updateMenuBar(.processing),
+            ]
+
+        case (.recording, .discardRequested):
+            state = .ready
+            return [
+                .cancelRecordingTask, .discardRecording,
+                .showReadyPill, .updateMenuBar(.idle), .startReadyDismissTimer,
             ]
 
         case (.recording, .cancelRequested(let reason)):

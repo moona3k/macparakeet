@@ -14,12 +14,12 @@ final class FnKeyStateMachineTests: XCTestCase {
     func testDoubleTapStartsPersistentRecording() {
         // First tap down
         let a1 = sm.fnDown(timestampMs: 1000)
-        XCTAssertEqual(a1, .none)
+        XCTAssertEqual(a1, .startRecording(mode: .holdToTalk))
         XCTAssertEqual(sm.state, .waitingForSecondTap)
 
         // First tap up (quick release)
         let a2 = sm.fnUp(timestampMs: 1050)
-        XCTAssertEqual(a2, .none)
+        XCTAssertEqual(a2, .discardRecording)
 
         // Second tap down within 400ms
         let a3 = sm.fnDown(timestampMs: 1200)
@@ -44,12 +44,13 @@ final class FnKeyStateMachineTests: XCTestCase {
     // MARK: - Hold Detection
 
     func testHoldTimerStartsHoldToTalk() {
-        _ = sm.fnDown(timestampMs: 1000)
+        let down = sm.fnDown(timestampMs: 1000)
+        XCTAssertEqual(down, .startRecording(mode: .holdToTalk))
         XCTAssertEqual(sm.state, .waitingForSecondTap)
 
         // Timer fires (Fn still held)
         let action = sm.holdTimerFired()
-        XCTAssertEqual(action, .startRecording(mode: .holdToTalk))
+        XCTAssertEqual(action, .none)
         XCTAssertEqual(sm.state, .holdToTalk)
     }
 
@@ -72,8 +73,19 @@ final class FnKeyStateMachineTests: XCTestCase {
 
         // Second tap too slow (> 400ms after first tap up)
         let action = sm.fnDown(timestampMs: 1500)
-        XCTAssertEqual(action, .none) // Treated as new first tap, not double-tap
+        XCTAssertEqual(action, .startRecording(mode: .holdToTalk)) // Treated as new first tap, not double-tap
         XCTAssertEqual(sm.state, .waitingForSecondTap)
+    }
+
+    func testCustomTapThresholdAllowsLongerDoubleTapWindow() {
+        let custom = FnKeyStateMachine(tapThresholdMs: 500)
+
+        _ = custom.fnDown(timestampMs: 1000)
+        _ = custom.fnUp(timestampMs: 1050)
+
+        let action = custom.fnDown(timestampMs: 1490)
+        XCTAssertEqual(action, .startRecording(mode: .persistent))
+        XCTAssertEqual(custom.state, .persistent)
     }
 
     // MARK: - Cancel (Escape)
@@ -166,6 +178,22 @@ final class FnKeyStateMachineTests: XCTestCase {
     func testFnUpInIdleState() {
         let action = sm.fnUp(timestampMs: 1000)
         XCTAssertEqual(action, .none)
+    }
+
+    func testQuickReleaseDiscardsProvisionalRecording() {
+        _ = sm.fnDown(timestampMs: 1000)
+
+        let action = sm.fnUp(timestampMs: 1050)
+        XCTAssertEqual(action, .discardRecording)
+        XCTAssertEqual(sm.state, .waitingForSecondTap)
+    }
+
+    func testHeldReleaseStopsEvenIfTimerDidNotFire() {
+        _ = sm.fnDown(timestampMs: 1000)
+
+        let action = sm.fnUp(timestampMs: 1450)
+        XCTAssertEqual(action, .stopRecording)
+        XCTAssertEqual(sm.state, .idle)
     }
 
     func testCancelledByUIBlocksFn() {

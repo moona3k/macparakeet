@@ -53,6 +53,8 @@ final class DictationFlowCoordinator {
     /// Error from the most recent entitlements check failure, consumed by presentEntitlementsAlert effect.
     private var lastEntitlementsError: Error?
 
+    private let readyPillDismissDelayMs = FnKeyStateMachine.defaultTapThresholdMs * 2
+
     // MARK: - Init
 
     init(
@@ -115,6 +117,10 @@ final class DictationFlowCoordinator {
         // Map telemetry reason to state machine cancel reason
         let flowReason: DictationFlowCancelReason = reason == .ui ? .ui : .escape
         sendEvent(.cancelRequested(reason: flowReason))
+    }
+
+    func discardProvisionalRecordingAndShowReadyPill() {
+        sendEvent(.discardRequested)
     }
 
     func dismissOverlayIfError() {
@@ -186,7 +192,7 @@ final class DictationFlowCoordinator {
                 }
             }
             readyDismissTimer = timer
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(FnKeyStateMachine.tapThresholdMs * 2), execute: timer)
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(readyPillDismissDelayMs), execute: timer)
 
         case .showRecordingOverlay(let mode):
             // Reuse existing overlay if it's in ready state (seamless transition)
@@ -345,6 +351,11 @@ final class DictationFlowCoordinator {
                 await self.dictationService.confirmCancel()
             }
 
+        case .discardRecording:
+            Task {
+                await self.dictationService.confirmCancel()
+            }
+
         case .undoCancelAndTranscribe:
             let gen = stateMachine.generation
             actionTask = Task { @MainActor in
@@ -475,7 +486,7 @@ final class DictationFlowCoordinator {
                 }
             }
             readyDismissTimer = timer
-            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(FnKeyStateMachine.tapThresholdMs * 2), execute: timer)
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(readyPillDismissDelayMs), execute: timer)
 
         case .cancelReadyDismissTimer:
             readyDismissTimer?.cancel()
