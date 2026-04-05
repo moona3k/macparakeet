@@ -38,6 +38,7 @@ public final class FnKeyStateMachine {
     public let tapThresholdMs: Int
     private var fnDownTimestamp: UInt64 = 0  // milliseconds
     private var firstTapTimestamp: UInt64 = 0  // milliseconds
+    private var hasActiveProvisionalRecording = false
 
     public init(tapThresholdMs: Int = defaultTapThresholdMs) {
         self.tapThresholdMs = Self.clampTapThresholdMs(tapThresholdMs)
@@ -53,6 +54,7 @@ public final class FnKeyStateMachine {
         case .idle:
             fnDownTimestamp = timestampMs
             state = .waitingForSecondTap
+            hasActiveProvisionalRecording = true
             return .startRecording(mode: .holdToTalk)
 
         case .waitingForSecondTap:
@@ -60,16 +62,19 @@ public final class FnKeyStateMachine {
             let elapsed = timestampMs - firstTapTimestamp
             if elapsed <= tapThresholdMs {
                 state = .persistent
+                hasActiveProvisionalRecording = false
                 return .startRecording(mode: .persistent)
             } else {
                 // Too slow, treat as new first tap
                 fnDownTimestamp = timestampMs
+                hasActiveProvisionalRecording = true
                 return .startRecording(mode: .holdToTalk)
             }
 
         case .persistent:
             // Fn pressed again during persistent recording = stop
             state = .idle
+            hasActiveProvisionalRecording = false
             return .stopRecording
 
         case .holdToTalk:
@@ -90,15 +95,18 @@ public final class FnKeyStateMachine {
             let holdDuration = timestampMs - fnDownTimestamp
             if holdDuration >= tapThresholdMs {
                 state = .idle
+                hasActiveProvisionalRecording = false
                 return .stopRecording
             }
             // Quick release = discard provisional capture and wait for the second tap.
             firstTapTimestamp = timestampMs
+            hasActiveProvisionalRecording = false
             return .discardRecording
 
         case .holdToTalk:
             // Release during hold-to-talk = stop and paste
             state = .idle
+            hasActiveProvisionalRecording = false
             return .stopRecording
 
         case .blocked:
@@ -116,6 +124,7 @@ public final class FnKeyStateMachine {
         case .waitingForSecondTap:
             // Fn held past threshold = hold-to-talk mode
             state = .holdToTalk
+            hasActiveProvisionalRecording = false
             return .none
         default:
             return .none
@@ -125,12 +134,18 @@ public final class FnKeyStateMachine {
     /// Called when Escape is pressed during recording or cancel window
     public func escapePressed() -> Action {
         switch state {
+        case .waitingForSecondTap where hasActiveProvisionalRecording:
+            state = .cancelWindow
+            hasActiveProvisionalRecording = false
+            return .cancelRecording
         case .persistent, .holdToTalk:
             state = .cancelWindow
+            hasActiveProvisionalRecording = false
             return .cancelRecording
         case .cancelWindow, .blocked:
             // Escape during undo countdown = confirm cancel immediately
             state = .idle
+            hasActiveProvisionalRecording = false
             return .cancelRecording
         default:
             return .none
@@ -141,6 +156,7 @@ public final class FnKeyStateMachine {
     public func cancelWindowExpired() -> Action {
         if state == .cancelWindow || state == .blocked {
             state = .idle
+            hasActiveProvisionalRecording = false
         }
         return .none
     }
@@ -149,6 +165,7 @@ public final class FnKeyStateMachine {
     public func undoPressed() -> Action {
         if state == .cancelWindow || state == .blocked {
             state = .idle
+            hasActiveProvisionalRecording = false
         }
         return .none
     }
@@ -156,8 +173,9 @@ public final class FnKeyStateMachine {
     /// Called when cancel is triggered via UI button (not Esc key).
     /// Transitions to cancelWindow so Fn is blocked during the countdown.
     public func cancelledByUI() {
-        if state == .persistent || state == .holdToTalk {
+        if state == .persistent || state == .holdToTalk || (state == .waitingForSecondTap && hasActiveProvisionalRecording) {
             state = .cancelWindow
+            hasActiveProvisionalRecording = false
         }
     }
 
@@ -165,9 +183,12 @@ public final class FnKeyStateMachine {
     /// so Fn key gestures work correctly.
     public func resumeRecording(mode: RecordingMode) {
         switch mode {
-        case .persistent: state = .persistent
-        case .holdToTalk: state = .holdToTalk
+        case .persistent:
+            state = .persistent
+        case .holdToTalk:
+            state = .holdToTalk
         }
+        hasActiveProvisionalRecording = false
     }
 
     /// Reset to idle (for testing or error recovery)
@@ -175,5 +196,6 @@ public final class FnKeyStateMachine {
         state = .idle
         fnDownTimestamp = 0
         firstTapTimestamp = 0
+        hasActiveProvisionalRecording = false
     }
 }

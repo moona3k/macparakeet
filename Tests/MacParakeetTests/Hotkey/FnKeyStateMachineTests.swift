@@ -112,6 +112,25 @@ final class FnKeyStateMachineTests: XCTestCase {
         XCTAssertEqual(sm.state, .cancelWindow)
     }
 
+    func testEscapeDuringProvisionalRecordingCancels() {
+        _ = sm.fnDown(timestampMs: 1000)
+        XCTAssertEqual(sm.state, .waitingForSecondTap)
+
+        let action = sm.escapePressed()
+        XCTAssertEqual(action, .cancelRecording)
+        XCTAssertEqual(sm.state, .cancelWindow)
+    }
+
+    func testEscapeAfterQuickReleaseDoesNothing() {
+        _ = sm.fnDown(timestampMs: 1000)
+        _ = sm.fnUp(timestampMs: 1050)
+        XCTAssertEqual(sm.state, .waitingForSecondTap)
+
+        let action = sm.escapePressed()
+        XCTAssertEqual(action, .none)
+        XCTAssertEqual(sm.state, .waitingForSecondTap)
+    }
+
     func testEscapeInIdleDoesNothing() {
         let action = sm.escapePressed()
         XCTAssertEqual(action, .none)
@@ -211,6 +230,27 @@ final class FnKeyStateMachineTests: XCTestCase {
         let action = sm.fnDown(timestampMs: 2000)
         XCTAssertEqual(action, .none)
         XCTAssertEqual(sm.state, .blocked)
+    }
+
+    func testCancelledByUIDuringProvisionalRecordingBlocksFn() {
+        _ = sm.fnDown(timestampMs: 1000)
+        XCTAssertEqual(sm.state, .waitingForSecondTap)
+
+        sm.cancelledByUI()
+        XCTAssertEqual(sm.state, .cancelWindow)
+
+        let action = sm.fnDown(timestampMs: 2000)
+        XCTAssertEqual(action, .none)
+        XCTAssertEqual(sm.state, .blocked)
+    }
+
+    func testCancelledByUIAfterQuickReleaseDoesNotEnterCancelWindow() {
+        _ = sm.fnDown(timestampMs: 1000)
+        _ = sm.fnUp(timestampMs: 1050)
+        XCTAssertEqual(sm.state, .waitingForSecondTap)
+
+        sm.cancelledByUI()
+        XCTAssertEqual(sm.state, .waitingForSecondTap)
     }
 
     func testResumeRecordingAfterUndo() {
