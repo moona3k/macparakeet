@@ -132,7 +132,7 @@ struct TranscriptResultView: View {
             PromptLibraryView(viewModel: promptsViewModel)
         }
         .alert(
-            "Delete Summary?",
+            "Delete Result?",
             isPresented: Binding(
                 get: { summaryViewModel.pendingDeleteSummary != nil },
                 set: { if !$0 { summaryViewModel.pendingDeleteSummary = nil } }
@@ -765,7 +765,7 @@ struct TranscriptResultView: View {
         .contextMenu {
             if case .summary(let id) = tab,
                let summary = summaryViewModel.summaries.first(where: { $0.id == id }) {
-                Button("Copy Summary") {
+                Button("Copy Result") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(summary.content, forType: .string)
                     Telemetry.send(.copyToClipboard(source: .transcription))
@@ -777,12 +777,12 @@ struct TranscriptResultView: View {
                     }
                 }
                 
-                Menu("Export Summary") {
-                    Button("Markdown (.md)") { exportSummaryToDownloads(summary: summary, format: .md) }
-                    Button("Plain Text (.txt)") { exportSummaryToDownloads(summary: summary, format: .txt) }
+                Menu("Export Document") {
+                    Button("Markdown (.md)") { exportGenerationToDownloads(summary: summary, format: .md) }
+                    Button("Plain Text (.txt)") { exportGenerationToDownloads(summary: summary, format: .txt) }
                 }
                 
-                Button("Delete Summary", role: .destructive) {
+                Button("Delete Result", role: .destructive) {
                     summaryViewModel.pendingDeleteSummary = summary
                 }
             }
@@ -913,8 +913,8 @@ struct TranscriptResultView: View {
                         .controlSize(.small)
 
                         Menu {
-                            Button("Markdown (.md)") { exportSummaryToDownloads(summary: summary, format: .md) }
-                            Button("Plain Text (.txt)") { exportSummaryToDownloads(summary: summary, format: .txt) }
+                            Button("Markdown (.md)") { exportGenerationToDownloads(summary: summary, format: .md) }
+                            Button("Plain Text (.txt)") { exportGenerationToDownloads(summary: summary, format: .txt) }
                         } label: {
                             HStack(spacing: DesignSystem.Spacing.xs) {
                                 Image(systemName: "arrow.down.doc")
@@ -2001,7 +2001,7 @@ struct TranscriptResultView: View {
         .frame(minWidth: 220)
     }
 
-    private func exportSummaryToDownloads(summary: Summary, format: ExportFormat) {
+    private func exportGenerationToDownloads(summary: Summary, format: ExportFormat) {
         let source = viewModel.currentTranscription ?? transcription
         let baseStem = TranscriptSegmenter.sanitizedExportStem(from: source.fileName)
         
