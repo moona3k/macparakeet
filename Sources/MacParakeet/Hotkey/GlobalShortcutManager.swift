@@ -151,24 +151,53 @@ public final class GlobalShortcutManager {
         }
 
         let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+        let shouldSwallow = handleChordEvent(
+            type: type,
+            triggerCode: triggerCode,
+            keyCode: keyCode,
+            flags: event.flags.rawValue & HotkeyTrigger.relevantModifierBits
+        )
+        return shouldSwallow ? nil : Unmanaged.passUnretained(event)
+    }
+
+    @discardableResult
+    private func handleChordEvent(
+        type: CGEventType,
+        triggerCode: UInt16,
+        keyCode: UInt16,
+        flags: UInt64
+    ) -> Bool {
         switch type {
         case .keyDown:
-            guard keyCode == triggerCode else { return Unmanaged.passUnretained(event) }
-            let flags = event.flags.rawValue & HotkeyManager.relevantModifierBits
-            guard flags & requiredChordFlags == requiredChordFlags else {
-                return Unmanaged.passUnretained(event)
-            }
-            guard !triggerKeyIsPressed else { return nil }
+            guard keyCode == triggerCode else { return false }
+            guard flags == requiredChordFlags else { return false }
+            guard !triggerKeyIsPressed else { return true }
             triggerKeyIsPressed = true
             onTrigger?()
-            return nil
+            return true
         case .keyUp:
-            guard keyCode == triggerCode else { return Unmanaged.passUnretained(event) }
+            guard keyCode == triggerCode else { return false }
+            guard triggerKeyIsPressed else { return false }
             triggerKeyIsPressed = false
-            return nil
+            return true
         default:
-            return Unmanaged.passUnretained(event)
+            return false
         }
+    }
+
+    @discardableResult
+    func handleChordEventForTesting(
+        type: CGEventType,
+        keyCode: UInt16,
+        flags: UInt64
+    ) -> Bool {
+        guard let triggerCode = trigger.keyCode else { return false }
+        return handleChordEvent(
+            type: type,
+            triggerCode: triggerCode,
+            keyCode: keyCode,
+            flags: flags & HotkeyTrigger.relevantModifierBits
+        )
     }
 
     private static func mask(for trigger: HotkeyTrigger) -> CGEventFlags? {
