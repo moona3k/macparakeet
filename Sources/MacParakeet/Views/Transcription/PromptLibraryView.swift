@@ -106,7 +106,7 @@ struct PromptLibraryView: View {
             }
             .background(DesignSystem.Colors.background)
         }
-        .frame(minWidth: 720, minHeight: 700)
+        .frame(minWidth: 600, minHeight: 600)
         .alert(
             "Delete Prompt?",
             isPresented: Binding(
@@ -137,7 +137,7 @@ struct PromptLibraryView: View {
                 editSheet(prompt: prompt)
             }
         }
-        .frame(width: 540, height: 500)
+        .frame(width: 720, height: 700)
         .background(DesignSystem.Colors.surface)
         }
     }
@@ -229,13 +229,25 @@ struct PromptLibraryView: View {
                     Spacer()
                 }
 
-                Text(prompt.content)
-                    .font(DesignSystem.Typography.body)
-                    .foregroundStyle(prompt.isVisible ? DesignSystem.Colors.textSecondary : DesignSystem.Colors.textTertiary)
-                    .lineLimit(isExpanded ? nil : 2)
-                    .lineSpacing(2)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
+                // Workaround for macOS SwiftUI bug: NSTextView (.textSelection(.enabled)) 
+                // does not animate height bounds correctly when lineLimit changes.
+                // We use an invisible SwiftUI Text to drive the layout container's smooth animation,
+                // and the selectable NSTextView simply fills that properly-sized frame.
+                ZStack(alignment: .topLeading) {
+                    Text(prompt.content)
+                        .font(DesignSystem.Typography.body)
+                        .lineLimit(isExpanded ? nil : 2)
+                        .lineSpacing(2)
+                        .opacity(0)
+                        .accessibilityHidden(true)
+
+                    Text(prompt.content)
+                        .font(DesignSystem.Typography.body)
+                        .foregroundStyle(prompt.isVisible ? DesignSystem.Colors.textSecondary : DesignSystem.Colors.textTertiary)
+                        .lineLimit(isExpanded ? nil : 2)
+                        .lineSpacing(2)
+                        .textSelection(.enabled)
+                }
             }
 
             if allowEdit {
@@ -494,6 +506,8 @@ struct PromptLibraryView: View {
             .padding(DesignSystem.Spacing.xl)
             .background(DesignSystem.Colors.surfaceElevated.opacity(0.3))
         }
+        .frame(width: 540, height: 500)
+        .background(DesignSystem.Colors.surface)
     }
 }
 
