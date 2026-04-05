@@ -219,17 +219,21 @@ struct TranscriptResultView: View {
                 if viewModel.showTabs {
                     tabBar
                 }
-                Spacer()
-                Button {
-                    withAnimation(DesignSystem.Animation.contentSwap) {
-                        showVideoPanel = false
+                Spacer(minLength: DesignSystem.Spacing.md)
+                
+                HStack {
+                    Button {
+                        withAnimation(DesignSystem.Animation.contentSwap) {
+                            showVideoPanel = false
+                        }
+                    } label: {
+                        Label("Hide Video", systemImage: "rectangle.lefthalf.inset.filled.arrow.left")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
                     }
-                } label: {
-                    Label("Hide Video", systemImage: "rectangle.lefthalf.inset.filled.arrow.left")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
+                .layoutPriority(1)
             }
             .padding(.horizontal, DesignSystem.Spacing.lg)
             .padding(.top, DesignSystem.Spacing.md)
@@ -260,25 +264,29 @@ struct TranscriptResultView: View {
                 if viewModel.showTabs {
                     tabBar
                 }
-                Spacer()
-                if playerViewModel.playbackMode == .video && !showVideoPanel {
-                    Button {
-                        withAnimation(DesignSystem.Animation.contentSwap) {
-                            showVideoPanel = true
-                        }
-                        // Lazy-load: extract YouTube stream only when user wants video
-                        if playerViewModel.needsVideoStreamLoad {
-                            Task {
-                                await playerViewModel.load(for: transcription)
+                Spacer(minLength: DesignSystem.Spacing.md)
+                
+                HStack {
+                    if playerViewModel.playbackMode == .video && !showVideoPanel {
+                        Button {
+                            withAnimation(DesignSystem.Animation.contentSwap) {
+                                showVideoPanel = true
                             }
+                            // Lazy-load: extract YouTube stream only when user wants video
+                            if playerViewModel.needsVideoStreamLoad {
+                                Task {
+                                    await playerViewModel.load(for: transcription)
+                                }
+                            }
+                        } label: {
+                            Label("Show Video", systemImage: "play.rectangle")
+                                .font(DesignSystem.Typography.caption)
+                                .foregroundStyle(DesignSystem.Colors.textSecondary)
                         }
-                    } label: {
-                        Label("Show Video", systemImage: "play.rectangle")
-                            .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
+                .layoutPriority(1)
             }
             .padding(.horizontal, DesignSystem.Spacing.lg)
             .padding(.top, DesignSystem.Spacing.md)
