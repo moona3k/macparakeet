@@ -207,7 +207,7 @@ struct PromptLibraryView: View {
                         .font(DesignSystem.Typography.bodyLarge.weight(.semibold))
                         .foregroundStyle(prompt.isVisible ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textTertiary)
                         .textSelection(.enabled)
-                    
+
                     if isAutoRun {
                         Button {
                             withAnimation { viewModel.toggleAutoRun(prompt) }
@@ -249,28 +249,19 @@ struct PromptLibraryView: View {
                     }
 
                     Spacer()
-                    }
+                }
 
-                    Text(prompt.content)
+                Text(prompt.content)
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(prompt.isVisible ? DesignSystem.Colors.textSecondary : DesignSystem.Colors.textTertiary)
                     .lineLimit(isExpanded ? nil : 2)
                     .lineSpacing(2)
                     .textSelection(.enabled)
-                    }
-                    .contentShape(Rectangle()) // Make the whole VStack tappable for expansion
-                    .onTapGesture {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                    if isExpanded {
-                        expandedPromptIds.remove(prompt.id)
-                    } else {
-                        expandedPromptIds.insert(prompt.id)
-                    }
-                    }
-                    }
+            }
 
-                    if allowEdit {
-                    HStack(spacing: DesignSystem.Spacing.sm) {                    Button {
+            if allowEdit {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Button {
                         viewModel.editingPrompt = prompt
                         editName = prompt.name
                         editContent = prompt.content
@@ -284,7 +275,7 @@ struct PromptLibraryView: View {
                     }
                     .buttonStyle(.plain)
                     .help("Edit prompt")
-                    
+
                     Button {
                         viewModel.pendingDeletePrompt = prompt
                     } label: {
@@ -301,6 +292,26 @@ struct PromptLibraryView: View {
                 .opacity(isHovered ? 1.0 : 0.4)
                 .animation(.easeInOut(duration: 0.2), value: isHovered)
             }
+
+            Button {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                    if isExpanded {
+                        expandedPromptIds.remove(prompt.id)
+                    } else {
+                        expandedPromptIds.insert(prompt.id)
+                    }
+                }
+            } label: {
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(isHovered ? DesignSystem.Colors.textSecondary : DesignSystem.Colors.textTertiary)
+                    .frame(width: 24, height: 24)
+                    .background(isHovered ? DesignSystem.Colors.rowHoverBackground : .clear)
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 2)
+            .help(isExpanded ? "Collapse" : "Expand")
         }
         .padding(DesignSystem.Spacing.lg)
         .background(isHovered ? DesignSystem.Colors.surfaceElevated.opacity(0.5) : Color.clear)
