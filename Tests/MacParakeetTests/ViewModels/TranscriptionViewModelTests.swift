@@ -845,7 +845,11 @@ final class TranscriptionViewModelTests: XCTestCase {
             filePath: tmpFile.path,
             rawTranscript: "Old transcript",
             status: .completed,
-            sourceURL: "https://youtube.com/watch?v=abc123"
+            sourceURL: "https://youtube.com/watch?v=abc123",
+            thumbnailURL: "https://img.youtube.com/vi/abc123/default.jpg",
+            channelName: "Channel",
+            videoDescription: "Description",
+            sourceType: .youtube
         )
         mockRepo.transcriptions = [original]
 
@@ -873,6 +877,48 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(saved.first?.fileName, "lecture.mp3", "Should preserve original fileName")
         XCTAssertEqual(saved.first?.sourceURL, "https://youtube.com/watch?v=abc123",
                        "Should preserve original sourceURL")
+        XCTAssertEqual(saved.first?.thumbnailURL, original.thumbnailURL)
+        XCTAssertEqual(saved.first?.channelName, original.channelName)
+        XCTAssertEqual(saved.first?.videoDescription, original.videoDescription)
+        XCTAssertEqual(saved.first?.sourceType, .youtube, "Should preserve original sourceType")
+
+        let lastSource = await mockService.lastSource
+        XCTAssertEqual(lastSource, .youtube, "Retranscribe should preserve original telemetry source")
+    }
+
+    func testRetranscribePreservesMeetingSourceType() async throws {
+        let tmpFile = FileManager.default.temporaryDirectory.appendingPathComponent("retranscribe-meeting-test.m4a")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Meeting Apr 5",
+            filePath: tmpFile.path,
+            rawTranscript: "Old meeting transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [original]
+
+        let newResult = Transcription(
+            fileName: tmpFile.lastPathComponent,
+            rawTranscript: "Updated meeting transcript",
+            status: .completed
+        )
+        await mockService.configure(result: newResult)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.retranscribe(original)
+
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertEqual(mockRepo.transcriptions.count, 1)
+        XCTAssertEqual(mockRepo.transcriptions.first?.sourceType, .meeting)
+
+        let lastSource = await mockService.lastSource
+        XCTAssertEqual(lastSource, .meeting)
     }
 
     func testRetranscribeDoesNothingWhenFileIsMissing() async throws {

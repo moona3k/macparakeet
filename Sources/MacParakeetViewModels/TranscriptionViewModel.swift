@@ -243,11 +243,19 @@ public final class TranscriptionViewModel {
         let url = URL(fileURLWithPath: filePath)
         let originalID = original.id
         let taskID = beginNewTranscription(source: .localFile, fileName: original.fileName, clearCurrent: true)
+        let retranscriptionSource: TelemetryTranscriptionSource = switch original.sourceType {
+        case .file:
+            .file
+        case .youtube:
+            .youtube
+        case .meeting:
+            .meeting
+        }
 
         transcriptionTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                var result = try await service.transcribe(fileURL: url, source: .file) { [weak self] phase in
+                var result = try await service.transcribe(fileURL: url, source: retranscriptionSource) { [weak self] phase in
                     Task { @MainActor [weak self] in
                         self?.updateProgress(with: phase, taskID: taskID)
                     }
@@ -255,6 +263,10 @@ public final class TranscriptionViewModel {
                 // Preserve original metadata
                 result.fileName = original.fileName
                 result.sourceURL = original.sourceURL
+                result.thumbnailURL = original.thumbnailURL
+                result.channelName = original.channelName
+                result.videoDescription = original.videoDescription
+                result.sourceType = original.sourceType
                 do {
                     try transcriptionRepo?.save(result)
                     // Delete the original to avoid duplicates

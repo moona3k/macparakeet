@@ -122,10 +122,20 @@ public extension AudioChunker {
     }
 
     static func extractSamples(from buffer: AVAudioPCMBuffer) -> [Float]? {
-        guard let channelData = buffer.floatChannelData else { return nil }
         let frameCount = Int(buffer.frameLength)
         guard frameCount > 0 else { return nil }
-        return Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
+
+        if let channelData = buffer.floatChannelData {
+            return Array(UnsafeBufferPointer(start: channelData[0], count: frameCount))
+        }
+
+        if let channelData = buffer.int16ChannelData {
+            return Array(UnsafeBufferPointer(start: channelData[0], count: frameCount)).map {
+                Float($0) / Float(Int16.max)
+            }
+        }
+
+        return nil
     }
 
     static func extractAndResample(from buffer: AVAudioPCMBuffer) -> [Float]? {

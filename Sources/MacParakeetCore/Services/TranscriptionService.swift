@@ -268,13 +268,14 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                 let speakerSegments = meetingSpeakerMetadata.diarizationSegments.map {
                     SpeakerSegment(speakerId: $0.speakerId, startMs: $0.startMs, endMs: $0.endMs)
                 }
-                transcription.wordTimestamps = SpeakerMerger.mergeWordTimestampsWithSpeakers(
+                let mergedWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
                     words: words,
                     segments: speakerSegments
                 )
+                transcription.wordTimestamps = mergedWords
                 transcription.speakerCount = meetingSpeakerMetadata.speakerCount
                 transcription.speakers = meetingSpeakerMetadata.speakers
-                transcription.diarizationSegments = meetingSpeakerMetadata.diarizationSegments
+                transcription.diarizationSegments = Self.buildDiarizationSegments(from: mergedWords)
             } else if let diarizationService, shouldDiarize() {
                 do {
                     onProgress?(.identifyingSpeakers)
@@ -421,6 +422,41 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
     private static func errorType(for error: Error) -> String {
         TelemetryErrorClassifier.classify(error)
+    }
+
+    private static func buildDiarizationSegments(from words: [WordTimestamp]) -> [DiarizationSegmentRecord] {
+        guard let firstWord = words.first, let firstSpeaker = firstWord.speakerId else {
+            return []
+        }
+
+        var segments: [DiarizationSegmentRecord] = []
+        var currentSpeaker = firstSpeaker
+        var currentStart = firstWord.startMs
+        var currentEnd = firstWord.endMs
+
+        for word in words.dropFirst() {
+            guard let speakerId = word.speakerId else { continue }
+
+            if speakerId == currentSpeaker, word.startMs - currentEnd <= 1500 {
+                currentEnd = max(currentEnd, word.endMs)
+            } else {
+                segments.append(DiarizationSegmentRecord(
+                    speakerId: currentSpeaker,
+                    startMs: currentStart,
+                    endMs: currentEnd
+                ))
+                currentSpeaker = speakerId
+                currentStart = word.startMs
+                currentEnd = word.endMs
+            }
+        }
+
+        segments.append(DiarizationSegmentRecord(
+            speakerId: currentSpeaker,
+            startMs: currentStart,
+            endMs: currentEnd
+        ))
+        return segments
     }
 
     private static let videoExtensions: Set<String> = ["mp4", "mov", "mkv", "avi", "webm", "m4v", "flv", "wmv"]

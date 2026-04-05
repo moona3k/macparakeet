@@ -256,10 +256,10 @@ final class TranscriptionServiceTests: XCTestCase {
         await mockSTT.configure(result: STTResult(
             text: "Final transcript from batch pass",
             words: [
-                TimestampedWord(word: "Hello", startMs: 0, endMs: 300, confidence: 0.9),
-                TimestampedWord(word: "there", startMs: 320, endMs: 650, confidence: 0.9),
-                TimestampedWord(word: "Sounds", startMs: 900, endMs: 1_200, confidence: 0.9),
-                TimestampedWord(word: "good", startMs: 1_250, endMs: 1_500, confidence: 0.9),
+                TimestampedWord(word: "Hello", startMs: 50, endMs: 260, confidence: 0.9),
+                TimestampedWord(word: "there", startMs: 300, endMs: 540, confidence: 0.9),
+                TimestampedWord(word: "Sounds", startMs: 720, endMs: 980, confidence: 0.9),
+                TimestampedWord(word: "good", startMs: 1_020, endMs: 1_260, confidence: 0.9),
             ]
         ))
 
@@ -282,7 +282,10 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(result.rawTranscript, "Final transcript from batch pass")
         XCTAssertEqual(result.speakerCount, 2)
         XCTAssertEqual(result.speakers, prepared.speakers)
-        XCTAssertEqual(result.diarizationSegments, prepared.diarizationSegments)
+        XCTAssertEqual(result.diarizationSegments, [
+            DiarizationSegmentRecord(speakerId: "microphone", startMs: 50, endMs: 540),
+            DiarizationSegmentRecord(speakerId: "system", startMs: 720, endMs: 1_260),
+        ])
         XCTAssertEqual(result.wordTimestamps?.map(\.speakerId), ["microphone", "microphone", "system", "system"])
         XCTAssertEqual(sttCallCount, 1)
         XCTAssertEqual(convertCallCount, 1)
