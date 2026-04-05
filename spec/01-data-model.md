@@ -104,6 +104,7 @@ CREATE TABLE transcriptions (
     channelName TEXT,                                   -- v0.5: YouTube channel name
     videoDescription TEXT,                              -- v0.5: YouTube video description
     isFavorite INTEGER NOT NULL DEFAULT 0,              -- v0.5: User favorite marker
+    sourceType TEXT NOT NULL DEFAULT 'file',            -- v0.6: 'file', 'youtube', or 'meeting'
     updatedAt TEXT NOT NULL                             -- ISO 8601 timestamp
 );
 
@@ -117,6 +118,7 @@ CREATE INDEX idx_transcriptions_created_at ON transcriptions(createdAt DESC);
 - `sourceURL` distinguishes URL-sourced transcriptions (YouTube) from local file transcriptions. Added in v0.3.
 - `thumbnailURL`, `channelName`, `videoDescription` store YouTube metadata fetched during download. Added in v0.5.
 - `isFavorite` enables user-marked favorites with filtered library view. Added in v0.5.
+- `sourceType` distinguishes the origin of a transcription: `'file'` (drag-drop), `'youtube'` (URL), or `'meeting'` (meeting recording). Added in v0.6. Default `'file'` for backward compatibility. Existing rows with `sourceURL IS NOT NULL` are backfilled to `'youtube'`.
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
 
 **Diarization data (v0.4):**

@@ -54,6 +54,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-011](adr/011-llm-cloud-and-local-providers.md) | LLM via cloud API keys + optional local providers |
 | [ADR-012](adr/012-telemetry-system.md) | Self-hosted telemetry via Cloudflare (Worker + D1) |
 | [ADR-013](adr/013-prompt-library-multi-summary.md) | Prompt Library + multi-summary architecture |
+| [ADR-014](adr/014-meeting-recording.md) | Meeting recording via Core Audio Taps |
 
 ## Version Roadmap
 
@@ -65,7 +66,8 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data & Reliability | Private dictation, video metadata, multi-conversation chat, FTS5 cleanup, favorites | **Implemented** |
 | v0.6 | Video Player & UI Revamp | Embedded video playback, split-pane detail view, library grid, thumbnail cards | **Implemented** |
-| v0.7 | Prompt Library & Multi-Summary | Prompt library, multi-summary per transcript, custom instructions | **Implemented on current branch** |
+| v0.7 | Prompt Library & Multi-Summary | Prompt library, multi-summary per transcript, custom instructions | **Implemented** |
+| v0.6 | Meeting Recording | System audio + mic capture, local transcription, library integration | **Planned** |
 
 ## Version Progress
 
@@ -143,7 +145,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Library filter bar (All/YouTube/Local/Favorites)
 - [x] Library search and sort
 
-### v0.7 Prompt Library & Multi-Summary (Implemented On Current Branch)
+### v0.7 Prompt Library & Multi-Summary (Implemented)
 
 - [x] `prompts` table + built-in/community prompt seeds
 - [x] `summaries` table (one-to-many per transcription, cascade delete)
@@ -158,6 +160,20 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] LLMService accepts custom system prompt
 - [x] Migration from `transcriptions.summary` → `summaries`
 - [x] Auto-run uses selected prompt cards; zero auto-run cards is supported
+
+### v0.6 Meeting Recording (Planned)
+
+- [ ] System audio capture via Core Audio Taps (macOS 14.2+), ported from Oatmeal
+- [ ] Mic + system audio dual-stream recording (`MeetingAudioCaptureService`)
+- [ ] `MeetingRecordingService` actor with protocol-based dependencies
+- [ ] `MeetingRecordingFlowStateMachine` + coordinator (separate from dictation)
+- [ ] Recording pill UI (floating NSPanel with timer + stop button)
+- [ ] `sourceType` column on `transcriptions` table (file/youtube/meeting)
+- [ ] "Meetings" sidebar item + "Record Meeting" in menu bar
+- [ ] Library filter for meeting transcriptions
+- [ ] Screen Recording permission handling (required, no mic-only fallback)
+- [ ] Batch transcription after recording stops (Parakeet STT)
+- [ ] Meeting recordings get prompt library, multi-summary, chat, and export automatically
 
 ## For AI Coding Assistants
 

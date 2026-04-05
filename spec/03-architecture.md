@@ -30,14 +30,16 @@
 │  │                        MacParakeetCore                                     │  │
 │  │                     (Library — No UI Deps)                                 │  │
 │  │                                                                            │  │
-│  │  ┌─────────────────┐  ┌──────────────────────┐                          │  │
-│  │  │ DictationService│  │ TranscriptionService │                          │  │
-│  │  └────────┬────────┘  └──────────┬───────────┘                          │  │
-│  │           │                      │                                       │  │
-│  │  ┌────────▼──────────────────────▼────────────────────────────────────┐  │  │
-│  │  │                        AudioProcessor                               │  │  │
-│  │  │            (Format conversion, resampling, buffering)               │  │  │
-│  │  └────────────────────────────┬────────────────────────────────────────┘  │  │
+│  │  ┌─────────────────┐  ┌────────────────────┐  ┌──────────────────┐      │  │
+│  │  │ DictationService│  │TranscriptionService│  │MeetingRecording  │      │  │
+│  │  └────────┬────────┘  └─────────┬──────────┘  │   Service        │      │  │
+│  │           │                     │              └────────┬─────────┘      │  │
+│  │           │                     │                       │                │  │
+│  │  ┌────────▼─────────────────────▼──────┐  ┌────────────▼────────────┐   │  │
+│  │  │         AudioProcessor              │  │  MeetingAudioCapture    │   │  │
+│  │  │  (Format conversion, resampling)    │  │  (Core Audio Taps +    │   │  │
+│  │  │                                     │  │   AVAudioEngine)       │   │  │
+│  │  └──────────────────┬──────────────────┘  └────────────┬────────────┘   │  │
 │  │                               │                                           │  │
 │  │                     ┌─────────▼─────────┐  ┌────────────────────────────┐ │  │
 │  │                     │    STTClient      │  │  TextProcessingPipeline   │ │  │
@@ -72,11 +74,11 @@
 ├──────────────────────────────────────────────────────────────────────────────────┤
 │                          SYSTEM INTEGRATIONS                                     │
 │                                                                                  │
-│  ┌──────────┐  ┌──────────┐  ┌─────────────┐  ┌──────────────┐               │
-│  │AVAudio   │  │ CGEvent  │  │NSPasteboard │  │Accessibility │               │
-│  │Engine    │  │(Global   │  │(Clipboard   │  │(Permission   │               │
-│  │(Mic)     │  │ Hotkey)  │  │ Paste)      │  │ Control)     │               │
-│  └──────────┘  └──────────┘  └─────────────┘  └──────────────┘               │
+│  ┌──────────┐  ┌──────────┐  ┌─────────────┐  ┌──────────────┐  ┌─────────┐│
+│  │AVAudio   │  │ CGEvent  │  │NSPasteboard │  │Accessibility │  │Core     ││
+│  │Engine    │  │(Global   │  │(Clipboard   │  │(Permission   │  │Audio    ││
+│  │(Mic)     │  │ Hotkey)  │  │ Paste)      │  │ Control)     │  │Taps     ││
+│  └──────────┘  └──────────┘  └─────────────┘  └──────────────┘  └─────────┘│
 │                                                                                  │
 │  Total AI Memory: ~66 MB peak (Parakeet on ANE)                                │
 │  Recommended: 8 GB RAM (Apple Silicon only).                                    │

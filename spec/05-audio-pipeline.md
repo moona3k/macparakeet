@@ -122,12 +122,85 @@ User pastes YouTube URL
 
 ---
 
+## Meeting Recording (v0.6)
+
+### Dual-Stream Capture
+
+```
+System Audio → Core Audio Taps → Aggregate Device → Buffer Callback → M4A
+Mic Input    → AVAudioEngine   → Input Node Tap   → Buffer Callback → M4A
+                                                          │
+                                                          ▼
+                                              MeetingAudioCaptureService
+                                              (AsyncStream<CaptureEvent>)
+                                                          │
+                                                          ▼
+                                              MeetingAudioStorageWriter
+                                              (separate M4A per source)
+                                                          │
+                                                          ▼ (on stop)
+                                              AudioFileConverter (FFmpeg)
+                                              → 16kHz mono WAV → Parakeet STT
+```
+
+- **System audio** is captured via Core Audio Taps (`CATapDescription` + `AudioHardwareCreateProcessTap`), available on macOS 14.2+
+- **Mic audio** is captured via `AVAudioEngine` input node tap (separate from the existing `AudioRecorder` used by dictation — `MicrophoneCapture` provides raw buffer callbacks, not WAV file output)
+- Both streams are independent — no synchronization between them. Timing comes from `AVAudioTime` host time on each buffer
+- Audio is stored as separate M4A files (AAC 64kbps, 16kHz mono) per source
+- After recording stops, system audio M4A is converted to 16kHz mono WAV via FFmpeg and transcribed with Parakeet
+
+### Key Components (ported from Oatmeal)
+
+| Component | Purpose |
+|-----------|---------|
+| `SystemAudioTap` | Core Audio Taps wrapper — creates aggregate device, provides buffer callback |
+| `MicrophoneCapture` | AVAudioEngine mic wrapper — raw buffer callback (not file output) |
+| `MeetingAudioCaptureService` | Actor combining both streams into `AsyncStream<CaptureEvent>` with `.bufferingNewest(32)` |
+| `MeetingAudioStorageWriter` | Writes separate M4A files per source (mic + system) |
+
+### Meeting Recording Flow
+
+```
+User clicks "Start Meeting Recording"
+    → Check Screen Recording permission (CGPreflightScreenCaptureAccess)
+    → If denied: show error + "Open System Settings" button, block recording
+    → Start MeetingAudioCaptureService (both streams)
+    → Show recording pill (red dot + elapsed timer + stop button)
+    → Consume AsyncStream<CaptureEvent>, write buffers to M4A files
+    → User clicks Stop
+    → Stop capture, finalize M4A files
+    → Convert system audio M4A → 16kHz mono WAV via FFmpeg
+    → Send to FluidAudio STT (CoreML/ANE) for batch transcription
+    → Save as Transcription with sourceType = .meeting
+    → Navigate to transcription detail view
+```
+
+### Storage
+
+```
+~/Library/Application Support/MacParakeet/meeting-recordings/{uuid}/
+    ├── microphone.m4a    # Mic audio (AAC, 16kHz mono)
+    └── system.m4a        # System audio (AAC, 16kHz mono)
+```
+
+Audio files are kept by default. Users can delete manually from the transcription detail view.
+
+### Phase 2: Real-time Transcription
+
+In Phase 2, an `AudioChunker` (ported from Oatmeal) buffers audio into 5-second chunks with 1-second overlap and sends them to Parakeet during recording. This provides:
+- Live transcript preview in the recording pill
+- Free speaker diarization: mic chunks → "Me", system chunks → "Them"
+- Immediate transcript availability when recording stops
+
+---
+
 ## Permissions
 
 | Permission | Why | When Requested | Fallback |
 |------------|-----|----------------|----------|
 | Microphone | Dictation recording | First dictation attempt | Show permission dialog with instructions |
 | Accessibility | Global hotkey detection + text insertion | First dictation attempt | Show System Settings deep link |
+| Screen & System Audio Recording | Meeting recording (system audio capture via Core Audio Taps) | First meeting recording attempt | Show error + "Open System Settings" button, block recording |
 
 ### Permission Flow
 
@@ -143,8 +216,11 @@ User pastes YouTube URL
 
 | Stage | Format | Sample Rate | Channels | Bit Depth |
 |-------|--------|-------------|----------|-----------|
-| Mic capture | Platform native | Varies | Mono | Float32 |
+| Mic capture (dictation) | Platform native | Varies | Mono | Float32 |
 | After conversion | WAV | 16kHz | Mono | Float32 |
 | STT input | WAV | 16kHz | Mono | Float32 |
-| Long-term storage | WAV | 16kHz | Mono | Float32 |
+| Long-term storage (dictation) | WAV | 16kHz | Mono | Float32 |
 | File import (temp) | WAV | 16kHz | Mono | Float32 |
+| Meeting mic storage | M4A (AAC) | 16kHz | Mono | 64kbps |
+| Meeting system audio storage | M4A (AAC) | 16kHz | Mono | 64kbps |
+| Meeting STT input (temp) | WAV | 16kHz | Mono | Float32 |

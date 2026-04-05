@@ -86,6 +86,18 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
                               │
                               ▼
 ┌─────────────────────────────────────────────────────────────────┐
+│  v0.6 - "Meeting Recording"                                      │
+│  "Record meetings locally, transcribe with Parakeet"             │
+├─────────────────────────────────────────────────────────────────┤
+│  • Meeting recording (system audio + mic via Core Audio Taps)    │
+│  • Recording pill UI (floating timer + stop button)              │
+│  • Results in transcription library (sourceType: meeting)        │
+│  • Prompt library + multi-summary work automatically             │
+│  • Screen Recording permission flow                              │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
 │  Future - "Platform"                                             │
 ├─────────────────────────────────────────────────────────────────┤
 │  • iOS companion                                                 │
