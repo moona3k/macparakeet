@@ -507,6 +507,9 @@ final class DictationFlowCoordinator {
                     self.dictationLog.notice(
                         "start_recording_aborted gen=\(generation) session=\(sessionID) flowState=\(self.describeState(self.stateMachine.state), privacy: .public) serviceState=\(self.describeServiceState(serviceState), privacy: .public)"
                     )
+                    // Send startFailed so the flow state machine exits startingService.
+                    // Without this, the flow gets stuck with no recovery event.
+                    self.sendEvent(.startFailed(generation: generation, message: "Recording could not start — please try again"))
                     return
                 }
                 guard !Task.isCancelled else { return }

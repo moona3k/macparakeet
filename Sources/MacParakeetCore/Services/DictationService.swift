@@ -120,12 +120,19 @@ public actor DictationService: DictationServiceProtocol {
             // New session replacing a stale provisional recording whose
             // confirmCancel hasn't arrived yet. Clean up the old capture.
             logger.notice(
-                "startRecording replacing stale session old=\(self.activeSessionID) new=\(sessionID!, privacy: .public)"
+                "startRecording replacing stale recording old=\(self.activeSessionID) new=\(sessionID!, privacy: .public)"
             )
             if await audioProcessor.isRecording,
                let url = try? await audioProcessor.stopCapture() {
                 try? FileManager.default.removeItem(at: url)
             }
+        case .processing where sessionID != nil && sessionID != activeSessionID,
+             .success where sessionID != nil && sessionID != activeSessionID:
+            // Previous transcription still in flight. The reentrancy guards in
+            // stopRecording prevent the old call from overwriting this session's state.
+            logger.notice(
+                "startRecording overriding busy service old=\(self.activeSessionID) new=\(sessionID!, privacy: .public) state=\(self.debugStateLabel(self._state), privacy: .public)"
+            )
         default:
             return
         }
@@ -186,16 +193,25 @@ public actor DictationService: DictationServiceProtocol {
             throw DictationServiceError.notRecording
         }
 
+        let currentSession = activeSessionID
         _state = .processing
-        logger.debug("stopRecording processing begin session=\(sessionID ?? self.activeSessionID)")
+        logger.debug("stopRecording processing begin session=\(currentSession)")
 
         do {
             let audioURL = try await audioProcessor.stopCapture()
             let device = await audioProcessor.recordingDeviceInfo
             logger.debug(
-                "stopRecording capture stopped session=\(sessionID ?? self.activeSessionID) url=\(audioURL.path, privacy: .public)"
+                "stopRecording capture stopped session=\(currentSession) url=\(audioURL.path, privacy: .public)"
             )
             let result = try await processCapturedAudio(audioURL: audioURL)
+            // Guard against reentrancy: a new session may have started during
+            // transcription, replacing this session. Don't overwrite its state.
+            guard activeSessionID == currentSession else {
+                logger.notice(
+                    "stopRecording result discarded session=\(currentSession) replaced by=\(self.activeSessionID)"
+                )
+                return result
+            }
             _state = .success(result.dictation)
             Telemetry.send(.dictationCompleted(
                 durationSeconds: Double(result.dictation.durationMs) / 1000.0,
@@ -204,9 +220,10 @@ public actor DictationService: DictationServiceProtocol {
                 device: device
             ))
             logger.debug(
-                "stopRecording success session=\(sessionID ?? self.activeSessionID) rawChars=\(result.dictation.rawTranscript.count) cleanChars=\(result.dictation.cleanTranscript?.count ?? 0)"
+                "stopRecording success session=\(currentSession) rawChars=\(result.dictation.rawTranscript.count) cleanChars=\(result.dictation.cleanTranscript?.count ?? 0)"
             )
             try? await Task.sleep(for: .milliseconds(500))
+            guard activeSessionID == currentSession else { return result }
             _state = .idle
             recordingStartedAt = nil
             return result
@@ -214,6 +231,12 @@ public actor DictationService: DictationServiceProtocol {
             // Snapshot device before setting state to .idle — prevents reentrancy
             // window where a new startRecording() could overwrite the device info.
             let device = await audioProcessor.recordingDeviceInfo
+            guard activeSessionID == currentSession else {
+                logger.notice(
+                    "stopRecording error discarded session=\(currentSession) replaced by=\(self.activeSessionID)"
+                )
+                throw error
+            }
             _state = .idle
             if Self.isNoSpeechError(error) {
                 Telemetry.send(.dictationEmpty(durationSeconds: currentRecordingDurationSeconds(), device: device))
@@ -222,7 +245,7 @@ public actor DictationService: DictationServiceProtocol {
             }
             recordingStartedAt = nil
             logger.error(
-                "stopRecording failed session=\(sessionID ?? self.activeSessionID) error=\(error.localizedDescription, privacy: .public)"
+                "stopRecording failed session=\(currentSession) error=\(error.localizedDescription, privacy: .public)"
             )
             throw error
         }
