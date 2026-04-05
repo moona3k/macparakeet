@@ -18,7 +18,9 @@ public final class HotkeyManager {
     private let trigger: HotkeyTrigger
     private let targetMask: CGEventFlags?
     private let tapThresholdMs: Int
+    private let startupDebounceMs = FnKeyStateMachine.defaultStartupDebounceMs
     private var eventTap: CFMachPort?
+    private var startupTimer: DispatchWorkItem?
     private var holdTimer: DispatchWorkItem?
     private var runLoopSource: CFRunLoopSource?
     /// Retained reference to self passed to the CGEvent tap callback.
@@ -64,6 +66,7 @@ public final class HotkeyManager {
             CFRunLoopRemoveSource(runLoop, source, .commonModes)
         }
         retainedSelf?.release()
+        startupTimer?.cancel()
         holdTimer?.cancel()
     }
 
@@ -122,6 +125,7 @@ public final class HotkeyManager {
         // Balance the passRetained from start() to avoid leaking self
         retainedSelf?.release()
         retainedSelf = nil
+        startupTimer?.cancel()
         holdTimer?.cancel()
         eventTap = nil
         runLoopSource = nil
@@ -173,6 +177,7 @@ public final class HotkeyManager {
                 bareTap = true
                 let action = stateMachine.fnDown(timestampMs: timestampMs)
                 handleAction(action)
+                scheduleStartupTimerIfNeeded()
 
                 // Schedule hold timer
                 holdTimer?.cancel()
@@ -187,12 +192,13 @@ public final class HotkeyManager {
                 )
             } else {
                 // Modifier up
+                startupTimer?.cancel()
                 holdTimer?.cancel()
 
                 if bareTap {
                     let action = stateMachine.fnUp(timestampMs: timestampMs)
                     handleAction(action)
-                    if action == .discardRecording {
+                    if stateMachine.state == .waitingForSecondTap {
                         onReadyForSecondTap?()
                     }
                 } else {
@@ -209,11 +215,22 @@ public final class HotkeyManager {
         } else if type == .keyDown {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             if keyCode == 53 { // Escape
+                let wasWaitingForSecondTap = stateMachine.state == .waitingForSecondTap
+                if wasWaitingForSecondTap {
+                    startupTimer?.cancel()
+                    holdTimer?.cancel()
+                }
                 let action = stateMachine.escapePressed()
                 if action == .none {
-                    // State machine is idle — ESC may still need to dismiss an error overlay
-                    onEscapeWhileIdle?()
+                    if wasWaitingForSecondTap {
+                        stateMachine.reset()
+                    } else {
+                        // State machine is idle — ESC may still need to dismiss an error overlay
+                        onEscapeWhileIdle?()
+                    }
                 } else {
+                    startupTimer?.cancel()
+                    holdTimer?.cancel()
                     handleAction(action)
                 }
             } else if keyCode != 63 && keyCode != 179 {
@@ -231,6 +248,7 @@ public final class HotkeyManager {
                 if stateMachine.state == .waitingForSecondTap {
                     handleAction(.discardRecording)
                     stateMachine.reset()
+                    startupTimer?.cancel()
                     holdTimer?.cancel()
                 }
             }
@@ -259,6 +277,7 @@ public final class HotkeyManager {
 
                 let action = stateMachine.fnDown(timestampMs: timestampMs)
                 handleAction(action)
+                scheduleStartupTimerIfNeeded()
 
                 // Schedule hold timer
                 holdTimer?.cancel()
@@ -274,10 +293,21 @@ public final class HotkeyManager {
 
                 return nil // Swallow the trigger key event
             } else if keyCode == 53 { // Escape
+                let wasWaitingForSecondTap = stateMachine.state == .waitingForSecondTap
+                if wasWaitingForSecondTap {
+                    startupTimer?.cancel()
+                    holdTimer?.cancel()
+                }
                 let action = stateMachine.escapePressed()
                 if action == .none {
-                    onEscapeWhileIdle?()
+                    if wasWaitingForSecondTap {
+                        stateMachine.reset()
+                    } else {
+                        onEscapeWhileIdle?()
+                    }
                 } else {
+                    startupTimer?.cancel()
+                    holdTimer?.cancel()
                     handleAction(action)
                 }
             } else {
@@ -296,10 +326,11 @@ public final class HotkeyManager {
                 }
                 triggerKeyIsPressed = false
 
+                startupTimer?.cancel()
                 holdTimer?.cancel()
                 let action = stateMachine.fnUp(timestampMs: timestampMs)
                 handleAction(action)
-                if action == .discardRecording {
+                if stateMachine.state == .waitingForSecondTap {
                     onReadyForSecondTap?()
                 }
 
@@ -338,6 +369,7 @@ public final class HotkeyManager {
 
                 let action = stateMachine.fnDown(timestampMs: timestampMs)
                 handleAction(action)
+                scheduleStartupTimerIfNeeded()
 
                 // Schedule hold timer
                 holdTimer?.cancel()
@@ -353,10 +385,21 @@ public final class HotkeyManager {
 
                 return nil // Swallow the trigger key
             } else if keyCode == 53 { // Escape
+                let wasWaitingForSecondTap = stateMachine.state == .waitingForSecondTap
+                if wasWaitingForSecondTap {
+                    startupTimer?.cancel()
+                    holdTimer?.cancel()
+                }
                 let action = stateMachine.escapePressed()
                 if action == .none {
-                    onEscapeWhileIdle?()
+                    if wasWaitingForSecondTap {
+                        stateMachine.reset()
+                    } else {
+                        onEscapeWhileIdle?()
+                    }
                 } else {
+                    startupTimer?.cancel()
+                    holdTimer?.cancel()
                     handleAction(action)
                 }
             } else {
@@ -364,6 +407,7 @@ public final class HotkeyManager {
                 if stateMachine.state == .waitingForSecondTap {
                     handleAction(.discardRecording)
                     stateMachine.reset()
+                    startupTimer?.cancel()
                     holdTimer?.cancel()
                 }
             }
@@ -373,10 +417,11 @@ public final class HotkeyManager {
                     triggerKeyIsPressed = false
                     if !chordModifierReleased {
                         // Normal key release — end dictation
+                        startupTimer?.cancel()
                         holdTimer?.cancel()
                         let action = stateMachine.fnUp(timestampMs: timestampMs)
                         handleAction(action)
-                        if action == .discardRecording {
+                        if stateMachine.state == .waitingForSecondTap {
                             onReadyForSecondTap?()
                         }
                     }
@@ -392,10 +437,11 @@ public final class HotkeyManager {
                 let flags = event.flags.rawValue & Self.relevantModifierBits
                 if flags & requiredChordFlags != requiredChordFlags {
                     chordModifierReleased = true
+                    startupTimer?.cancel()
                     holdTimer?.cancel()
                     let action = stateMachine.fnUp(timestampMs: timestampMs)
                     handleAction(action)
-                    if action == .discardRecording {
+                    if stateMachine.state == .waitingForSecondTap {
                         onReadyForSecondTap?()
                     }
                 }
@@ -418,6 +464,8 @@ public final class HotkeyManager {
 
     /// Reset state machine to idle (e.g., after cancel countdown expires).
     public func resetToIdle() {
+        startupTimer?.cancel()
+        holdTimer?.cancel()
         stateMachine.reset()
     }
 
@@ -434,6 +482,21 @@ public final class HotkeyManager {
         case .discardRecording:
             onDiscardRecording?()
         }
+    }
+
+    private func scheduleStartupTimerIfNeeded() {
+        startupTimer?.cancel()
+        guard stateMachine.state == .waitingForSecondTap else { return }
+
+        let timer = DispatchWorkItem { [weak self] in
+            let action = self?.stateMachine.startupTimerFired() ?? .none
+            self?.handleAction(action)
+        }
+        startupTimer = timer
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + .milliseconds(startupDebounceMs),
+            execute: timer
+        )
     }
 
     // MARK: - Key Mapping

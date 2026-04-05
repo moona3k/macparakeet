@@ -30,6 +30,7 @@ public final class FnKeyStateMachine {
     public static let defaultTapThresholdMs: Int = 400
     public static let minimumTapThresholdMs: Int = 50
     public static let maximumTapThresholdMs: Int = 500
+    public static let defaultStartupDebounceMs: Int = 100
 
     /// Cancel window duration (5 seconds)
     public static let cancelWindowMs: Int = 5000
@@ -54,8 +55,8 @@ public final class FnKeyStateMachine {
         case .idle:
             fnDownTimestamp = timestampMs
             state = .waitingForSecondTap
-            hasActiveProvisionalRecording = true
-            return .startRecording(mode: .holdToTalk)
+            hasActiveProvisionalRecording = false
+            return .none
 
         case .waitingForSecondTap:
             // Second tap within threshold = double-tap
@@ -67,8 +68,8 @@ public final class FnKeyStateMachine {
             } else {
                 // Too slow, treat as new first tap
                 fnDownTimestamp = timestampMs
-                hasActiveProvisionalRecording = true
-                return .startRecording(mode: .holdToTalk)
+                hasActiveProvisionalRecording = false
+                return .none
             }
 
         case .persistent:
@@ -88,6 +89,15 @@ public final class FnKeyStateMachine {
         }
     }
 
+    /// Called when the startup debounce timer fires while still waiting on the first press.
+    public func startupTimerFired() -> Action {
+        guard state == .waitingForSecondTap, !hasActiveProvisionalRecording else {
+            return .none
+        }
+        hasActiveProvisionalRecording = true
+        return .startRecording(mode: .holdToTalk)
+    }
+
     /// Called when Fn key is released
     public func fnUp(timestampMs: UInt64) -> Action {
         switch state {
@@ -95,13 +105,15 @@ public final class FnKeyStateMachine {
             let holdDuration = timestampMs - fnDownTimestamp
             if holdDuration >= tapThresholdMs {
                 state = .idle
+                let shouldStop = hasActiveProvisionalRecording
                 hasActiveProvisionalRecording = false
-                return .stopRecording
+                return shouldStop ? .stopRecording : .none
             }
             // Quick release = discard provisional capture and wait for the second tap.
             firstTapTimestamp = timestampMs
+            let shouldDiscard = hasActiveProvisionalRecording
             hasActiveProvisionalRecording = false
-            return .discardRecording
+            return shouldDiscard ? .discardRecording : .none
 
         case .holdToTalk:
             // Release during hold-to-talk = stop and paste
@@ -124,8 +136,11 @@ public final class FnKeyStateMachine {
         case .waitingForSecondTap:
             // Fn held past threshold = hold-to-talk mode
             state = .holdToTalk
-            hasActiveProvisionalRecording = false
-            return .none
+            if hasActiveProvisionalRecording {
+                hasActiveProvisionalRecording = false
+                return .none
+            }
+            return .startRecording(mode: .holdToTalk)
         default:
             return .none
         }
