@@ -103,16 +103,16 @@ swift run macparakeet-cli transcribe "<FILE>"
 swift run macparakeet-cli transcribe "<FILE>" --format json
 ```
 
-## Entitlements/Trial Gating Parity
+## Legacy Entitlements Parity
 
-Enable this only when validating license/trial behavior:
+Use this only when exercising the same entitlement check path the GUI uses:
 
 ```bash
 swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
   --enforce-entitlements
 ```
 
-Without `--enforce-entitlements`, the CLI runs core transcription without GUI gating.
+On the current branch, the app is effectively unlocked, so `--enforce-entitlements` should still pass unless you are explicitly validating legacy licensing code.
 
 ## Export
 
@@ -272,7 +272,6 @@ All LLM commands accept these additional options:
 
 - `--model <name>` — Override default model
 - `--base-url <url>` — Custom API endpoint (http:// or https://)
-- `--local` — Mark provider as local (smaller context budget)
 - `--stream` — Stream response token-by-token (summarize, chat, transform)
 - `--command <cmd>` — CLI command template (Local CLI provider only)
 

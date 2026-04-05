@@ -46,13 +46,13 @@ Everything else exists to make those two modes faster, smarter, and more useful.
 | **Cloud services** (WisprFlow, Otter) | Fast | Your audio on their servers | $12+/mo forever | Simple |
 | **Local apps** (MacWhisper, Superwhisper) | Good | Private | $30-$250 | Complex or expensive |
 | **Apple Dictation** | Slow | Mostly local | Free | Very limited |
-| **MacParakeet** | **Fastest** | **100% local** | **Free (GPL-3.0)** | **Two modes** |
+| **MacParakeet** | **Fastest** | **Local-first speech** | **Free (GPL-3.0)** | **Two modes** |
 
 No existing app nails all four: **Speed + Privacy + Simplicity + Fair Pricing**.
 
 Cloud services send your voice to remote servers, create accounts, charge monthly, and add server latency. Local apps either bury you in settings (MacWhisper has 50+ features) or charge a premium (Superwhisper at $250). Apple Dictation is free but slow, inaccurate, and has no custom vocabulary, no file transcription.
 
-**MacParakeet's answer:** Built from the ground up around Parakeet TDT -- the fastest, most accurate open-source STT model available. 100% local. Two modes. Free. Done.
+**MacParakeet's answer:** Built from the ground up around Parakeet TDT -- the fastest, most accurate open-source STT model available. Local-first speech. Two modes. Free. Done.
 
 ---
 
@@ -66,7 +66,7 @@ Speed changes behavior. When transcription takes 30 seconds, you think about whe
 
 ### 2. Privacy Is the Brand
 
-100% local is not a feature. It is the identity.
+Local-first speech is not a feature. It is the identity.
 
 - Local-first STT. No cloud speech processing, no accounts, no required backend.
 - Audio never leaves your Mac for dictation or transcription.
@@ -107,7 +107,7 @@ Every feature is available to everyone, forever. The code is public. Contributio
 | **Product type** | Native macOS app (menu bar + window) |
 | **Core function** | Voice dictation and file transcription |
 | **Target users** | Developers, professionals, writers who want fast private voice input |
-| **Key differentiators** | Parakeet speed + 100% local + free/open-source |
+| **Key differentiators** | Parakeet speed + local-first speech + free/open-source |
 | **Business model** | Free and open-source (GPL-3.0) |
 | **Platform** | macOS 14.2+, Apple Silicon only |
 
@@ -117,7 +117,7 @@ Every feature is available to everyone, forever. The code is public. Contributio
 
 - **Not a meeting app** -- That is Oatmeal. MacParakeet does not do calendar integration, entity extraction, meeting memory, or action items.
 - **Not a note-taking app** -- It puts text where your cursor is. Your note app is your note app.
-- **Not a cloud service** -- No servers, no accounts, no sync. Local only.
+- **Not a cloud service** -- No hosted transcription backend, no accounts, no sync product. Core speech stays local.
 - **Not an enterprise product** -- Single-user, single-Mac. No admin console, no team management (initially).
 - **Not a mobile app** -- macOS only. Apple Silicon required for Parakeet STT via FluidAudio CoreML on the Neural Engine.
 - **Not a transcription editor** -- Drop a file, get text. We do not build a full editing environment around transcripts.
@@ -243,7 +243,7 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 | **STT Engine** | Parakeet TDT | Cloud AI | Whisper | Whisper | Apple Neural |
 | **Speed (60 min)** | ~23 sec | ~30 sec* | ~2-4 min | ~2-4 min | Real-time only |
 | **WER** | ~2.5% | ~5%** | 7-12% | 7-12% | ~10-15% |
-| **Privacy** | 100% local | Cloud | Local | Local | Mostly local |
+| **Privacy** | Local-first speech | Cloud | Local | Local | Mostly local |
 | **Dictation** | Yes | Yes | No | Yes | Yes |
 | **File transcription** | Yes | No | Yes | Limited | No |
 | **Smart cleanup** | Deterministic | Cloud AI | No | Cloud AI | No |
@@ -256,7 +256,7 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 ### Why We Win Each Segment
 
-- **vs WisprFlow**: Same speed class, but local + free vs $144-180/year. WisprFlow users who care about privacy or cost switch to us.
+- **vs WisprFlow**: Same speed class, but local-first speech + free vs $144-180/year. WisprFlow users who care about privacy or cost switch to us.
 - **vs MacWhisper**: Faster (Parakeet vs Whisper), simpler (2 modes vs 50+ features), plus system-wide dictation — and free.
 - **vs Superwhisper**: Free vs $250, Parakeet-first architecture. No contest on price.
 - **vs Apple Dictation**: Faster, more accurate, custom words, file transcription. Same price (free), dramatically more capable.

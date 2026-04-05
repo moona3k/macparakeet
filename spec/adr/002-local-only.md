@@ -16,7 +16,7 @@ Meanwhile, local-only alternatives (MacWhisper, VoiceInk, BetterDictation) have 
 
 ## Decision
 
-**Local-first processing.** The core product — transcription and dictation — is 100% local. Audio never leaves the device.
+**Local-first processing.** The core product — transcription and dictation — runs on-device. Audio never leaves the device.
 
 LLM-powered features (summarization, chat, transforms) use external providers configured by the user. This is opt-in, explicit, and text-only — audio is never sent.
 
@@ -32,7 +32,7 @@ LLM-powered features (summarization, chat, transforms) use external providers co
 
 - **LLM features**: Summarization, chat-with-transcript, custom transforms (ADR-011)
   - Transcript *text* (not audio) is sent to the user's chosen provider
-  - User configures their own API key or local provider (Ollama/LM Studio)
+  - User configures their own API key, Ollama runtime, or Local CLI tool
   - No default provider — user must explicitly opt in
   - Features work without any provider configured (they're just unavailable)
 
@@ -57,7 +57,8 @@ A local 8B model produces mediocre summaries. Cloud models (Claude, GPT-4) produ
 | Configuration | Audio leaves device? | Text leaves device? | Quality |
 |--------------|---------------------|---------------------|---------|
 | No provider (default) | No | No | No LLM features |
-| Ollama / LM Studio | No | No (localhost) | Good (local model) |
+| Ollama | No | No (localhost) | Good (local model) |
+| Local CLI | No | Depends on the CLI tool | Varies by tool/provider |
 | Cloud API key | No | Yes (user-initiated) | Excellent |
 
 Users make an informed choice. The UI makes the tradeoff explicit. Apple Intelligence follows the same pattern — on-device by default, cloud with user consent for complex tasks.
@@ -70,7 +71,7 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 
 - Cursor ($20/mo) — bring your own API key for AI features
 - Raycast — optional AI features with user's API key
-- Char (fastrepl/char) — meeting transcription with cloud + Ollama + LM Studio support
+- Char (fastrepl/char) — meeting transcription with cloud + local-provider support
 - Apple Intelligence — on-device default, Private Cloud Compute for complex tasks
 
 ## Consequences
@@ -80,7 +81,7 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 - Audio never leaves the device — core privacy promise intact
 - Transcription works fully offline — no degradation
 - LLM features use best-available models (Claude, GPT-4) without bundling a runtime
-- Local-only users can use Ollama/LM Studio
+- Local-only users can use Ollama
 - Zero resource impact from LLM (no GPU memory, no model downloads)
 - One-time purchase pricing preserved
 - App Store compatible
@@ -89,7 +90,7 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 
 - **Messaging complexity**: "100% local" was simpler than "local-first with opt-in cloud." Must be communicated clearly and honestly.
 - **Cloud LLM features require internet**: Summarization/chat won't work offline unless user runs Ollama. Transcription still works offline.
-- **Transcript text exposure**: When using cloud providers, transcript text is sent to third-party servers. Must be clear in UI. Users with sensitive content should use Ollama or skip LLM features.
+- **Transcript text exposure**: When using cloud providers or cloud-backed CLI tools, transcript text is sent to third-party services. Must be clear in UI. Users with sensitive content should use Ollama or skip LLM features.
 - **No cloud backup or sync**: User data stays on-device. If the Mac is lost, dictation history is lost. This is intentional.
 - **No collaborative features**: Real-time sharing, team vocabularies, or cross-device sync would require cloud infrastructure. These are out of scope.
 

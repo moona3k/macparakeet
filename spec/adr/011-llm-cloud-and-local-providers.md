@@ -23,11 +23,11 @@ The product decision to remove it was correct — the local LLM didn't deliver e
 
 The insight is: **the problem was the runtime, not the features.** Summarization, chat-with-transcript, and text transforms are genuinely valuable. The mistake was trying to run the LLM locally instead of letting users bring their own provider.
 
-Cloud models (Claude, GPT-4, Gemini) are dramatically better than any local 8B for these tasks. And the "bring your own API key" pattern is well-established (Cursor, Raycast, Continue, many others). Users who want local-only can point at Ollama or LM Studio — same OpenAI-compatible API, no bundled runtime.
+Cloud models (Claude, GPT-4, Gemini) are dramatically better than any local 8B for these tasks. And the "bring your own API key" pattern is well-established (Cursor, Raycast, Continue, many others). Users who want local-only can point at Ollama, or use a Local CLI tool if they prefer that workflow.
 
 ### Competitive Validation
 
-Char (fastrepl/char, ~8K GitHub stars) — a meeting transcription app — supports exactly this pattern: cloud APIs (via OpenRouter), Ollama, and LM Studio, all through the same OpenAI-compatible `/v1/chat/completions` endpoint. Their built-in local engine (Cactus) is ~50% slower than MLX on Mac and uses a mobile-optimized C++ runtime — validating that for Mac desktop apps, the right approach is either cloud APIs or Apple-native runtimes, not bundled cross-platform engines.
+Char (fastrepl/char, ~8K GitHub stars) — a meeting transcription app — supports this general BYO-provider pattern. That validates the product direction even though MacParakeet's current branch now uses a mixed transport layer: Anthropic native Messages API, Ollama native `/api/chat`, OpenAI-compatible providers, and Local CLI subprocess execution.
 
 ## Decision
 
@@ -35,7 +35,7 @@ Char (fastrepl/char, ~8K GitHub stars) — a meeting transcription app — suppo
 
 ### Supported Providers
 
-All providers use the OpenAI-compatible chat completions API (`POST /v1/chat/completions`):
+The current branch supports these provider/runtime types through one shared service layer:
 
 | Provider | Type | Base URL | Auth |
 |----------|------|----------|------|
@@ -46,19 +46,17 @@ All providers use the OpenAI-compatible chat completions API (`POST /v1/chat/com
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 
-> Note: LM Studio is accessible via Ollama or any OpenAI-compatible endpoint configuration — no dedicated provider needed.
-
 **Amendment (2026-04-03): Local CLI provider.** Users with Claude Code or Codex subscriptions can use their CLI tools (`claude -p`, `codex exec`, or any custom command) for summaries, chat, and transforms — no separate API key needed. The CLI tool runs as a subprocess via `posix_spawn` with process group management. Prompts are delivered via stdin and `MACPARAKEET_*` environment variables. This extends the provider model without changing the `LLMClientProtocol` — a `RoutingLLMClient` dispatches `.localCLI` contexts to `LocalCLILLMClient` and everything else to the HTTP `LLMClient`. See PR #47.
 
-**Note:** Anthropic offers both a native Messages API and an OpenAI-compatible endpoint. We use the OpenAI-compatible endpoint for simplicity — one protocol for all providers. If Anthropic-specific features (prompt caching, extended thinking) are needed later, the client can branch on `config.id == .anthropic` internally with zero API change for consumers.
+**Implementation note (2026-04-04):** Anthropic now uses the native Messages API and Ollama uses its native `/api/chat` endpoint. OpenAI, Gemini, and OpenRouter still use OpenAI-compatible chat completions. The shared abstraction is the service/client interface, not a single wire protocol.
 
 ### Locked Decisions
 
 1. **No bundled LLM runtime.** No mlx-swift-lm, no llama.cpp, no Cactus, no model downloads. Zero GPU/memory impact from LLM.
-2. **OpenAI-compatible API only.** One protocol, one SSE parser, one code path for all providers. Anthropic's native Messages API can be added later if needed — the `LLMClientProtocol` already accepts `LLMProviderConfig`, so routing by provider ID requires zero API change.
+2. **Provider-aware transport behind one shared service boundary.** Runtime choices are external providers, Ollama, or Local CLI tools. Transport details may vary per provider.
 3. **LLM features are optional.** The app is fully functional without any provider configured. Transcription, dictation, export — all work without LLM.
 4. **No default provider.** User must explicitly choose and configure. No "sign up for our cloud" upsell.
-5. **Transcription stays 100% local.** Audio never leaves the device. Only transcript text is sent to cloud providers (when the user explicitly triggers an LLM feature). This distinction must be clear in the UI.
+5. **Transcription stays local-first.** Audio never leaves the device. Only transcript text is sent to providers/CLI tools when the user explicitly triggers an LLM feature. This distinction must be clear in the UI.
 
 ### Features Enabled
 
@@ -78,25 +76,26 @@ Local 8B models produce mediocre summaries. Cloud models (Claude Sonnet, GPT-4o)
 
 ### Zero resource impact
 
-No GPU memory, no model downloads, no ANE contention. The app's resource profile stays at ~66 MB (Parakeet STT on ANE). LLM inference happens entirely outside the app's process — either on a remote server or in Ollama/LM Studio's separate process.
+No GPU memory, no model downloads, no ANE contention. The app's resource profile stays focused on STT. LLM inference happens entirely outside the app's process — either on a remote server, in Ollama's separate process, or inside an external CLI tool.
 
 ### Privacy spectrum, user's choice
 
 | Provider | Audio leaves device? | Transcript text leaves device? |
 |----------|---------------------|-------------------------------|
 | None (default) | No | No |
-| Ollama / LM Studio | No | No (localhost) |
+| Ollama | No | No (localhost) |
+| Local CLI | No | Depends on the CLI tool |
 | Cloud API | No | **Yes (user-initiated, text only)** |
 
 Users choose their privacy/quality tradeoff. The app makes the tradeoff explicit in the UI. Audio NEVER leaves the device regardless of provider choice.
 
 ### Implementation simplicity
 
-One Swift protocol, one HTTP client, one response parser. The entire LLM integration is ~200-300 lines of networking code. No model management, no GPU scheduling, no memory pressure handling, no idle unload timers. Compare this to the mlx-swift-lm integration which touched 15+ files.
+One Swift service boundary with provider-aware routing. The current implementation keeps UI/domain code simple while allowing provider-specific transport where needed. No model management, no GPU scheduling, no memory pressure handling, no idle unload timers. Compare this to the mlx-swift-lm integration which touched 15+ files.
 
 ### Bring-your-own-model via local providers
 
-Users who want local-only LLM can install Ollama (`brew install ollama && ollama pull llama3.2`) and point MacParakeet at `localhost:11434`. They get local privacy with whatever model they choose — including models larger/better than Qwen3-8B. MacParakeet doesn't need to know or care what model is running.
+Users who want local-only LLM can install Ollama (`brew install ollama && ollama pull llama3.2`) and point MacParakeet at `localhost:11434`. They get local privacy with whatever model they choose. MacParakeet doesn't need to know or care what model is running.
 
 ## Consequences
 
@@ -104,21 +103,21 @@ Users who want local-only LLM can install Ollama (`brew install ollama && ollama
 
 - LLM features with zero resource impact on the app
 - Best-in-class quality via cloud models (Claude, GPT-4)
-- Local-only option via Ollama/LM Studio for privacy users
+- Local-only option via Ollama for privacy users
 - Minimal implementation complexity (~200-300 lines of networking code)
 - No new SPM dependencies (URLSession is sufficient)
 - No model downloads, no GPU memory, no ANE contention
-- App Store compatible (no subprocess, no bundled runtime)
+- Lightweight distribution footprint (no bundled runtime)
 - Users control their own costs (their API keys, their usage)
 
 ### Negative
 
-- **Cloud providers require internet.** LLM features won't work offline unless user has Ollama/LM Studio running. This is acceptable because transcription (the core value) works fully offline.
+- **Cloud providers require internet.** LLM features won't work offline unless user has Ollama running. This is acceptable because transcription (the core value) works fully offline.
 - **Cloud providers cost money.** API calls are cheap (cents per transcript) but non-zero. Users manage their own billing. We should show estimated token counts before sending.
-- **Privacy nuance.** "100% local" messaging needs updating to "transcription is 100% local, AI features use your chosen provider." Must be clear and honest.
+- **Privacy nuance.** "100% local" messaging needs updating to "speech stays local, AI features use your chosen provider." Must be clear and honest.
 - **Transcript text sent to cloud.** When using cloud providers, transcript text leaves the device. Audio never does. The distinction must be explicit in the UI and docs.
-- **Provider API changes.** OpenAI-compatible API is a de facto standard but not formally versioned. Providers may break compatibility. Mitigated by the standard being widely adopted and stable.
-- **No offline summarization.** Users without Ollama/LM Studio and without internet get no LLM features. The deterministic clean pipeline still works for basic text cleanup.
+- **Provider API changes.** Provider-native and OpenAI-compatible APIs may change independently. Mitigated by keeping routing isolated inside the client layer.
+- **No offline summarization.** Users without Ollama and without internet get no LLM features. The deterministic clean pipeline still works for basic text cleanup.
 
 ## Architecture
 
@@ -149,8 +148,8 @@ Users who want local-only LLM can install Ollama (`brew install ollama && ollama
             ▼                        ▼
    ┌─────────────────┐   ┌──────────────────┐   ┌────────────────┐
    │  Cloud API       │   │  Local Runtime   │   │  CLI Tool      │
-   │  (Claude/GPT/    │   │  (Ollama/        │   │  (claude -p,   │
-   │   Gemini)        │   │   LM Studio)     │   │   codex exec)  │
+   │  (Claude/GPT/    │   │  (Ollama)        │   │  (claude -p,   │
+   │   Gemini)        │   │                  │   │   codex exec)  │
    └─────────────────┘   └──────────────────┘   └────────────────┘
 ```
 
@@ -163,36 +162,36 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
     public let baseURL: URL
     public let apiKey: String?         // nil for local providers; client injects Bearer ollama for Ollama
     public let modelName: String       // "claude-sonnet-4-20250514", "gpt-4o", "llama3.2"
-    public let isLocal: Bool           // true for Ollama/LM Studio/local custom
+    public let isLocal: Bool           // true for Ollama on the current branch
 }
 
 public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case anthropic, openai, gemini, openrouter, ollama, localCLI
-    // Note: LM Studio is accessible via Ollama or any OpenAI-compatible endpoint configuration.
     // localCLI runs CLI tools (claude -p, codex exec) as subprocesses — no HTTP, no API key.
 }
 
-/// Client — handles HTTP via OpenAI-compatible protocol
+/// Client — routes provider-specific HTTP or CLI transport behind one interface
 public protocol LLMClientProtocol: Sendable {
     func chatCompletion(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) async throws -> ChatCompletionResponse
 
     func chatCompletionStream(
         messages: [ChatMessage],
-        config: LLMProviderConfig,
+        context: LLMExecutionContext,
         options: ChatCompletionOptions
     ) -> AsyncThrowingStream<String, Error>
 
-    func testConnection(config: LLMProviderConfig) async throws
+    func testConnection(context: LLMExecutionContext) async throws
+    func listModels(context: LLMExecutionContext) async throws -> [String]
 }
 
 /// High-level service — domain-specific operations
 public protocol LLMServiceProtocol: Sendable {
-    func summarize(transcript: String) async throws -> String
-    func summarizeStream(transcript: String) -> AsyncThrowingStream<String, Error>
+    func summarize(transcript: String, systemPrompt: String?) async throws -> String
+    func summarizeStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
     func chat(question: String, transcript: String, history: [ChatMessage]) async throws -> String
     func chatStream(question: String, transcript: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error>
     func transform(text: String, prompt: String) async throws -> String
@@ -225,14 +224,14 @@ Rejected. Spawning an external daemon violates App Store sandboxing, adds distri
 
 Rejected. Adds server costs (requiring subscription pricing — conflicts with ADR-003), adds a reliability dependency, and adds a privacy concern (we'd see transcript text). Users bringing their own keys is simpler, cheaper, and more private.
 
-### Anthropic native Messages API (two protocols)
+### Anthropic native Messages API (historical alternative)
 
-Considered. Anthropic's native Messages API has a different SSE format, requires `max_tokens`, and offers features not available via their OpenAI-compatible endpoint (prompt caching, extended thinking). However, for our use cases (basic chat completions with streaming), the OpenAI-compatible endpoint works. Adding the native API later requires only an internal branch in `LLMClient` with zero consumer-facing changes. YAGNI — ship one protocol, add the second only if the OpenAI-compat endpoint causes real problems.
+Historical note: this alternative has since been implemented on the current branch. Anthropic now uses the native Messages API behind the same `LLMClientProtocol` boundary, while the higher-level product decision in this ADR remains unchanged.
 
 ## References
 
-- ADR-002: Local-only processing (updated with LLM provider exception)
+- ADR-002: Local-first processing (updated with LLM provider exception)
 - ADR-008: Previous local LLM approach (HISTORICAL)
 - `spec/11-llm-integration.md`: Previous integration spec (HISTORICAL)
-- Char (fastrepl/char): Meeting app with cloud + Ollama + LM Studio LLM support
+- Char (fastrepl/char): Meeting app with cloud + local-provider LLM support
 - Cursor, Raycast, Continue: Precedent for "bring your own API key" in developer tools
