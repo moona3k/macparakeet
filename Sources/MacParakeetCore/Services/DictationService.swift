@@ -116,6 +116,16 @@ public actor DictationService: DictationServiceProtocol {
         switch _state {
         case .idle, .cancelled:
             break
+        case .recording where sessionID != nil && sessionID != activeSessionID:
+            // New session replacing a stale provisional recording whose
+            // confirmCancel hasn't arrived yet. Clean up the old capture.
+            logger.notice(
+                "startRecording replacing stale session old=\(self.activeSessionID) new=\(sessionID!, privacy: .public)"
+            )
+            if await audioProcessor.isRecording,
+               let url = try? await audioProcessor.stopCapture() {
+                try? FileManager.default.removeItem(at: url)
+            }
         default:
             return
         }
