@@ -11,11 +11,20 @@ public struct MeetingAudioLevels: Sendable, Equatable {
     }
 }
 
+public enum CaptureMode: Sendable, Equatable {
+    case full
+    case stopped
+}
+
 public protocol MeetingRecordingServiceProtocol: Sendable {
-    func startRecording(levelHandler: (@Sendable (MeetingAudioLevels) -> Void)?) async throws
+    func startRecording() async throws
     func stopRecording() async throws -> MeetingRecordingOutput
     func cancelRecording() async
     var isRecording: Bool { get async }
+    var micLevel: Float { get async }
+    var systemLevel: Float { get async }
+    var elapsedSeconds: Int { get async }
+    var captureMode: CaptureMode { get async }
 }
 
 public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
@@ -36,7 +45,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private var currentSession: Session?
     private var writer: MeetingAudioStorageWriter?
-    private var levelHandler: (@Sendable (MeetingAudioLevels) -> Void)?
     private var processingTask: Task<Void, Never>?
     private var latestLevels = MeetingAudioLevels()
 
@@ -54,7 +62,24 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         currentSession != nil
     }
 
-    public func startRecording(levelHandler: (@Sendable (MeetingAudioLevels) -> Void)? = nil) async throws {
+    public var micLevel: Float {
+        latestLevels.microphone
+    }
+
+    public var systemLevel: Float {
+        latestLevels.system
+    }
+
+    public var elapsedSeconds: Int {
+        guard let startedAt = currentSession?.startedAt else { return 0 }
+        return max(0, Int(Date().timeIntervalSince(startedAt)))
+    }
+
+    public var captureMode: CaptureMode {
+        currentSession == nil ? .stopped : .full
+    }
+
+    public func startRecording() async throws {
         guard currentSession == nil else {
             throw MeetingAudioError.alreadyRunning
         }
@@ -74,7 +99,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         )
 
         let events = await audioCaptureService.events
-        self.levelHandler = levelHandler
         self.latestLevels = MeetingAudioLevels()
         self.writer = writer
         self.currentSession = session
@@ -95,7 +119,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             self.writer?.finalize()
             self.writer = nil
             self.currentSession = nil
-            self.levelHandler = nil
             try? fileManager.removeItem(at: folderURL)
             throw error
         }
@@ -161,7 +184,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             do {
                 try writer?.write(buffer, source: .microphone)
                 latestLevels.microphone = buffer.rmsLevel
-                levelHandler?(latestLevels)
             } catch {
                 logger.error("Failed to write microphone audio: \(error.localizedDescription, privacy: .public)")
             }
@@ -169,7 +191,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             do {
                 try writer?.write(buffer, source: .system)
                 latestLevels.system = buffer.rmsLevel
-                levelHandler?(latestLevels)
             } catch {
                 logger.error("Failed to write system audio: \(error.localizedDescription, privacy: .public)")
             }
@@ -189,7 +210,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func cleanupState() {
         currentSession = nil
-        levelHandler = nil
         latestLevels = MeetingAudioLevels()
     }
 

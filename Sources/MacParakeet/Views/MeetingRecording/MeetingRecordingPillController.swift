@@ -1,4 +1,5 @@
 import AppKit
+import MacParakeetViewModels
 import SwiftUI
 
 private final class MeetingRecordingClickablePanel: NSPanel {
@@ -6,18 +7,18 @@ private final class MeetingRecordingClickablePanel: NSPanel {
 }
 
 @MainActor
-final class MeetingRecordingOverlayController {
+final class MeetingRecordingPillController {
     private var panel: NSPanel?
-    private let overlayViewModel: MeetingRecordingOverlayViewModel
+    private let pillViewModel: MeetingRecordingPillViewModel
 
-    init(viewModel: MeetingRecordingOverlayViewModel) {
-        self.overlayViewModel = viewModel
+    init(viewModel: MeetingRecordingPillViewModel) {
+        self.pillViewModel = viewModel
     }
 
     func show() {
         if panel != nil { return }
 
-        let view = MeetingRecordingOverlayView(viewModel: overlayViewModel)
+        let view = MeetingRecordingPillView(viewModel: pillViewModel)
         let hosting = NSHostingView(rootView: view)
 
         let panelWidth: CGFloat = 360

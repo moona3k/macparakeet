@@ -31,7 +31,7 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(machine.state, .starting)
         XCTAssertEqual(
             effects,
-            [.showRecordingOverlay, .startRecording, .updateMenuBar(.recording)]
+            [.showRecordingPill, .startRecording, .updateMenuBar(.recording)]
         )
     }
 
@@ -42,7 +42,7 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
 
         let effects = machine.handle(.stopRequested)
 
-        XCTAssertEqual(machine.state, .pendingStop)
+        XCTAssertEqual(machine.state, .stopping)
         XCTAssertTrue(effects.isEmpty)
     }
 
@@ -126,7 +126,7 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
         let effects = machine.handle(.autoDismissExpired(generation: 1))
 
         XCTAssertEqual(machine.state, .idle)
-        XCTAssertEqual(effects, [.cancelAutoDismissTimer, .hideOverlay])
+        XCTAssertEqual(effects, [.cancelAutoDismissTimer, .hidePill])
     }
 
     func testStaleGenerationIsIgnored() {

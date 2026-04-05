@@ -1,4 +1,5 @@
 import MacParakeetCore
+import MacParakeetViewModels
 import SwiftUI
 
 private struct MeetingRecordingCheckmarkView: View {
@@ -61,20 +62,22 @@ private struct MeetingAudioMeterGroup: View {
     }
 }
 
-struct MeetingRecordingOverlayView: View {
-    @Bindable var viewModel: MeetingRecordingOverlayViewModel
+struct MeetingRecordingPillView: View {
+    @Bindable var viewModel: MeetingRecordingPillViewModel
 
     var body: some View {
         VStack(spacing: 0) {
-            overlayContent
+            pillContent
         }
         .padding(.bottom, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
     @ViewBuilder
-    private var overlayContent: some View {
+    private var pillContent: some View {
         switch viewModel.state {
+        case .idle:
+            EmptyView()
         case .recording:
             recordingPill
         case .transcribing:
@@ -107,7 +110,7 @@ struct MeetingRecordingOverlayView: View {
                 .foregroundStyle(.white.opacity(0.72))
                 .frame(width: 42, alignment: .leading)
 
-            MeetingAudioMeterGroup(systemName: "mic.fill", level: viewModel.microphoneLevel)
+            MeetingAudioMeterGroup(systemName: "mic.fill", level: viewModel.micLevel)
             MeetingAudioMeterGroup(systemName: "speaker.wave.2.fill", level: viewModel.systemLevel)
 
             Button(action: { viewModel.onStop?() }) {

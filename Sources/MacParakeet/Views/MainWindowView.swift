@@ -103,14 +103,9 @@ struct MainWindowView: View {
                             state.navigateToTranscription(from: .library)
                         }
                     case .meetings:
-                        TranscriptionLibraryView(
+                        MeetingsView(
                             viewModel: meetingsViewModel,
-                            title: "Meetings",
-                            showsFilterBar: false,
-                            primaryActionTitle: "Record Meeting",
-                            onPrimaryAction: onRecordMeeting,
-                            emptyTitle: "No meetings recorded yet",
-                            emptyMessage: "Record a meeting to save it here with the rest of your transcript tools."
+                            onStartMeeting: onRecordMeeting
                         ) { transcription in
                             transcriptionViewModel.currentTranscription = transcription
                             state.navigateToTranscription(from: .meetings)

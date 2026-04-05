@@ -10,7 +10,7 @@ public enum MeetingRecordingFlowState: Equatable, Sendable {
     case checkingPermissions
     case starting
     case recording
-    case pendingStop
+    case stopping
     case transcribing
     case finishing(outcome: MeetingRecordingFlowFinishOutcome)
 }
@@ -35,13 +35,13 @@ public enum MeetingRecordingFlowEvent: Equatable, Sendable {
 
 public enum MeetingRecordingFlowEffect: Equatable, Sendable {
     case checkPermissions
-    case showRecordingOverlay
+    case showRecordingPill
     case startRecording
     case showTranscribingState
     case stopRecordingAndTranscribe
     case showCompleted
     case showError(String)
-    case hideOverlay
+    case hidePill
     case updateMenuBar(DictationFlowMenuBarState)
     case navigateToTranscription(UUID)
     case presentPermissionAlert(MeetingRecordingPermissionFailure)
@@ -65,7 +65,7 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
         case (.checkingPermissions, .permissionsGranted(let gen)):
             guard gen == generation else { return [] }
             state = .starting
-            return [.showRecordingOverlay, .startRecording, .updateMenuBar(.recording)]
+            return [.showRecordingPill, .startRecording, .updateMenuBar(.recording)]
 
         case (.checkingPermissions, .permissionsDenied(let gen, let reason)):
             guard gen == generation else { return [] }
@@ -83,15 +83,15 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
             return [.showError(message), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
 
         case (.starting, .stopRequested):
-            state = .pendingStop
+            state = .stopping
             return []
 
-        case (.pendingStop, .recordingStarted(let gen)):
+        case (.stopping, .recordingStarted(let gen)):
             guard gen == generation else { return [] }
             state = .transcribing
             return [.showTranscribingState, .updateMenuBar(.processing), .stopRecordingAndTranscribe]
 
-        case (.pendingStop, .startFailed(let gen, let message)):
+        case (.stopping, .startFailed(let gen, let message)):
             guard gen == generation else { return [] }
             state = .finishing(outcome: .error(message))
             return [.showError(message), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
@@ -117,16 +117,16 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
 
         case (.finishing, .dismissRequested):
             state = .idle
-            return [.cancelAutoDismissTimer, .hideOverlay]
+            return [.cancelAutoDismissTimer, .hidePill]
 
         case (.finishing, .autoDismissExpired(let gen)):
             guard gen == generation else { return [] }
             state = .idle
-            return [.cancelAutoDismissTimer, .hideOverlay]
+            return [.cancelAutoDismissTimer, .hidePill]
 
         case (.recording, .dismissRequested),
              (.starting, .dismissRequested),
-             (.pendingStop, .dismissRequested),
+             (.stopping, .dismissRequested),
              (.transcribing, .dismissRequested),
              (.checkingPermissions, .dismissRequested):
             return []

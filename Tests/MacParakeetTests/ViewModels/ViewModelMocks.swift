@@ -745,6 +745,8 @@ final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendabl
         return screenRecordingPermission
     }
 
+    func openScreenRecordingSettings() {}
+
     func checkAccessibilityPermission() -> Bool {
         accessibilityPermission
     }

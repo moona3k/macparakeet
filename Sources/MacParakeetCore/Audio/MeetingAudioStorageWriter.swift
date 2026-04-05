@@ -5,11 +5,6 @@ import OSLog
 final class MeetingAudioStorageWriter {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingAudioStorageWriter")
 
-    enum Source {
-        case microphone
-        case system
-    }
-
     private let targetFormat: AVAudioFormat
     private var microphoneFile: AVAudioFile?
     private var systemFile: AVAudioFile?
@@ -63,7 +58,7 @@ final class MeetingAudioStorageWriter {
         )
     }
 
-    func write(_ buffer: AVAudioPCMBuffer, source: Source) throws {
+    func write(_ buffer: AVAudioPCMBuffer, source: AudioSource) throws {
         switch source {
         case .microphone:
             try write(buffer, to: &microphoneFile, converter: &microphoneConverter)

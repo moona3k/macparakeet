@@ -1,5 +1,6 @@
 import AVFoundation
 import ApplicationServices
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -8,6 +9,7 @@ public protocol PermissionServiceProtocol: Sendable {
     func requestMicrophonePermission() async -> Bool
     func checkScreenRecordingPermission() -> Bool
     func requestScreenRecordingPermission() -> Bool
+    func openScreenRecordingSettings()
     func checkAccessibilityPermission() -> Bool
     func requestAccessibilityPermission(prompt: Bool) -> Bool
 }
@@ -40,6 +42,13 @@ public final class PermissionService: PermissionServiceProtocol, Sendable {
 
     public func requestScreenRecordingPermission() -> Bool {
         CGRequestScreenCaptureAccess()
+    }
+
+    public func openScreenRecordingSettings() {
+        guard let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture") else {
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 
     public func checkAccessibilityPermission() -> Bool {

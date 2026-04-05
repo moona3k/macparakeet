@@ -1,5 +1,6 @@
 import AppKit
 import MacParakeetCore
+import MacParakeetViewModels
 
 @MainActor
 final class MeetingRecordingFlowCoordinator {
@@ -7,7 +8,7 @@ final class MeetingRecordingFlowCoordinator {
         switch stateMachine.state {
         case .idle, .finishing:
             return false
-        case .checkingPermissions, .starting, .recording, .pendingStop, .transcribing:
+        case .checkingPermissions, .starting, .recording, .stopping, .transcribing:
             return true
         }
     }
@@ -21,10 +22,11 @@ final class MeetingRecordingFlowCoordinator {
     private let onFlowReturnedToIdle: () -> Void
 
     private var stateMachine = MeetingRecordingFlowStateMachine()
-    private var overlayController: MeetingRecordingOverlayController?
-    private var overlayViewModel: MeetingRecordingOverlayViewModel?
+    private var pillController: MeetingRecordingPillController?
+    private var pillViewModel: MeetingRecordingPillViewModel?
     private var actionTask: Task<Void, Never>?
     private var autoDismissTask: Task<Void, Never>?
+    private var pillPollingTask: Task<Void, Never>?
     private var completedTranscription: Transcription?
 
     init(
@@ -49,7 +51,7 @@ final class MeetingRecordingFlowCoordinator {
         switch stateMachine.state {
         case .idle:
             sendEvent(.startRequested)
-        case .recording, .starting, .pendingStop:
+        case .recording, .starting, .stopping:
             sendEvent(.stopRequested)
         case .checkingPermissions, .transcribing, .finishing:
             break
@@ -105,29 +107,24 @@ final class MeetingRecordingFlowCoordinator {
                 self.sendEvent(.permissionsGranted(generation: gen))
             }
 
-        case .showRecordingOverlay:
+        case .showRecordingPill:
             onRecordingBegan()
-            let vm = overlayViewModel ?? MeetingRecordingOverlayViewModel()
+            let vm = pillViewModel ?? MeetingRecordingPillViewModel()
             vm.onStop = { [weak self] in self?.toggleRecording() }
             vm.state = .recording
-            vm.startTimer()
-            overlayViewModel = vm
+            pillViewModel = vm
 
-            if overlayController == nil {
-                overlayController = MeetingRecordingOverlayController(viewModel: vm)
+            if pillController == nil {
+                pillController = MeetingRecordingPillController(viewModel: vm)
             }
-            overlayController?.show()
+            pillController?.show()
+            startPillPolling()
 
         case .startRecording:
             let gen = stateMachine.generation
             actionTask = Task { @MainActor in
                 do {
-                    try await meetingRecordingService.startRecording { [weak self] levels in
-                        Task { @MainActor [weak self] in
-                            self?.overlayViewModel?.microphoneLevel = levels.microphone
-                            self?.overlayViewModel?.systemLevel = levels.system
-                        }
-                    }
+                    try await meetingRecordingService.startRecording()
                     self.sendEvent(.recordingStarted(generation: gen))
                 } catch {
                     self.sendEvent(.startFailed(generation: gen, message: error.localizedDescription))
@@ -135,8 +132,8 @@ final class MeetingRecordingFlowCoordinator {
             }
 
         case .showTranscribingState:
-            overlayViewModel?.stopTimer()
-            overlayViewModel?.state = .transcribing
+            stopPillPolling()
+            pillViewModel?.state = .transcribing
 
         case .stopRecordingAndTranscribe:
             let gen = stateMachine.generation
@@ -152,18 +149,18 @@ final class MeetingRecordingFlowCoordinator {
             }
 
         case .showCompleted:
-            overlayViewModel?.stopTimer()
-            overlayViewModel?.state = .completed
+            stopPillPolling()
+            pillViewModel?.state = .completed
 
         case .showError(let message):
-            overlayViewModel?.stopTimer()
-            overlayViewModel?.state = .error(message)
+            stopPillPolling()
+            pillViewModel?.state = .error(message)
 
-        case .hideOverlay:
-            overlayViewModel?.stopTimer()
-            overlayController?.hide()
-            overlayController = nil
-            overlayViewModel = nil
+        case .hidePill:
+            stopPillPolling()
+            pillController?.hide()
+            pillController = nil
+            pillViewModel = nil
             completedTranscription = nil
             onFlowReturnedToIdle()
 
@@ -220,15 +217,43 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
-    private func openSystemSettings(for reason: MeetingRecordingPermissionFailure) {
-        let anchor = switch reason {
-        case .microphone:
-            "Privacy_Microphone"
-        case .screenRecording:
-            "Privacy_ScreenCapture"
+    private func startPillPolling() {
+        pillPollingTask?.cancel()
+        pillPollingTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                let micLevel = await meetingRecordingService.micLevel
+                let systemLevel = await meetingRecordingService.systemLevel
+                let elapsedSeconds = await meetingRecordingService.elapsedSeconds
+                let captureMode = await meetingRecordingService.captureMode
+
+                guard !Task.isCancelled else { break }
+                pillViewModel?.micLevel = micLevel
+                pillViewModel?.systemLevel = systemLevel
+                pillViewModel?.elapsedSeconds = elapsedSeconds
+                if captureMode == .stopped, pillViewModel?.state == .recording {
+                    pillViewModel?.micLevel = 0
+                    pillViewModel?.systemLevel = 0
+                }
+
+                try? await Task.sleep(for: .milliseconds(150))
+            }
         }
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(anchor)") {
-            NSWorkspace.shared.open(url)
+    }
+
+    private func stopPillPolling() {
+        pillPollingTask?.cancel()
+        pillPollingTask = nil
+    }
+
+    private func openSystemSettings(for reason: MeetingRecordingPermissionFailure) {
+        switch reason {
+        case .microphone:
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
+                NSWorkspace.shared.open(url)
+            }
+        case .screenRecording:
+            permissionService.openScreenRecordingSettings()
         }
     }
 }
