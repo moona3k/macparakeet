@@ -14,11 +14,10 @@ public final class HotkeyManager {
     public var onReadyForSecondTap: (() -> Void)?
     public var onEscapeWhileIdle: (() -> Void)?
 
-    private let stateMachine: FnKeyStateMachine
+    private let gestureController: HotkeyGestureController
     private let trigger: HotkeyTrigger
     private let targetMask: CGEventFlags?
     public let tapThresholdMs: Int
-    private let startupDebounceMs: Int
     private var eventTap: CFMachPort?
     private var startupTimer: DispatchWorkItem?
     private var holdTimer: DispatchWorkItem?
@@ -50,9 +49,8 @@ public final class HotkeyManager {
         tapThresholdMs: Int = FnKeyStateMachine.defaultTapThresholdMs
     ) {
         self.trigger = trigger
-        self.tapThresholdMs = FnKeyStateMachine.clampTapThresholdMs(tapThresholdMs)
-        self.startupDebounceMs = min(self.tapThresholdMs, FnKeyStateMachine.defaultStartupDebounceMs)
-        self.stateMachine = FnKeyStateMachine(tapThresholdMs: self.tapThresholdMs)
+        self.gestureController = HotkeyGestureController(tapThresholdMs: tapThresholdMs)
+        self.tapThresholdMs = self.gestureController.tapThresholdMs
         self.targetMask = trigger.kind == .modifier ? Self.mask(for: trigger) : nil
         self.requiredChordFlags = trigger.chordEventFlags
     }
@@ -135,7 +133,7 @@ public final class HotkeyManager {
         triggerKeyIsPressed = false
         chordModifierReleased = false
         bareTap = true
-        stateMachine.reset()
+        gestureController.reset()
     }
 
     // MARK: - Private
@@ -176,64 +174,20 @@ public final class HotkeyManager {
             if isPressed {
                 // Modifier down — start bare-tap tracking
                 bareTap = true
-                let action = stateMachine.fnDown(timestampMs: timestampMs)
-                handleAction(action)
-                scheduleStartupTimerIfNeeded()
-
-                // Schedule hold timer
-                holdTimer?.cancel()
-                let timer = DispatchWorkItem { [weak self] in
-                    let action = self?.stateMachine.holdTimerFired() ?? .none
-                    self?.handleAction(action)
-                }
-                holdTimer = timer
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + .milliseconds(tapThresholdMs),
-                    execute: timer
-                )
+                handleOutputs(gestureController.triggerPressed(timestampMs: timestampMs))
             } else {
                 // Modifier up
-                startupTimer?.cancel()
-                holdTimer?.cancel()
-
                 if bareTap {
-                    let action = stateMachine.fnUp(timestampMs: timestampMs)
-                    handleAction(action)
-                    if action == .none, stateMachine.state == .waitingForSecondTap {
-                        onReadyForSecondTap?()
-                    }
+                    handleOutputs(gestureController.triggerReleased(timestampMs: timestampMs))
                 } else {
-                    // Not a bare tap (e.g., Ctrl+C) — reset instead of treating as a gesture
-                    if stateMachine.state == .holdToTalk {
-                        handleAction(.cancelRecording)
-                        stateMachine.reset()
-                    } else if stateMachine.state == .waitingForSecondTap {
-                        handleAction(stateMachine.interruptWaitingForSecondTap())
-                    }
+                    handleOutputs(gestureController.nonBareTriggerReleased())
                 }
                 bareTap = true
             }
         } else if type == .keyDown {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             if keyCode == 53 { // Escape
-                let wasWaitingForSecondTap = stateMachine.state == .waitingForSecondTap
-                if wasWaitingForSecondTap {
-                    startupTimer?.cancel()
-                    holdTimer?.cancel()
-                }
-                let action = stateMachine.escapePressed()
-                if action == .none {
-                    if wasWaitingForSecondTap {
-                        stateMachine.reset()
-                    } else {
-                        // State machine is idle — ESC may still need to dismiss an error overlay
-                        onEscapeWhileIdle?()
-                    }
-                } else {
-                    startupTimer?.cancel()
-                    holdTimer?.cancel()
-                    handleAction(action)
-                }
+                handleOutputs(gestureController.escapePressed())
             } else if keyCode != 63 && keyCode != 179 {
                 // Skip Fn/Globe key (63/179) — macOS generates a synthetic keyDown
                 // with keyCode 179 when Fn is released (for "Change Input Source" or
@@ -246,11 +200,7 @@ public final class HotkeyManager {
 
                 // Gesture interruption: if waiting for second tap, a regular key press
                 // means the user is typing, not double-tapping the hotkey
-                if stateMachine.state == .waitingForSecondTap {
-                    handleAction(stateMachine.interruptWaitingForSecondTap())
-                    startupTimer?.cancel()
-                    holdTimer?.cancel()
-                }
+                handleOutputs(gestureController.interrupted())
             }
         }
 
@@ -275,49 +225,15 @@ public final class HotkeyManager {
                 }
                 triggerKeyIsPressed = true
 
-                let action = stateMachine.fnDown(timestampMs: timestampMs)
-                handleAction(action)
-                scheduleStartupTimerIfNeeded()
-
-                // Schedule hold timer
-                holdTimer?.cancel()
-                let timer = DispatchWorkItem { [weak self] in
-                    let action = self?.stateMachine.holdTimerFired() ?? .none
-                    self?.handleAction(action)
-                }
-                holdTimer = timer
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + .milliseconds(tapThresholdMs),
-                    execute: timer
-                )
+                handleOutputs(gestureController.triggerPressed(timestampMs: timestampMs))
 
                 return nil // Swallow the trigger key event
             } else if keyCode == 53 { // Escape
-                let wasWaitingForSecondTap = stateMachine.state == .waitingForSecondTap
-                if wasWaitingForSecondTap {
-                    startupTimer?.cancel()
-                    holdTimer?.cancel()
-                }
-                let action = stateMachine.escapePressed()
-                if action == .none {
-                    if wasWaitingForSecondTap {
-                        stateMachine.reset()
-                    } else {
-                        onEscapeWhileIdle?()
-                    }
-                } else {
-                    startupTimer?.cancel()
-                    holdTimer?.cancel()
-                    handleAction(action)
-                }
+                handleOutputs(gestureController.escapePressed())
             } else {
                 // Gesture interruption: if waiting for second tap, a regular key press
                 // means the user is typing, not double-tapping the hotkey
-                if stateMachine.state == .waitingForSecondTap {
-                    handleAction(stateMachine.interruptWaitingForSecondTap())
-                    startupTimer?.cancel()
-                    holdTimer?.cancel()
-                }
+                handleOutputs(gestureController.interrupted())
             }
         } else if type == .keyUp {
             if keyCode == triggerCode {
@@ -325,14 +241,7 @@ public final class HotkeyManager {
                     return nil // Swallow stale keyUp
                 }
                 triggerKeyIsPressed = false
-
-                startupTimer?.cancel()
-                holdTimer?.cancel()
-                let action = stateMachine.fnUp(timestampMs: timestampMs)
-                handleAction(action)
-                if action == .none, stateMachine.state == .waitingForSecondTap {
-                    onReadyForSecondTap?()
-                }
+                handleOutputs(gestureController.triggerReleased(timestampMs: timestampMs))
 
                 return nil // Swallow the trigger key event
             }
@@ -367,48 +276,14 @@ public final class HotkeyManager {
                 triggerKeyIsPressed = true
                 chordModifierReleased = false
 
-                let action = stateMachine.fnDown(timestampMs: timestampMs)
-                handleAction(action)
-                scheduleStartupTimerIfNeeded()
-
-                // Schedule hold timer
-                holdTimer?.cancel()
-                let timer = DispatchWorkItem { [weak self] in
-                    let action = self?.stateMachine.holdTimerFired() ?? .none
-                    self?.handleAction(action)
-                }
-                holdTimer = timer
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + .milliseconds(tapThresholdMs),
-                    execute: timer
-                )
+                handleOutputs(gestureController.triggerPressed(timestampMs: timestampMs))
 
                 return nil // Swallow the trigger key
             } else if keyCode == 53 { // Escape
-                let wasWaitingForSecondTap = stateMachine.state == .waitingForSecondTap
-                if wasWaitingForSecondTap {
-                    startupTimer?.cancel()
-                    holdTimer?.cancel()
-                }
-                let action = stateMachine.escapePressed()
-                if action == .none {
-                    if wasWaitingForSecondTap {
-                        stateMachine.reset()
-                    } else {
-                        onEscapeWhileIdle?()
-                    }
-                } else {
-                    startupTimer?.cancel()
-                    holdTimer?.cancel()
-                    handleAction(action)
-                }
+                handleOutputs(gestureController.escapePressed())
             } else {
                 // Gesture interruption
-                if stateMachine.state == .waitingForSecondTap {
-                    handleAction(stateMachine.interruptWaitingForSecondTap())
-                    startupTimer?.cancel()
-                    holdTimer?.cancel()
-                }
+                handleOutputs(gestureController.interrupted())
             }
         } else if type == .keyUp {
             if keyCode == triggerCode {
@@ -416,13 +291,7 @@ public final class HotkeyManager {
                     triggerKeyIsPressed = false
                     if !chordModifierReleased {
                         // Normal key release — end dictation
-                        startupTimer?.cancel()
-                        holdTimer?.cancel()
-                        let action = stateMachine.fnUp(timestampMs: timestampMs)
-                        handleAction(action)
-                        if action == .none, stateMachine.state == .waitingForSecondTap {
-                            onReadyForSecondTap?()
-                        }
+                        handleOutputs(gestureController.triggerReleased(timestampMs: timestampMs))
                     }
                     chordModifierReleased = false
                 }
@@ -436,13 +305,7 @@ public final class HotkeyManager {
                 let flags = event.flags.rawValue & Self.relevantModifierBits
                 if flags & requiredChordFlags != requiredChordFlags {
                     chordModifierReleased = true
-                    startupTimer?.cancel()
-                    holdTimer?.cancel()
-                    let action = stateMachine.fnUp(timestampMs: timestampMs)
-                    handleAction(action)
-                    if action == .none, stateMachine.state == .waitingForSecondTap {
-                        onReadyForSecondTap?()
-                    }
+                    handleOutputs(gestureController.triggerReleased(timestampMs: timestampMs))
                 }
             }
         }
@@ -453,49 +316,82 @@ public final class HotkeyManager {
     /// Notify state machine that cancel was triggered via UI (not Esc).
     /// Blocks hotkey during the cancel countdown window.
     public func notifyCancelledByUI() {
-        stateMachine.cancelledByUI()
+        gestureController.notifyCancelledByUI()
     }
 
     /// Resume recording mode after undo, so hotkey stops the recording correctly.
     public func resumeRecording(mode: FnKeyStateMachine.RecordingMode) {
-        stateMachine.resumeRecording(mode: mode)
+        gestureController.resumeRecording(mode: mode)
     }
 
     /// Reset state machine to idle (e.g., after cancel countdown expires).
     public func resetToIdle() {
-        startupTimer?.cancel()
-        holdTimer?.cancel()
-        stateMachine.reset()
+        cancelStartupTimer()
+        cancelHoldTimer()
+        gestureController.reset()
     }
 
-    private func handleAction(_ action: FnKeyStateMachine.Action) {
-        switch action {
-        case .none:
-            break
-        case .startRecording(let mode):
+    private func handleOutputs(_ outputs: [HotkeyGestureController.Output]) {
+        for output in outputs {
+            switch output {
+            case .startRecording(let mode):
             onStartRecording?(mode)
-        case .stopRecording:
-            onStopRecording?()
-        case .cancelRecording:
-            onCancelRecording?()
-        case .discardRecording(let showReadyPill):
-            onDiscardRecording?(showReadyPill)
+            case .stopRecording:
+                onStopRecording?()
+            case .cancelRecording:
+                onCancelRecording?()
+            case .discardRecording(let showReadyPill):
+                onDiscardRecording?(showReadyPill)
+            case .showReadyForSecondTap:
+                onReadyForSecondTap?()
+            case .escapeWhileIdle:
+                onEscapeWhileIdle?()
+            case .scheduleStartupDebounce(let milliseconds):
+                scheduleStartupTimer(after: milliseconds)
+            case .scheduleHoldWindow(let milliseconds):
+                scheduleHoldTimer(after: milliseconds)
+            case .cancelStartupDebounce:
+                cancelStartupTimer()
+            case .cancelHoldWindow:
+                cancelHoldTimer()
+            }
         }
     }
 
-    private func scheduleStartupTimerIfNeeded() {
+    private func scheduleStartupTimer(after milliseconds: Int) {
         startupTimer?.cancel()
-        guard stateMachine.state == .waitingForSecondTap else { return }
-
         let timer = DispatchWorkItem { [weak self] in
-            let action = self?.stateMachine.startupTimerFired() ?? .none
-            self?.handleAction(action)
+            let outputs = self?.gestureController.startupDebounceElapsed() ?? []
+            self?.handleOutputs(outputs)
         }
         startupTimer = timer
         DispatchQueue.main.asyncAfter(
-            deadline: .now() + .milliseconds(startupDebounceMs),
+            deadline: .now() + .milliseconds(milliseconds),
             execute: timer
         )
+    }
+
+    private func scheduleHoldTimer(after milliseconds: Int) {
+        holdTimer?.cancel()
+        let timer = DispatchWorkItem { [weak self] in
+            let outputs = self?.gestureController.holdWindowElapsed() ?? []
+            self?.handleOutputs(outputs)
+        }
+        holdTimer = timer
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + .milliseconds(milliseconds),
+            execute: timer
+        )
+    }
+
+    private func cancelStartupTimer() {
+        startupTimer?.cancel()
+        startupTimer = nil
+    }
+
+    private func cancelHoldTimer() {
+        holdTimer?.cancel()
+        holdTimer = nil
     }
 
     // MARK: - Key Mapping
