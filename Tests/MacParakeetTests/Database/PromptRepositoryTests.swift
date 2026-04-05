@@ -3,6 +3,13 @@ import GRDB
 @testable import MacParakeetCore
 
 final class PromptRepositoryTests: XCTestCase {
+    private struct PromptArtifact: Decodable {
+        let name: String
+        let content: String
+        let category: String
+        let sortOrder: Int
+    }
+
     var manager: DatabaseManager!
     var repo: PromptRepository!
 
@@ -17,6 +24,24 @@ final class PromptRepositoryTests: XCTestCase {
         XCTAssertTrue(prompts.allSatisfy(\.isBuiltIn))
         XCTAssertTrue(prompts.allSatisfy(\.isVisible))
         XCTAssertEqual(prompts.first?.name, "General Summary")
+    }
+
+    func testCommunityPromptArtifactMatchesBuiltInPrompts() throws {
+        let artifactURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/MacParakeetCore/Resources/community-prompts.json")
+        let data = try Data(contentsOf: artifactURL)
+        let artifactPrompts = try JSONDecoder().decode([PromptArtifact].self, from: data)
+        let builtIns = Prompt.builtInPrompts()
+
+        XCTAssertEqual(artifactPrompts.count, builtIns.count)
+        XCTAssertEqual(artifactPrompts.map(\.name), builtIns.map(\.name))
+        XCTAssertEqual(artifactPrompts.map(\.content), builtIns.map(\.content))
+        XCTAssertEqual(artifactPrompts.map(\.category), builtIns.map { $0.category.rawValue })
+        XCTAssertEqual(artifactPrompts.map(\.sortOrder), builtIns.map(\.sortOrder))
     }
 
     func testSaveAndFetchCustomPrompt() throws {

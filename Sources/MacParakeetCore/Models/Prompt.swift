@@ -14,6 +14,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
     public var updatedAt: Date
 
     public enum Category: String, Codable, Sendable {
+        // Keep the stored raw value as "summary" until the prompts table itself is migrated.
         case result = "summary"
         case transform
     }
@@ -67,8 +68,8 @@ public struct Prompt: Codable, Identifiable, Sendable {
         )
     }
 
-    /// Community prompts defined as Swift constants.
-    /// The canonical list also lives in Resources/community-prompts.json for community PRs.
+    /// Built-in prompt definitions shipped with the app.
+    /// `community-prompts.json` is kept in sync as a contribution/reference artifact.
     public static func builtInPrompts(now: Date = Date()) -> [Prompt] {
         [
             makeBuiltInPrompt(

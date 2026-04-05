@@ -379,7 +379,7 @@ public final class PromptResultsViewModel {
         streamingTask = Task { @MainActor [weak self] in
             guard let self, let llmService = self.llmService else { return }
             do {
-                let stream = llmService.summarizeStream(
+                let stream = llmService.generatePromptResultStream(
                     transcript: generation.transcript,
                     systemPrompt: systemPrompt
                 )

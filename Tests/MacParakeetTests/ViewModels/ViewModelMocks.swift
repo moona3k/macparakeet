@@ -412,7 +412,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var lastChatHistory: [ChatMessage]?
     var lastSummarySystemPrompt: String?
 
-    func summarize(transcript: String, systemPrompt: String?) async throws -> String {
+    func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         summarizeCallCount += 1
         lastSummarySystemPrompt = systemPrompt
         if let error = errorToThrow { throw error }
@@ -430,7 +430,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         return "Mock transform"
     }
 
-    func summarizeStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
+    func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         summarizeCallCount += 1
         lastSummarySystemPrompt = systemPrompt
         let tokens = streamTokens

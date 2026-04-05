@@ -18,7 +18,7 @@ struct PromptLibraryView: View {
                     Text("Prompt Library")
                         .font(DesignSystem.Typography.heroTitle)
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    Text("Manage the templates used for generating summaries and content.")
+                    Text("Manage the templates used for generating prompt results and custom outputs.")
                         .font(DesignSystem.Typography.body)
                         .foregroundStyle(DesignSystem.Colors.textSecondary)
                 }
@@ -47,14 +47,14 @@ struct PromptLibraryView: View {
                         errorBanner(errorMessage)
                     }
 
-                    // Community Prompts Section
+                    // Built-In Prompts Section
                     sectionContainer(
-                        title: "Community Prompts",
-                        subtitle: "Curated templates provided by MacParakeet.",
+                        title: "Built-In Prompts",
+                        subtitle: "Shipped with MacParakeet and kept in sync with the app's built-in prompt set.",
                         headerTrailing: {
                             HStack(spacing: DesignSystem.Spacing.md) {
                                 if let url = URL(string: "https://github.com/moona3k/macparakeet/blob/main/Sources/MacParakeetCore/Resources/community-prompts.json") {
-                                    Link("Suggest a prompt", destination: url)
+                                    Link("View prompt source", destination: url)
                                         .font(DesignSystem.Typography.caption.weight(.medium))
                                         .foregroundStyle(DesignSystem.Colors.accent)
                                 }

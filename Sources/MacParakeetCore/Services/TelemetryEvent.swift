@@ -16,8 +16,8 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case diarizationCompleted = "diarization_completed"
     case diarizationFailed = "diarization_failed"
     case exportUsed = "export_used"
-    case llmSummaryUsed = "llm_summary_used"
-    case llmSummaryFailed = "llm_summary_failed"
+    case llmPromptResultUsed = "llm_prompt_result_used"
+    case llmPromptResultFailed = "llm_prompt_result_failed"
     case llmChatUsed = "llm_chat_used"
     case llmChatFailed = "llm_chat_failed"
     case historySearched = "history_searched"
@@ -126,8 +126,8 @@ public enum TelemetryEventSpec: Sendable {
     case diarizationCompleted(source: TelemetryTranscriptionSource, speakerCount: Int, durationSeconds: Double)
     case diarizationFailed(source: TelemetryTranscriptionSource, errorType: String, errorDetail: String? = nil)
     case exportUsed(format: String)
-    case llmSummaryUsed(provider: String)
-    case llmSummaryFailed(provider: String, errorType: String, errorDetail: String? = nil)
+    case llmPromptResultUsed(provider: String)
+    case llmPromptResultFailed(provider: String, errorType: String, errorDetail: String? = nil)
     case llmChatUsed(provider: String, messageCount: Int)
     case llmChatFailed(provider: String, errorType: String, errorDetail: String? = nil)
     case historySearched
@@ -196,8 +196,8 @@ extension TelemetryEventSpec {
         case .diarizationCompleted: return .diarizationCompleted
         case .diarizationFailed: return .diarizationFailed
         case .exportUsed: return .exportUsed
-        case .llmSummaryUsed: return .llmSummaryUsed
-        case .llmSummaryFailed: return .llmSummaryFailed
+        case .llmPromptResultUsed: return .llmPromptResultUsed
+        case .llmPromptResultFailed: return .llmPromptResultFailed
         case .llmChatUsed: return .llmChatUsed
         case .llmChatFailed: return .llmChatFailed
         case .historySearched: return .historySearched
@@ -319,9 +319,9 @@ extension TelemetryEventSpec {
             return props
         case .exportUsed(let format):
             return ["format": format]
-        case .llmSummaryUsed(let provider):
+        case .llmPromptResultUsed(let provider):
             return ["provider": provider]
-        case .llmSummaryFailed(let provider, let errorType, let errorDetail):
+        case .llmPromptResultFailed(let provider, let errorType, let errorDetail):
             var props = ["provider": provider, "error_type": errorType]
             if let errorDetail { props["error_detail"] = errorDetail }
             return props
@@ -434,8 +434,8 @@ public enum TelemetryImplementedContract {
         .diarizationCompleted: ["source", "speaker_count"],
         .diarizationFailed: ["source", "error_type"],
         .exportUsed: ["format"],
-        .llmSummaryUsed: ["provider"],
-        .llmSummaryFailed: ["provider", "error_type"],
+        .llmPromptResultUsed: ["provider"],
+        .llmPromptResultFailed: ["provider", "error_type"],
         .llmChatUsed: ["provider", "message_count"],
         .llmChatFailed: ["provider", "error_type"],
         .historySearched: [],
