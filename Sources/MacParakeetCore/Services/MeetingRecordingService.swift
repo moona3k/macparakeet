@@ -51,9 +51,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var writer: MeetingAudioStorageWriter?
     private var processingTask: Task<Void, Never>?
     private var pendingChunkTasks: [Task<Void, Never>] = []
+    private var nextChunkSequence: [AudioSource: Int] = [:]
     private var microphoneChunker = AudioChunker()
     private var systemChunker = AudioChunker()
+    private var chunkResultBuffer = MeetingChunkResultBuffer()
     private var transcriptAssembler = MeetingTranscriptAssembler()
+    private var chunkTranscriptionFailed = false
     private var latestLevels = MeetingAudioLevels()
 
     private var transcriptContinuation: AsyncStream<MeetingTranscriptUpdate>.Continuation?
@@ -133,9 +136,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.writer = writer
         self.currentSession = session
         self.pendingChunkTasks = []
+        self.nextChunkSequence = [:]
         await microphoneChunker.reset()
         await systemChunker.reset()
+        chunkResultBuffer.reset()
         transcriptAssembler.reset()
+        chunkTranscriptionFailed = false
 
         processingTask = Task { [weak self] in
             guard let self else { return }
@@ -197,7 +203,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             microphoneAudioURL: session.microphoneAudioURL,
             systemAudioURL: session.systemAudioURL,
             durationSeconds: durationSeconds,
-            preparedTranscript: transcriptAssembler.finalizedTranscript(durationMs: Int(durationSeconds * 1000))
+            preparedTranscript: chunkTranscriptionFailed
+                ? nil
+                : transcriptAssembler.finalizedTranscript(durationMs: Int(durationSeconds * 1000))
         )
 
         cleanupState()
@@ -270,16 +278,30 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         source: AudioSource,
         session: Session
     ) {
+        let sequence = nextChunkSequence[source] ?? 0
+        nextChunkSequence[source] = sequence + 1
+
         let task = Task { [weak self] in
             guard let self else { return }
 
             do {
                 let result = try await self.transcribeChunk(chunk, source: source, session: session)
-                await self.handleChunkTranscriptionResult(result, chunk: chunk, source: source, sessionID: session.id)
+                await self.handleChunkTranscriptionResult(
+                    result,
+                    chunk: chunk,
+                    source: source,
+                    sequence: sequence,
+                    sessionID: session.id
+                )
             } catch is CancellationError {
                 return
             } catch {
-                await self.logChunkTranscriptionFailure(error)
+                await self.handleChunkTranscriptionFailure(
+                    error,
+                    source: source,
+                    sequence: sequence,
+                    sessionID: session.id
+                )
             }
         }
 
@@ -333,15 +355,37 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         _ result: STTResult,
         chunk: AudioChunker.AudioChunk,
         source: AudioSource,
+        sequence: Int,
         sessionID: UUID
     ) {
         guard currentSession?.id == sessionID else { return }
-        let update = transcriptAssembler.apply(result: result, chunk: chunk, source: source)
-        transcriptContinuation?.yield(update)
+        let readyResults = chunkResultBuffer.receiveSuccess(
+            sequence: sequence,
+            source: source,
+            chunk: chunk,
+            result: result
+        )
+
+        for ready in readyResults {
+            let update = transcriptAssembler.apply(result: ready.result, chunk: ready.chunk, source: source)
+            transcriptContinuation?.yield(update)
+        }
     }
 
-    private func logChunkTranscriptionFailure(_ error: Error) {
+    private func handleChunkTranscriptionFailure(
+        _ error: Error,
+        source: AudioSource,
+        sequence: Int,
+        sessionID: UUID
+    ) {
         logger.error("Meeting chunk transcription failed: \(error.localizedDescription, privacy: .public)")
+        guard currentSession?.id == sessionID else { return }
+        chunkTranscriptionFailed = true
+        let readyResults = chunkResultBuffer.receiveFailure(sequence: sequence, source: source)
+        for ready in readyResults {
+            let update = transcriptAssembler.apply(result: ready.result, chunk: ready.chunk, source: source)
+            transcriptContinuation?.yield(update)
+        }
     }
 
     private func existingSourceURLs(for session: Session) throws -> [URL] {
@@ -356,8 +400,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private func cleanupState() {
         currentSession = nil
         pendingChunkTasks = []
+        nextChunkSequence = [:]
         latestLevels = MeetingAudioLevels()
+        chunkResultBuffer.reset()
         transcriptAssembler.reset()
+        chunkTranscriptionFailed = false
         transcriptContinuation?.finish()
         transcriptContinuation = nil
         cachedTranscriptUpdates = nil

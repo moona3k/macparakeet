@@ -36,7 +36,7 @@ public actor MeetingAudioCaptureService {
     private var eventHandler: EventHandler?
     private var isCapturing = false
 
-    nonisolated(unsafe) private var eventContinuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
+    private var eventContinuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
     private var cachedEvents: AsyncStream<MeetingAudioCaptureEvent>?
 
     public init() {
@@ -62,16 +62,18 @@ public actor MeetingAudioCaptureService {
             return cachedEvents
         }
 
-        let stream = AsyncStream<MeetingAudioCaptureEvent>(bufferingPolicy: .bufferingNewest(32)) { [weak self] continuation in
-            self?.eventContinuation = continuation
+        var continuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
+        let stream = AsyncStream<MeetingAudioCaptureEvent>(bufferingPolicy: .bufferingNewest(32)) {
+            continuation = $0
         }
+        eventContinuation = continuation
         cachedEvents = stream
         return stream
     }
 
     public func start() async throws {
         try await start { [weak self] event in
-            self?.eventContinuation?.yield(event)
+            Task { await self?.yieldEvent(event) }
         }
     }
 
@@ -122,6 +124,10 @@ public actor MeetingAudioCaptureService {
 
     private func handle(_ event: MeetingAudioCaptureEvent) {
         eventHandler?(event)
+    }
+
+    private func yieldEvent(_ event: MeetingAudioCaptureEvent) {
+        eventContinuation?.yield(event)
     }
 
     private static func deepCopyBuffer(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {

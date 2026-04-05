@@ -229,12 +229,12 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(phases.contains { if case .transcribing = $0 { true } else { false } })
     }
 
-    func testTranscribeMeetingUsesPreparedTranscriptWithoutSTT() async throws {
+    func testTranscribeMeetingUsesBatchSTTAndAppliesPreparedSpeakerMetadata() async throws {
         let recordingURL = try makeTempDownloadedAudio()
         defer { try? FileManager.default.removeItem(at: recordingURL) }
 
         let prepared = MeetingRealtimeTranscript(
-            rawTranscript: "Hello there Sounds good",
+            rawTranscript: "Preview transcript",
             words: [
                 WordTimestamp(word: "Hello", startMs: 0, endMs: 300, confidence: 0.9, speakerId: "microphone"),
                 WordTimestamp(word: "there", startMs: 320, endMs: 650, confidence: 0.9, speakerId: "microphone"),
@@ -253,6 +253,16 @@ final class TranscriptionServiceTests: XCTestCase {
             durationMs: 1_500
         )
 
+        await mockSTT.configure(result: STTResult(
+            text: "Final transcript from batch pass",
+            words: [
+                TimestampedWord(word: "Hello", startMs: 0, endMs: 300, confidence: 0.9),
+                TimestampedWord(word: "there", startMs: 320, endMs: 650, confidence: 0.9),
+                TimestampedWord(word: "Sounds", startMs: 900, endMs: 1_200, confidence: 0.9),
+                TimestampedWord(word: "good", startMs: 1_250, endMs: 1_500, confidence: 0.9),
+            ]
+        ))
+
         let recording = MeetingRecordingOutput(
             sessionID: UUID(),
             displayName: "Meeting Demo",
@@ -269,12 +279,13 @@ final class TranscriptionServiceTests: XCTestCase {
         let convertCallCount = await mockAudio.convertCallCount
 
         XCTAssertEqual(result.fileName, "Meeting Demo")
-        XCTAssertEqual(result.rawTranscript, prepared.rawTranscript)
+        XCTAssertEqual(result.rawTranscript, "Final transcript from batch pass")
         XCTAssertEqual(result.speakerCount, 2)
         XCTAssertEqual(result.speakers, prepared.speakers)
         XCTAssertEqual(result.diarizationSegments, prepared.diarizationSegments)
-        XCTAssertEqual(sttCallCount, 0)
-        XCTAssertEqual(convertCallCount, 0)
+        XCTAssertEqual(result.wordTimestamps?.map(\.speakerId), ["microphone", "microphone", "system", "system"])
+        XCTAssertEqual(sttCallCount, 1)
+        XCTAssertEqual(convertCallCount, 1)
     }
 
     private func makeTempDownloadedAudio() throws -> URL {
