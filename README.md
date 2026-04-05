@@ -124,6 +124,10 @@ All speech recognition runs on the Neural Engine. Your audio never leaves your M
 
 For larger changes, open an issue first.
 
+## Support
+
+MacParakeet is free and open source. If it's useful to you, consider [sponsoring](https://github.com/sponsors/moona3k).
+
 ## License
 
 GPL-3.0. Free software. [Full license](LICENSE).
