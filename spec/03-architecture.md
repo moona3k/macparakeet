@@ -83,7 +83,7 @@
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-**Core STT runs on-device.** Optional LLM features use configured providers or Local CLI tools, and telemetry/crash reporting are opt-out. Privacy is local-first, not network-free.
+**Core STT runs on-device.** Optional LLM features use configured providers or Local CLI tools, and telemetry/crash reporting are opt-out. The app supports a fully local setup, but it is not network-free in every configuration.
 
 ---
 

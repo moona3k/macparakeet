@@ -2,7 +2,7 @@
 
 > Status: **Accepted** (Amended 2026-03-11)
 > Date: 2026-02-08
-> Amended: 2026-03-11 — Refined scope from "no cloud processing" to "local-first" with opt-in LLM providers (ADR-011)
+> Amended: 2026-03-11 — Refined scope from "no cloud processing" to local processing with optional external AI/telemetry surfaces (ADR-011)
 
 ## Context
 
@@ -16,7 +16,7 @@ Meanwhile, local-only alternatives (MacWhisper, VoiceInk, BetterDictation) have 
 
 ## Decision
 
-**Local-first processing.** The core product — transcription and dictation — runs on-device. Audio never leaves the device.
+**Local processing with a fully local path.** The core product — transcription and dictation — runs on-device. Audio never leaves the device.
 
 LLM-powered features (summarization, chat, transforms) use external providers configured by the user. This is opt-in, explicit, and text-only — audio is never sent.
 
@@ -63,6 +63,8 @@ A local 8B model produces mediocre summaries. Cloud models (Claude, GPT-4) produ
 
 Users make an informed choice. The UI makes the tradeoff explicit. Apple Intelligence follows the same pattern — on-device by default, cloud with user consent for complex tasks.
 
+MacParakeet can still be used in a fully local configuration: no cloud STT, no cloud AI, telemetry disabled, and only local features/providers enabled.
+
 ### One-time purchase still works
 
 Cloud LLM costs are paid directly by the user to their provider (Anthropic, OpenAI, etc.). MacParakeet has zero server costs, zero marginal cost per user. The one-time purchase model (ADR-003) is unaffected.
@@ -88,7 +90,7 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 
 ### Negative
 
-- **Messaging complexity**: "100% local" was simpler than "local-first with opt-in cloud." Must be communicated clearly and honestly.
+- **Messaging complexity**: "100% local" was simpler than "can be fully local, with optional external features." Must be communicated clearly and honestly.
 - **Cloud LLM features require internet**: Summarization/chat won't work offline unless user runs Ollama. Transcription still works offline.
 - **Transcript text exposure**: When using cloud providers or cloud-backed CLI tools, transcript text is sent to third-party services. Must be clear in UI. Users with sensitive content should use Ollama or skip LLM features.
 - **No cloud backup or sync**: User data stays on-device. If the Mac is lost, dictation history is lost. This is intentional.

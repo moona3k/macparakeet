@@ -13,7 +13,7 @@ This spec defines how MacParakeet integrates LLM-powered features via external p
 
 1. Deliver transcript summarization, chat, and custom transforms via user-configured LLM providers.
 2. Support cloud APIs (Anthropic, OpenAI, Gemini, OpenRouter), local runtimes (Ollama), and CLI tools (Claude Code, Codex) through one shared service layer.
-3. Keep core speech processing local-first — only transcript text is sent to LLM providers, never audio.
+3. Keep core speech processing local and preserve a fully local setup when users stick to local providers/features — only transcript text is sent to LLM providers, never audio.
 4. LLM features are optional — the app is fully functional without any provider configured.
 
 ## Non-Goals

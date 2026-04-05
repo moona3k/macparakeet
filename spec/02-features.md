@@ -1550,10 +1550,11 @@ MacParakeet's brand is privacy. These are non-negotiable.
 | User-controlled storage | Audio saved by default, user can disable or delete |
 | Explicit network surfaces | Model download, update checks, optional LLM providers, optional telemetry/crash reporting, licensing flows, and YouTube download |
 
-**What "local-first" means:**
+**What "supports a fully local setup" means:**
 - Parakeet STT runs on Apple Silicon Neural Engine (ANE) via FluidAudio CoreML -- no cloud API
 - Audio never leaves the device
-- Transcripts stay local unless the user explicitly enables AI features
+- Transcripts stay local unless the user explicitly enables external AI features
+- Users can remain fully local by sticking to offline/core features and local providers such as Ollama
 - Network access is limited to explicit product surfaces such as updates, telemetry, licensing, and media download
 
 ---

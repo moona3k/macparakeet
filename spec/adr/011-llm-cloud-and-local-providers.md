@@ -56,7 +56,7 @@ The current branch supports these provider/runtime types through one shared serv
 2. **Provider-aware transport behind one shared service boundary.** Runtime choices are external providers, Ollama, or Local CLI tools. Transport details may vary per provider.
 3. **LLM features are optional.** The app is fully functional without any provider configured. Transcription, dictation, export — all work without LLM.
 4. **No default provider.** User must explicitly choose and configure. No "sign up for our cloud" upsell.
-5. **Transcription stays local-first.** Audio never leaves the device. Only transcript text is sent to providers/CLI tools when the user explicitly triggers an LLM feature. This distinction must be clear in the UI.
+5. **Transcription stays local.** Audio never leaves the device. The app can remain fully local when users choose only local providers/features. Only transcript text is sent to providers/CLI tools when the user explicitly triggers an LLM feature. This distinction must be clear in the UI.
 
 ### Features Enabled
 
@@ -66,7 +66,7 @@ The current branch supports these provider/runtime types through one shared serv
 | **Chat** | Ask questions about a transcript | File + YouTube transcriptions |
 | **Custom Prompts** | User-defined text transforms | File + YouTube transcriptions + dictation history |
 
-Features are scoped to transcript-level actions. No dictation-time LLM processing (no Command Mode, no AI refinement modes during dictation). This keeps dictation fast, simple, and fully local.
+Features are scoped to transcript-level actions. No dictation-time LLM processing (no Command Mode, no AI refinement modes during dictation). This keeps dictation fast and simple, and preserves a fully local path for users who want one.
 
 ## Rationale
 
@@ -114,7 +114,7 @@ Users who want local-only LLM can install Ollama (`brew install ollama && ollama
 
 - **Cloud providers require internet.** LLM features won't work offline unless user has Ollama running. This is acceptable because transcription (the core value) works fully offline.
 - **Cloud providers cost money.** API calls are cheap (cents per transcript) but non-zero. Users manage their own billing. We should show estimated token counts before sending.
-- **Privacy nuance.** "100% local" messaging needs updating to "speech stays local, AI features use your chosen provider." Must be clear and honest.
+- **Privacy nuance.** "100% local" messaging needs updating to "speech stays local, and the app can remain fully local if you use only local paths." Must be clear and honest.
 - **Transcript text sent to cloud.** When using cloud providers, transcript text leaves the device. Audio never does. The distinction must be explicit in the UI and docs.
 - **Provider API changes.** Provider-native and OpenAI-compatible APIs may change independently. Mitigated by keeping routing isolated inside the client layer.
 - **No offline summarization.** Users without Ollama and without internet get no LLM features. The deterministic clean pipeline still works for basic text cleanup.

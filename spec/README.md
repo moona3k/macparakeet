@@ -1,9 +1,9 @@
 # MacParakeet Spec Index
 
 > Status: **ACTIVE** - Authoritative, current
-> Runtime Note: FluidAudio CoreML is the active architecture. Core STT is local; optional LLM and telemetry features are opt-in.
+> Runtime Note: FluidAudio CoreML is the active architecture. Core STT is local; optional LLM and telemetry features are opt-in; a fully local setup is supported when only local features/providers are used.
 
-**MacParakeet** is a local-first voice toolkit for macOS: system-wide dictation and file transcription with on-device STT, plus optional AI and telemetry features.
+**MacParakeet** is a voice toolkit for macOS with on-device STT, optional AI and telemetry features, and support for a fully local setup.
 
 ## Spec Documents
 
@@ -42,7 +42,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | ADR | Decision |
 |-----|----------|
 | [ADR-001](adr/001-parakeet-stt.md) | Parakeet TDT 0.6B-v3 as primary STT engine |
-| [ADR-002](adr/002-local-only.md) | Local-first processing (amended: opt-in LLM providers, telemetry) |
+| [ADR-002](adr/002-local-only.md) | Local processing with optional external AI/telemetry surfaces |
 | [ADR-003](adr/003-one-time-purchase.md) | One-time purchase pricing ($49) |
 | [ADR-004](adr/004-deterministic-pipeline.md) | Deterministic text processing pipeline |
 | [ADR-005](adr/005-onboarding-first-run.md) | First-run onboarding flow |

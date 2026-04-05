@@ -1,14 +1,14 @@
 # MacParakeet: Vision & Philosophy
 
 > Status: **ACTIVE** - Authoritative, current
-> The fastest, most private voice app for Mac. No cloud. Free and open-source (GPL-3.0).
+> The fastest, most private voice app for Mac. Fully local speech, optional networked features, free and open-source (GPL-3.0).
 > Pricing amendment: All references to "$49 one-time purchase" and pricing tiers below are historical. MacParakeet is now free and open-source (GPL-3.0) as of v0.5.
 
 ---
 
 ## The North Star
 
-**The fastest, most private voice app for Mac. No cloud. No subscriptions.**
+**The fastest, most private voice app for Mac. Fully local speech when you want it. No subscriptions.**
 
 ```
 +-----------------------------------------------------------------------+
@@ -46,13 +46,13 @@ Everything else exists to make those two modes faster, smarter, and more useful.
 | **Cloud services** (WisprFlow, Otter) | Fast | Your audio on their servers | $12+/mo forever | Simple |
 | **Local apps** (MacWhisper, Superwhisper) | Good | Private | $30-$250 | Complex or expensive |
 | **Apple Dictation** | Slow | Mostly local | Free | Very limited |
-| **MacParakeet** | **Fastest** | **Local-first speech** | **Free (GPL-3.0)** | **Two modes** |
+| **MacParakeet** | **Fastest** | **Can be fully local** | **Free (GPL-3.0)** | **Two modes** |
 
 No existing app nails all four: **Speed + Privacy + Simplicity + Fair Pricing**.
 
 Cloud services send your voice to remote servers, create accounts, charge monthly, and add server latency. Local apps either bury you in settings (MacWhisper has 50+ features) or charge a premium (Superwhisper at $250). Apple Dictation is free but slow, inaccurate, and has no custom vocabulary, no file transcription.
 
-**MacParakeet's answer:** Built from the ground up around Parakeet TDT -- the fastest, most accurate open-source STT model available. Local-first speech. Two modes. Free. Done.
+**MacParakeet's answer:** Built from the ground up around Parakeet TDT -- the fastest, most accurate open-source STT model available. Fully local speech by default, with optional networked features. Two modes. Free. Done.
 
 ---
 
@@ -66,9 +66,9 @@ Speed changes behavior. When transcription takes 30 seconds, you think about whe
 
 ### 2. Privacy Is the Brand
 
-Local-first speech is not a feature. It is the identity.
+Fully local speech is a core product property, and the app can stay fully local when configured that way.
 
-- Local-first STT. No cloud speech processing, no accounts, no required backend.
+- Local STT. No cloud speech processing, no accounts, no required backend for core speech.
 - Audio never leaves your Mac for dictation or transcription.
 - No email signup. No login. Optional self-hosted telemetry can be disabled in Settings.
 - Works in airplane mode, air-gapped environments, classified settings.
@@ -107,7 +107,7 @@ Every feature is available to everyone, forever. The code is public. Contributio
 | **Product type** | Native macOS app (menu bar + window) |
 | **Core function** | Voice dictation and file transcription |
 | **Target users** | Developers, professionals, writers who want fast private voice input |
-| **Key differentiators** | Parakeet speed + local-first speech + free/open-source |
+| **Key differentiators** | Parakeet speed + fully local speech option + free/open-source |
 | **Business model** | Free and open-source (GPL-3.0) |
 | **Platform** | macOS 14.2+, Apple Silicon only |
 
@@ -256,7 +256,7 @@ Writers who think better out loud. Podcasters who need episode transcripts. Cont
 
 ### Why We Win Each Segment
 
-- **vs WisprFlow**: Same speed class, but local-first speech + free vs $144-180/year. WisprFlow users who care about privacy or cost switch to us.
+- **vs WisprFlow**: Same speed class, but a fully local speech option + free vs $144-180/year. WisprFlow users who care about privacy or cost switch to us.
 - **vs MacWhisper**: Faster (Parakeet vs Whisper), simpler (2 modes vs 50+ features), plus system-wide dictation — and free.
 - **vs Superwhisper**: Free vs $250, Parakeet-first architecture. No contest on price.
 - **vs Apple Dictation**: Faster, more accurate, custom words, file transcription. Same price (free), dramatically more capable.
