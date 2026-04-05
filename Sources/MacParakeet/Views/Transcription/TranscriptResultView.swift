@@ -383,11 +383,19 @@ struct TranscriptResultView: View {
             if let onRetranscribe, let filePath = transcription.filePath,
                FileManager.default.fileExists(atPath: filePath) {
                 Button {
-                    onRetranscribe(transcription)
+                    showingRetranscribeAlert = true
                 } label: {
                     Label("Retranscribe", systemImage: "arrow.trianglehead.2.clockwise")
                 }
                 .buttonStyle(.bordered)
+                .alert("Retranscribe this file?", isPresented: $showingRetranscribeAlert) {
+                    Button("Cancel", role: .cancel) { }
+                    Button("Retranscribe", role: .destructive) {
+                        onRetranscribe(transcription)
+                    }
+                } message: {
+                    Text("All custom tabs, results, and chats generated from the current transcript will be removed and cannot be recovered.")
+                }
             }
 
             Spacer()
