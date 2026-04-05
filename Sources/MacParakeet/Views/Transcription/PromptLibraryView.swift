@@ -206,7 +206,6 @@ struct PromptLibraryView: View {
                     Text(prompt.name)
                         .font(DesignSystem.Typography.bodyLarge.weight(.semibold))
                         .foregroundStyle(prompt.isVisible ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textTertiary)
-                        .textSelection(.enabled)
 
                     if isAutoRun {
                         Button {
@@ -251,12 +250,24 @@ struct PromptLibraryView: View {
                     Spacer()
                 }
 
-                Text(prompt.content)
-                    .font(DesignSystem.Typography.body)
-                    .foregroundStyle(prompt.isVisible ? DesignSystem.Colors.textSecondary : DesignSystem.Colors.textTertiary)
-                    .lineLimit(isExpanded ? nil : 2)
-                    .lineSpacing(2)
-                    .textSelection(.enabled)
+                // Workaround for macOS SwiftUI bug: Animating lineLimit on text with .textSelection
+                // causes severe layout snapping because it wraps the Text in an un-animatable NSTextView.
+                // Using an if/else block forces SwiftUI to smoothly crossfade and interpolate the container height.
+                if isExpanded {
+                    Text(prompt.content)
+                        .font(DesignSystem.Typography.body)
+                        .foregroundStyle(prompt.isVisible ? DesignSystem.Colors.textSecondary : DesignSystem.Colors.textTertiary)
+                        .lineSpacing(2)
+                        .textSelection(.enabled)
+                        .transition(.opacity)
+                } else {
+                    Text(prompt.content)
+                        .font(DesignSystem.Typography.body)
+                        .foregroundStyle(prompt.isVisible ? DesignSystem.Colors.textSecondary : DesignSystem.Colors.textTertiary)
+                        .lineLimit(2)
+                        .lineSpacing(2)
+                        .transition(.opacity)
+                }
             }
 
             if allowEdit {
@@ -302,8 +313,9 @@ struct PromptLibraryView: View {
                     }
                 }
             } label: {
-                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                Image(systemName: "chevron.down")
                     .font(.system(size: 12, weight: .bold))
+                    .rotationEffect(.degrees(isExpanded ? 180 : 0))
                     .foregroundStyle(isHovered ? DesignSystem.Colors.textSecondary : DesignSystem.Colors.textTertiary)
                     .frame(width: 24, height: 24)
                     .background(isHovered ? DesignSystem.Colors.rowHoverBackground : .clear)
