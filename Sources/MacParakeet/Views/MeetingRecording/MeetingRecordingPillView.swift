@@ -82,12 +82,6 @@ struct MeetingRecordingPillView: View {
                 isAnimating: true,
                 audioLevel: max(viewModel.micLevel, viewModel.systemLevel)
             )
-            VStack(spacing: 5) {
-                compactLevelRow(systemName: "mic.fill", level: viewModel.micLevel)
-                compactLevelRow(systemName: "speaker.wave.2.fill", level: viewModel.systemLevel)
-            }
-            .padding(.horizontal, DesignSystem.Spacing.sm)
-            .padding(.bottom, DesignSystem.Spacing.sm)
         }
         .frame(width: DesignSystem.Layout.meetingPillWidth, height: DesignSystem.Layout.meetingPillHeight)
         .background(
@@ -121,29 +115,6 @@ struct MeetingRecordingPillView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Recording meeting, \(viewModel.formattedElapsed) elapsed")
-    }
-
-    private func compactLevelRow(systemName: String, level: Float) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: systemName)
-                .font(DesignSystem.Typography.meetingPillLevelIcon)
-                .foregroundStyle(DesignSystem.Colors.meetingPillLevelIcon)
-                .frame(width: DesignSystem.Layout.meetingPillLevelIconWidth)
-
-            GeometryReader { proxy in
-                let clamped = max(0, min(CGFloat(level), 1))
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(DesignSystem.Colors.meetingPillLevelTrack)
-
-                    Capsule()
-                        .fill(DesignSystem.Colors.accent)
-                        .frame(width: max(2, proxy.size.width * clamped))
-                }
-            }
-            .frame(height: DesignSystem.Layout.meetingPillLevelBarHeight)
-        }
-        .frame(height: DesignSystem.Layout.meetingPillLevelRowHeight)
     }
 
     private var pillBackground: some View {

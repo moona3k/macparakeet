@@ -94,8 +94,6 @@ enum DesignSystem {
         static let meetingPillStrokeHover = Color.white.opacity(0.15)
         static let meetingPillText = Color.white.opacity(0.9)
         static let meetingPillBadgeBackground = Color.black.opacity(0.8)
-        static let meetingPillLevelTrack = Color.white.opacity(0.12)
-        static let meetingPillLevelIcon = Color.white.opacity(0.55)
 
         // Sidebar
         static let contentBackground = Color(nsColor: .textBackgroundColor)
@@ -136,7 +134,6 @@ enum DesignSystem {
         static let meetingPillStatus = Font.system(size: 13, weight: .semibold)
         static let meetingPillBadge = Font.system(size: 10, weight: .medium, design: .monospaced)
         static let meetingPillCheckmark = Font.system(size: 24, weight: .semibold)
-        static let meetingPillLevelIcon = Font.system(size: 8, weight: .semibold)
 
         // Legacy aliases (kept for existing references)
         static let headline = Font.system(size: 17, weight: .semibold, design: .rounded)
@@ -165,10 +162,7 @@ enum DesignSystem {
         static let thumbnailCardMinWidth: CGFloat = 200
         static let thumbnailAspectRatio: CGFloat = 16 / 9
         static let meetingPillWidth: CGFloat = 72
-        static let meetingPillHeight: CGFloat = 100
-        static let meetingPillLevelIconWidth: CGFloat = 10
-        static let meetingPillLevelBarHeight: CGFloat = 4
-        static let meetingPillLevelRowHeight: CGFloat = 8
+        static let meetingPillHeight: CGFloat = 80
     }
 
     // MARK: - Animation
