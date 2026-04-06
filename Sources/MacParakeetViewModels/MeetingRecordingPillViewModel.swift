@@ -15,7 +15,6 @@ public final class MeetingRecordingPillViewModel {
     public var elapsedSeconds: Int = 0
     public var micLevel: Float = 0
     public var systemLevel: Float = 0
-    public var transcriptionComplete: Bool = false
     public var onStop: (() -> Void)?
     public var onCompletionAnimationFinished: (() -> Void)?
 

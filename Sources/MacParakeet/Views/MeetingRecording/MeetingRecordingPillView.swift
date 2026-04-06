@@ -2,13 +2,56 @@ import MacParakeetCore
 import MacParakeetViewModels
 import SwiftUI
 
-private struct MeetingRecordingCheckmarkView: View {
+// MARK: - Animated Checkmark (Apple Pay style)
+
+/// Ring draws, then check strokes in. Used for meeting completion confirmation.
+private struct MeetingCompletionCheckmarkView: View {
+    @State private var ringTrim: CGFloat = 0
+    @State private var checkTrim: CGFloat = 0
+
+    private let lineWidth: CGFloat = 1.5
+    private let color = DesignSystem.Colors.successGreen
+
     var body: some View {
-        Image(systemName: "checkmark.circle.fill")
-            .font(DesignSystem.Typography.meetingPillCheckmark)
-            .foregroundStyle(DesignSystem.Colors.successGreen)
+        ZStack {
+            Circle()
+                .stroke(color.opacity(0.2), lineWidth: lineWidth)
+
+            Circle()
+                .trim(from: 0, to: ringTrim)
+                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+
+            CheckmarkShape()
+                .trim(from: 0, to: checkTrim)
+                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+                .padding(7)
+        }
+        .frame(width: 26, height: 26)
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.35)) {
+                ringTrim = 1
+            }
+            withAnimation(.easeOut(duration: 0.25).delay(0.25)) {
+                checkTrim = 1
+            }
+        }
     }
 }
+
+private struct CheckmarkShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let w = rect.width
+        let h = rect.height
+        path.move(to: CGPoint(x: w * 0.22, y: h * 0.52))
+        path.addLine(to: CGPoint(x: w * 0.42, y: h * 0.72))
+        path.addLine(to: CGPoint(x: w * 0.78, y: h * 0.28))
+        return path
+    }
+}
+
+// MARK: - Pill View
 
 struct MeetingRecordingPillView: View {
     @Bindable var viewModel: MeetingRecordingPillViewModel
@@ -30,19 +73,19 @@ struct MeetingRecordingPillView: View {
         case .idle:
             EmptyView()
         case .recording:
-            recordingPill
+            sacredRecordingPill
         case .completing:
             completingPill
         case .transcribing:
-            statusPill(
-                icon: AnyView(ProgressView().controlSize(.small).tint(.white)),
-                title: "Transcribing meeting"
-            )
+            iconPill {
+                SpinnerRingView(size: 26)
+            }
+            .transition(.opacity.animation(.easeInOut(duration: 0.3)))
         case .completed:
-            statusPill(
-                icon: AnyView(MeetingRecordingCheckmarkView()),
-                title: "Saved to library"
-            )
+            iconPill {
+                MeetingCompletionCheckmarkView()
+            }
+            .transition(.scale(scale: 0.8).combined(with: .opacity).animation(.spring(response: 0.35, dampingFraction: 0.7)))
         case .error(let message):
             statusPill(
                 icon: AnyView(
@@ -54,8 +97,19 @@ struct MeetingRecordingPillView: View {
         }
     }
 
-    private var recordingPill: some View {
-        sacredRecordingPill
+    /// Icon-only pill — used for transcribing (merkaba) and completed (checkmark).
+    private func iconPill<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        content()
+            .padding(12)
+            .background(
+                Capsule()
+                    .fill(DesignSystem.Colors.meetingPillBackground)
+                    .overlay(
+                        Capsule()
+                            .stroke(DesignSystem.Colors.meetingPillStroke, lineWidth: 0.5)
+                    )
+            )
+            .padding(DesignSystem.Spacing.sm)
     }
 
     private func statusPill(icon: AnyView, title: String) -> some View {
@@ -75,11 +129,7 @@ struct MeetingRecordingPillView: View {
         VStack(spacing: 0) {
             FlowerCompletionView(
                 stemCollapsed: $stemCollapsed,
-                transcriptionComplete: Binding(
-                    get: { viewModel.transcriptionComplete },
-                    set: { viewModel.transcriptionComplete = $0 }
-                ),
-                onFinished: {
+                onCollapseFinished: {
                     viewModel.onCompletionAnimationFinished?()
                 }
             )

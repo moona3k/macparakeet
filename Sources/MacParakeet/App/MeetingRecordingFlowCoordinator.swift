@@ -168,11 +168,15 @@ final class MeetingRecordingFlowCoordinator {
             stopTranscriptObservation()
             pillViewModel?.micLevel = 0
             pillViewModel?.systemLevel = 0
-            pillViewModel?.transcriptionComplete = false
             pillViewModel?.state = .completing
             pillViewModel?.onCompletionAnimationFinished = { [weak self] in
                 guard let self else { return }
-                self.sendEvent(.dismissRequested)
+                // Flower collapsed — show merkaba spinner (or checkmark if already done)
+                if self.completedTranscription != nil {
+                    self.pillViewModel?.state = .completed
+                } else {
+                    self.pillViewModel?.state = .transcribing
+                }
             }
             panelViewModel?.state = .transcribing
             panelViewModel?.micLevel = 0
@@ -195,12 +199,12 @@ final class MeetingRecordingFlowCoordinator {
         case .showCompleted:
             stopPillPolling()
             stopTranscriptObservation()
-            // Signal the flower animation to show the checkmark
-            pillViewModel?.transcriptionComplete = true
+            // If flower is still collapsing, the callback will check completedTranscription
+            // If spinner is showing, transition to checkmark now
+            if pillViewModel?.state == .transcribing {
+                pillViewModel?.state = .completed
+            }
             panelViewModel?.state = .hidden
-            // Cancel the state machine's auto-dismiss — the flower animation handles its own exit
-            autoDismissTask?.cancel()
-            autoDismissTask = nil
 
         case .showError(let message):
             stopPillPolling()
@@ -238,10 +242,16 @@ final class MeetingRecordingFlowCoordinator {
             presentPermissionAlert(for: reason)
 
         case .startAutoDismissTimer(let seconds):
+            // Skip auto-dismiss when flower collapse animation is still playing
+            if pillViewModel?.state == .completing {
+                break
+            }
+            // Give checkmark time to animate in and hold before dismissing
+            let adjustedSeconds = pillViewModel?.state == .completed ? 2.0 : seconds
             autoDismissTask?.cancel()
             let gen = stateMachine.generation
             autoDismissTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(seconds))
+                try? await Task.sleep(for: .seconds(adjustedSeconds))
                 guard !Task.isCancelled else { return }
                 self.sendEvent(.autoDismissExpired(generation: gen))
             }
