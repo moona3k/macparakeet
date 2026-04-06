@@ -179,7 +179,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Meeting title prefix + rename flow
 - [x] Hotkey conflict prevention (dictation vs meeting)
 - [x] Concurrent dictation during meeting recording (ADR-015)
-- [ ] Centralized STT runtime + scheduler (ADR-016)
+- [x] Centralized STT runtime + scheduler (ADR-016)
 
 ## For AI Coding Assistants
 

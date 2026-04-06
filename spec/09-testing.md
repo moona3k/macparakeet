@@ -103,13 +103,13 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 
 **What:** Shared runtime ownership, request priority, backpressure, and progress isolation across concurrent producers.
 
-**How:** Protocol-based mocks for the STT runtime plus deterministic scheduler tests that assert execution order and dropped/coalesced work under backlog.
+**How:** Protocol-based mocks for the STT runtime plus deterministic scheduler tests that assert execution order and dropped work under backlog.
 
 **Examples:**
 - Dictation preempts pending meeting live chunk work
 - Meeting finalization runs ahead of new batch file transcription
 - File transcription yields to interactive dictation without corrupting progress callbacks
-- Meeting live chunks are dropped or coalesced when queue thresholds are exceeded
+- Meeting live chunks are dropped when queue thresholds are exceeded
 - App warm-up, shutdown, and cache-clearing hit one shared runtime only
 
 ### CLI Tests

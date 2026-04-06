@@ -42,8 +42,8 @@
 │  │  └──────────────────┬──────────────────┘  └────────────┬────────────┘   │  │
 │  │                               │                                           │  │
 │  │                     ┌─────────▼─────────┐  ┌────────────────────────────┐ │  │
-│  │                     │    STTClient      │  │  TextProcessingPipeline   │ │  │
-│  │                     │  (FluidAudio)     │  │  (Deterministic cleanup)  │ │  │
+│  │                     │   STT Scheduler   │  │  TextProcessingPipeline   │ │  │
+│  │                     │   + Runtime       │  │  (Deterministic cleanup)  │ │  │
 │  │                     └─────────┬─────────┘  └────────────────────────────┘ │  │
 │  │                               │                                           │  │
 │  │  ┌──────────────┐  ┌────────▼──────────────────────────────────────────┐ │  │
@@ -233,7 +233,7 @@ enum DictationState: Sendable {
 }
 ```
 
-**Dependencies:** `AudioProcessor`, `STTClient`, `DictationRepository`, `ClipboardService`
+**Dependencies:** `AudioProcessor`, shared `STTManaging` scheduler/runtime path, `DictationRepository`, `ClipboardService`
 
 **Data Flow:**
 ```
@@ -250,7 +250,7 @@ Hotkey released (or toggle stop)
     ▼
 DictationService.stopRecording()
     │ ── Writes buffer to temp WAV (16kHz mono)
-    │ ── Sends to STTClient
+    │ ── Submits a `dictation` job to the shared STT scheduler
     │ ── Receives raw transcript
     │ ── Runs TextProcessingPipeline (if mode == .clean)
     │ ── Saves to DictationRepository
@@ -272,7 +272,7 @@ protocol TranscriptionServiceProtocol: Sendable {
 }
 ```
 
-**Dependencies:** `AudioProcessor`, `STTClient`, `TranscriptionRepository`, `YouTubeDownloader`, storage prefs (`saveTranscriptionAudio`)
+**Dependencies:** `AudioProcessor`, shared `STTManaging` scheduler/runtime path, `TranscriptionRepository`, `YouTubeDownloader`, storage prefs (`saveTranscriptionAudio`)
 
 **Data Flow:**
 ```
@@ -283,7 +283,7 @@ File URL
 AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
     │
     ▼
-STTClient.transcribe(audioPath:, onProgress:) → raw transcript + word timestamps
+STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → raw transcript + word timestamps
     │
     ▼
 TranscriptionRepository.save() → persisted to database
@@ -301,7 +301,7 @@ YouTubeDownloader.download(url:, onProgress:) → emits download %
 AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
     │
     ▼
-STTClient.transcribe(audioPath:, onProgress:) → emits chunk %
+STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → emits chunk %
     │
     ▼
 TranscriptionRepository.save() with sourceURL (+ filePath when retention enabled)
@@ -358,18 +358,46 @@ protocol AudioProcessorProtocol: Sendable {
 - Audio buffer stored in memory during recording, flushed to disk on stop
 - Supports: MP3, WAV, M4A, FLAC, OGG, OPUS, MP4, MOV, MKV, WebM, AVI
 
-#### 2.5 STTClient
+#### 2.5 STT Runtime + Scheduler
 
-**Responsibility:** Native Swift wrapper around FluidAudio CoreML. Manages model lifecycle (download, load, transcribe, shutdown). Runs Parakeet TDT on the Neural Engine (ANE).
+**Responsibility:** The shared STT stack owns one process-wide Parakeet runtime plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle. `STTScheduler` owns job admission, priority, backpressure, cancellation, and request-scoped progress. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
 
 **Key Types/Protocols:**
 ```swift
-protocol STTClientProtocol: Sendable {
-    func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult
-    func isReady() async -> Bool
+public enum STTJobKind: Sendable, Equatable {
+    case dictation
+    case meetingFinalize
+    case meetingLiveChunk
+    case fileTranscription
+}
+
+public enum STTWarmUpState: Sendable, Equatable {
+    case idle
+    case working(message: String, progress: Double?)
+    case ready
+    case failed(message: String)
+}
+
+public protocol STTTranscribing: Sendable {
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult
+}
+
+public protocol STTRuntimeManaging: Sendable {
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
+    func backgroundWarmUp() async
+    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>)
+    func removeWarmUpObserver(id: UUID) async
+    func clearModelCache() async
+    func isReady() async -> Bool
     func shutdown() async
 }
+
+public typealias STTManaging = STTTranscribing & STTRuntimeManaging
+public typealias STTClientProtocol = STTManaging
 
 struct STTResult: Sendable {
     let text: String
@@ -406,13 +434,13 @@ let result = try await manager.transcribe(samples, source: .system)
 
 **Ownership Model:**
 ```
-Feature services (Dictation / Meeting / File)
+Feature services (Dictation / Meeting / File / URL)
     │
     ▼
-STT Scheduler / Broker
+STTScheduler
     │
     ▼
-STT Runtime
+STTRuntime
     │
     ▼
 AsrManager (single process-wide owner)
@@ -423,7 +451,7 @@ AsrManager (single process-wide owner)
 App Launch
     │
     ▼
-STTRuntime.warmUp() called (lazy, on first use)
+STTRuntime.warmUp() called (lazy, on first use or from onboarding)
     │
     ├── Check: Are CoreML models downloaded?
     │     │
@@ -625,20 +653,21 @@ Native Swift, runs in the app process via FluidAudio CoreML on the Neural Engine
      │                     │  stopCapture() → WAV   │
      │                     │ ─────────────────────> │
      │                     │                        │
-     │                     │      ┌─────────┐       │
-     │                     │ ───> │STTClient│       │
-     │                     │      └────┬────┘       │
-     │                     │           │            │
-     │                     │           │  transcribe(wav)
-     │                     │           │ ────────────────────┐
+     │                     │      ┌──────────────┐   │
+     │                     │ ───> │STTScheduler  │   │
+     │                     │      └──────┬───────┘   │
+     │                     │             │           │
+     │                     │             │  transcribe(wav, .dictation)
+     │                     │             │ ────────────────────┐
      │                     │           │                     │
-     │                     │           │    ┌────────────────▼───┐
-     │                     │           │    │  Parakeet (ANE)   │
-     │                     │           │    └────────────────┬───┘
+     │                     │             │    ┌──────────────▼──────┐
+     │                     │             │    │ STTRuntime +        │
+     │                     │             │    │ Parakeet (ANE)      │
+     │                     │             │    └─────────────────────┘
      │                     │           │                     │
-     │                     │           │  raw transcript     │
-     │                     │           │ <───────────────────┘
-     │                     │           │
+     │                     │             │  raw transcript     │
+     │                     │             │ <───────────────────┘
+     │                     │             │
      │                     │  raw text │
      │                     │ <──────── │
      │                     │
@@ -674,9 +703,9 @@ Native Swift, runs in the app process via FluidAudio CoreML on the Neural Engine
        │                       │  16kHz mono WAV        │    input → WAV
        │                       │ <───────────────────── │
        │                       │
-       │                       │     ┌──────────┐
-       │                       │ ──> │STTClient │ ──> Parakeet (ANE)
-       │                       │     └─────┬────┘
+       │                       │     ┌──────────────┐
+       │                       │ ──> │STTScheduler  │ ──> STTRuntime + Parakeet (ANE)
+       │                       │     └─────┬────────┘
        │                       │           │
        │                       │  STTResult (text + timestamps)
        │                       │ <──────── │
@@ -1118,7 +1147,7 @@ MacParakeet has a small surface area compared to Oatmeal. Focus testing on the c
 - **Models** — Codable round-trip, validation, edge cases
 - **Repositories** — CRUD operations, search queries, migration correctness
 - **ExportService** — Format generation (TXT in v0.1; SRT, VTT, JSON in v0.3)
-- **STTClient** — FluidAudio wrapper (mock the STTClientProtocol interface)
+- **STT scheduler/runtime boundary** — mock the `STTClientProtocol` interface (`STTManaging`) rather than real FluidAudio
 - **AudioProcessor** — Format detection, conversion parameter correctness (mock FFmpeg)
 
 ### What We Skip
@@ -1150,12 +1179,25 @@ actor MockSTTClient: STTClientProtocol {
     func configure(result: STTResult) { transcribeResult = result; transcribeError = nil }
     func configure(error: Error) { transcribeError = error; transcribeResult = nil }
 
-    func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)? = nil) async throws -> STTResult {
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async throws -> STTResult {
         if let error = transcribeError { throw error }
-        guard let result = transcribeResult else { throw STTError.modelNotReady }
+        guard let result = transcribeResult else { throw STTError.modelNotLoaded }
         return result
     }
-    func warmUp() async throws {}
+    func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {}
+    func backgroundWarmUp() async {}
+    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>) {
+        (UUID(), AsyncStream { continuation in
+            continuation.yield(.idle)
+            continuation.finish()
+        })
+    }
+    func removeWarmUpObserver(id: UUID) async {}
+    func clearModelCache() async {}
     func isReady() async -> Bool { ready }
     func shutdown() async {}
 }

@@ -1,6 +1,6 @@
 # Centralized STT Runtime + Scheduler Implementation Plan
 
-> Status: **ACTIVE**
+> Status: **IMPLEMENTED**
 > Date: 2026-04-05
 > Driving ADRs: ADR-016 (centralized STT runtime and scheduler), ADR-015 (concurrent dictation and meeting recording), ADR-014 (meeting recording)
 
@@ -14,6 +14,17 @@ This plan assumes the docs-first architecture update has already landed in spec/
 - one scheduler owns admission, priority, backpressure, cancellation, and job-scoped progress
 - dictation, meeting recording, and file/YouTube transcription become producers submitting jobs into the scheduler
 - audio capture remains independent per flow
+
+## Implementation Outcome
+
+The implementation landed with the intended end-state architecture:
+
+- `STTRuntime` is the sole app-owned owner of `AsrManager` lifecycle
+- `STTScheduler` is the sole app-owned owner of STT job admission, priority ordering, and backpressure
+- `AppEnvironment` wires one shared runtime/scheduler path for dictation, meeting recording, and file/YouTube transcription
+- onboarding warm-up, readiness checks, cache clearing, and shutdown all route through that shared path
+- meeting live chunks are dropped under backlog by scheduler policy rather than by service-local guards
+- `STTClient` remains only as a compatibility facade around the shared stack for standalone callers/tests
 
 ## Goals
 
@@ -75,7 +86,7 @@ This plan assumes the docs-first architecture update has already landed in spec/
 
 ### Backpressure Policy
 
-1. Meeting live chunk jobs are droppable/coalescible under backlog.
+1. Meeting live chunk jobs are droppable under backlog.
 2. Dictation must never wait behind queued low-priority work.
 3. Batch file work may wait, pause between work units, or remain non-preemptive in phase 1.
 
@@ -144,7 +155,7 @@ Exit criteria:
 
 1. Move live chunk backlog policy into the scheduler or clearly partitioned scheduling logic.
 2. Preserve current best-effort behavior for live preview.
-3. Make dropped/coalesced work observable in tests and logs.
+3. Make dropped work observable in tests and logs.
 
 Exit criteria:
 - backlog behavior is explicit, not incidental.
@@ -173,7 +184,7 @@ Exit criteria:
 3. Progress isolation:
    - progress for one job does not leak to another
 4. Backpressure:
-   - meeting live chunks drop or coalesce under thresholds
+   - meeting live chunks drop under thresholds
 
 ### Regression Coverage
 
@@ -204,11 +215,11 @@ Tests:
 - `Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift`
 - new scheduler-focused tests
 
-## Open Design Questions
+## Resolved Design Decisions
 
-1. Should `STTClientProtocol` remain the producer-facing interface, with the scheduler hidden behind it, or should producers depend on a new `STTScheduling` protocol?
-2. Should meeting live chunk dropping live inside `MeetingRecordingService` or move fully into the scheduler?
-3. Do we segment file/YouTube transcription now, or explicitly defer that to a follow-up once the centralized scheduler is in place?
+1. Keep `STTClientProtocol` as the producer-facing compatibility boundary for this pass, backed by the shared scheduler/runtime path.
+2. Move meeting live chunk dropping fully into `STTScheduler` so backpressure policy has one owner.
+3. Defer segmented file/YouTube transcription to follow-up work; ADR-016 ships centralized ownership and priority ordering first.
 
 ## Recommended Delivery Shape
 

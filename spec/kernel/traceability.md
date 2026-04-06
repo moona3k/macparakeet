@@ -17,7 +17,7 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 | REQ-UI-003 | `MacParakeet/Views/MainWindowView.swift` | (ViewModel tests) |
 | REQ-DATA-001 | `MacParakeetCore/Database/DictationRepository.swift` | `DictationRepositoryTests.swift` |
 | REQ-DATA-002 | `MacParakeetCore/Database/DatabaseManager.swift` | `DatabaseManagerTests.swift` |
-| REQ-STT-001 | `MacParakeetCore/STT/STTClient.swift` | `STTClientTests.swift` |
+| REQ-STT-001 | `MacParakeetCore/STT/STTRuntime.swift`, `MacParakeetCore/STT/STTScheduler.swift`, `MacParakeetCore/STT/STTClient.swift` | `STTSchedulerTests.swift`, `STTClientTests.swift` |
 | REQ-EXP-001 | `MacParakeetCore/Services/ExportService.swift` | `ExportServiceTests.swift` |
 
 ## v0.2 Clean Pipeline

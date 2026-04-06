@@ -341,7 +341,7 @@ User drops file(s) onto window or menu bar icon
          │
          ▼
 ┌──────────────────┐
-│    STTClient     │ ── Send audio to Parakeet via FluidAudio CoreML
+│  STT Scheduler   │ ── Submit file transcription job to shared STT stack
 └────────┬─────────┘
          │
          ▼

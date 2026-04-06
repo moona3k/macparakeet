@@ -114,15 +114,43 @@ This runs a secondary CTC encoder (110M params) alongside the primary TDT encode
 
 ### Protocol Layer
 
-The `STTClientProtocol` interface is unchanged from v0.1. The runtime implementation uses FluidAudio/CoreML:
+The producer-facing STT contract was expanded in ADR-016 so callers declare job type explicitly and runtime lifecycle stays on the shared path:
 
 ```swift
-protocol STTClientProtocol: Sendable {
-    func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult
+public enum STTJobKind: Sendable, Equatable {
+    case dictation
+    case meetingFinalize
+    case meetingLiveChunk
+    case fileTranscription
+}
+
+public enum STTWarmUpState: Sendable, Equatable {
+    case idle
+    case working(message: String, progress: Double?)
+    case ready
+    case failed(message: String)
+}
+
+public protocol STTTranscribing: Sendable {
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult
+}
+
+public protocol STTRuntimeManaging: Sendable {
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
+    func backgroundWarmUp() async
+    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>)
+    func removeWarmUpObserver(id: UUID) async
     func isReady() async -> Bool
+    func clearModelCache() async
     func shutdown() async
 }
+
+public typealias STTManaging = STTTranscribing & STTRuntimeManaging
+public typealias STTClientProtocol = STTManaging
 
 struct STTResult: Sendable {
     let text: String
@@ -139,7 +167,7 @@ struct TimestampedWord: Sendable {
 
 ### Runtime and Scheduling
 
-As of ADR-016, MacParakeet's intended STT architecture is:
+As implemented in ADR-016, MacParakeet's STT architecture is:
 
 - **One process-wide STT runtime** owning `AsrManager`
 - **One STT scheduler / broker** owning admission control, priorities, backpressure, cancellation, and job-scoped progress
@@ -168,7 +196,7 @@ Priority order:
 
 Backpressure rules:
 
-- Meeting live chunks are best-effort and may be dropped or coalesced under backlog
+- Meeting live chunks are best-effort and may be dropped under backlog
 - Dictation must remain responsive even while meetings or batch transcriptions exist
 - Long-running batch work should be segmented into bounded work units where practical
 - Progress reporting must be fanned out per job, not broadcast globally from the raw runtime stream
