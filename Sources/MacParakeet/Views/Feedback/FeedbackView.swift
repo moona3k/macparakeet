@@ -348,7 +348,7 @@ struct FeedbackView: View {
             icon: "person.2"
         ) {
             Button {
-                if let url = URL(string: "https://github.com/moona3k/macparakeet-community") {
+                if let url = URL(string: "https://github.com/moona3k/macparakeet/issues") {
                     NSWorkspace.shared.open(url)
                 }
             } label: {
