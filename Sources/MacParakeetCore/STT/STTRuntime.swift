@@ -117,6 +117,12 @@ public actor STTRuntime: STTRuntimeProtocol {
         if case .ready = backgroundWarmUpState { return }
         if backgroundWarmUpTask != nil { return }
 
+        // Order matters: `beginBackgroundWarmUp()` advances the generation
+        // counter *before* the task is assigned to `backgroundWarmUpTask`.
+        // This is safe because both the generation check and the nil-task
+        // guard at the top run synchronously on this actor — no suspension
+        // point exists between them and the assignment below, so no
+        // concurrent caller can observe the intermediate state.
         let generation = beginBackgroundWarmUp()
         prepareBackgroundWarmUpForRetry()
         setBackgroundWarmUpState(
