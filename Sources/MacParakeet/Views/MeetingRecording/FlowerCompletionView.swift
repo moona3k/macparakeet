@@ -214,12 +214,13 @@ struct FlowerCompletionView: View {
             rightLeafOpacity = 0
         }
 
-        // Phase 1c (0.3-0.7s): Stem retracts + layout collapses
+        // Phase 1c (0.3-0.7s): Stem retracts + layout collapses, topPadding syncs
         withAnimation(.easeInOut(duration: 0.4).delay(0.3)) {
             stemTrim = 0
             stemOpacity = 0
             stemFrameHeight = 0
             bottomPadding = 0
+            topPadding = 0
             stemCollapsed = true
         }
 
@@ -229,7 +230,6 @@ struct FlowerCompletionView: View {
                 flashOpacity = 1.0
                 flowerOpacity = 0
                 glowOpacity = 0
-                topPadding = 0
             }
         }
 
