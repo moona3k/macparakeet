@@ -447,12 +447,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
                 return true
             }
-            transcriptionViewModel.onTranscribingChanged = { [weak self] isTranscribing in
-                guard let self,
-                      !(self.dictationFlowCoordinator?.isDictationActive ?? false),
-                      !(self.meetingRecordingFlowCoordinator?.isMeetingRecordingActive ?? false) else { return }
-                // Only update icon if dictation/meeting recording isn't active (those states take priority)
-                self.updateMenuBarIcon(state: isTranscribing ? .processing : .idle)
+            transcriptionViewModel.onTranscribingChanged = { [weak self] _ in
+                self?.resolveAndUpdateMenuBarIcon()
             }
 
             let coordinator = DictationFlowCoordinator(
@@ -461,10 +457,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 entitlementsService: env.entitlementsService,
                 dictationRepo: env.dictationRepo,
                 settingsViewModel: settingsViewModel,
-                isMeetingRecordingActive: { [weak self] in
+                shouldSuppressIdlePill: { [weak self] in
                     self?.meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true
                 },
-                onMenuBarIconUpdate: { [weak self] state in self?.updateMenuBarIcon(state: state) },
+                onMenuBarIconUpdate: { [weak self] _ in self?.resolveAndUpdateMenuBarIcon() },
                 onHistoryReload: { [weak self] in self?.historyViewModel.loadDictations() },
                 onPresentEntitlementsAlert: { [weak self] error in self?.presentEntitlementsAlert(error) }
             )
@@ -474,7 +470,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 meetingRecordingService: env.meetingRecordingService,
                 transcriptionService: env.transcriptionService,
                 permissionService: env.permissionService,
-                onMenuBarIconUpdate: { [weak self] state in self?.updateMenuBarIcon(state: state) },
+                onMenuBarIconUpdate: { [weak self] _ in self?.resolveAndUpdateMenuBarIcon() },
                 onTranscriptionReady: { [weak self] transcription in
                     guard let self else { return }
                     self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
@@ -487,6 +483,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                     self?.dictationFlowCoordinator?.hideIdlePill()
                 },
                 onFlowReturnedToIdle: { [weak self] in
+                    guard self?.dictationFlowCoordinator?.isDictationActive != true else { return }
                     self?.dictationFlowCoordinator?.showIdlePill()
                 }
             )
@@ -757,6 +754,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     // MARK: - Menu Bar Icon State
 
+    /// Priority-based menu bar icon resolver (ADR-015).
+    /// Recording (meeting or dictation) > file transcription > idle.
+    private func resolveAndUpdateMenuBarIcon() {
+        if meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true {
+            updateMenuBarIcon(state: .recording)
+        } else if dictationFlowCoordinator?.isDictationActive == true {
+            updateMenuBarIcon(state: .recording)
+        } else if transcriptionViewModel.isTranscribing {
+            updateMenuBarIcon(state: .processing)
+        } else {
+            updateMenuBarIcon(state: .idle)
+        }
+    }
+
     private func updateMenuBarIcon(state: BreathWaveIcon.MenuBarState) {
         statusItem?.button?.image = BreathWaveIcon.menuBarIcon(pointSize: 18, state: state)
     }
@@ -856,10 +867,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard appEnvironment != nil else { return }
         if meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true {
             meetingRecordingFlowCoordinator?.toggleRecording()
-            return
-        }
-        guard dictationFlowCoordinator?.isDictationActive != true else {
-            presentMeetingRecordingBlockedAlert()
             return
         }
 
@@ -1024,16 +1031,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         #endif
     }
 
-    private func presentMeetingRecordingBlockedAlert() {
-        NSApp.activate(ignoringOtherApps: true)
-
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "Stop Dictation First"
-        alert.informativeText = "Meeting recording can’t start while dictation is active."
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
 }
 
 // MARK: - NSMenuDelegate
