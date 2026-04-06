@@ -8,6 +8,8 @@ APP_BIN="$PRODUCT_DIR/MacParakeet"
 APP_BUNDLE="$PRODUCT_DIR/MacParakeet-Dev.app"
 LOG_FILE="${TMPDIR:-/tmp}/macparakeet-dev.log"
 
+DEV_ENTITLEMENTS="$ROOT_DIR/scripts/dev/MacParakeet-Dev.entitlements"
+
 echo "[1/5] Building debug app bundle (xcodebuild)…"
 xcodebuild build \
   -scheme MacParakeet \
@@ -17,7 +19,8 @@ xcodebuild build \
   CODE_SIGN_IDENTITY="Apple Development" \
   DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-FYAF2ZD7RM}" \
   CODE_SIGNING_REQUIRED=YES \
-  CODE_SIGNING_ALLOWED=YES >/dev/null
+  CODE_SIGNING_ALLOWED=YES \
+  CODE_SIGN_ENTITLEMENTS="$DEV_ENTITLEMENTS" >/dev/null
 
 if [[ ! -x "$APP_BIN" ]]; then
   echo "Build succeeded but app binary not found at: $APP_BIN" >&2
@@ -91,14 +94,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
-# Re-sign the bundle with entitlements so TCC trusts it and Core Audio Taps work
-DEV_ENTITLEMENTS="$ROOT_DIR/scripts/dist/MacParakeet.entitlements"
-SIGN_IDENTITY="$(security find-identity -v -p codesigning | grep 'Apple Development' | head -1 | awk '{print $2}')"
-# Sign frameworks first
-find "$APP_BUNDLE/Contents/Frameworks" -name "*.framework" -maxdepth 2 -exec \
-  codesign --force --sign "$SIGN_IDENTITY" {} \; 2>/dev/null || true
-# Sign the main executable with entitlements
-codesign --force --sign "$SIGN_IDENTITY" --entitlements "$DEV_ENTITLEMENTS" "$APP_BUNDLE" 2>/dev/null || true
+# Re-sign the bundle so TCC trusts it (entitlements baked in by xcodebuild)
+codesign --force --sign "Apple Development" --deep "$APP_BUNDLE" 2>/dev/null || true
 
 echo "[3/5] Stopping existing MacParakeet processes…"
 pkill -f "/Applications/MacParakeet.app/Contents/MacOS/MacParakeet" || true
