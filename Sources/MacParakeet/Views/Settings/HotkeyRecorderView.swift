@@ -52,16 +52,21 @@ struct HotkeyRecorderView: View {
                 .font(DesignSystem.Typography.body)
                 .foregroundStyle(.primary)
 
-            Menu("Change...") {
-                Button("Record Hotkey") {
-                    startRecording(modifierCaptureMode: .generic)
-                }
+            Button("Change...") {
+                startRecording(modifierCaptureMode: .generic)
+            }
+            .buttonStyle(.bordered)
 
+            Menu {
                 Button("Record Specific Modifier Side") {
                     startRecording(modifierCaptureMode: .sideSpecific)
                 }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 14))
             }
-            .buttonStyle(.bordered)
+            .menuStyle(.borderlessButton)
+            .help("Advanced hotkey options, including recording a specific left or right modifier key.")
         }
     }
 
