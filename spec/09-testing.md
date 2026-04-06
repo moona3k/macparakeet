@@ -101,17 +101,17 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 
 ### STT Scheduler Tests (ADR-016)
 
-**What:** Shared runtime ownership, request priority, backpressure, and progress isolation across concurrent producers.
+**What:** Shared runtime ownership, two-slot scheduling policy, request priority, backpressure, and progress isolation across concurrent producers.
 
 **How:** Protocol-based mocks for the STT runtime plus deterministic scheduler tests that assert execution order and dropped work under backlog.
 
 **Examples:**
-- Dictation preempts pending meeting live chunk work
-- Meeting finalization runs ahead of new batch file transcription
-- File transcription yields to interactive dictation without corrupting progress callbacks
-- Meeting live chunks are dropped when queue thresholds are exceeded
+- Dictation always uses the reserved interactive slot
+- Meeting finalization runs ahead of queued live preview and file transcription on the background slot
+- File transcription waits behind active meeting work without corrupting progress callbacks
+- Meeting live chunks are dropped when queue thresholds are exceeded or when meeting stop promotes finalization
 - Already-cancelled jobs never enter the scheduler
-- Saved meeting retranscribes stay on the batch lane instead of occupying the meeting lane
+- Saved meeting retranscribes stay in the low-priority file-transcription class
 - App warm-up, shutdown, and cache-clearing hit one shared runtime only
 
 ### CLI Tests

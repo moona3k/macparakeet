@@ -341,7 +341,7 @@ User drops file(s) onto window or menu bar icon
          │
          ▼
 ┌──────────────────┐
-│  STT Scheduler   │ ── Submit file transcription job to shared STT stack
+│  STT Scheduler   │ ── Queue low-priority file transcription job in shared STT stack
 └────────┬─────────┘
          │
          ▼

@@ -38,14 +38,14 @@ A shared engine would mean dictation start/stop could glitch a long-running meet
 
 ### 2. Shared STT runtime with explicit scheduling
 
-Both flows submit STT work to a process-wide STT scheduler backed by one shared `STTRuntime` owner. The runtime may keep separate lane-scoped managers for dictation, meeting, and batch work, but feature services do not own their own runtimes and the app does not rely on implicit CoreML contention as its scheduling policy.
+Both flows submit STT work to a process-wide STT scheduler backed by one shared `STTRuntime` owner. Feature services do not own their own runtimes and the app does not rely on implicit CoreML contention as its scheduling policy.
 
 The scheduler defines:
 
-- a dedicated dictation lane for the highest-priority interactive workload
-- a dedicated meeting lane where meeting finalization beats live preview work
+- a reserved dictation slot for the highest-priority interactive workload
+- a shared background slot where meeting finalization beats live preview work
 - meeting live chunks as best-effort under backlog
-- a dedicated batch lane for file / YouTube transcription and saved-meeting retranscribes
+- file / YouTube transcription and saved-meeting retranscribes as queued batch work behind active meeting STT
 
 See ADR-016 for the full runtime and scheduler design.
 

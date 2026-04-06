@@ -167,19 +167,22 @@ struct TimestampedWord: Sendable {
 
 ### Runtime and Scheduling
 
-As implemented in ADR-016, MacParakeet's STT architecture is:
+ADR-016 defines MacParakeet's target STT architecture as:
 
 - **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown
-- **Lane-scoped `AsrManager` instances inside that runtime** for dictation, meeting, and batch work
-- **One STT scheduler / broker** owning lane admission, in-lane priorities, backpressure, cancellation, and job-scoped progress
+- **Two STT execution slots by default**
+  - an **interactive slot** reserved for `dictation`
+  - a **background slot** shared by `meetingFinalize`, `meetingLiveChunk`, and `fileTranscription`
+- **One STT scheduler / control plane** owning admission, slot assignment, priority, backpressure, cancellation, and job-scoped progress
 - **Many producers** (`DictationService`, `MeetingRecordingService`, `TranscriptionService`) submitting jobs into the scheduler
 
 The app does not treat "one service = one STT runtime" as a valid long-term architecture.
+`STTClient` remains only as a standalone compatibility facade for the CLI and tests; app code uses the shared `STTRuntime` + `STTScheduler` from `AppEnvironment`.
 
 ### Lifecycle
 
 - **Lazy init**: The shared runtime is not loaded at app launch; loaded on first STT request or warm-up
-- **Keep loaded**: Once initialized, the runtime keeps its lane managers ready for subsequent requests
+- **Keep loaded**: Once initialized, the runtime keeps its slot managers ready for subsequent requests
 - **Warm-up during onboarding**: Download models (~6 GB) + CoreML compilation (~3.4s first time)
 - **Graceful shutdown**: The shared runtime is released when the app quits
 - **Single owner**: Warm-up, readiness, shutdown, and cache clear happen once at the runtime layer
@@ -189,50 +192,53 @@ The app does not treat "one service = one STT runtime" as a valid long-term arch
 
 The scheduler exists because STT is a scarce interactive resource even when audio capture is concurrent.
 
-Current implementation:
+Default policy:
 
-1. **Dictation lane**: serial lane dedicated to `dictation`
-2. **Meeting lane**: serial lane dedicated to `meetingFinalize` and `meetingLiveChunk`
-3. **Batch lane**: serial lane dedicated to `fileTranscription`
+1. **Interactive slot**: reserved for `dictation`
+2. **Background slot**: shared by `meetingFinalize`, `meetingLiveChunk`, and `fileTranscription`
 
-Within the meeting lane:
+Priority within the background slot:
 
 1. `meetingFinalize`
 2. `meetingLiveChunk`
+3. `fileTranscription`
 
-Backpressure rules:
+Backpressure and queueing rules:
 
 - Meeting live chunks are best-effort and may be dropped under backlog
-- Immediate post-stop meeting finalization uses `meetingFinalize`; archived meeting retranscribes stay on the batch lane as `fileTranscription`
-- Dictation and active meeting work must not be queued behind batch/library retranscription work
-- Long-running batch work should be segmented into bounded work units where practical; until then, the batch lane remains non-preemptive within a single transcription
+- When a meeting stops, queued live-preview work may be cancelled/dropped so `meetingFinalize` runs next
+- Immediate post-stop meeting finalization uses `meetingFinalize`; archived meeting retranscribes remain `fileTranscription`
+- Dictation must not be queued behind meeting or batch work
+- File transcription is intentionally queued and single-job in v1; a running long batch job may delay meeting STT on the background slot
+- Long-running batch work should be segmented into bounded work units in a future iteration if we want it to yield more gracefully
 - Progress reporting must be fanned out per job, not broadcast globally from the raw runtime stream
 - Cancellation is checked before scheduler admission so fast user cancels do not race into successful transcriptions
+- Speaker diarization remains a separate service and is not part of the two-slot speech scheduler
 
 ### Data Flow
 
 ```
 Dictation:
-  AudioRecorder → AVAudioPCMBuffer → AudioConverter.resampleBuffer() → STTScheduler.submit(dictation) → STTRuntime.transcribe() → STTResult
+  AudioRecorder → AVAudioPCMBuffer → AudioConverter.resampleBuffer() → STTScheduler.transcribe(audioPath:, job: .dictation, onProgress:) → STTRuntime.transcribe() → STTResult
 
 File transcription (v0.4+):
-  FFmpeg (video demux) → .wav → AudioConverter.resampleAudioFile() → STTScheduler.submit(fileTranscription) → STTRuntime.transcribe() → STTResult
+  FFmpeg (video demux) → .wav → AudioConverter.resampleAudioFile() → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STTResult
                                                                                                              → OfflineDiarizerManager.process() → DiarizationResult
                                                                                                              → Merge word timestamps + speaker segments
 
 YouTube (v0.4+):
-  yt-dlp → .m4a → FFmpeg → AudioConverter.resampleAudioFile() → STTScheduler.submit(fileTranscription) → STTRuntime.transcribe() → STTResult
+  yt-dlp → .m4a → FFmpeg → AudioConverter.resampleAudioFile() → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STTResult
                                                                                                         → OfflineDiarizerManager.process() → DiarizationResult
                                                                                                         → Merge word timestamps + speaker segments
 
 Meeting live preview (v0.6):
-  MicrophoneCapture/SystemAudioTap → AudioChunker → STTScheduler.submit(meetingLiveChunk) → STTRuntime.transcribe() → live transcript update
+  MicrophoneCapture/SystemAudioTap → AudioChunker → STTScheduler.transcribe(audioPath:, job: .meetingLiveChunk, onProgress:) → background-slot STT → live transcript update
 
 Meeting stop / finalization:
-  Final mixed meeting artifact → STTScheduler.submit(meetingFinalize) → STTRuntime.transcribe() → final saved meeting transcript
+  Final mixed meeting artifact → STTScheduler.transcribe(audioPath:, job: .meetingFinalize, onProgress:) → background-slot STT → final saved meeting transcript
 
 Saved meeting retranscription from the library:
-  Existing meeting audio file → AudioConverter.resampleAudioFile() → STTScheduler.submit(fileTranscription) → STTRuntime.transcribe() → updated meeting transcript
+  Existing meeting audio file → AudioConverter.resampleAudioFile() → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STT → updated meeting transcript
 ```
 
 ---
@@ -332,10 +338,10 @@ Recommended: 8 GB RAM (Apple Silicon)
 
 ### Optimization Notes
 
-- The shared runtime keeps its lane managers initialized after first use — subsequent calls skip model loading
+- The shared runtime keeps its slot managers initialized after first use — subsequent calls skip model loading
 - Apple Silicon's unified memory means no CPU↔ANE transfer overhead
 - For dictation, latency is the primary concern — sub-100ms after warm-up
-- For file transcription, throughput matters more — the batch lane is isolated from dictation and meeting-lane admission, even though a long batch decode is still non-preemptive within that lane
+- For file transcription, throughput matters more — it is intentionally lower-priority than dictation and meeting work in the shared background slot
 - ANE and GPU run simultaneously — STT never competes with LLM for processing cycles
 
 ---

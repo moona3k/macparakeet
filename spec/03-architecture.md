@@ -110,16 +110,18 @@ Dictation and meeting recording run concurrently as independent audio pipelines,
 
                 │
                 ▼
-      STT Scheduler / Broker (priority + backpressure)
+      STT Scheduler / Control Plane
+      ├── Interactive slot  → dictation
+      └── Background slot   → meeting + file transcription
                 │
                 ▼
-     STT Runtime (lane-scoped AsrManagers on CoreML / ANE)
+     STT Runtime (slot-scoped AsrManagers on CoreML / ANE)
 ```
 
 - **No shared audio engine** — dictation and meeting capture remain independent. macOS HAL multiplexes mic access.
 - **No mutual exclusion** — dictation and meeting recording can both be active.
 - **Centralized STT ownership** — one runtime owns model lifecycle, warm-up, and shutdown.
-- **Explicit scheduling** — dedicated dictation / meeting / batch lanes; within the meeting lane, finalize beats live preview.
+- **Explicit scheduling** — a reserved dictation slot plus a shared background slot; within the background slot, finalize beats live preview, and file transcription waits.
 - **Menu bar icon priority** — meeting > dictation > file-transcription > idle.
 
 ---
@@ -298,7 +300,7 @@ Saved meeting audio file
 AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
     │
     ▼
-STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → batch lane work
+STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot work
     │
     ▼
 Updated Transcription persisted with sourceType still = .meeting
@@ -372,7 +374,7 @@ protocol AudioProcessorProtocol: Sendable {
 
 #### 2.5 STT Runtime + Scheduler
 
-**Responsibility:** The shared STT stack owns one process-wide Parakeet runtime actor plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle and the lane-scoped `AsrManager` set used by dictation, meeting, and batch work. `STTScheduler` owns lane admission, in-lane priority, backpressure, cancellation, and request-scoped progress. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
+**Responsibility:** The shared STT stack owns one process-wide Parakeet runtime actor plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle and the slot-scoped `AsrManager` set used by the interactive and background execution slots. `STTScheduler` owns admission, slot assignment, in-slot priority, backpressure, cancellation, and request-scoped progress. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
 
 **Key Types/Protocols:**
 ```swift
@@ -450,12 +452,13 @@ Feature services (Dictation / Meeting / File / URL)
     │
     ▼
 STTScheduler
+    ├── interactive slot → dictation
+    └── background slot  → meetingFinalize > meetingLiveChunk > fileTranscription
     │
     ▼
 STTRuntime
-    ├── dictation lane → AsrManager
-    ├── meeting lane   → AsrManager
-    └── batch lane     → AsrManager
+    ├── interactive slot → AsrManager
+    └── background slot  → AsrManager
 ```
 
 **Model Lifecycle:**
@@ -467,14 +470,14 @@ STTRuntime.warmUp() called (lazy, on first use or from onboarding)
     │
     ├── Check: Are CoreML models downloaded?
     │     │
-    │     ├── Yes → initialize lane managers → Runtime ready (~162ms warm load)
+    │     ├── Yes → initialize slot managers → Runtime ready (~162ms warm load)
     │     │
     │     └── No ──► AsrModels.downloadAndLoad() (~6 GB download)
     │                  CoreML compilation (~3.4s first time)
-    │                  initialize lane managers
+    │                  initialize slot managers
     │
     ▼
-Lane managers ready — scheduler admits transcription jobs
+Slot managers ready — scheduler admits transcription jobs
 ```
 
 #### 2.6 ExportService
@@ -1101,7 +1104,7 @@ Subsequent Launches ──> Window shown (fast)
                        Dictation runs immediately
 ```
 
-After initial warm-up, subsequent dictations are near-instant because the shared runtime keeps `AsrManager` initialized and ready between requests.
+After initial warm-up, subsequent dictations are near-instant because the shared runtime keeps its slot managers initialized and ready between requests.
 
 ### Transcription Speed
 
@@ -1116,7 +1119,7 @@ Parakeet TDT 0.6B-v3 throughput varies by device class: approximately 155x realt
 
 ### Memory Management
 
-- **Parakeet model:** One shared runtime keeps `AsrManager` initialized after first use. Uses ~66 MB working RAM on the ANE. Released when the app quits.
+- **Parakeet model:** One shared runtime keeps its slot managers initialized after first use. Uses ~66 MB working RAM per active inference slot on the ANE path and is released when the app quits.
 - **Audio buffers:** Ring buffer during recording, flushed to temp file on stop. No recording duration limit — local processing means no artificial caps.
 - **Database:** GRDB uses WAL mode by default. No connection pooling needed (single-user app).
 
@@ -1129,7 +1132,7 @@ First dictation completes
     │
     ▼
 Schedule background task (low priority):
-    └── If Parakeet model not loaded → initialize AsrManager
+    └── If Parakeet model not loaded → initialize the shared runtime's slot managers
 ```
 
 This ensures subsequent interactions feel instant without bloating initial startup.

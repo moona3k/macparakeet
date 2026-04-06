@@ -116,7 +116,7 @@ MacParakeet has three primary modes that are equal in importance:
 2. **File transcription** -- Drag-drop audio/video files for full transcription (MacWhisper-style)
 3. **Meeting recording** -- Capture system audio + mic simultaneously, transcribe locally (simple Granola-style)
 
-All three modes share the same Parakeet STT backend but have different UI flows, audio sources, and data models. **Dictation and meeting recording run concurrently** (ADR-015) -- a user can dictate freely during a meeting recording. Each flow owns its own AVAudioEngine; macOS HAL handles mic multiplexing. All STT work routes through one process-wide runtime and scheduler (ADR-016), with dictation prioritized over meeting live preview and batch file work.
+All three modes share the same Parakeet STT backend but have different UI flows, audio sources, and data models. **Dictation and meeting recording run concurrently** (ADR-015) -- a user can dictate freely during a meeting recording. Each flow owns its own AVAudioEngine; macOS HAL handles mic multiplexing. All STT work routes through one process-wide runtime and scheduler (ADR-016), with a reserved dictation slot and a shared background slot where meeting work outranks file transcription.
 
 ### STT Integration (Parakeet via FluidAudio)
 
@@ -126,8 +126,9 @@ All three modes share the same Parakeet STT backend but have different UI flows,
 - ~2.5% Word Error Rate
 - ~66 MB working memory during inference (vs ~2 GB+ on GPU/MLX)
 - ~6 GB CoreML model bundle downloaded during onboarding
-- One process-wide STT runtime owns `AsrManager`
-- One scheduler owns priorities, backpressure, and job-scoped progress
+- One process-wide `STTRuntime` owner manages model lifecycle for the app
+- The default STT topology uses 2 execution slots: reserved dictation + shared meeting/batch
+- One `STTScheduler` owns slot assignment, priority, backpressure, cancellation, and job-scoped progress
 
 **Swift API:**
 ```swift

@@ -1,240 +1,119 @@
-# Centralized STT Runtime + Scheduler Implementation Plan
+# Centralized STT Runtime + Scheduler Plan
 
-> Status: **IMPLEMENTED**
+> Status: **HISTORICAL** - implementation branch landed an intermediate lane-based design; ADR-016 was refined on 2026-04-06 to a two-slot target architecture
 > Date: 2026-04-05
+> Updated: 2026-04-06
 > Driving ADRs: ADR-016 (centralized STT runtime and scheduler), ADR-015 (concurrent dictation and meeting recording), ADR-014 (meeting recording)
 
 ## Overview
 
-Refactor MacParakeet's STT architecture from per-flow client ownership to one process-wide STT runtime owner with one explicit scheduler/broker in front of it.
+This plan originally drove the refactor from per-flow STT ownership to one process-wide runtime owner with one explicit scheduler in front of it.
 
-This plan assumes the docs-first architecture update has already landed in spec/ADR form. The code should be brought into alignment with the new decision:
+The branch that followed this plan successfully centralized runtime ownership and replaced implicit contention with explicit scheduling, but it implemented that policy as three fixed execution lanes:
 
-- one STT runtime actor owns the lane-scoped `AsrManager` set
-- one scheduler owns admission, priority, backpressure, cancellation, and job-scoped progress
-- dictation, meeting recording, and file/YouTube transcription become producers submitting jobs into the scheduler
-- audio capture remains independent per flow
+- dictation
+- meeting
+- batch
 
-## Implementation Outcome
+After a final product and architecture review on 2026-04-06, MacParakeet's approved target architecture was simplified further. The accepted end state is now:
 
-The implementation landed with the intended end-state architecture:
+- one process-wide STT control plane
+- one shared STT runtime owner
+- four job classes:
+  - `dictation`
+  - `meetingFinalize`
+  - `meetingLiveChunk`
+  - `fileTranscription`
+- two default execution slots:
+  - an interactive slot reserved for `dictation`
+  - a background slot shared by `meetingFinalize`, `meetingLiveChunk`, and `fileTranscription`
+- background-slot priority:
+  1. `meetingFinalize`
+  2. `meetingLiveChunk`
+  3. `fileTranscription`
+- explicit backpressure for droppable meeting live preview
+- diarization kept separate from the speech-slot scheduler
 
-- `STTRuntime` is the sole app-owned owner of model lifecycle and lane-scoped `AsrManager` instances
-- `STTScheduler` is the sole app-owned owner of STT job admission, priority ordering, and backpressure
-- `AppEnvironment` wires one shared runtime/scheduler path for dictation, meeting recording, and file/YouTube transcription
-- onboarding warm-up, readiness checks, cache clearing, and shutdown all route through that shared path
-- meeting live chunks are dropped under backlog by scheduler policy rather than by service-local guards
-- only the immediate post-stop meeting path uses `meetingFinalize`; archived meeting retranscribes stay on the batch lane
-- `STTClient` remains only as a compatibility facade around the shared stack for standalone callers/tests
+This archived plan is kept for historical context because it explains how the branch reached shared STT ownership, but ADR-016 and the active specs now define the canonical target architecture.
 
-## Goals
+## What The Branch Accomplished
 
-1. Make STT ownership explicit and singular.
-2. Protect dictation latency during concurrent meeting recording.
-3. Preserve meeting live preview while making it best-effort under backlog.
-4. Keep file/YouTube transcription architecturally compatible without letting it degrade interactive responsiveness.
-5. Replace incidental concurrency with tested scheduling policy.
+The implementation branch delivered these important architectural steps:
 
-## Non-Goals
+1. One app-owned `STTRuntime` path for model lifecycle, warm-up, readiness, cache clearing, and shutdown.
+2. One app-owned `STTScheduler` path for admission, ordering, progress fan-out, and backpressure.
+3. Shared app wiring through `AppEnvironment` instead of per-feature STT ownership.
+4. Explicit meeting live-preview backlog handling instead of relying on incidental service-local behavior.
 
-1. Rewriting the audio capture architecture.
-2. Reworking dictation or meeting UI state machines beyond integration changes.
-3. Shipping a large product UX change in the same PR.
-4. Solving perfect mid-job preemption for long batch transcription in phase 1.
+Those changes remain directionally correct and are the foundation of the approved design.
 
-## Current Problems To Eliminate
+## Where The Plan Drifted
 
-1. Multiple STT owners in `AppEnvironment`.
-2. Warm-up/onboarding bound to only one STT client.
-3. Shutdown/cleanup bound to only one STT client.
-4. No explicit scheduler policy between dictation, meeting live chunks, and file transcription.
-5. Progress handling coupled too closely to the raw runtime stream.
+This plan assumed the end-state scheduler would keep three fixed execution lanes alive in parallel:
 
-## Target Architecture
+1. Dictation lane
+2. Meeting lane
+3. Batch lane
 
-### Core Types
+That design protects concurrent meeting and dictation work well, but it permanently reserves real inference capacity for file / YouTube transcription. For MacParakeet's product priorities, that turned out to be a stronger commitment than necessary.
 
-1. `STTRuntime`
-   - Sole owner of model lifecycle and the lane-scoped `AsrManager` set
-   - Handles warm-up, initialization, readiness, shutdown, cache clearing
-   - Exposes a minimal runtime API to execute one transcription request
+The approved target architecture therefore does **not** reserve a dedicated third file-transcription slot in v1.
 
-2. `STTScheduler`
-   - Sole owner of queueing, priorities, fairness, cancellation, and backpressure
-   - Executes jobs against `STTRuntime`
-   - Exposes request-scoped progress/results
+## Approved Target Architecture
 
-3. `STTJob`
-   - Encodes request kind and priority
-   - Carries source metadata and cancellation/progress hooks
+### Control Plane
 
-### Producers
+- One process-wide `STTScheduler` owns job admission, queueing, priority, slot assignment, cancellation, backpressure, and job-scoped progress.
+- Producer services submit jobs into the scheduler; they do not own STT topology.
 
-1. `DictationService`
-   - submits `dictation` jobs
-2. `MeetingRecordingService`
-   - submits `meetingLiveChunk` jobs
-   - submits `meetingFinalize` jobs
-3. `TranscriptionService`
-   - submits `fileTranscription` jobs
+### Runtime
 
-### Lane Policy
+- One shared `STTRuntime` owns model lifecycle and the slot-scoped `AsrManager` instances behind the scheduler.
+- Warm-up, readiness, shutdown, and cache clear remain single-path operations.
 
-1. Dictation lane: `dictation`
-2. Meeting lane: `meetingFinalize` ahead of `meetingLiveChunk`
-3. Batch lane: `fileTranscription`
+### Job Classes
+
+1. `dictation`
+2. `meetingFinalize`
+3. `meetingLiveChunk`
+4. `fileTranscription`
+
+### Slot Policy
+
+1. **Interactive slot**
+   - reserved for `dictation`
+2. **Background slot**
+   - shared by `meetingFinalize`, `meetingLiveChunk`, and `fileTranscription`
+
+Priority within the background slot:
+
+1. `meetingFinalize`
+2. `meetingLiveChunk`
+3. `fileTranscription`
 
 ### Backpressure Policy
 
-1. Meeting live chunk jobs are droppable under backlog.
-2. Dictation and active meeting work must never wait behind queued batch/library retranscription work.
-3. Batch file work may wait, pause between work units, or remain non-preemptive in phase 1.
+1. Meeting live preview is best-effort and droppable under backlog.
+2. When a meeting stops, queued live-preview work may be cancelled/dropped so finalization can run next.
+3. File transcription is intentionally queued and single-job in v1.
+4. A running long file transcription may delay meeting STT on the background slot until the batch job finishes or reaches a future yield boundary.
 
-## Execution Phases
+### Diarization Boundary
 
-### Phase 0: Pre-Flight and Design Lock
+Speaker diarization remains a separate service and is not part of the two-slot speech scheduler.
 
-1. Keep ADR-016 and surrounding docs authoritative.
-2. Identify all direct `STTClientProtocol` consumers.
-3. Decide whether phase 1 keeps `STTClientProtocol` as the public producer-facing boundary or introduces a new scheduler protocol immediately.
+## Follow-Up Guidance
 
-Exit criteria:
-- One agreed runtime/scheduler API surface documented in code comments or an implementation sketch.
+Any future implementation work should converge the code on ADR-016's two-slot design rather than extending the historical three-lane branch shape.
 
-### Phase 1: Introduce `STTRuntime`
+If the product later needs stronger simultaneous support for `dictation + meeting + file transcription`, the preferred follow-up order is:
 
-1. Extract the current model lifecycle responsibilities from `STTClient` into a dedicated runtime owner.
-2. Keep behavior identical:
-   - lazy init
-   - warm-up
-   - readiness
-   - shutdown
-   - cache clearing
-3. Ensure there is exactly one runtime instance in `AppEnvironment`.
+1. chunk or otherwise bound file-transcription work so it can yield cleanly
+2. measure whether a third batch slot is justified on baseline Apple Silicon hardware
+3. only then consider enabling an optional third slot
 
-Exit criteria:
-- `AppEnvironment` has one runtime owner.
-- warm-up and shutdown code paths target the shared runtime only.
+## References
 
-### Phase 2: Introduce `STTScheduler`
-
-1. Add an explicit scheduler actor in front of the runtime.
-2. Define job kinds and priority ordering.
-3. Execute one job at a time against the runtime in phase 1.
-4. Expose request-scoped progress and cancellation.
-
-Exit criteria:
-- producers no longer talk to runtime lifecycle directly.
-- scheduler ordering is deterministic and testable.
-
-### Phase 3: Migrate Producers
-
-1. `DictationService` submits dictation jobs to the scheduler.
-2. `MeetingRecordingService` submits live chunk jobs to the scheduler.
-3. `MeetingRecordingService` finalization path submits a higher-priority meeting-finalize job.
-4. `TranscriptionService` submits file/YouTube jobs plus saved-item retranscribes to the batch lane.
-
-Exit criteria:
-- no feature service owns its own STT runtime/client.
-- all transcription requests flow through one scheduler.
-
-### Phase 4: Progress Isolation
-
-1. Ensure progress is job-scoped.
-2. Prevent crosstalk between:
-   - onboarding warm-up
-   - dictation progress
-   - meeting live chunk work
-   - file transcription progress
-3. Update any producer assumptions that progress is globally sourced from the runtime.
-
-Exit criteria:
-- concurrent or interleaved jobs cannot leak progress to the wrong caller.
-
-### Phase 5: Backpressure for Meeting Live Chunks
-
-1. Move live chunk backlog policy into the scheduler or clearly partitioned scheduling logic.
-2. Preserve current best-effort behavior for live preview.
-3. Make dropped work observable in tests and logs.
-
-Exit criteria:
-- backlog behavior is explicit, not incidental.
-- meeting live preview can degrade gracefully without affecting correctness of final saved meeting.
-
-### Phase 6: Batch Work Strategy
-
-1. Decide phase-1 behavior for file/YouTube transcription while interactive work exists:
-   - queue-only, non-preemptive between jobs
-   - or bounded segmentation if feasible now
-2. Document tradeoff in code and tests.
-3. If not segmented in this pass, add a follow-up task for chunked batch STT.
-
-Exit criteria:
-- product behavior is intentional and documented.
-
-## Testing Plan
-
-### New Tests
-
-1. Scheduler priority ordering:
-   - dictation beats queued meeting live chunks
-   - meeting finalization beats queued file transcription
-2. Shared ownership:
-   - warm-up, readiness, shutdown, cache clear target one runtime
-3. Progress isolation:
-   - progress for one job does not leak to another
-4. Backpressure:
-   - meeting live chunks drop under thresholds
-
-### Regression Coverage
-
-1. Existing dictation service tests remain green.
-2. Existing meeting recording tests remain green.
-3. Existing transcription service tests remain green.
-4. Full suite remains green after producer migration.
-
-## Likely File Touchpoints
-
-Core:
-- `Sources/MacParakeetCore/STT/STTClient.swift`
-- `Sources/MacParakeetCore/STT/STTClientProtocol.swift`
-- new runtime/scheduler files under `Sources/MacParakeetCore/STT/`
-
-Services:
-- `Sources/MacParakeetCore/Services/DictationService.swift`
-- `Sources/MacParakeetCore/Services/MeetingRecordingService.swift`
-- `Sources/MacParakeetCore/Services/TranscriptionService.swift`
-
-App wiring:
-- `Sources/MacParakeet/App/AppEnvironment.swift`
-- `Sources/MacParakeet/AppDelegate.swift`
-
-Tests:
-- `Tests/MacParakeetTests/STT/*`
-- `Tests/MacParakeetTests/Services/MeetingRecordingServiceTests.swift`
-- `Tests/MacParakeetTests/Services/TranscriptionServiceTests.swift`
-- new scheduler-focused tests
-
-## Resolved Design Decisions
-
-1. Keep `STTClientProtocol` as the producer-facing compatibility boundary for this pass, backed by the shared scheduler/runtime path.
-2. Move meeting live chunk dropping fully into `STTScheduler` so backpressure policy has one owner.
-3. Keep `meetingFinalize` reserved for the immediate post-stop path; saved meeting retranscribes remain batch work.
-4. Defer segmented file/YouTube transcription to follow-up work; ADR-016 ships centralized ownership and lane policy first.
-
-## Recommended Delivery Shape
-
-1. Runtime extraction + single-owner wiring
-2. Scheduler introduction + dictation migration
-3. Meeting recording migration + backlog policy
-4. File/YouTube migration + progress isolation
-5. Final cleanup, tests, and doc sync
-
-## Definition of Done
-
-1. There is one process-wide STT runtime owner.
-2. There is one explicit scheduler/broker for all STT work.
-3. Dictation and meeting recording coexist without per-flow STT ownership.
-4. Warm-up and shutdown are single-path and deterministic.
-5. Scheduler priority/backpressure behavior is covered by tests.
-6. Docs and code match ADR-016.
+- ADR-016: `spec/adr/016-centralized-stt-runtime-scheduler.md`
+- Architecture spec: `spec/03-architecture.md`
+- STT engine spec: `spec/06-stt-engine.md`
