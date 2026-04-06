@@ -1,5 +1,6 @@
 import Cocoa
 import Foundation
+import IOKit.hidsystem
 import MacParakeetCore
 
 /// Manages system-wide hotkey detection via CGEvent tap.
@@ -29,6 +30,10 @@ public final class HotkeyManager {
     private var installedRunLoop: CFRunLoop?
     /// Edge detection: was the target modifier pressed in the previous event?
     private var targetModifierWasPressed = false
+    /// Previous modifier flags snapshot for deriving side-specific transitions from flagsChanged.
+    private var previousModifierFlags: CGEventFlags = []
+    /// True when the current modifier press is actively driving the gesture state machine.
+    private var targetModifierGestureIsActive = false
     /// Edge detection for keyCode triggers: true while the trigger key is physically held.
     private var triggerKeyIsPressed = false
     /// For chord triggers: true after a required modifier was released while the key was still held.
@@ -46,6 +51,27 @@ public final class HotkeyManager {
     /// The modifier bits that participate in bare-modifier gesture detection.
     private static let trackedModifierMasks: CGEventFlags = [
         .maskSecondaryFn, .maskControl, .maskAlternate, .maskShift, .maskCommand,
+    ]
+    /// Device-dependent modifier bits used to distinguish left/right variants.
+    private static let sideSpecificModifierMasks: [UInt16: UInt64] = [
+        56: UInt64(NX_DEVICELSHIFTKEYMASK),
+        60: UInt64(NX_DEVICERSHIFTKEYMASK),
+        59: UInt64(NX_DEVICELCTLKEYMASK),
+        62: UInt64(NX_DEVICERCTLKEYMASK),
+        58: UInt64(NX_DEVICELALTKEYMASK),
+        61: UInt64(NX_DEVICERALTKEYMASK),
+        55: UInt64(NX_DEVICELCMDKEYMASK),
+        54: UInt64(NX_DEVICERCMDKEYMASK),
+    ]
+    private static let oppositeSideModifierKeyCodes: [UInt16: UInt16] = [
+        56: 60,
+        60: 56,
+        59: 62,
+        62: 59,
+        58: 61,
+        61: 58,
+        55: 54,
+        54: 55,
     ]
 
     public init(
@@ -113,6 +139,7 @@ public final class HotkeyManager {
         installedRunLoop = runLoop
         CFRunLoopAddSource(runLoop, runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        syncModifierPressedState()
 
         return true
     }
@@ -134,6 +161,8 @@ public final class HotkeyManager {
         runLoopSource = nil
         installedRunLoop = nil
         targetModifierWasPressed = false
+        previousModifierFlags = []
+        targetModifierGestureIsActive = false
         triggerKeyIsPressed = false
         chordModifierReleased = false
         bareTap = true
@@ -147,6 +176,7 @@ public final class HotkeyManager {
         // Re-enable it to prevent the hotkey from silently dying.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
+            syncModifierPressedState()
             return Unmanaged.passUnretained(event)
         }
 
@@ -166,12 +196,14 @@ public final class HotkeyManager {
         let timestampMs = UInt64(event.timestamp / 1_000_000)
 
         if type == .flagsChanged {
+            let flags = event.flags
             handleOutputs(
                 modifierFlagsChangedOutputs(
-                    flags: event.flags,
+                    flags: flags,
                     timestampMs: timestampMs
                 )
             )
+            previousModifierFlags = flags
         } else if type == .keyDown {
             let keyCode = event.getIntegerValueField(.keyboardEventKeycode)
             handleOutputs(
@@ -189,18 +221,69 @@ public final class HotkeyManager {
         flags: CGEventFlags,
         timestampMs: UInt64
     ) -> [HotkeyGestureController.Output] {
+        if let targetKeyCode = trigger.modifierKeyCode {
+            // ── Side-specific detection (e.g. right-option only) ──
+            let isPressed = Self.sideSpecificModifierIsPressed(flags: flags, keyCode: targetKeyCode)
+            let wasPressed = targetModifierWasPressed
+            targetModifierWasPressed = isPressed
+
+            if isPressed != wasPressed {
+                if isPressed {
+                    guard !Self.oppositeSideModifierIsPressed(flags: flags, keyCode: targetKeyCode) else {
+                        return []
+                    }
+
+                    targetModifierGestureIsActive = true
+                    bareTap = true
+                    return gestureController.triggerPressed(timestampMs: timestampMs)
+                }
+
+                guard targetModifierGestureIsActive else { return [] }
+                targetModifierGestureIsActive = false
+
+                let outputs: [HotkeyGestureController.Output]
+                if bareTap {
+                    outputs = gestureController.triggerReleased(timestampMs: timestampMs)
+                } else {
+                    outputs = gestureController.nonBareTriggerReleased()
+                }
+                bareTap = true
+                return outputs
+            }
+
+            // Derive tracked modifier changes from the previous/current flags instead of
+            // relying on kCGKeyboardEventKeycode, which is undefined for flagsChanged.
+            let changedTrackedModifiers = Self.changedTrackedModifierKeyCodes(
+                from: previousModifierFlags,
+                to: flags
+            ).subtracting([targetKeyCode])
+            if targetModifierGestureIsActive, !changedTrackedModifiers.isEmpty {
+                bareTap = false
+                return gestureController.interrupted()
+            }
+            if let oppositeKeyCode = Self.oppositeSideModifierKeyCodes[targetKeyCode],
+               changedTrackedModifiers.contains(oppositeKeyCode),
+               Self.sideSpecificModifierIsPressed(flags: flags, keyCode: oppositeKeyCode) {
+                return gestureController.interrupted()
+            }
+            return []
+        }
+
         guard let mask = targetMask else { return [] }
 
+        // ── Generic detection (either side) ──
         let isPressed = flags.contains(mask)
         if isPressed != targetModifierWasPressed {
             targetModifierWasPressed = isPressed
 
             if isPressed {
+                targetModifierGestureIsActive = true
                 // Modifier down — start bare-tap tracking
                 bareTap = true
                 return gestureController.triggerPressed(timestampMs: timestampMs)
             }
 
+            targetModifierGestureIsActive = false
             let outputs: [HotkeyGestureController.Output]
             if bareTap {
                 outputs = gestureController.triggerReleased(timestampMs: timestampMs)
@@ -213,7 +296,7 @@ public final class HotkeyManager {
 
         // Additional modifier changes while the trigger is still held invalidate the
         // "bare modifier" assumption just like a regular keyDown would.
-        guard targetModifierWasPressed else { return [] }
+        guard targetModifierGestureIsActive else { return [] }
         let activeTrackedModifiers = flags.intersection(Self.trackedModifierMasks)
         let nonTargetTrackedModifiers = activeTrackedModifiers.subtracting(mask)
         guard !nonTargetTrackedModifiers.isEmpty else { return [] }
@@ -234,7 +317,7 @@ public final class HotkeyManager {
             // "Show Emoji & Symbols"). Without this guard, that keyDown resets
             // the state machine between the first and second tap of a double-tap.
             // Non-Escape key pressed — invalidate bare-tap if modifier is held
-            if targetModifierWasPressed {
+            if targetModifierGestureIsActive {
                 bareTap = false
             }
 
@@ -251,7 +334,9 @@ public final class HotkeyManager {
         flags: CGEventFlags,
         timestampMs: UInt64
     ) -> [HotkeyGestureController.Output] {
-        modifierFlagsChangedOutputs(flags: flags, timestampMs: timestampMs)
+        let outputs = modifierFlagsChangedOutputs(flags: flags, timestampMs: timestampMs)
+        previousModifierFlags = flags
+        return outputs
     }
 
     func modifierKeyDownOutputsForTesting(
@@ -267,6 +352,10 @@ public final class HotkeyManager {
 
     func holdWindowElapsedForTesting() -> [HotkeyGestureController.Output] {
         gestureController.holdWindowElapsed()
+    }
+
+    func syncModifierPressedStateForTesting(flags: CGEventFlags) {
+        syncModifierPressedState(flags: flags)
     }
 
     // MARK: - KeyCode Trigger Path
@@ -387,10 +476,65 @@ public final class HotkeyManager {
     }
 
     /// Reset state machine to idle (e.g., after cancel countdown expires).
-    public func resetToIdle() {
+    public func resetToIdle(flags: CGEventFlags? = nil) {
         cancelStartupTimer()
         cancelHoldTimer()
+        triggerKeyIsPressed = false
+        chordModifierReleased = false
+        targetModifierGestureIsActive = false
+        bareTap = true
         gestureController.reset()
+        syncModifierPressedState(flags: flags)
+    }
+
+    private func syncModifierPressedState(flags: CGEventFlags? = nil) {
+        guard trigger.kind == .modifier else { return }
+
+        let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+        if let targetKeyCode = trigger.modifierKeyCode {
+            targetModifierWasPressed = Self.sideSpecificModifierIsPressed(flags: currentFlags, keyCode: targetKeyCode)
+        } else if let mask = targetMask {
+            targetModifierWasPressed = currentFlags.contains(mask)
+        } else {
+            targetModifierWasPressed = false
+        }
+        previousModifierFlags = currentFlags
+
+        if !targetModifierWasPressed {
+            targetModifierGestureIsActive = false
+            bareTap = true
+        }
+    }
+
+    private static func changedTrackedModifierKeyCodes(
+        from previousFlags: CGEventFlags,
+        to currentFlags: CGEventFlags
+    ) -> Set<UInt16> {
+        var changed: Set<UInt16> = []
+
+        for keyCode in sideSpecificModifierMasks.keys {
+            let wasPressed = sideSpecificModifierIsPressed(flags: previousFlags, keyCode: keyCode)
+            let isPressed = sideSpecificModifierIsPressed(flags: currentFlags, keyCode: keyCode)
+            if wasPressed != isPressed {
+                changed.insert(keyCode)
+            }
+        }
+
+        if previousFlags.contains(.maskSecondaryFn) != currentFlags.contains(.maskSecondaryFn) {
+            changed.insert(63)
+        }
+
+        return changed
+    }
+
+    private static func sideSpecificModifierIsPressed(flags: CGEventFlags, keyCode: UInt16) -> Bool {
+        guard let mask = sideSpecificModifierMasks[keyCode] else { return false }
+        return (flags.rawValue & mask) != 0
+    }
+
+    private static func oppositeSideModifierIsPressed(flags: CGEventFlags, keyCode: UInt16) -> Bool {
+        guard let oppositeKeyCode = oppositeSideModifierKeyCodes[keyCode] else { return false }
+        return sideSpecificModifierIsPressed(flags: flags, keyCode: oppositeKeyCode)
     }
 
     private func handleOutputs(_ outputs: [HotkeyGestureController.Output]) {

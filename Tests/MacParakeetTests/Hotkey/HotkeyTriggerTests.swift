@@ -140,6 +140,14 @@ final class HotkeyTriggerTests: XCTestCase {
         XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .command)
     }
 
+    func testLegacyStringRightOptionPreservesSideSpecificModifier() {
+        testDefaults.set("right_option", forKey: "hotkeyTrigger")
+        XCTAssertEqual(
+            HotkeyTrigger.current(defaults: testDefaults),
+            HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
+        )
+    }
+
     func testLegacyStringInvalidFallsBackToFn() {
         testDefaults.set("invalid_key", forKey: "hotkeyTrigger")
         XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .fn)
@@ -485,5 +493,95 @@ final class HotkeyTriggerTests: XCTestCase {
         let loaded = HotkeyTrigger.current(defaults: testDefaults)
         XCTAssertEqual(loaded, trigger)
         XCTAssertEqual(loaded.displayName, "Command+9")
+    }
+
+    // MARK: - Side-Specific Modifiers
+
+    func testSideSpecificOptionDisplayNames() {
+        let right = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
+        XCTAssertEqual(right.displayName, "Right Option")
+        XCTAssertEqual(right.shortSymbol, "R⌥")
+
+        let left = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 58)
+        XCTAssertEqual(left.displayName, "Left Option")
+        XCTAssertEqual(left.shortSymbol, "L⌥")
+    }
+
+    func testSideSpecificControlDisplayNames() {
+        let right = HotkeyTrigger(kind: .modifier, modifierName: "control", keyCode: nil, modifierKeyCode: 62)
+        XCTAssertEqual(right.displayName, "Right Control")
+        XCTAssertEqual(right.shortSymbol, "R⌃")
+
+        let left = HotkeyTrigger(kind: .modifier, modifierName: "control", keyCode: nil, modifierKeyCode: 59)
+        XCTAssertEqual(left.displayName, "Left Control")
+        XCTAssertEqual(left.shortSymbol, "L⌃")
+    }
+
+    func testSideSpecificShiftDisplayNames() {
+        let right = HotkeyTrigger(kind: .modifier, modifierName: "shift", keyCode: nil, modifierKeyCode: 60)
+        XCTAssertEqual(right.displayName, "Right Shift")
+        XCTAssertEqual(right.shortSymbol, "R⇧")
+
+        let left = HotkeyTrigger(kind: .modifier, modifierName: "shift", keyCode: nil, modifierKeyCode: 56)
+        XCTAssertEqual(left.displayName, "Left Shift")
+        XCTAssertEqual(left.shortSymbol, "L⇧")
+    }
+
+    func testSideSpecificCommandDisplayNames() {
+        let right = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        XCTAssertEqual(right.displayName, "Right Command")
+        XCTAssertEqual(right.shortSymbol, "R⌘")
+
+        let left = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 55)
+        XCTAssertEqual(left.displayName, "Left Command")
+        XCTAssertEqual(left.shortSymbol, "L⌘")
+    }
+
+    func testGenericModifierHasNoSidePrefix() {
+        // Generic triggers (no modifierKeyCode) should display without side prefix
+        XCTAssertEqual(HotkeyTrigger.option.displayName, "Option")
+        XCTAssertEqual(HotkeyTrigger.option.shortSymbol, "⌥")
+        XCTAssertNil(HotkeyTrigger.option.modifierKeyCode)
+    }
+
+    func testSideSpecificCodableRoundtrip() throws {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
+        let data = try JSONEncoder().encode(trigger)
+        let decoded = try JSONDecoder().decode(HotkeyTrigger.self, from: data)
+        XCTAssertEqual(decoded, trigger)
+        XCTAssertEqual(decoded.modifierKeyCode, 61)
+        XCTAssertEqual(decoded.displayName, "Right Option")
+    }
+
+    func testSideSpecificPersistence() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
+        trigger.save(to: testDefaults)
+
+        let loaded = HotkeyTrigger.current(defaults: testDefaults)
+        XCTAssertEqual(loaded, trigger)
+        XCTAssertEqual(loaded.modifierKeyCode, 61)
+        XCTAssertEqual(loaded.displayName, "Right Option")
+    }
+
+    func testBackwardCompatOldJSONWithoutModifierKeyCode() throws {
+        // Old JSON that doesn't have modifierKeyCode — should decode with nil (generic behavior)
+        let json = #"{"kind":"modifier","modifierName":"option"}"#
+        let data = json.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(HotkeyTrigger.self, from: data)
+        XCTAssertEqual(decoded.modifierName, "option")
+        XCTAssertNil(decoded.modifierKeyCode)
+        XCTAssertEqual(decoded.displayName, "Option")
+    }
+
+    func testSideSpecificNotEqualToGeneric() {
+        let generic = HotkeyTrigger.option
+        let sideSpecific = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
+        XCTAssertNotEqual(generic, sideSpecific)
+    }
+
+    func testLeftNotEqualToRight() {
+        let left = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 58)
+        let right = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
+        XCTAssertNotEqual(left, right)
     }
 }
