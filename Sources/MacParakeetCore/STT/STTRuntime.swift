@@ -27,6 +27,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     private var backgroundWarmUpState: STTWarmUpState = .idle
     private var backgroundWarmUpTask: Task<Void, Never>?
     private var warmUpObservers: [UUID: AsyncStream<STTWarmUpState>.Continuation] = [:]
+    private var backgroundWarmUpGeneration: UInt64 = 0
 
     public init(modelVersion: AsrModelVersion = .v3) {
         self.modelVersion = modelVersion
@@ -102,9 +103,13 @@ public actor STTRuntime: STTRuntimeProtocol {
         if case .ready = backgroundWarmUpState { return }
         if backgroundWarmUpTask != nil { return }
 
+        let generation = beginBackgroundWarmUp()
         backgroundWarmUpTask = Task { [weak self] in
             guard let self else { return }
-            await self.setBackgroundWarmUpState(.working(message: "Checking setup requirements...", progress: nil))
+            await self.setBackgroundWarmUpState(
+                .working(message: "Checking setup requirements...", progress: nil),
+                generation: generation
+            )
 
             do {
                 try await self.warmUp { [weak self] progressMessage in
@@ -112,16 +117,20 @@ public actor STTRuntime: STTRuntimeProtocol {
                     Task {
                         let message = "Speech model: \(progressMessage)"
                         let fraction = OnboardingProgressParser.parseProgressFraction(from: message)
-                        await self.setBackgroundWarmUpState(.working(message: message, progress: fraction))
+                        await self.setBackgroundWarmUpState(
+                            .working(message: message, progress: fraction),
+                            generation: generation
+                        )
                     }
                 }
-                await self.setBackgroundWarmUpState(.ready)
+                try Task.checkCancellation()
+                await self.setBackgroundWarmUpState(.ready, generation: generation)
             } catch is CancellationError {
                 // Cancelled — don't update state.
             } catch {
-                await self.setBackgroundWarmUpState(.failed(message: error.localizedDescription))
+                await self.setBackgroundWarmUpState(.failed(message: error.localizedDescription), generation: generation)
             }
-            await self.clearBackgroundWarmUpTask()
+            await self.clearBackgroundWarmUpTask(generation: generation)
         }
     }
 
@@ -149,12 +158,14 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public func shutdown() async {
+        invalidateBackgroundWarmUp()
         initializationTask?.cancel()
         initializationTask = nil
         manager?.cleanup()
         manager = nil
         models = nil
         warmUpProgressHandler = nil
+        setBackgroundWarmUpState(.idle)
     }
 
     public func clearModelCache() async {
@@ -166,6 +177,22 @@ public actor STTRuntime: STTRuntimeProtocol {
     public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {
         let cacheDir = AsrModels.defaultCacheDirectory(for: version)
         return AsrModels.modelsExist(at: cacheDir, version: version)
+    }
+
+    private func beginBackgroundWarmUp() -> UInt64 {
+        backgroundWarmUpGeneration &+= 1
+        return backgroundWarmUpGeneration
+    }
+
+    private func invalidateBackgroundWarmUp() {
+        backgroundWarmUpGeneration &+= 1
+        backgroundWarmUpTask?.cancel()
+        backgroundWarmUpTask = nil
+    }
+
+    private func setBackgroundWarmUpState(_ state: STTWarmUpState, generation: UInt64) {
+        guard generation == backgroundWarmUpGeneration else { return }
+        setBackgroundWarmUpState(state)
     }
 
     private func setBackgroundWarmUpState(_ state: STTWarmUpState) {
@@ -181,7 +208,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
     }
 
-    private func clearBackgroundWarmUpTask() {
+    private func clearBackgroundWarmUpTask(generation: UInt64) {
+        guard generation == backgroundWarmUpGeneration else { return }
         backgroundWarmUpTask = nil
     }
 
