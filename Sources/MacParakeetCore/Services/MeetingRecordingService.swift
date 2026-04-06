@@ -59,6 +59,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var processingTask: Task<Void, Never>?
     private var pendingChunkTasks: [PendingChunkTask] = []
     private var nextChunkSequence: [AudioSource: Int] = [:]
+    private var sourceTimelineOffsetsMs: [AudioSource: Int] = [:]
     private var microphoneChunker = AudioChunker()
     private var systemChunker = AudioChunker()
     private var chunkResultBuffer = MeetingChunkResultBuffer()
@@ -244,24 +245,32 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func handleCaptureEvent(_ event: MeetingAudioCaptureEvent) async {
         switch event {
-        case .microphoneBuffer(let buffer, _):
+        case .microphoneBuffer(let buffer, let time):
             do {
                 try writer?.write(buffer, source: .microphone)
                 latestLevels.microphone = buffer.rmsLevel
                 if let samples = AudioChunker.extractAndResample(from: buffer),
-                   let chunk = await microphoneChunker.addSamples(samples),
+                   let chunk = offsetChunk(
+                    await microphoneChunker.addSamples(samples),
+                    source: .microphone,
+                    time: time
+                   ),
                    let session = currentSession {
                     enqueueTranscription(for: chunk, source: .microphone, session: session)
                 }
             } catch {
                 logger.error("Failed to write microphone audio: \(error.localizedDescription, privacy: .public)")
             }
-        case .systemBuffer(let buffer, _):
+        case .systemBuffer(let buffer, let time):
             do {
                 try writer?.write(buffer, source: .system)
                 latestLevels.system = buffer.rmsLevel
                 if let samples = AudioChunker.extractAndResample(from: buffer),
-                   let chunk = await systemChunker.addSamples(samples),
+                   let chunk = offsetChunk(
+                    await systemChunker.addSamples(samples),
+                    source: .system,
+                    time: time
+                   ),
                    let session = currentSession {
                     enqueueTranscription(for: chunk, source: .system, session: session)
                 }
@@ -275,12 +284,40 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     private func flushTranscriptChunkers(for session: Session) async {
-        if let chunk = await microphoneChunker.flush() {
+        if let chunk = offsetChunk(await microphoneChunker.flush(), source: .microphone) {
             enqueueTranscription(for: chunk, source: .microphone, session: session)
         }
-        if let chunk = await systemChunker.flush() {
+        if let chunk = offsetChunk(await systemChunker.flush(), source: .system) {
             enqueueTranscription(for: chunk, source: .system, session: session)
         }
+    }
+
+    private func offsetChunk(
+        _ chunk: AudioChunker.AudioChunk?,
+        source: AudioSource,
+        time: AVAudioTime? = nil
+    ) -> AudioChunker.AudioChunk? {
+        guard let chunk else { return nil }
+        let offsetMs = timelineOffsetMs(for: source, time: time)
+        guard offsetMs != 0 else { return chunk }
+        return AudioChunker.AudioChunk(
+            samples: chunk.samples,
+            startMs: chunk.startMs + offsetMs,
+            endMs: chunk.endMs + offsetMs
+        )
+    }
+
+    private func timelineOffsetMs(for source: AudioSource, time: AVAudioTime?) -> Int {
+        if let existing = sourceTimelineOffsetsMs[source] {
+            return existing
+        }
+        guard let time, time.isHostTimeValid else {
+            return 0
+        }
+
+        let offsetMs = Int((AVAudioTime.seconds(forHostTime: time.hostTime) * 1000).rounded())
+        sourceTimelineOffsetsMs[source] = offsetMs
+        return offsetMs
     }
 
     private func enqueueTranscription(
@@ -426,6 +463,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         currentSession = nil
         pendingChunkTasks = []
         nextChunkSequence = [:]
+        sourceTimelineOffsetsMs = [:]
         latestLevels = MeetingAudioLevels()
         chunkResultBuffer.reset()
         transcriptAssembler.reset()

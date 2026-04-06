@@ -147,23 +147,58 @@ public actor MeetingAudioCaptureService {
             commonFormat: buffer.format.commonFormat,
             sampleRate: buffer.format.sampleRate,
             channels: buffer.format.channelCount,
-            interleaved: buffer.format.isInterleaved
+            interleaved: false
         ), let copy = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: buffer.frameLength) else {
             return nil
         }
 
         copy.frameLength = buffer.frameLength
-        if let src = buffer.floatChannelData, let dst = copy.floatChannelData {
-            for channel in 0..<Int(format.channelCount) {
-                dst[channel].update(from: src[channel], count: Int(buffer.frameLength))
+        let frameCount = Int(buffer.frameLength)
+        let channelCount = Int(format.channelCount)
+
+        if buffer.format.isInterleaved {
+            let audioBuffer = buffer.audioBufferList.pointee.mBuffers
+            guard let sourceData = audioBuffer.mData else { return nil }
+
+            switch buffer.format.commonFormat {
+            case .pcmFormatFloat32:
+                guard let destination = copy.floatChannelData else { return nil }
+                let source = sourceData.assumingMemoryBound(to: Float.self)
+                for frameIndex in 0..<frameCount {
+                    for channelIndex in 0..<channelCount {
+                        destination[channelIndex][frameIndex] = source[(frameIndex * channelCount) + channelIndex]
+                    }
+                }
+            case .pcmFormatInt16:
+                guard let destination = copy.int16ChannelData else { return nil }
+                let source = sourceData.assumingMemoryBound(to: Int16.self)
+                for frameIndex in 0..<frameCount {
+                    for channelIndex in 0..<channelCount {
+                        destination[channelIndex][frameIndex] = source[(frameIndex * channelCount) + channelIndex]
+                    }
+                }
+            case .pcmFormatInt32:
+                guard let destination = copy.int32ChannelData else { return nil }
+                let source = sourceData.assumingMemoryBound(to: Int32.self)
+                for frameIndex in 0..<frameCount {
+                    for channelIndex in 0..<channelCount {
+                        destination[channelIndex][frameIndex] = source[(frameIndex * channelCount) + channelIndex]
+                    }
+                }
+            default:
+                return nil
+            }
+        } else if let src = buffer.floatChannelData, let dst = copy.floatChannelData {
+            for channel in 0..<channelCount {
+                dst[channel].update(from: src[channel], count: frameCount)
             }
         } else if let src = buffer.int16ChannelData, let dst = copy.int16ChannelData {
-            for channel in 0..<Int(format.channelCount) {
-                dst[channel].update(from: src[channel], count: Int(buffer.frameLength))
+            for channel in 0..<channelCount {
+                dst[channel].update(from: src[channel], count: frameCount)
             }
         } else if let src = buffer.int32ChannelData, let dst = copy.int32ChannelData {
-            for channel in 0..<Int(format.channelCount) {
-                dst[channel].update(from: src[channel], count: Int(buffer.frameLength))
+            for channel in 0..<channelCount {
+                dst[channel].update(from: src[channel], count: frameCount)
             }
         }
 

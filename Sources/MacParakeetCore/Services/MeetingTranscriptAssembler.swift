@@ -73,12 +73,12 @@ struct MeetingTranscriptAssembler {
     }
 
     var currentUpdate: MeetingTranscriptUpdate {
-        let words = mergedWords()
+        let words = normalizedWords()
         return MeetingTranscriptUpdate(words: words, speakers: activeSpeakers(for: words))
     }
 
     func finalizedTranscript(durationMs: Int?) -> MeetingRealtimeTranscript? {
-        let words = mergedWords()
+        let words = normalizedWords()
         guard !words.isEmpty else { return nil }
 
         let speakers = activeSpeakers(for: words)
@@ -103,6 +103,23 @@ struct MeetingTranscriptAssembler {
                 }
                 return $0.startMs < $1.startMs
             }
+    }
+
+    private func normalizedWords() -> [WordTimestamp] {
+        let words = mergedWords()
+        guard let originMs = words.map(\.startMs).min(), originMs != 0 else {
+            return words
+        }
+
+        return words.map { word in
+            WordTimestamp(
+                word: word.word,
+                startMs: word.startMs - originMs,
+                endMs: word.endMs - originMs,
+                confidence: word.confidence,
+                speakerId: word.speakerId
+            )
+        }
     }
 
     private func activeSpeakers(for words: [WordTimestamp]) -> [SpeakerInfo] {
