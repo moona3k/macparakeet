@@ -90,6 +90,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 │  "Record meetings locally, transcribe with Parakeet"             │
 ├─────────────────────────────────────────────────────────────────┤
 │  • Meeting recording (system audio + mic via Core Audio Taps)    │
+│  • Concurrent with dictation (ADR-015) — dictate during meetings │
 │  • Recording pill UI (floating timer + stop button)              │
 │  • Results in transcription library (sourceType: meeting)        │
 │  • Prompt library + multi-summary work automatically             │

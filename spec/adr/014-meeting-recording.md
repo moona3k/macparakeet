@@ -6,7 +6,7 @@
 
 ## Context
 
-MacParakeet has two co-equal modes: system-wide dictation and file transcription. Both use Parakeet STT via FluidAudio CoreML for on-device transcription. Users have requested the ability to record live meetings and calls — capturing both system audio (the other participants) and mic audio (the user) simultaneously, then transcribing the result.
+MacParakeet has three co-equal modes: system-wide dictation, file transcription, and meeting recording (added by this ADR). Both use Parakeet STT via FluidAudio CoreML for on-device transcription. Users have requested the ability to record live meetings and calls — capturing both system audio (the other participants) and mic audio (the user) simultaneously, then transcribing the result.
 
 This came from exploring [GitHub #52](https://github.com/moona3k/macparakeet/issues/52) (hotkey profiles). The core ask was different workflows for different use cases. Meeting recording is the direct answer — a third mode that extends MacParakeet's voice-to-text capability without changing the product's simplicity.
 
@@ -62,7 +62,7 @@ Meeting recording has a fundamentally different lifecycle from dictation:
 | Post-processing | Text refinement + paste | Batch transcription |
 | Permissions | Mic + Accessibility | Mic + Screen Recording |
 
-A shared state machine would make both harder to understand. `MeetingRecordingFlowStateMachine` + `MeetingRecordingFlowCoordinator` run parallel to dictation's, with states:
+A shared state machine would make both harder to understand. `MeetingRecordingFlowStateMachine` + `MeetingRecordingFlowCoordinator` run parallel to dictation's and can operate concurrently (see ADR-015), with states:
 
 ```
 idle → checkingPermissions → starting → recording(elapsedSeconds)

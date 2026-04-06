@@ -187,6 +187,19 @@ User clicks "Start Meeting Recording"
 
 Audio files are kept by default. Users can delete manually from the transcription detail view.
 
+### Concurrent Operation with Dictation (ADR-015)
+
+Meeting recording and dictation run concurrently as fully independent pipelines. Each owns its own `AVAudioEngine` instance:
+
+| Flow | Engine | Notes |
+|------|--------|-------|
+| Dictation | `AudioRecorder.audioEngine` | Created/destroyed per dictation session |
+| Meeting mic | `MicrophoneCapture.audioEngine` | Long-lived, runs for entire meeting |
+
+macOS Core Audio's HAL natively multiplexes microphone access — multiple engines tapping the same physical mic is a supported pattern. There is no shared audio engine or audio broker.
+
+Both flows share the Parakeet STT engine (`AsrManager`). CoreML serializes ANE inference internally. Worst-case added latency when both transcribe simultaneously is ~200ms (one meeting chunk). No queuing or priority needed.
+
 ### Phase 2: Real-time Transcription
 
 In Phase 2, an `AudioChunker` (ported from Oatmeal) buffers audio into 5-second chunks with 1-second overlap and sends them to Parakeet during recording. This provides:

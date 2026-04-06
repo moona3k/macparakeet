@@ -90,6 +90,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-012 | Self-hosted telemetry via Cloudflare (Worker + D1) | `spec/adr/012-telemetry-system.md` |
 | ADR-013 | Prompt Library + multi-summary architecture | `spec/adr/013-prompt-library-multi-summary.md` |
 | ADR-014 | Meeting recording via Core Audio Taps | `spec/adr/014-meeting-recording.md` |
+| ADR-015 | Concurrent dictation and meeting recording | `spec/adr/015-concurrent-dictation-meeting.md` |
 
 > Historical ADRs (still in `spec/adr/`, kept for context): ADR-003 (one-time purchase pricing), ADR-006 (trial + license activation), ADR-008 (local LLM runtime). The app is now free/GPL-3.0.
 
@@ -116,7 +117,7 @@ MacParakeet has three primary modes that are equal in importance:
 2. **File transcription** -- Drag-drop audio/video files for full transcription (MacWhisper-style)
 3. **Meeting recording** -- Capture system audio + mic simultaneously, transcribe locally (simple Granola-style)
 
-All three modes share the same Parakeet STT backend but have different UI flows, audio sources, and data models.
+All three modes share the same Parakeet STT backend but have different UI flows, audio sources, and data models. **Dictation and meeting recording run concurrently** (ADR-015) -- a user can dictate freely during a meeting recording. Each flow owns its own AVAudioEngine; macOS HAL handles mic multiplexing.
 
 ### STT Integration (Parakeet via FluidAudio)
 

@@ -87,6 +87,27 @@
 
 **Core STT runs on-device.** Optional LLM features use configured providers or Local CLI tools, and telemetry/crash reporting are opt-out. The app supports a fully local setup, but it is not network-free in every configuration.
 
+### Concurrency Model (ADR-015)
+
+Dictation and meeting recording run concurrently as independent pipelines:
+
+```
+┌─ Dictation Pipeline ──────────────────────┐    ┌─ Meeting Pipeline ────────────────────────────┐
+│ AudioRecorder (own AVAudioEngine)         │    │ MicrophoneCapture (own AVAudioEngine)         │
+│ → DictationService → STT → Clipboard     │    │ + SystemAudioTap (Core Audio Taps)            │
+│ Lifecycle: seconds, burst                 │    │ → MeetingRecordingService → STT → Library     │
+└───────────────────────────────────────────┘    │ Lifecycle: minutes–hours, sustained            │
+         │                                       └──────────────────────────────────────────────────┘
+         │                                                  │
+         └──────────── Shared STT Engine ───────────────────┘
+                    (AsrManager, serialized by CoreML)
+```
+
+- **No shared audio engine** — each flow owns its AVAudioEngine. macOS HAL multiplexes mic access.
+- **No mutual exclusion** — both can be active simultaneously.
+- **Menu bar icon priority** — meeting > dictation > file-transcription > idle.
+- **STT contention** — negligible. Worst case ~200ms added latency when both transcribe simultaneously.
+
 ---
 
 ## Components Detail

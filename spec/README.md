@@ -55,6 +55,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-012](adr/012-telemetry-system.md) | Self-hosted telemetry via Cloudflare (Worker + D1) |
 | [ADR-013](adr/013-prompt-library-multi-summary.md) | Prompt Library + multi-summary architecture |
 | [ADR-014](adr/014-meeting-recording.md) | Meeting recording via Core Audio Taps |
+| [ADR-015](adr/015-concurrent-dictation-meeting.md) | Concurrent dictation and meeting recording |
 
 ## Version Roadmap
 
