@@ -7,6 +7,11 @@ import MacParakeetCore
 /// With warning:    [ Space              Change... ]
 ///                    Warning text shown below.
 struct HotkeyRecorderView: View {
+    enum ModifierCaptureMode {
+        case generic
+        case sideSpecific
+    }
+
     @Binding var trigger: HotkeyTrigger
     @State private var isRecording = false
     @State private var validationMessage: String?
@@ -14,6 +19,7 @@ struct HotkeyRecorderView: View {
     @State private var eventMonitor: Any?
     /// Tracks held modifiers during recording for two-phase chord capture.
     @State private var pendingModifiers: [String] = []
+    @State private var modifierCaptureMode: ModifierCaptureMode = .generic
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 4) {
@@ -46,8 +52,14 @@ struct HotkeyRecorderView: View {
                 .font(DesignSystem.Typography.body)
                 .foregroundStyle(.primary)
 
-            Button("Change...") {
-                startRecording()
+            Menu("Change...") {
+                Button("Record Hotkey") {
+                    startRecording(modifierCaptureMode: .generic)
+                }
+
+                Button("Record Specific Modifier Side") {
+                    startRecording(modifierCaptureMode: .sideSpecific)
+                }
             }
             .buttonStyle(.bordered)
         }
@@ -91,7 +103,7 @@ struct HotkeyRecorderView: View {
 
     // MARK: - Recording Logic
 
-    private func startRecording() {
+    private func startRecording(modifierCaptureMode: ModifierCaptureMode = .generic) {
         // Guard against double-start leaking the existing monitor
         if eventMonitor != nil { stopRecording() }
 
@@ -99,6 +111,7 @@ struct HotkeyRecorderView: View {
         validationMessage = nil
         validationIsBlocked = false
         pendingModifiers = []
+        self.modifierCaptureMode = modifierCaptureMode
 
         eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.keyDown, .flagsChanged]) { [self] event in
             if event.type == .keyDown {
@@ -170,7 +183,11 @@ struct HotkeyRecorderView: View {
 
                         // If all chord-eligible modifiers released, accept as bare modifier
                         if currentHeld.isEmpty {
-                            if let candidate = bareModifierTrigger(for: name, keyCode: event.keyCode) {
+                            if let candidate = Self.bareModifierTrigger(
+                                for: name,
+                                keyCode: event.keyCode,
+                                captureMode: modifierCaptureMode
+                            ) {
                                 acceptTrigger(candidate, warning: nil)
                                 return event
                             }
@@ -193,15 +210,28 @@ struct HotkeyRecorderView: View {
         return modifiers
     }
 
-    /// Map a modifier name + physical keyCode to a side-specific bare modifier trigger.
-    private func bareModifierTrigger(for name: String, keyCode: UInt16) -> HotkeyTrigger? {
+    /// Map a modifier name + physical keyCode to a bare modifier trigger.
+    /// Generic capture preserves the legacy "either side" behavior. Side-specific capture
+    /// records the physical left/right key that was used during recording.
+    static func bareModifierTrigger(
+        for name: String,
+        keyCode: UInt16,
+        captureMode: ModifierCaptureMode
+    ) -> HotkeyTrigger? {
         let genericNames: Set<String> = ["control", "option", "shift", "command"]
         guard genericNames.contains(name) else { return nil }
-        return HotkeyTrigger(kind: .modifier, modifierName: name, keyCode: nil, modifierKeyCode: keyCode)
+        switch captureMode {
+        case .generic:
+            return HotkeyTrigger(kind: .modifier, modifierName: name, keyCode: nil)
+        case .sideSpecific:
+            return HotkeyTrigger(kind: .modifier, modifierName: name, keyCode: nil, modifierKeyCode: keyCode)
+        }
     }
 
     private func stopRecording() {
         isRecording = false
+        pendingModifiers = []
+        modifierCaptureMode = .generic
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil

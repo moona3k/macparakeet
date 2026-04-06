@@ -6,6 +6,7 @@ import IOKit.hidsystem
 final class HotkeyManagerTests: XCTestCase {
     private let leftOptionMask = UInt64(NX_DEVICELALTKEYMASK)
     private let rightOptionMask = UInt64(NX_DEVICERALTKEYMASK)
+    private let leftShiftMask = UInt64(NX_DEVICELSHIFTKEYMASK)
 
     private func sideSpecificFlags(_ masks: UInt64...) -> CGEventFlags {
         CGEventFlags(rawValue: masks.reduce(0, |))
@@ -256,6 +257,39 @@ final class HotkeyManagerTests: XCTestCase {
                 .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
                 .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
             ]
+        )
+    }
+
+    func testResetToIdleResyncsHeldSideSpecificModifierState() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
+        let manager = HotkeyManager(trigger: trigger)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: sideSpecificFlags(
+                CGEventFlags.maskAlternate.rawValue,
+                rightOptionMask
+            ),
+            timestampMs: 1_000
+        )
+
+        manager.resetToIdle(
+            flags: sideSpecificFlags(
+                CGEventFlags.maskAlternate.rawValue,
+                rightOptionMask
+            )
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskAlternate.rawValue,
+                    CGEventFlags.maskShift.rawValue,
+                    rightOptionMask,
+                    leftShiftMask
+                ),
+                timestampMs: 1_050
+            ),
+            []
         )
     }
 

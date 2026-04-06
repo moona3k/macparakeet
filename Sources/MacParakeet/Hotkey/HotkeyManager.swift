@@ -471,15 +471,15 @@ public final class HotkeyManager {
     }
 
     /// Reset state machine to idle (e.g., after cancel countdown expires).
-    public func resetToIdle() {
+    public func resetToIdle(flags: CGEventFlags? = nil) {
         cancelStartupTimer()
         cancelHoldTimer()
-        targetModifierWasPressed = false
-        targetModifierGestureIsActive = false
         triggerKeyIsPressed = false
         chordModifierReleased = false
+        targetModifierGestureIsActive = false
         bareTap = true
         gestureController.reset()
+        syncModifierPressedState(flags: flags)
     }
 
     private func syncModifierPressedState(flags: CGEventFlags? = nil) {
