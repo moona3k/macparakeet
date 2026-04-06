@@ -161,6 +161,66 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(outputs, [.cancelStartupDebounce, .cancelHoldWindow] as [HotkeyGestureController.Output])
     }
 
+    func testSideSpecificOppositeSideTapCancelsPendingSecondTap() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
+        let manager = HotkeyManager(trigger: trigger)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskAlternate.rawValue,
+                    rightOptionMask
+                ),
+                timestampMs: 1_000
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap]
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskAlternate.rawValue,
+                    leftOptionMask
+                ),
+                timestampMs: 1_100
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_150
+            ),
+            []
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskAlternate.rawValue,
+                    rightOptionMask
+                ),
+                timestampMs: 1_200
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
+        )
+    }
+
     func testSideSpecificRightOptionIgnoresPressWhenLeftOptionAlreadyHeld() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
         let manager = HotkeyManager(trigger: trigger)

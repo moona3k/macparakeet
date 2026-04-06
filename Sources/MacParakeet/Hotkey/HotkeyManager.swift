@@ -261,6 +261,11 @@ public final class HotkeyManager {
                 bareTap = false
                 return gestureController.interrupted()
             }
+            if let oppositeKeyCode = Self.oppositeSideModifierKeyCodes[targetKeyCode],
+               changedTrackedModifiers.contains(oppositeKeyCode),
+               Self.sideSpecificModifierIsPressed(flags: flags, keyCode: oppositeKeyCode) {
+                return gestureController.interrupted()
+            }
             return []
         }
 
