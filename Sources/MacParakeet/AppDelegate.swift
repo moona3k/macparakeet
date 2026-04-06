@@ -111,10 +111,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // Block briefly for STT cleanup (ANE/CoreML resource release).
         // Must use Task.detached — a plain Task inherits @MainActor context and would
         // deadlock because the main thread is blocked by semaphore.wait below.
-        let sttClient = appEnvironment?.sttClient
+        let sttScheduler = appEnvironment?.sttScheduler
         let semaphore = DispatchSemaphore(value: 0)
         Task.detached {
-            await sttClient?.shutdown()
+            await sttScheduler?.shutdown()
             semaphore.signal()
         }
         _ = semaphore.wait(timeout: .now() + 2.0)
@@ -385,7 +385,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 checkoutURL: env.checkoutURL,
                 customWordRepo: env.customWordRepo,
                 snippetRepo: env.snippetRepo,
-                sttClient: env.sttClient
+                sttClient: env.sttScheduler
             )
             customWordsViewModel.configure(repo: env.customWordRepo)
             textSnippetsViewModel.configure(repo: env.snippetRepo)
@@ -690,7 +690,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         if !completed {
             showOnboarding(
                 permissionService: env.permissionService,
-                sttClient: env.sttClient,
+                sttClient: env.sttScheduler,
                 diarizationService: env.diarizationService
             )
         }
@@ -717,7 +717,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         guard let env = appEnvironment else { return }
         showOnboarding(
             permissionService: env.permissionService,
-            sttClient: env.sttClient,
+            sttClient: env.sttScheduler,
             diarizationService: env.diarizationService
         )
     }

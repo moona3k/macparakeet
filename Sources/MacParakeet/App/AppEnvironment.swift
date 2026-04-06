@@ -12,8 +12,8 @@ final class AppEnvironment {
     let chatConversationRepo: ChatConversationRepository
     let promptRepo: PromptRepository
     let promptResultRepo: PromptResultRepository
-    let sttClient: STTClient
-    let meetingSTTClient: STTClient
+    let sttRuntime: STTRuntime
+    let sttScheduler: STTScheduler
     let audioProcessor: AudioProcessor
     let meetingRecordingService: MeetingRecordingService
     let dictationService: DictationService
@@ -54,10 +54,10 @@ final class AppEnvironment {
         try? dictationRepo.clearMissingAudioPaths()
 
         // Services
-        sttClient = STTClient()
-        meetingSTTClient = STTClient()
+        sttRuntime = STTRuntime()
+        sttScheduler = STTScheduler(runtime: sttRuntime)
         audioProcessor = AudioProcessor()
-        meetingRecordingService = MeetingRecordingService(sttClient: meetingSTTClient)
+        meetingRecordingService = MeetingRecordingService(sttTranscriber: sttScheduler)
         clipboardService = ClipboardService()
         exportService = ExportService()
         permissionService = PermissionService()
@@ -114,7 +114,7 @@ final class AppEnvironment {
 
         dictationService = DictationService(
             audioProcessor: audioProcessor,
-            sttClient: sttClient,
+            sttTranscriber: sttScheduler,
             dictationRepo: dictationRepo,
             shouldSaveAudio: {
                 // Defaults to true if unset (matches Settings UI default).
@@ -147,7 +147,7 @@ final class AppEnvironment {
 
         transcriptionService = TranscriptionService(
             audioProcessor: audioProcessor,
-            sttClient: sttClient,
+            sttTranscriber: sttScheduler,
             transcriptionRepo: transcriptionRepo,
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,

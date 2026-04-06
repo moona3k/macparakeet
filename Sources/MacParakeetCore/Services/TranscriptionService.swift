@@ -38,7 +38,7 @@ extension TranscriptionServiceProtocol {
 public actor TranscriptionService: TranscriptionServiceProtocol {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "TranscriptionService")
     private let audioProcessor: AudioProcessorProtocol
-    private let sttClient: STTClientProtocol
+    private let sttTranscriber: STTTranscribing
     private let transcriptionRepo: TranscriptionRepositoryProtocol
     private let entitlements: EntitlementsChecking?
     private let customWordRepo: CustomWordRepositoryProtocol?
@@ -52,7 +52,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
     public init(
         audioProcessor: AudioProcessorProtocol,
-        sttClient: STTClientProtocol,
+        sttTranscriber: STTTranscribing,
         transcriptionRepo: TranscriptionRepositoryProtocol,
         entitlements: EntitlementsChecking? = nil,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
@@ -64,7 +64,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         diarizationService: DiarizationServiceProtocol? = nil
     ) {
         self.audioProcessor = audioProcessor
-        self.sttClient = sttClient
+        self.sttTranscriber = sttTranscriber
         self.transcriptionRepo = transcriptionRepo
         self.entitlements = entitlements
         self.customWordRepo = customWordRepo
@@ -249,7 +249,11 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                     callback(.transcribing(percent: min(pct, 99)))
                 }
             }
-            let result = try await sttClient.transcribe(audioPath: wavURL.path, onProgress: sttProgress)
+            let result = try await sttTranscriber.transcribe(
+                audioPath: wavURL.path,
+                job: source == .meeting ? .meetingFinalize : .fileTranscription,
+                onProgress: sttProgress
+            )
 
             let words = result.words.map { word in
                 WordTimestamp(

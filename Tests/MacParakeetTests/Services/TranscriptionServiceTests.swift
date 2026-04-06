@@ -37,7 +37,7 @@ final class TranscriptionServiceTests: XCTestCase {
 
         service = TranscriptionService(
             audioProcessor: mockAudio,
-            sttClient: mockSTT,
+            sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo
         )
     }
@@ -156,7 +156,7 @@ final class TranscriptionServiceTests: XCTestCase {
 
         let service = TranscriptionService(
             audioProcessor: mockAudio,
-            sttClient: mockSTT,
+            sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo,
             youtubeDownloader: downloader
         )
@@ -182,7 +182,7 @@ final class TranscriptionServiceTests: XCTestCase {
 
         let service = TranscriptionService(
             audioProcessor: mockAudio,
-            sttClient: mockSTT,
+            sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo,
             shouldKeepDownloadedAudio: { false },
             youtubeDownloader: downloader
@@ -211,7 +211,7 @@ final class TranscriptionServiceTests: XCTestCase {
 
         let service = TranscriptionService(
             audioProcessor: mockAudio,
-            sttClient: mockSTT,
+            sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo,
             youtubeDownloader: downloader
         )

@@ -194,7 +194,7 @@ public final class SettingsViewModel {
     public init(
         defaults: UserDefaults = .standard,
         youtubeDownloadsDirPath: @escaping @Sendable () -> String = { AppPaths.youtubeDownloadsDir },
-        isSpeechModelCached: @escaping @Sendable () -> Bool = { STTClient.isModelCached() }
+        isSpeechModelCached: @escaping @Sendable () -> Bool = { STTRuntime.isModelCached() }
     ) {
         self.defaults = defaults
         self.youtubeDownloadsDirPath = youtubeDownloadsDirPath

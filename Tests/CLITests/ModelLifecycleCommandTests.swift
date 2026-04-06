@@ -54,7 +54,11 @@ private actor StubSTTClient: STTClientProtocol {
         failuresBeforeSuccess = max(0, count)
     }
 
-    func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult {
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
         STTResult(text: "", words: [])
     }
 
@@ -69,6 +73,18 @@ private actor StubSTTClient: STTClientProtocol {
         }
         ready = true
     }
+
+    func backgroundWarmUp() async {}
+
+    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>) {
+        let stream = AsyncStream<STTWarmUpState> { continuation in
+            continuation.yield(ready ? .ready : .idle)
+            continuation.finish()
+        }
+        return (UUID(), stream)
+    }
+
+    func removeWarmUpObserver(id: UUID) async {}
 
     func isReady() async -> Bool {
         ready

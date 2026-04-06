@@ -1,28 +1,47 @@
 import Foundation
 
-public protocol STTClientProtocol: Sendable {
-    /// Transcribe an audio file at the given path
-    func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult
+public enum STTJobKind: Sendable, Equatable {
+    case dictation
+    case meetingFinalize
+    case meetingLiveChunk
+    case fileTranscription
+}
 
-    /// Warm up the STT engine (load model into memory) with optional progress callback.
-    /// Progress messages are human-readable strings like "Downloading speech model (571 MB)... 45%".
+public enum STTWarmUpState: Sendable, Equatable {
+    case idle
+    case working(message: String, progress: Double?)
+    case ready
+    case failed(message: String)
+}
+
+public protocol STTTranscribing: Sendable {
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult
+}
+
+public protocol STTRuntimeManaging: Sendable {
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
-
-    /// Check if the STT engine is initialized and ready
+    func backgroundWarmUp() async
+    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>)
+    func removeWarmUpObserver(id: UUID) async
     func isReady() async -> Bool
-
-    /// Clear all cached speech and speaker models.
     func clearModelCache() async
-
-    /// Shut down the STT engine
     func shutdown() async
 }
 
-extension STTClientProtocol {
-    public func transcribe(audioPath: String) async throws -> STTResult {
-        try await transcribe(audioPath: audioPath, onProgress: nil)
-    }
+public typealias STTManaging = STTTranscribing & STTRuntimeManaging
+public typealias STTClientProtocol = STTManaging
 
+extension STTTranscribing {
+    public func transcribe(audioPath: String, job: STTJobKind) async throws -> STTResult {
+        try await transcribe(audioPath: audioPath, job: job, onProgress: nil)
+    }
+}
+
+extension STTRuntimeManaging {
     public func warmUp() async throws {
         try await warmUp(onProgress: nil)
     }

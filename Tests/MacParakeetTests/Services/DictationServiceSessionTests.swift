@@ -17,7 +17,7 @@ final class DictationServiceSessionTests: XCTestCase {
 
         service = DictationService(
             audioProcessor: mockAudio,
-            sttClient: mockSTT,
+            sttTranscriber: mockSTT,
             dictationRepo: dictationRepo
         )
         session = DictationServiceSession(service: service)

@@ -18,7 +18,7 @@ final class TranscriptionFlowTests: XCTestCase {
 
         transcriptionService = TranscriptionService(
             audioProcessor: mockAudio,
-            sttClient: mockSTT,
+            sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo
         )
     }

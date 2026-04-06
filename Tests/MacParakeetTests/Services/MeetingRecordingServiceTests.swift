@@ -20,7 +20,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let service = MeetingRecordingService(
             audioCaptureService: captureService,
             audioConverter: audioConverter,
-            sttClient: sttClient
+            sttTranscriber: sttClient
         )
 
         try await service.startRecording()
@@ -111,7 +111,11 @@ private actor SequencedMeetingSTTClient: STTClientProtocol {
         self.remainingResults = results
     }
 
-    func transcribe(audioPath: String, onProgress: (@Sendable (Int, Int) -> Void)?) async throws -> STTResult {
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
         guard !remainingResults.isEmpty else {
             XCTFail("Unexpected extra meeting STT request")
             return STTResult(text: "", words: [])
@@ -120,6 +124,18 @@ private actor SequencedMeetingSTTClient: STTClientProtocol {
     }
 
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {}
+
+    func backgroundWarmUp() async {}
+
+    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>) {
+        let stream = AsyncStream<STTWarmUpState> { continuation in
+            continuation.yield(.ready)
+            continuation.finish()
+        }
+        return (UUID(), stream)
+    }
+
+    func removeWarmUpObserver(id: UUID) async {}
 
     func isReady() async -> Bool { true }
 

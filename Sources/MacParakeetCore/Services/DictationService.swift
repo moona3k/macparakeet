@@ -45,7 +45,7 @@ extension DictationServiceProtocol {
 public actor DictationService: DictationServiceProtocol {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "DictationService")
     private let audioProcessor: AudioProcessorProtocol
-    private let sttClient: STTClientProtocol
+    private let sttTranscriber: STTTranscribing
     private let dictationRepo: DictationRepositoryProtocol
     private let shouldSaveAudio: (@Sendable () -> Bool)?
     private let shouldSaveDictationHistory: (@Sendable () -> Bool)?
@@ -75,7 +75,7 @@ public actor DictationService: DictationServiceProtocol {
 
     public init(
         audioProcessor: AudioProcessorProtocol,
-        sttClient: STTClientProtocol,
+        sttTranscriber: STTTranscribing,
         dictationRepo: DictationRepositoryProtocol,
         shouldSaveAudio: (@Sendable () -> Bool)? = nil,
         shouldSaveDictationHistory: (@Sendable () -> Bool)? = nil,
@@ -87,7 +87,7 @@ public actor DictationService: DictationServiceProtocol {
         cancelWindow: Duration = .seconds(5)
     ) {
         self.audioProcessor = audioProcessor
-        self.sttClient = sttClient
+        self.sttTranscriber = sttTranscriber
         self.dictationRepo = dictationRepo
         self.shouldSaveAudio = shouldSaveAudio
         self.shouldSaveDictationHistory = shouldSaveDictationHistory
@@ -381,7 +381,7 @@ public actor DictationService: DictationServiceProtocol {
             }
         }
 
-        let result = try await sttClient.transcribe(audioPath: audioURL.path)
+        let result = try await sttTranscriber.transcribe(audioPath: audioURL.path, job: .dictation)
         logger.debug("processCapturedAudio transcription complete chars=\(result.text.count)")
 
         let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)

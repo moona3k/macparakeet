@@ -46,12 +46,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let task: Task<Void, Never>
     }
 
-    private static let maxPendingChunkTasks = 24
-
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingRecordingService")
     private let audioCaptureService: any MeetingAudioCapturing
     private let audioConverter: any AudioFileConverting
-    private let sttClient: STTClientProtocol
+    private let sttTranscriber: STTTranscribing
     private let fileManager: FileManager
 
     private var currentSession: Session?
@@ -74,12 +72,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     public init(
         audioCaptureService: any MeetingAudioCapturing = MeetingAudioCaptureService(),
         audioConverter: any AudioFileConverting = AudioFileConverter(),
-        sttClient: STTClientProtocol = STTClient(),
+        sttTranscriber: STTTranscribing,
         fileManager: FileManager = .default
     ) {
         self.audioCaptureService = audioCaptureService
         self.audioConverter = audioConverter
-        self.sttClient = sttClient
+        self.sttTranscriber = sttTranscriber
         self.fileManager = fileManager
     }
 
@@ -325,12 +323,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         source: AudioSource,
         session: Session
     ) {
-        if pendingChunkTasks.count >= Self.maxPendingChunkTasks {
-            chunkTranscriptionFailed = true
-            logger.warning("Dropping live meeting chunk because the backlog exceeded \(Self.maxPendingChunkTasks, privacy: .public) tasks")
-            return
-        }
-
         let sequence = nextChunkSequence[source] ?? 0
         nextChunkSequence[source] = sequence + 1
 
@@ -375,7 +367,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             .appendingPathComponent("\(source.rawValue)-\(chunk.startMs)-\(chunk.endMs).wav")
         try writeChunkAudio(samples: chunk.samples, to: chunkURL)
         defer { try? fileManager.removeItem(at: chunkURL) }
-        return try await sttClient.transcribe(audioPath: chunkURL.path, onProgress: nil)
+        return try await sttTranscriber.transcribe(
+            audioPath: chunkURL.path,
+            job: .meetingLiveChunk,
+            onProgress: nil
+        )
     }
 
     private func writeChunkAudio(samples: [Float], to url: URL) throws {
@@ -436,7 +432,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         sequence: Int,
         sessionID: UUID
     ) {
-        logger.error("Meeting chunk transcription failed: \(error.localizedDescription, privacy: .public)")
+        if case STTSchedulerError.droppedDueToBackpressure(job: .meetingLiveChunk) = error {
+            logger.notice("Meeting live chunk dropped by scheduler backpressure")
+        } else {
+            logger.error("Meeting chunk transcription failed: \(error.localizedDescription, privacy: .public)")
+        }
         guard currentSession?.id == sessionID else { return }
         chunkTranscriptionFailed = true
         let readyResults = chunkResultBuffer.receiveFailure(sequence: sequence, source: source)

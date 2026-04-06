@@ -37,7 +37,7 @@ final class STTClientTests: XCTestCase {
         let expectedResult = STTResult(text: "Hello from mock")
         await mock.configure(result: expectedResult)
 
-        let result = try await mock.transcribe(audioPath: "/tmp/test.wav")
+        let result = try await mock.transcribe(audioPath: "/tmp/test.wav", job: .fileTranscription)
         XCTAssertEqual(result.text, "Hello from mock")
 
         let callCount = await mock.transcribeCallCount
@@ -52,7 +52,7 @@ final class STTClientTests: XCTestCase {
         await mock.configure(error: STTError.transcriptionFailed("test error"))
 
         do {
-            _ = try await mock.transcribe(audioPath: "/tmp/test.wav")
+            _ = try await mock.transcribe(audioPath: "/tmp/test.wav", job: .fileTranscription)
             XCTFail("Should have thrown")
         } catch let error as STTError {
             if case .transcriptionFailed(let reason) = error {

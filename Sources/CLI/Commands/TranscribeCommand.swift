@@ -72,17 +72,18 @@ struct TranscribeCommand: AsyncParsableCommand {
         }
 
         let diarizationService: DiarizationService? = noDiarize ? nil : DiarizationService()
-        let appDefaults = UserDefaults(suiteName: "com.macparakeet") ?? UserDefaults.standard
+        let appDefaultsSuiteName = "com.macparakeet"
 
         let service = TranscriptionService(
             audioProcessor: audioProcessor,
-            sttClient: sttClient,
+            sttTranscriber: sttClient,
             transcriptionRepo: transcriptionRepo,
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: {
-                Self.resolveProcessingMode(self.mode, storedMode: appDefaults.string(forKey: "processingMode"))
+                let defaults = UserDefaults(suiteName: appDefaultsSuiteName) ?? UserDefaults.standard
+                return Self.resolveProcessingMode(self.mode, storedMode: defaults.string(forKey: "processingMode"))
             },
             shouldKeepDownloadedAudio: {
                 switch self.downloadedAudio {
@@ -91,7 +92,8 @@ struct TranscribeCommand: AsyncParsableCommand {
                 case .delete:
                     return false
                 case .appDefault:
-                    return appDefaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
+                    let defaults = UserDefaults(suiteName: appDefaultsSuiteName) ?? UserDefaults.standard
+                    return defaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
                 }
             },
             youtubeDownloader: youtubeDownloader,
