@@ -79,13 +79,14 @@ public actor MockSTTClient: STTClientProtocol {
 
     public func backgroundWarmUp() async {
         if backgroundWarmUpTask != nil { return }
+        prepareWarmUpStateForRetry()
+        setWarmUpState(.working(message: "Checking setup requirements...", progress: nil))
 
         backgroundWarmUpTask = Task { [weak self] in
             guard let self else { return }
             let maxAttempts = 3
             var attempt = 1
             while attempt <= maxAttempts {
-                await self.setWarmUpState(.working(message: "Checking setup requirements...", progress: nil))
                 do {
                     try await self.warmUp { [weak self] progressMessage in
                         Task {
@@ -158,6 +159,12 @@ public actor MockSTTClient: STTClientProtocol {
 
     public func shutdown() async {
         shutdownCalled = true
+    }
+
+    private func prepareWarmUpStateForRetry() {
+        if case .failed = warmUpState {
+            warmUpState = .idle
+        }
     }
 
     private func setWarmUpState(_ state: STTWarmUpState) {

@@ -204,6 +204,27 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(sttCalls, 3)
     }
 
+    func testRetryEngineWarmUpRecoversAfterFailedBackgroundWarmUp() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        await stt.configureWarmUp(error: STTError.modelDownloadFailed)
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+
+        let vm = makeViewModel(permissionService: perms, sttClient: stt, defaults: defaults)
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(900))
+
+        XCTAssertEqual(vm.engineState, .failed(message: STTError.modelDownloadFailed.localizedDescription))
+
+        await stt.configureWarmUp(error: nil)
+        vm.retryEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertEqual(vm.engineState, .ready)
+    }
+
     func testEngineWarmUpFailsPreflightWhenOfflineOnFirstSetup() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()

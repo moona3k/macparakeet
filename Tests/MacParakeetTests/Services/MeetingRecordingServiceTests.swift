@@ -51,6 +51,48 @@ final class MeetingRecordingServiceTests: XCTestCase {
         ])
     }
 
+    func testStopRecordingCancelsPendingLiveChunksInsteadOfWaitingForThem() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = SleepingMeetingSTTClient(liveChunkDelay: .seconds(1))
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording()
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        try await waitForLiveChunkTranscriptionStart(sttClient)
+
+        let startedAt = ContinuousClock.now
+        let output = try await service.stopRecording()
+        let elapsed = startedAt.duration(to: .now)
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertLessThan(elapsed, .milliseconds(500))
+        XCTAssertNil(output.preparedTranscript)
+    }
+
+    private func waitForLiveChunkTranscriptionStart(
+        _ client: SleepingMeetingSTTClient,
+        timeout: Duration = .seconds(1)
+    ) async throws {
+        let startedAt = ContinuousClock.now
+        while await client.liveChunkCallCount == 0 {
+            if startedAt.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for live chunk transcription to start")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func makeMonoFloatBuffer(frameCount: Int, sampleValue: Float) -> AVAudioPCMBuffer? {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -121,6 +163,47 @@ private actor SequencedMeetingSTTClient: STTClientProtocol {
             return STTResult(text: "", words: [])
         }
         return remainingResults.removeFirst()
+    }
+
+    func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {}
+
+    func backgroundWarmUp() async {}
+
+    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>) {
+        let stream = AsyncStream<STTWarmUpState> { continuation in
+            continuation.yield(.ready)
+            continuation.finish()
+        }
+        return (UUID(), stream)
+    }
+
+    func removeWarmUpObserver(id: UUID) async {}
+
+    func isReady() async -> Bool { true }
+
+    func clearModelCache() async {}
+
+    func shutdown() async {}
+}
+
+private actor SleepingMeetingSTTClient: STTClientProtocol {
+    private let liveChunkDelay: Duration
+    private(set) var liveChunkCallCount = 0
+
+    init(liveChunkDelay: Duration) {
+        self.liveChunkDelay = liveChunkDelay
+    }
+
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        if job == .meetingLiveChunk {
+            liveChunkCallCount += 1
+            try await Task.sleep(for: liveChunkDelay)
+        }
+        return STTResult(text: "", words: [])
     }
 
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {}

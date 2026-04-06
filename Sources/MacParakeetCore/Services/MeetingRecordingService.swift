@@ -183,10 +183,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         await processingTask?.value
         processingTask = nil
         await flushTranscriptChunkers(for: session)
-        let pendingTasks = pendingChunkTasks.map(\.task)
-        pendingChunkTasks = []
-        for task in pendingTasks {
-            await task.value
+        // Preserve prepared speaker metadata when the preview tail drains quickly,
+        // but stop waiting once live preview falls behind so finalize can take over.
+        let preparedTranscriptReady = await waitForPendingChunkTasksToDrain(timeout: .milliseconds(150))
+        if !preparedTranscriptReady {
+            await cancelPendingChunkTasks(waitForCancellation: false)
         }
         writer?.finalize()
         writer = nil
@@ -213,7 +214,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             microphoneAudioURL: session.microphoneAudioURL,
             systemAudioURL: session.systemAudioURL,
             durationSeconds: durationSeconds,
-            preparedTranscript: chunkTranscriptionFailed
+            preparedTranscript: (chunkTranscriptionFailed || !preparedTranscriptReady)
                 ? nil
                 : transcriptAssembler.finalizedTranscript(durationMs: Int(durationSeconds * 1000))
         )
@@ -230,12 +231,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         processingTask?.cancel()
         await processingTask?.value
         processingTask = nil
-        let pendingTasks = pendingChunkTasks.map(\.task)
-        pendingChunkTasks = []
-        for task in pendingTasks {
-            task.cancel()
-            await task.value
-        }
+        await cancelPendingChunkTasks(waitForCancellation: true)
         writer?.finalize()
         writer = nil
         cleanupState()
@@ -342,7 +338,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     sessionID: session.id
                 )
             } catch is CancellationError {
-                return
+                // Cancellation is expected when stopRecording prioritizes finalize.
             } catch {
                 await self.handleChunkTranscriptionFailure(
                     error,
@@ -351,13 +347,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     sessionID: session.id
                 )
             }
+
+            await self.removePendingChunkTask(id: taskID)
         }
 
         pendingChunkTasks.append(PendingChunkTask(id: taskID, task: task))
-        Task { [weak self] in
-            await task.value
-            await self?.removePendingChunkTask(id: taskID)
-        }
     }
 
     private func transcribeChunk(
@@ -464,6 +458,31 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             let size = try fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber
             return (size?.intValue ?? 0) > 0
         }
+    }
+
+    private func cancelPendingChunkTasks(waitForCancellation: Bool) async {
+        let tasks = pendingChunkTasks.map(\.task)
+        pendingChunkTasks = []
+
+        for task in tasks {
+            task.cancel()
+        }
+
+        guard waitForCancellation else { return }
+        for task in tasks {
+            await task.value
+        }
+    }
+
+    private func waitForPendingChunkTasksToDrain(timeout: Duration) async -> Bool {
+        let startedAt = ContinuousClock.now
+        while !pendingChunkTasks.isEmpty {
+            if startedAt.duration(to: .now) > timeout {
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return true
     }
 
     private func removePendingChunkTask(id: UUID) {

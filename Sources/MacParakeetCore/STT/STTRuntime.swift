@@ -114,12 +114,13 @@ public actor STTRuntime: STTRuntimeProtocol {
         if backgroundWarmUpTask != nil { return }
 
         let generation = beginBackgroundWarmUp()
+        prepareBackgroundWarmUpForRetry()
+        setBackgroundWarmUpState(
+            .working(message: "Checking setup requirements...", progress: nil),
+            generation: generation
+        )
         backgroundWarmUpTask = Task { [weak self] in
             guard let self else { return }
-            await self.setBackgroundWarmUpState(
-                .working(message: "Checking setup requirements...", progress: nil),
-                generation: generation
-            )
 
             do {
                 try await self.warmUp { [weak self] progressMessage in
@@ -212,6 +213,12 @@ public actor STTRuntime: STTRuntimeProtocol {
         backgroundWarmUpGeneration &+= 1
         backgroundWarmUpTask?.cancel()
         backgroundWarmUpTask = nil
+    }
+
+    private func prepareBackgroundWarmUpForRetry() {
+        if case .failed = backgroundWarmUpState {
+            backgroundWarmUpState = .idle
+        }
     }
 
     private func setBackgroundWarmUpState(_ state: STTWarmUpState, generation: UInt64) {
