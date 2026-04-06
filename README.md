@@ -42,7 +42,7 @@
 
 ---
 
-MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. Press a hotkey, speak, text appears. Or drag a file and get a full transcript. All speech recognition happens on your Mac.
+MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. It has three co-equal modes: system-wide dictation, file/URL transcription, and meeting recording. All speech recognition happens on your Mac.
 
 ## What it does
 
@@ -50,9 +50,17 @@ MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio]
 
 **File transcription** — Drag audio or video files, or paste a YouTube URL. Full transcript with word-level timestamps, speaker labels, and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON).
 
+**Meeting recording** — Capture microphone + system audio together, watch a live transcript preview while recording, and save the finished meeting directly into the library with summaries, chat, search, and export support.
+
 **Text cleanup** — Filler word removal, custom word replacements, text snippets with triggers. Deterministic pipeline, no LLM needed.
 
-**AI features** — Optional transcript summaries and chat. The current branch ships a prompt library with 7 built-in summary prompts plus custom prompts, multi-summary tabs, and queued summary generation. Use Claude Code or Codex via Local CLI, or connect OpenAI, Anthropic, Google Gemini, Ollama, or OpenRouter. Entirely opt-in, with a fully local setup available when you stay on local providers/features.
+**AI features** — Optional transcript summaries and chat. Ships with a prompt library, built-in and custom summary prompts, multi-summary tabs, and queued summary generation. Use Claude Code or Codex via Local CLI, or connect OpenAI, Anthropic, Google Gemini, Ollama, or OpenRouter. Entirely opt-in, with a fully local setup available when you stay on local providers/features.
+
+### Concurrent by design
+
+- Dictation and meeting recording can run at the same time.
+- Audio capture stays independent per flow.
+- All STT work routes through one shared runtime and scheduler so interactive dictation stays prioritized over background preview and batch transcription work.
 
 ### Performance
 
@@ -71,7 +79,7 @@ MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio]
 
 **Download:** Grab the [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) or visit [macparakeet.com](https://macparakeet.com). Drag to Applications, done.
 
-First launch downloads the speech model (~6 GB). After that, dictation and transcription work fully offline.
+First launch downloads the speech model (~6 GB). After that, dictation, meeting recording, and transcription work fully offline.
 
 **Build from source:**
 
@@ -97,6 +105,7 @@ swift run macparakeet-cli history
 | Layer | Choice |
 |-------|--------|
 | STT | Parakeet TDT 0.6B-v3 via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML (Neural Engine) |
+| STT orchestration | Shared runtime + explicit scheduler across dictation, meeting recording, and transcription |
 | Language | Swift 6.0 + SwiftUI |
 | Database | SQLite via GRDB |
 | Auto-updates | Sparkle 2 |
