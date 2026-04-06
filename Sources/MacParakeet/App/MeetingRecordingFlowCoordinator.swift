@@ -134,8 +134,9 @@ final class MeetingRecordingFlowCoordinator {
             pillController?.onStopRecording = { [weak self] in
                 self?.sendEvent(.stopRequested)
             }
-            pillController?.onOpenApp = {
+            pillController?.onOpenApp = { [weak self] in
                 NSApp.activate(ignoringOtherApps: true)
+                self?.showMeetingPanel()
             }
             pillController?.onCancelRecording = { [weak self] in
                 self?.confirmAndCancelRecording()
