@@ -85,6 +85,14 @@ public enum TelemetryTranscriptionSource: String, Sendable, Equatable {
     case dragDrop = "drag_drop"
 }
 
+public enum TelemetryTranscriptionStage: String, Sendable, Equatable {
+    case download
+    case audioConversion = "audio_conversion"
+    case stt
+    case diarization
+    case postProcessing = "post_processing"
+}
+
 public enum TelemetryCopySource: String, Sendable, Equatable {
     case dictation
     case transcription
@@ -122,10 +130,23 @@ public enum TelemetryEventSpec: Sendable {
         source: TelemetryTranscriptionSource,
         audioDurationSeconds: Double?,
         processingSeconds: Double?,
-        wordCount: Int
+        wordCount: Int,
+        speakerCount: Int? = nil,
+        diarizationRequested: Bool,
+        diarizationApplied: Bool,
+        meetingPreparedTranscriptUsed: Bool? = nil
     )
-    case transcriptionCancelled(source: TelemetryTranscriptionSource, audioDurationSeconds: Double?)
-    case transcriptionFailed(source: TelemetryTranscriptionSource, errorType: String, errorDetail: String? = nil)
+    case transcriptionCancelled(
+        source: TelemetryTranscriptionSource,
+        audioDurationSeconds: Double?,
+        stage: TelemetryTranscriptionStage
+    )
+    case transcriptionFailed(
+        source: TelemetryTranscriptionSource,
+        stage: TelemetryTranscriptionStage,
+        errorType: String,
+        errorDetail: String? = nil
+    )
     case diarizationStarted(source: TelemetryTranscriptionSource)
     case diarizationCompleted(source: TelemetryTranscriptionSource, speakerCount: Int, durationSeconds: Double)
     case diarizationFailed(source: TelemetryTranscriptionSource, errorType: String, errorDetail: String? = nil)
@@ -293,20 +314,38 @@ extension TelemetryEventSpec {
                 ("source", source.rawValue),
                 ("audio_duration_seconds", audioDurationSeconds.map(Self.format))
             )
-        case .transcriptionCompleted(let source, let audioDurationSeconds, let processingSeconds, let wordCount):
+        case .transcriptionCompleted(
+            let source,
+            let audioDurationSeconds,
+            let processingSeconds,
+            let wordCount,
+            let speakerCount,
+            let diarizationRequested,
+            let diarizationApplied,
+            let meetingPreparedTranscriptUsed
+        ):
             return Self.compactProps(
                 ("source", source.rawValue),
                 ("audio_duration_seconds", audioDurationSeconds.map(Self.format)),
                 ("processing_seconds", processingSeconds.map(Self.format)),
-                ("word_count", "\(wordCount)")
+                ("word_count", "\(wordCount)"),
+                ("speaker_count", speakerCount.map(String.init)),
+                ("diarization_requested", Self.boolString(diarizationRequested)),
+                ("diarization_applied", Self.boolString(diarizationApplied)),
+                ("meeting_prepared_transcript_used", meetingPreparedTranscriptUsed.map(Self.boolString))
             )
-        case .transcriptionCancelled(let source, let audioDurationSeconds):
+        case .transcriptionCancelled(let source, let audioDurationSeconds, let stage):
             return Self.compactProps(
                 ("source", source.rawValue),
-                ("audio_duration_seconds", audioDurationSeconds.map(Self.format))
+                ("audio_duration_seconds", audioDurationSeconds.map(Self.format)),
+                ("stage", stage.rawValue)
             )
-        case .transcriptionFailed(let source, let errorType, let errorDetail):
-            var props = ["source": source.rawValue, "error_type": errorType]
+        case .transcriptionFailed(let source, let stage, let errorType, let errorDetail):
+            var props = [
+                "source": source.rawValue,
+                "stage": stage.rawValue,
+                "error_type": errorType,
+            ]
             if let errorDetail { props["error_detail"] = errorDetail }
             return props
         case .diarizationStarted(let source):
@@ -408,6 +447,10 @@ extension TelemetryEventSpec {
         String(format: "%.1f", value)
     }
 
+    private static func boolString(_ value: Bool) -> String {
+        value ? "true" : "false"
+    }
+
     private static func mergeDevice(_ base: [String: String]?, _ device: RecordingDeviceInfo?) -> [String: String]? {
         guard let device else { return base }
         var merged = base ?? [:]
@@ -431,9 +474,9 @@ public enum TelemetryImplementedContract {
         .dictationEmpty: [],
         .dictationFailed: ["error_type"],
         .transcriptionStarted: ["source"],
-        .transcriptionCompleted: ["source", "word_count"],
-        .transcriptionCancelled: ["source"],
-        .transcriptionFailed: ["source", "error_type"],
+        .transcriptionCompleted: ["source", "word_count", "diarization_requested", "diarization_applied"],
+        .transcriptionCancelled: ["source", "stage"],
+        .transcriptionFailed: ["source", "stage", "error_type"],
         .diarizationStarted: ["source"],
         .diarizationCompleted: ["source", "speaker_count"],
         .diarizationFailed: ["source", "error_type"],

@@ -258,6 +258,66 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertTrue(json["props"] is NSNull || json["props"] == nil)
     }
 
+    func testTranscriptionCompletedSerializesDiarizationContext() throws {
+        let event = TelemetryEvent(
+            spec: .transcriptionCompleted(
+                source: .meeting,
+                audioDurationSeconds: 90.0,
+                processingSeconds: 12.4,
+                wordCount: 240,
+                speakerCount: 3,
+                diarizationRequested: true,
+                diarizationApplied: true,
+                meetingPreparedTranscriptUsed: true
+            ),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(props["source"], "meeting")
+        XCTAssertEqual(props["audio_duration_seconds"], "90.0")
+        XCTAssertEqual(props["processing_seconds"], "12.4")
+        XCTAssertEqual(props["word_count"], "240")
+        XCTAssertEqual(props["speaker_count"], "3")
+        XCTAssertEqual(props["diarization_requested"], "true")
+        XCTAssertEqual(props["diarization_applied"], "true")
+        XCTAssertEqual(props["meeting_prepared_transcript_used"], "true")
+    }
+
+    func testTranscriptionFailedSerializesStage() throws {
+        let event = TelemetryEvent(
+            spec: .transcriptionFailed(
+                source: .youtube,
+                stage: .download,
+                errorType: "download_failed"
+            ),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(props["source"], "youtube")
+        XCTAssertEqual(props["stage"], "download")
+        XCTAssertEqual(props["error_type"], "download_failed")
+    }
+
     func testImplementedContractCoversEveryTypedEventName() {
         XCTAssertEqual(
             Set(TelemetryEventName.allCases),
@@ -371,9 +431,18 @@ final class TelemetryServiceTests: XCTestCase {
             .dictationEmpty(durationSeconds: 1.5),
             .dictationFailed(errorType: "network"),
             .transcriptionStarted(source: .file, audioDurationSeconds: 30.0),
-            .transcriptionCompleted(source: .dragDrop, audioDurationSeconds: 30.0, processingSeconds: 2.4, wordCount: 120),
-            .transcriptionCancelled(source: .youtube, audioDurationSeconds: 45.0),
-            .transcriptionFailed(source: .file, errorType: "transcribe"),
+            .transcriptionCompleted(
+                source: .dragDrop,
+                audioDurationSeconds: 30.0,
+                processingSeconds: 2.4,
+                wordCount: 120,
+                speakerCount: 2,
+                diarizationRequested: true,
+                diarizationApplied: true,
+                meetingPreparedTranscriptUsed: nil
+            ),
+            .transcriptionCancelled(source: .youtube, audioDurationSeconds: 45.0, stage: .stt),
+            .transcriptionFailed(source: .file, stage: .audioConversion, errorType: "transcribe"),
             .exportUsed(format: "txt"),
             .llmPromptResultUsed(provider: "openai"),
             .llmPromptResultFailed(provider: "openai", errorType: "auth"),

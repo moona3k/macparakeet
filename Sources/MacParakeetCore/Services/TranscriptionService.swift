@@ -183,12 +183,40 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             try await entitlements.assertCanTranscribe(now: Date())
         }
 
-        onProgress?(.downloading(percent: 0))
-        let downloadResult = try await downloader.download(url: urlString) { percent in
-            onProgress?(.downloading(percent: percent))
+        let downloadResult: YouTubeDownloader.DownloadResult
+        do {
+            onProgress?(.downloading(percent: 0))
+            downloadResult = try await downloader.download(url: urlString) { percent in
+                onProgress?(.downloading(percent: percent))
+            }
+        } catch {
+            if error is CancellationError {
+                Telemetry.send(.transcriptionCancelled(
+                    source: .youtube,
+                    audioDurationSeconds: nil,
+                    stage: .download
+                ))
+            } else {
+                Telemetry.send(.transcriptionFailed(
+                    source: .youtube,
+                    stage: .download,
+                    errorType: Self.errorType(for: error),
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                ))
+            }
+            throw error
         }
         onProgress?(.downloading(percent: 100))
-        try Task.checkCancellation()
+        do {
+            try Task.checkCancellation()
+        } catch {
+            Telemetry.send(.transcriptionCancelled(
+                source: .youtube,
+                audioDurationSeconds: downloadResult.durationSeconds.map(Double.init),
+                stage: .download
+            ))
+            throw error
+        }
         let keepDownloadedAudio = shouldKeepDownloadedAudio()
 
         var transcription = Transcription(
@@ -202,7 +230,10 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             sourceType: .youtube
         )
         try transcriptionRepo.save(transcription)
-        Telemetry.send(.transcriptionStarted(source: .youtube, audioDurationSeconds: nil))
+        Telemetry.send(.transcriptionStarted(
+            source: .youtube,
+            audioDurationSeconds: downloadResult.durationSeconds.map(Double.init)
+        ))
 
         // Cache YouTube thumbnail locally (non-blocking)
         if let thumbURL = downloadResult.thumbnailURL {
@@ -243,6 +274,9 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     ) async throws -> Transcription {
         var wavURL: URL?
         let processingStartedAt = Date()
+        var lifecycleStage: TelemetryTranscriptionStage = .audioConversion
+        let meetingPreparedTranscriptUsed = source == .meeting && meetingSpeakerMetadata != nil
+        let diarizationRequested = meetingPreparedTranscriptUsed || (diarizationService != nil && shouldDiarize())
         do {
             onProgress?(.converting)
             wavURL = try await audioProcessor.convert(fileURL: fileURL)
@@ -252,6 +286,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             }
 
             onProgress?(.transcribing(percent: 0))
+            lifecycleStage = .stt
             let sttProgress: (@Sendable (Int, Int) -> Void)? = onProgress.map { callback in
                 { @Sendable current, total in
                     let pct = total > 0 ? Int(Double(current) / Double(total) * 100) : 0
@@ -290,6 +325,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                 transcription.speakers = meetingSpeakerMetadata.speakers
                 transcription.diarizationSegments = Self.buildDiarizationSegments(from: mergedWords)
             } else if let diarizationService, shouldDiarize() {
+                lifecycleStage = .diarization
                 do {
                     onProgress?(.identifyingSpeakers)
                     Telemetry.send(.diarizationStarted(source: source))
@@ -325,11 +361,14 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                 }
             }
 
+            lifecycleStage = .postProcessing
             let completed = try await completeTranscription(
                 source: source,
                 transcription: &transcription,
                 rawText: result.text,
-                processingStartedAt: processingStartedAt
+                processingStartedAt: processingStartedAt,
+                diarizationRequested: diarizationRequested,
+                meetingPreparedTranscriptUsed: meetingPreparedTranscriptUsed
             )
 
             try? FileManager.default.removeItem(at: wavURL)
@@ -352,11 +391,13 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             if error is CancellationError {
                 Telemetry.send(.transcriptionCancelled(
                     source: source,
-                    audioDurationSeconds: audioDurationSeconds
+                    audioDurationSeconds: audioDurationSeconds,
+                    stage: lifecycleStage
                 ))
             } else {
                 Telemetry.send(.transcriptionFailed(
                     source: source,
+                    stage: lifecycleStage,
                     errorType: Self.errorType(for: error),
                     errorDetail: TelemetryErrorClassifier.errorDetail(error)
                 ))
@@ -392,7 +433,9 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         source: TelemetryTranscriptionSource,
         transcription: inout Transcription,
         rawText: String,
-        processingStartedAt: Date
+        processingStartedAt: Date,
+        diarizationRequested: Bool,
+        meetingPreparedTranscriptUsed: Bool
     ) async throws -> Transcription {
         let mode = processingMode()
         var customWords: [CustomWord] = []
@@ -423,11 +466,16 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         let wordCount = transcription.rawTranscript?.split(whereSeparator: \.isWhitespace).count ?? 0
         let audioDurationSeconds = transcription.durationMs.map { Double($0) / 1000.0 }
         let processingSeconds = Date().timeIntervalSince(processingStartedAt)
+        let diarizationApplied = !(transcription.diarizationSegments?.isEmpty ?? true)
         Telemetry.send(.transcriptionCompleted(
             source: source,
             audioDurationSeconds: audioDurationSeconds,
             processingSeconds: processingSeconds,
-            wordCount: wordCount
+            wordCount: wordCount,
+            speakerCount: transcription.speakerCount,
+            diarizationRequested: diarizationRequested,
+            diarizationApplied: diarizationApplied,
+            meetingPreparedTranscriptUsed: source == .meeting ? meetingPreparedTranscriptUsed : nil
         ))
 
         return transcription
