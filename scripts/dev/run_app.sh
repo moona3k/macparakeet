@@ -91,8 +91,14 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
-# Re-sign the bundle so TCC trusts it
-codesign --force --sign "Apple Development" --deep "$APP_BUNDLE" 2>/dev/null || true
+# Re-sign the bundle with entitlements so TCC trusts it and Core Audio Taps work
+DEV_ENTITLEMENTS="$ROOT_DIR/scripts/dist/MacParakeet.entitlements"
+SIGN_IDENTITY="$(security find-identity -v -p codesigning | grep 'Apple Development' | head -1 | awk '{print $2}')"
+# Sign frameworks first
+find "$APP_BUNDLE/Contents/Frameworks" -name "*.framework" -maxdepth 2 -exec \
+  codesign --force --sign "$SIGN_IDENTITY" {} \; 2>/dev/null || true
+# Sign the main executable with entitlements
+codesign --force --sign "$SIGN_IDENTITY" --entitlements "$DEV_ENTITLEMENTS" "$APP_BUNDLE" 2>/dev/null || true
 
 echo "[3/5] Stopping existing MacParakeet processes…"
 pkill -f "/Applications/MacParakeet.app/Contents/MacOS/MacParakeet" || true
