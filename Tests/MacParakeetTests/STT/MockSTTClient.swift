@@ -78,42 +78,31 @@ public actor MockSTTClient: STTClientProtocol {
     }
 
     public func backgroundWarmUp() async {
+        if case .ready = warmUpState { return }
         if backgroundWarmUpTask != nil { return }
         prepareWarmUpStateForRetry()
         setWarmUpState(.working(message: "Checking setup requirements...", progress: nil))
 
         backgroundWarmUpTask = Task { [weak self] in
             guard let self else { return }
-            let maxAttempts = 3
-            var attempt = 1
-            while attempt <= maxAttempts {
-                do {
-                    try await self.warmUp { [weak self] progressMessage in
-                        Task {
-                            await self?.setWarmUpState(
-                                .working(
-                                    message: "Speech model: \(progressMessage)",
-                                    progress: OnboardingProgressParser.parseProgressFraction(
-                                        from: "Speech model: \(progressMessage)"
-                                    )
+            do {
+                try await self.warmUp { [weak self] progressMessage in
+                    Task {
+                        await self?.setWarmUpState(
+                            .working(
+                                message: "Speech model: \(progressMessage)",
+                                progress: OnboardingProgressParser.parseProgressFraction(
+                                    from: "Speech model: \(progressMessage)"
                                 )
                             )
-                        }
+                        )
                     }
-                    await self.setWarmUpState(.ready)
-                    await self.clearBackgroundWarmUpTask()
-                    return
-                } catch {
-                    if attempt == maxAttempts {
-                        await self.setWarmUpState(.failed(message: error.localizedDescription))
-                        break
-                    }
-                    attempt += 1
-                    await self.setWarmUpState(
-                        .working(message: "Retrying speech model setup (attempt \(attempt)/\(maxAttempts))...", progress: nil)
-                    )
-                    try? await Task.sleep(for: .milliseconds(250))
                 }
+                await self.setWarmUpState(.ready)
+            } catch is CancellationError {
+                // Match STTRuntime: cancellation does not mutate the shared state machine.
+            } catch {
+                await self.setWarmUpState(.failed(message: error.localizedDescription))
             }
             await self.clearBackgroundWarmUpTask()
         }
@@ -134,7 +123,7 @@ public actor MockSTTClient: STTClientProtocol {
     }
 
     public func removeWarmUpObserver(id: UUID) async {
-        warmUpObservers.removeValue(forKey: id)
+        warmUpObservers.removeValue(forKey: id)?.finish()
     }
 
     public func wasWarmUpCalled() -> Bool {

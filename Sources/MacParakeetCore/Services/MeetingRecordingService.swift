@@ -428,6 +428,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         sequence: Int,
         sessionID: UUID
     ) {
+        guard currentSession?.id == sessionID else { return }
+
         let droppedByBackpressure =
             if case STTSchedulerError.droppedDueToBackpressure(job: .meetingLiveChunk) = error {
                 true
@@ -442,7 +444,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             logger.error("Meeting chunk transcription failed: \(error.localizedDescription, privacy: .public)")
             chunkTranscriptionFailed = true
         }
-        guard currentSession?.id == sessionID else { return }
         let readyResults = chunkResultBuffer.receiveFailure(sequence: sequence, source: source)
         for ready in readyResults {
             let update = transcriptAssembler.apply(result: ready.result, chunk: ready.chunk, source: source)

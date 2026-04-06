@@ -187,7 +187,7 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertEqual(state, .working(message: "Downloading...", progress: 0.5))
     }
 
-    func testEngineWarmUpRetriesTransientSTTFailure() async throws {
+    func testEngineWarmUpFailsTransientSTTFailureWithoutImplicitRetry() async throws {
         let perms = MockPermissionService()
         let stt = MockSTTClient()
         await stt.configureWarmUpFailuresBeforeSuccess(2)
@@ -197,11 +197,11 @@ final class OnboardingViewModelTests: XCTestCase {
         vm.jump(to: .engine)
 
         vm.startEngineWarmUp()
-        try await Task.sleep(for: .milliseconds(1_100))
+        try await Task.sleep(for: .milliseconds(200))
 
-        XCTAssertEqual(vm.engineState, .ready)
+        XCTAssertEqual(vm.engineState, .failed(message: STTError.engineStartFailed("warm-up failed").localizedDescription))
         let sttCalls = await stt.warmUpCallCount
-        XCTAssertEqual(sttCalls, 3)
+        XCTAssertEqual(sttCalls, 1)
     }
 
     func testRetryEngineWarmUpRecoversAfterFailedBackgroundWarmUp() async throws {

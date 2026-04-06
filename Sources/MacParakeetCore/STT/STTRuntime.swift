@@ -88,6 +88,11 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
     }
 
+    /// Warms the runtime and reports progress through `onProgress` only.
+    ///
+    /// This method does not update `observeWarmUpProgress()` observers. Call
+    /// `backgroundWarmUp()` when UI state should flow through the shared
+    /// observer stream instead of a one-off callback.
     public func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {
         warmUpProgressHandler = onProgress
         defer {
@@ -160,7 +165,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public func removeWarmUpObserver(id: UUID) async {
-        warmUpObservers.removeValue(forKey: id)
+        warmUpObservers.removeValue(forKey: id)?.finish()
     }
 
     public func isReady() async -> Bool {

@@ -176,6 +176,50 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertNotNil(output.preparedTranscript)
     }
 
+    func testStaleChunkFailureFromPreviousSessionDoesNotPoisonNextSession() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = PathScriptedMeetingSTTClient(responses: [
+            "microphone-100000-105000": .failure(message: "late failure", delay: .milliseconds(300)),
+            "microphone-200000-205000": .result(STTResult(text: "fresh", words: [
+                TimestampedWord(word: "fresh", startMs: 0, endMs: 160, confidence: 0.9),
+            ])),
+        ])
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording()
+
+        let firstBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            firstBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let firstOutput = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: firstOutput.folderURL) }
+        XCTAssertNil(firstOutput.preparedTranscript)
+
+        try await service.startRecording()
+
+        let secondBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
+        await captureService.yield(.microphoneBuffer(
+            secondBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 200.0))
+        ))
+        try await Task.sleep(for: .milliseconds(350))
+
+        let secondOutput = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: secondOutput.folderURL) }
+
+        let prepared = try XCTUnwrap(secondOutput.preparedTranscript)
+        XCTAssertEqual(prepared.words.map(\.word), ["fresh"])
+        XCTAssertEqual(prepared.words.map(\.speakerId), ["microphone"])
+    }
+
     private func waitForLiveChunkTranscriptionStart(
         _ client: SleepingMeetingSTTClient,
         timeout: Duration = .seconds(1)
@@ -214,18 +258,28 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
 private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
     private var continuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
-    private lazy var stream: AsyncStream<MeetingAudioCaptureEvent> = AsyncStream(bufferingPolicy: .unbounded) {
-        self.continuation = $0
-    }
+    private var stream: AsyncStream<MeetingAudioCaptureEvent>?
 
     var events: AsyncStream<MeetingAudioCaptureEvent> {
-        stream
+        if let stream {
+            return stream
+        }
+
+        let stream = AsyncStream<MeetingAudioCaptureEvent>(bufferingPolicy: .unbounded) {
+            self.continuation = $0
+        }
+        self.stream = stream
+        return stream
     }
 
-    func start() async throws {}
+    func start() async throws {
+        _ = events
+    }
 
     func stop() async {
         continuation?.finish()
+        continuation = nil
+        stream = nil
     }
 
     func yield(_ event: MeetingAudioCaptureEvent) {
@@ -386,4 +440,64 @@ private actor PrefixScriptedMeetingSTTClient: STTClientProtocol {
     func clearModelCache() async {}
 
     func shutdown() async {}
+}
+
+private actor PathScriptedMeetingSTTClient: STTClientProtocol {
+    enum Response {
+        case result(STTResult, delay: Duration = .zero)
+        case failure(message: String, delay: Duration = .zero)
+    }
+
+    private let responses: [String: Response]
+
+    init(responses: [String: Response]) {
+        self.responses = responses
+    }
+
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        guard let response = responses.first(where: { audioPath.contains($0.key) })?.value else {
+            return STTResult(text: "", words: [])
+        }
+
+        switch response {
+        case .result(let result, let delay):
+            await waitIgnoringCancellation(for: delay)
+            return result
+        case .failure(let message, let delay):
+            await waitIgnoringCancellation(for: delay)
+            throw STTError.transcriptionFailed(message)
+        }
+    }
+
+    func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {}
+
+    func backgroundWarmUp() async {}
+
+    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>) {
+        let stream = AsyncStream<STTWarmUpState> { continuation in
+            continuation.yield(.ready)
+            continuation.finish()
+        }
+        return (UUID(), stream)
+    }
+
+    func removeWarmUpObserver(id: UUID) async {}
+
+    func isReady() async -> Bool { true }
+
+    func clearModelCache() async {}
+
+    func shutdown() async {}
+
+    private func waitIgnoringCancellation(for delay: Duration) async {
+        guard delay > .zero else { return }
+        let startedAt = ContinuousClock.now
+        while startedAt.duration(to: .now) < delay {
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+    }
 }

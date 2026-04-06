@@ -62,6 +62,7 @@ public final class OnboardingViewModel {
     private var refreshTask: Task<Void, Never>?
     private var warmUpObserverTask: Task<Void, Never>?
     private var warmUpObserverId: UUID?
+    private var warmUpObservationToken: UUID?
     private let requiredFirstSetupDiskBytes: Int64 = 7 * 1_024 * 1_024 * 1_024
     private let requiredDiarizationSetupDiskBytes: Int64 = 512 * 1_024 * 1_024
 
@@ -202,74 +203,81 @@ public final class OnboardingViewModel {
 
         engineGeneration += 1
         let generation = engineGeneration
+        let observationToken = UUID()
         isBusy = true
         engineState = .working(message: "Checking setup requirements...", progress: nil)
+        warmUpObservationToken = observationToken
 
         // Assign the outer Task immediately so re-entrant calls hit the
         // `warmUpObserverTask != nil` guard. Without this, the two `await`
         // actor hops below leave a window where a second call can proceed.
-        let outerTask = Task { [weak self] in
+        let outerTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            let clearObservationIfCurrent = { [weak self] (observerId: UUID?) in
+                guard let self, self.warmUpObservationToken == observationToken else { return }
+                self.warmUpObserverTask = nil
+                self.warmUpObserverId = nil
+                self.warmUpObservationToken = nil
+                if let observerId {
+                    Task { [sttClient] in await sttClient.removeWarmUpObserver(id: observerId) }
+                }
+            }
+
             do {
                 try await runEnginePreflight()
-                guard self.engineGeneration == generation else { return }
+                guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { return }
             } catch {
-                await MainActor.run {
-                    guard self.engineGeneration == generation else { return }
-                    self.engineState = .failed(message: error.localizedDescription)
-                    self.isBusy = false
-                }
+                guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { return }
+                self.engineState = .failed(message: error.localizedDescription)
+                self.isBusy = false
+                clearObservationIfCurrent(nil)
                 return
             }
 
             let warmUpStartedAt = Date()
             Telemetry.send(.modelDownloadStarted)
-            await self.sttClient.backgroundWarmUp()
+            await sttClient.backgroundWarmUp()
+            guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { return }
 
             // Subscribe to progress updates
-            let (observerId, stream) = await self.sttClient.observeWarmUpProgress()
-            await MainActor.run {
-                self.warmUpObserverId = observerId
-                self.warmUpObserverTask = Task { @MainActor [weak self] in
-                    // Ensure warmUpObserverTask is cleared when the loop exits
-                    // for any reason (cancellation, stream end, generation mismatch)
-                    // so the guard at the top of startEngineWarmUp() doesn't block
-                    // future calls with a stale completed Task handle.
-                    defer { self?.warmUpObserverTask = nil }
+            let (observerId, stream) = await sttClient.observeWarmUpProgress()
+            guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else {
+                await sttClient.removeWarmUpObserver(id: observerId)
+                return
+            }
 
-                    for await state in stream {
-                        guard let self, self.engineGeneration == generation else { break }
-                        switch state {
-                        case .idle:
-                            self.engineState = .working(message: "Preparing...", progress: nil)
-                        case .working(let message, let progress):
-                            self.engineState = .working(message: message, progress: progress)
-                        case .ready:
-                            let durationSeconds = Date().timeIntervalSince(warmUpStartedAt)
-                            Telemetry.send(.modelDownloadCompleted(durationSeconds: durationSeconds))
-                            do {
-                                try await self.prepareDiarizationModelsIfNeeded(generation: generation)
-                            } catch is CancellationError {
-                                self.warmUpObserverTask?.cancel()
-                                break
-                            } catch {
-                                guard self.engineGeneration == generation else { break }
-                                self.engineState = .failed(message: error.localizedDescription)
-                                self.isBusy = false
-                                self.warmUpObserverTask?.cancel()
-                                break
-                            }
-                            guard self.engineGeneration == generation else { break }
-                            self.engineState = .ready
-                            self.isBusy = false
-                            self.warmUpObserverTask?.cancel()
-                        case .failed(let message):
-                            Telemetry.send(.modelDownloadFailed(errorType: "BackgroundWarmUpError", errorDetail: message))
-                            self.engineState = .failed(message: message)
-                            self.isBusy = false
-                            self.warmUpObserverTask?.cancel()
-                        }
+            self.warmUpObserverId = observerId
+            defer { clearObservationIfCurrent(observerId) }
+
+            observationLoop: for await state in stream {
+                guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { break }
+                switch state {
+                case .idle:
+                    self.engineState = .working(message: "Preparing...", progress: nil)
+                case .working(let message, let progress):
+                    self.engineState = .working(message: message, progress: progress)
+                case .ready:
+                    let durationSeconds = Date().timeIntervalSince(warmUpStartedAt)
+                    Telemetry.send(.modelDownloadCompleted(durationSeconds: durationSeconds))
+                    do {
+                        try await self.prepareDiarizationModelsIfNeeded(generation: generation)
+                    } catch is CancellationError {
+                        break observationLoop
+                    } catch {
+                        guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { break observationLoop }
+                        self.engineState = .failed(message: error.localizedDescription)
+                        self.isBusy = false
+                        break observationLoop
                     }
+                    guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { break observationLoop }
+                    self.engineState = .ready
+                    self.isBusy = false
+                    break observationLoop
+                case .failed(let message):
+                    Telemetry.send(.modelDownloadFailed(errorType: "BackgroundWarmUpError", errorDetail: message))
+                    self.engineState = .failed(message: message)
+                    self.isBusy = false
+                    break observationLoop
                 }
             }
         }
@@ -301,9 +309,7 @@ public final class OnboardingViewModel {
 
 
     public func retryEngineWarmUp() {
-        warmUpObserverTask?.cancel()
-        warmUpObserverTask = nil
-        warmUpObserverId = nil
+        cancelWarmUpObservation()
         engineState = .idle
         startEngineWarmUp()
     }
@@ -311,6 +317,11 @@ public final class OnboardingViewModel {
     /// Stop observing warm-up progress (e.g., when the window closes).
     /// Does NOT cancel the shared background download.
     public func stopObservingWarmUp() {
+        cancelWarmUpObservation()
+    }
+
+    private func cancelWarmUpObservation() {
+        warmUpObservationToken = nil
         warmUpObserverTask?.cancel()
         warmUpObserverTask = nil
         if let id = warmUpObserverId {

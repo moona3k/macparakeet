@@ -59,7 +59,7 @@ public actor STTScheduler: STTManaging {
         meetingLiveChunkBacklogLimit: Int = 120
     ) {
         self.runtime = runtime as STTRuntimeProtocol
-        self.meetingLiveChunkBacklogLimit = meetingLiveChunkBacklogLimit
+        self.meetingLiveChunkBacklogLimit = max(1, meetingLiveChunkBacklogLimit)
     }
 
     init(
@@ -67,7 +67,7 @@ public actor STTScheduler: STTManaging {
         meetingLiveChunkBacklogLimit: Int = 120
     ) {
         self.runtime = runtimeProvider
-        self.meetingLiveChunkBacklogLimit = meetingLiveChunkBacklogLimit
+        self.meetingLiveChunkBacklogLimit = max(1, meetingLiveChunkBacklogLimit)
     }
 
     public func transcribe(

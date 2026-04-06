@@ -183,6 +183,33 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(finalStartedPaths, ["seed", "live-2"])
     }
 
+    func testMeetingLiveChunkBacklogLimitClampsToAtLeastOne() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.block(path: "seed")
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 0)
+
+        let seedTask = Task { try await scheduler.transcribe(audioPath: "seed", job: .meetingLiveChunk) }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        let droppedTask = Task { try await scheduler.transcribe(audioPath: "live-1", job: .meetingLiveChunk) }
+        let survivingTask = Task { try await scheduler.transcribe(audioPath: "live-2", job: .meetingLiveChunk) }
+
+        do {
+            _ = try await droppedTask.value
+            XCTFail("Expected dropped live chunk to fail")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .droppedDueToBackpressure(job: .meetingLiveChunk))
+        }
+
+        await runtime.release(path: "seed")
+
+        _ = try await seedTask.value
+        _ = try await survivingTask.value
+
+        let finalStartedPaths = await runtime.startedPaths()
+        XCTAssertEqual(finalStartedPaths, ["seed", "live-2"])
+    }
+
     func testAlreadyCancelledTaskNeverEnqueuesScheduledJob() async throws {
         let runtime = MockSTTRuntime()
         let scheduler = STTScheduler(runtimeProvider: runtime)
