@@ -102,7 +102,7 @@ final class MeetingRecordingPillController {
 
         if let screen = NSScreen.main {
             let frame = screen.visibleFrame
-            let x = frame.maxX - panelWidth - 12
+            let x = frame.maxX - panelWidth
             let y = frame.midY - panelHeight / 2
             panel.setFrameOrigin(NSPoint(x: x, y: y))
         }
