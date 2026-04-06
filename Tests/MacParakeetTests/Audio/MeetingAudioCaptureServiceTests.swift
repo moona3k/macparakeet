@@ -49,10 +49,49 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTAssertGreaterThan(buffer.rmsLevel, 0)
     }
 
-    private func makeInterleavedFloatStereoBuffer(samples: [Float]) -> AVAudioPCMBuffer? {
+    func testEventsStreamRetainsFiveSecondsOfBurstSystemAudioBuffers() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemTap = MockMeetingSystemAudioTap()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioTapFactory: { systemTap }
+        )
+
+        let events = await service.events
+        try await service.start()
+
+        // 500 callbacks * 480 frames @ 48kHz = 5 seconds of source audio.
+        // After 48kHz -> 16kHz resampling, that is exactly 80,000 samples,
+        // enough for the first live-transcription chunk if no events are dropped.
+        let burstBuffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(
+            sampleRate: 48_000,
+            samples: [Float](repeating: 0.25, count: 960)
+        ))
+
+        for _ in 0..<500 {
+            systemTap.emit(buffer: burstBuffer, time: AVAudioTime(hostTime: 1))
+        }
+
+        try await Task.sleep(for: .milliseconds(150))
+        await service.stop()
+
+        var systemBufferCount = 0
+        for await event in events {
+            if case .systemBuffer = event {
+                systemBufferCount += 1
+            }
+        }
+
+        XCTAssertEqual(systemBufferCount, 500)
+    }
+
+    private func makeInterleavedFloatStereoBuffer(
+        sampleRate: Double = 16_000,
+        samples: [Float]
+    ) -> AVAudioPCMBuffer? {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
-            sampleRate: 16_000,
+            sampleRate: sampleRate,
             channels: 2,
             interleaved: true
         ), let buffer = AVAudioPCMBuffer(
@@ -99,6 +138,10 @@ private final class MockMeetingSystemAudioTap: MeetingSystemAudioTapping, @unche
 
     func stop() {
         handler = nil
+    }
+
+    func emit(buffer: AVAudioPCMBuffer, time: AVAudioTime) {
+        handler?(buffer, time)
     }
 }
 

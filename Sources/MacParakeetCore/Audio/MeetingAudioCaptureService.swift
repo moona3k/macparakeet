@@ -34,6 +34,12 @@ extension SystemAudioTap: MeetingSystemAudioTapping {}
 public actor MeetingAudioCaptureService {
     public typealias EventHandler = @Sendable (MeetingAudioCaptureEvent) -> Void
 
+    // A 48kHz system tap can deliver ~500 callbacks over 5 seconds if Core Audio
+    // uses 480-frame buffers. The live transcription chunker needs that full span
+    // to accumulate its first 80k resampled samples, so the capture queue must be
+    // able to absorb at least one burst-sized chunk across both sources.
+    private static let captureEventBufferCapacity = 2048
+
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingAudioCaptureService")
     private let microphoneCapture: any MeetingMicrophoneCapturing
     private let systemAudioTapFactory: @Sendable () throws -> any MeetingSystemAudioTapping
@@ -69,7 +75,9 @@ public actor MeetingAudioCaptureService {
         }
 
         var continuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
-        let stream = AsyncStream<MeetingAudioCaptureEvent>(bufferingPolicy: .bufferingNewest(32)) {
+        let stream = AsyncStream<MeetingAudioCaptureEvent>(
+            bufferingPolicy: .bufferingNewest(Self.captureEventBufferCapacity)
+        ) {
             continuation = $0
         }
         eventContinuation = continuation
@@ -98,7 +106,11 @@ public actor MeetingAudioCaptureService {
             }
 
             try tap.start { [weak self] buffer, time in
-                guard let copy = Self.deepCopyBuffer(buffer) else { return }
+                guard let copy = Self.deepCopyBuffer(buffer) else {
+                    Logger(subsystem: "com.macparakeet.core", category: "MeetingAudioCaptureService")
+                        .warning("deepCopyBuffer nil for system tap: format=\(buffer.format.commonFormat.rawValue) rate=\(buffer.format.sampleRate) ch=\(buffer.format.channelCount) interleaved=\(buffer.format.isInterleaved) frames=\(buffer.frameLength)")
+                    return
+                }
                 Task { await self?.handle(.systemBuffer(copy, time)) }
             }
         } catch {
