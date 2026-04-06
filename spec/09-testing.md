@@ -110,6 +110,8 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 - Meeting finalization runs ahead of new batch file transcription
 - File transcription yields to interactive dictation without corrupting progress callbacks
 - Meeting live chunks are dropped when queue thresholds are exceeded
+- Already-cancelled jobs never enter the scheduler
+- Saved meeting retranscribes stay on the batch lane instead of occupying the meeting lane
 - App warm-up, shutdown, and cache-clearing hit one shared runtime only
 
 ### CLI Tests

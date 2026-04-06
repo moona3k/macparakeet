@@ -60,7 +60,7 @@ MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio]
 
 - Dictation and meeting recording can run at the same time.
 - Audio capture stays independent per flow.
-- All STT work routes through one shared runtime and scheduler so interactive dictation stays prioritized over background preview and batch transcription work.
+- All STT work routes through one shared runtime owner and explicit scheduler with dictation, meeting, and batch lanes, so active meeting work and dictation do not queue behind library/batch transcription.
 
 ### Performance
 

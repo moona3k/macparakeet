@@ -25,19 +25,20 @@ Per-flow STT ownership leads to duplicated runtime lifecycle, unclear shutdown/w
 
 ## Decision
 
-### 1. One process-wide STT runtime
+### 1. One process-wide STT runtime owner
 
-MacParakeet owns exactly one STT runtime for Parakeet inference in the app process.
+MacParakeet owns exactly one app-level STT runtime actor for Parakeet inference in the process.
 
 That runtime is the sole owner of:
 
-- `AsrManager`
+- lane-scoped `AsrManager` instances
 - model download / initialization / readiness
 - warm-up progress
 - shutdown / cleanup
 - model cache clearing
 
 No feature service (`DictationService`, `MeetingRecordingService`, `TranscriptionService`) owns its own STT runtime.
+The runtime may keep multiple internal managers so the scheduler can isolate dictation, meeting, and batch work without app-level head-of-line blocking, but that multiplicity stays hidden behind one shared runtime owner.
 
 ### 2. One explicit STT scheduler / broker
 
@@ -64,21 +65,34 @@ This ADR does **not** change the audio architecture from ADR-014 / ADR-015:
 
 Concurrency at the audio layer remains independent. This ADR only centralizes ownership of the STT layer.
 
-### 4. Priority policy is product-driven
+### 4. Scheduling policy is lane-driven
 
-The scheduler uses the following priority order:
+The scheduler partitions work into three explicit lanes:
 
-1. **Dictation** — highest priority
-2. **Meeting finalization** — high priority after recording stops
-3. **Meeting live chunks** — medium priority, best-effort
-4. **File / YouTube transcription** — lowest priority
+1. **Dictation lane** — serial, interactive, reserved for `dictation`
+2. **Meeting lane** — serial, reserved for `meetingFinalize` and `meetingLiveChunk`
+3. **Batch lane** — serial, reserved for `fileTranscription`
+
+Within the meeting lane:
+
+1. **Meeting finalization** beats queued live preview work
+2. **Meeting live chunks** remain best-effort
+
+Batch work includes:
+
+- file transcription
+- YouTube transcription
+- retranscription of already-saved meetings from the library
+
+Only the immediate post-stop meeting path uses `meetingFinalize`.
+Archived meeting retranscribes stay on the batch lane even when their telemetry/source metadata remains `.meeting`.
 
 Rationale:
 
 - Dictation is interactive and latency-sensitive
-- Stopped meeting recordings should complete promptly
-- Live meeting preview should degrade before dictation does
-- Batch file work should yield to interactive work
+- Stopped meeting recordings should complete promptly once they enter the meeting lane
+- Live meeting preview should degrade before stop/finalize work
+- Saved-library retranscribes should never occupy the meeting lane used by active meetings
 
 ### 5. Backpressure is explicit
 
@@ -87,7 +101,6 @@ Meeting live chunk transcription is best-effort and droppable under backlog.
 If the scheduler exceeds configured queue or latency thresholds, it may:
 
 - drop pending live meeting chunks
-- coalesce stale live chunk jobs
 - continue preserving the final mixed meeting artifact for post-stop transcription
 
 This keeps the app responsive while preserving correctness of the final saved meeting.
@@ -98,9 +111,9 @@ To support meaningful prioritization, long-running work must be divided into bou
 
 - Meeting live preview already uses chunked work units
 - Dictation is naturally short
-- File / YouTube transcription should evolve toward chunked or segmented STT work if we want true coexistence with interactive dictation
+- File / YouTube transcription should evolve toward chunked or segmented STT work if we want finer-grained fairness within the batch lane
 
-Until batch transcription is segmented, the scheduler may only reorder jobs **between** transcriptions, not preempt a currently running long decode.
+Until batch transcription is segmented, each lane remains single-slot and non-preemptive: the scheduler may reorder queued work before admission to a lane, but it does not preempt a currently running decode within that lane.
 
 ### 7. Progress must be job-scoped
 
@@ -121,6 +134,7 @@ This avoids crosstalk between:
 - Warm-up and shutdown become deterministic
 - Dictation latency is protected explicitly instead of by luck
 - Meeting live preview degrades gracefully under pressure
+- Saved meeting retranscribes cannot block active meeting finalization
 - The architecture naturally extends to future concurrency cases, including file transcription during meetings
 
 ### Negative
@@ -133,14 +147,14 @@ This avoids crosstalk between:
 
 ### Core types
 
-- `STTRuntime` — owns `AsrManager` and model lifecycle
-- `STTScheduler` — owns queueing, priority, progress fan-out, and job execution against the runtime
+- `STTRuntime` — owns lane-scoped `AsrManager` instances plus model lifecycle
+- `STTScheduler` — owns lane admission, in-lane priority, progress fan-out, and job execution against the runtime
 
 ### Service boundaries
 
 - `DictationService` submits interactive dictation jobs
-- `MeetingRecordingService` submits live chunk and meeting-finalization jobs
-- `TranscriptionService` submits batch file / YouTube jobs
+- `MeetingRecordingService` submits live chunk and immediate post-stop meeting-finalization jobs
+- `TranscriptionService` submits batch file / YouTube jobs plus saved-item retranscribes
 
 ### Migration path
 

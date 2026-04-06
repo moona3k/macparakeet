@@ -17,7 +17,11 @@ protocol STTRuntimeProtocol: Sendable {
     func clearModelCache() async
 }
 
-/// Sole owner of the shared Parakeet runtime lifecycle.
+/// Sole owner of the shared Parakeet STT lifecycle.
+///
+/// The runtime stays process-wide and singular at the app boundary, but it keeps
+/// one `AsrManager` per scheduler lane so dictation, meeting, and batch work do
+/// not head-of-line block each other inside app-level scheduling.
 public actor STTRuntime: STTRuntimeProtocol {
     private var dictationManager: AsrManager?
     private var meetingManager: AsrManager?

@@ -89,7 +89,7 @@
 
 ### Concurrency Model (ADR-015 + ADR-016)
 
-Dictation and meeting recording run concurrently as independent audio pipelines, but all STT work routes through one scheduler and one runtime:
+Dictation and meeting recording run concurrently as independent audio pipelines, but all STT work routes through one scheduler and one shared runtime owner:
 
 ```
 ┌─ Dictation Pipeline ──────────────────────┐
@@ -113,13 +113,13 @@ Dictation and meeting recording run concurrently as independent audio pipelines,
       STT Scheduler / Broker (priority + backpressure)
                 │
                 ▼
-     STT Runtime (single AsrManager on CoreML / ANE)
+     STT Runtime (lane-scoped AsrManagers on CoreML / ANE)
 ```
 
 - **No shared audio engine** — dictation and meeting capture remain independent. macOS HAL multiplexes mic access.
 - **No mutual exclusion** — dictation and meeting recording can both be active.
 - **Centralized STT ownership** — one runtime owns model lifecycle, warm-up, and shutdown.
-- **Explicit scheduling** — dictation > meeting finalize > meeting live chunks > file transcription.
+- **Explicit scheduling** — dedicated dictation / meeting / batch lanes; within the meeting lane, finalize beats live preview.
 - **Menu bar icon priority** — meeting > dictation > file-transcription > idle.
 
 ---
@@ -262,7 +262,7 @@ DictationResult returned
 
 #### 2.2 TranscriptionService
 
-**Responsibility:** Orchestrates file and URL transcription: download/convert audio, run STT, apply optional deterministic cleanup, persist results, and emit UI progress phases.
+**Responsibility:** Orchestrates file and URL transcription: download/convert audio, run STT, apply optional deterministic cleanup, persist results, emit UI progress phases, and retranscribe saved library items.
 
 **Key Types/Protocols:**
 ```swift
@@ -290,6 +290,18 @@ TranscriptionRepository.save() → persisted to database
     │
     ▼
 Transcription returned to UI
+
+Saved meeting retranscription from the library:
+Saved meeting audio file
+    │
+    ▼
+AudioProcessor.convert(fileURL:) → 16kHz mono WAV in temp dir
+    │
+    ▼
+STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → batch lane work
+    │
+    ▼
+Updated Transcription persisted with sourceType still = .meeting
 
 YouTube URL transcription:
 YouTube URL
@@ -360,7 +372,7 @@ protocol AudioProcessorProtocol: Sendable {
 
 #### 2.5 STT Runtime + Scheduler
 
-**Responsibility:** The shared STT stack owns one process-wide Parakeet runtime plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle. `STTScheduler` owns job admission, priority, backpressure, cancellation, and request-scoped progress. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
+**Responsibility:** The shared STT stack owns one process-wide Parakeet runtime actor plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle and the lane-scoped `AsrManager` set used by dictation, meeting, and batch work. `STTScheduler` owns lane admission, in-lane priority, backpressure, cancellation, and request-scoped progress. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
 
 **Key Types/Protocols:**
 ```swift
@@ -441,9 +453,9 @@ STTScheduler
     │
     ▼
 STTRuntime
-    │
-    ▼
-AsrManager (single process-wide owner)
+    ├── dictation lane → AsrManager
+    ├── meeting lane   → AsrManager
+    └── batch lane     → AsrManager
 ```
 
 **Model Lifecycle:**
@@ -455,14 +467,14 @@ STTRuntime.warmUp() called (lazy, on first use or from onboarding)
     │
     ├── Check: Are CoreML models downloaded?
     │     │
-    │     ├── Yes → AsrManager.initialize(models:) → Runtime ready (~162ms warm load)
+    │     ├── Yes → initialize lane managers → Runtime ready (~162ms warm load)
     │     │
     │     └── No ──► AsrModels.downloadAndLoad() (~6 GB download)
     │                  CoreML compilation (~3.4s first time)
-    │                  AsrManager.initialize(models:)
+    │                  initialize lane managers
     │
     ▼
-AsrManager ready — scheduler admits transcription jobs
+Lane managers ready — scheduler admits transcription jobs
 ```
 
 #### 2.6 ExportService

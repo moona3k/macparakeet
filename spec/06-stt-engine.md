@@ -169,8 +169,9 @@ struct TimestampedWord: Sendable {
 
 As implemented in ADR-016, MacParakeet's STT architecture is:
 
-- **One process-wide STT runtime** owning `AsrManager`
-- **One STT scheduler / broker** owning admission control, priorities, backpressure, cancellation, and job-scoped progress
+- **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown
+- **Lane-scoped `AsrManager` instances inside that runtime** for dictation, meeting, and batch work
+- **One STT scheduler / broker** owning lane admission, in-lane priorities, backpressure, cancellation, and job-scoped progress
 - **Many producers** (`DictationService`, `MeetingRecordingService`, `TranscriptionService`) submitting jobs into the scheduler
 
 The app does not treat "one service = one STT runtime" as a valid long-term architecture.
@@ -178,28 +179,35 @@ The app does not treat "one service = one STT runtime" as a valid long-term arch
 ### Lifecycle
 
 - **Lazy init**: The shared runtime is not loaded at app launch; loaded on first STT request or warm-up
-- **Keep loaded**: Once initialized, the shared `AsrManager` stays ready for subsequent requests
+- **Keep loaded**: Once initialized, the runtime keeps its lane managers ready for subsequent requests
 - **Warm-up during onboarding**: Download models (~6 GB) + CoreML compilation (~3.4s first time)
 - **Graceful shutdown**: The shared runtime is released when the app quits
 - **Single owner**: Warm-up, readiness, shutdown, and cache clear happen once at the runtime layer
+- **Cancellation-safe init**: Shutdown/cache clear cancel in-flight initialization and wait for loaded managers to clean themselves up before returning
 
 ### Scheduling Policy
 
 The scheduler exists because STT is a scarce interactive resource even when audio capture is concurrent.
 
-Priority order:
+Current implementation:
 
-1. `dictation`
-2. `meetingFinalize`
-3. `meetingLiveChunk`
-4. `fileTranscription`
+1. **Dictation lane**: serial lane dedicated to `dictation`
+2. **Meeting lane**: serial lane dedicated to `meetingFinalize` and `meetingLiveChunk`
+3. **Batch lane**: serial lane dedicated to `fileTranscription`
+
+Within the meeting lane:
+
+1. `meetingFinalize`
+2. `meetingLiveChunk`
 
 Backpressure rules:
 
 - Meeting live chunks are best-effort and may be dropped under backlog
-- Dictation must remain responsive even while meetings or batch transcriptions exist
-- Long-running batch work should be segmented into bounded work units where practical
+- Immediate post-stop meeting finalization uses `meetingFinalize`; archived meeting retranscribes stay on the batch lane as `fileTranscription`
+- Dictation and active meeting work must not be queued behind batch/library retranscription work
+- Long-running batch work should be segmented into bounded work units where practical; until then, the batch lane remains non-preemptive within a single transcription
 - Progress reporting must be fanned out per job, not broadcast globally from the raw runtime stream
+- Cancellation is checked before scheduler admission so fast user cancels do not race into successful transcriptions
 
 ### Data Flow
 
@@ -219,6 +227,12 @@ YouTube (v0.4+):
 
 Meeting live preview (v0.6):
   MicrophoneCapture/SystemAudioTap → AudioChunker → STTScheduler.submit(meetingLiveChunk) → STTRuntime.transcribe() → live transcript update
+
+Meeting stop / finalization:
+  Final mixed meeting artifact → STTScheduler.submit(meetingFinalize) → STTRuntime.transcribe() → final saved meeting transcript
+
+Saved meeting retranscription from the library:
+  Existing meeting audio file → AudioConverter.resampleAudioFile() → STTScheduler.submit(fileTranscription) → STTRuntime.transcribe() → updated meeting transcript
 ```
 
 ---
@@ -318,10 +332,10 @@ Recommended: 8 GB RAM (Apple Silicon)
 
 ### Optimization Notes
 
-- The shared `AsrManager` stays initialized after first use — subsequent calls skip model loading
+- The shared runtime keeps its lane managers initialized after first use — subsequent calls skip model loading
 - Apple Silicon's unified memory means no CPU↔ANE transfer overhead
 - For dictation, latency is the primary concern — sub-100ms after warm-up
-- For file transcription, throughput matters more — scheduler policy keeps interactive work responsive
+- For file transcription, throughput matters more — the batch lane is isolated from dictation and meeting-lane admission, even though a long batch decode is still non-preemptive within that lane
 - ANE and GPU run simultaneously — STT never competes with LLM for processing cycles
 
 ---

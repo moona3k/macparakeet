@@ -105,6 +105,9 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         recording: MeetingRecordingOutput,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
+        // Reserve `.meetingFinalize` for the immediate post-stop meeting path.
+        // Saved meeting retranscribes still go through the batch/file lane even
+        // though their telemetry source remains `.meeting`.
         return try await transcribe(
             fileURL: recording.mixedAudioURL,
             storedFileURL: recording.mixedAudioURL,

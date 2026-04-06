@@ -38,14 +38,14 @@ A shared engine would mean dictation start/stop could glitch a long-running meet
 
 ### 2. Shared STT runtime with explicit scheduling
 
-Both flows submit STT work to a process-wide STT scheduler that owns a single Parakeet runtime. CoreML still serializes ANE inference internally, but the app does not rely on implicit contention as its scheduling policy.
+Both flows submit STT work to a process-wide STT scheduler backed by one shared `STTRuntime` owner. The runtime may keep separate lane-scoped managers for dictation, meeting, and batch work, but feature services do not own their own runtimes and the app does not rely on implicit CoreML contention as its scheduling policy.
 
 The scheduler defines:
 
-- dictation as the highest-priority interactive workload
-- meeting finalization above live preview work
+- a dedicated dictation lane for the highest-priority interactive workload
+- a dedicated meeting lane where meeting finalization beats live preview work
 - meeting live chunks as best-effort under backlog
-- file / YouTube transcription as lowest-priority batch work
+- a dedicated batch lane for file / YouTube transcription and saved-meeting retranscribes
 
 See ADR-016 for the full runtime and scheduler design.
 

@@ -6,11 +6,11 @@
 
 ## Overview
 
-Refactor MacParakeet's STT architecture from per-flow client ownership to one process-wide STT runtime with one explicit scheduler/broker in front of it.
+Refactor MacParakeet's STT architecture from per-flow client ownership to one process-wide STT runtime owner with one explicit scheduler/broker in front of it.
 
 This plan assumes the docs-first architecture update has already landed in spec/ADR form. The code should be brought into alignment with the new decision:
 
-- one STT runtime owns `AsrManager`
+- one STT runtime actor owns the lane-scoped `AsrManager` set
 - one scheduler owns admission, priority, backpressure, cancellation, and job-scoped progress
 - dictation, meeting recording, and file/YouTube transcription become producers submitting jobs into the scheduler
 - audio capture remains independent per flow
@@ -19,11 +19,12 @@ This plan assumes the docs-first architecture update has already landed in spec/
 
 The implementation landed with the intended end-state architecture:
 
-- `STTRuntime` is the sole app-owned owner of `AsrManager` lifecycle
+- `STTRuntime` is the sole app-owned owner of model lifecycle and lane-scoped `AsrManager` instances
 - `STTScheduler` is the sole app-owned owner of STT job admission, priority ordering, and backpressure
 - `AppEnvironment` wires one shared runtime/scheduler path for dictation, meeting recording, and file/YouTube transcription
 - onboarding warm-up, readiness checks, cache clearing, and shutdown all route through that shared path
 - meeting live chunks are dropped under backlog by scheduler policy rather than by service-local guards
+- only the immediate post-stop meeting path uses `meetingFinalize`; archived meeting retranscribes stay on the batch lane
 - `STTClient` remains only as a compatibility facade around the shared stack for standalone callers/tests
 
 ## Goals
@@ -54,7 +55,7 @@ The implementation landed with the intended end-state architecture:
 ### Core Types
 
 1. `STTRuntime`
-   - Sole owner of `AsrManager`
+   - Sole owner of model lifecycle and the lane-scoped `AsrManager` set
    - Handles warm-up, initialization, readiness, shutdown, cache clearing
    - Exposes a minimal runtime API to execute one transcription request
 
@@ -77,17 +78,16 @@ The implementation landed with the intended end-state architecture:
 3. `TranscriptionService`
    - submits `fileTranscription` jobs
 
-### Priority Policy
+### Lane Policy
 
-1. `dictation`
-2. `meetingFinalize`
-3. `meetingLiveChunk`
-4. `fileTranscription`
+1. Dictation lane: `dictation`
+2. Meeting lane: `meetingFinalize` ahead of `meetingLiveChunk`
+3. Batch lane: `fileTranscription`
 
 ### Backpressure Policy
 
 1. Meeting live chunk jobs are droppable under backlog.
-2. Dictation must never wait behind queued low-priority work.
+2. Dictation and active meeting work must never wait behind queued batch/library retranscription work.
 3. Batch file work may wait, pause between work units, or remain non-preemptive in phase 1.
 
 ## Execution Phases
@@ -132,7 +132,7 @@ Exit criteria:
 1. `DictationService` submits dictation jobs to the scheduler.
 2. `MeetingRecordingService` submits live chunk jobs to the scheduler.
 3. `MeetingRecordingService` finalization path submits a higher-priority meeting-finalize job.
-4. `TranscriptionService` submits file/YouTube jobs to the scheduler.
+4. `TranscriptionService` submits file/YouTube jobs plus saved-item retranscribes to the batch lane.
 
 Exit criteria:
 - no feature service owns its own STT runtime/client.
@@ -219,7 +219,8 @@ Tests:
 
 1. Keep `STTClientProtocol` as the producer-facing compatibility boundary for this pass, backed by the shared scheduler/runtime path.
 2. Move meeting live chunk dropping fully into `STTScheduler` so backpressure policy has one owner.
-3. Defer segmented file/YouTube transcription to follow-up work; ADR-016 ships centralized ownership and priority ordering first.
+3. Keep `meetingFinalize` reserved for the immediate post-stop path; saved meeting retranscribes remain batch work.
+4. Defer segmented file/YouTube transcription to follow-up work; ADR-016 ships centralized ownership and lane policy first.
 
 ## Recommended Delivery Shape
 
