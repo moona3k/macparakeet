@@ -24,6 +24,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     private var batchManager: AsrManager?
     private var models: AsrModels?
     private var initializationTask: Task<Void, Error>?
+    private var initializationGeneration: UInt64 = 0
     private var warmUpProgressHandler: (@Sendable (String) -> Void)?
     private let modelVersion: AsrModelVersion
 
@@ -167,21 +168,22 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     public func shutdown() async {
         invalidateBackgroundWarmUp()
-        initializationTask?.cancel()
-        initializationTask = nil
-        if let dictationManager {
-            await dictationManager.cleanup()
-        }
-        if let meetingManager {
-            await meetingManager.cleanup()
-        }
-        if let batchManager {
-            await batchManager.cleanup()
-        }
-        dictationManager = nil
-        meetingManager = nil
-        batchManager = nil
-        models = nil
+        let inFlightInitialization = cancelInitialization()
+        inFlightInitialization?.cancel()
+        _ = try? await inFlightInitialization?.value
+
+        let dictationManager = self.dictationManager
+        let meetingManager = self.meetingManager
+        let batchManager = self.batchManager
+        self.dictationManager = nil
+        self.meetingManager = nil
+        self.batchManager = nil
+        self.models = nil
+        await Self.cleanupManagers(
+            dictationManager: dictationManager,
+            meetingManager: meetingManager,
+            batchManager: batchManager
+        )
         warmUpProgressHandler = nil
         setBackgroundWarmUpState(.idle)
     }
@@ -232,10 +234,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     private func ensureInitialized() async throws {
-        if let dictationManager, let meetingManager, let batchManager,
-           await dictationManager.isAvailable,
-           await meetingManager.isAvailable,
-           await batchManager.isAvailable {
+        if dictationManager != nil, meetingManager != nil, batchManager != nil {
             return
         }
 
@@ -244,11 +243,15 @@ public actor STTRuntime: STTRuntimeProtocol {
             return
         }
 
+        let generation = nextInitializationGeneration()
         let version = modelVersion
         let warmUpProgressHandler = self.warmUpProgressHandler
         let task = Task {
             let lastProgressUpdate = OSAllocatedUnfairLock(initialState: Date.distantPast)
             let lastProgressMessage = OSAllocatedUnfairLock(initialState: "")
+            var dictationManager: AsrManager?
+            var meetingManager: AsrManager?
+            var batchManager: AsrManager?
             let progressHandler: DownloadUtils.ProgressHandler?
             if let warmUpProgressHandler {
                 let progressCallback: @Sendable (String) -> Void = warmUpProgressHandler
@@ -281,45 +284,95 @@ public actor STTRuntime: STTRuntimeProtocol {
                 version: version,
                 progressHandler: progressHandler
             )
-            let dictationManager = AsrManager(config: .default)
-            let meetingManager = AsrManager(config: .default)
-            let batchManager = AsrManager(config: .default)
-            try await dictationManager.loadModels(downloadedModels)
-            try await meetingManager.loadModels(downloadedModels)
-            try await batchManager.loadModels(downloadedModels)
-            await self.completeInitialization(
-                models: downloadedModels,
-                dictationManager: dictationManager,
-                meetingManager: meetingManager,
-                batchManager: batchManager
-            )
+            do {
+                let loadedDictationManager = AsrManager(config: .default)
+                let loadedMeetingManager = AsrManager(config: .default)
+                let loadedBatchManager = AsrManager(config: .default)
+                dictationManager = loadedDictationManager
+                meetingManager = loadedMeetingManager
+                batchManager = loadedBatchManager
+                try await loadedDictationManager.loadModels(downloadedModels)
+                try await loadedMeetingManager.loadModels(downloadedModels)
+                try await loadedBatchManager.loadModels(downloadedModels)
+                try Task.checkCancellation()
+                try await self.completeInitialization(
+                    generation: generation,
+                    models: downloadedModels,
+                    dictationManager: loadedDictationManager,
+                    meetingManager: loadedMeetingManager,
+                    batchManager: loadedBatchManager
+                )
+                dictationManager = nil
+                meetingManager = nil
+                batchManager = nil
+            } catch {
+                await Self.cleanupManagers(
+                    dictationManager: dictationManager,
+                    meetingManager: meetingManager,
+                    batchManager: batchManager
+                )
+                throw error
+            }
         }
 
         initializationTask = task
 
         do {
             try await task.value
+            if initializationGeneration == generation {
+                initializationTask = nil
+            }
         } catch {
-            initializationTask = nil
+            if initializationGeneration == generation {
+                initializationTask = nil
+            }
             throw error
         }
     }
 
     private func completeInitialization(
+        generation: UInt64,
         models: AsrModels,
         dictationManager: AsrManager,
         meetingManager: AsrManager,
         batchManager: AsrManager
-    ) async {
-        guard !Task.isCancelled else {
-            initializationTask = nil
-            return
+    ) async throws {
+        guard initializationGeneration == generation else {
+            throw CancellationError()
         }
+        try Task.checkCancellation()
         self.models = models
         self.dictationManager = dictationManager
         self.meetingManager = meetingManager
         self.batchManager = batchManager
-        self.initializationTask = nil
+    }
+
+    private func nextInitializationGeneration() -> UInt64 {
+        initializationGeneration &+= 1
+        return initializationGeneration
+    }
+
+    private func cancelInitialization() -> Task<Void, Error>? {
+        initializationGeneration &+= 1
+        let task = initializationTask
+        initializationTask = nil
+        return task
+    }
+
+    private nonisolated static func cleanupManagers(
+        dictationManager: AsrManager?,
+        meetingManager: AsrManager?,
+        batchManager: AsrManager?
+    ) async {
+        if let dictationManager {
+            await dictationManager.cleanup()
+        }
+        if let meetingManager {
+            await meetingManager.cleanup()
+        }
+        if let batchManager {
+            await batchManager.cleanup()
+        }
     }
 
     private func manager(for lane: STTRuntimeLane) -> AsrManager? {
