@@ -60,10 +60,20 @@ struct HotkeyRecorderView: View {
             .buttonStyle(.bordered)
 
             Menu {
-                Button("Reset to Default (\(defaultTrigger.shortSymbol) \(defaultTrigger.displayName))") {
-                    trigger = defaultTrigger
-                    validationMessage = nil
-                    validationIsBlocked = false
+                Button("Reset to Default (\(defaultTrigger.shortSymbol))") {
+                    switch combinedValidation(for: defaultTrigger) {
+                    case .blocked(let msg):
+                        validationMessage = msg
+                        validationIsBlocked = true
+                    case .warned(let msg):
+                        trigger = defaultTrigger
+                        validationMessage = msg
+                        validationIsBlocked = false
+                    case .allowed:
+                        trigger = defaultTrigger
+                        validationMessage = nil
+                        validationIsBlocked = false
+                    }
                 }
                 .disabled(trigger == defaultTrigger)
 
