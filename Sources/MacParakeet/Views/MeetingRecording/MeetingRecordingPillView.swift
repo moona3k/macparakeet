@@ -63,7 +63,7 @@ struct MeetingRecordingPillView: View {
         VStack(spacing: 0) {
             pillContent
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
     }
 
     @ViewBuilder
