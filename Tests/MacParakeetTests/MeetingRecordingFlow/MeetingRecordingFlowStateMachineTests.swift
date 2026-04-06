@@ -129,6 +129,42 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(effects, [.hidePill])
     }
 
+    func testCancelFromRecordingDiscards() {
+        var machine = MeetingRecordingFlowStateMachine()
+        _ = machine.handle(.startRequested)
+        _ = machine.handle(.permissionsGranted(generation: 1))
+        _ = machine.handle(.recordingStarted(generation: 1))
+
+        let effects = machine.handle(.cancelRequested)
+
+        XCTAssertEqual(machine.state, .idle)
+        XCTAssertEqual(effects, [.cancelRecording, .hidePill, .updateMenuBar(.idle)])
+    }
+
+    func testCancelFromStartingDiscards() {
+        var machine = MeetingRecordingFlowStateMachine()
+        _ = machine.handle(.startRequested)
+        _ = machine.handle(.permissionsGranted(generation: 1))
+
+        let effects = machine.handle(.cancelRequested)
+
+        XCTAssertEqual(machine.state, .idle)
+        XCTAssertEqual(effects, [.cancelRecording, .hidePill, .updateMenuBar(.idle)])
+    }
+
+    func testCancelFromTranscribingIsIgnored() {
+        var machine = MeetingRecordingFlowStateMachine()
+        _ = machine.handle(.startRequested)
+        _ = machine.handle(.permissionsGranted(generation: 1))
+        _ = machine.handle(.recordingStarted(generation: 1))
+        _ = machine.handle(.stopRequested)
+
+        let effects = machine.handle(.cancelRequested)
+
+        XCTAssertEqual(machine.state, .transcribing)
+        XCTAssertTrue(effects.isEmpty)
+    }
+
     func testStaleGenerationIsIgnored() {
         var machine = MeetingRecordingFlowStateMachine()
         _ = machine.handle(.startRequested)

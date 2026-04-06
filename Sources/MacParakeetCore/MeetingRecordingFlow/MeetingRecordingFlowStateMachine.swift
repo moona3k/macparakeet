@@ -27,6 +27,7 @@ public enum MeetingRecordingFlowEvent: Equatable, Sendable {
     case recordingStarted(generation: Int)
     case startFailed(generation: Int, message: String)
     case stopRequested
+    case cancelRequested
     case transcriptionCompleted(generation: Int, transcriptionID: UUID)
     case transcriptionFailed(generation: Int, message: String)
     case dismissRequested
@@ -41,6 +42,7 @@ public enum MeetingRecordingFlowEffect: Equatable, Sendable {
     case stopRecordingAndTranscribe
     case showCompleted
     case showError(String)
+    case cancelRecording
     case hidePill
     case updateMenuBar(DictationFlowMenuBarState)
     case navigateToTranscription(UUID)
@@ -95,6 +97,14 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
             guard gen == generation else { return [] }
             state = .finishing(outcome: .error(message))
             return [.showError(message), .updateMenuBar(.idle), .startAutoDismissTimer(seconds: 5)]
+
+        case (.recording, .cancelRequested):
+            state = .idle
+            return [.cancelRecording, .hidePill, .updateMenuBar(.idle)]
+
+        case (.starting, .cancelRequested):
+            state = .idle
+            return [.cancelRecording, .hidePill, .updateMenuBar(.idle)]
 
         case (.recording, .stopRequested):
             state = .transcribing
