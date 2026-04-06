@@ -91,6 +91,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-013 | Prompt Library + multi-summary architecture | `spec/adr/013-prompt-library-multi-summary.md` |
 | ADR-014 | Meeting recording via Core Audio Taps | `spec/adr/014-meeting-recording.md` |
 | ADR-015 | Concurrent dictation and meeting recording | `spec/adr/015-concurrent-dictation-meeting.md` |
+| ADR-016 | Centralized STT runtime and scheduler | `spec/adr/016-centralized-stt-runtime-scheduler.md` |
 
 > Historical ADRs (still in `spec/adr/`, kept for context): ADR-003 (one-time purchase pricing), ADR-006 (trial + license activation), ADR-008 (local LLM runtime). The app is now free/GPL-3.0.
 
@@ -103,7 +104,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - **v0.3** YouTube & Export -- YouTube URL transcription, DOCX/PDF/JSON export, drag-and-drop enhancements
 - **v0.4** Polish + Launch -- Diarization, custom hotkeys, Sparkle updates, LLM providers, voice stats, distribution
 - **v0.5** Data, UI & Prompts -- Private dictation, multi-conversation chat, favorites, video player, split-pane detail, library grid, prompt library, multi-summary, open-source release
-- **v0.6** Meeting Recording (in progress) -- System audio + mic capture via Core Audio Taps, concurrent with dictation (ADR-015), sacred-geometry recording pill + meeting panel, library integration, prompt/summary/chat support (ADR-014)
+- **v0.6** Meeting Recording (in progress) -- System audio + mic capture via Core Audio Taps, concurrent with dictation (ADR-015), centralized STT runtime + scheduler (ADR-016), sacred-geometry recording pill + meeting panel, library integration, prompt/summary/chat support (ADR-014)
 
 ## Key Patterns
 
@@ -115,7 +116,7 @@ MacParakeet has three primary modes that are equal in importance:
 2. **File transcription** -- Drag-drop audio/video files for full transcription (MacWhisper-style)
 3. **Meeting recording** -- Capture system audio + mic simultaneously, transcribe locally (simple Granola-style)
 
-All three modes share the same Parakeet STT backend but have different UI flows, audio sources, and data models. **Dictation and meeting recording run concurrently** (ADR-015) -- a user can dictate freely during a meeting recording. Each flow owns its own AVAudioEngine; macOS HAL handles mic multiplexing.
+All three modes share the same Parakeet STT backend but have different UI flows, audio sources, and data models. **Dictation and meeting recording run concurrently** (ADR-015) -- a user can dictate freely during a meeting recording. Each flow owns its own AVAudioEngine; macOS HAL handles mic multiplexing. All STT work routes through one process-wide runtime and scheduler (ADR-016), with dictation prioritized over meeting live preview and batch file work.
 
 ### STT Integration (Parakeet via FluidAudio)
 
@@ -125,6 +126,8 @@ All three modes share the same Parakeet STT backend but have different UI flows,
 - ~2.5% Word Error Rate
 - ~66 MB working memory during inference (vs ~2 GB+ on GPU/MLX)
 - ~6 GB CoreML model bundle downloaded during onboarding
+- One process-wide STT runtime owns `AsrManager`
+- One scheduler owns priorities, backpressure, and job-scoped progress
 
 **Swift API:**
 ```swift

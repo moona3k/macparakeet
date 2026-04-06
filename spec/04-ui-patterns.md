@@ -415,7 +415,7 @@ During concurrent dictation + meeting recording:
 - Meeting panel stays open and continues showing live preview
 - Dictation overlay appears/disappears independently
 - Both pills are visible simultaneously
-- Menu bar icon follows priority: meeting > dictation > idle
+- Menu bar icon follows priority: meeting > dictation > file transcription > idle
 
 ---
 

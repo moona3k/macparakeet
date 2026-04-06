@@ -127,4 +127,4 @@ Dictation has complex paste/cancel/undo behavior that meeting recording doesn't 
 1. **Phase 1 (MVP):** Start/stop recording, batch transcription, results in library. Sidebar + menu bar entry points. **Implemented.**
 2. **Phase 2 (Enhancement):** Real-time transcription via AudioChunker, free diarization from dual streams, dual audio level meters in pill, live transcript preview. **Implemented.**
 3. **Phase 3 (Polish):** Dedicated meeting hotkey, auto-save wiring, meeting title prefix + rename flow, hotkey conflict prevention, settings section. **Implemented.**
-4. **Phase 4 (Concurrency):** Concurrent dictation during meeting recording (ADR-015). Menu bar icon priority aggregator. **Accepted, not yet implemented.**
+4. **Phase 4 (Concurrency):** Concurrent dictation during meeting recording (ADR-015). Menu bar icon priority aggregator. **Implemented.** STT runtime ownership and scheduling policy are defined separately in ADR-016.

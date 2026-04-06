@@ -137,28 +137,60 @@ struct TimestampedWord: Sendable {
 }
 ```
 
+### Runtime and Scheduling
+
+As of ADR-016, MacParakeet's intended STT architecture is:
+
+- **One process-wide STT runtime** owning `AsrManager`
+- **One STT scheduler / broker** owning admission control, priorities, backpressure, cancellation, and job-scoped progress
+- **Many producers** (`DictationService`, `MeetingRecordingService`, `TranscriptionService`) submitting jobs into the scheduler
+
+The app does not treat "one service = one STT runtime" as a valid long-term architecture.
+
 ### Lifecycle
 
-- **Lazy init**: FluidAudio models are not loaded at app launch; loaded on first transcription request
-- **Keep loaded**: Once initialized, `AsrManager` stays ready for subsequent requests
+- **Lazy init**: The shared runtime is not loaded at app launch; loaded on first STT request or warm-up
+- **Keep loaded**: Once initialized, the shared `AsrManager` stays ready for subsequent requests
 - **Warm-up during onboarding**: Download models (~6 GB) + CoreML compilation (~3.4s first time)
-- **Graceful shutdown**: `AsrManager` released when app quits
+- **Graceful shutdown**: The shared runtime is released when the app quits
+- **Single owner**: Warm-up, readiness, shutdown, and cache clear happen once at the runtime layer
+
+### Scheduling Policy
+
+The scheduler exists because STT is a scarce interactive resource even when audio capture is concurrent.
+
+Priority order:
+
+1. `dictation`
+2. `meetingFinalize`
+3. `meetingLiveChunk`
+4. `fileTranscription`
+
+Backpressure rules:
+
+- Meeting live chunks are best-effort and may be dropped or coalesced under backlog
+- Dictation must remain responsive even while meetings or batch transcriptions exist
+- Long-running batch work should be segmented into bounded work units where practical
+- Progress reporting must be fanned out per job, not broadcast globally from the raw runtime stream
 
 ### Data Flow
 
 ```
 Dictation:
-  AudioRecorder → AVAudioPCMBuffer → AudioConverter.resampleBuffer() → AsrManager.transcribe() → STTResult
+  AudioRecorder → AVAudioPCMBuffer → AudioConverter.resampleBuffer() → STTScheduler.submit(dictation) → STTRuntime.transcribe() → STTResult
 
 File transcription (v0.4+):
-  FFmpeg (video demux) → .wav → AudioConverter.resampleAudioFile() → AsrManager.transcribe() → STTResult
-                                                                    → OfflineDiarizerManager.process() → DiarizationResult
-                                                                    → Merge word timestamps + speaker segments
+  FFmpeg (video demux) → .wav → AudioConverter.resampleAudioFile() → STTScheduler.submit(fileTranscription) → STTRuntime.transcribe() → STTResult
+                                                                                                             → OfflineDiarizerManager.process() → DiarizationResult
+                                                                                                             → Merge word timestamps + speaker segments
 
 YouTube (v0.4+):
-  yt-dlp → .m4a → FFmpeg → AudioConverter.resampleAudioFile() → AsrManager.transcribe() → STTResult
-                                                               → OfflineDiarizerManager.process() → DiarizationResult
-                                                               → Merge word timestamps + speaker segments
+  yt-dlp → .m4a → FFmpeg → AudioConverter.resampleAudioFile() → STTScheduler.submit(fileTranscription) → STTRuntime.transcribe() → STTResult
+                                                                                                        → OfflineDiarizerManager.process() → DiarizationResult
+                                                                                                        → Merge word timestamps + speaker segments
+
+Meeting live preview (v0.6):
+  MicrophoneCapture/SystemAudioTap → AudioChunker → STTScheduler.submit(meetingLiveChunk) → STTRuntime.transcribe() → live transcript update
 ```
 
 ---
@@ -258,10 +290,10 @@ Recommended: 8 GB RAM (Apple Silicon)
 
 ### Optimization Notes
 
-- `AsrManager` stays initialized after first use — subsequent calls skip model loading
+- The shared `AsrManager` stays initialized after first use — subsequent calls skip model loading
 - Apple Silicon's unified memory means no CPU↔ANE transfer overhead
 - For dictation, latency is the primary concern — sub-100ms after warm-up
-- For file transcription, throughput matters more — progress reporting keeps the UI responsive
+- For file transcription, throughput matters more — scheduler policy keeps interactive work responsive
 - ANE and GPU run simultaneously — STT never competes with LLM for processing cycles
 
 ---

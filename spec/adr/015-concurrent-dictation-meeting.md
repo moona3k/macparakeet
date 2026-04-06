@@ -2,7 +2,8 @@
 
 > Status: ACCEPTED
 > Date: 2026-04-06
-> Related: ADR-014 (meeting recording), ADR-009 (custom hotkeys), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
+> Related: ADR-014 (meeting recording), ADR-009 (custom hotkeys), ADR-016 (centralized STT runtime and scheduler), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
+> Amended by: ADR-016 for STT runtime ownership, scheduling, and backpressure policy
 
 ## Context
 
@@ -35,17 +36,18 @@ macOS Core Audio's Hardware Abstraction Layer (HAL) natively multiplexes microph
 
 A shared engine would mean dictation start/stop could glitch a long-running meeting recording. Isolation is more valuable than the marginal resource savings of a single engine.
 
-### 2. Shared STT engine, serialized by CoreML
+### 2. Shared STT runtime with explicit scheduling
 
-Both flows use the same `AsrManager` (Parakeet via FluidAudio CoreML). CoreML serializes inference on the ANE internally. Contention analysis:
+Both flows submit STT work to a process-wide STT scheduler that owns a single Parakeet runtime. CoreML still serializes ANE inference internally, but the app does not rely on implicit contention as its scheduling policy.
 
-| Scenario | Dictation latency | Meeting chunk latency |
-|----------|------------------|-----------------------|
-| Dictation only | ~65ms (10s audio) | N/A |
-| Meeting only | N/A | ~200ms (30s chunk) |
-| Both concurrent | ~265ms worst case | ~265ms worst case |
+The scheduler defines:
 
-Worst case: a dictation request arrives while a meeting chunk is mid-transcription. The dictation waits ~200ms for the chunk to finish. This is imperceptible. No queuing, priority, or preemption needed.
+- dictation as the highest-priority interactive workload
+- meeting finalization above live preview work
+- meeting live chunks as best-effort under backlog
+- file / YouTube transcription as lowest-priority batch work
+
+See ADR-016 for the full runtime and scheduler design.
 
 ### 3. Priority-based menu bar icon
 
@@ -105,7 +107,7 @@ A lightweight function (not a new class) that replaces direct `updateMenuBarIcon
 ```swift
 private func resolveMenuBarIcon() -> BreathWaveIcon.MenuBarState {
     if meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true { return .recording }
-    if dictationFlowCoordinator?.isDictationActive == true { return .dictating }
+    if dictationFlowCoordinator?.isDictationActive == true { return .recording }
     if transcriptionViewModel.isTranscribing { return .processing }
     return .idle
 }
@@ -123,13 +125,12 @@ Idle pill hides when either flow is active, shows when both are idle.
 
 - Users can dictate freely during meetings — the primary use case
 - No architectural coupling between the two flows
-- No new abstractions or audio brokers needed
 - macOS handles mic multiplexing natively
-- STT contention is imperceptible (<265ms worst case)
+- STT ownership can remain centralized even while audio capture stays independent
 
 ### Negative
 
-- Slightly higher resource usage during concurrent operation (two AVAudioEngine instances, overlapping STT requests)
+- Slightly higher resource usage during concurrent operation (two AVAudioEngine instances)
 - Edge case: single-channel USB mic with limited format support could theoretically conflict between two engines (mitigated by macOS HAL resampling)
 - Menu bar icon can only show one state — user must infer meeting is still recording from the meeting pill when dictation is briefly active
 
@@ -138,6 +139,6 @@ Idle pill hides when either flow is active, shows when both are idle.
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | Mic format conflict | Very low | Medium | macOS HAL handles resampling; test with USB mics |
-| STT queue starvation | Very low | Low | Parakeet is 155x realtime; requests are sub-second |
+| STT queue starvation | Low | Medium | Explicit scheduler and backpressure policy in ADR-016 |
 | UI layer collision | Low | Low | NSPanel z-ordering is deterministic |
 | Meeting audio glitch during dictation start | Very low | High | Independent engines prevent cross-contamination |
