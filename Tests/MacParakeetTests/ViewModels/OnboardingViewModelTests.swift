@@ -109,6 +109,29 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertTrue(prepared)
     }
 
+    func testEngineWarmUpFailsWhenDiarizationPreparationFails() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let diarization = MockDiarizationService()
+        await diarization.configurePrepareModels(error: STTError.modelDownloadFailed)
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+        defaults.removePersistentDomain(forName: defaults.volatileDomainNames.first ?? "")
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            diarizationService: diarization,
+            defaults: defaults
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(150))
+
+        XCTAssertEqual(vm.engineState, .failed(message: STTError.modelDownloadFailed.localizedDescription))
+        XCTAssertFalse(vm.canContinueFromCurrentStep())
+    }
+
     func testMarkOnboardingCompletedPersistsToDefaults() {
         let perms = MockPermissionService()
         let stt = MockSTTClient()

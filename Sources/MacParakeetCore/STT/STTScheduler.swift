@@ -49,6 +49,7 @@ public actor STTScheduler: STTManaging {
     private var laneStates: [SchedulerLane: LaneState] = Dictionary(
         uniqueKeysWithValues: SchedulerLane.allCases.map { ($0, LaneState()) }
     )
+    private var cancelledJobIDs: Set<UUID> = []
     private var acceptsNewJobs = true
 
     /// - Parameter meetingLiveChunkBacklogLimit: Maximum pending live-preview chunks before the
@@ -76,6 +77,7 @@ public actor STTScheduler: STTManaging {
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
         let id = UUID()
+        try Task.checkCancellation()
         return try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 enqueue(
@@ -117,18 +119,12 @@ public actor STTScheduler: STTManaging {
     }
 
     public func clearModelCache() async {
-        acceptsNewJobs = false
-        defer { acceptsNewJobs = true }
-        cancelAllPendingJobs()
-        await cancelAndDrainRunningJobs()
+        await quiesce(restoreAcceptsNewJobs: true)
         await runtime.clearModelCache()
     }
 
     public func shutdown() async {
-        acceptsNewJobs = false
-        defer { acceptsNewJobs = true }
-        cancelAllPendingJobs()
-        await cancelAndDrainRunningJobs()
+        await quiesce(restoreAcceptsNewJobs: false)
         await runtime.shutdown()
     }
 
@@ -136,6 +132,11 @@ public actor STTScheduler: STTManaging {
         _ job: ScheduledJob,
         continuation: CheckedContinuation<STTResult, Error>
     ) {
+        if Task.isCancelled || cancelledJobIDs.remove(job.id) != nil {
+            continuation.resume(throwing: CancellationError())
+            return
+        }
+
         guard acceptsNewJobs else {
             continuation.resume(throwing: STTSchedulerError.unavailable)
             return
@@ -242,6 +243,7 @@ public actor STTScheduler: STTManaging {
         guard laneState.currentJob?.id == jobID else { return }
 
         let continuation = continuations.removeValue(forKey: jobID)
+        cancelledJobIDs.remove(jobID)
         laneState.currentJob = nil
         laneState.currentExecutionTask = nil
         laneState.currentWaitTask = nil
@@ -263,16 +265,20 @@ public actor STTScheduler: STTManaging {
             if let index = laneState.pendingJobs.firstIndex(where: { $0.id == jobID }) {
                 laneState.pendingJobs.remove(at: index)
                 setLaneState(laneState, for: lane)
+                cancelledJobIDs.remove(jobID)
                 continuations.removeValue(forKey: jobID)?.resume(throwing: CancellationError())
                 return
             }
 
             if laneState.currentJob?.id == jobID {
                 laneState.currentExecutionTask?.cancel()
+                cancelledJobIDs.remove(jobID)
                 setLaneState(laneState, for: lane)
                 return
             }
         }
+
+        cancelledJobIDs.insert(jobID)
     }
 
     private func cancelAllPendingJobs() {
@@ -284,6 +290,15 @@ public actor STTScheduler: STTManaging {
         }
         for id in pendingIDs {
             continuations.removeValue(forKey: id)?.resume(throwing: CancellationError())
+        }
+    }
+
+    private func quiesce(restoreAcceptsNewJobs: Bool) async {
+        acceptsNewJobs = false
+        cancelAllPendingJobs()
+        await cancelAndDrainRunningJobs()
+        if restoreAcceptsNewJobs {
+            acceptsNewJobs = true
         }
     }
 

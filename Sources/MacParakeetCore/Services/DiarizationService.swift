@@ -123,6 +123,10 @@ public actor MockDiarizationService: DiarizationServiceProtocol {
         self.diarizeResult = nil
     }
 
+    public func configurePrepareModels(error: Error?) {
+        self.prepareModelsError = error
+    }
+
     public func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult {
         diarizeCalled = true
         if let error = diarizeError { throw error }

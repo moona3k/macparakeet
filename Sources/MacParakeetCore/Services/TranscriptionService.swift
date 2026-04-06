@@ -95,6 +95,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             storedFileURL: fileURL,
             displayFileName: nil,
             source: source,
+            sttJob: .fileTranscription,
             sourceType: sourceType,
             onProgress: onProgress
         )
@@ -109,6 +110,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             storedFileURL: recording.mixedAudioURL,
             displayFileName: recording.displayName,
             source: .meeting,
+            sttJob: .meetingFinalize,
             sourceType: .meeting,
             meetingSpeakerMetadata: recording.preparedTranscript,
             onProgress: onProgress
@@ -120,6 +122,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         storedFileURL: URL?,
         displayFileName: String?,
         source: TelemetryTranscriptionSource,
+        sttJob: STTJobKind,
         sourceType: Transcription.SourceType,
         meetingSpeakerMetadata: MeetingRealtimeTranscript? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
@@ -160,6 +163,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         return try await transcribeAudio(
             fileURL: fileURL,
             source: source,
+            sttJob: sttJob,
             transcription: &transcription,
             tempFiles: [],
             meetingSpeakerMetadata: meetingSpeakerMetadata,
@@ -214,6 +218,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         return try await transcribeAudio(
             fileURL: downloadResult.audioFileURL,
             source: .youtube,
+            sttJob: .fileTranscription,
             transcription: &transcription,
             tempFiles: [downloadResult.audioFileURL],
             cleanUpDownloadedFiles: !keepDownloadedAudio,
@@ -226,6 +231,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     private func transcribeAudio(
         fileURL: URL,
         source: TelemetryTranscriptionSource,
+        sttJob: STTJobKind,
         transcription: inout Transcription,
         tempFiles: [URL],
         cleanUpDownloadedFiles: Bool = true,
@@ -251,7 +257,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             }
             let result = try await sttTranscriber.transcribe(
                 audioPath: wavURL.path,
-                job: source == .meeting ? .meetingFinalize : .fileTranscription,
+                job: sttJob,
                 onProgress: sttProgress
             )
 

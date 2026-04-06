@@ -153,6 +153,45 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(finalStartedPaths, ["seed", "live-2"])
     }
 
+    func testAlreadyCancelledTaskNeverEnqueuesScheduledJob() async throws {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let task = Task {
+            withUnsafeCurrentTask { $0?.cancel() }
+            return try await scheduler.transcribe(audioPath: "cancelled-before-enqueue", job: .fileTranscription)
+        }
+
+        do {
+            _ = try await task.value
+            XCTFail("Expected cancellation")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        let startedPaths = await runtime.startedPaths()
+        XCTAssertTrue(startedPaths.isEmpty)
+    }
+
+    func testShutdownKeepsSchedulerClosedToNewJobs() async throws {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        await scheduler.shutdown()
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "after-shutdown", job: .dictation)
+            XCTFail("Expected scheduler to reject new work after shutdown")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .unavailable)
+        }
+
+        let counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.shutdown, 1)
+        let startedPaths = await runtime.startedPaths()
+        XCTAssertTrue(startedPaths.isEmpty)
+    }
+
     private func waitForStartedPaths(
         runtime: MockSTTRuntime,
         count: Int,

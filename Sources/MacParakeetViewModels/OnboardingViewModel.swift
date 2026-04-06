@@ -246,7 +246,18 @@ public final class OnboardingViewModel {
                         case .ready:
                             let durationSeconds = Date().timeIntervalSince(warmUpStartedAt)
                             Telemetry.send(.modelDownloadCompleted(durationSeconds: durationSeconds))
-                            await self.prepareDiarizationModelsIfNeeded(generation: generation)
+                            do {
+                                try await self.prepareDiarizationModelsIfNeeded(generation: generation)
+                            } catch is CancellationError {
+                                self.warmUpObserverTask?.cancel()
+                                break
+                            } catch {
+                                guard self.engineGeneration == generation else { break }
+                                self.engineState = .failed(message: error.localizedDescription)
+                                self.isBusy = false
+                                self.warmUpObserverTask?.cancel()
+                                break
+                            }
                             guard self.engineGeneration == generation else { break }
                             self.engineState = .ready
                             self.isBusy = false
@@ -264,7 +275,7 @@ public final class OnboardingViewModel {
         warmUpObserverTask = outerTask
     }
 
-    private func prepareDiarizationModelsIfNeeded(generation: Int) async {
+    private func prepareDiarizationModelsIfNeeded(generation: Int) async throws {
         guard let diarizationService else { return }
 
         engineState = .working(message: "Speaker models: downloading...", progress: nil)
@@ -282,6 +293,7 @@ public final class OnboardingViewModel {
                 code: "model_prep_failed",
                 description: TelemetryErrorClassifier.errorDetail(error)
             ))
+            throw error
         }
     }
 

@@ -229,7 +229,7 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(phases.contains { if case .transcribing = $0 { true } else { false } })
     }
 
-    func testTranscribeMeetingUsesBatchSTTAndAppliesPreparedSpeakerMetadata() async throws {
+    func testTranscribeMeetingUsesFinalizeLaneAndAppliesPreparedSpeakerMetadata() async throws {
         let recordingURL = try makeTempDownloadedAudio()
         defer { try? FileManager.default.removeItem(at: recordingURL) }
 
@@ -276,6 +276,7 @@ final class TranscriptionServiceTests: XCTestCase {
 
         let result = try await service.transcribeMeeting(recording: recording)
         let sttCallCount = await mockSTT.transcribeCallCount
+        let lastJob = await mockSTT.lastJob
         let convertCallCount = await mockAudio.convertCallCount
 
         XCTAssertEqual(result.fileName, "Meeting Demo")
@@ -288,7 +289,19 @@ final class TranscriptionServiceTests: XCTestCase {
         ])
         XCTAssertEqual(result.wordTimestamps?.map(\.speakerId), ["microphone", "microphone", "system", "system"])
         XCTAssertEqual(sttCallCount, 1)
+        XCTAssertEqual(lastJob, .meetingFinalize)
         XCTAssertEqual(convertCallCount, 1)
+    }
+
+    func testMeetingSourceRetranscribeUsesBatchLane() async throws {
+        let expectedResult = STTResult(text: "Meeting archive retranscribe")
+        await mockSTT.configure(result: expectedResult)
+
+        let fileURL = URL(fileURLWithPath: "/tmp/meeting-archive.m4a")
+        _ = try await service.transcribe(fileURL: fileURL, source: .meeting)
+
+        let lastJob = await mockSTT.lastJob
+        XCTAssertEqual(lastJob, .fileTranscription)
     }
 
     private func makeTempDownloadedAudio() throws -> URL {
