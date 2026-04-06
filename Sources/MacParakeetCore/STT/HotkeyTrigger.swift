@@ -166,6 +166,11 @@ public struct HotkeyTrigger: Sendable {
     /// All modifier presets for UI iteration.
     public static let modifierPresets: [HotkeyTrigger] = [.fn, .control, .option, .shift, .command]
 
+    // MARK: - Default Triggers
+
+    public static let defaultDictation: HotkeyTrigger = .fn
+    public static let defaultMeetingRecording: HotkeyTrigger = .chord(modifiers: ["command", "shift"], keyCode: 46)
+
     // MARK: - Factory
 
     /// Create a trigger from a CGKeyCode.
