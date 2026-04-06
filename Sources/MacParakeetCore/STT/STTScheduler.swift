@@ -142,11 +142,11 @@ public actor STTScheduler: STTManaging {
         }
 
         continuations[job.id] = continuation
-        var slotState = slotState(for: job.slot)
+        var currentSlotState = slotState(for: job.slot)
 
         if job.job == .meetingLiveChunk,
-           pendingMeetingLiveJobCount(in: slotState) >= meetingLiveChunkBacklogLimit,
-           let droppedJob = dropOldestPendingMeetingLiveJob(in: &slotState) {
+           pendingMeetingLiveJobCount(in: currentSlotState) >= meetingLiveChunkBacklogLimit,
+           let droppedJob = dropOldestPendingMeetingLiveJob(in: &currentSlotState) {
             logger.notice(
                 "stt_backpressure drop_pending_meeting_live_chunk id=\(droppedJob.id.uuidString, privacy: .public)"
             )
@@ -155,13 +155,13 @@ public actor STTScheduler: STTManaging {
             )
         }
 
-        slotState.pendingJobs.append(job)
-        setSlotState(slotState, for: job.slot)
+        currentSlotState.pendingJobs.append(job)
+        setSlotState(currentSlotState, for: job.slot)
         startNextJobIfNeeded(in: job.slot)
     }
 
     private func nextEnqueueOrder() -> UInt64 {
-        defer { enqueueCounter += 1 }
+        defer { enqueueCounter &+= 1 }
         return enqueueCounter
     }
 
@@ -192,21 +192,21 @@ public actor STTScheduler: STTManaging {
     }
 
     private func startNextJobIfNeeded(in slot: SchedulerSlot) {
-        var slotState = slotState(for: slot)
-        guard slotState.currentJob == nil else { return }
-        guard let next = dequeueNextJob(in: &slotState) else {
-            setSlotState(slotState, for: slot)
+        var currentSlotState = slotState(for: slot)
+        guard currentSlotState.currentJob == nil else { return }
+        guard let next = dequeueNextJob(in: &currentSlotState) else {
+            setSlotState(currentSlotState, for: slot)
             return
         }
 
-        slotState.currentJob = next
-        slotState.currentExecutionTask = Task {
+        currentSlotState.currentJob = next
+        currentSlotState.currentExecutionTask = Task {
             try await runtime.transcribe(audioPath: next.audioPath, job: next.job, onProgress: next.onProgress)
         }
-        slotState.currentWaitTask = Task { [weak self] in
+        currentSlotState.currentWaitTask = Task { [weak self] in
             await self?.awaitCurrentJobCompletion(jobID: next.id, in: slot)
         }
-        setSlotState(slotState, for: slot)
+        setSlotState(currentSlotState, for: slot)
     }
 
     private func dequeueNextJob(in slotState: inout SlotState) -> ScheduledJob? {
@@ -260,19 +260,19 @@ public actor STTScheduler: STTManaging {
 
     private func cancel(jobID: UUID) {
         for slot in SchedulerSlot.allCases {
-            var slotState = slotState(for: slot)
-            if let index = slotState.pendingJobs.firstIndex(where: { $0.id == jobID }) {
-                slotState.pendingJobs.remove(at: index)
-                setSlotState(slotState, for: slot)
+            var currentSlotState = slotState(for: slot)
+            if let index = currentSlotState.pendingJobs.firstIndex(where: { $0.id == jobID }) {
+                currentSlotState.pendingJobs.remove(at: index)
+                setSlotState(currentSlotState, for: slot)
                 cancelledJobIDs.remove(jobID)
                 continuations.removeValue(forKey: jobID)?.resume(throwing: CancellationError())
                 return
             }
 
-            if slotState.currentJob?.id == jobID {
-                slotState.currentExecutionTask?.cancel()
+            if currentSlotState.currentJob?.id == jobID {
+                currentSlotState.currentExecutionTask?.cancel()
                 cancelledJobIDs.remove(jobID)
-                setSlotState(slotState, for: slot)
+                setSlotState(currentSlotState, for: slot)
                 return
             }
         }
@@ -283,9 +283,9 @@ public actor STTScheduler: STTManaging {
     private func cancelAllPendingJobs() {
         let pendingIDs = SchedulerSlot.allCases.flatMap { slotState(for: $0).pendingJobs.map(\.id) }
         for slot in SchedulerSlot.allCases {
-            var slotState = slotState(for: slot)
-            slotState.pendingJobs.removeAll()
-            setSlotState(slotState, for: slot)
+            var currentSlotState = slotState(for: slot)
+            currentSlotState.pendingJobs.removeAll()
+            setSlotState(currentSlotState, for: slot)
         }
         for id in pendingIDs {
             continuations.removeValue(forKey: id)?.resume(throwing: CancellationError())
@@ -328,6 +328,8 @@ private enum SchedulerSlot: CaseIterable, Sendable {
 }
 
 private extension STTJobKind {
+    // Priority is compared only within a slot. `dictation` and `meetingFinalize`
+    // both rank highest, but they never contend because they execute on different slots.
     var priorityRank: Int {
         switch self {
         case .dictation:

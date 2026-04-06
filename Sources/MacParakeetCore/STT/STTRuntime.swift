@@ -40,15 +40,15 @@ public actor STTRuntime: STTRuntimeProtocol {
         self.modelVersion = modelVersion
     }
 
-    public func transcribe(
+    func transcribe(
         audioPath: String,
         job: STTJobKind,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
         try await ensureInitialized()
 
-        let lane = route(for: job)
-        guard let manager = manager(for: lane) else {
+        let slot = route(for: job)
+        guard let manager = manager(for: slot) else {
             throw STTError.modelNotLoaded
         }
 
@@ -124,7 +124,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             do {
                 try await self.warmUp { [weak self] progressMessage in
                     guard let self else { return }
-                    Task {
+                    Task { [weak self] in
+                        guard let self else { return }
                         let message = "Speech model: \(progressMessage)"
                         let fraction = OnboardingProgressParser.parseProgressFraction(from: message)
                         await self.setBackgroundWarmUpState(
