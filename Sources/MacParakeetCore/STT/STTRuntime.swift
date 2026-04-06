@@ -20,12 +20,11 @@ protocol STTRuntimeProtocol: Sendable {
 /// Sole owner of the shared Parakeet STT lifecycle.
 ///
 /// The runtime stays process-wide and singular at the app boundary, but it keeps
-/// one `AsrManager` per scheduler lane so dictation, meeting, and batch work do
-/// not head-of-line block each other inside app-level scheduling.
+/// one `AsrManager` per execution slot so dictation remains isolated from the
+/// shared background workload inside app-level scheduling.
 public actor STTRuntime: STTRuntimeProtocol {
-    private var dictationManager: AsrManager?
-    private var meetingManager: AsrManager?
-    private var batchManager: AsrManager?
+    private var interactiveManager: AsrManager?
+    private var backgroundManager: AsrManager?
     private var models: AsrModels?
     private var initializationTask: Task<Void, Error>?
     private var initializationGeneration: UInt64 = 0
@@ -164,11 +163,10 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public func isReady() async -> Bool {
-        guard let dictationManager, let meetingManager, let batchManager else { return false }
-        let dictationReady = await dictationManager.isAvailable
-        let meetingReady = await meetingManager.isAvailable
-        let batchReady = await batchManager.isAvailable
-        return dictationReady && meetingReady && batchReady
+        guard let interactiveManager, let backgroundManager else { return false }
+        let interactiveReady = await interactiveManager.isAvailable
+        let backgroundReady = await backgroundManager.isAvailable
+        return interactiveReady && backgroundReady
     }
 
     public func shutdown() async {
@@ -177,17 +175,14 @@ public actor STTRuntime: STTRuntimeProtocol {
         inFlightInitialization?.cancel()
         _ = try? await inFlightInitialization?.value
 
-        let dictationManager = self.dictationManager
-        let meetingManager = self.meetingManager
-        let batchManager = self.batchManager
-        self.dictationManager = nil
-        self.meetingManager = nil
-        self.batchManager = nil
+        let interactiveManager = self.interactiveManager
+        let backgroundManager = self.backgroundManager
+        self.interactiveManager = nil
+        self.backgroundManager = nil
         self.models = nil
         await Self.cleanupManagers(
-            dictationManager: dictationManager,
-            meetingManager: meetingManager,
-            batchManager: batchManager
+            interactiveManager: interactiveManager,
+            backgroundManager: backgroundManager
         )
         warmUpProgressHandler = nil
         setBackgroundWarmUpState(.idle)
@@ -245,7 +240,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     private func ensureInitialized() async throws {
-        if dictationManager != nil, meetingManager != nil, batchManager != nil {
+        if interactiveManager != nil, backgroundManager != nil {
             return
         }
 
@@ -260,9 +255,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         let task = Task {
             let lastProgressUpdate = OSAllocatedUnfairLock(initialState: Date.distantPast)
             let lastProgressMessage = OSAllocatedUnfairLock(initialState: "")
-            var dictationManager: AsrManager?
-            var meetingManager: AsrManager?
-            var batchManager: AsrManager?
+            var interactiveManager: AsrManager?
+            var backgroundManager: AsrManager?
             let progressHandler: DownloadUtils.ProgressHandler?
             if let warmUpProgressHandler {
                 let progressCallback: @Sendable (String) -> Void = warmUpProgressHandler
@@ -296,35 +290,27 @@ public actor STTRuntime: STTRuntimeProtocol {
                 progressHandler: progressHandler
             )
             do {
-                // Keep one manager per scheduler lane. FluidAudio exposes progress
-                // as a manager-scoped single session, so separate managers avoid
-                // cross-lane progress/state crosstalk while still sharing one
-                // downloaded read-only model bundle.
-                let loadedDictationManager = AsrManager(config: .default)
-                let loadedMeetingManager = AsrManager(config: .default)
-                let loadedBatchManager = AsrManager(config: .default)
-                dictationManager = loadedDictationManager
-                meetingManager = loadedMeetingManager
-                batchManager = loadedBatchManager
-                try await loadedDictationManager.loadModels(downloadedModels)
-                try await loadedMeetingManager.loadModels(downloadedModels)
-                try await loadedBatchManager.loadModels(downloadedModels)
+                // FluidAudio progress is manager-scoped, so each slot keeps its
+                // own manager while the read-only model bundle stays shared.
+                let loadedInteractiveManager = AsrManager(config: .default)
+                let loadedBackgroundManager = AsrManager(config: .default)
+                interactiveManager = loadedInteractiveManager
+                backgroundManager = loadedBackgroundManager
+                try await loadedInteractiveManager.loadModels(downloadedModels)
+                try await loadedBackgroundManager.loadModels(downloadedModels)
                 try Task.checkCancellation()
                 try await self.completeInitialization(
                     generation: generation,
                     models: downloadedModels,
-                    dictationManager: loadedDictationManager,
-                    meetingManager: loadedMeetingManager,
-                    batchManager: loadedBatchManager
+                    interactiveManager: loadedInteractiveManager,
+                    backgroundManager: loadedBackgroundManager
                 )
-                dictationManager = nil
-                meetingManager = nil
-                batchManager = nil
+                interactiveManager = nil
+                backgroundManager = nil
             } catch {
                 await Self.cleanupManagers(
-                    dictationManager: dictationManager,
-                    meetingManager: meetingManager,
-                    batchManager: batchManager
+                    interactiveManager: interactiveManager,
+                    backgroundManager: backgroundManager
                 )
                 throw error
             }
@@ -348,18 +334,16 @@ public actor STTRuntime: STTRuntimeProtocol {
     private func completeInitialization(
         generation: UInt64,
         models: AsrModels,
-        dictationManager: AsrManager,
-        meetingManager: AsrManager,
-        batchManager: AsrManager
+        interactiveManager: AsrManager,
+        backgroundManager: AsrManager
     ) async throws {
         guard initializationGeneration == generation else {
             throw CancellationError()
         }
         try Task.checkCancellation()
         self.models = models
-        self.dictationManager = dictationManager
-        self.meetingManager = meetingManager
-        self.batchManager = batchManager
+        self.interactiveManager = interactiveManager
+        self.backgroundManager = backgroundManager
     }
 
     private func nextInitializationGeneration() -> UInt64 {
@@ -375,40 +359,32 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     private nonisolated static func cleanupManagers(
-        dictationManager: AsrManager?,
-        meetingManager: AsrManager?,
-        batchManager: AsrManager?
+        interactiveManager: AsrManager?,
+        backgroundManager: AsrManager?
     ) async {
-        if let dictationManager {
-            await dictationManager.cleanup()
+        if let interactiveManager {
+            await interactiveManager.cleanup()
         }
-        if let meetingManager {
-            await meetingManager.cleanup()
-        }
-        if let batchManager {
-            await batchManager.cleanup()
+        if let backgroundManager {
+            await backgroundManager.cleanup()
         }
     }
 
     private func manager(for lane: STTRuntimeLane) -> AsrManager? {
         switch lane {
-        case .dictation:
-            dictationManager
-        case .meeting:
-            meetingManager
-        case .batch:
-            batchManager
+        case .interactive:
+            interactiveManager
+        case .background:
+            backgroundManager
         }
     }
 
     private func route(for job: STTJobKind) -> STTRuntimeLane {
         switch job {
         case .dictation:
-            .dictation
-        case .meetingFinalize, .meetingLiveChunk:
-            .meeting
-        case .fileTranscription:
-            .batch
+            .interactive
+        case .meetingFinalize, .meetingLiveChunk, .fileTranscription:
+            .background
         }
     }
 
@@ -544,7 +520,6 @@ public actor STTRuntime: STTRuntimeProtocol {
 }
 
 private enum STTRuntimeLane: Sendable {
-    case dictation
-    case meeting
-    case batch
+    case interactive
+    case background
 }

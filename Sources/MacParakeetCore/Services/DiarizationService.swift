@@ -29,20 +29,30 @@ public protocol DiarizationServiceProtocol: Sendable {
     func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult
     func prepareModels(onProgress: (@Sendable (String) -> Void)?) async throws
     func isReady() async -> Bool
+    func hasCachedModels() async -> Bool
 }
 
 extension DiarizationServiceProtocol {
     public func prepareModels() async throws {
         try await prepareModels(onProgress: nil)
     }
+
+    public func hasCachedModels() async -> Bool {
+        false
+    }
 }
 
 public actor DiarizationService: DiarizationServiceProtocol {
     private let manager: OfflineDiarizerManager
+    private let modelsDirectory: URL
     private var modelsReady = false
 
-    public init(config: OfflineDiarizerConfig = .default) {
+    public init(
+        config: OfflineDiarizerConfig = .default,
+        modelsDirectory: URL? = nil
+    ) {
         self.manager = OfflineDiarizerManager(config: config)
+        self.modelsDirectory = (modelsDirectory ?? OfflineDiarizerModels.defaultModelsDirectory()).standardizedFileURL
     }
 
     public func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult {
@@ -87,13 +97,39 @@ public actor DiarizationService: DiarizationServiceProtocol {
 
     public func prepareModels(onProgress: (@Sendable (String) -> Void)? = nil) async throws {
         onProgress?("Downloading speaker models...")
-        try await manager.prepareModels()
+        try await manager.prepareModels(directory: modelsDirectory)
         modelsReady = true
         onProgress?("Speaker models ready")
     }
 
     public func isReady() async -> Bool {
         modelsReady
+    }
+
+    public func hasCachedModels() async -> Bool {
+        Self.isModelCached(directory: modelsDirectory)
+    }
+
+    public nonisolated static func isModelCached(directory: URL? = nil) -> Bool {
+        let repoDirectory = modelCacheDirectory(directory: directory)
+        return requiredModelNames().allSatisfy { modelName in
+            FileManager.default.fileExists(
+                atPath: repoDirectory.appendingPathComponent(modelName, isDirectory: false).path
+            )
+        }
+    }
+
+    public nonisolated static func clearModelCache(directory: URL? = nil) {
+        try? FileManager.default.removeItem(at: modelCacheDirectory(directory: directory))
+    }
+
+    nonisolated static func modelCacheDirectory(directory: URL? = nil) -> URL {
+        let baseDirectory = (directory ?? OfflineDiarizerModels.defaultModelsDirectory()).standardizedFileURL
+        return baseDirectory.appendingPathComponent(Repo.diarizer.folderName, isDirectory: true)
+    }
+
+    nonisolated static func requiredModelNames() -> [String] {
+        Array(ModelNames.OfflineDiarizer.requiredModels)
     }
 }
 
@@ -110,6 +146,8 @@ public actor MockDiarizationService: DiarizationServiceProtocol {
     public var diarizeCalled = false
     public var prepareModelsCalled = false
     public var prepareModelsError: Error?
+    public var ready = false
+    public var cachedModels = false
 
     public init() {}
 
@@ -127,6 +165,14 @@ public actor MockDiarizationService: DiarizationServiceProtocol {
         self.prepareModelsError = error
     }
 
+    public func configureReady(_ ready: Bool) {
+        self.ready = ready
+    }
+
+    public func configureCachedModels(_ cachedModels: Bool) {
+        self.cachedModels = cachedModels
+    }
+
     public func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult {
         diarizeCalled = true
         if let error = diarizeError { throw error }
@@ -136,9 +182,15 @@ public actor MockDiarizationService: DiarizationServiceProtocol {
     public func prepareModels(onProgress: (@Sendable (String) -> Void)?) async throws {
         prepareModelsCalled = true
         if let error = prepareModelsError { throw error }
+        ready = true
+        cachedModels = true
     }
 
     public func isReady() async -> Bool {
-        true
+        ready
+    }
+
+    public func hasCachedModels() async -> Bool {
+        cachedModels
     }
 }

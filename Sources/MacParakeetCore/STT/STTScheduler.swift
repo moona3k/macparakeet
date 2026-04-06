@@ -17,9 +17,8 @@ public enum STTSchedulerError: Error, LocalizedError, Equatable {
 
 /// Centralized broker for all STT work in the app process.
 ///
-/// Jobs execute independently per lane so dictation can remain responsive while
-/// meeting transcription is active, and batch/file transcription no longer
-/// stalls meeting stop/finalize.
+/// Jobs execute independently per slot so dictation can remain responsive while
+/// meeting and file work share an explicitly prioritized background path.
 public actor STTScheduler: STTManaging {
     private struct ScheduledJob: Sendable {
         let id: UUID
@@ -28,12 +27,12 @@ public actor STTScheduler: STTManaging {
         let enqueueOrder: UInt64
         let onProgress: (@Sendable (Int, Int) -> Void)?
 
-        var lane: SchedulerLane {
-            SchedulerLane(job: job)
+        var slot: SchedulerSlot {
+            SchedulerSlot(job: job)
         }
     }
 
-    private struct LaneState {
+    private struct SlotState {
         var pendingJobs: [ScheduledJob] = []
         var currentJob: ScheduledJob?
         var currentExecutionTask: Task<STTResult, Error>?
@@ -46,8 +45,8 @@ public actor STTScheduler: STTManaging {
 
     private var enqueueCounter: UInt64 = 0
     private var continuations: [UUID: CheckedContinuation<STTResult, Error>] = [:]
-    private var laneStates: [SchedulerLane: LaneState] = Dictionary(
-        uniqueKeysWithValues: SchedulerLane.allCases.map { ($0, LaneState()) }
+    private var slotStates: [SchedulerSlot: SlotState] = Dictionary(
+        uniqueKeysWithValues: SchedulerSlot.allCases.map { ($0, SlotState()) }
     )
     private var cancelledJobIDs: Set<UUID> = []
     private var acceptsNewJobs = true
@@ -143,11 +142,11 @@ public actor STTScheduler: STTManaging {
         }
 
         continuations[job.id] = continuation
-        var laneState = laneState(for: job.lane)
+        var slotState = slotState(for: job.slot)
 
         if job.job == .meetingLiveChunk,
-           pendingMeetingLiveJobCount(in: laneState) >= meetingLiveChunkBacklogLimit,
-           let droppedJob = dropOldestPendingMeetingLiveJob(in: &laneState) {
+           pendingMeetingLiveJobCount(in: slotState) >= meetingLiveChunkBacklogLimit,
+           let droppedJob = dropOldestPendingMeetingLiveJob(in: &slotState) {
             logger.notice(
                 "stt_backpressure drop_pending_meeting_live_chunk id=\(droppedJob.id.uuidString, privacy: .public)"
             )
@@ -156,9 +155,9 @@ public actor STTScheduler: STTManaging {
             )
         }
 
-        laneState.pendingJobs.append(job)
-        setLaneState(laneState, for: job.lane)
-        startNextJobIfNeeded(in: job.lane)
+        slotState.pendingJobs.append(job)
+        setSlotState(slotState, for: job.slot)
+        startNextJobIfNeeded(in: job.slot)
     }
 
     private func nextEnqueueOrder() -> UInt64 {
@@ -166,54 +165,54 @@ public actor STTScheduler: STTManaging {
         return enqueueCounter
     }
 
-    private func laneState(for lane: SchedulerLane) -> LaneState {
-        laneStates[lane, default: LaneState()]
+    private func slotState(for slot: SchedulerSlot) -> SlotState {
+        slotStates[slot, default: SlotState()]
     }
 
-    private func setLaneState(_ laneState: LaneState, for lane: SchedulerLane) {
-        laneStates[lane] = laneState
+    private func setSlotState(_ slotState: SlotState, for slot: SchedulerSlot) {
+        slotStates[slot] = slotState
     }
 
-    private func pendingMeetingLiveJobCount(in laneState: LaneState) -> Int {
-        laneState.pendingJobs.reduce(into: 0) { count, job in
+    private func pendingMeetingLiveJobCount(in slotState: SlotState) -> Int {
+        slotState.pendingJobs.reduce(into: 0) { count, job in
             if job.job == .meetingLiveChunk {
                 count += 1
             }
         }
     }
 
-    private func dropOldestPendingMeetingLiveJob(in laneState: inout LaneState) -> ScheduledJob? {
-        guard let index = laneState.pendingJobs.enumerated()
+    private func dropOldestPendingMeetingLiveJob(in slotState: inout SlotState) -> ScheduledJob? {
+        guard let index = slotState.pendingJobs.enumerated()
             .filter({ $0.element.job == .meetingLiveChunk })
             .min(by: { $0.element.enqueueOrder < $1.element.enqueueOrder })?
             .offset else {
             return nil
         }
-        return laneState.pendingJobs.remove(at: index)
+        return slotState.pendingJobs.remove(at: index)
     }
 
-    private func startNextJobIfNeeded(in lane: SchedulerLane) {
-        var laneState = laneState(for: lane)
-        guard laneState.currentJob == nil else { return }
-        guard let next = dequeueNextJob(in: &laneState) else {
-            setLaneState(laneState, for: lane)
+    private func startNextJobIfNeeded(in slot: SchedulerSlot) {
+        var slotState = slotState(for: slot)
+        guard slotState.currentJob == nil else { return }
+        guard let next = dequeueNextJob(in: &slotState) else {
+            setSlotState(slotState, for: slot)
             return
         }
 
-        laneState.currentJob = next
-        laneState.currentExecutionTask = Task {
+        slotState.currentJob = next
+        slotState.currentExecutionTask = Task {
             try await runtime.transcribe(audioPath: next.audioPath, job: next.job, onProgress: next.onProgress)
         }
-        laneState.currentWaitTask = Task { [weak self] in
-            await self?.awaitCurrentJobCompletion(jobID: next.id, in: lane)
+        slotState.currentWaitTask = Task { [weak self] in
+            await self?.awaitCurrentJobCompletion(jobID: next.id, in: slot)
         }
-        setLaneState(laneState, for: lane)
+        setSlotState(slotState, for: slot)
     }
 
-    private func dequeueNextJob(in laneState: inout LaneState) -> ScheduledJob? {
-        guard let index = laneState.pendingJobs.indices.min(by: { lhs, rhs in
-            let left = laneState.pendingJobs[lhs]
-            let right = laneState.pendingJobs[rhs]
+    private func dequeueNextJob(in slotState: inout SlotState) -> ScheduledJob? {
+        guard let index = slotState.pendingJobs.indices.min(by: { lhs, rhs in
+            let left = slotState.pendingJobs[lhs]
+            let right = slotState.pendingJobs[rhs]
             if left.job.priorityRank != right.job.priorityRank {
                 return left.job.priorityRank < right.job.priorityRank
             }
@@ -221,12 +220,12 @@ public actor STTScheduler: STTManaging {
         }) else {
             return nil
         }
-        return laneState.pendingJobs.remove(at: index)
+        return slotState.pendingJobs.remove(at: index)
     }
 
-    private func awaitCurrentJobCompletion(jobID: UUID, in lane: SchedulerLane) async {
-        let laneState = laneState(for: lane)
-        guard laneState.currentJob?.id == jobID, let executionTask = laneState.currentExecutionTask else { return }
+    private func awaitCurrentJobCompletion(jobID: UUID, in slot: SchedulerSlot) async {
+        let slotState = slotState(for: slot)
+        guard slotState.currentJob?.id == jobID, let executionTask = slotState.currentExecutionTask else { return }
 
         let result: Result<STTResult, Error>
         do {
@@ -235,19 +234,19 @@ public actor STTScheduler: STTManaging {
             result = .failure(error)
         }
 
-        finishCurrentJob(jobID: jobID, in: lane, result: result)
+        finishCurrentJob(jobID: jobID, in: slot, result: result)
     }
 
-    private func finishCurrentJob(jobID: UUID, in lane: SchedulerLane, result: Result<STTResult, Error>) {
-        var laneState = laneState(for: lane)
-        guard laneState.currentJob?.id == jobID else { return }
+    private func finishCurrentJob(jobID: UUID, in slot: SchedulerSlot, result: Result<STTResult, Error>) {
+        var slotState = slotState(for: slot)
+        guard slotState.currentJob?.id == jobID else { return }
 
         let continuation = continuations.removeValue(forKey: jobID)
         cancelledJobIDs.remove(jobID)
-        laneState.currentJob = nil
-        laneState.currentExecutionTask = nil
-        laneState.currentWaitTask = nil
-        setLaneState(laneState, for: lane)
+        slotState.currentJob = nil
+        slotState.currentExecutionTask = nil
+        slotState.currentWaitTask = nil
+        setSlotState(slotState, for: slot)
 
         switch result {
         case .success(let value):
@@ -256,24 +255,24 @@ public actor STTScheduler: STTManaging {
             continuation?.resume(throwing: error)
         }
 
-        startNextJobIfNeeded(in: lane)
+        startNextJobIfNeeded(in: slot)
     }
 
     private func cancel(jobID: UUID) {
-        for lane in SchedulerLane.allCases {
-            var laneState = laneState(for: lane)
-            if let index = laneState.pendingJobs.firstIndex(where: { $0.id == jobID }) {
-                laneState.pendingJobs.remove(at: index)
-                setLaneState(laneState, for: lane)
+        for slot in SchedulerSlot.allCases {
+            var slotState = slotState(for: slot)
+            if let index = slotState.pendingJobs.firstIndex(where: { $0.id == jobID }) {
+                slotState.pendingJobs.remove(at: index)
+                setSlotState(slotState, for: slot)
                 cancelledJobIDs.remove(jobID)
                 continuations.removeValue(forKey: jobID)?.resume(throwing: CancellationError())
                 return
             }
 
-            if laneState.currentJob?.id == jobID {
-                laneState.currentExecutionTask?.cancel()
+            if slotState.currentJob?.id == jobID {
+                slotState.currentExecutionTask?.cancel()
                 cancelledJobIDs.remove(jobID)
-                setLaneState(laneState, for: lane)
+                setSlotState(slotState, for: slot)
                 return
             }
         }
@@ -282,11 +281,11 @@ public actor STTScheduler: STTManaging {
     }
 
     private func cancelAllPendingJobs() {
-        let pendingIDs = SchedulerLane.allCases.flatMap { laneState(for: $0).pendingJobs.map(\.id) }
-        for lane in SchedulerLane.allCases {
-            var laneState = laneState(for: lane)
-            laneState.pendingJobs.removeAll()
-            setLaneState(laneState, for: lane)
+        let pendingIDs = SchedulerSlot.allCases.flatMap { slotState(for: $0).pendingJobs.map(\.id) }
+        for slot in SchedulerSlot.allCases {
+            var slotState = slotState(for: slot)
+            slotState.pendingJobs.removeAll()
+            setSlotState(slotState, for: slot)
         }
         for id in pendingIDs {
             continuations.removeValue(forKey: id)?.resume(throwing: CancellationError())
@@ -303,10 +302,10 @@ public actor STTScheduler: STTManaging {
     }
 
     private func cancelAndDrainRunningJobs() async {
-        let waitTasks = SchedulerLane.allCases.compactMap { lane -> Task<Void, Never>? in
-            let laneState = laneState(for: lane)
-            laneState.currentExecutionTask?.cancel()
-            return laneState.currentWaitTask
+        let waitTasks = SchedulerSlot.allCases.compactMap { slot -> Task<Void, Never>? in
+            let slotState = slotState(for: slot)
+            slotState.currentExecutionTask?.cancel()
+            return slotState.currentWaitTask
         }
         for task in waitTasks {
             await task.value
@@ -314,19 +313,16 @@ public actor STTScheduler: STTManaging {
     }
 }
 
-private enum SchedulerLane: CaseIterable, Sendable {
-    case dictation
-    case meeting
-    case batch
+private enum SchedulerSlot: CaseIterable, Sendable {
+    case interactive
+    case background
 
     init(job: STTJobKind) {
         switch job {
         case .dictation:
-            self = .dictation
-        case .meetingFinalize, .meetingLiveChunk:
-            self = .meeting
-        case .fileTranscription:
-            self = .batch
+            self = .interactive
+        case .meetingFinalize, .meetingLiveChunk, .fileTranscription:
+            self = .background
         }
     }
 }
@@ -341,7 +337,7 @@ private extension STTJobKind {
         case .meetingLiveChunk:
             1
         case .fileTranscription:
-            0
+            2
         }
     }
 }

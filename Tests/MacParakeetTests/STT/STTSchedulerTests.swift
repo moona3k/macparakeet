@@ -2,7 +2,7 @@ import XCTest
 @testable import MacParakeetCore
 
 final class STTSchedulerTests: XCTestCase {
-    func testDictationRunsWhileMeetingLaneIsBusy() async throws {
+    func testDictationRunsWhileBackgroundSlotIsBusy() async throws {
         let runtime = MockSTTRuntime()
         await runtime.block(path: "meeting-live")
         let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
@@ -25,7 +25,7 @@ final class STTSchedulerTests: XCTestCase {
         _ = try await meetingTask.value
     }
 
-    func testMeetingFinalizeRunsWhileBatchLaneIsBusy() async throws {
+    func testMeetingFinalizeWaitsBehindRunningFileTranscriptionOnSharedBackgroundSlot() async throws {
         let runtime = MockSTTRuntime()
         await runtime.block(path: "file")
         let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
@@ -38,17 +38,20 @@ final class STTSchedulerTests: XCTestCase {
         let finalizeTask = Task {
             try await scheduler.transcribe(audioPath: "meeting-finalize", job: .meetingFinalize)
         }
-        try await waitForStartedPaths(runtime: runtime, count: 2)
+        try await Task.sleep(for: .milliseconds(100))
 
         let startedWhileFileBlocked = await runtime.startedPaths()
-        XCTAssertEqual(startedWhileFileBlocked, ["file", "meeting-finalize"])
+        XCTAssertEqual(startedWhileFileBlocked, ["file"])
 
-        _ = try await finalizeTask.value
         await runtime.release(path: "file")
         _ = try await fileTask.value
+        _ = try await finalizeTask.value
+
+        let finalStartedPaths = await runtime.startedPaths()
+        XCTAssertEqual(finalStartedPaths, ["file", "meeting-finalize"])
     }
 
-    func testMeetingFinalizeBeatsQueuedMeetingLiveChunkWithinMeetingLane() async throws {
+    func testMeetingFinalizeBeatsQueuedMeetingLiveChunkWithinBackgroundSlot() async throws {
         let runtime = MockSTTRuntime()
         await runtime.block(path: "seed")
         let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
@@ -75,6 +78,33 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(finalStartedPaths, ["seed", "meeting-finalize", "live"])
     }
 
+    func testMeetingFinalizeBeatsQueuedFileTranscriptionWithinBackgroundSlot() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.block(path: "seed")
+        let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
+
+        let seedTask = Task { try await scheduler.transcribe(audioPath: "seed", job: .meetingLiveChunk) }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        let fileTask = Task { try await scheduler.transcribe(audioPath: "file", job: .fileTranscription) }
+        let finalizeTask = Task {
+            try await scheduler.transcribe(audioPath: "meeting-finalize", job: .meetingFinalize)
+        }
+
+        try await Task.sleep(for: .milliseconds(100))
+        let startedWhileSeedBlocked = await runtime.startedPaths()
+        XCTAssertEqual(startedWhileSeedBlocked, ["seed"])
+
+        await runtime.release(path: "seed")
+
+        _ = try await seedTask.value
+        _ = try await finalizeTask.value
+        _ = try await fileTask.value
+
+        let finalStartedPaths = await runtime.startedPaths()
+        XCTAssertEqual(finalStartedPaths, ["seed", "meeting-finalize", "file"])
+    }
+
     func testLifecycleOperationsTargetSharedRuntime() async throws {
         let runtime = MockSTTRuntime()
         let scheduler = STTScheduler(runtimeProvider: runtime)
@@ -91,7 +121,7 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(counts.shutdown, 1)
     }
 
-    func testProgressIsScopedPerJobAcrossLanes() async throws {
+    func testProgressIsScopedPerJobAcrossSlots() async throws {
         let runtime = MockSTTRuntime()
         await runtime.setProgressScript([10, 50], for: "file")
         await runtime.setProgressScript([20, 80], for: "dictation")
@@ -197,13 +227,13 @@ final class STTSchedulerTests: XCTestCase {
         await runtime.block(path: "active")
         let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
 
-        // Start an active job in the meeting lane.
+        // Start an active job in the shared background slot.
         let activeTask = Task {
             try await scheduler.transcribe(audioPath: "active", job: .meetingLiveChunk)
         }
         try await waitForStartedPaths(runtime: runtime, count: 1)
 
-        // Queue a pending job behind it in the same lane.
+        // Queue a pending job behind it in the same slot.
         let pendingTask = Task {
             try await scheduler.transcribe(audioPath: "pending", job: .meetingLiveChunk)
         }
@@ -237,13 +267,13 @@ final class STTSchedulerTests: XCTestCase {
         await runtime.block(path: "blocker")
         let scheduler = STTScheduler(runtimeProvider: runtime, meetingLiveChunkBacklogLimit: 8)
 
-        // Block the batch lane with a long-running job.
+        // Block the shared background slot with a long-running file job.
         let blockerTask = Task {
             try await scheduler.transcribe(audioPath: "blocker", job: .fileTranscription)
         }
         try await waitForStartedPaths(runtime: runtime, count: 1)
 
-        // Queue a second job in the same lane — it will be pending.
+        // Queue a second job in the same slot — it will be pending.
         let pendingTask = Task {
             try await scheduler.transcribe(audioPath: "queued", job: .fileTranscription)
         }

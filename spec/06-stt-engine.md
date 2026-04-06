@@ -167,7 +167,7 @@ struct TimestampedWord: Sendable {
 
 ### Runtime and Scheduling
 
-ADR-016 defines MacParakeet's **approved target STT architecture** as:
+ADR-016 defines MacParakeet's STT architecture as:
 
 - **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown
 - **Two STT execution slots by default**
@@ -178,8 +178,6 @@ ADR-016 defines MacParakeet's **approved target STT architecture** as:
 
 The app does not treat "one service = one STT runtime" as a valid long-term architecture.
 `STTClient` remains only as a standalone compatibility facade for the CLI and tests; app code uses the shared `STTRuntime` + `STTScheduler` from `AppEnvironment`.
-
-**Current branch implementation note:** the checked-out v0.6 branch has already centralized app-owned STT wiring, but it still executes through internal `dictation` / `meeting` / `batch` lanes with one `AsrManager` per lane. Treat the two-slot policy below as the approved destination, not as a statement that the current code has fully converged yet.
 
 ### Lifecycle
 

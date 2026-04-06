@@ -5,10 +5,10 @@ import MacParakeetCore
 struct HealthCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "health",
-        abstract: "Check system health: database, local models, and helper binaries."
+        abstract: "Check system health: database, local speech stack, and helper binaries."
     )
 
-    @Flag(name: .long, help: "Attempt to repair/warm the Parakeet speech model.")
+    @Flag(name: .long, help: "Attempt to repair/warm the local speech stack.")
     var repairModels: Bool = false
 
     @Option(name: .long, help: "Maximum repair attempts when --repair-models is set.")
@@ -68,24 +68,29 @@ struct HealthCommand: AsyncParsableCommand {
         }
         print()
 
-        // 4. Local models
-        print("Local Models:")
+        // 4. Local speech stack
+        print("Local Speech Stack:")
         let sttClient = STTClient()
-
-        await printSTTStatus(sttClient: sttClient)
+        let diarizationService = DiarizationService()
+        let status = await loadSpeechStackStatus(
+            sttClient: sttClient,
+            diarizationService: diarizationService
+        )
+        printSpeechStackStatus(status, includeHeader: false)
 
         if let repairAttempts = validatedRepairAttempts {
             print()
-            print("Model repair requested...")
+            print("Speech-stack repair requested...")
             do {
-                try await warmUpModels(
+                try await prepareSpeechStack(
                     attempts: repairAttempts,
                     sttClient: sttClient,
+                    diarizationService: diarizationService,
                     log: { message in print("  \(message)") }
                 )
-                print("Model repair completed.")
+                print("Speech-stack repair completed.")
             } catch {
-                print("Model repair failed — \(error.localizedDescription)")
+                print("Speech-stack repair failed — \(error.localizedDescription)")
             }
         }
         await sttClient.shutdown()

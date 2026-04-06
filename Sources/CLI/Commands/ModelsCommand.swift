@@ -5,7 +5,7 @@ import MacParakeetCore
 struct ModelsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "models",
-        abstract: "Inspect and manage the local Parakeet speech model.",
+        abstract: "Inspect and manage the local speech and speaker models.",
         subcommands: [
             Status.self,
             WarmUp.self,
@@ -19,19 +19,25 @@ extension ModelsCommand {
     struct Status: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "status",
-            abstract: "Show speech model status without forcing downloads."
+            abstract: "Show speech-stack status without forcing downloads."
         )
 
         func run() async throws {
             let sttClient = STTClient()
-            await printSTTStatus(sttClient: sttClient)
+            let diarizationService = DiarizationService()
+            let status = await loadSpeechStackStatus(
+                sttClient: sttClient,
+                diarizationService: diarizationService
+            )
+            printSpeechStackStatus(status)
+            await sttClient.shutdown()
         }
     }
 
     struct WarmUp: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "warm-up",
-            abstract: "Warm up speech model. May download on first run."
+            abstract: "Warm up the local speech stack. May download on first run."
         )
 
         @Option(name: .long, help: "Maximum attempts.")
@@ -40,18 +46,21 @@ extension ModelsCommand {
         func run() async throws {
             let attempts = try validatedAttempts(attempts)
             let sttClient = STTClient()
-            try await warmUpModels(
+            let diarizationService = DiarizationService()
+            try await prepareSpeechStack(
                 attempts: attempts,
                 sttClient: sttClient,
+                diarizationService: diarizationService,
                 log: { print($0) }
             )
+            await sttClient.shutdown()
         }
     }
 
     struct Repair: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "repair",
-            abstract: "Best-effort retry speech model repair."
+            abstract: "Best-effort retry for the local speech stack."
         )
 
         @Option(name: .long, help: "Maximum attempts.")
@@ -60,11 +69,14 @@ extension ModelsCommand {
         func run() async throws {
             let attempts = try validatedAttempts(attempts)
             let sttClient = STTClient()
-            try await warmUpModels(
+            let diarizationService = DiarizationService()
+            try await prepareSpeechStack(
                 attempts: attempts,
                 sttClient: sttClient,
+                diarizationService: diarizationService,
                 log: { print($0) }
             )
+            await sttClient.shutdown()
         }
     }
 
@@ -77,8 +89,32 @@ extension ModelsCommand {
         func run() async throws {
             let sttClient = STTClient()
             await sttClient.clearModelCache()
-            print("Parakeet (STT): model cache cleared")
+            DiarizationService.clearModelCache()
+            print("Local speech and speaker model caches cleared")
         }
+    }
+}
+
+struct SpeechStackStatus: Sendable, Equatable {
+    let speechModelCached: Bool
+    let speechRuntimeReady: Bool
+    let speakerModelsCached: Bool
+    let speakerModelsPrepared: Bool
+
+    var summary: String {
+        if speechRuntimeReady && speakerModelsPrepared {
+            return "Ready"
+        }
+        if speechModelCached && speakerModelsCached {
+            return "Downloaded (loads on demand)"
+        }
+        if speechModelCached {
+            return "Speech model present, speaker models missing"
+        }
+        if speakerModelsCached {
+            return "Speaker models present, speech model missing"
+        }
+        return "Not downloaded"
     }
 }
 
@@ -89,25 +125,38 @@ func validatedAttempts(_ attempts: Int) throws -> Int {
     return attempts
 }
 
-func printSTTStatus(sttClient: STTClientProtocol) async {
-    let cached = STTClient.isModelCached()
-    let ready = await sttClient.isReady()
+func loadSpeechStackStatus(
+    sttClient: STTClientProtocol,
+    diarizationService: DiarizationServiceProtocol,
+    isSpeechModelCached: @escaping @Sendable () -> Bool = { STTClient.isModelCached() }
+) async -> SpeechStackStatus {
+    async let speechRuntimeReady = sttClient.isReady()
+    async let speakerModelsCached = diarizationService.hasCachedModels()
+    async let speakerModelsPrepared = diarizationService.isReady()
 
-    print("Parakeet (STT):")
-    print("  Cached: \(cached ? "Yes" : "No")")
-    print("  Ready:  \(ready ? "Yes" : "No")")
-    if ready {
-        print("  Status: Ready")
-    } else if cached {
-        print("  Status: Downloaded (loads on demand)")
-    } else {
-        print("  Status: Not downloaded")
-    }
+    return await SpeechStackStatus(
+        speechModelCached: isSpeechModelCached(),
+        speechRuntimeReady: speechRuntimeReady,
+        speakerModelsCached: speakerModelsCached,
+        speakerModelsPrepared: speakerModelsPrepared
+    )
 }
 
-func warmUpModels(
+func printSpeechStackStatus(_ status: SpeechStackStatus, includeHeader: Bool = true) {
+    if includeHeader {
+        print("Local speech stack:")
+    }
+    print("  Speech model cached:   \(status.speechModelCached ? "Yes" : "No")")
+    print("  Speech runtime loaded: \(status.speechRuntimeReady ? "Yes" : "No")")
+    print("  Speaker models cached: \(status.speakerModelsCached ? "Yes" : "No")")
+    print("  Speaker models prepared: \(status.speakerModelsPrepared ? "Yes" : "No")")
+    print("  Status: \(status.summary)")
+}
+
+func prepareSpeechStack(
     attempts: Int,
     sttClient: STTClientProtocol,
+    diarizationService: DiarizationServiceProtocol,
     log: @escaping @Sendable (String) -> Void
 ) async throws {
     log("Parakeet (STT): preparing...")
@@ -119,8 +168,18 @@ func warmUpModels(
         }
     }
 
-    let ready = await sttClient.isReady()
-    log("Parakeet (STT): \(ready ? "Ready" : "Not ready")")
+    log("Speaker models: preparing...")
+    try await runWithRetry(attempts: attempts, label: "Speaker models", log: log) { _ in
+        try await diarizationService.prepareModels { message in
+            log("Speaker models: \(message)")
+        }
+    }
+
+    let status = await loadSpeechStackStatus(
+        sttClient: sttClient,
+        diarizationService: diarizationService
+    )
+    log("Speech stack: \(status.summary)")
 }
 
 private func runWithRetry(

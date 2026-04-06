@@ -63,6 +63,7 @@ public final class OnboardingViewModel {
     private var warmUpObserverTask: Task<Void, Never>?
     private var warmUpObserverId: UUID?
     private let requiredFirstSetupDiskBytes: Int64 = 7 * 1_024 * 1_024 * 1_024
+    private let requiredDiarizationSetupDiskBytes: Int64 = 512 * 1_024 * 1_024
 
     public static let onboardingCompletedKey = "onboarding.completedAtISO"
 
@@ -277,6 +278,7 @@ public final class OnboardingViewModel {
 
     private func prepareDiarizationModelsIfNeeded(generation: Int) async throws {
         guard let diarizationService else { return }
+        guard await diarizationService.isReady() == false else { return }
 
         engineState = .working(message: "Speaker models: downloading...", progress: nil)
         do {
@@ -322,24 +324,46 @@ public final class OnboardingViewModel {
             throw STTError.engineStartFailed("Local model runtime requires Apple Silicon with Metal support.")
         }
 
-        // Only gate on network/disk if the model still needs downloading.
-        // If the model is already cached, skip preflight regardless of onboarding state
-        // (e.g. user reset onboarding while offline — no download needed).
-        guard !isSpeechModelCached() else { return }
+        let speechModelCached = isSpeechModelCached()
+        let diarizationAssetsReady = await areDiarizationAssetsReadyForOnboarding()
+
+        guard !speechModelCached || !diarizationAssetsReady else { return }
+
+        let (requiredDiskBytes, setupLabel, networkRequirement) =
+            if speechModelCached {
+                (
+                    requiredDiarizationSetupDiskBytes,
+                    "speaker-model setup",
+                    "Internet connection is required to download speaker models. Check your network and retry."
+                )
+            } else {
+                (
+                    requiredFirstSetupDiskBytes,
+                    "first-time speech model setup",
+                    "Internet connection is required for first-time model download. Check your network and retry."
+                )
+            }
 
         guard let freeBytes = availableDiskBytes() else {
-            throw STTError.engineStartFailed("Unable to determine free disk space. Verify at least \(Self.formatGiB(requiredFirstSetupDiskBytes)) is available, then retry.")
+            throw STTError.engineStartFailed(
+                "Unable to determine free disk space. Verify at least \(Self.formatGiB(requiredDiskBytes)) is available for \(setupLabel), then retry."
+            )
         }
 
-        guard freeBytes >= requiredFirstSetupDiskBytes else {
+        guard freeBytes >= requiredDiskBytes else {
             throw STTError.engineStartFailed(
-                "Not enough free disk space for first-time model setup. Need at least \(Self.formatGiB(requiredFirstSetupDiskBytes)) (available: \(Self.formatGiB(freeBytes)))."
+                "Not enough free disk space for \(setupLabel). Need at least \(Self.formatGiB(requiredDiskBytes)) (available: \(Self.formatGiB(freeBytes)))."
             )
         }
 
         guard await isNetworkReachable() else {
-            throw STTError.engineStartFailed("Internet connection is required for first-time model download. Check your network and retry.")
+            throw STTError.engineStartFailed(networkRequirement)
         }
+    }
+
+    private func areDiarizationAssetsReadyForOnboarding() async -> Bool {
+        guard let diarizationService else { return true }
+        return await diarizationService.hasCachedModels()
     }
 
     private nonisolated static func formatGiB(_ bytes: Int64) -> String {

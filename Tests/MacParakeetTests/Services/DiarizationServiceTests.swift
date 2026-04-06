@@ -57,11 +57,37 @@ final class DiarizationServiceTests: XCTestCase {
         try await mock.prepareModels()
         let wasCalled = await mock.prepareModelsCalled
         XCTAssertTrue(wasCalled)
+        let ready = await mock.isReady()
+        XCTAssertTrue(ready)
+        let cached = await mock.hasCachedModels()
+        XCTAssertTrue(cached)
     }
 
     func testIsReady() async {
         let mock = MockDiarizationService()
         let ready = await mock.isReady()
-        XCTAssertTrue(ready)
+        XCTAssertFalse(ready)
+    }
+
+    func testClearModelCacheRemovesCachedSpeakerModels() throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let repoDirectory = DiarizationService.modelCacheDirectory(directory: tempDirectory)
+        try FileManager.default.createDirectory(at: repoDirectory, withIntermediateDirectories: true)
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        for modelName in DiarizationService.requiredModelNames() {
+            let modelURL = repoDirectory.appendingPathComponent(modelName, isDirectory: false)
+            FileManager.default.createFile(atPath: modelURL.path, contents: Data())
+        }
+
+        XCTAssertTrue(DiarizationService.isModelCached(directory: tempDirectory))
+
+        DiarizationService.clearModelCache(directory: tempDirectory)
+
+        XCTAssertFalse(DiarizationService.isModelCached(directory: tempDirectory))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: repoDirectory.path))
     }
 }

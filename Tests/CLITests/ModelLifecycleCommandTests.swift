@@ -23,12 +23,14 @@ final class ModelLifecycleCommandTests: XCTestCase {
 
     func testWarmUpRetriesConfiguredAttempts() async {
         let stt = StubSTTClient()
+        let diarization = StubDiarizationService()
         await stt.setFailuresBeforeSuccess(2)
 
         do {
-            try await warmUpModels(
+            try await prepareSpeechStack(
                 attempts: 3,
                 sttClient: stt,
+                diarizationService: diarization,
                 log: { _ in }
             )
         } catch {
@@ -37,6 +39,33 @@ final class ModelLifecycleCommandTests: XCTestCase {
 
         let sttCalls = await stt.warmUpCalls
         XCTAssertEqual(sttCalls, 3)
+        let diarizationCalls = await diarization.prepareModelsCalls
+        XCTAssertEqual(diarizationCalls, 1)
+    }
+
+    func testLoadSpeechStackStatusReflectsSpeechAndSpeakerReadinessSeparately() async {
+        let stt = StubSTTClient()
+        let diarization = StubDiarizationService()
+        await stt.setReady(true)
+        await diarization.setCachedModels(false)
+        await diarization.setReady(false)
+
+        let status = await loadSpeechStackStatus(
+            sttClient: stt,
+            diarizationService: diarization,
+            isSpeechModelCached: { true }
+        )
+
+        XCTAssertEqual(
+            status,
+            SpeechStackStatus(
+                speechModelCached: true,
+                speechRuntimeReady: true,
+                speakerModelsCached: false,
+                speakerModelsPrepared: false
+            )
+        )
+        XCTAssertEqual(status.summary, "Speech model present, speaker models missing")
     }
 }
 
@@ -52,6 +81,10 @@ private actor StubSTTClient: STTClientProtocol {
 
     func setFailuresBeforeSuccess(_ count: Int) {
         failuresBeforeSuccess = max(0, count)
+    }
+
+    func setReady(_ value: Bool) {
+        ready = value
     }
 
     func transcribe(
@@ -95,4 +128,37 @@ private actor StubSTTClient: STTClientProtocol {
     }
 
     func shutdown() async {}
+}
+
+private actor StubDiarizationService: DiarizationServiceProtocol {
+    private(set) var prepareModelsCalls = 0
+    private var ready = false
+    private var cachedModels = false
+
+    func setReady(_ value: Bool) {
+        ready = value
+    }
+
+    func setCachedModels(_ value: Bool) {
+        cachedModels = value
+    }
+
+    func diarize(audioURL: URL) async throws -> MacParakeetDiarizationResult {
+        MacParakeetDiarizationResult(segments: [], speakerCount: 0, speakers: [])
+    }
+
+    func prepareModels(onProgress: (@Sendable (String) -> Void)?) async throws {
+        prepareModelsCalls += 1
+        ready = true
+        cachedModels = true
+        onProgress?("Speaker models ready")
+    }
+
+    func isReady() async -> Bool {
+        ready
+    }
+
+    func hasCachedModels() async -> Bool {
+        cachedModels
+    }
 }
