@@ -255,7 +255,7 @@ struct SettingsView: View {
                             return .blocked("Already used by dictation.")
                         }
 
-                        if !viewModel.hotkeyTrigger.isDisabled, viewModel.hotkeyTrigger == viewModel.meetingHotkeyTrigger {
+                        if !viewModel.meetingHotkeyTrigger.isDisabled, viewModel.hotkeyTrigger == viewModel.meetingHotkeyTrigger {
                             hotkeyConflictText
                         }
                     }

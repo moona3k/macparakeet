@@ -8,6 +8,13 @@ struct OnboardingFlowView: View {
     let onOpenMainApp: () -> Void
     let onOpenSettings: () -> Void
 
+    /// Trigger shown in onboarding copy — falls back to the default (.fn) when
+    /// the user has disabled their hotkey, so instructional text stays readable.
+    private var displayTrigger: HotkeyTrigger {
+        let current = HotkeyTrigger.current
+        return current.isDisabled ? .fn : current
+    }
+
     private let windowWidth: CGFloat = 740
     private let windowHeight: CGFloat = 500
 
@@ -352,7 +359,7 @@ struct OnboardingFlowView: View {
                 featureRow(
                     icon: "mic.fill",
                     title: "Dictate anywhere",
-                    detail: "Double-tap \(HotkeyTrigger.current.displayName) for persistent dictation, or hold-to-talk and release to stop. Text appears where your cursor is."
+                    detail: "Double-tap \(displayTrigger.displayName) for persistent dictation, or hold-to-talk and release to stop. Text appears where your cursor is."
                 )
                 featureRow(
                     icon: "bolt.fill",
@@ -376,6 +383,21 @@ struct OnboardingFlowView: View {
 
     private var hotkeyStep: some View {
         VStack(alignment: .leading, spacing: 14) {
+            if HotkeyTrigger.current.isDisabled {
+                HStack(spacing: 8) {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundStyle(DesignSystem.Colors.accent)
+                    Text("Your dictation hotkey is currently disabled. The examples below show the default key (\(displayTrigger.shortSymbol)). You can set a hotkey anytime in Settings.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(DesignSystem.Spacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .fill(DesignSystem.Colors.accent.opacity(0.08))
+                )
+            }
+
             // Persistent Mode card
             onboardingCard {
                 HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
@@ -390,10 +412,10 @@ struct OnboardingFlowView: View {
                             .padding(.vertical, 3)
                             .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
 
-                        Text("Double-tap \(HotkeyTrigger.current.shortSymbol)")
+                        Text("Double-tap \(displayTrigger.shortSymbol)")
                             .font(DesignSystem.Typography.sectionTitle)
 
-                        Text("Starts persistent recording.\nTap \(HotkeyTrigger.current.shortSymbol) again to stop and paste.")
+                        Text("Starts persistent recording.\nTap \(displayTrigger.shortSymbol) again to stop and paste.")
                             .font(DesignSystem.Typography.bodySmall)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -416,7 +438,7 @@ struct OnboardingFlowView: View {
                             .padding(.vertical, 3)
                             .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
 
-                        Text("Hold \(HotkeyTrigger.current.shortSymbol)")
+                        Text("Hold \(displayTrigger.shortSymbol)")
                             .font(DesignSystem.Typography.sectionTitle)
 
                         Text("Records while you hold the key.\nRelease to stop and paste.")
@@ -441,7 +463,7 @@ struct OnboardingFlowView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            Text("Tip: If your keyboard doesn't send \(HotkeyTrigger.current.displayName) events, you can still use file transcription from the main app window.")
+            Text("Tip: If your keyboard doesn't send \(displayTrigger.displayName) events, you can still use file transcription from the main app window.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }
@@ -455,13 +477,13 @@ struct OnboardingFlowView: View {
 
     private var doubleTapIllustration: some View {
         HStack(spacing: 4) {
-            keyCap(HotkeyTrigger.current.shortSymbol)
+            keyCap(displayTrigger.shortSymbol)
                 .scaleEffect(doubleTapPhase == 1 ? 0.9 : 1.0)
                 .opacity(reduceMotion || doubleTapPhase == 1 ? 1.0 : 0.5)
             Text("·")
                 .font(.system(size: 14, weight: .bold))
                 .foregroundStyle(.tertiary)
-            keyCap(HotkeyTrigger.current.shortSymbol)
+            keyCap(displayTrigger.shortSymbol)
                 .scaleEffect(doubleTapPhase == 2 ? 0.9 : 1.0)
                 .opacity(reduceMotion || doubleTapPhase == 2 ? 1.0 : 0.5)
         }
@@ -470,7 +492,7 @@ struct OnboardingFlowView: View {
 
     private var holdIllustration: some View {
         VStack(spacing: 6) {
-            keyCap(HotkeyTrigger.current.shortSymbol)
+            keyCap(displayTrigger.shortSymbol)
                 .scaleEffect(holdPhase > 0 ? 0.93 : 1.0)
                 .opacity(reduceMotion || holdPhase > 0 ? 1.0 : 0.5)
                 .animation(.easeInOut(duration: 0.15), value: holdPhase > 0)
@@ -650,7 +672,9 @@ struct OnboardingFlowView: View {
 
             onboardingCard {
                 VStack(alignment: .leading, spacing: 14) {
-                    quickTip(icon: "mic.fill", text: "Double-tap \(HotkeyTrigger.current.displayName) to start dictating anywhere")
+                    quickTip(icon: "mic.fill", text: HotkeyTrigger.current.isDisabled
+                        ? "Click the dictation pill or set a hotkey in Settings to start dictating"
+                        : "Double-tap \(displayTrigger.displayName) to start dictating anywhere")
                     quickTip(icon: "doc.fill", text: "Drop an audio file onto the main window to transcribe")
                     quickTip(icon: "gearshape", text: "Visit Settings to customize your experience")
                 }
