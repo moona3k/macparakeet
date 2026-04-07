@@ -14,23 +14,47 @@ public final class MeetingRecordingPanelViewModel {
     public var elapsedSeconds: Int = 0
     public var micLevel: Float = 0
     public var systemLevel: Float = 0
-    public var previewLines: [MeetingRecordingPreviewLine] = [] {
-        didSet {
-            wordCount = previewLines.reduce(0) { $0 + $1.text.split(separator: " ").count }
-        }
-    }
+    public var previewLines: [MeetingRecordingPreviewLine] = []
     public var isTranscriptionLagging: Bool = false
     public var showCopiedConfirmation: Bool = false
     public var onStop: (() -> Void)?
     public var onClose: (() -> Void)?
 
+    private var copiedResetTask: Task<Void, Never>?
+    private var previewLineWordCounts: [Int] = []
+
     public init() {}
+
+    /// Show "Copied" confirmation and auto-dismiss after 1.5s.
+    /// Owns the timer so the View doesn't need @State Task.
+    public func showCopiedFeedback() {
+        showCopiedConfirmation = true
+        copiedResetTask?.cancel()
+        copiedResetTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            showCopiedConfirmation = false
+        }
+    }
 
     public func updatePreviewLines(
         _ lines: [MeetingRecordingPreviewLine],
         isTranscriptionLagging: Bool = false
     ) {
-        previewLines = lines
+        if let firstChangedIndex = Self.firstChangedLineIndex(
+            oldLines: previewLines,
+            newLines: lines
+        ) {
+            let removedWordCount = firstChangedIndex < previewLineWordCounts.count
+                ? previewLineWordCounts[firstChangedIndex...].reduce(0, +)
+                : 0
+            let addedWordCounts = firstChangedIndex < lines.count
+                ? lines[firstChangedIndex...].map { Self.wordCount(for: $0.text) }
+                : []
+            wordCount += addedWordCounts.reduce(0, +) - removedWordCount
+            previewLineWordCounts = Array(previewLineWordCounts.prefix(firstChangedIndex)) + addedWordCounts
+            previewLines = lines
+        }
         self.isTranscriptionLagging = isTranscriptionLagging
     }
 
@@ -50,7 +74,10 @@ public final class MeetingRecordingPanelViewModel {
         micLevel = 0
         systemLevel = 0
         previewLines = []
+        previewLineWordCounts = []
+        wordCount = 0
         isTranscriptionLagging = false
+        copiedResetTask?.cancel()
         showCopiedConfirmation = false
     }
 
@@ -108,5 +135,20 @@ public final class MeetingRecordingPanelViewModel {
 
     public var showsAudioLevels: Bool {
         state == .recording
+    }
+
+    private static func firstChangedLineIndex(
+        oldLines: [MeetingRecordingPreviewLine],
+        newLines: [MeetingRecordingPreviewLine]
+    ) -> Int? {
+        let sharedCount = min(oldLines.count, newLines.count)
+        for index in 0..<sharedCount where oldLines[index] != newLines[index] {
+            return index
+        }
+        return oldLines.count == newLines.count ? nil : sharedCount
+    }
+
+    private static func wordCount(for text: String) -> Int {
+        text.split(whereSeparator: \.isWhitespace).count
     }
 }

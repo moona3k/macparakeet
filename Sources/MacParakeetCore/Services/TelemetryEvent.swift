@@ -580,7 +580,7 @@ public enum TelemetryImplementedContract {
         .promptDeleted: [],
         .keystrokeSnippetFired: ["action"],
         .meetingRecordingStarted: [],
-        .meetingRecordingCompleted: ["duration_seconds", "live_word_count"],
+        .meetingRecordingCompleted: ["duration_seconds", "live_word_count", "live_transcript_lagged"],
         .meetingRecordingCancelled: ["duration_seconds"],
         .meetingRecordingFailed: ["error_type"],
         .errorOccurred: ["domain", "code", "description"],

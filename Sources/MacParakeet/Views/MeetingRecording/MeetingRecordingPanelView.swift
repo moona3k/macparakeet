@@ -6,7 +6,6 @@ import SwiftUI
 struct MeetingRecordingPanelView: View {
     @Bindable var viewModel: MeetingRecordingPanelViewModel
     @State private var autoScroll = true
-    @State private var copiedResetTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -136,13 +135,7 @@ struct MeetingRecordingPanelView: View {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(viewModel.transcriptText, forType: .string)
         Telemetry.send(.copyToClipboard(source: .meeting))
-        viewModel.showCopiedConfirmation = true
-        copiedResetTask?.cancel()
-        copiedResetTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.5))
-            guard !Task.isCancelled else { return }
-            viewModel.showCopiedConfirmation = false
-        }
+        viewModel.showCopiedFeedback()
     }
 
     @ViewBuilder
@@ -296,6 +289,7 @@ private struct StopRecordingButton: View {
             }
         }
         .help(confirming ? "Click to confirm" : "End recording")
+        .onDisappear { revertTask?.cancel() }
     }
 }
 
