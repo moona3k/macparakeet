@@ -87,6 +87,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <string>0.0.0</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>MacParakeet needs microphone access for voice dictation.</string>
+    <key>NSAudioCaptureUsageDescription</key>
+    <string>MacParakeet needs system audio recording access for meeting recording.</string>
 </dict>
 </plist>
 PLIST

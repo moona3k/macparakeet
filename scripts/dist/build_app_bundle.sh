@@ -400,6 +400,8 @@ cat >"$INFO_PLIST" <<EOF
   <true/>
   <key>NSMicrophoneUsageDescription</key>
   <string>MacParakeet needs microphone access for dictation.</string>
+  <key>NSAudioCaptureUsageDescription</key>
+  <string>MacParakeet needs system audio recording access for meeting recording.</string>
   <key>SUFeedURL</key>
   <string>https://macparakeet.com/appcast.xml</string>
   <key>SUEnableAutomaticChecks</key>

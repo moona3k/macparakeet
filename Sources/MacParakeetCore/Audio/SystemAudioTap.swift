@@ -103,7 +103,7 @@ public final class SystemAudioTap: @unchecked Sendable {
     }
 
     private func createProcessTap() throws {
-        let tapDescription = CATapDescription(stereoMixdownOfProcesses: [])
+        let tapDescription = CATapDescription(stereoGlobalTapButExcludeProcesses: [])
         let tapUUID = UUID()
         tapDescription.uuid = tapUUID
         tapDescription.muteBehavior = .unmuted
