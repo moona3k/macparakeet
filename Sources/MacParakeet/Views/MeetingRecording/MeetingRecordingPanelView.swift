@@ -343,7 +343,7 @@ private struct FooterButton: View {
     }
 }
 
-/// Icon-only footer button with hover effect and tooltip.
+/// Icon-only footer button with hover effect and instant custom tooltip.
 private struct FooterIconButton: View {
     let icon: String
     var activeColor: Color?
@@ -382,7 +382,24 @@ private struct FooterIconButton: View {
         .onHover { hovering in
             isHovered = hovering
         }
-        .help(tooltip)
+        .overlay(alignment: .bottom) {
+            if isHovered {
+                Text(tooltip)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(
+                        Capsule()
+                            .fill(.black.opacity(0.75))
+                    )
+                    .offset(y: 28)
+                    .fixedSize()
+                    .transition(.opacity.combined(with: .scale(scale: 0.9)))
+                    .allowsHitTesting(false)
+            }
+        }
+        .animation(.easeOut(duration: 0.12), value: isHovered)
     }
 }
 
