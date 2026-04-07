@@ -22,7 +22,14 @@ struct MeetingRecordingPanelView: View {
     private var header: some View {
         VStack(spacing: DesignSystem.Spacing.xs) {
             HStack(spacing: DesignSystem.Spacing.sm) {
-                statusDot
+                if viewModel.showsAudioLevels {
+                    DualAudioOrbView(
+                        micLevel: viewModel.micLevel,
+                        systemLevel: viewModel.systemLevel
+                    )
+                } else {
+                    statusDot
+                }
 
                 Text(viewModel.statusTitle)
                     .font(DesignSystem.Typography.bodySmall.weight(.semibold))
@@ -40,13 +47,6 @@ struct MeetingRecordingPanelView: View {
                     Text("\(viewModel.wordCount) words")
                         .font(.system(size: 10, weight: .regular).monospacedDigit())
                         .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.8))
-                }
-
-                if viewModel.showsAudioLevels {
-                    DualAudioOrbView(
-                        micLevel: viewModel.micLevel,
-                        systemLevel: viewModel.systemLevel
-                    )
                 }
             }
 
