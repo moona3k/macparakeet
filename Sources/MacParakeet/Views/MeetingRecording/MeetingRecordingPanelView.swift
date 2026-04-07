@@ -88,32 +88,12 @@ struct MeetingRecordingPanelView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(false)
 
-            // Transcript rows
+            // Native NSTextView — full drag selection, performant
             if hasContent {
-                ScrollViewReader { proxy in
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 0) {
-                            ForEach(Array(viewModel.previewLines.enumerated()), id: \.element.id) { index, line in
-                                let previousSource = index > 0 ? viewModel.previewLines[index - 1].source : nil
-                                let speakerChanged = line.source != previousSource
-                                TranscriptLineView(line: line, showSpeakerHeader: speakerChanged)
-                                    .id(line.id)
-                            }
-                        }
-                        .padding(.horizontal, DesignSystem.Spacing.lg)
-                        .padding(.vertical, DesignSystem.Spacing.sm)
-                    }
-                    .onAppear {
-                        guard autoScroll, let last = viewModel.previewLines.last else { return }
-                        proxy.scrollTo(last.id, anchor: .bottom)
-                    }
-                    .onChange(of: viewModel.previewLines.last?.id) { _, lastID in
-                        guard autoScroll, let lastID else { return }
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            proxy.scrollTo(lastID, anchor: .bottom)
-                        }
-                    }
-                }
+                TranscriptTextView(
+                    lines: viewModel.previewLines,
+                    autoScroll: autoScroll
+                )
             }
         }
         .background(DesignSystem.Colors.background)
@@ -176,53 +156,6 @@ struct MeetingRecordingPanelView: View {
         case .error:
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(DesignSystem.Colors.warningAmber)
-        }
-    }
-}
-
-/// Lightweight transcript row — speaker header + serif body text.
-private struct TranscriptLineView: View {
-    let line: MeetingRecordingPreviewLine
-    var showSpeakerHeader: Bool = true
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if showSpeakerHeader {
-                HStack(spacing: 6) {
-                    Circle()
-                        .fill(sourceColor)
-                        .frame(width: 5, height: 5)
-
-                    Text(line.speakerLabel)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(sourceColor.opacity(0.85))
-
-                    Text(line.timestamp)
-                        .font(.system(size: 10, weight: .regular).monospacedDigit())
-                        .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.5))
-                }
-                .padding(.top, 8)
-                .padding(.bottom, 3)
-            }
-
-            Text(line.text)
-                .font(.system(size: 13, weight: .regular, design: .serif))
-                .foregroundStyle(DesignSystem.Colors.textPrimary.opacity(0.9))
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, 11)
-        }
-        .padding(.vertical, 1)
-    }
-
-    private var sourceColor: Color {
-        switch line.source {
-        case .microphone:
-            return DesignSystem.Colors.accent
-        case .system:
-            return DesignSystem.Colors.speakerColor(for: 0)
-        case .none:
-            return DesignSystem.Colors.textSecondary
         }
     }
 }
