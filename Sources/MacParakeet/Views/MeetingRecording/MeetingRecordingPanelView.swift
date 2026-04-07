@@ -20,63 +20,52 @@ struct MeetingRecordingPanelView: View {
     }
 
     private var header: some View {
-        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                Text("Meeting Recording")
-                    .font(DesignSystem.Typography.headline)
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+        VStack(spacing: DesignSystem.Spacing.xs) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                statusDot
 
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    statusDot
-                    Text(viewModel.statusTitle)
-                        .font(DesignSystem.Typography.bodySmall.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Text(viewModel.statusTitle)
+                    .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
 
-                    if viewModel.showsElapsedTime {
-                        Text(viewModel.formattedElapsed)
-                            .font(DesignSystem.Typography.timestamp)
-                            .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    }
-                }
-
-                Text(viewModel.statusMessage)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if viewModel.showsLaggingIndicator {
-                    Label("Transcript preview is catching up", systemImage: "exclamationmark.triangle.fill")
-                        .font(DesignSystem.Typography.caption.weight(.semibold))
-                        .foregroundStyle(DesignSystem.Colors.warningAmber)
-                        .padding(.horizontal, DesignSystem.Spacing.sm)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(DesignSystem.Colors.surfaceElevated))
+                if viewModel.showsElapsedTime {
+                    Text(viewModel.formattedElapsed)
+                        .font(DesignSystem.Typography.timestamp.monospacedDigit())
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
                 }
 
                 if viewModel.showsAudioLevels {
-                    DualAudioLevelView(
+                    DualAudioOrbView(
                         micLevel: viewModel.micLevel,
                         systemLevel: viewModel.systemLevel
                     )
                 }
+
+                Spacer(minLength: 0)
+
+                Button(action: { viewModel.onClose?() }) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .frame(width: 24, height: 24)
+                        .background(
+                            Circle()
+                                .fill(DesignSystem.Colors.surfaceElevated)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("Hide meeting panel")
             }
 
-            Spacer(minLength: 0)
-
-            Button(action: { viewModel.onClose?() }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-                    .frame(width: 28, height: 28)
-                    .background(
-                        Circle()
-                            .fill(DesignSystem.Colors.surfaceElevated)
-                    )
+            if viewModel.showsLaggingIndicator {
+                Label("Transcript preview is catching up", systemImage: "exclamationmark.triangle.fill")
+                    .font(DesignSystem.Typography.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .buttonStyle(.plain)
-            .help("Hide meeting panel")
         }
-        .padding(DesignSystem.Spacing.md)
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.vertical, DesignSystem.Spacing.sm)
     }
 
     @ViewBuilder
@@ -121,7 +110,7 @@ struct MeetingRecordingPanelView: View {
 
     private var footer: some View {
         HStack(spacing: DesignSystem.Spacing.md) {
-            Text("\(viewModel.previewLines.count) segments")
+            Text("\(viewModel.wordCount) words")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
 
@@ -149,7 +138,7 @@ struct MeetingRecordingPanelView: View {
             Button {
                 autoScroll.toggle()
             } label: {
-                Label(autoScroll ? "Auto-scroll" : "Paused", systemImage: autoScroll ? "arrow.down.to.line" : "pause")
+                Label(autoScroll ? "Auto-scroll" : "Paused", systemImage: autoScroll ? "chevron.down.circle.fill" : "chevron.down.circle")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(autoScroll ? DesignSystem.Colors.accent : DesignSystem.Colors.textTertiary)
             }

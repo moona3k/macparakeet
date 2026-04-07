@@ -38,6 +38,10 @@ public final class MeetingRecordingPanelViewModel {
         !previewLines.isEmpty
     }
 
+    public var wordCount: Int {
+        previewLines.reduce(0) { $0 + $1.text.split(separator: " ").count }
+    }
+
     public func reset() {
         state = .hidden
         elapsedSeconds = 0

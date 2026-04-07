@@ -10,7 +10,7 @@ public enum AudioSource: String, Codable, Sendable {
         case .microphone:
             return "Me"
         case .system:
-            return "Them"
+            return "Others"
         }
     }
 }
