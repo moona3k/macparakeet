@@ -254,7 +254,9 @@ struct DictationHistoryView: View {
                     .foregroundStyle(.primary)
 
                 Text(viewModel.searchText.isEmpty
-                     ? "Double-tap \(HotkeyTrigger.current.displayName) to start dictating from any app."
+                     ? (HotkeyTrigger.current.isDisabled
+                        ? "Click the dictation pill or set a hotkey in Settings to start dictating."
+                        : "Double-tap \(HotkeyTrigger.current.displayName) to start dictating from any app.")
                      : "Try different words or clear your search.")
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(.secondary)

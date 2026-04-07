@@ -66,23 +66,7 @@ struct HotkeyRecorderView: View {
             .buttonStyle(.bordered)
 
             Menu {
-                if trigger.isDisabled {
-                    Button("Reset to Default (\(defaultTrigger.shortSymbol))") {
-                        switch combinedValidation(for: defaultTrigger) {
-                        case .blocked(let msg):
-                            validationMessage = msg
-                            validationIsBlocked = true
-                        case .warned(let msg):
-                            trigger = defaultTrigger
-                            validationMessage = msg
-                            validationIsBlocked = false
-                        case .allowed:
-                            trigger = defaultTrigger
-                            validationMessage = nil
-                            validationIsBlocked = false
-                        }
-                    }
-                } else {
+                if !trigger.isDisabled {
                     Button("Disable Hotkey") {
                         trigger = .disabled
                         validationMessage = nil
@@ -90,24 +74,14 @@ struct HotkeyRecorderView: View {
                     }
 
                     Divider()
+                }
 
-                    Button("Reset to Default (\(defaultTrigger.shortSymbol))") {
-                        switch combinedValidation(for: defaultTrigger) {
-                        case .blocked(let msg):
-                            validationMessage = msg
-                            validationIsBlocked = true
-                        case .warned(let msg):
-                            trigger = defaultTrigger
-                            validationMessage = msg
-                            validationIsBlocked = false
-                        case .allowed:
-                            trigger = defaultTrigger
-                            validationMessage = nil
-                            validationIsBlocked = false
-                        }
-                    }
-                    .disabled(trigger == defaultTrigger)
+                Button("Reset to Default (\(defaultTrigger.shortSymbol))") {
+                    resetToDefault()
+                }
+                .disabled(trigger == defaultTrigger)
 
+                if !trigger.isDisabled {
                     Divider()
 
                     Button("Record Specific Modifier Side") {
@@ -315,6 +289,22 @@ struct HotkeyRecorderView: View {
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
+        }
+    }
+
+    private func resetToDefault() {
+        switch combinedValidation(for: defaultTrigger) {
+        case .blocked(let msg):
+            validationMessage = msg
+            validationIsBlocked = true
+        case .warned(let msg):
+            trigger = defaultTrigger
+            validationMessage = msg
+            validationIsBlocked = false
+        case .allowed:
+            trigger = defaultTrigger
+            validationMessage = nil
+            validationIsBlocked = false
         }
     }
 
