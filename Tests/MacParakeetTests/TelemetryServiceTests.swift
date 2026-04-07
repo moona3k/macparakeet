@@ -475,6 +475,10 @@ final class TelemetryServiceTests: XCTestCase {
             .onboardingStep(step: "microphone"),
             .licenseActivationFailed(errorType: "invalid_key"),
             .keystrokeSnippetFired(action: "return"),
+            .meetingRecordingStarted,
+            .meetingRecordingCompleted(durationSeconds: 1800.0, liveWordCount: 4200, liveTranscriptLagged: false),
+            .meetingRecordingCancelled(durationSeconds: 30.0),
+            .meetingRecordingFailed(errorType: "tap_creation_failed"),
             .errorOccurred(domain: "STTError", code: "engineFailed", description: "test"),
             .crashOccurred(
                 crashType: "signal", signal: "11", name: "SIGSEGV",

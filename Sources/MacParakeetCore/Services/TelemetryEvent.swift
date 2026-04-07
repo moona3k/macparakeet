@@ -55,6 +55,11 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case modelDownloadStarted = "model_download_started"
     case modelDownloadCompleted = "model_download_completed"
     case modelDownloadFailed = "model_download_failed"
+    // Meeting recording
+    case meetingRecordingStarted = "meeting_recording_started"
+    case meetingRecordingCompleted = "meeting_recording_completed"
+    case meetingRecordingCancelled = "meeting_recording_cancelled"
+    case meetingRecordingFailed = "meeting_recording_failed"
     // Errors
     case errorOccurred = "error_occurred"
     // Crashes
@@ -97,6 +102,7 @@ public enum TelemetryCopySource: String, Sendable, Equatable {
     case dictation
     case transcription
     case history
+    case meeting
 }
 
 public enum TelemetryPermission: String, Sendable, Equatable {
@@ -193,6 +199,11 @@ public enum TelemetryEventSpec: Sendable {
     case chatConversationCreated
     // Keystroke actions
     case keystrokeSnippetFired(action: String)
+    // Meeting recording
+    case meetingRecordingStarted
+    case meetingRecordingCompleted(durationSeconds: Double, liveWordCount: Int, liveTranscriptLagged: Bool)
+    case meetingRecordingCancelled(durationSeconds: Double)
+    case meetingRecordingFailed(errorType: String, errorDetail: String? = nil)
     // Errors
     case errorOccurred(domain: String, code: String, description: String)
     // Crashes
@@ -259,6 +270,10 @@ extension TelemetryEventSpec {
         case .dictationUndoUsed: return .dictationUndoUsed
         case .chatConversationCreated: return .chatConversationCreated
         case .keystrokeSnippetFired: return .keystrokeSnippetFired
+        case .meetingRecordingStarted: return .meetingRecordingStarted
+        case .meetingRecordingCompleted: return .meetingRecordingCompleted
+        case .meetingRecordingCancelled: return .meetingRecordingCancelled
+        case .meetingRecordingFailed: return .meetingRecordingFailed
         case .errorOccurred: return .errorOccurred
         case .crashOccurred: return .crashOccurred
         }
@@ -415,6 +430,20 @@ extension TelemetryEventSpec {
             return ["is_favorite": isFavorite ? "true" : "false"]
         case .keystrokeSnippetFired(let action):
             return ["action": action]
+        case .meetingRecordingStarted:
+            return nil
+        case .meetingRecordingCompleted(let durationSeconds, let liveWordCount, let liveTranscriptLagged):
+            return [
+                "duration_seconds": Self.format(durationSeconds),
+                "live_word_count": "\(liveWordCount)",
+                "live_transcript_lagged": Self.boolString(liveTranscriptLagged),
+            ]
+        case .meetingRecordingCancelled(let durationSeconds):
+            return ["duration_seconds": Self.format(durationSeconds)]
+        case .meetingRecordingFailed(let errorType, let errorDetail):
+            var props = ["error_type": errorType]
+            if let errorDetail { props["error_detail"] = errorDetail }
+            return props
         case .errorOccurred(let domain, let code, let description):
             return ["domain": domain, "code": code, "description": String(description.prefix(512))]
         case .crashOccurred(let crashType, let signal, let name, let crashTimestamp,
@@ -519,6 +548,10 @@ public enum TelemetryImplementedContract {
         .dictationUndoUsed: [],
         .chatConversationCreated: [],
         .keystrokeSnippetFired: ["action"],
+        .meetingRecordingStarted: [],
+        .meetingRecordingCompleted: ["duration_seconds", "live_word_count"],
+        .meetingRecordingCancelled: ["duration_seconds"],
+        .meetingRecordingFailed: ["error_type"],
         .errorOccurred: ["domain", "code", "description"],
         .crashOccurred: ["crash_type", "signal", "name", "crash_ts", "crash_app_ver"],
     ]

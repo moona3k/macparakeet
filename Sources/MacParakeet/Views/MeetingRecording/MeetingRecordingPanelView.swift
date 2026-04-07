@@ -1,4 +1,5 @@
 import AppKit
+import MacParakeetCore
 import MacParakeetViewModels
 import SwiftUI
 
@@ -134,6 +135,7 @@ struct MeetingRecordingPanelView: View {
     private func copyTranscript() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(viewModel.transcriptText, forType: .string)
+        Telemetry.send(.copyToClipboard(source: .meeting))
         viewModel.showCopiedConfirmation = true
         copiedResetTask?.cancel()
         copiedResetTask = Task { @MainActor in
