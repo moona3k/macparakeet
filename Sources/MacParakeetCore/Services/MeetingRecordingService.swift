@@ -409,6 +409,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         sessionID: UUID
     ) {
         guard currentSession?.id == sessionID else { return }
+        logger.info("Chunk transcribed: source=\(source.rawValue, privacy: .public) seq=\(sequence) words=\(result.words.count) range=\(chunk.startMs)-\(chunk.endMs)ms")
         let readyResults = chunkResultBuffer.receiveSuccess(
             sequence: sequence,
             source: source,
@@ -429,6 +430,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         sessionID: UUID
     ) {
         guard currentSession?.id == sessionID else { return }
+        logger.notice("Chunk failed: source=\(source.rawValue, privacy: .public) seq=\(sequence) error=\(error.localizedDescription, privacy: .public)")
 
         let droppedByBackpressure =
             if case STTSchedulerError.droppedDueToBackpressure(job: .meetingLiveChunk) = error {

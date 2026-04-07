@@ -170,20 +170,21 @@ struct MeetingTranscriptAssembler {
     }
 
     private func transcriptText(from words: [WordTimestamp]) -> String {
-        var text = ""
+        var parts: [String] = []
+        parts.reserveCapacity(words.count)
 
         for word in words {
             let token = word.word.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !token.isEmpty else { continue }
 
-            if text.isEmpty || Self.shouldAttachWithoutLeadingSpace(token) {
-                text += token
+            if parts.isEmpty || Self.shouldAttachWithoutLeadingSpace(token) {
+                parts.append(token)
             } else {
-                text += " \(token)"
+                parts.append(" \(token)")
             }
         }
 
-        return text
+        return parts.joined()
     }
 
     private static func shouldAttachWithoutLeadingSpace(_ token: String) -> Bool {

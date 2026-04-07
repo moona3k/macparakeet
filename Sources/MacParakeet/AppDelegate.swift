@@ -307,6 +307,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             keyEquivalent: ""
         )
         recordMeetingItem.target = self
+        applyMeetingHotkeyToMenuItem(recordMeetingItem)
         menu.addItem(recordMeetingItem)
         recordMeetingMenuItem = recordMeetingItem
 
@@ -633,6 +634,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 self?.meetingHotkeyManager?.stop()
                 self?.meetingHotkeyManager = nil
                 self?.setupMeetingHotkey()
+                if let item = self?.recordMeetingMenuItem {
+                    self?.applyMeetingHotkeyToMenuItem(item)
+                }
             }
         }
     }
@@ -682,6 +686,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private var hotkeyMenuTitle: String {
         "Hotkey: \(HotkeyTrigger.current.displayName) (double-tap / hold)"
+    }
+
+    /// Configures an NSMenuItem with the meeting hotkey shortcut.
+    /// Chord triggers (e.g. ⌘⇧M) render as native macOS shortcut hints.
+    /// Non-chord triggers cannot be represented natively and are left without a shortcut indicator.
+    private func applyMeetingHotkeyToMenuItem(_ item: NSMenuItem) {
+        let trigger = settingsViewModel.meetingHotkeyTrigger
+        guard trigger.kind == .chord, let code = trigger.keyCode else {
+            item.keyEquivalent = ""
+            item.keyEquivalentModifierMask = []
+            return
+        }
+        let keyName = KeyCodeNames.name(for: code).shortSymbol
+        item.keyEquivalent = keyName.lowercased()
+        var mask: NSEvent.ModifierFlags = []
+        for modifier in trigger.chordModifiers ?? [] {
+            switch modifier {
+            case "command": mask.insert(.command)
+            case "shift": mask.insert(.shift)
+            case "control": mask.insert(.control)
+            case "option": mask.insert(.option)
+            default: break
+            }
+        }
+        item.keyEquivalentModifierMask = mask
     }
 
     private func maybeShowOnboarding() {

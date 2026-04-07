@@ -134,11 +134,12 @@ final class MeetingRecordingFlowCoordinator {
             pillController?.onStopRecording = { [weak self] in
                 self?.sendEvent(.stopRequested)
             }
-            pillController?.onOpenApp = {
+            pillController?.onOpenApp = { [weak self] in
                 NSApp.activate(ignoringOtherApps: true)
+                self?.showMeetingPanel()
             }
             pillController?.onCancelRecording = { [weak self] in
-                self?.sendEvent(.stopRequested)
+                self?.confirmAndCancelRecording()
             }
             if panelController == nil {
                 let controller = MeetingRecordingPanelController(viewModel: panelVM)
@@ -214,6 +215,12 @@ final class MeetingRecordingFlowCoordinator {
             }
             panelViewModel?.state = .hidden
 
+        case .cancelRecording:
+            actionTask?.cancel()
+            actionTask = Task { @MainActor in
+                await meetingRecordingService.cancelRecording()
+            }
+
         case .showError(let message):
             stopPillPolling()
             stopTranscriptObservation()
@@ -267,6 +274,22 @@ final class MeetingRecordingFlowCoordinator {
         case .cancelAutoDismissTimer:
             autoDismissTask?.cancel()
             autoDismissTask = nil
+        }
+    }
+
+    private func confirmAndCancelRecording() {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Discard Recording?"
+        alert.informativeText = "This will stop the meeting recording and delete all captured audio. This cannot be undone."
+        alert.addButton(withTitle: "Discard")
+        alert.addButton(withTitle: "Keep Recording")
+        alert.buttons.first?.hasDestructiveAction = true
+
+        NSApp.activate(ignoringOtherApps: true)
+        let response = alert.runModal()
+        if response == .alertFirstButtonReturn {
+            sendEvent(.cancelRequested)
         }
     }
 
