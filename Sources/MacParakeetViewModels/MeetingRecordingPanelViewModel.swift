@@ -91,9 +91,6 @@ public final class MeetingRecordingPanelViewModel {
     }
 
     public var showsAudioLevels: Bool {
-        if case .recording = state {
-            return true
-        }
-        return false
+        state == .recording
     }
 }
