@@ -424,15 +424,19 @@ EOF
 echo "Archiving dSYM for crash symbolication…"
 DSYM_ARCHIVED=0
 if [[ "$BUILD_SYSTEM" == "xcodebuild" ]]; then
-  DSYM_SRC="$XCODE_DERIVED_DATA/Build/Products/Release/MacParakeet.dSYM"
+  if [[ "$UNIVERSAL" == "1" ]]; then
+    DSYM_SRC="$XCODE_DERIVED_DATA-arm64/Build/Products/Release/MacParakeet.dSYM"
+  else
+    DSYM_SRC="$XCODE_DERIVED_DATA/Build/Products/Release/MacParakeet.dSYM"
+  fi
 else
-  DSYM_SRC="$ROOT_DIR/.build/arm64-apple-macosx/release/MacParakeet.dSYM"
+  DSYM_SRC="$BIN_DIR/MacParakeet.dSYM"
 fi
 
 if [[ -d "$DSYM_SRC" ]]; then
   rm -rf "$DIST_DIR/MacParakeet.dSYM"
   cp -R "$DSYM_SRC" "$DIST_DIR/MacParakeet.dSYM"
-  DSYM_UUID="$(dwarfdump --uuid "$DIST_DIR/MacParakeet.dSYM" 2>/dev/null | awk '{print $2}' | head -n 1)"
+  DSYM_UUID="$(dwarfdump --uuid "$DIST_DIR/MacParakeet.dSYM" 2>/dev/null | awk '{print $2}' | paste -sd, -)"
   echo "Archived dSYM: $DIST_DIR/MacParakeet.dSYM (UUID: ${DSYM_UUID:-unknown})"
   DSYM_ARCHIVED=1
 else
