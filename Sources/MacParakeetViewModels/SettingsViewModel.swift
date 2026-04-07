@@ -127,7 +127,7 @@ public final class SettingsViewModel {
         }
     }
 
-    // Auto-save
+    // Auto-save (transcription)
     public var autoSaveTranscripts: Bool {
         didSet {
             defaults.set(autoSaveTranscripts, forKey: AutoSaveService.enabledKey)
@@ -140,6 +140,21 @@ public final class SettingsViewModel {
         }
     }
     public var autoSaveFolderPath: String?
+
+    // Auto-save (meeting)
+    public var meetingAutoSave: Bool {
+        didSet {
+            defaults.set(meetingAutoSave, forKey: AutoSaveScope.meeting.enabledKey)
+            Telemetry.send(.settingChanged(setting: .meetingAutoSave))
+        }
+    }
+    public var meetingAutoSaveFormat: AutoSaveFormat {
+        didSet {
+            defaults.set(meetingAutoSaveFormat.rawValue, forKey: AutoSaveScope.meeting.formatKey)
+        }
+    }
+    public var meetingAutoSaveFolderPath: String?
+
     public var meetingTitlePrefix: String {
         didSet {
             defaults.set(meetingTitlePrefix, forKey: AppPreferences.meetingTitlePrefixKey)
@@ -218,14 +233,17 @@ public final class SettingsViewModel {
         let initialMeetingTitlePrefix = AppPreferences.meetingTitlePrefix(defaults: defaults)
         autoSaveTranscripts = defaults.bool(forKey: AutoSaveService.enabledKey)
         autoSaveFormat = AutoSaveFormat(rawValue: defaults.string(forKey: AutoSaveService.formatKey) ?? "md") ?? .md
-        autoSaveFolderPath = Self.resolveAutoSaveFolderPath(defaults: defaults)
+        autoSaveFolderPath = Self.resolveAutoSaveFolderPath(defaults: defaults, scope: .transcription)
+        meetingAutoSave = defaults.bool(forKey: AutoSaveScope.meeting.enabledKey)
+        meetingAutoSaveFormat = AutoSaveFormat(rawValue: defaults.string(forKey: AutoSaveScope.meeting.formatKey) ?? "md") ?? .md
+        meetingAutoSaveFolderPath = Self.resolveAutoSaveFolderPath(defaults: defaults, scope: .meeting)
         meetingTitlePrefix = initialMeetingTitlePrefix
         lastCommittedMeetingTitlePrefix = initialMeetingTitlePrefix
     }
 
     /// Resolve the stored bookmark to a display path.
-    private static func resolveAutoSaveFolderPath(defaults: UserDefaults) -> String? {
-        guard let data = defaults.data(forKey: AutoSaveService.folderBookmarkKey) else { return nil }
+    private static func resolveAutoSaveFolderPath(defaults: UserDefaults, scope: AutoSaveScope = .transcription) -> String? {
+        guard let data = defaults.data(forKey: scope.folderBookmarkKey) else { return nil }
         var isStale = false
         guard let url = try? URL(
             resolvingBookmarkData: data,
@@ -235,14 +253,25 @@ public final class SettingsViewModel {
     }
 
     public func chooseAutoSaveFolder(url: URL) {
-        if let path = AutoSaveService.storeFolder(url, defaults: defaults) {
+        if let path = AutoSaveService.storeFolder(url, scope: .transcription, defaults: defaults) {
             autoSaveFolderPath = path
         }
     }
 
     public func clearAutoSaveFolder() {
-        AutoSaveService.clearFolder(defaults: defaults)
+        AutoSaveService.clearFolder(scope: .transcription, defaults: defaults)
         autoSaveFolderPath = nil
+    }
+
+    public func chooseMeetingAutoSaveFolder(url: URL) {
+        if let path = AutoSaveService.storeFolder(url, scope: .meeting, defaults: defaults) {
+            meetingAutoSaveFolderPath = path
+        }
+    }
+
+    public func clearMeetingAutoSaveFolder() {
+        AutoSaveService.clearFolder(scope: .meeting, defaults: defaults)
+        meetingAutoSaveFolderPath = nil
     }
 
     private static func resolveMeetingHotkeyTrigger(defaults: UserDefaults) -> HotkeyTrigger {

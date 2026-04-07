@@ -343,7 +343,8 @@ public final class TranscriptionViewModel {
 
     private func autoSaveIfEnabled(_ transcription: Transcription) {
         let service = AutoSaveService()
-        service.saveIfEnabled(transcription)
+        let scope: AutoSaveScope = transcription.sourceType == .meeting ? .meeting : .transcription
+        service.saveIfEnabled(transcription, scope: scope)
     }
 
     public func presentCompletedTranscription(_ transcription: Transcription) {

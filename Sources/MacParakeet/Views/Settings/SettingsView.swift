@@ -284,24 +284,80 @@ struct SettingsView: View {
 
                 Divider()
 
-                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                    Image(systemName: "folder.badge.plus")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.accent)
-                        .frame(width: 20)
-
-                    Text("Saved meetings use the transcript auto-save destination configured below, so meeting recordings now export alongside your other completed transcripts.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(DesignSystem.Spacing.sm)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(DesignSystem.Colors.surfaceElevated)
+                settingsToggleRow(
+                    title: "Auto-save meetings to disk",
+                    detail: "Automatically write a file to the chosen folder after every meeting recording completes.",
+                    isOn: $viewModel.meetingAutoSave
                 )
+
+                if viewModel.meetingAutoSave {
+                    meetingAutoSaveOptionsView
+                }
             }
+        }
+    }
+
+    @ViewBuilder
+    private var meetingAutoSaveOptionsView: some View {
+        VStack(spacing: DesignSystem.Spacing.sm) {
+            HStack {
+                rowText(title: "Format", detail: "File format for saved meetings.")
+                Spacer(minLength: DesignSystem.Spacing.md)
+                Picker("", selection: $viewModel.meetingAutoSaveFormat) {
+                    ForEach(AutoSaveFormat.allCases, id: \.self) { format in
+                        Text(format.displayName).tag(format)
+                    }
+                }
+                .labelsHidden()
+                .frame(width: 200)
+            }
+
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Folder")
+                        .font(DesignSystem.Typography.body)
+                    if let path = viewModel.meetingAutoSaveFolderPath {
+                        Text(path)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    } else {
+                        Text("No folder selected")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Spacer(minLength: DesignSystem.Spacing.md)
+                if viewModel.meetingAutoSaveFolderPath != nil {
+                    Button("Clear") {
+                        viewModel.clearMeetingAutoSaveFolder()
+                    }
+                    .buttonStyle(.bordered)
+                }
+                Button("Choose…") {
+                    chooseMeetingAutoSaveFolder()
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(DesignSystem.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated)
+        )
+    }
+
+    private func chooseMeetingAutoSaveFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Choose"
+        panel.message = "Select a folder for auto-saved meeting recordings"
+        if panel.runModal() == .OK, let url = panel.url {
+            viewModel.chooseMeetingAutoSaveFolder(url: url)
         }
     }
 
