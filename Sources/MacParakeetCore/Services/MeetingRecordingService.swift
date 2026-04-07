@@ -528,7 +528,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         formatter.locale = .autoupdatingCurrent
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
-        let prefix = AppPreferences.meetingTitlePrefix()
-        return "\(prefix) \(formatter.string(from: date))"
+        return "Meeting \(formatter.string(from: date))"
     }
 }

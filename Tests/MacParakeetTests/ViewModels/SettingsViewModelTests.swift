@@ -62,7 +62,6 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
         XCTAssertEqual(viewModel.meetingHotkeyTrigger, .chord(modifiers: ["command", "shift"], keyCode: 46))
-        XCTAssertEqual(viewModel.meetingTitlePrefix, "Meeting")
     }
 
     func testInitLoadsFromUserDefaults() {
@@ -76,7 +75,6 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(false, forKey: "saveTranscriptionAudio")
         HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 46)
             .save(to: testDefaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
-        testDefaults.set("Standup", forKey: AppPreferences.meetingTitlePrefixKey)
 
         let vm = SettingsViewModel(defaults: testDefaults)
 
@@ -88,7 +86,6 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
         XCTAssertEqual(vm.meetingHotkeyTrigger, .chord(modifiers: ["control", "option"], keyCode: 46))
-        XCTAssertEqual(vm.meetingTitlePrefix, "Standup")
     }
 
     func testSilenceDelayDefaultsTo2WhenZero() {
@@ -202,11 +199,6 @@ final class SettingsViewModelTests: XCTestCase {
         )
         viewModel.meetingHotkeyTrigger = .chord(modifiers: ["control", "option"], keyCode: 46)
         wait(for: [expectation], timeout: 1.0)
-    }
-
-    func testMeetingTitlePrefixPersists() {
-        viewModel.meetingTitlePrefix = "Client Call"
-        XCTAssertEqual(testDefaults.string(forKey: AppPreferences.meetingTitlePrefixKey), "Client Call")
     }
 
     func testShowIdlePillDefaultsToTrue() {

@@ -16,7 +16,6 @@ struct SettingsView: View {
     @State private var showClearYouTubeAudioAlert = false
     @State private var showResetPrivateStatsAlert = false
     @State private var copiedBuildIdentity = false
-    @FocusState private var meetingTitlePrefixFocused: Bool
 
     init(viewModel: SettingsViewModel, llmSettingsViewModel: LLMSettingsViewModel, updater: SPUUpdater) {
         self.viewModel = viewModel
@@ -258,28 +257,6 @@ struct SettingsView: View {
                             hotkeyConflictText
                         }
                     }
-                }
-
-                Divider()
-
-                HStack(alignment: .center) {
-                    rowText(
-                        title: "Default title prefix",
-                        detail: "New meetings start with this prefix before the recording date. You can rename each saved meeting afterward."
-                    )
-                    Spacer(minLength: DesignSystem.Spacing.md)
-                    TextField("Meeting", text: $viewModel.meetingTitlePrefix)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 220)
-                        .focused($meetingTitlePrefixFocused)
-                        .onSubmit {
-                            viewModel.commitMeetingTitlePrefix()
-                        }
-                        .onChange(of: meetingTitlePrefixFocused) { _, isFocused in
-                            if !isFocused {
-                                viewModel.commitMeetingTitlePrefix()
-                            }
-                        }
                 }
 
                 Divider()
