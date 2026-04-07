@@ -34,27 +34,14 @@ struct MeetingRecordingPanelView: View {
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
                 }
 
+                Spacer(minLength: 0)
+
                 if viewModel.showsAudioLevels {
                     DualAudioOrbView(
                         micLevel: viewModel.micLevel,
                         systemLevel: viewModel.systemLevel
                     )
                 }
-
-                Spacer(minLength: 0)
-
-                Button(action: { viewModel.onClose?() }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
-                        .frame(width: 24, height: 24)
-                        .background(
-                            Circle()
-                                .fill(DesignSystem.Colors.surfaceElevated)
-                        )
-                }
-                .buttonStyle(.plain)
-                .help("Hide meeting panel")
             }
 
             if viewModel.showsLaggingIndicator {
@@ -89,7 +76,7 @@ struct MeetingRecordingPanelView: View {
         } else {
             ScrollViewReader { proxy in
                 ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
+                    VStack(alignment: .leading, spacing: 0) {
                         ForEach(Array(viewModel.previewLines.enumerated()), id: \.element.id) { index, line in
                             let previousSource = index > 0 ? viewModel.previewLines[index - 1].source : nil
                             let speakerChanged = line.source != previousSource
@@ -228,7 +215,7 @@ private struct MeetingRecordingTranscriptRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.leading, 11)
         }
-        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.horizontal, DesignSystem.Spacing.lg)
         .padding(.vertical, 1)
     }
 
