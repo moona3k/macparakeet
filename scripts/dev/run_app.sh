@@ -8,8 +8,6 @@ APP_BIN="$PRODUCT_DIR/MacParakeet"
 APP_BUNDLE="$PRODUCT_DIR/MacParakeet-Dev.app"
 LOG_FILE="${TMPDIR:-/tmp}/macparakeet-dev.log"
 
-DEV_ENTITLEMENTS="$ROOT_DIR/scripts/dev/MacParakeet-Dev.entitlements"
-
 echo "[1/5] Building debug app bundle (xcodebuild)…"
 xcodebuild build \
   -scheme MacParakeet \
@@ -19,8 +17,7 @@ xcodebuild build \
   CODE_SIGN_IDENTITY="Apple Development" \
   DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-FYAF2ZD7RM}" \
   CODE_SIGNING_REQUIRED=YES \
-  CODE_SIGNING_ALLOWED=YES \
-  CODE_SIGN_ENTITLEMENTS="$DEV_ENTITLEMENTS" >/dev/null
+  CODE_SIGNING_ALLOWED=YES >/dev/null
 
 if [[ ! -x "$APP_BIN" ]]; then
   echo "Build succeeded but app binary not found at: $APP_BIN" >&2
@@ -94,7 +91,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
-# Re-sign the bundle so TCC trusts it (entitlements baked in by xcodebuild)
+# Re-sign the bundle so TCC trusts it
 codesign --force --sign "Apple Development" --deep "$APP_BUNDLE" 2>/dev/null || true
 
 echo "[3/5] Stopping existing MacParakeet processes…"
