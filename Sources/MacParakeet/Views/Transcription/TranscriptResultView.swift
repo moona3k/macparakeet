@@ -400,7 +400,7 @@ struct TranscriptResultView: View {
                         onRetranscribe(transcription)
                     }
                 } message: {
-                    Text("All custom tabs, results, and chats generated from the current transcript will be removed and cannot be recovered.")
+                    Text("This replaces the transcript text in place. Existing prompt results and chats are preserved, but may no longer match the updated transcript.")
                 }
             }
 
@@ -901,9 +901,7 @@ struct TranscriptResultView: View {
             if case .result(let id) = tab,
                let promptResult = promptResultsViewModel.promptResults.first(where: { $0.id == id }) {
                 Button("Copy Result") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(promptResult.content, forType: .string)
-                    Telemetry.send(.copyToClipboard(source: .transcription))
+                    TranscriptResultActions.copyText(promptResult.content)
                     copiedResultID = id
                     resultCopiedResetTask?.cancel()
                     resultCopiedResetTask = Task {
@@ -911,12 +909,12 @@ struct TranscriptResultView: View {
                         copiedResultID = nil
                     }
                 }
-                
+
                 Menu("Export Document") {
                     Button("Markdown (.md)") { exportGenerationToDownloads(promptResult: promptResult, format: .md) }
                     Button("Plain Text (.txt)") { exportGenerationToDownloads(promptResult: promptResult, format: .txt) }
                 }
-                
+
                 Button("Delete Result", role: .destructive) {
                     promptResultsViewModel.pendingDeletePromptResult = promptResult
                 }
@@ -1027,9 +1025,7 @@ struct TranscriptResultView: View {
 
                         let isCopied = copiedButtonResultID == promptResultID
                         Button {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(promptResult.content, forType: .string)
-                            Telemetry.send(.copyToClipboard(source: .transcription))
+                            TranscriptResultActions.copyText(promptResult.content)
                             copiedButtonResultID = promptResultID
                             resultButtonCopiedResetTask?.cancel()
                             resultButtonCopiedResetTask = Task {
@@ -1589,8 +1585,7 @@ struct TranscriptResultView: View {
                         if !isUser && !message.isStreaming && !message.content.isEmpty {
                             if hoveredMessageId == message.id || copiedMessageId == message.id {
                                 Button {
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(message.content, forType: .string)
+                                    TranscriptResultActions.copyText(message.content)
                                     copiedMessageId = message.id
                                     copiedResetTask?.cancel()
                                     copiedResetTask = Task {
@@ -1732,7 +1727,7 @@ struct TranscriptResultView: View {
             // Speaker-aware layout: use cached turns
             ForEach(Array(cachedTurns.enumerated()), id: \.element.segments.first?.startMs) { _, turn in
                 transcriptTurnCard(
-                    speakerLabel: turn.speakerLabel,
+                    speakerLabel: speakerLabel(for: turn.speakerId),
                     speakerColor: cachedSpeakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textTertiary,
                     segments: turn.segments.map { ($0.startMs, $0.text) }
                 )
@@ -2084,9 +2079,7 @@ struct TranscriptResultView: View {
 
     private func copyToClipboard() {
         let text = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        Telemetry.send(.copyToClipboard(source: .transcription))
+        TranscriptResultActions.copyText(text)
         copiedResetTask?.cancel()
         withAnimation(DesignSystem.Animation.hoverTransition) { copied = true }
         copiedResetTask = Task { @MainActor in
@@ -2099,10 +2092,6 @@ struct TranscriptResultView: View {
     private var hasTimestamps: Bool {
         guard let words = transcription.wordTimestamps else { return false }
         return !words.isEmpty
-    }
-
-    private enum ExportFormat: String {
-        case txt, md, srt, vtt, docx, pdf, json
     }
 
     // MARK: - Export Confirmation Popover
@@ -2155,106 +2144,55 @@ struct TranscriptResultView: View {
         .frame(minWidth: 220)
     }
 
-    private func exportGenerationToDownloads(promptResult: PromptResult, format: ExportFormat) {
+    private func exportGenerationToDownloads(promptResult: PromptResult, format: TranscriptExportFormat) {
         let source = viewModel.currentTranscription ?? transcription
-        let baseStem = TranscriptSegmenter.sanitizedExportStem(from: source.fileName)
-        
-        let promptNameSafe = promptResult.promptName
-            .lowercased()
-            .components(separatedBy: CharacterSet.alphanumerics.inverted)
-            .filter { !$0.isEmpty }
-            .joined(separator: "-")
-            
-        let stem = "\(baseStem)-\(promptNameSafe)"
-        
-        guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
+        do {
+            let fileURL = try TranscriptResultActions.exportPromptResultToDownloads(
+                promptResult: promptResult,
+                source: source,
+                format: format
+            )
+            exportErrorMessage = nil
+            SoundManager.shared.play(.transcriptionComplete)
+            dismissTask?.cancel()
+            exportConfirmation = ExportConfirmation(url: fileURL, format: format.rawValue)
+            dismissTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(5.0))
+                guard !Task.isCancelled else { return }
+                exportConfirmation = nil
+            }
+        } catch let cocoaError as CocoaError where cocoaError.code == .fileNoSuchFile {
             exportErrorMessage = "Your Downloads folder could not be found."
             SoundManager.shared.play(.errorSoft)
-            return
-        }
-        
-        var fileURL = downloadsURL.appendingPathComponent("\(stem).\(format.rawValue)")
-
-        // Avoid overwriting
-        var counter = 1
-        while FileManager.default.fileExists(atPath: fileURL.path) {
-            fileURL = downloadsURL.appendingPathComponent("\(stem) (\(counter)).\(format.rawValue)")
-            counter += 1
-        }
-
-        do {
-            try promptResult.content.write(to: fileURL, atomically: true, encoding: .utf8)
-            Telemetry.send(.exportUsed(format: format.rawValue))
         } catch {
             exportErrorMessage = error.localizedDescription
             SoundManager.shared.play(.errorSoft)
-            return
-        }
-
-        exportErrorMessage = nil
-        SoundManager.shared.play(.transcriptionComplete)
-
-        dismissTask?.cancel()
-        exportConfirmation = ExportConfirmation(url: fileURL, format: format.rawValue)
-
-        dismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(5.0))
-            guard !Task.isCancelled else { return }
-            exportConfirmation = nil
         }
     }
 
-    private func exportToDownloads(format: ExportFormat) {
+    private func exportToDownloads(format: TranscriptExportFormat) {
         // Use the ViewModel's copy which reflects any in-flight renames
         let source = viewModel.currentTranscription ?? transcription
-        let stem = TranscriptSegmenter.sanitizedExportStem(from: source.fileName)
-        guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
+        do {
+            let fileURL = try TranscriptResultActions.exportTranscriptToDownloads(
+                transcription: source,
+                format: format
+            )
+            exportErrorMessage = nil
+            SoundManager.shared.play(.transcriptionComplete)
+            dismissTask?.cancel()
+            exportConfirmation = ExportConfirmation(url: fileURL, format: format.rawValue)
+            dismissTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(5.0))
+                guard !Task.isCancelled else { return }
+                exportConfirmation = nil
+            }
+        } catch let cocoaError as CocoaError where cocoaError.code == .fileNoSuchFile {
             exportErrorMessage = "Your Downloads folder could not be found."
             SoundManager.shared.play(.errorSoft)
-            return
-        }
-        var fileURL = downloadsURL.appendingPathComponent("\(stem).\(format.rawValue)")
-
-        // Avoid overwriting — append (1), (2), etc.
-        var counter = 1
-        while FileManager.default.fileExists(atPath: fileURL.path) {
-            fileURL = downloadsURL.appendingPathComponent("\(stem) (\(counter)).\(format.rawValue)")
-            counter += 1
-        }
-
-        let exportService = ExportService()
-        do {
-            switch format {
-            case .txt: try exportService.exportToTxt(transcription: source, url: fileURL)
-            case .md: try exportService.exportToMarkdown(transcription: source, url: fileURL)
-            case .srt: try exportService.exportToSRT(transcription: source, url: fileURL)
-            case .vtt: try exportService.exportToVTT(transcription: source, url: fileURL)
-            case .docx: try exportService.exportToDocx(transcription: source, url: fileURL)
-            case .pdf: try exportService.exportToPDF(transcription: source, url: fileURL)
-            case .json: try exportService.exportToJSON(transcription: source, url: fileURL)
-            }
-            Telemetry.send(.exportUsed(format: format.rawValue))
         } catch {
             exportErrorMessage = error.localizedDescription
             SoundManager.shared.play(.errorSoft)
-            return
-        }
-
-        exportErrorMessage = nil
-        SoundManager.shared.play(.transcriptionComplete)
-
-        // Cancel any pending auto-dismiss from a previous export
-        dismissTask?.cancel()
-
-        // Single atomic state drives the popover via .popover(item:),
-        // so presentation and data are never out of sync.
-        exportConfirmation = ExportConfirmation(url: fileURL, format: format.rawValue)
-
-        // Auto-dismiss after 5 seconds
-        dismissTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(5.0))
-            guard !Task.isCancelled else { return }
-            exportConfirmation = nil
         }
     }
 
