@@ -579,13 +579,15 @@ final class TranscriptionViewModelTests: XCTestCase {
         let url = URL(fileURLWithPath: "/tmp/audio.mp3")
         viewModel.transcribeFile(url: url)
 
-        // Should not crash and state should remain unchanged
+        // Should not crash and should surface missing configuration
         XCTAssertFalse(viewModel.isTranscribing)
+        XCTAssertEqual(viewModel.errorMessage, "Transcription is still initializing. Please try again.")
     }
 
     func testLoadTranscriptionsBeforeConfigureIsNoOp() {
         viewModel.loadTranscriptions()
         XCTAssertTrue(viewModel.transcriptions.isEmpty)
+        XCTAssertEqual(viewModel.errorMessage, "Transcription is still initializing. Please try again.")
     }
 
     // MARK: - Initial State

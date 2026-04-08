@@ -67,6 +67,14 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.messages.isEmpty)
     }
 
+    func testSendMessageWithoutLoadedTranscriptShowsConfigurationError() {
+        viewModel.inputText = "Question"
+        viewModel.sendMessage()
+
+        XCTAssertTrue(viewModel.messages.isEmpty)
+        XCTAssertEqual(viewModel.errorMessage, "Chat is unavailable until a transcript is loaded.")
+    }
+
     func testSendMessageWhileStreamingDoesNotSend() async throws {
         let transcriptionId = UUID()
         viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)

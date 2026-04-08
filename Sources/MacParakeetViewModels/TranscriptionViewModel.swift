@@ -74,6 +74,7 @@ public final class TranscriptionViewModel {
             || hasPromptResultTabs
             || hasConversations
     }
+    public private(set) var isConfigured = false
 
     public func handlePromptResultDeleted(_ deletedID: UUID) {
         guard case .result(let selectedID) = selectedTab, selectedID == deletedID else { return }
@@ -93,6 +94,7 @@ public final class TranscriptionViewModel {
     private var activeDropRequestID: UUID?
     private var dropPendingCount = 0
     private var dropAccepted = false
+    private static let configurationError = "Transcription is still initializing. Please try again."
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionViewModel")
     public var promptResultsViewModel: PromptResultsViewModel?
 
@@ -110,11 +112,17 @@ public final class TranscriptionViewModel {
         self.llmAvailable = llmService != nil
         self.promptResultRepo = promptResultRepo
         self.promptResultsViewModel = promptResultsViewModel
+        isConfigured = true
+        errorMessage = nil
         loadTranscriptions()
     }
 
     public func loadTranscriptions() {
-        guard let repo = transcriptionRepo else { return }
+        guard let repo = transcriptionRepo else {
+            reportMissingConfiguration("transcriptionRepo", action: "loadTranscriptions")
+            transcriptions = []
+            return
+        }
         do {
             transcriptions = try repo.fetchAll(limit: 50)
         } catch {
@@ -124,7 +132,10 @@ public final class TranscriptionViewModel {
     }
 
     public func transcribeFile(url: URL, source: TelemetryTranscriptionSource = .file) {
-        guard let service = transcriptionService else { return }
+        guard let service = transcriptionService else {
+            reportMissingConfiguration("transcriptionService", action: "transcribeFile")
+            return
+        }
         let taskID = beginNewTranscription(source: .localFile, fileName: url.lastPathComponent)
 
         transcriptionTask = Task { @MainActor [weak self] in
@@ -145,7 +156,10 @@ public final class TranscriptionViewModel {
     }
 
     public func transcribeURL() {
-        guard let service = transcriptionService else { return }
+        guard let service = transcriptionService else {
+            reportMissingConfiguration("transcriptionService", action: "transcribeURL")
+            return
+        }
         let url = urlInput.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let videoID = YouTubeURLValidator.extractVideoID(url) else { return }
 
@@ -234,8 +248,11 @@ public final class TranscriptionViewModel {
     }
 
     public func retranscribe(_ original: Transcription) {
-        guard let service = transcriptionService,
-              let filePath = original.filePath,
+        guard let service = transcriptionService else {
+            reportMissingConfiguration("transcriptionService", action: "retranscribe")
+            return
+        }
+        guard let filePath = original.filePath,
               FileManager.default.fileExists(atPath: filePath) else { return }
 
         let url = URL(fileURLWithPath: filePath)
@@ -296,7 +313,10 @@ public final class TranscriptionViewModel {
     }
 
     public func deleteTranscription(_ transcription: Transcription) {
-        guard let repo = transcriptionRepo else { return }
+        guard let repo = transcriptionRepo else {
+            reportMissingConfiguration("transcriptionRepo", action: "deleteTranscription")
+            return
+        }
 
         do {
             let deleted = try repo.delete(id: transcription.id)
@@ -331,6 +351,15 @@ public final class TranscriptionViewModel {
         }
 
         return taskID
+    }
+
+    private func reportMissingConfiguration(_ dependency: String, action: String) {
+        logger.error(
+            "Missing dependency action=\(action, privacy: .public) dependency=\(dependency, privacy: .public)"
+        )
+        if errorMessage == nil {
+            errorMessage = Self.configurationError
+        }
     }
 
     private func completeSuccessfulTranscription(taskID: UUID, result: Transcription) {
