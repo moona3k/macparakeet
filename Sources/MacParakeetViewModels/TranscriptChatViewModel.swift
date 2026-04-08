@@ -19,6 +19,8 @@ public struct ChatDisplayMessage: Identifiable, Equatable {
 @MainActor
 @Observable
 public final class TranscriptChatViewModel {
+    private static let storageUnavailableMessage = "Chat storage is unavailable. Please relaunch."
+
     public var messages: [ChatDisplayMessage] = []
     public var inputText: String = ""
     public var isStreaming: Bool = false
@@ -134,11 +136,19 @@ public final class TranscriptChatViewModel {
 
         // Lazy conversation creation on first message
         if currentConversation == nil {
-            guard let transcriptionId else { return }
+            guard let transcriptionId else {
+                errorMessage = "Chat is unavailable until a transcript is loaded."
+                return
+            }
+            guard let conversationRepo else {
+                logger.error("Missing conversationRepo in sendMessage")
+                errorMessage = Self.storageUnavailableMessage
+                return
+            }
             let title = String(text.prefix(50))
             let conversation = ChatConversation(transcriptionId: transcriptionId, title: title)
             do {
-                try conversationRepo?.save(conversation)
+                try conversationRepo.save(conversation)
                 currentConversation = conversation
                 conversations.insert(conversation, at: 0)
             } catch {
@@ -265,10 +275,21 @@ public final class TranscriptChatViewModel {
             return
         }
 
+        guard let conversationRepo else {
+            logger.error("Missing conversationRepo in loadTranscript")
+            messages.removeAll()
+            chatHistory.removeAll()
+            conversations.removeAll()
+            currentConversation = nil
+            errorMessage = Self.storageUnavailableMessage
+            inputText = ""
+            return
+        }
+
         // Load conversations from repo
         do {
-            try conversationRepo?.deleteEmpty(transcriptionId: transcriptionId)
-            conversations = try conversationRepo?.fetchAll(transcriptionId: transcriptionId) ?? []
+            try conversationRepo.deleteEmpty(transcriptionId: transcriptionId)
+            conversations = try conversationRepo.fetchAll(transcriptionId: transcriptionId)
         } catch {
             logger.error("Failed to load conversations error=\(error.localizedDescription, privacy: .public)")
             conversations = []
@@ -318,7 +339,20 @@ public final class TranscriptChatViewModel {
             cancelStreaming()
         }
 
-        _ = try? conversationRepo?.delete(id: conversation.id)
+        guard let conversationRepo else {
+            logger.error("Missing conversationRepo in deleteConversation")
+            errorMessage = Self.storageUnavailableMessage
+            return
+        }
+
+        do {
+            _ = try conversationRepo.delete(id: conversation.id)
+        } catch {
+            logger.error("Failed to delete conversation error=\(error.localizedDescription, privacy: .public)")
+            errorMessage = "Failed to delete conversation."
+            return
+        }
+
         conversations.removeAll { $0.id == conversation.id }
 
         if currentConversation?.id == conversation.id {
@@ -337,16 +371,30 @@ public final class TranscriptChatViewModel {
     /// Clears all conversations for the current transcript (used when retranscribing).
     public func clearHistory() {
         cancelStreaming()
+
+        // Delete all conversations for this transcript
+        if let transcriptionId {
+            guard let conversationRepo else {
+                logger.error("Missing conversationRepo in clearHistory")
+                errorMessage = Self.storageUnavailableMessage
+                return
+            }
+
+            do {
+                try conversationRepo.deleteAll(transcriptionId: transcriptionId)
+            } catch {
+                logger.error("Failed to clear conversations error=\(error.localizedDescription, privacy: .public)")
+                errorMessage = "Failed to clear chat history."
+                return
+            }
+
+            conversations.removeAll()
+        }
+
         messages.removeAll()
         chatHistory.removeAll()
         errorMessage = nil
         inputText = ""
-
-        // Delete all conversations for this transcript
-        if let transcriptionId {
-            try? conversationRepo?.deleteAll(transcriptionId: transcriptionId)
-            conversations.removeAll()
-        }
         currentConversation = nil
 
         notifyConversationsChanged()
@@ -378,15 +426,32 @@ public final class TranscriptChatViewModel {
     private func discardEmptyCurrentConversation() {
         guard let current = currentConversation,
               current.messages == nil || current.messages?.isEmpty == true else { return }
-        _ = try? conversationRepo?.delete(id: current.id)
+
+        guard let conversationRepo else {
+            logger.error("Missing conversationRepo in discardEmptyCurrentConversation")
+            errorMessage = Self.storageUnavailableMessage
+            return
+        }
+
+        do {
+            _ = try conversationRepo.delete(id: current.id)
+        } catch {
+            logger.error("Failed to discard empty conversation error=\(error.localizedDescription, privacy: .public)")
+            return
+        }
+
         conversations.removeAll { $0.id == current.id }
     }
 
     private func persistChatMessages() {
         guard let currentConversation else { return }
+        guard let conversationRepo else {
+            logger.error("Missing conversationRepo in persistChatMessages")
+            return
+        }
         let toSave = chatHistory.isEmpty ? nil : chatHistory
         do {
-            try conversationRepo?.updateMessages(id: currentConversation.id, messages: toSave)
+            try conversationRepo.updateMessages(id: currentConversation.id, messages: toSave)
             // Update the local copy
             self.currentConversation?.messages = toSave
             if let idx = conversations.firstIndex(where: { $0.id == currentConversation.id }) {

@@ -669,6 +669,8 @@ final class MockChatConversationRepository: ChatConversationRepositoryProtocol, 
     var deleteEmptyCalls: [UUID] = []
     var updateMessagesCalls: [(id: UUID, messages: [ChatMessage]?)] = []
     var updateTitleCalls: [(id: UUID, title: String)] = []
+    var deleteError: Error?
+    var deleteAllError: Error?
 
     func save(_ conversation: ChatConversation) throws {
         saveCalls.append(conversation)
@@ -690,6 +692,7 @@ final class MockChatConversationRepository: ChatConversationRepositoryProtocol, 
     }
 
     func delete(id: UUID) throws -> Bool {
+        if let deleteError { throw deleteError }
         deleteCalls.append(id)
         let before = conversations.count
         conversations.removeAll { $0.id == id }
@@ -697,6 +700,7 @@ final class MockChatConversationRepository: ChatConversationRepositoryProtocol, 
     }
 
     func deleteAll(transcriptionId: UUID) throws {
+        if let deleteAllError { throw deleteAllError }
         conversations.removeAll { $0.transcriptionId == transcriptionId }
     }
 

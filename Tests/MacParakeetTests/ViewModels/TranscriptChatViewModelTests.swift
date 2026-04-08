@@ -67,6 +67,14 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.messages.isEmpty)
     }
 
+    func testSendMessageWithoutLoadedTranscriptShowsConfigurationError() {
+        viewModel.inputText = "Question"
+        viewModel.sendMessage()
+
+        XCTAssertTrue(viewModel.messages.isEmpty)
+        XCTAssertEqual(viewModel.errorMessage, "Chat is unavailable until a transcript is loaded.")
+    }
+
     func testSendMessageWhileStreamingDoesNotSend() async throws {
         let transcriptionId = UUID()
         viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
@@ -343,6 +351,46 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.conversations.isEmpty)
         XCTAssertNil(viewModel.currentConversation)
         XCTAssertTrue(mockConversationRepo.conversations.isEmpty)
+    }
+
+    func testDeleteConversationKeepsLocalStateWhenRepoDeleteFails() {
+        enum DeleteFailure: Error { case failed }
+
+        let transcriptionId = UUID()
+        let conv = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Chat",
+            messages: [ChatMessage(role: .user, content: "Hi")]
+        )
+        mockConversationRepo.conversations = [conv]
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+        mockConversationRepo.deleteError = DeleteFailure.failed
+
+        viewModel.deleteConversation(conv)
+
+        XCTAssertTrue(viewModel.conversations.contains(where: { $0.id == conv.id }))
+        XCTAssertEqual(viewModel.currentConversation?.id, conv.id)
+        XCTAssertEqual(viewModel.errorMessage, "Failed to delete conversation.")
+    }
+
+    func testClearHistoryKeepsLocalStateWhenRepoDeleteAllFails() {
+        enum DeleteFailure: Error { case failed }
+
+        let transcriptionId = UUID()
+        let conv = ChatConversation(
+            transcriptionId: transcriptionId,
+            title: "Chat",
+            messages: [ChatMessage(role: .user, content: "Hi")]
+        )
+        mockConversationRepo.conversations = [conv]
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+        mockConversationRepo.deleteAllError = DeleteFailure.failed
+
+        viewModel.clearHistory()
+
+        XCTAssertFalse(viewModel.conversations.isEmpty)
+        XCTAssertNotNil(viewModel.currentConversation)
+        XCTAssertEqual(viewModel.errorMessage, "Failed to clear chat history.")
     }
 
     func testCanSendMessageFalseWhenNoService() {
