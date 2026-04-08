@@ -45,7 +45,7 @@ public final class VideoStreamService: Sendable {
     /// Invalidate cached URL for a video (e.g., after playback error).
     public func invalidateCache(for youtubeURL: String) {
         let videoID = YouTubeURLValidator.extractVideoID(youtubeURL) ?? youtubeURL
-        Self.cache.withLock { $0.removeValue(forKey: videoID) }
+        _ = Self.cache.withLock { $0.removeValue(forKey: videoID) }
         logger.notice("🗑 Invalidated cache for \(videoID)")
     }
 

@@ -929,7 +929,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
     func testRapidRestartFromRecordingThenEntitlementsDeniedResetsMenuBar() {
         var m = machineInRecording()
         // Menu bar was set to .recording when entering recording state
-        let newGen = m.generation
+        _ = m.generation
 
         // Rapid restart → checkingEntitlements
         _ = m.handle(.startRequested(mode: .persistent))

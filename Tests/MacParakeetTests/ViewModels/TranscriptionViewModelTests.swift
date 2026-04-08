@@ -860,13 +860,15 @@ final class TranscriptionViewModelTests: XCTestCase {
 
     // MARK: - Retranscribe
 
-    func testRetranscribeDeletesOriginalAndCreatesNewRecord() async throws {
+    func testRetranscribeUpdatesOriginalRecordInPlace() async throws {
         let tmpFile = FileManager.default.temporaryDirectory.appendingPathComponent("retranscribe-test.mp3")
         FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
         defer { try? FileManager.default.removeItem(at: tmpFile) }
 
+        let createdAt = Date(timeIntervalSince1970: 1234)
         let original = Transcription(
             id: UUID(),
+            createdAt: createdAt,
             fileName: "lecture.mp3",
             filePath: tmpFile.path,
             rawTranscript: "Old transcript",
@@ -875,6 +877,7 @@ final class TranscriptionViewModelTests: XCTestCase {
             thumbnailURL: "https://img.youtube.com/vi/abc123/default.jpg",
             channelName: "Channel",
             videoDescription: "Description",
+            isFavorite: true,
             sourceType: .youtube
         )
         mockRepo.transcriptions = [original]
@@ -892,14 +895,16 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         try await Task.sleep(for: .milliseconds(300))
 
-        // Original should be deleted
-        XCTAssertTrue(mockRepo.deleteCalledWith.contains(original.id),
-                       "Original transcription should be deleted after retranscribe")
+        XCTAssertTrue(mockRepo.deleteCalledWith.isEmpty,
+                      "Retranscribe should update the existing transcription instead of deleting it")
 
-        // New record should be saved (the one from the service, with metadata preserved)
+        // Existing record should be updated in place with the new transcript payload.
         let saved = mockRepo.transcriptions
-        XCTAssertEqual(saved.count, 1, "Should have exactly one record (old deleted, new saved)")
-        XCTAssertNotEqual(saved.first?.id, original.id, "New record should have a different ID")
+        XCTAssertEqual(saved.count, 1, "Should still have exactly one record after retranscribe")
+        XCTAssertEqual(saved.first?.id, original.id, "Retranscribe should preserve transcription identity")
+        XCTAssertEqual(saved.first?.createdAt, createdAt, "Should preserve original creation date")
+        XCTAssertEqual(saved.first?.isFavorite, true, "Should preserve favorite state")
+        XCTAssertEqual(saved.first?.rawTranscript, "New transcript", "Should replace transcript content")
         XCTAssertEqual(saved.first?.fileName, "lecture.mp3", "Should preserve original fileName")
         XCTAssertEqual(saved.first?.sourceURL, "https://youtube.com/watch?v=abc123",
                        "Should preserve original sourceURL")

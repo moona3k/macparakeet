@@ -72,19 +72,19 @@ public final class CrashReporter {
 
         // 2. Pre-resolve crash file path to C string
         let path = crashReportPath
-        path.withCString { ptr in
+        _ = path.withCString { ptr in
             strncpy(&crashFilePath, ptr, crashFilePath.count - 1)
         }
         crashFilePath[crashFilePath.count - 1] = 0
 
         // 3. Snapshot version strings into static buffers
         let info = SystemInfo.current
-        info.appVersion.withCString { ptr in
+        _ = info.appVersion.withCString { ptr in
             strncpy(&appVersion, ptr, appVersion.count - 1)
         }
         appVersion[appVersion.count - 1] = 0
 
-        info.macOSVersion.withCString { ptr in
+        _ = info.macOSVersion.withCString { ptr in
             strncpy(&osVersion, ptr, osVersion.count - 1)
         }
         osVersion[osVersion.count - 1] = 0
@@ -95,7 +95,7 @@ public final class CrashReporter {
         // 5. Capture ASLR slide
         let slide = _dyld_get_image_vmaddr_slide(0)
         let slideStr = String(format: "0x%lx", UInt(bitPattern: slide))
-        slideStr.withCString { ptr in
+        _ = slideStr.withCString { ptr in
             strncpy(&aslrSlide, ptr, aslrSlide.count - 1)
         }
         aslrSlide[aslrSlide.count - 1] = 0
@@ -151,7 +151,7 @@ public final class CrashReporter {
         func append(_ s: UnsafePointer<CChar>) {
             let len = Int(strlen(s))
             guard offset + len < bufSize else { return }
-            buffer.withUnsafeMutableBufferPointer { buf in
+            _ = buffer.withUnsafeMutableBufferPointer { buf in
                 memcpy(buf.baseAddress! + offset, s, len)
             }
             offset += len
@@ -286,7 +286,7 @@ public final class CrashReporter {
                     bytes[4], bytes[5], bytes[6], bytes[7],
                     bytes[8], bytes[9], bytes[10], bytes[11],
                     bytes[12], bytes[13], bytes[14], bytes[15])
-                formatted.withCString { ptr in
+                _ = formatted.withCString { ptr in
                     strncpy(&machOUUID, ptr, machOUUID.count - 1)
                 }
                 return

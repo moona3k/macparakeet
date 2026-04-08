@@ -136,7 +136,7 @@ public final class TranscriptChatViewModel {
         if currentConversation == nil {
             guard let transcriptionId else { return }
             let title = String(text.prefix(50))
-            var conversation = ChatConversation(transcriptionId: transcriptionId, title: title)
+            let conversation = ChatConversation(transcriptionId: transcriptionId, title: title)
             do {
                 try conversationRepo?.save(conversation)
                 currentConversation = conversation

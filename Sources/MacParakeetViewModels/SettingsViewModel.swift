@@ -27,14 +27,14 @@ public final class SettingsViewModel {
     public var menuBarOnlyMode: Bool {
         didSet {
             defaults.set(menuBarOnlyMode, forKey: AppPreferences.menuBarOnlyModeKey)
-            NotificationCenter.default.post(name: Notification.Name("macparakeet.menuBarOnlyModeDidChange"), object: nil)
+            NotificationCenter.default.post(name: .macParakeetMenuBarOnlyModeDidChange, object: nil)
             Telemetry.send(.settingChanged(setting: .menuBarOnly))
         }
     }
     public var showIdlePill: Bool {
         didSet {
-            defaults.set(showIdlePill, forKey: "showIdlePill")
-            NotificationCenter.default.post(name: Notification.Name("macparakeet.showIdlePillDidChange"), object: nil)
+            defaults.set(showIdlePill, forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey)
+            NotificationCenter.default.post(name: .macParakeetShowIdlePillDidChange, object: nil)
             Telemetry.send(.settingChanged(setting: .hidePill))
         }
     }
@@ -52,7 +52,7 @@ public final class SettingsViewModel {
     public var hotkeyTrigger: HotkeyTrigger {
         didSet {
             hotkeyTrigger.save(to: defaults)
-            NotificationCenter.default.post(name: Notification.Name("macparakeet.hotkeyTriggerDidChange"), object: nil)
+            NotificationCenter.default.post(name: .macParakeetHotkeyTriggerDidChange, object: nil)
             Telemetry.send(.hotkeyCustomized)
         }
     }
@@ -60,7 +60,7 @@ public final class SettingsViewModel {
         didSet {
             meetingHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
             NotificationCenter.default.post(
-                name: Notification.Name("macparakeet.meetingHotkeyTriggerDidChange"),
+                name: .macParakeetMeetingHotkeyTriggerDidChange,
                 object: nil
             )
             Telemetry.send(.settingChanged(setting: .meetingHotkey))
@@ -68,23 +68,23 @@ public final class SettingsViewModel {
     }
     public var silenceAutoStop: Bool {
         didSet {
-            defaults.set(silenceAutoStop, forKey: "silenceAutoStop")
+            defaults.set(silenceAutoStop, forKey: UserDefaultsAppRuntimePreferences.silenceAutoStopKey)
             Telemetry.send(.settingChanged(setting: .silenceAutoStop))
         }
     }
     public var silenceDelay: Double {
-        didSet { defaults.set(silenceDelay, forKey: "silenceDelay") }
+        didSet { defaults.set(silenceDelay, forKey: UserDefaultsAppRuntimePreferences.silenceDelayKey) }
     }
 
     // Voice Return
     public var voiceReturnEnabled: Bool {
         didSet {
-            defaults.set(voiceReturnEnabled, forKey: "voiceReturnEnabled")
+            defaults.set(voiceReturnEnabled, forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
             Telemetry.send(.settingChanged(setting: .voiceReturn))
         }
     }
     public var voiceReturnTrigger: String {
-        didSet { defaults.set(voiceReturnTrigger, forKey: "voiceReturnTrigger") }
+        didSet { defaults.set(voiceReturnTrigger, forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) }
     }
 
     // Processing
@@ -95,10 +95,10 @@ public final class SettingsViewModel {
                 // so execute side effects explicitly for the fallback.
                 let fallback = Dictation.ProcessingMode.raw.rawValue
                 processingMode = fallback
-                defaults.set(fallback, forKey: "processingMode")
+                defaults.set(fallback, forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
                 return
             }
-            defaults.set(processingMode, forKey: "processingMode")
+            defaults.set(processingMode, forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
             Telemetry.send(.processingModeChanged(mode: processingMode))
         }
     }
@@ -108,19 +108,19 @@ public final class SettingsViewModel {
     // Storage
     public var saveDictationHistory: Bool {
         didSet {
-            defaults.set(saveDictationHistory, forKey: "saveDictationHistory")
+            defaults.set(saveDictationHistory, forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey)
             Telemetry.send(.settingChanged(setting: .saveHistory))
         }
     }
     public var saveAudioRecordings: Bool {
         didSet {
-            defaults.set(saveAudioRecordings, forKey: "saveAudioRecordings")
+            defaults.set(saveAudioRecordings, forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey)
             Telemetry.send(.settingChanged(setting: .audioRetention))
         }
     }
     public var saveTranscriptionAudio: Bool {
         didSet {
-            defaults.set(saveTranscriptionAudio, forKey: "saveTranscriptionAudio")
+            defaults.set(saveTranscriptionAudio, forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey)
             Telemetry.send(.settingChanged(setting: .saveTranscriptionAudio))
         }
     }
@@ -128,7 +128,7 @@ public final class SettingsViewModel {
     // Transcription
     public var speakerDiarization: Bool {
         didSet {
-            defaults.set(speakerDiarization, forKey: "speakerDiarization")
+            defaults.set(speakerDiarization, forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey)
             Telemetry.send(.settingChanged(setting: .speakerDiarization))
         }
     }
@@ -216,20 +216,20 @@ public final class SettingsViewModel {
         self.isSpeechModelCached = isSpeechModelCached
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
         menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
-        showIdlePill = defaults.object(forKey: "showIdlePill") as? Bool ?? true
+        showIdlePill = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey) as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
         hotkeyTrigger = HotkeyTrigger.current(defaults: defaults)
         meetingHotkeyTrigger = Self.resolveMeetingHotkeyTrigger(defaults: defaults)
-        silenceAutoStop = defaults.bool(forKey: "silenceAutoStop")
-        let delay = defaults.double(forKey: "silenceDelay")
+        silenceAutoStop = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.silenceAutoStopKey)
+        let delay = defaults.double(forKey: UserDefaultsAppRuntimePreferences.silenceDelayKey)
         silenceDelay = delay == 0 ? 2.0 : delay
-        voiceReturnEnabled = defaults.bool(forKey: "voiceReturnEnabled")
-        voiceReturnTrigger = defaults.string(forKey: "voiceReturnTrigger") ?? "press return"
-        processingMode = Self.normalizedProcessingMode(defaults.string(forKey: "processingMode"))
-        saveDictationHistory = defaults.object(forKey: "saveDictationHistory") as? Bool ?? true
-        saveAudioRecordings = defaults.object(forKey: "saveAudioRecordings") as? Bool ?? true
-        saveTranscriptionAudio = defaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
-        speakerDiarization = defaults.object(forKey: "speakerDiarization") as? Bool ?? true
+        voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
+        voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
+        processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
+        saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true
+        saveAudioRecordings = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey) as? Bool ?? true
+        saveTranscriptionAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
+        speakerDiarization = defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? true
         autoSaveTranscripts = defaults.bool(forKey: AutoSaveService.enabledKey)
         autoSaveFormat = AutoSaveFormat(rawValue: defaults.string(forKey: AutoSaveService.formatKey) ?? "md") ?? .md
         autoSaveFolderPath = Self.resolveAutoSaveFolderPath(defaults: defaults, scope: .transcription)

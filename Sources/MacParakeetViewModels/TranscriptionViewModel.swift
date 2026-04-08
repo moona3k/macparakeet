@@ -102,10 +102,8 @@ public final class TranscriptionViewModel {
         transcriptionService: TranscriptionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
         llmService: LLMServiceProtocol? = nil,
-        configStore: LLMConfigStoreProtocol? = nil,
         promptResultRepo: PromptResultRepositoryProtocol? = nil,
-        promptResultsViewModel: PromptResultsViewModel? = nil,
-        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
+        promptResultsViewModel: PromptResultsViewModel? = nil
     ) {
         self.transcriptionService = transcriptionService
         self.transcriptionRepo = transcriptionRepo
@@ -241,7 +239,6 @@ public final class TranscriptionViewModel {
               FileManager.default.fileExists(atPath: filePath) else { return }
 
         let url = URL(fileURLWithPath: filePath)
-        let originalID = original.id
         let taskID = beginNewTranscription(source: .localFile, fileName: original.fileName, clearCurrent: true)
         let retranscriptionSource: TelemetryTranscriptionSource = switch original.sourceType {
         case .file:
@@ -260,17 +257,21 @@ public final class TranscriptionViewModel {
                         self?.updateProgress(with: phase, taskID: taskID)
                     }
                 }
-                // Preserve original metadata
+                // Preserve row identity and user-owned metadata so retranscription updates
+                // the existing record instead of deleting and recreating it.
+                result.id = original.id
+                result.createdAt = original.createdAt
+                result.isFavorite = original.isFavorite
                 result.fileName = original.fileName
+                result.filePath = original.filePath
                 result.sourceURL = original.sourceURL
                 result.thumbnailURL = original.thumbnailURL
                 result.channelName = original.channelName
                 result.videoDescription = original.videoDescription
                 result.sourceType = original.sourceType
+                result.updatedAt = Date()
                 do {
                     try transcriptionRepo?.save(result)
-                    // Delete the original to avoid duplicates
-                    _ = try? transcriptionRepo?.delete(id: originalID)
                     completeSuccessfulTranscription(taskID: taskID, result: result)
                 } catch {
                     logger.error("Failed to save transcription result error=\(error.localizedDescription, privacy: .public)")

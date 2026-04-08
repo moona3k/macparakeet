@@ -48,7 +48,7 @@ public final class ChatConversationRepository: ChatConversationRepositoryProtoco
     }
 
     public func deleteAll(transcriptionId: UUID) throws {
-        try dbQueue.write { db in
+        _ = try dbQueue.write { db in
             try ChatConversation
                 .filter(ChatConversation.Columns.transcriptionId == transcriptionId)
                 .deleteAll(db)
@@ -56,7 +56,7 @@ public final class ChatConversationRepository: ChatConversationRepositoryProtoco
     }
 
     public func deleteEmpty(transcriptionId: UUID) throws {
-        try dbQueue.write { db in
+        _ = try dbQueue.write { db in
             try ChatConversation
                 .filter(ChatConversation.Columns.transcriptionId == transcriptionId)
                 .filter(ChatConversation.Columns.messages == nil)

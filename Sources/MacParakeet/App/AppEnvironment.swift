@@ -31,6 +31,7 @@ final class AppEnvironment {
     let llmClient: RoutingLLMClient
     let llmConfigStore: LLMConfigStore
     let llmService: LLMService
+    let runtimePreferences: AppRuntimePreferencesProtocol
 
     init() throws {
         // Ensure required runtime directories exist (db, dictations, temp).
@@ -63,6 +64,8 @@ final class AppEnvironment {
         permissionService = PermissionService()
         accessibilityService = AccessibilityService()
         launchAtLoginService = LaunchAtLoginService()
+        let runtimePreferences = UserDefaultsAppRuntimePreferences()
+        self.runtimePreferences = runtimePreferences
 
         // Licensing / entitlements (basic guards: 7-day trial + license unlock).
         //
@@ -96,33 +99,23 @@ final class AppEnvironment {
             api: LemonSqueezyLicenseAPI()
         )
 
-        let processingModeClosure: @Sendable () -> Dictation.ProcessingMode = {
-            let raw = UserDefaults.standard.string(forKey: "processingMode")
-            return Dictation.ProcessingMode(rawValue: raw ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
+        let processingModeClosure: @Sendable () -> Dictation.ProcessingMode = { [runtimePreferences] in
+            runtimePreferences.processingMode
         }
 
         youtubeDownloader = YouTubeDownloader()
         diarizationService = DiarizationService()
 
-        let voiceReturnTriggerClosure: @Sendable () -> String? = {
-            let defaults = UserDefaults.standard
-            guard defaults.bool(forKey: "voiceReturnEnabled") else { return nil }
-            let trigger = (defaults.string(forKey: "voiceReturnTrigger") ?? "press return")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            return trigger.isEmpty ? nil : trigger
+        let voiceReturnTriggerClosure: @Sendable () -> String? = { [runtimePreferences] in
+            runtimePreferences.voiceReturnTrigger
         }
 
         dictationService = DictationService(
             audioProcessor: audioProcessor,
             sttTranscriber: sttScheduler,
             dictationRepo: dictationRepo,
-            shouldSaveAudio: {
-                // Defaults to true if unset (matches Settings UI default).
-                UserDefaults.standard.object(forKey: "saveAudioRecordings") as? Bool ?? true
-            },
-            shouldSaveDictationHistory: {
-                UserDefaults.standard.object(forKey: "saveDictationHistory") as? Bool ?? true
-            },
+            shouldSaveAudio: { [runtimePreferences] in runtimePreferences.shouldSaveAudioRecordings },
+            shouldSaveDictationHistory: { [runtimePreferences] in runtimePreferences.shouldSaveDictationHistory },
             entitlements: entitlementsService,
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
@@ -153,13 +146,8 @@ final class AppEnvironment {
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: processingModeClosure,
-            shouldKeepDownloadedAudio: {
-                // Defaults to true if unset (matches Settings UI default).
-                UserDefaults.standard.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
-            },
-            shouldDiarize: {
-                UserDefaults.standard.object(forKey: "speakerDiarization") as? Bool ?? true
-            },
+            shouldKeepDownloadedAudio: { [runtimePreferences] in runtimePreferences.shouldSaveTranscriptionAudio },
+            shouldDiarize: { [runtimePreferences] in runtimePreferences.shouldDiarize },
             youtubeDownloader: youtubeDownloader,
             diarizationService: diarizationService
         )

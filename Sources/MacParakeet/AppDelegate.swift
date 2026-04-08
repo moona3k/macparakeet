@@ -34,8 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     // MARK: - Services
 
     private var appEnvironment: AppEnvironment?
-    private var hotkeyManager: HotkeyManager?
-    private var meetingHotkeyManager: GlobalShortcutManager?
+    private var hotkeyCoordinator: AppHotkeyCoordinator?
     private var dictationFlowCoordinator: DictationFlowCoordinator?
     private var meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator?
 
@@ -100,8 +99,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         // NSApplicationWillTerminateNotification observer — calling it here too
         // would send duplicate appQuit events and double the termination delay.
         dictationFlowCoordinator?.hideIdlePill()
-        hotkeyManager?.stop()
-        meetingHotkeyManager?.stop()
+        hotkeyCoordinator?.stopAll()
         if let onboardingObserver { NotificationCenter.default.removeObserver(onboardingObserver) }
         if let settingsObserver { NotificationCenter.default.removeObserver(settingsObserver) }
         if let hotkeyTriggerObserver { NotificationCenter.default.removeObserver(hotkeyTriggerObserver) }
@@ -370,7 +368,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 transcriptionService: env.transcriptionService,
                 transcriptionRepo: env.transcriptionRepo,
                 llmService: hasLLMConfig ? env.llmService : nil,
-                configStore: env.llmConfigStore,
                 promptResultRepo: env.promptResultRepo,
                 promptResultsViewModel: promptResultsViewModel
             )
@@ -490,6 +487,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
                 }
             )
             meetingRecordingFlowCoordinator = meetingCoordinator
+            configureHotkeyCoordinatorIfNeeded()
 
             maybeShowOnboarding()
         } catch {
@@ -524,87 +522,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
         promptResultsViewModel.updateLLMService(service)
     }
 
+    private func configureHotkeyCoordinatorIfNeeded() {
+        guard hotkeyCoordinator == nil else { return }
+        hotkeyCoordinator = AppHotkeyCoordinator(
+            settingsViewModel: settingsViewModel,
+            onStartDictation: { [weak self] mode in
+                self?.dictationFlowCoordinator?.startDictation(mode: mode, trigger: .hotkey)
+            },
+            onStopDictation: { [weak self] in
+                self?.dictationFlowCoordinator?.stopDictation()
+            },
+            onCancelDictation: { [weak self] in
+                self?.dictationFlowCoordinator?.cancelDictation(reason: .escape)
+            },
+            onDiscardRecording: { [weak self] showReadyPill in
+                self?.dictationFlowCoordinator?.discardProvisionalRecording(showReadyPill: showReadyPill)
+            },
+            onReadyForSecondTap: { [weak self] in
+                self?.dictationFlowCoordinator?.showReadyPill()
+            },
+            onEscapeWhileIdle: { [weak self] in
+                self?.dictationFlowCoordinator?.dismissOverlayIfError()
+            },
+            onToggleMeetingRecording: { [weak self] in
+                self?.toggleMeetingRecording(originatesFromWindow: false)
+            },
+            onPrimaryHotkeyManagerChanged: { [weak self] manager in
+                self?.dictationFlowCoordinator?.hotkeyManager = manager
+            },
+            onAnyHotkeyEnabled: { [weak self] in
+                self?.hasPresentedHotkeyUnavailableAlert = false
+            },
+            onHotkeyUnavailable: { [weak self] in
+                self?.presentHotkeyUnavailableAlertIfNeeded()
+            }
+        )
+    }
+
     // MARK: - Hotkey
 
     private func setupHotkey() {
-        let trigger = HotkeyTrigger.current
-        guard !trigger.isDisabled else {
-            hotkeyManager = nil
-            dictationFlowCoordinator?.hotkeyManager = nil
-            return
-        }
-
-        let manager = HotkeyManager(trigger: trigger)
-
-        manager.onStartRecording = { [weak self] mode in
-            self?.dictationFlowCoordinator?.startDictation(mode: mode, trigger: .hotkey)
-        }
-
-        manager.onStopRecording = { [weak self] in
-            self?.dictationFlowCoordinator?.stopDictation()
-        }
-
-        manager.onCancelRecording = { [weak self] in
-            self?.dictationFlowCoordinator?.cancelDictation(reason: .escape)
-        }
-
-        manager.onDiscardRecording = { [weak self] showReadyPill in
-            self?.dictationFlowCoordinator?.discardProvisionalRecording(showReadyPill: showReadyPill)
-        }
-
-        manager.onReadyForSecondTap = { [weak self] in
-            self?.dictationFlowCoordinator?.showReadyPill()
-        }
-
-        manager.onEscapeWhileIdle = { [weak self] in
-            self?.dictationFlowCoordinator?.dismissOverlayIfError()
-        }
-
-        if manager.start() {
-            hotkeyManager = manager
-            dictationFlowCoordinator?.hotkeyManager = manager
-            hasPresentedHotkeyUnavailableAlert = false
-        } else {
-            hotkeyManager = nil
-            dictationFlowCoordinator?.hotkeyManager = nil
-            presentHotkeyUnavailableAlertIfNeeded()
-        }
+        hotkeyCoordinator?.setupPrimaryHotkey()
     }
 
     private func setupMeetingHotkey() {
-        let trigger = settingsViewModel.meetingHotkeyTrigger
-        guard !trigger.isDisabled else {
-            meetingHotkeyManager = nil
-            return
-        }
-        guard trigger != settingsViewModel.hotkeyTrigger else {
-            meetingHotkeyManager = nil
-            return
-        }
-
-        let manager = GlobalShortcutManager(trigger: trigger)
-        manager.onTrigger = { [weak self] in
-            Task { @MainActor in
-                self?.toggleMeetingRecording(originatesFromWindow: false)
-            }
-        }
-
-        if manager.start() {
-            meetingHotkeyManager = manager
-            hasPresentedHotkeyUnavailableAlert = false
-        } else {
-            meetingHotkeyManager = nil
-            presentHotkeyUnavailableAlertIfNeeded()
-        }
+        hotkeyCoordinator?.setupMeetingHotkey()
     }
 
     private func refreshHotkeyAfterPermissions() {
-        hotkeyManager?.stop()
-        meetingHotkeyManager?.stop()
-        hotkeyManager = nil
-        meetingHotkeyManager = nil
-        setupHotkey()
-        setupMeetingHotkey()
+        hotkeyCoordinator?.refreshAllHotkeys()
     }
 
     private func observeOpenOnboarding() {
@@ -626,12 +592,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.hotkeyManager?.stop()
-                self?.hotkeyManager = nil
-                self?.meetingHotkeyManager?.stop()
-                self?.meetingHotkeyManager = nil
-                self?.setupHotkey()
-                self?.setupMeetingHotkey()
+                self?.hotkeyCoordinator?.refreshAllHotkeys()
                 self?.hotkeyMenuItem?.title = self?.hotkeyMenuTitle ?? ""
             }
         }
@@ -644,9 +605,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor in
-                self?.meetingHotkeyManager?.stop()
-                self?.meetingHotkeyManager = nil
-                self?.setupMeetingHotkey()
+                self?.hotkeyCoordinator?.refreshMeetingHotkey()
                 if let item = self?.recordMeetingMenuItem {
                     self?.applyMeetingHotkeyToMenuItem(item)
                 }
@@ -698,17 +657,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private var hotkeyMenuTitle: String {
-        let trigger = HotkeyTrigger.current
-        if trigger.isDisabled {
-            return "Hotkey: Disabled"
-        }
-        return "Hotkey: \(trigger.displayName) (double-tap / hold)"
+        hotkeyCoordinator?.hotkeyMenuTitle
+            ?? AppHotkeyCoordinator.menuTitle(for: HotkeyTrigger.current)
     }
 
     /// Configures an NSMenuItem with the meeting hotkey shortcut.
     /// Chord triggers (e.g. ⌘⇧M) render as native macOS shortcut hints.
     /// Non-chord triggers cannot be represented natively and are left without a shortcut indicator.
     private func applyMeetingHotkeyToMenuItem(_ item: NSMenuItem) {
+        if let hotkeyCoordinator {
+            hotkeyCoordinator.applyMeetingHotkey(to: item)
+            return
+        }
         let trigger = settingsViewModel.meetingHotkeyTrigger
         guard trigger.kind == .chord, let code = trigger.keyCode else {
             item.keyEquivalent = ""

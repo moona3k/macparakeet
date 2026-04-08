@@ -15,7 +15,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             case .missingCustomModel:
                 return "Enter a custom model ID."
             case .invalidBaseURL:
-                return "Enter a valid base URL."
+                return "Enter a valid HTTPS base URL, or use localhost for local servers."
             case .missingCommandTemplate:
                 return "Enter a CLI command."
             }
@@ -91,8 +91,11 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         if useCustomModel && trimmedCustomModelName.isEmpty {
             return .missingCustomModel
         }
-        if !trimmedBaseURLOverride.isEmpty && URL(string: trimmedBaseURLOverride) == nil {
-            return .invalidBaseURL
+        if !trimmedBaseURLOverride.isEmpty {
+            guard let overrideURL = URL(string: trimmedBaseURLOverride),
+                  Self.isAllowedBaseURLOverride(overrideURL) else {
+                return .invalidBaseURL
+            }
         }
         return nil
     }
@@ -114,6 +117,9 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         let baseURL: URL
         if !trimmedBaseURLOverride.isEmpty {
             guard let override = URL(string: trimmedBaseURLOverride) else {
+                throw ValidationError.invalidBaseURL
+            }
+            guard Self.isAllowedBaseURLOverride(override) else {
                 throw ValidationError.invalidBaseURL
             }
             baseURL = override
@@ -172,5 +178,19 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             selectedCLITemplate: selectedCLITemplate,
             cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout
         )
+    }
+
+    private static func isAllowedBaseURLOverride(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(),
+              let host = url.host?.lowercased() else {
+            return false
+        }
+        if scheme == "https" {
+            return true
+        }
+        guard scheme == "http" else {
+            return false
+        }
+        return host == "localhost" || host == "127.0.0.1" || host == "::1"
     }
 }
