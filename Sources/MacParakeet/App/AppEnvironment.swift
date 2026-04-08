@@ -33,13 +33,8 @@ final class AppEnvironment {
     let llmService: LLMService
     let runtimePreferences: AppRuntimePreferencesProtocol
 
-    init() throws {
-        // Ensure required runtime directories exist (db, dictations, temp).
-        try AppPaths.ensureDirectories()
-
-        // Database
-        let dbPath = AppPaths.databasePath
-        databaseManager = try DatabaseManager(path: dbPath)
+    init(databaseManager: DatabaseManager) throws {
+        self.databaseManager = databaseManager
 
         // Repositories
         dictationRepo = DictationRepository(dbQueue: databaseManager.dbQueue)
@@ -49,10 +44,6 @@ final class AppEnvironment {
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
         promptRepo = PromptRepository(dbQueue: databaseManager.dbQueue)
         promptResultRepo = PromptResultRepository(dbQueue: databaseManager.dbQueue)
-
-        // One-time cleanup on launch
-        _ = try? dictationRepo.deleteEmpty()
-        try? dictationRepo.clearMissingAudioPaths()
 
         // Services
         sttRuntime = STTRuntime()

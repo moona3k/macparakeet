@@ -252,6 +252,10 @@ public final class TranscriptionViewModel {
             reportMissingConfiguration("transcriptionService", action: "retranscribe")
             return
         }
+        guard let repo = transcriptionRepo else {
+            reportMissingConfiguration("transcriptionRepo", action: "retranscribe")
+            return
+        }
         guard let filePath = original.filePath,
               FileManager.default.fileExists(atPath: filePath) else { return }
 
@@ -269,13 +273,17 @@ public final class TranscriptionViewModel {
         transcriptionTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                var result = try await service.transcribe(fileURL: url, source: retranscriptionSource) { [weak self] phase in
+                var result = try await service.transcribe(
+                    fileURL: url,
+                    source: retranscriptionSource,
+                    persistResult: false
+                ) { [weak self] phase in
                     Task { @MainActor [weak self] in
                         self?.updateProgress(with: phase, taskID: taskID)
                     }
                 }
                 // Preserve row identity and user-owned metadata so retranscription updates
-                // the existing record instead of deleting and recreating it.
+                // the existing record in place.
                 result.id = original.id
                 result.createdAt = original.createdAt
                 result.isFavorite = original.isFavorite
@@ -288,7 +296,7 @@ public final class TranscriptionViewModel {
                 result.sourceType = original.sourceType
                 result.updatedAt = Date()
                 do {
-                    try transcriptionRepo?.save(result)
+                    try repo.save(result)
                     completeSuccessfulTranscription(taskID: taskID, result: result)
                 } catch {
                     logger.error("Failed to save transcription result error=\(error.localizedDescription, privacy: .public)")
@@ -534,6 +542,7 @@ public final class TranscriptionViewModel {
         guard !trimmed.isEmpty, speakers[index].label != trimmed else { return }
         speakers[index].label = trimmed
         transcription.speakers = speakers
+        transcription.updatedAt = Date()
         currentTranscription = transcription
         do {
             try transcriptionRepo?.updateSpeakers(id: transcription.id, speakers: speakers)
@@ -548,11 +557,13 @@ public final class TranscriptionViewModel {
         guard !trimmed.isEmpty, trimmed != transcription.fileName else { return }
 
         transcription.fileName = trimmed
+        transcription.updatedAt = Date()
         currentTranscription = transcription
         do {
             try transcriptionRepo?.updateFileName(id: transcription.id, fileName: trimmed)
             if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
                 transcriptions[index].fileName = trimmed
+                transcriptions[index].updatedAt = transcription.updatedAt
             }
         } catch {
             logger.error("Failed to persist transcription rename error=\(error.localizedDescription, privacy: .public)")

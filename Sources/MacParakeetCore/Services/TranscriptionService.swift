@@ -5,6 +5,7 @@ public protocol TranscriptionServiceProtocol: Sendable {
     func transcribe(
         fileURL: URL,
         source: TelemetryTranscriptionSource,
+        persistResult: Bool,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription
     func transcribeMeeting(
@@ -15,15 +16,31 @@ public protocol TranscriptionServiceProtocol: Sendable {
 }
 
 extension TranscriptionServiceProtocol {
+    public func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        try await transcribe(fileURL: fileURL, source: source, persistResult: true, onProgress: onProgress)
+    }
+
+    public func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        persistResult: Bool
+    ) async throws -> Transcription {
+        try await transcribe(fileURL: fileURL, source: source, persistResult: persistResult, onProgress: nil)
+    }
+
     public func transcribe(fileURL: URL) async throws -> Transcription {
-        try await transcribe(fileURL: fileURL, source: .file, onProgress: nil)
+        try await transcribe(fileURL: fileURL, source: .file, persistResult: true, onProgress: nil)
     }
 
     public func transcribe(
         fileURL: URL,
         source: TelemetryTranscriptionSource
     ) async throws -> Transcription {
-        try await transcribe(fileURL: fileURL, source: source, onProgress: nil)
+        try await transcribe(fileURL: fileURL, source: source, persistResult: true, onProgress: nil)
     }
 
     public func transcribeURL(urlString: String) async throws -> Transcription {
@@ -80,6 +97,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     public func transcribe(
         fileURL: URL,
         source: TelemetryTranscriptionSource = .file,
+        persistResult: Bool = true,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         let sourceType: Transcription.SourceType = switch source {
@@ -97,6 +115,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             source: source,
             sttJob: .fileTranscription,
             sourceType: sourceType,
+            persistResult: persistResult,
             onProgress: onProgress
         )
     }
@@ -127,6 +146,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         source: TelemetryTranscriptionSource,
         sttJob: STTJobKind,
         sourceType: Transcription.SourceType,
+        persistResult: Bool = true,
         meetingSpeakerMetadata: MeetingRealtimeTranscript? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
@@ -146,7 +166,9 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             status: .processing,
             sourceType: sourceType
         )
-        try transcriptionRepo.save(transcription)
+        if persistResult {
+            try transcriptionRepo.save(transcription)
+        }
         Telemetry.send(.transcriptionStarted(source: source, audioDurationSeconds: nil))
 
         // Extract thumbnail from video files (non-blocking)
@@ -169,6 +191,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             sttJob: sttJob,
             transcription: &transcription,
             tempFiles: [],
+            persistResult: persistResult,
             meetingSpeakerMetadata: meetingSpeakerMetadata,
             onProgress: onProgress
         )
@@ -269,6 +292,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         transcription: inout Transcription,
         tempFiles: [URL],
         cleanUpDownloadedFiles: Bool = true,
+        persistResult: Bool = true,
         meetingSpeakerMetadata: MeetingRealtimeTranscript? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
@@ -368,7 +392,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                 rawText: result.text,
                 processingStartedAt: processingStartedAt,
                 diarizationRequested: diarizationRequested,
-                meetingPreparedTranscriptUsed: meetingPreparedTranscriptUsed
+                meetingPreparedTranscriptUsed: meetingPreparedTranscriptUsed,
+                persistResult: persistResult
             )
 
             try? FileManager.default.removeItem(at: wavURL)
@@ -404,25 +429,27 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             }
 
             let txID = transcription.id
-            if error is CancellationError {
-                do {
-                    try transcriptionRepo.updateStatus(
-                        id: txID,
-                        status: .cancelled,
-                        errorMessage: nil
-                    )
-                } catch let dbError {
-                    logger.error("failed_to_update_cancelled_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
-                }
-            } else {
-                do {
-                    try transcriptionRepo.updateStatus(
-                        id: txID,
-                        status: .error,
-                        errorMessage: error.localizedDescription
-                    )
-                } catch let dbError {
-                    logger.error("failed_to_update_error_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+            if persistResult {
+                if error is CancellationError {
+                    do {
+                        try transcriptionRepo.updateStatus(
+                            id: txID,
+                            status: .cancelled,
+                            errorMessage: nil
+                        )
+                    } catch let dbError {
+                        logger.error("failed_to_update_cancelled_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+                    }
+                } else {
+                    do {
+                        try transcriptionRepo.updateStatus(
+                            id: txID,
+                            status: .error,
+                            errorMessage: error.localizedDescription
+                        )
+                    } catch let dbError {
+                        logger.error("failed_to_update_error_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+                    }
                 }
             }
             throw error
@@ -435,7 +462,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         rawText: String,
         processingStartedAt: Date,
         diarizationRequested: Bool,
-        meetingPreparedTranscriptUsed: Bool
+        meetingPreparedTranscriptUsed: Bool,
+        persistResult: Bool
     ) async throws -> Transcription {
         let mode = processingMode()
         var customWords: [CustomWord] = []
@@ -461,7 +489,9 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
         transcription.status = .completed
         transcription.updatedAt = Date()
-        try transcriptionRepo.save(transcription)
+        if persistResult {
+            try transcriptionRepo.save(transcription)
+        }
 
         let wordCount = transcription.rawTranscript?.split(whereSeparator: \.isWhitespace).count ?? 0
         let audioDurationSeconds = transcription.durationMs.map { Double($0) / 1000.0 }

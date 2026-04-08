@@ -9,8 +9,10 @@ public final class DatabaseManager: Sendable {
         var config = Configuration()
         config.foreignKeysEnabled = true
         #if DEBUG
-        config.prepareDatabase { db in
-            db.trace { print("SQL: \($0)") }
+        if ProcessInfo.processInfo.environment["MACPARAKEET_SQL_TRACE"] == "1" {
+            config.prepareDatabase { db in
+                db.trace { print("SQL: \($0)") }
+            }
         }
         #endif
         dbQueue = try DatabaseQueue(path: path, configuration: config)

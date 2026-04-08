@@ -244,6 +244,7 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
     var transcribeCallCount = 0
     var lastFileURL: URL?
     var lastSource: TelemetryTranscriptionSource?
+    var lastPersistResult: Bool?
     var lastMeetingRecording: MeetingRecordingOutput?
     var transcribeProgressPhases: [TranscriptionProgress] = []
     var transcribeDelayMs: UInt64 = 0
@@ -281,11 +282,13 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
     func transcribe(
         fileURL: URL,
         source: TelemetryTranscriptionSource,
+        persistResult: Bool,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         transcribeCallCount += 1
         lastFileURL = fileURL
         lastSource = source
+        lastPersistResult = persistResult
 
         for phase in transcribeProgressPhases {
             onProgress?(phase)

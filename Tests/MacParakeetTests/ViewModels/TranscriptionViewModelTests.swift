@@ -885,6 +885,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         mockRepo.transcriptions = [original]
 
         let newResult = Transcription(
+            id: UUID(),
             fileName: tmpFile.lastPathComponent,
             rawTranscript: "New transcript",
             status: .completed
@@ -897,8 +898,9 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         try await Task.sleep(for: .milliseconds(300))
 
-        XCTAssertTrue(mockRepo.deleteCalledWith.isEmpty,
-                      "Retranscribe should update the existing transcription instead of deleting it")
+        let persistResult = await mockService.lastPersistResult
+        XCTAssertEqual(persistResult, false, "Retranscribe should not let the service persist a temporary row")
+        XCTAssertTrue(mockRepo.deleteCalledWith.isEmpty, "Retranscribe should not delete any extra rows")
 
         // Existing record should be updated in place with the new transcript payload.
         let saved = mockRepo.transcriptions

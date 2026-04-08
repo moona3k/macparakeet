@@ -349,169 +349,186 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     private func startEnvironmentSetup() {
         environmentSetupTask?.cancel()
-        environmentSetupTask = Task { @MainActor [weak self] in
-            self?.setupEnvironment()
+        environmentSetupTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let databaseManager = try await Task.detached(priority: .userInitiated) {
+                    try AppPaths.ensureDirectories()
+                    let manager = try DatabaseManager(path: AppPaths.databasePath)
+                    // Keep one-time launch cleanup off the main actor.
+                    let dictationRepo = DictationRepository(dbQueue: manager.dbQueue)
+                    _ = try? dictationRepo.deleteEmpty()
+                    try? dictationRepo.clearMissingAudioPaths()
+                    return manager
+                }.value
+                guard !Task.isCancelled else { return }
+                let env = try AppEnvironment(databaseManager: databaseManager)
+                self.setupEnvironment(env)
+            } catch is CancellationError {
+                return
+            } catch {
+                self.presentEnvironmentSetupError(error)
+            }
         }
     }
 
-    private func setupEnvironment() {
-        do {
-            let env = try AppEnvironment()
-            appEnvironment = env
+    private func setupEnvironment(_ env: AppEnvironment) {
+        appEnvironment = env
 
-            Task {
-                // Only bootstrap trial if onboarding is already completed (returning user).
-                // For new users, trial starts at onboarding completion — not during setup.
-                let onboardingDone = UserDefaults.standard.string(forKey: OnboardingViewModel.onboardingCompletedKey) != nil
-                if onboardingDone {
-                    await env.entitlementsService.bootstrapTrialIfNeeded()
-                }
-                await env.entitlementsService.refreshValidationIfNeeded()
+        Task {
+            // Only bootstrap trial if onboarding is already completed (returning user).
+            // For new users, trial starts at onboarding completion, not during setup.
+            let onboardingDone = UserDefaults.standard.string(forKey: OnboardingViewModel.onboardingCompletedKey) != nil
+            if onboardingDone {
+                await env.entitlementsService.bootstrapTrialIfNeeded()
             }
-
-            // Configure view models
-            let hasLLMConfig = (try? env.llmConfigStore.loadConfig()) != nil
-            transcriptionViewModel.configure(
-                transcriptionService: env.transcriptionService,
-                transcriptionRepo: env.transcriptionRepo,
-                llmService: hasLLMConfig ? env.llmService : nil,
-                promptResultRepo: env.promptResultRepo,
-                promptResultsViewModel: promptResultsViewModel
-            )
-            historyViewModel.configure(dictationRepo: env.dictationRepo)
-            libraryViewModel.configure(transcriptionRepo: env.transcriptionRepo)
-            meetingsViewModel.configure(transcriptionRepo: env.transcriptionRepo)
-            settingsViewModel.configure(
-                permissionService: env.permissionService,
-                dictationRepo: env.dictationRepo,
-                transcriptionRepo: env.transcriptionRepo,
-                entitlementsService: env.entitlementsService,
-                launchAtLoginService: env.launchAtLoginService,
-                checkoutURL: env.checkoutURL,
-                customWordRepo: env.customWordRepo,
-                snippetRepo: env.snippetRepo,
-                sttClient: env.sttScheduler
-            )
-            customWordsViewModel.configure(repo: env.customWordRepo)
-            textSnippetsViewModel.configure(repo: env.snippetRepo)
-            promptsViewModel.configure(repo: env.promptRepo)
-            llmSettingsViewModel.configure(
-                configStore: env.llmConfigStore,
-                llmClient: env.llmClient
-            )
-            settingsViewModel.onDictationsCleared = { [weak self] in
-                self?.historyViewModel.loadDictations()
-            }
-            llmSettingsViewModel.onConfigurationChanged = { [weak self] in
-                self?.refreshLLMAvailability()
-            }
-            chatViewModel.configure(
-                llmService: hasLLMConfig ? env.llmService : nil,
-                transcriptText: "",
-                transcriptionRepo: env.transcriptionRepo,
-                configStore: env.llmConfigStore,
-                conversationRepo: env.chatConversationRepo
-            )
-            promptResultsViewModel.configure(
-                llmService: hasLLMConfig ? env.llmService : nil,
-                promptRepo: env.promptRepo,
-                promptResultRepo: env.promptResultRepo,
-                transcriptionRepo: env.transcriptionRepo,
-                configStore: env.llmConfigStore
-            )
-            chatViewModel.onConversationsChanged = { [weak self] transcriptionID, hasConversations in
-                self?.transcriptionViewModel.updateConversationStatus(
-                    id: transcriptionID,
-                    hasConversations: hasConversations
-                )
-            }
-            chatViewModel.onModelChanged = { [weak self] in
-                self?.promptResultsViewModel.refreshModelInfo()
-            }
-            promptResultsViewModel.onModelChanged = { [weak self] in
-                self?.chatViewModel.refreshModelInfo()
-            }
-            promptResultsViewModel.onPromptResultsChanged = { [weak self] transcriptionID, hasPromptResults in
-                guard self?.transcriptionViewModel.currentTranscription?.id == transcriptionID else { return }
-                self?.transcriptionViewModel.hasPromptResultTabs = hasPromptResults
-            }
-            promptResultsViewModel.onLegacySummaryChanged = { [weak self] transcriptionID, summary in
-                self?.transcriptionViewModel.updateLegacySummary(id: transcriptionID, summary: summary)
-            }
-            promptResultsViewModel.onGenerationCompleted = { [weak self] generationID, promptResultID in
-                self?.transcriptionViewModel.handleGenerationCompleted(generationID, promptResultID: promptResultID)
-            }
-            promptResultsViewModel.onDeletedPromptResult = { [weak self] promptResultID in
-                self?.transcriptionViewModel.handlePromptResultDeleted(promptResultID)
-            }
-            promptResultsViewModel.shouldMarkPromptResultUnread = { [weak self] promptResultID in
-                guard let self else { return true }
-                if case .result(let id) = self.transcriptionViewModel.selectedTab,
-                   id == promptResultID {
-                    return false
-                }
-                return true
-            }
-            transcriptionViewModel.onTranscribingChanged = { [weak self] _ in
-                self?.resolveAndUpdateMenuBarIcon()
-            }
-
-            let coordinator = DictationFlowCoordinator(
-                dictationService: env.dictationService,
-                clipboardService: env.clipboardService,
-                entitlementsService: env.entitlementsService,
-                dictationRepo: env.dictationRepo,
-                settingsViewModel: settingsViewModel,
-                shouldSuppressIdlePill: { [weak self] in
-                    self?.meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true
-                },
-                onMenuBarIconUpdate: { [weak self] _ in self?.resolveAndUpdateMenuBarIcon() },
-                onHistoryReload: { [weak self] in self?.historyViewModel.loadDictations() },
-                onPresentEntitlementsAlert: { [weak self] error in self?.presentEntitlementsAlert(error) }
-            )
-            dictationFlowCoordinator = coordinator
-
-            let meetingCoordinator = MeetingRecordingFlowCoordinator(
-                meetingRecordingService: env.meetingRecordingService,
-                transcriptionService: env.transcriptionService,
-                permissionService: env.permissionService,
-                onMenuBarIconUpdate: { [weak self] _ in self?.resolveAndUpdateMenuBarIcon() },
-                onTranscriptionReady: { [weak self] transcription in
-                    guard let self else { return }
-                    self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
-                    self.libraryViewModel.loadTranscriptions()
-                    self.meetingsViewModel.loadTranscriptions()
-                    self.mainWindowState.navigateToTranscription(from: .meetings)
-                    self.openMainWindow()
-                },
-                onRecordingBegan: { [weak self] in
-                    self?.dictationFlowCoordinator?.hideIdlePill()
-                },
-                onFlowReturnedToIdle: { [weak self] in
-                    self?.resolveAndUpdateMenuBarIcon()
-                    guard self?.dictationFlowCoordinator?.isDictationActive != true else { return }
-                    self?.dictationFlowCoordinator?.showIdlePill()
-                }
-            )
-            meetingRecordingFlowCoordinator = meetingCoordinator
-            configureHotkeyCoordinatorIfNeeded()
-            setupHotkey()
-            setupMeetingHotkey()
-            dictationFlowCoordinator?.showIdlePill()
-
-            maybeShowOnboarding()
-        } catch {
-            // Don't silently fail. Without a valid environment, the app can't function.
-            NSApp.setActivationPolicy(.regular)
-            NSApp.activate(ignoringOtherApps: true)
-            let alert = NSAlert()
-            alert.alertStyle = .critical
-            alert.messageText = "MacParakeet Failed to Start"
-            alert.informativeText = error.localizedDescription
-            alert.addButton(withTitle: "Quit")
-            _ = alert.runModal()
-            NSApp.terminate(nil)
+            await env.entitlementsService.refreshValidationIfNeeded()
         }
+
+        // Configure view models
+        let hasLLMConfig = (try? env.llmConfigStore.loadConfig()) != nil
+        transcriptionViewModel.configure(
+            transcriptionService: env.transcriptionService,
+            transcriptionRepo: env.transcriptionRepo,
+            llmService: hasLLMConfig ? env.llmService : nil,
+            promptResultRepo: env.promptResultRepo,
+            promptResultsViewModel: promptResultsViewModel
+        )
+        historyViewModel.configure(dictationRepo: env.dictationRepo)
+        libraryViewModel.configure(transcriptionRepo: env.transcriptionRepo)
+        meetingsViewModel.configure(transcriptionRepo: env.transcriptionRepo)
+        settingsViewModel.configure(
+            permissionService: env.permissionService,
+            dictationRepo: env.dictationRepo,
+            transcriptionRepo: env.transcriptionRepo,
+            entitlementsService: env.entitlementsService,
+            launchAtLoginService: env.launchAtLoginService,
+            checkoutURL: env.checkoutURL,
+            customWordRepo: env.customWordRepo,
+            snippetRepo: env.snippetRepo,
+            sttClient: env.sttScheduler
+        )
+        customWordsViewModel.configure(repo: env.customWordRepo)
+        textSnippetsViewModel.configure(repo: env.snippetRepo)
+        promptsViewModel.configure(repo: env.promptRepo)
+        llmSettingsViewModel.configure(
+            configStore: env.llmConfigStore,
+            llmClient: env.llmClient
+        )
+        settingsViewModel.onDictationsCleared = { [weak self] in
+            self?.historyViewModel.loadDictations()
+        }
+        llmSettingsViewModel.onConfigurationChanged = { [weak self] in
+            self?.refreshLLMAvailability()
+        }
+        chatViewModel.configure(
+            llmService: hasLLMConfig ? env.llmService : nil,
+            transcriptText: "",
+            transcriptionRepo: env.transcriptionRepo,
+            configStore: env.llmConfigStore,
+            conversationRepo: env.chatConversationRepo
+        )
+        promptResultsViewModel.configure(
+            llmService: hasLLMConfig ? env.llmService : nil,
+            promptRepo: env.promptRepo,
+            promptResultRepo: env.promptResultRepo,
+            transcriptionRepo: env.transcriptionRepo,
+            configStore: env.llmConfigStore
+        )
+        chatViewModel.onConversationsChanged = { [weak self] transcriptionID, hasConversations in
+            self?.transcriptionViewModel.updateConversationStatus(
+                id: transcriptionID,
+                hasConversations: hasConversations
+            )
+        }
+        chatViewModel.onModelChanged = { [weak self] in
+            self?.promptResultsViewModel.refreshModelInfo()
+        }
+        promptResultsViewModel.onModelChanged = { [weak self] in
+            self?.chatViewModel.refreshModelInfo()
+        }
+        promptResultsViewModel.onPromptResultsChanged = { [weak self] transcriptionID, hasPromptResults in
+            guard self?.transcriptionViewModel.currentTranscription?.id == transcriptionID else { return }
+            self?.transcriptionViewModel.hasPromptResultTabs = hasPromptResults
+        }
+        promptResultsViewModel.onLegacySummaryChanged = { [weak self] transcriptionID, summary in
+            self?.transcriptionViewModel.updateLegacySummary(id: transcriptionID, summary: summary)
+        }
+        promptResultsViewModel.onGenerationCompleted = { [weak self] generationID, promptResultID in
+            self?.transcriptionViewModel.handleGenerationCompleted(generationID, promptResultID: promptResultID)
+        }
+        promptResultsViewModel.onDeletedPromptResult = { [weak self] promptResultID in
+            self?.transcriptionViewModel.handlePromptResultDeleted(promptResultID)
+        }
+        promptResultsViewModel.shouldMarkPromptResultUnread = { [weak self] promptResultID in
+            guard let self else { return true }
+            if case .result(let id) = self.transcriptionViewModel.selectedTab,
+               id == promptResultID {
+                return false
+            }
+            return true
+        }
+        transcriptionViewModel.onTranscribingChanged = { [weak self] _ in
+            self?.resolveAndUpdateMenuBarIcon()
+        }
+
+        let coordinator = DictationFlowCoordinator(
+            dictationService: env.dictationService,
+            clipboardService: env.clipboardService,
+            entitlementsService: env.entitlementsService,
+            dictationRepo: env.dictationRepo,
+            settingsViewModel: settingsViewModel,
+            shouldSuppressIdlePill: { [weak self] in
+                self?.meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true
+            },
+            onMenuBarIconUpdate: { [weak self] _ in self?.resolveAndUpdateMenuBarIcon() },
+            onHistoryReload: { [weak self] in self?.historyViewModel.loadDictations() },
+            onPresentEntitlementsAlert: { [weak self] error in self?.presentEntitlementsAlert(error) }
+        )
+        dictationFlowCoordinator = coordinator
+
+        let meetingCoordinator = MeetingRecordingFlowCoordinator(
+            meetingRecordingService: env.meetingRecordingService,
+            transcriptionService: env.transcriptionService,
+            permissionService: env.permissionService,
+            onMenuBarIconUpdate: { [weak self] _ in self?.resolveAndUpdateMenuBarIcon() },
+            onTranscriptionReady: { [weak self] transcription in
+                guard let self else { return }
+                self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
+                self.libraryViewModel.loadTranscriptions()
+                self.meetingsViewModel.loadTranscriptions()
+                self.mainWindowState.navigateToTranscription(from: .meetings)
+                self.openMainWindow()
+            },
+            onRecordingBegan: { [weak self] in
+                self?.dictationFlowCoordinator?.hideIdlePill()
+            },
+            onFlowReturnedToIdle: { [weak self] in
+                self?.resolveAndUpdateMenuBarIcon()
+                guard self?.dictationFlowCoordinator?.isDictationActive != true else { return }
+                self?.dictationFlowCoordinator?.showIdlePill()
+            }
+        )
+        meetingRecordingFlowCoordinator = meetingCoordinator
+        configureHotkeyCoordinatorIfNeeded()
+        setupHotkey()
+        setupMeetingHotkey()
+        dictationFlowCoordinator?.showIdlePill()
+
+        maybeShowOnboarding()
+    }
+
+    private func presentEnvironmentSetupError(_ error: Error) {
+        // Don't silently fail. Without a valid environment, the app can't function.
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .critical
+        alert.messageText = "MacParakeet Failed to Start"
+        alert.informativeText = error.localizedDescription
+        alert.addButton(withTitle: "Quit")
+        _ = alert.runModal()
+        NSApp.terminate(nil)
     }
 
     private func setupDiscoverContent() {

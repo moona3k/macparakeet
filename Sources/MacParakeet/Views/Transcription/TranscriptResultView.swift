@@ -72,35 +72,15 @@ struct TranscriptResultView: View {
     var body: some View {
         adaptiveLayout
         .onAppear {
-            Task {
-                if showVideoPanel {
-                    await playerViewModel.load(for: transcription)
-                } else {
-                    await playerViewModel.prepare(for: transcription)
-                }
-                if let words = transcription.wordTimestamps, !words.isEmpty {
-                    playerViewModel.loadSubtitleCues(from: words)
-                }
-            }
+            loadMediaForCurrentTranscription(fullReload: true)
             rebuildSegmentCache()
             viewModel.loadPersistedContent()
             promptResultsViewModel.loadVisiblePrompts()
             promptResultsViewModel.loadPromptResults(transcriptionId: transcription.id)
-            let text = viewModel.currentTranscription?.cleanTranscript ?? viewModel.currentTranscription?.rawTranscript ?? ""
-            chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id)
+            reloadChatTranscriptContext()
         }
         .onChange(of: transcription.id) {
-            Task {
-                playerViewModel.cleanup()
-                if showVideoPanel {
-                    await playerViewModel.load(for: transcription)
-                } else {
-                    await playerViewModel.prepare(for: transcription)
-                }
-                if let words = transcription.wordTimestamps, !words.isEmpty {
-                    playerViewModel.loadSubtitleCues(from: words)
-                }
-            }
+            loadMediaForCurrentTranscription(fullReload: true)
             rebuildSegmentCache()
             headerExpanded = false
             speakerOverviewExpanded = false
@@ -117,13 +97,19 @@ struct TranscriptResultView: View {
             viewModel.selectedTab = .transcript
             viewModel.loadPersistedContent()
             promptResultsViewModel.loadPromptResults(transcriptionId: transcription.id)
-            let text = viewModel.currentTranscription?.cleanTranscript ?? viewModel.currentTranscription?.rawTranscript ?? ""
-            chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id)
+            reloadChatTranscriptContext()
+        }
+        .onChange(of: transcription.rawTranscript) {
+            reloadChatTranscriptContext()
+        }
+        .onChange(of: transcription.cleanTranscript) {
+            reloadChatTranscriptContext()
         }
         .onChange(of: transcription.speakers) {
             rebuildSegmentCache()
         }
         .onChange(of: transcription.wordTimestamps) {
+            loadMediaForCurrentTranscription(fullReload: false)
             rebuildSegmentCache()
         }
         .onChange(of: viewModel.selectedTab) {
@@ -2119,5 +2105,25 @@ struct TranscriptResultView: View {
         let minutes = totalSeconds / 60
         let seconds = totalSeconds % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+
+    private func loadMediaForCurrentTranscription(fullReload: Bool) {
+        Task {
+            if fullReload {
+                playerViewModel.cleanup()
+                if showVideoPanel {
+                    await playerViewModel.load(for: transcription)
+                } else {
+                    await playerViewModel.prepare(for: transcription)
+                }
+            }
+            playerViewModel.loadSubtitleCues(from: transcription.wordTimestamps ?? [])
+        }
+    }
+
+    private func reloadChatTranscriptContext() {
+        let source = viewModel.currentTranscription ?? transcription
+        let text = source.cleanTranscript ?? source.rawTranscript ?? ""
+        chatViewModel.loadTranscript(text, transcriptionId: source.id)
     }
 }

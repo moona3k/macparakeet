@@ -147,6 +147,23 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertNil(all[0].errorMessage)
     }
 
+    func testTranscribeFileWithPersistDisabledDoesNotWriteRepositoryRows() async throws {
+        let expectedResult = STTResult(text: "Ephemeral transcript")
+        await mockSTT.configure(result: expectedResult)
+
+        let fileURL = URL(fileURLWithPath: "/tmp/test.mp3")
+        let result = try await service.transcribe(
+            fileURL: fileURL,
+            source: .file,
+            persistResult: false,
+            onProgress: nil
+        )
+
+        XCTAssertEqual(result.status, .completed)
+        let all = try transcriptionRepo.fetchAll(limit: nil)
+        XCTAssertTrue(all.isEmpty, "persistResult=false should not create temporary DB rows")
+    }
+
     func testTranscribeURLWithoutDownloaderThrows() async throws {
         // Service without youtubeDownloader should throw
         do {
