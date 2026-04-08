@@ -50,6 +50,7 @@ struct TranscriptResultView: View {
     @State private var cachedTurns: [SpeakerTurn] = []
     @State private var cachedHasSpeakers: Bool = false
     @State private var cachedSpeakerColorMap: [String: Color] = [:]
+    @State private var cachedSpeakerLabelMap: [String: String] = [:]
     @State private var cachedSegmentStartMs: [Int] = []  // sorted, for binary search
     @State private var autoScrollPaused = false
     @State private var scrollPauseTask: Task<Void, Never>?
@@ -1727,7 +1728,7 @@ struct TranscriptResultView: View {
             // Speaker-aware layout: use cached turns
             ForEach(Array(cachedTurns.enumerated()), id: \.element.segments.first?.startMs) { _, turn in
                 transcriptTurnCard(
-                    speakerLabel: speakerLabel(for: turn.speakerId),
+                    speakerLabel: cachedSpeakerLabelMap[turn.speakerId] ?? "Unknown",
                     speakerColor: cachedSpeakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textTertiary,
                     segments: turn.segments.map { ($0.startMs, $0.text) }
                 )
@@ -1985,6 +1986,7 @@ struct TranscriptResultView: View {
             cachedTurns = []
             cachedHasSpeakers = false
             cachedSpeakerColorMap = [:]
+            cachedSpeakerLabelMap = [:]
             cachedSegmentStartMs = []
             return
         }
@@ -1995,10 +1997,17 @@ struct TranscriptResultView: View {
         cachedSegments = segments
         cachedHasSpeakers = hasSpeakers
         cachedSpeakerColorMap = buildSpeakerColorMap()
+        cachedSpeakerLabelMap = buildSpeakerLabelMap()
         cachedSegmentStartMs = segments.map(\.startMs)
 
         if hasSpeakers {
-            cachedTurns = TranscriptSegmenter.groupIntoSpeakerTurns(segments: segments, speakerLabelProvider: speakerLabel(for:))
+            cachedTurns = TranscriptSegmenter.groupIntoSpeakerTurns(
+                segments: segments,
+                speakerLabelProvider: { speakerID in
+                    guard let speakerID else { return "Unknown" }
+                    return cachedSpeakerLabelMap[speakerID] ?? "Unknown"
+                }
+            )
         } else {
             cachedTurns = []
         }
@@ -2065,13 +2074,13 @@ struct TranscriptResultView: View {
         return map
     }
 
-    private func speakerLabel(for speakerId: String?) -> String {
-        guard let id = speakerId,
-              let speakers = transcription.speakers,
-              let info = speakers.first(where: { $0.id == id }) else {
-            return "Unknown"
+    private func buildSpeakerLabelMap() -> [String: String] {
+        guard let speakers = transcription.speakers else { return [:] }
+        var map: [String: String] = [:]
+        for speaker in speakers {
+            map[speaker.id] = speaker.label
         }
-        return info.label
+        return map
     }
 
 

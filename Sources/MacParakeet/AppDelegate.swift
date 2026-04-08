@@ -657,13 +657,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     }
 
     private var hotkeyMenuTitle: String {
-        hotkeyCoordinator?.hotkeyMenuTitle ?? {
-            let trigger = HotkeyTrigger.current
-            if trigger.isDisabled {
-                return "Hotkey: Disabled"
-            }
-            return "Hotkey: \(trigger.displayName) (double-tap / hold)"
-        }()
+        hotkeyCoordinator?.hotkeyMenuTitle
+            ?? AppHotkeyCoordinator.menuTitle(for: HotkeyTrigger.current)
     }
 
     /// Configures an NSMenuItem with the meeting hotkey shortcut.

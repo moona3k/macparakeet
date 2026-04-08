@@ -46,7 +46,10 @@ final class AppHotkeyCoordinator {
     }
 
     var hotkeyMenuTitle: String {
-        let trigger = HotkeyTrigger.current
+        Self.menuTitle(for: HotkeyTrigger.current)
+    }
+
+    static func menuTitle(for trigger: HotkeyTrigger) -> String {
         if trigger.isDisabled {
             return "Hotkey: Disabled"
         }
