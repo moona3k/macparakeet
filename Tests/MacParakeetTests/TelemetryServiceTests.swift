@@ -196,16 +196,27 @@ final class TelemetryServiceTests: XCTestCase {
     }
 
     func testTerminationFlushDoesNotEmitAppQuitWhenTelemetryDisabled() async throws {
-        _ = makeService(isEnabled: { false })
+        let service = makeService(isEnabled: { false })
 
         NotificationCenter.default.post(
             name: NSNotification.Name("NSApplicationWillTerminateNotification"),
             object: nil
         )
-        try await Task.sleep(nanoseconds: 200_000_000)
-
-        let events = TelemetryMockURLProtocol.recordedPayloads().flatMap(\.events)
+        let events = try await eventuallyRecordedEvents()
         XCTAssertFalse(events.contains { $0.event == TelemetryEventName.appQuit.rawValue })
+        _ = service
+    }
+
+    func testTerminationFlushEmitsAppQuitWhenTelemetryEnabled() async throws {
+        let service = makeService(isEnabled: { true })
+
+        NotificationCenter.default.post(
+            name: NSNotification.Name("NSApplicationWillTerminateNotification"),
+            object: nil
+        )
+        let events = try await eventuallyRecordedEvents()
+        XCTAssertTrue(events.contains { $0.event == TelemetryEventName.appQuit.rawValue })
+        _ = service
     }
 
     // MARK: - Event Serialization
@@ -492,5 +503,20 @@ final class TelemetryServiceTests: XCTestCase {
                 reason: nil, stackTrace: "0x1234\n0x5678"
             ),
         ]
+    }
+
+    private func eventuallyRecordedEvents(
+        timeoutNanoseconds: UInt64 = 1_500_000_000,
+        pollNanoseconds: UInt64 = 50_000_000
+    ) async throws -> [RecordedTelemetryEvent] {
+        let start = DispatchTime.now().uptimeNanoseconds
+        while DispatchTime.now().uptimeNanoseconds - start < timeoutNanoseconds {
+            let events = TelemetryMockURLProtocol.recordedPayloads().flatMap(\.events)
+            if !events.isEmpty {
+                return events
+            }
+            try await Task.sleep(nanoseconds: pollNanoseconds)
+        }
+        return TelemetryMockURLProtocol.recordedPayloads().flatMap(\.events)
     }
 }
