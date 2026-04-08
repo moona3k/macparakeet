@@ -373,8 +373,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if originatesFromWindow {
-            windowCoordinator.openMainWindow()
             mainWindowState.selectedItem = .meetings
+            windowCoordinator.openMainWindow()
         }
 
         meetingRecordingFlowCoordinator?.toggleRecording()
