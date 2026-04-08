@@ -1723,41 +1723,25 @@ struct TranscriptResultView: View {
     // MARK: - Timestamped View
 
     @ViewBuilder
-    private func timestampedView(words: [WordTimestamp]) -> some View {
-        if cachedHasSpeakers {
-            // Speaker-aware layout: use cached turns
-            ForEach(Array(cachedTurns.enumerated()), id: \.element.segments.first?.startMs) { _, turn in
-                transcriptTurnCard(
-                    speakerLabel: cachedSpeakerLabelMap[turn.speakerId] ?? "Unknown",
-                    speakerColor: cachedSpeakerColorMap[turn.speakerId] ?? DesignSystem.Colors.textTertiary,
-                    segments: turn.segments.map { ($0.startMs, $0.text) }
-                )
-                .id(turn.segments.first?.startMs ?? 0)
-            }
-        } else {
-            // No speakers — use cached segments
-            ForEach(Array(cachedSegments.enumerated()), id: \.element.startMs) { index, segment in
-                let isActive = isSegmentActiveBinarySearch(segmentIndex: index)
-                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                    timestampChip(segment.startMs)
-
-                    Text(segment.text)
-                        .font(DesignSystem.Typography.bodyLarge)
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                        .textSelection(.enabled)
-                        .lineSpacing(5)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+    private func timestampedView(words _: [WordTimestamp]) -> some View {
+        TranscriptTimestampedContentView(
+            hasSpeakers: cachedHasSpeakers,
+            turns: cachedTurns,
+            segments: cachedSegments,
+            speakerColorMap: cachedSpeakerColorMap,
+            speakerLabelForID: { cachedSpeakerLabelMap[$0] ?? "Unknown" },
+            isSegmentActive: isSegmentActiveBinarySearch(segmentIndex:),
+            timestampLabel: { formatTimestamp(ms: $0) },
+            isTimestampSeekable: playerViewModel.playerState == .ready,
+            onTimestampTap: { startMs in
+                playerViewModel.seek(toMs: startMs)
+                if !playerViewModel.isPlaying {
+                    playerViewModel.togglePlayPause()
                 }
-                .padding(DesignSystem.Spacing.md)
-                .background(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .fill(isActive
-                              ? DesignSystem.Colors.accent.opacity(0.12)
-                              : DesignSystem.Colors.surfaceElevated.opacity(0.45))
-                )
-                .id(segment.startMs)
+                autoScrollPaused = false
+                scrollPauseTask?.cancel()
             }
-        }
+        )
     }
 
     // MARK: - Speaker Summary Panel
@@ -1893,88 +1877,6 @@ struct TranscriptResultView: View {
             return "\(minutes)m \(seconds)s"
         }
         return "\(seconds)s"
-    }
-
-    private func transcriptTurnCard(
-        speakerLabel: String,
-        speakerColor: Color,
-        segments: [(startMs: Int, text: String)]
-    ) -> some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                Circle()
-                    .fill(speakerColor)
-                    .frame(width: 10, height: 10)
-
-                Text(speakerLabel)
-                    .font(DesignSystem.Typography.body.weight(.semibold))
-                    .foregroundStyle(speakerColor)
-
-                if let firstStart = segments.first?.startMs {
-                    metadataChip(icon: "clock", text: formatTimestamp(ms: firstStart), tint: DesignSystem.Colors.textSecondary)
-                }
-
-                Spacer()
-            }
-
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                ForEach(Array(segments.enumerated()), id: \.offset) { _, segment in
-                    HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                        timestampChip(segment.startMs)
-
-                        Text(segment.text)
-                            .font(DesignSystem.Typography.bodyLarge)
-                            .foregroundStyle(DesignSystem.Colors.textPrimary)
-                            .textSelection(.enabled)
-                            .lineSpacing(5)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                    }
-                }
-            }
-        }
-        .padding(DesignSystem.Spacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(speakerColor.opacity(0.08))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .strokeBorder(speakerColor.opacity(0.18), lineWidth: 0.75)
-        )
-    }
-
-    private var isPlayerSeekable: Bool {
-        playerViewModel.playerState == .ready
-    }
-
-    @ViewBuilder
-    private func timestampChip(_ startMs: Int) -> some View {
-        Text(formatTimestamp(ms: startMs))
-            .font(DesignSystem.Typography.timestamp)
-            .foregroundStyle(isPlayerSeekable ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
-            .padding(.vertical, 4)
-            .padding(.horizontal, 8)
-            .background(
-                Capsule()
-                    .fill(DesignSystem.Colors.surface)
-            )
-            .frame(width: 72, alignment: .leading)
-            .contentShape(Capsule())
-            .onTapGesture {
-                if isPlayerSeekable {
-                    playerViewModel.seek(toMs: startMs)
-                    if !playerViewModel.isPlaying {
-                        playerViewModel.togglePlayPause()
-                    }
-                    autoScrollPaused = false
-                    scrollPauseTask?.cancel()
-                }
-            }
-            .onHover { hovering in
-                if isPlayerSeekable {
-                    if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                }
-            }
     }
 
     // MARK: - Segment Cache
