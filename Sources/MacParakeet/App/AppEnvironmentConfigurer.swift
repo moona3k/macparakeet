@@ -4,6 +4,11 @@ import MacParakeetViewModels
 
 @MainActor
 final class AppEnvironmentConfigurer {
+    private final class CoordinatorRefs {
+        weak var dictation: DictationFlowCoordinator?
+        weak var meeting: MeetingRecordingFlowCoordinator?
+    }
+
     struct Runtime {
         let dictationFlowCoordinator: DictationFlowCoordinator
         let meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator
@@ -171,8 +176,7 @@ final class AppEnvironmentConfigurer {
             callbacks.onMenuBarIconUpdate()
         }
 
-        var dictationCoordinatorRef: DictationFlowCoordinator?
-        var meetingCoordinatorRef: MeetingRecordingFlowCoordinator?
+        let coordinatorRefs = CoordinatorRefs()
 
         let dictationCoordinator = DictationFlowCoordinator(
             dictationService: env.dictationService,
@@ -181,13 +185,13 @@ final class AppEnvironmentConfigurer {
             dictationRepo: env.dictationRepo,
             settingsViewModel: settingsViewModel,
             shouldSuppressIdlePill: {
-                meetingCoordinatorRef?.isMeetingRecordingActive == true
+                coordinatorRefs.meeting?.isMeetingRecordingActive == true
             },
             onMenuBarIconUpdate: { _ in callbacks.onMenuBarIconUpdate() },
             onHistoryReload: { [weak self] in self?.historyViewModel.loadDictations() },
             onPresentEntitlementsAlert: callbacks.onPresentEntitlementsAlert
         )
-        dictationCoordinatorRef = dictationCoordinator
+        coordinatorRefs.dictation = dictationCoordinator
 
         let meetingCoordinator = MeetingRecordingFlowCoordinator(
             meetingRecordingService: env.meetingRecordingService,
@@ -203,39 +207,39 @@ final class AppEnvironmentConfigurer {
                 callbacks.onOpenMainWindow()
             },
             onRecordingBegan: {
-                dictationCoordinatorRef?.hideIdlePill()
+                coordinatorRefs.dictation?.hideIdlePill()
             },
             onFlowReturnedToIdle: {
                 callbacks.onMenuBarIconUpdate()
-                guard dictationCoordinatorRef?.isDictationActive != true else { return }
-                dictationCoordinatorRef?.showIdlePill()
+                guard coordinatorRefs.dictation?.isDictationActive != true else { return }
+                coordinatorRefs.dictation?.showIdlePill()
             }
         )
-        meetingCoordinatorRef = meetingCoordinator
+        coordinatorRefs.meeting = meetingCoordinator
 
         let hotkeyCoordinator = AppHotkeyCoordinator(
             settingsViewModel: settingsViewModel,
             onStartDictation: { mode in
-                dictationCoordinatorRef?.startDictation(mode: mode, trigger: .hotkey)
+                coordinatorRefs.dictation?.startDictation(mode: mode, trigger: .hotkey)
             },
             onStopDictation: {
-                dictationCoordinatorRef?.stopDictation()
+                coordinatorRefs.dictation?.stopDictation()
             },
             onCancelDictation: {
-                dictationCoordinatorRef?.cancelDictation(reason: .escape)
+                coordinatorRefs.dictation?.cancelDictation(reason: .escape)
             },
             onDiscardRecording: { showReadyPill in
-                dictationCoordinatorRef?.discardProvisionalRecording(showReadyPill: showReadyPill)
+                coordinatorRefs.dictation?.discardProvisionalRecording(showReadyPill: showReadyPill)
             },
             onReadyForSecondTap: {
-                dictationCoordinatorRef?.showReadyPill()
+                coordinatorRefs.dictation?.showReadyPill()
             },
             onEscapeWhileIdle: {
-                dictationCoordinatorRef?.dismissOverlayIfError()
+                coordinatorRefs.dictation?.dismissOverlayIfError()
             },
             onToggleMeetingRecording: callbacks.onToggleMeetingRecordingFromHotkey,
             onPrimaryHotkeyManagerChanged: { manager in
-                dictationCoordinatorRef?.hotkeyManager = manager
+                coordinatorRefs.dictation?.hotkeyManager = manager
             },
             onAnyHotkeyEnabled: callbacks.onHotkeyBecameAvailable,
             onHotkeyUnavailable: callbacks.onHotkeyUnavailable

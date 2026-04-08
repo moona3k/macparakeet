@@ -424,6 +424,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func showAboutPanel() {
         let repoLink = "https://github.com/moona3k/macparakeet"
+        guard let repoURL = URL(string: repoLink) else { return }
         let credits = NSMutableAttributedString()
 
         let style = NSMutableParagraphStyle()
@@ -435,7 +436,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ]
         let linkAttributes: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11),
-            .link: URL(string: repoLink)!,
+            .link: repoURL,
             .paragraphStyle: style,
         ]
 
