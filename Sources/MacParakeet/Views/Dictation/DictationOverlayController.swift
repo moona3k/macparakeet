@@ -204,9 +204,6 @@ final class DictationOverlayViewModel {
     /// Cancel countdown value (separate from state enum to avoid view reconstruction jank).
     var cancelTimeRemaining: Double = 5.0
 
-    /// No-speech progress bar: starts at 1.0, animates to 0.0 over 3 seconds.
-    var noSpeechProgress: CGFloat = 1.0
-
     private var timerTask: Task<Void, Never>?
 
     func startTimer() {

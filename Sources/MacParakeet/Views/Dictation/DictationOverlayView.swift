@@ -55,6 +55,71 @@ private struct CheckmarkShape: Shape {
     }
 }
 
+// MARK: - No Speech Content
+
+/// No-speech terminal animation: Merkaba dissolves → falling leaf + serif label.
+/// Self-contained @State so nothing leaks across dictation sessions.
+/// Sized to 26×26 to match the success/processing circular pill.
+private struct NoSpeechContentView: View {
+    let isCommand: Bool
+
+    @State private var leafVisible: Double = 0
+    @State private var leafDrift: CGFloat = -4
+    @State private var leafRotation: Double = -18
+    @State private var textOpacity: Double = 0
+
+    /// Warm coral/orange accent for the falling leaf.
+    private var leafTint: Color {
+        Color(red: 0.96, green: 0.58, blue: 0.33)
+    }
+
+    private var label: String {
+        isCommand ? "no command" : "no audio"
+    }
+
+    var body: some View {
+        ZStack {
+            // Sacred geometry dissolves (matches SpinnerRingView default size: 26)
+            MerkabaDissipateView(size: 26)
+
+            // Leaf drifts in as geometry fades — warm orange nature moment
+            Image(systemName: "leaf.fill")
+                .font(.system(size: 18, weight: .light))
+                .foregroundStyle(leafTint.opacity(leafVisible))
+                .rotationEffect(.degrees(leafRotation))
+                .offset(x: leafDrift * 0.5, y: leafDrift)
+
+            // Elegant serif italic label — overflows the 26×26 frame into pill padding,
+            // so the pill background (46×46) can accommodate the text without resizing.
+            Text(label)
+                .font(.system(size: 8.5, weight: .regular, design: .serif))
+                .italic()
+                .foregroundStyle(.white.opacity(textOpacity))
+                .fixedSize()
+        }
+        .frame(width: 26, height: 26)
+        .onAppear {
+            // Leaf fades in as Merkaba dissolves
+            withAnimation(.easeIn(duration: 0.5).delay(0.35)) {
+                leafVisible = 0.7
+            }
+            // Leaf gently drifts down + rotates (falling)
+            withAnimation(.easeInOut(duration: 1.6).delay(0.35)) {
+                leafDrift = 6
+                leafRotation = 18
+            }
+            // Text fades in, anchored at center over the leaf
+            withAnimation(.easeIn(duration: 0.4).delay(0.75)) {
+                textOpacity = 0.95
+            }
+            // Leaf softly recedes so text reads clean
+            withAnimation(.easeOut(duration: 0.55).delay(1.5)) {
+                leafVisible = 0.3
+            }
+        }
+    }
+}
+
 /// The dictation overlay — compact dark capsule during dictation, wider card for errors.
 struct DictationOverlayView: View {
     @Bindable var viewModel: DictationOverlayViewModel
@@ -92,12 +157,12 @@ struct DictationOverlayView: View {
 
         default:
             let isReady = if case .ready = viewModel.state { true } else { false }
-            // Processing (non-command) and success show a single 26×26 icon — use equal
+            // Processing (non-command), success, and noSpeech show a single icon — use equal
             // padding so the Capsule background renders as a perfect circle, not an oval.
             let isIconOnly: Bool = {
                 switch viewModel.state {
                 case .processing: return viewModel.sessionKind != .command
-                case .success: return true
+                case .success, .noSpeech: return true
                 default: return false
                 }
             }()
@@ -335,34 +400,7 @@ struct DictationOverlayView: View {
     // MARK: - No Speech State
 
     private var noSpeechContent: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 7) {
-                Image(systemName: "waveform.slash")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.5))
-
-                Text(viewModel.sessionKind == .command ? "No command detected" : "No speech detected")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.7))
-            }
-
-            // Thin progress bar — track + fill, shrinks over 3s
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.white.opacity(0.12))
-                Capsule()
-                    .fill(Color.white.opacity(0.4))
-                    .scaleEffect(x: viewModel.noSpeechProgress, anchor: .trailing)
-                    .animation(.linear(duration: 3.0), value: viewModel.noSpeechProgress)
-            }
-            .frame(height: 2.5)
-            .onAppear {
-                // Trigger after the view renders so SwiftUI has a "from" value to animate
-                viewModel.noSpeechProgress = 0.0
-            }
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 2)
+        NoSpeechContentView(isCommand: viewModel.sessionKind == .command)
     }
 
     // MARK: - Error Card
@@ -545,7 +583,6 @@ struct DictationOverlayView: View {
         DictationOverlayView(viewModel: {
             let vm = DictationOverlayViewModel()
             vm.state = .noSpeech
-            vm.noSpeechProgress = 0.6
             return vm
         }())
 

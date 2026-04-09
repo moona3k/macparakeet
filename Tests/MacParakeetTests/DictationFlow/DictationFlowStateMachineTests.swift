@@ -515,7 +515,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(m.state, .finishing(outcome: .noSpeech))
         XCTAssertTrue(effects.contains(.showNoSpeech))
         XCTAssertTrue(effects.contains(.updateMenuBar(.idle)))
-        XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 3)))
+        XCTAssertTrue(effects.contains(.startDisplayDismissTimer(seconds: 2.5)))
     }
 
     func testProcessingTranscriptionFailed() {

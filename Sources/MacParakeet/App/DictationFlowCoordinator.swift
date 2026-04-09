@@ -235,10 +235,7 @@ final class DictationFlowCoordinator {
             overlayViewModel?.state = .success
 
         case .showNoSpeech:
-            if let vm = overlayViewModel {
-                vm.noSpeechProgress = 1.0
-                vm.state = .noSpeech
-            }
+            overlayViewModel?.state = .noSpeech
 
         case .showError(let message):
             overlayViewModel?.state = .error(message)

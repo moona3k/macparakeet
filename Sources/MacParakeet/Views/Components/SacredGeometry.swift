@@ -99,6 +99,98 @@ struct SpinnerRingView: View {
     }
 }
 
+// MARK: - Merkaba Dissipate (No-Speech Terminal)
+
+/// Merkaba wind-down for the "no speech detected" terminal state.
+/// The sacred geometry settles, dissolves, and fades — leaving space for
+/// an external text label to materialize over the top.
+///
+/// Sequence:
+///   Phase 1 — triangles slow and align into Star of David (stillness)
+///   Phase 2 — strokes and vertices dissolve
+///   Phase 3 — center nexus exhales and fades last
+struct MerkabaDissipateView: View {
+    var size: CGFloat = 26
+    var tintColor: Color = .white
+
+    /// Phase 1: triangles slow-rotate and align to Star of David
+    @State private var settled = false
+    /// Phase 2: strokes and vertex glow dissolve
+    @State private var dissolved = false
+    /// Phase 3: center nexus contracts and fades
+    @State private var exhaled = false
+
+    private var radius: CGFloat { size * 0.423 }
+
+    var body: some View {
+        ZStack {
+            // Outer guide ring
+            Circle()
+                .stroke(tintColor.opacity(dissolved ? 0 : 0.05), lineWidth: 0.5)
+                .frame(width: size, height: size)
+
+            // Triangle 1 — settles to 0° (upward-pointing)
+            triangleLayer(
+                rotation: settled ? 0 : 20,
+                strokeOpacity: dissolved ? 0 : 0.35,
+                vertexOpacity: dissolved ? 0 : 0.6
+            )
+
+            // Triangle 2 — settles to 60° (downward, forming Star of David)
+            triangleLayer(
+                rotation: settled ? 60 : 40,
+                strokeOpacity: dissolved ? 0 : 0.2,
+                vertexOpacity: dissolved ? 0 : 0.42
+            )
+
+            // Center nexus — last point of light before text takes over
+            Circle()
+                .fill(tintColor.opacity(exhaled ? 0 : 0.6))
+                .frame(width: size * 0.115, height: size * 0.115)
+                .shadow(color: tintColor.opacity(exhaled ? 0 : 0.3), radius: size * 0.154)
+                .scaleEffect(exhaled ? 0.3 : 1.0)
+        }
+        .frame(width: size, height: size)
+        .scaleEffect(settled ? 0.85 : 1.0)
+        .drawingGroup()
+        .onAppear {
+            // Phase 1: settle into Star of David alignment
+            withAnimation(.easeOut(duration: 0.45)) {
+                settled = true
+            }
+            // Phase 2: dissolve triangles and vertices
+            withAnimation(.easeOut(duration: 0.4).delay(0.3)) {
+                dissolved = true
+            }
+            // Phase 3: center nexus exhales
+            withAnimation(.easeOut(duration: 0.35).delay(0.55)) {
+                exhaled = true
+            }
+        }
+    }
+
+    private func triangleLayer(rotation: Double, strokeOpacity: Double, vertexOpacity: Double) -> some View {
+        ZStack {
+            TriangleShape()
+                .stroke(tintColor.opacity(strokeOpacity), lineWidth: 0.8)
+                .frame(width: radius * 2, height: radius * 2)
+
+            ForEach(0..<3, id: \.self) { i in
+                let angle = (Double(i) * 120.0 - 90.0) * .pi / 180.0
+                let x = Foundation.cos(angle) * radius
+                let y = Foundation.sin(angle) * radius
+
+                Circle()
+                    .fill(tintColor.opacity(vertexOpacity))
+                    .frame(width: size * 0.096, height: size * 0.096)
+                    .shadow(color: tintColor.opacity(vertexOpacity * 0.4), radius: size * 0.115)
+                    .offset(x: x, y: y)
+            }
+        }
+        .rotationEffect(.degrees(rotation))
+    }
+}
+
 // MARK: - Meditative Merkaba (Large, Slow)
 
 /// Larger, slower merkaba for empty states and idle backgrounds.
