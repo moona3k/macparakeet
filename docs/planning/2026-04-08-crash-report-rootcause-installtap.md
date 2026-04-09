@@ -1,52 +1,9 @@
 # Crash Report Root-Cause Analysis — 2026-04-08
 
-## For anyone who just wants the plain-English version
-
-> **Sorry folks — there's a bug in MacParakeet 0.5.5 (the current release)
-> that can crash the app the first time you press the dictation hotkey
-> after launching.** We've identified it and a fix is in flight (tracked
-> in #91); a 0.5.6 patch will ship shortly.
->
-> **Who is affected:** Only people whose Mac's input device is an
-> "aggregate" audio device — this is macOS's automatic wrapper around
-> virtual-audio tools like **Krisp, BlackHole, Loopback, SoundSource,
-> Audio Hijack, Rogue Amoeba utilities**, manual Aggregate Devices you
-> created in Audio MIDI Setup, or a Bluetooth-bridged setup. If your
-> dictation works fine with the built-in MacBook microphone and no
-> third-party audio software, this bug doesn't touch you.
->
-> **What it looks like:** You launch MacParakeet, press the dictation
-> hotkey, and the app silently vanishes. No error, no warning, no crash
-> dialog (macOS doesn't show one for menu-bar apps). The pill disappears.
->
-> **How to recover right now:**
->
-> 1. **Just relaunch the app.** In most cases the second or third
->    relaunch will work, and once one dictation succeeds, everything
->    stays working for the rest of the session.
-> 2. **If it keeps crashing:** temporarily switch your Mac's default
->    input device to your built-in microphone in
->    *System Settings → Sound → Input*, then launch MacParakeet. Once
->    you've successfully started one dictation, you can usually switch
->    back to your aggregate device.
-> 3. **If you're on macOS 26 (Tahoe) beta:** same advice. The bug hits
->    Tahoe users too.
->
-> **What we're doing:** wrapping the unsafe audio call so it throws a
-> clean error instead of crashing the process, and making the audio
-> format handling more resilient to the device-state transitions that
-> trigger the bug. You'll get a `dictation_failed` message instead of a
-> crash when the underlying problem occurs, and the app will auto-retry
-> with the built-in microphone.
->
-> **Your data is safe.** The crash happens *before* any audio is
-> recorded. No dictations, transcripts, or files are lost.
->
-> **Apologies for the inconvenience — and thank you for sending crash
-> reports.** The telemetry is how we found this. Tracked in
-> [#91](https://github.com/moona3k/macparakeet/issues/91).
-
----
+> The user-facing version of this (what affected users should do right now,
+> in plain English) lives at the top of
+> [issue #91](https://github.com/moona3k/macparakeet/issues/91). This
+> document is the engineering investigation record.
 
 > Status: **ACTIVE** — investigation complete (two passes), fix not yet shipped.
 >
