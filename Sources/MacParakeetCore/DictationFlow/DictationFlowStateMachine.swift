@@ -371,7 +371,7 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
         case (.processing, .transcriptionFailedNoSpeech(let gen)):
             guard gen == generation else { return [] }
             state = .finishing(outcome: .noSpeech)
-            return [.showNoSpeech, .updateMenuBar(.idle), .startDisplayDismissTimer(seconds: 2.5)]
+            return [.showNoSpeech, .updateMenuBar(.idle), .startDisplayDismissTimer(seconds: DictationFlowTiming.noSpeechDismissSeconds)]
 
         case (.processing, .transcriptionFailed(let gen, let message)):
             guard gen == generation else { return [] }

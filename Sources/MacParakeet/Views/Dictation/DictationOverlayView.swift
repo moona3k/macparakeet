@@ -101,21 +101,28 @@ private struct NoSpeechContentView: View {
             leafRotation = -18
             textOpacity = 0
 
+#if DEBUG
+            assert(
+                NoSpeechAnimationTiming.isDismissWindowSufficient,
+                "No-speech animation (\(NoSpeechAnimationTiming.estimatedAnimationCompletionSeconds)s) must complete before dismiss (\(NoSpeechAnimationTiming.dismissSeconds)s)."
+            )
+#endif
+
             // Leaf fades in as Merkaba dissolves
-            withAnimation(.easeIn(duration: 0.5).delay(0.35)) {
+            withAnimation(.easeIn(duration: NoSpeechAnimationTiming.leafFadeInDuration).delay(NoSpeechAnimationTiming.leafFadeInDelay)) {
                 leafVisible = 0.7
             }
             // Leaf gently drifts down + rotates (falling)
-            withAnimation(.easeInOut(duration: 1.6).delay(0.35)) {
+            withAnimation(.easeInOut(duration: NoSpeechAnimationTiming.leafDriftDuration).delay(NoSpeechAnimationTiming.leafDriftDelay)) {
                 leafDrift = 6
                 leafRotation = 18
             }
             // Text fades in, anchored at center over the leaf
-            withAnimation(.easeIn(duration: 0.4).delay(0.75)) {
+            withAnimation(.easeIn(duration: NoSpeechAnimationTiming.textFadeInDuration).delay(NoSpeechAnimationTiming.textFadeInDelay)) {
                 textOpacity = 0.95
             }
             // Leaf softly recedes so text reads clean
-            withAnimation(.easeOut(duration: 0.55).delay(1.5)) {
+            withAnimation(.easeOut(duration: NoSpeechAnimationTiming.leafRecedeDuration).delay(NoSpeechAnimationTiming.leafRecedeDelay)) {
                 leafVisible = 0.3
             }
         }

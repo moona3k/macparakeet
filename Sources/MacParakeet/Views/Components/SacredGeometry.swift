@@ -160,15 +160,21 @@ struct MerkabaDissipateView: View {
             exhaled = false
 
             // Phase 1: settle into Star of David alignment
-            withAnimation(.easeOut(duration: 0.45)) {
+            withAnimation(.easeOut(duration: NoSpeechAnimationTiming.merkabaSettleDuration)) {
                 settled = true
             }
             // Phase 2: dissolve triangles and vertices
-            withAnimation(.easeOut(duration: 0.4).delay(0.3)) {
+            withAnimation(
+                .easeOut(duration: NoSpeechAnimationTiming.merkabaDissolveDuration)
+                    .delay(NoSpeechAnimationTiming.merkabaDissolveDelay)
+            ) {
                 dissolved = true
             }
             // Phase 3: center nexus exhales
-            withAnimation(.easeOut(duration: 0.35).delay(0.55)) {
+            withAnimation(
+                .easeOut(duration: NoSpeechAnimationTiming.merkabaExhaleDuration)
+                    .delay(NoSpeechAnimationTiming.merkabaExhaleDelay)
+            ) {
                 exhaled = true
             }
         }
