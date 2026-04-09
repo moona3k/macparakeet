@@ -350,10 +350,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Priority-based menu bar icon resolver (ADR-015).
     /// Recording (meeting or dictation) > file transcription > idle.
+    ///
+    /// Uses `isCapturingAudio` (state-machine-aware) instead of `isDictationActive`
+    /// (overlay-presence) so the red dot does not linger through terminal display
+    /// states — success checkmark, no-speech leaf animation, error card.
     private func resolveAndUpdateMenuBarIcon() {
         if meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true {
             menuBarCoordinator.updateIcon(state: .recording)
-        } else if dictationFlowCoordinator?.isDictationActive == true {
+        } else if dictationFlowCoordinator?.isCapturingAudio == true {
             menuBarCoordinator.updateIcon(state: .recording)
         } else if transcriptionViewModel.isTranscribing {
             menuBarCoordinator.updateIcon(state: .processing)

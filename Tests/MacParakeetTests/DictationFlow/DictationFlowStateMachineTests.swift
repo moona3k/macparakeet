@@ -780,6 +780,7 @@ final class DictationFlowStateMachineTests: XCTestCase {
         let effects = m.handle(.startRequested(mode: .holdToTalk))
         XCTAssertEqual(m.state, .checkingEntitlements(mode: .holdToTalk))
         XCTAssertEqual(m.generation, oldGen + 1)
+        XCTAssertTrue(effects.contains(.cancelAllTimers))
         XCTAssertTrue(effects.contains(.hideOverlay))
         XCTAssertTrue(effects.contains(.checkEntitlements))
         XCTAssertTrue(effects.contains(.reloadHistory))

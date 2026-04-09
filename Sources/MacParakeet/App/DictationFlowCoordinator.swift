@@ -9,10 +9,30 @@ final class DictationFlowCoordinator {
 
     // MARK: - Public Interface
 
-    /// Read by AppDelegate for menu bar icon guard.
-    /// Uses overlayController (not state machine) to match old behavior —
-    /// checkingEntitlements has no overlay yet, so isDictationActive should be false.
+    /// True whenever the dictation overlay is showing. Used by presentation-conflict
+    /// guards (e.g. the idle-pill suppressor when a meeting recording ends) to prevent
+    /// surfaces from colliding with the overlay.
+    ///
+    /// NOTE: this returns true during terminal display states (success checkmark,
+    /// no-speech leaf, error card). For the menu bar icon, use `isCapturingAudio`
+    /// instead — see the note on that property.
     var isDictationActive: Bool { overlayController != nil }
+
+    /// True only while audio is actively being captured or in-flight transcription
+    /// is running. Used by `AppDelegate.resolveAndUpdateMenuBarIcon()` so the red
+    /// recording dot does NOT linger through terminal display states (success
+    /// checkmark / no-speech leaf animation / error card).
+    ///
+    /// Returns false for `.idle`, `.ready`, `.checkingEntitlements` (no overlay or
+    /// audio yet) and for `.finishing(...)` (audio already stopped).
+    var isCapturingAudio: Bool {
+        switch stateMachine.state {
+        case .startingService, .recording, .pendingStop, .processing, .cancelCountdown:
+            return true
+        case .idle, .ready, .checkingEntitlements, .finishing:
+            return false
+        }
+    }
 
     /// Set after init; updated when hotkey manager is recreated
     var hotkeyManager: HotkeyManager?
