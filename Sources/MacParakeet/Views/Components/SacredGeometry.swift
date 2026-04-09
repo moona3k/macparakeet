@@ -204,49 +204,84 @@ struct MerkabaDissipateView: View {
 
 // MARK: - Breathing Ring (Ready / Waiting)
 
-/// Gentle breathing indicator for the dictation overlay's ephemeral `.ready`
+/// Gentle breath indicator for the dictation overlay's ephemeral `.ready`
 /// state — shown briefly (~800ms) between the first Fn tap and the double-tap
-/// window closing. A soft ring inhales around a pulsing center nexus: the
+/// window closing. A soft white ring inhales around a warm coral nexus: the
 /// smallest, lightest member of the sacred-geometry family, signalling
 /// "listening, poised, waiting" without competing with the active Merkaba
 /// (processing) or the dissolving Merkaba (no speech).
 ///
-/// Because the pill is typically visible for less than one full breath cycle,
-/// the animation starts cleanly at rest on each appearance so the user always
-/// sees a full inhale — an elegant rise that resolves into either recording
-/// (double-tap landed) or idle (window elapsed).
+/// ## Motion
+/// A single intentional inhale — **not** a perpetual loop. The pill is
+/// typically visible for ~800ms, which is shorter than any natural breath
+/// cycle; a `repeatForever` animation would be cut off mid-rise and read as
+/// clipped rather than alive. Instead, ring and nexus bloom from rest to
+/// peak via a soft, critically-damped spring (~700ms) and then hold at peak
+/// until the pill dismisses. The entire visible duration reads as one
+/// elegant rise — drawing breath in and holding — with no risk of clipping.
+///
+/// ## Color hierarchy
+/// The ring is white (belongs to the Merkaba family), but the nexus uses
+/// `DesignSystem.Colors.accent` (coral-orange — MacParakeet's brand
+/// attention color). The coral glow bleeds out past the ring into the dark
+/// pill background, creating luminous depth. This is the only dictation
+/// overlay state that uses the brand accent: **`.ready` is "MacParakeet
+/// listening for you."**
+///
+/// ## Accessibility
+/// Honors `Reduce Motion` by presenting the peak state statically (no
+/// inhale animation, just the fully-bloomed ring + nexus). Exposed to
+/// VoiceOver as "Listening".
 struct BreathingRingView: View {
     var size: CGFloat = 18
-    var tintColor: Color = .white
+    var ringColor: Color = .white
+    var nexusColor: Color = DesignSystem.Colors.accent
 
-    /// 0 = rest (exhale), 1 = peak (inhale). A single Double drives ring scale,
-    /// stroke opacity, glow radius, and nexus brightness so every element
-    /// breathes in perfect sync.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// 0 = rest, 1 = peak. One-shot: animates from 0 → 1 on appear via a
+    /// soft spring and then holds at 1 until the view disappears. Never
+    /// loops — the pill's brief visibility window is too short for a full
+    /// cycle to read cleanly, so a single intentional bloom is more honest.
     @State private var breath: CGFloat = 0
 
     var body: some View {
         ZStack {
-            // Outer breathing ring — scales and brightens on inhale.
+            // White breathing ring — the halo of attention, sibling to the
+            // Merkaba family. Stroke opacity carries the primary breath
+            // signal; a subtle scale adds organic lift without visibly
+            // changing stroke weight.
             Circle()
-                .stroke(tintColor.opacity(0.35 + 0.30 * Double(breath)), lineWidth: 0.9)
+                .stroke(ringColor.opacity(0.30 + 0.40 * Double(breath)), lineWidth: 0.9)
                 .frame(width: size, height: size)
-                .scaleEffect(0.90 + 0.14 * breath)
-                .shadow(color: tintColor.opacity(0.20 * Double(breath)), radius: size * 0.09)
+                .scaleEffect(0.88 + 0.14 * breath)
 
-            // Center nexus — heart in sync with the ring.
+            // Warm coral nexus — the heart of attention. Scales, brightens,
+            // and emits a coral glow that bleeds out past the ring to give
+            // the pill luminous depth on its dark background.
             Circle()
-                .fill(tintColor.opacity(0.65 + 0.30 * Double(breath)))
-                .frame(width: size * 0.17, height: size * 0.17)
-                .shadow(color: tintColor.opacity(0.35 * Double(breath)), radius: size * 0.14)
-                .scaleEffect(0.85 + 0.20 * breath)
+                .fill(nexusColor.opacity(0.55 + 0.40 * Double(breath)))
+                .frame(width: size * 0.18, height: size * 0.18)
+                .scaleEffect(0.80 + 0.25 * breath)
+                .shadow(color: nexusColor.opacity(0.50 * Double(breath)), radius: size * 0.22)
         }
         .frame(width: size, height: size)
-        .drawingGroup()
+        .accessibilityElement()
+        .accessibilityLabel("Listening")
         .onAppear {
-            // Reset so every presentation begins at rest and inhales cleanly,
-            // regardless of how often the user button-mashes the hotkey.
-            breath = 0
-            withAnimation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true)) {
+            // Reduce Motion: skip the inhale, present at peak statically.
+            // The user still sees the fully-bloomed state — they just don't
+            // see it move.
+            guard !reduceMotion else {
+                breath = 1
+                return
+            }
+
+            // One-shot inhale. Critically-damped spring (dampingFraction
+            // 0.95) for a soft, organic arrival — a whisper of warmth
+            // without overshoot. Response 0.70 gives ~700ms bloom, leaving
+            // ~100ms of hold at peak before the pill typically dismisses.
+            withAnimation(.spring(response: 0.70, dampingFraction: 0.95)) {
                 breath = 1
             }
         }
