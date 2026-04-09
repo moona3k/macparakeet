@@ -355,15 +355,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// (overlay-presence) so the red dot does not linger through terminal display
     /// states — success checkmark, no-speech leaf animation, error card.
     private func resolveAndUpdateMenuBarIcon() {
-        if meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true {
-            menuBarCoordinator.updateIcon(state: .recording)
-        } else if dictationFlowCoordinator?.isCapturingAudio == true {
-            menuBarCoordinator.updateIcon(state: .recording)
-        } else if transcriptionViewModel.isTranscribing {
-            menuBarCoordinator.updateIcon(state: .processing)
-        } else {
-            menuBarCoordinator.updateIcon(state: .idle)
+        let state = Self.resolveMenuBarState(
+            isMeetingRecordingActive: meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true,
+            isDictationCapturingAudio: dictationFlowCoordinator?.isCapturingAudio == true,
+            isTranscribing: transcriptionViewModel.isTranscribing
+        )
+        menuBarCoordinator.updateIcon(state: state)
+    }
+
+    static func resolveMenuBarState(
+        isMeetingRecordingActive: Bool,
+        isDictationCapturingAudio: Bool,
+        isTranscribing: Bool
+    ) -> BreathWaveIcon.MenuBarState {
+        if isMeetingRecordingActive {
+            return .recording
         }
+        if isDictationCapturingAudio {
+            return .recording
+        }
+        if isTranscribing {
+            return .processing
+        }
+        return .idle
     }
 
     // MARK: - Meeting Recording

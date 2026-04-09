@@ -66,7 +66,11 @@ final class DictationFlowCoordinator {
     /// This would respect each flow's state-machine intent exactly and eliminate
     /// the dual-purpose `isDictationActive` / `isCapturingAudio` split above.
     var isCapturingAudio: Bool {
-        switch stateMachine.state {
+        Self.isCapturingAudio(for: stateMachine.state)
+    }
+
+    static func isCapturingAudio(for state: DictationFlowState) -> Bool {
+        switch state {
         case .startingService, .recording, .pendingStop, .processing:
             return true
         case .idle, .ready, .checkingEntitlements, .cancelCountdown, .finishing:
