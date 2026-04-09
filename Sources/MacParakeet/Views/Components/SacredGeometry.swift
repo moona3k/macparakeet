@@ -216,9 +216,10 @@ struct MerkabaDissipateView: View {
 /// typically visible for ~800ms, which is shorter than any natural breath
 /// cycle; a `repeatForever` animation would be cut off mid-rise and read as
 /// clipped rather than alive. Instead, ring and nexus bloom from rest to
-/// peak via a soft, critically-damped spring (~700ms) and then hold at peak
-/// until the pill dismisses. The entire visible duration reads as one
-/// elegant rise — drawing breath in and holding — with no risk of clipping.
+/// peak via a soft, near-critically-damped spring (~700ms) and then hold
+/// at peak until the pill dismisses. The entire visible duration reads as
+/// one elegant rise — drawing breath in and holding — with no risk of
+/// clipping.
 ///
 /// ## Color hierarchy
 /// The ring is white (belongs to the Merkaba family), but the nexus uses
@@ -267,7 +268,7 @@ struct BreathingRingView: View {
         }
         .frame(width: size, height: size)
         .accessibilityElement()
-        .accessibilityLabel("Listening")
+        .accessibilityLabel("Ready to record")
         .onAppear {
             // Reduce Motion: skip the inhale, present at peak statically.
             // The user still sees the fully-bloomed state — they just don't
@@ -277,10 +278,11 @@ struct BreathingRingView: View {
                 return
             }
 
-            // One-shot inhale. Critically-damped spring (dampingFraction
-            // 0.95) for a soft, organic arrival — a whisper of warmth
-            // without overshoot. Response 0.70 gives ~700ms bloom, leaving
-            // ~100ms of hold at peak before the pill typically dismisses.
+            // One-shot inhale. Near-critically-damped spring
+            // (dampingFraction 0.95) for a soft, organic arrival — a
+            // whisper of warmth with a sub-perceptible overshoot. Response
+            // 0.70 gives ~700ms bloom, leaving ~100ms of hold at peak
+            // before the pill typically dismisses.
             withAnimation(.spring(response: 0.70, dampingFraction: 0.95)) {
                 breath = 1
             }
