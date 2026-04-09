@@ -68,11 +68,6 @@ private struct NoSpeechContentView: View {
     @State private var leafRotation: Double = -18
     @State private var textOpacity: Double = 0
 
-    /// Warm coral/orange accent for the falling leaf.
-    private var leafTint: Color {
-        Color(red: 0.96, green: 0.58, blue: 0.33)
-    }
-
     private var label: String {
         isCommand ? "no command" : "no audio"
     }
@@ -82,18 +77,19 @@ private struct NoSpeechContentView: View {
             // Sacred geometry dissolves (matches SpinnerRingView default size: 26)
             MerkabaDissipateView(size: 26)
 
-            // Leaf drifts in as geometry fades — warm orange nature moment
+            // Leaf drifts in as geometry fades — warm coral-orange (parakeet plumage)
             Image(systemName: "leaf.fill")
                 .font(.system(size: 18, weight: .light))
-                .foregroundStyle(leafTint.opacity(leafVisible))
+                .foregroundStyle(DesignSystem.Colors.accent.opacity(leafVisible))
                 .rotationEffect(.degrees(leafRotation))
                 .offset(x: leafDrift * 0.5, y: leafDrift)
 
             // Elegant serif italic label — overflows the 26×26 frame into pill padding,
             // so the pill background (46×46) can accommodate the text without resizing.
+            // For command mode ("no command"), the pill is allowed to grow into an oval
+            // via isIconOnly=false so the longer label is not clipped (see overlayContent).
             Text(label)
-                .font(.system(size: 8.5, weight: .regular, design: .serif))
-                .italic()
+                .font(DesignSystem.Typography.dictationOverlayTerminalLabel)
                 .foregroundStyle(.white.opacity(textOpacity))
                 .fixedSize()
         }
@@ -157,12 +153,16 @@ struct DictationOverlayView: View {
 
         default:
             let isReady = if case .ready = viewModel.state { true } else { false }
-            // Processing (non-command), success, and noSpeech show a single icon — use equal
-            // padding so the Capsule background renders as a perfect circle, not an oval.
+            // Processing (non-command), success, and noSpeech (non-command) show a single
+            // icon — use equal padding so the Capsule background renders as a perfect
+            // circle, not an oval. In command mode, the no-speech label is "no command"
+            // (10 chars) which overflows the 46×46 circular pill via fixedSize; fall back
+            // to the oval layout so the label reads cleanly.
             let isIconOnly: Bool = {
                 switch viewModel.state {
                 case .processing: return viewModel.sessionKind != .command
-                case .success, .noSpeech: return true
+                case .success: return true
+                case .noSpeech: return viewModel.sessionKind != .command
                 default: return false
                 }
             }()

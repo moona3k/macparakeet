@@ -21,32 +21,28 @@ final class DictationFlowCoordinator {
     /// True only while audio is actively being captured or in-flight transcription
     /// is running. Used by `AppDelegate.resolveAndUpdateMenuBarIcon()` so the red
     /// recording dot does NOT linger through terminal display states (success
-    /// checkmark / no-speech leaf animation / error card).
+    /// checkmark / no-speech leaf animation / error card) or through the cancel
+    /// countdown undo window.
     ///
-    /// Returns false for `.idle`, `.ready`, `.checkingEntitlements` (no overlay or
-    /// audio yet) and for `.finishing(...)` (audio already stopped).
+    /// Returns false for:
+    ///   - `.idle`, `.ready`, `.checkingEntitlements` — no overlay or audio yet
+    ///   - `.cancelCountdown` — capture already stopped via `.cancelRecording(reason:)`;
+    ///     state machine explicitly emits `.updateMenuBar(.idle)` at this transition
+    ///     (see `DictationFlowStateMachine.swift:299`)
+    ///   - `.finishing(...)` — terminal display states, audio already stopped
     ///
     /// ---
-    /// KNOWN LIMITATIONS — tracked, not yet fixed:
+    /// KNOWN LIMITATION — not fixable with a boolean:
     ///
-    /// 1. `.cancelCountdown` currently returns `true`, which forces the menu bar
-    ///    red dot to stay on during the 5s undo window. This contradicts the state
-    ///    machine's explicit `.updateMenuBar(.idle)` intent at the recording →
-    ///    cancelCountdown transition (see `DictationFlowStateMachine.swift:299`).
-    ///    Audio capture IS stopped when entering cancelCountdown (via
-    ///    `.cancelRecording(reason:)` effect), so semantically this property
-    ///    should return `false` here. Preserved for now to match pre-existing
-    ///    behavior; flip to `false` when ready.
+    /// `.processing` returns `true` → the resolver shows the RED "recording"
+    /// dot, but the state machine emits `.updateMenuBar(.processing)` (orange)
+    /// on entry (see `DictationFlowStateMachine.swift:279, 333`). The resolver
+    /// has no way to express "orange for dictation processing" because it uses
+    /// boolean flags (`isCapturingAudio`, `isTranscribing`) instead of a
+    /// preference enum. This is a pre-existing inconsistency, not introduced
+    /// by this property.
     ///
-    /// 2. `.processing` returns `true` → the resolver shows the RED "recording"
-    ///    dot, but the state machine emits `.updateMenuBar(.processing)` (orange)
-    ///    on entry (see `DictationFlowStateMachine.swift:279, 333`). The resolver
-    ///    has no way to express "orange for dictation processing" because it uses
-    ///    boolean flags (`isCapturingAudio`, `isTranscribing`) instead of a
-    ///    preference enum. This is a pre-existing inconsistency, not introduced
-    ///    by this property.
-    ///
-    /// The cleaner architectural fix for both is to replace the boolean with a
+    /// The cleaner architectural fix is to replace the boolean with a
     /// `MenuBarState?` preference getter on each flow coordinator, and have
     /// `resolveAndUpdateMenuBarIcon()` pick the highest-priority preference:
     ///
@@ -71,9 +67,9 @@ final class DictationFlowCoordinator {
     /// the dual-purpose `isDictationActive` / `isCapturingAudio` split above.
     var isCapturingAudio: Bool {
         switch stateMachine.state {
-        case .startingService, .recording, .pendingStop, .processing, .cancelCountdown:
+        case .startingService, .recording, .pendingStop, .processing:
             return true
-        case .idle, .ready, .checkingEntitlements, .finishing:
+        case .idle, .ready, .checkingEntitlements, .cancelCountdown, .finishing:
             return false
         }
     }

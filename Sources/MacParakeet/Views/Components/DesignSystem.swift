@@ -135,6 +135,14 @@ enum DesignSystem {
         static let meetingPillBadge = Font.system(size: 10, weight: .medium, design: .monospaced)
         static let meetingPillCheckmark = Font.system(size: 24, weight: .semibold)
 
+        /// Elegant serif italic label used inside the dictation overlay's no-speech
+        /// terminal pill. Intentionally smaller than `micro` (11pt) and uses `.serif`
+        /// instead of the default `.rounded` / system family so the label reads as a
+        /// quiet, subtle annotation inside the 26×26 Merkaba + leaf composition. It
+        /// overflows the inner content frame via `.fixedSize()` into the capsule's
+        /// padding area, so the pill background stays a perfect 46×46 circle.
+        static let dictationOverlayTerminalLabel = Font.system(size: 8.5, weight: .regular, design: .serif).italic()
+
         // Legacy aliases (kept for existing references)
         static let headline = Font.system(size: 17, weight: .semibold, design: .rounded)
         static let title = Font.system(size: 22, weight: .semibold, design: .rounded)
