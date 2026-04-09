@@ -349,7 +349,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Menu Bar Icon State
 
     /// Priority-based menu bar icon resolver (ADR-015).
-    /// Recording (meeting or dictation) > file transcription > idle.
+    /// Meeting recording > dictation menu-bar preference > file transcription > idle.
     ///
     /// Uses `menuBarPreference` from the dictation flow (state-machine-aware) so
     /// `.processing` can render correctly and terminal states do not linger red.

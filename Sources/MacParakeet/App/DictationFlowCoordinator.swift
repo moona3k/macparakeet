@@ -14,8 +14,9 @@ final class DictationFlowCoordinator {
     /// surfaces from colliding with the overlay.
     ///
     /// NOTE: this returns true during terminal display states (success checkmark,
-    /// no-speech leaf, error card). For the menu bar icon, use `isCapturingAudio`
-    /// instead — see the note on that property.
+    /// no-speech leaf, error card). For menu bar icon decisions, use
+    /// `menuBarPreference` (or `isCapturingAudio` for capture-only semantics)
+    /// instead.
     var isDictationActive: Bool { overlayController != nil }
 
     /// Preferred menu bar icon state for dictation, derived from flow state.
