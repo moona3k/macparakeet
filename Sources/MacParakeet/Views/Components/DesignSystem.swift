@@ -79,7 +79,7 @@ enum DesignSystem {
         static let youtubeRed = Color.red
 
         // Pill / overlay
-        static let pillBackground = Color.black.opacity(0.9)
+        static let pillBackground = Color.black.opacity(0.7)
         static let pillBorder = Color.white.opacity(0.15)
         static let recordingRed = Color.red
         static let sacredGlow = Color(light: .init(red: 0.40, green: 0.85, blue: 0.40),
@@ -135,13 +135,13 @@ enum DesignSystem {
         static let meetingPillBadge = Font.system(size: 10, weight: .medium, design: .monospaced)
         static let meetingPillCheckmark = Font.system(size: 24, weight: .semibold)
 
-        /// Elegant serif italic label used inside the dictation overlay's no-speech
-        /// terminal pill. Intentionally smaller than `micro` (11pt) and uses `.serif`
-        /// instead of the default `.rounded` / system family so the label reads as a
-        /// quiet, subtle annotation inside the 26×26 Merkaba + leaf composition. It
-        /// overflows the inner content frame via `.fixedSize()` into the capsule's
-        /// padding area, so the pill background stays a perfect 46×46 circle.
-        static let dictationOverlayTerminalLabel = Font.system(size: 8.5, weight: .regular, design: .serif).italic()
+        /// Soft rounded label used inside the dictation overlay's no-speech terminal
+        /// pill (e.g. "More audio pls"). Uses `.rounded` to match the organic curves
+        /// of the falling leaf + Merkaba dissolve animation, and the same family as
+        /// the app's headline typography (`heroTitle`, `pageTitle`). Sized to sit
+        /// naturally beside the 26pt Merkaba glyph inside a low-profile horizontal
+        /// oval pill.
+        static let dictationOverlayTerminalLabel = Font.system(size: 9.5, weight: .medium, design: .rounded)
 
         // Legacy aliases (kept for existing references)
         static let headline = Font.system(size: 17, weight: .semibold, design: .rounded)

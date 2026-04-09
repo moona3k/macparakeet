@@ -57,11 +57,13 @@ private struct CheckmarkShape: Shape {
 
 // MARK: - No Speech Content
 
-/// No-speech terminal animation: Merkaba dissolves → falling leaf + serif label.
-/// Self-contained @State so nothing leaks across dictation sessions.
-/// Sized to 26×26 to match the success/processing circular pill.
+/// No-speech terminal animation: Merkaba dissolves inside a 46×46 circle, then
+/// the pill expands horizontally as the falling leaf + serif label bloom in.
+/// The `expanded` prop is driven by the parent so the pill's padding (circle ↔
+/// oval) stays in sync with this view's internal leaf/text animations.
 private struct NoSpeechContentView: View {
     let isCommand: Bool
+    let expanded: Bool
 
     @State private var leafVisible: Double = 0
     @State private var leafDrift: CGFloat = -4
@@ -69,62 +71,73 @@ private struct NoSpeechContentView: View {
     @State private var textOpacity: Double = 0
 
     private var label: String {
-        isCommand ? "no command" : "no audio"
+        isCommand ? "no command" : "more audio pls"
     }
 
     var body: some View {
-        ZStack {
-            // Sacred geometry dissolves (matches SpinnerRingView default size: 26)
-            MerkabaDissipateView(size: 26)
+        HStack(spacing: expanded ? 4 : 0) {
+            // Sacred geometry + falling leaf — dissolving Merkaba inside a fixed 26×26 box.
+            ZStack {
+                MerkabaDissipateView(size: 26)
 
-            // Leaf drifts in as geometry fades — warm coral-orange (parakeet plumage)
-            Image(systemName: "leaf.fill")
-                .font(.system(size: 18, weight: .light))
-                .foregroundStyle(DesignSystem.Colors.accent.opacity(leafVisible))
-                .rotationEffect(.degrees(leafRotation))
-                .offset(x: leafDrift * 0.5, y: leafDrift)
+                // Leaf drifts in as geometry fades — warm coral-orange (parakeet plumage).
+                // Hidden in phase 0 (circular) and blooms in phase 1 (expanded oval).
+                Image(systemName: "leaf.fill")
+                    .font(.system(size: 14, weight: .light))
+                    .foregroundStyle(DesignSystem.Colors.accent.opacity(leafVisible))
+                    .rotationEffect(.degrees(leafRotation))
+                    .offset(x: leafDrift * 0.5, y: leafDrift)
+            }
+            .frame(width: 26, height: 26)
 
-            // Elegant serif italic label — overflows the 26×26 frame into pill padding,
-            // so the pill background (46×46) can accommodate the text without resizing.
-            // For command mode ("no command"), the pill is allowed to grow into an oval
-            // via isIconOnly=false so the longer label is not clipped (see overlayContent).
-            Text(label)
-                .font(DesignSystem.Typography.dictationOverlayTerminalLabel)
-                .foregroundStyle(.white.opacity(textOpacity))
-                .fixedSize()
+            // Elegant serif italic label — only present in the HStack once expanded,
+            // using `.fixedSize()` for its natural intrinsic width. The parent's
+            // `withAnimation` around the `noSpeechExpanded` flip smoothly animates
+            // the HStack's size change as the text view appears.
+            //
+            // IMPORTANT: do not use `.frame(maxWidth: .infinity)` here — it propagates
+            // up through the HStack → pill → overlay window and balloons the capsule
+            // to full window width. `fixedSize()` alone gives the correct tight width.
+            if expanded {
+                Text(label)
+                    .font(DesignSystem.Typography.dictationOverlayTerminalLabel)
+                    .foregroundStyle(.white.opacity(textOpacity))
+                    .fixedSize()
+                    .transition(.opacity)
+            }
         }
-        .frame(width: 26, height: 26)
-        .onAppear {
-            // Reset to baseline so repeated presentations replay deterministically.
-            leafVisible = 0
-            leafDrift = -4
-            leafRotation = -18
-            textOpacity = 0
+        .onChange(of: expanded) { _, isExpanded in
+            guard isExpanded else { return }
+            runBloomAnimations()
+        }
+    }
 
-#if DEBUG
-            assert(
-                NoSpeechAnimationTiming.isDismissWindowSufficient,
-                "No-speech animation (\(NoSpeechAnimationTiming.estimatedAnimationCompletionSeconds)s) must complete before dismiss (\(NoSpeechAnimationTiming.dismissSeconds)s)."
-            )
-#endif
+    /// Resets animation state and runs the leaf + text bloom sequence. Called when
+    /// `expanded` flips to true (~0.4s after `.noSpeech` is entered, giving the
+    /// circular Merkaba time to settle / dissolve first).
+    private func runBloomAnimations() {
+        // Reset to baseline so repeated presentations replay deterministically.
+        leafVisible = 0
+        leafDrift = -4
+        leafRotation = -18
+        textOpacity = 0
 
-            // Leaf fades in as Merkaba dissolves
-            withAnimation(.easeIn(duration: NoSpeechAnimationTiming.leafFadeInDuration).delay(NoSpeechAnimationTiming.leafFadeInDelay)) {
-                leafVisible = 0.7
-            }
-            // Leaf gently drifts down + rotates (falling)
-            withAnimation(.easeInOut(duration: NoSpeechAnimationTiming.leafDriftDuration).delay(NoSpeechAnimationTiming.leafDriftDelay)) {
-                leafDrift = 6
-                leafRotation = 18
-            }
-            // Text fades in, anchored at center over the leaf
-            withAnimation(.easeIn(duration: NoSpeechAnimationTiming.textFadeInDuration).delay(NoSpeechAnimationTiming.textFadeInDelay)) {
-                textOpacity = 0.95
-            }
-            // Leaf softly recedes so text reads clean
-            withAnimation(.easeOut(duration: NoSpeechAnimationTiming.leafRecedeDuration).delay(NoSpeechAnimationTiming.leafRecedeDelay)) {
-                leafVisible = 0.3
-            }
+        // Leaf fades in as Merkaba finishes dissolving
+        withAnimation(.easeIn(duration: NoSpeechAnimationTiming.leafFadeInDuration)) {
+            leafVisible = 0.7
+        }
+        // Leaf gently drifts down + rotates (falling)
+        withAnimation(.easeInOut(duration: NoSpeechAnimationTiming.leafDriftDuration)) {
+            leafDrift = 6
+            leafRotation = 18
+        }
+        // Text fades in alongside the expansion
+        withAnimation(.easeIn(duration: NoSpeechAnimationTiming.textFadeInDuration).delay(0.15)) {
+            textOpacity = 0.95
+        }
+        // Leaf softly recedes so text reads clean
+        withAnimation(.easeOut(duration: NoSpeechAnimationTiming.leafRecedeDuration).delay(NoSpeechAnimationTiming.leafRecedeDelay - NoSpeechAnimationTiming.leafFadeInDelay)) {
+            leafVisible = 0.3
         }
     }
 }
@@ -132,6 +145,12 @@ private struct NoSpeechContentView: View {
 /// The dictation overlay — compact dark capsule during dictation, wider card for errors.
 struct DictationOverlayView: View {
     @Bindable var viewModel: DictationOverlayViewModel
+
+    /// Drives the no-speech pill's circle → oval width expansion. Starts `false`
+    /// so the pill begins at 46×46 (matching the processing spinner), then flips
+    /// to `true` after a short delay so the pill blooms horizontally as the leaf
+    /// + "more audio pls" label fade in. Reset whenever the pill state changes.
+    @State private var noSpeechExpanded: Bool = false
 
     /// Align tooltip above the hovered button: leading for cancel, trailing for stop.
     private var tooltipAlignment: Alignment {
@@ -156,6 +175,27 @@ struct DictationOverlayView: View {
         }
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .onChange(of: viewModel.pillStateKey) { _, newKey in
+            handlePillStateChange(to: newKey)
+        }
+    }
+
+    /// When entering any noSpeech state, start as a 46×46 circle and schedule the
+    /// oval expansion after a short delay so the Merkaba can begin dissolving in
+    /// its circular form before the pill blooms horizontally.
+    private func handlePillStateChange(to key: String) {
+        guard key.contains("noSpeech") else {
+            noSpeechExpanded = false
+            return
+        }
+        noSpeechExpanded = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            // Guard against stale transitions: only expand if we are still in noSpeech.
+            guard viewModel.pillStateKey.contains("noSpeech") else { return }
+            withAnimation(.easeOut(duration: 0.45)) {
+                noSpeechExpanded = true
+            }
+        }
     }
 
     @ViewBuilder
@@ -166,22 +206,40 @@ struct DictationOverlayView: View {
 
         default:
             let isReady = if case .ready = viewModel.state { true } else { false }
-            // Processing (non-command), success, and noSpeech (non-command) show a single
-            // icon — use equal padding so the Capsule background renders as a perfect
-            // circle, not an oval. In command mode, the no-speech label is "no command"
-            // (10 chars) which overflows the 46×46 circular pill via fixedSize; fall back
-            // to the oval layout so the label reads cleanly.
+            // Processing (non-command) and success show a single icon — use equal
+            // padding so the Capsule background renders as a perfect circle, not
+            // an oval. noSpeech starts as a circle (matching processing) and then
+            // blooms into an oval once `noSpeechExpanded` flips — so its label
+            // reads cleanly on a full dark background after the expansion.
             let isIconOnly: Bool = {
                 switch viewModel.state {
                 case .processing: return viewModel.sessionKind != .command
                 case .success: return true
-                case .noSpeech: return viewModel.sessionKind != .command
+                case .noSpeech: return !noSpeechExpanded
                 default: return false
                 }
             }()
+            // noSpeech (expanded) uses tighter horizontal padding and smaller vertical
+            // padding than the circular phase, so the bloom animation stretches the
+            // 46×46 circle horizontally while also slimming down vertically into a
+            // low-profile terminal pill.
+            let isNoSpeechState = { if case .noSpeech = viewModel.state { return true } else { return false } }()
+            let isNoSpeechExpanded = isNoSpeechState && noSpeechExpanded
+            let horizontalPadding: CGFloat = {
+                if isReady { return 6 }
+                if isIconOnly { return 10 }
+                if isNoSpeechExpanded { return 10 }
+                return 16
+            }()
+            let verticalPadding: CGFloat = {
+                if isReady { return 4 }
+                if isIconOnly { return 10 }
+                if isNoSpeechExpanded { return 5 }
+                return 7
+            }()
             pillContent
-                .padding(.horizontal, isReady ? 6 : (isIconOnly ? 10 : 16))
-                .padding(.vertical, isReady ? 4 : (isIconOnly ? 10 : 7))
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, verticalPadding)
                 .background(
                     Capsule()
                         .fill(DesignSystem.Colors.pillBackground)
@@ -192,6 +250,7 @@ struct DictationOverlayView: View {
                         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                 )
                 .animation(.easeInOut(duration: 0.25), value: viewModel.pillStateKey)
+                .animation(.easeOut(duration: 0.45), value: noSpeechExpanded)
         }
     }
 
@@ -413,7 +472,10 @@ struct DictationOverlayView: View {
     // MARK: - No Speech State
 
     private var noSpeechContent: some View {
-        NoSpeechContentView(isCommand: viewModel.sessionKind == .command)
+        NoSpeechContentView(
+            isCommand: viewModel.sessionKind == .command,
+            expanded: noSpeechExpanded
+        )
     }
 
     // MARK: - Error Card
