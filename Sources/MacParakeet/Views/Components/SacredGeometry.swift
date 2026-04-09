@@ -154,6 +154,11 @@ struct MerkabaDissipateView: View {
         .scaleEffect(settled ? 0.85 : 1.0)
         .drawingGroup()
         .onAppear {
+            // Reset to baseline so repeated presentations replay deterministically.
+            settled = false
+            dissolved = false
+            exhaled = false
+
             // Phase 1: settle into Star of David alignment
             withAnimation(.easeOut(duration: 0.45)) {
                 settled = true

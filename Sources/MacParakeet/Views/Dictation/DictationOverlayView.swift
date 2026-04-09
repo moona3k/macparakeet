@@ -95,6 +95,12 @@ private struct NoSpeechContentView: View {
         }
         .frame(width: 26, height: 26)
         .onAppear {
+            // Reset to baseline so repeated presentations replay deterministically.
+            leafVisible = 0
+            leafDrift = -4
+            leafRotation = -18
+            textOpacity = 0
+
             // Leaf fades in as Merkaba dissolves
             withAnimation(.easeIn(duration: 0.5).delay(0.35)) {
                 leafVisible = 0.7
