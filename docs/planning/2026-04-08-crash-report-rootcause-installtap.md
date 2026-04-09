@@ -631,6 +631,78 @@ possibly anyone during mic permission race states.** We should assume silent
 impact is larger than telemetry shows, because an unknown number of crashes
 happen before `CrashReporter` is ready or the user opts out of telemetry.
 
+### 4.1 Is this a regression?
+
+Short answer: **no in the code, yes in the observability.** This is a
+long-latent bug we've finally gained visibility into, not something we
+broke recently.
+
+**Code history — the vulnerable line has been there since v0.1:**
+
+```
+$ git blame -L 225,230 Sources/MacParakeetCore/Audio/AudioRecorder.swift
+…
+60707550 (Daniel Moon 2026-03-20 20:56:50 -0700 227)
+    inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) {
+60707550 (Daniel Moon 2026-03-20 20:56:50 -0700 228)
+    [weak self] buffer, _ in
+…
+```
+
+Following the file via `git log --follow`:
+
+- `92460f8` — *Track v0.1 app implementation and align docs* — initial
+  commit of `Sources/MacParakeetCore/Audio/AudioRecorder.swift`. The
+  `installTap(onBus: 0, bufferSize: 4096, format: inputFormat)` pattern
+  was present from day one.
+- `6070755` (2026-03-20) — *Fix dictation broken when Bluetooth headphones
+  connected.* Moved the `installTap` call around and added format
+  validation (`sampleRate > 0, channelCount > 0` guard on line 185) plus
+  a built-in-mic fallback. The `format: inputFormat` argument was
+  unchanged — the fix made the surrounding code more defensive but did
+  not address the NSException case.
+- `a85da69`, `3336e55`, `cb940e7`, later commits — added session
+  generation tracking, `guard let self else` checks, concurrency
+  hardening. None touched the `format:` parameter or added an ObjC
+  trampoline.
+
+So the bug shipped with v0.1 and every release since.
+
+**Observability history — we just got the ability to see these crashes:**
+
+- `2fd4d74` (2026-03-31) — *Add crash reporting via signal handlers +
+  disk persistence.* This is when `CrashReporter.swift` was introduced.
+  **Before Mar 31, these crashes happened silently.** Users on aggregate
+  audio devices who hit the trigger would have seen their app vanish,
+  relaunched, and we would never have known.
+- `704dfde` (2026-04-06) — *Archive dSYM during release builds for crash
+  symbolication.* Added *after* 0.5.5 shipped, which is why we had to
+  symbolicate against the stripped binary via `atos` + `LC_SYMTAB`.
+
+So the crash reporter is 8 days old as of this investigation, and the
+first "investigation window" we've ever had started on Mar 31. The 10
+crashes we're looking at are the **first** observations of a bug that has
+probably been intermittently crashing users on aggregate audio devices
+for every release going back to v0.1.
+
+**What this implies for severity and messaging:**
+
+1. This is not "we broke something yesterday and users are suddenly
+   crashing." It's "we've always had this class of failure, we just
+   couldn't see it, and now we can." The fix is not a revert — it's
+   closing a long-standing gap in our audio error handling.
+2. The 72-hour telemetry count (10 crashes, 2 users) is a **floor**,
+   not an average. We have no "before" to compare it to. The real
+   long-term cost of this bug is unknown.
+3. The crash reporter did exactly what it was designed to do: surface
+   a latent issue that was invisible before. This is a vindication of
+   shipping `2fd4d74` three weeks ago, not an indictment of the audio
+   code.
+4. For the fix PR, don't frame this as urgent/emergency. Frame it as
+   "the first real bug our crash reporter caught, and it's a
+   long-standing one that benefits every user going back to v0.1."
+   Ship it calmly as 0.5.6; it's not a panic revert.
+
 ---
 
 ## 5. Proposed fix
