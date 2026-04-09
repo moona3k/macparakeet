@@ -225,14 +225,19 @@ struct DictationOverlayView: View {
             // low-profile terminal pill.
             let isNoSpeechState = { if case .noSpeech = viewModel.state { return true } else { return false } }()
             let isNoSpeechExpanded = isNoSpeechState && noSpeechExpanded
+            // Ready uses equal horizontal/vertical padding so the breathing
+            // ring sits inside a tight ~32×32 circular pill — distinctly
+            // smaller and lighter than the 46×46 processing / noSpeech
+            // circles, reinforcing that `.ready` is a brief, poised pause
+            // rather than active work.
             let horizontalPadding: CGFloat = {
-                if isReady { return 6 }
+                if isReady { return 7 }
                 if isIconOnly { return 10 }
                 if isNoSpeechExpanded { return 10 }
                 return 16
             }()
             let verticalPadding: CGFloat = {
-                if isReady { return 4 }
+                if isReady { return 7 }
                 if isIconOnly { return 10 }
                 if isNoSpeechExpanded { return 5 }
                 return 7
@@ -299,9 +304,15 @@ struct DictationOverlayView: View {
 
     // MARK: - Ready State
 
+    /// Ready pill — a gentle breathing ring that appears briefly after the
+    /// first Fn tap while the state machine waits to see if a second tap lands
+    /// (double-tap = persistent recording) or the window elapses (back to
+    /// idle). The breath ring belongs to the same sacred-geometry family as
+    /// `SpinnerRingView` (processing) and `MerkabaDissipateView` (no speech),
+    /// but is the smallest and lightest member — a poised inhale rather than
+    /// active work or a terminal dissolve.
     private var readyContent: some View {
-        WaveformView(audioLevel: 0.15, barCount: 8)
-            .frame(width: 44, height: 14)
+        BreathingRingView(size: 18)
     }
 
     // MARK: - Hold-to-Talk State

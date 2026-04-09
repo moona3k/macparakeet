@@ -202,6 +202,57 @@ struct MerkabaDissipateView: View {
     }
 }
 
+// MARK: - Breathing Ring (Ready / Waiting)
+
+/// Gentle breathing indicator for the dictation overlay's ephemeral `.ready`
+/// state — shown briefly (~800ms) between the first Fn tap and the double-tap
+/// window closing. A soft ring inhales around a pulsing center nexus: the
+/// smallest, lightest member of the sacred-geometry family, signalling
+/// "listening, poised, waiting" without competing with the active Merkaba
+/// (processing) or the dissolving Merkaba (no speech).
+///
+/// Because the pill is typically visible for less than one full breath cycle,
+/// the animation starts cleanly at rest on each appearance so the user always
+/// sees a full inhale — an elegant rise that resolves into either recording
+/// (double-tap landed) or idle (window elapsed).
+struct BreathingRingView: View {
+    var size: CGFloat = 18
+    var tintColor: Color = .white
+
+    /// 0 = rest (exhale), 1 = peak (inhale). A single Double drives ring scale,
+    /// stroke opacity, glow radius, and nexus brightness so every element
+    /// breathes in perfect sync.
+    @State private var breath: CGFloat = 0
+
+    var body: some View {
+        ZStack {
+            // Outer breathing ring — scales and brightens on inhale.
+            Circle()
+                .stroke(tintColor.opacity(0.35 + 0.30 * Double(breath)), lineWidth: 0.9)
+                .frame(width: size, height: size)
+                .scaleEffect(0.90 + 0.14 * breath)
+                .shadow(color: tintColor.opacity(0.20 * Double(breath)), radius: size * 0.09)
+
+            // Center nexus — heart in sync with the ring.
+            Circle()
+                .fill(tintColor.opacity(0.65 + 0.30 * Double(breath)))
+                .frame(width: size * 0.17, height: size * 0.17)
+                .shadow(color: tintColor.opacity(0.35 * Double(breath)), radius: size * 0.14)
+                .scaleEffect(0.85 + 0.20 * breath)
+        }
+        .frame(width: size, height: size)
+        .drawingGroup()
+        .onAppear {
+            // Reset so every presentation begins at rest and inhales cleanly,
+            // regardless of how often the user button-mashes the hotkey.
+            breath = 0
+            withAnimation(.easeInOut(duration: 0.95).repeatForever(autoreverses: true)) {
+                breath = 1
+            }
+        }
+    }
+}
+
 // MARK: - Meditative Merkaba (Large, Slow)
 
 /// Larger, slower merkaba for empty states and idle backgrounds.
