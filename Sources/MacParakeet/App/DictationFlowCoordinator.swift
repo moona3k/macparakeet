@@ -18,11 +18,15 @@ final class DictationFlowCoordinator {
     /// instead — see the note on that property.
     var isDictationActive: Bool { overlayController != nil }
 
+    /// Preferred menu bar icon state for dictation, derived from flow state.
+    /// Returns nil when dictation has no visual preference and global resolver
+    /// should fall through to other subsystems (e.g. file transcription).
+    var menuBarPreference: BreathWaveIcon.MenuBarState? {
+        Self.menuBarPreference(for: stateMachine.state)
+    }
+
     /// True only while audio is actively being captured or in-flight transcription
-    /// is running. Used by `AppDelegate.resolveAndUpdateMenuBarIcon()` so the red
-    /// recording dot does NOT linger through terminal display states (success
-    /// checkmark / no-speech leaf animation / error card) or through the cancel
-    /// countdown undo window.
+    /// is running.
     ///
     /// Returns false for:
     ///   - `.idle`, `.ready`, `.checkingEntitlements` — no overlay or audio yet
@@ -31,42 +35,19 @@ final class DictationFlowCoordinator {
     ///     (see `DictationFlowStateMachine.swift:299`)
     ///   - `.finishing(...)` — terminal display states, audio already stopped
     ///
-    /// ---
-    /// KNOWN LIMITATION — not fixable with a boolean:
-    ///
-    /// `.processing` returns `true` → the resolver shows the RED "recording"
-    /// dot, but the state machine emits `.updateMenuBar(.processing)` (orange)
-    /// on entry (see `DictationFlowStateMachine.swift:279, 333`). The resolver
-    /// has no way to express "orange for dictation processing" because it uses
-    /// boolean flags (`isCapturingAudio`, `isTranscribing`) instead of a
-    /// preference enum. This is a pre-existing inconsistency, not introduced
-    /// by this property.
-    ///
-    /// The cleaner architectural fix is to replace the boolean with a
-    /// `MenuBarState?` preference getter on each flow coordinator, and have
-    /// `resolveAndUpdateMenuBarIcon()` pick the highest-priority preference:
-    ///
-    /// ```swift
-    /// // On DictationFlowCoordinator:
-    /// var menuBarPreference: BreathWaveIcon.MenuBarState? {
-    ///     switch stateMachine.state {
-    ///     case .startingService, .recording, .pendingStop: return .recording
-    ///     case .processing: return .processing
-    ///     default: return nil   // no preference — fall through
-    ///     }
-    /// }
-    ///
-    /// // In AppDelegate.resolveAndUpdateMenuBarIcon:
-    /// if meetingCoordinator?.isMeetingRecordingActive == true { ... }
-    /// else if let pref = dictationCoordinator?.menuBarPreference { ... }
-    /// else if transcriptionViewModel.isTranscribing { ... }
-    /// else { .idle }
-    /// ```
-    ///
-    /// This would respect each flow's state-machine intent exactly and eliminate
-    /// the dual-purpose `isDictationActive` / `isCapturingAudio` split above.
     var isCapturingAudio: Bool {
         Self.isCapturingAudio(for: stateMachine.state)
+    }
+
+    static func menuBarPreference(for state: DictationFlowState) -> BreathWaveIcon.MenuBarState? {
+        switch state {
+        case .startingService, .recording, .pendingStop:
+            return .recording
+        case .processing:
+            return .processing
+        case .idle, .ready, .checkingEntitlements, .cancelCountdown, .finishing:
+            return nil
+        }
     }
 
     static func isCapturingAudio(for state: DictationFlowState) -> Bool {
