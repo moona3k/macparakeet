@@ -304,7 +304,10 @@ public actor AudioRecorder {
                     // (including interleaving/layout), not just SR/ch/common.
                     // Aggregate-device transitions can keep SR/ch/common stable
                     // while flipping other format details.
-                    if converterCache.sourceFormat?.isEqual(bufferFormat) != true {
+                    if tapConverterNeedsRebuild(
+                        cachedSourceFormat: converterCache.sourceFormat,
+                        incomingBufferFormat: bufferFormat
+                    ) {
                         converterCache.converter = AVAudioConverter(from: bufferFormat, to: outputFormat)
                         converterCache.sourceFormat = bufferFormat
                     }
@@ -445,6 +448,14 @@ public actor AudioRecorder {
     private func logTapError(_ message: String) {
         logger.warning("audio_tap \(message, privacy: .public)")
     }
+}
+
+@inline(__always)
+func tapConverterNeedsRebuild(
+    cachedSourceFormat: AVAudioFormat?,
+    incomingBufferFormat: AVAudioFormat
+) -> Bool {
+    cachedSourceFormat?.isEqual(incomingBufferFormat) != true
 }
 
 /// Mutable cache for the tap block's `AVAudioConverter`. Tap callbacks are
