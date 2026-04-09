@@ -116,6 +116,18 @@ private struct NoSpeechContentView: View {
     /// `expanded` flips to true (~0.4s after `.noSpeech` is entered, giving the
     /// circular Merkaba time to settle / dissolve first).
     private func runBloomAnimations() {
+        #if DEBUG
+        // Fail loudly in debug builds if someone shrinks the dismiss window below
+        // what the animation phases need to complete. This is the actual guard
+        // behind `NoSpeechAnimationTiming.isDismissWindowSufficient`.
+        assert(
+            NoSpeechAnimationTiming.isDismissWindowSufficient,
+            "No-speech dismiss window (\(NoSpeechAnimationTiming.dismissSeconds)s) is too short for " +
+            "estimated animation completion (\(NoSpeechAnimationTiming.estimatedAnimationCompletionSeconds)s) " +
+            "+ buffer (\(NoSpeechAnimationTiming.completionBufferSeconds)s)."
+        )
+        #endif
+
         // Reset to baseline so repeated presentations replay deterministically.
         leafVisible = 0
         leafDrift = -4

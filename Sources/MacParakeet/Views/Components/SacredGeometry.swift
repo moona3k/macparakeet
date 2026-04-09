@@ -232,7 +232,8 @@ struct MerkabaDissipateView: View {
 /// ## Accessibility
 /// Honors `Reduce Motion` by presenting the peak state statically (no
 /// inhale animation, just the fully-bloomed ring + nexus). Exposed to
-/// VoiceOver as "Listening".
+/// VoiceOver as "Ready to record" — `.ready` is a poised pause, not an
+/// engaged mic, so we deliberately avoid "Listening".
 struct BreathingRingView: View {
     var size: CGFloat = 18
     var ringColor: Color = .white
