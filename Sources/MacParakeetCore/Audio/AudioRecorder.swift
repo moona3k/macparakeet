@@ -70,8 +70,18 @@ public actor AudioRecorder {
     public func start() throws {
         guard !recording else { return }
 
+        // Hard-gate on microphone permission. Today AVFAudio will still attempt
+        // to start without authorization and fail deep in the audio stack with
+        // an opaque NSException. The UI layer requests mic access during
+        // onboarding, so anything other than `.authorized` here means either a
+        // first-run race or the user revoked access in System Settings.
         let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
         logger.debug("mic_permission_status=\(authStatus.rawValue, privacy: .public)")
+        guard authStatus == .authorized else {
+            throw AudioProcessorError.recordingFailed(
+                "Microphone permission not granted (status=\(authStatus.rawValue)). Grant access in System Settings → Privacy & Security → Microphone."
+            )
+        }
 
         logAvailableDevices()
 
@@ -161,7 +171,13 @@ public actor AudioRecorder {
             )
         }
 
-        let inputFormat = inputNode.outputFormat(forBus: 0)
+        // AVFAudio raises an Objective-C NSException on aggregate / virtual
+        // audio devices in bad states (issue #91). Swift can't catch it without
+        // the ObjC trampoline — without the wrap this line will abort the
+        // process on cluster-A/C crash paths.
+        let inputFormat = try catchingObjCException {
+            inputNode.outputFormat(forBus: 0)
+        }
         logger.info(
             "input_format sr=\(inputFormat.sampleRate, privacy: .public) ch=\(inputFormat.channelCount, privacy: .public) common_format=\(inputFormat.commonFormat.rawValue, privacy: .public)"
         )
@@ -208,8 +224,9 @@ public actor AudioRecorder {
         let url = tempDir.appendingPathComponent("\(UUID().uuidString).wav")
         let file = try AVAudioFile(forWriting: url, settings: outputFormat.settings)
 
-        // Install converter + tap
-        guard let converter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
+        // Pre-validate that the format we just read is convertible to our
+        // target. If this fails we want to bail fast before touching the tap.
+        guard AVAudioConverter(from: inputFormat, to: outputFormat) != nil else {
             try? FileManager.default.removeItem(at: url)
             logger.error(
                 "failed_to_create_audio_converter from sr=\(inputFormat.sampleRate) ch=\(inputFormat.channelCount) to 16kHz 1ch"
@@ -224,103 +241,165 @@ public actor AudioRecorder {
         // Capture the current generation so stale callbacks from previous sessions bail out.
         let tapGeneration = self.sessionGeneration.withLock { $0 }
 
-        inputNode.installTap(onBus: 0, bufferSize: 4096, format: inputFormat) {
-            [weak self] buffer, _ in
-            guard let self else { return }
+        // Converter cache for the tap block. We pass `format: nil` to
+        // installTap so AVFAudio delivers buffers in whatever format the bus
+        // is currently producing (avoiding the aggregate-device format-drift
+        // NSException that caused issue #91), and build the converter lazily
+        // on the first buffer. Tap callbacks are serialized per bus so a plain
+        // reference-type cache is safe; `@unchecked Sendable` satisfies Swift 6
+        // concurrency checks.
+        let converterCache = TapConverterCache()
 
-            // Bail if stop() was called (generation bumped) or a new session started
-            let currentGen = self.sessionGeneration.withLock { $0 }
-            guard currentGen == tapGeneration else { return }
+        // AVFAudio can raise NSException from installTap itself on aggregate
+        // devices (e.g. "required condition is false:
+        // IsFormatSampleRateAndChannelCountValid(hwFormat)"). Wrap the install
+        // call so the caller sees a Swift error rather than a hard abort.
+        do {
+            try catchingObjCException {
+                inputNode.installTap(onBus: 0, bufferSize: 4096, format: nil) {
+                    [weak self] buffer, _ in
+                    guard let self else { return }
 
-            // Calculate audio level (RMS) — written atomically, no Task allocation needed
-            let channelData = buffer.floatChannelData?[0]
-            let frameCount = Int(buffer.frameLength)
-            if let data = channelData, frameCount > 0 {
-                var rms: Float = 0
-                for i in 0..<frameCount {
-                    rms += data[i] * data[i]
-                }
-                rms = sqrtf(rms / Float(frameCount))
-                let normalized = min(rms * 5.0, 1.0)
-                self.atomicAudioLevel.withLock { level in
-                    level = level * 0.3 + normalized * 0.7
-                }
-            }
+                    // Bail if stop() was called (generation bumped) or a new session started
+                    let currentGen = self.sessionGeneration.withLock { $0 }
+                    guard currentGen == tapGeneration else { return }
 
-            // Convert to output format
-            let outputFrameCapacity = AVAudioFrameCount(
-                ceil(Double(buffer.frameLength) * outputFormat.sampleRate / inputFormat.sampleRate)
-            )
-            guard outputFrameCapacity > 0,
-                let convertedBuffer = AVAudioPCMBuffer(
-                    pcmFormat: outputFormat,
-                    frameCapacity: outputFrameCapacity
-                )
-            else { return }
-
-            // One-shot input block: provide the buffer exactly once per convert() call.
-            // The converter may call the input block multiple times if it needs more data;
-            // returning the same buffer repeatedly would duplicate samples.
-            var inputConsumed = false
-            var error: NSError?
-            let status = converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
-                if inputConsumed {
-                    outStatus.pointee = .noDataNow
-                    return nil
-                }
-                inputConsumed = true
-                outStatus.pointee = .haveData
-                return buffer
-            }
-
-            switch status {
-            case .haveData:
-                // Re-check generation before writing — stop() may have been called
-                // between the guard at the top and here.
-                guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
-                do {
-                    try file.write(from: convertedBuffer)
-                    self.sampleCounter.withLock { $0 += Int(convertedBuffer.frameLength) }
-                } catch {
-                    // Log but don't crash — we're on the audio thread.
-                    // Throttled: only first error per session is logged.
-                    let alreadyLogged = self.tapErrorLogged.withLock { logged in
-                        let was = logged; logged = true; return was
+                    // Calculate audio level (RMS) — written atomically, no Task allocation needed
+                    let channelData = buffer.floatChannelData?[0]
+                    let frameCount = Int(buffer.frameLength)
+                    if let data = channelData, frameCount > 0 {
+                        var rms: Float = 0
+                        for i in 0..<frameCount {
+                            rms += data[i] * data[i]
+                        }
+                        rms = sqrtf(rms / Float(frameCount))
+                        let normalized = min(rms * 5.0, 1.0)
+                        self.atomicAudioLevel.withLock { level in
+                            level = level * 0.3 + normalized * 0.7
+                        }
                     }
-                    if !alreadyLogged {
-                        let desc = error.localizedDescription
-                        Task { await self.logTapError("audio_write_error: \(desc)") }
+
+                    // Lazily build the converter from the *actual* buffer format.
+                    // With `format: nil` on installTap, AVFAudio delivers whatever
+                    // the bus is currently producing — which may differ from the
+                    // format we snapshotted before installTap. Re-check on each
+                    // buffer and rebuild the converter if the format drifts
+                    // mid-stream (rare, but cheap to handle).
+                    let bufferFormat = buffer.format
+                    if converterCache.sourceFormat == nil
+                        || converterCache.sourceFormat?.sampleRate != bufferFormat.sampleRate
+                        || converterCache.sourceFormat?.channelCount != bufferFormat.channelCount
+                        || converterCache.sourceFormat?.commonFormat != bufferFormat.commonFormat
+                    {
+                        converterCache.converter = AVAudioConverter(from: bufferFormat, to: outputFormat)
+                        converterCache.sourceFormat = bufferFormat
                     }
-                }
-            case .error:
-                // Log converter errors (throttled — only first occurrence per recording)
-                let alreadyLogged = self.tapErrorLogged.withLock { logged in
-                    let was = logged
-                    logged = true
-                    return was
-                }
-                if !alreadyLogged {
-                    let desc = error?.localizedDescription ?? "unknown"
-                    Task {
-                        await self.logTapError(
-                            "converter_error: \(desc)"
+                    guard let converter = converterCache.converter else {
+                        let alreadyLogged = self.tapErrorLogged.withLock { logged in
+                            let was = logged; logged = true; return was
+                        }
+                        if !alreadyLogged {
+                            let sr = bufferFormat.sampleRate
+                            let ch = bufferFormat.channelCount
+                            Task { await self.logTapError("converter_init_failed sr=\(sr) ch=\(ch)") }
+                        }
+                        return
+                    }
+
+                    // Convert to output format
+                    let outputFrameCapacity = AVAudioFrameCount(
+                        ceil(Double(buffer.frameLength) * outputFormat.sampleRate / bufferFormat.sampleRate)
+                    )
+                    guard outputFrameCapacity > 0,
+                        let convertedBuffer = AVAudioPCMBuffer(
+                            pcmFormat: outputFormat,
+                            frameCapacity: outputFrameCapacity
                         )
+                    else { return }
+
+                    // One-shot input block: provide the buffer exactly once per convert() call.
+                    // The converter may call the input block multiple times if it needs more data;
+                    // returning the same buffer repeatedly would duplicate samples.
+                    var inputConsumed = false
+                    var error: NSError?
+                    let status = converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
+                        if inputConsumed {
+                            outStatus.pointee = .noDataNow
+                            return nil
+                        }
+                        inputConsumed = true
+                        outStatus.pointee = .haveData
+                        return buffer
+                    }
+
+                    switch status {
+                    case .haveData:
+                        // Re-check generation before writing — stop() may have been called
+                        // between the guard at the top and here.
+                        guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
+                        do {
+                            try file.write(from: convertedBuffer)
+                            self.sampleCounter.withLock { $0 += Int(convertedBuffer.frameLength) }
+                        } catch {
+                            // Log but don't crash — we're on the audio thread.
+                            // Throttled: only first error per session is logged.
+                            let alreadyLogged = self.tapErrorLogged.withLock { logged in
+                                let was = logged; logged = true; return was
+                            }
+                            if !alreadyLogged {
+                                let desc = error.localizedDescription
+                                Task { await self.logTapError("audio_write_error: \(desc)") }
+                            }
+                        }
+                    case .error:
+                        // Log converter errors (throttled — only first occurrence per recording)
+                        let alreadyLogged = self.tapErrorLogged.withLock { logged in
+                            let was = logged
+                            logged = true
+                            return was
+                        }
+                        if !alreadyLogged {
+                            let desc = error?.localizedDescription ?? "unknown"
+                            Task {
+                                await self.logTapError(
+                                    "converter_error: \(desc)"
+                                )
+                            }
+                        }
+                    case .endOfStream:
+                        break
+                    case .inputRanDry:
+                        break
+                    @unknown default:
+                        break
                     }
                 }
-            case .endOfStream:
-                break
-            case .inputRanDry:
-                break
-            @unknown default:
-                break
             }
+        } catch {
+            // installTap raised an NSException (issue #91) — cluster A/C crash
+            // path. Clean up and convert to a Swift error so the built-in-mic
+            // fallback in start() gets a chance, and so DictationService's
+            // catch emits a dictation_failed telemetry event with the real
+            // NSException reason in `error_detail`.
+            try? FileManager.default.removeItem(at: url)
+            logger.error(
+                "install_tap_raised error=\(error.localizedDescription, privacy: .public)"
+            )
+            throw AudioProcessorError.recordingFailed(
+                "Audio tap install failed: \(error.localizedDescription)"
+            )
         }
 
         // Reset counter before engine.start() — the tap can fire immediately after start.
         self.sampleCounter.withLock { $0 = 0 }
 
+        // engine.start() is documented to throw Swift errors, but has been
+        // observed to raise NSException in corner cases (stale CoreAudio state,
+        // aggregate device teardown mid-start). Belt-and-braces wrap.
         do {
-            try engine.start()
+            try catchingObjCException {
+                try engine.start()
+            }
         } catch {
             // Clean up before propagating
             inputNode.removeTap(onBus: 0)
@@ -352,4 +431,13 @@ public actor AudioRecorder {
     private func logTapError(_ message: String) {
         logger.warning("audio_tap \(message, privacy: .public)")
     }
+}
+
+/// Mutable cache for the tap block's `AVAudioConverter`. Tap callbacks are
+/// serialized per bus by AVAudioEngine, so no locking is required. Marked
+/// `@unchecked Sendable` to satisfy Swift 6 strict concurrency checks on the
+/// escaping tap closure capture.
+private final class TapConverterCache: @unchecked Sendable {
+    var converter: AVAudioConverter?
+    var sourceFormat: AVAudioFormat?
 }

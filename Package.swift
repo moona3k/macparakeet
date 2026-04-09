@@ -46,12 +46,22 @@ let package = Package(
             ],
             path: "Sources/CLI"
         ),
+        // Objective-C shim target for catching NSException in Swift.
+        // Swift's `do/try/catch` cannot catch Objective-C exceptions raised by
+        // AppKit / AVFoundation / Core Audio — we need an @try/@catch trampoline
+        // to convert them into Swift-throwable NSError values. See issue #91.
+        .target(
+            name: "MacParakeetObjCShims",
+            path: "Sources/MacParakeetObjCShims",
+            publicHeadersPath: "include"
+        ),
         // Shared core library (no UI dependencies)
         .target(
             name: "MacParakeetCore",
             dependencies: [
                 .product(name: "GRDB", package: "GRDB.swift"),
-                .product(name: "FluidAudio", package: "FluidAudio")
+                .product(name: "FluidAudio", package: "FluidAudio"),
+                "MacParakeetObjCShims"
             ],
             path: "Sources/MacParakeetCore",
             exclude: ["Resources"]
@@ -65,7 +75,7 @@ let package = Package(
         // Tests
         .testTarget(
             name: "MacParakeetTests",
-            dependencies: ["MacParakeet", "MacParakeetCore", "MacParakeetViewModels"],
+            dependencies: ["MacParakeet", "MacParakeetCore", "MacParakeetViewModels", "MacParakeetObjCShims"],
             path: "Tests/MacParakeetTests"
         ),
         .testTarget(
