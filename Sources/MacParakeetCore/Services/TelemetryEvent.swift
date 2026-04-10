@@ -621,14 +621,12 @@ public struct TelemetryEvent: Sendable, Encodable {
         self.locale = locale
         self.chip = chip
         self.session = session
-        self.ts = Self.iso8601Formatter.string(from: ts)
+        self.ts = ISO8601DateFormatter.string(
+            from: ts,
+            timeZone: .gmt,
+            formatOptions: [.withInternetDateTime]
+        )
     }
-
-    private static let iso8601Formatter: ISO8601DateFormatter = {
-        let f = ISO8601DateFormatter()
-        f.formatOptions = [.withInternetDateTime]
-        return f
-    }()
 }
 
 /// Batch payload sent to the telemetry endpoint.

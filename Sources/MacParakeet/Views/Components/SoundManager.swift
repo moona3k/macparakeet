@@ -4,6 +4,7 @@ import AVFoundation
 /// Audio feedback system for MacParakeet.
 /// Preloads custom sounds for zero-latency playback. Falls back to macOS system sounds
 /// when custom assets aren't bundled yet. Respects macOS sound settings.
+@MainActor
 final class SoundManager {
     static let shared = SoundManager()
     private static let uiAudioEnabledKey = "com.apple.sound.uiaudio.enabled"

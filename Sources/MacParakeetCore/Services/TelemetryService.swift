@@ -111,7 +111,8 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
     public func flush() async {
         let events = takeQueuedEvents()
         guard !events.isEmpty else { return }
-        await sendBatches(events, using: session, timeoutInterval: 10)
+        let failedEvents = await sendBatches(events, using: session, timeoutInterval: 10)
+        requeueFailedEvents(failedEvents)
     }
 
     // MARK: - Internal (for testing)
@@ -130,6 +131,16 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
         queue.removeAll()
         lock.unlock()
         return events
+    }
+
+    private func requeueFailedEvents(_ events: [TelemetryEvent]) {
+        guard !events.isEmpty else { return }
+        lock.lock()
+        queue.insert(contentsOf: events, at: 0)
+        if queue.count > Self.maxQueueSize {
+            queue.removeLast(queue.count - Self.maxQueueSize)
+        }
+        lock.unlock()
     }
 
     private func makeTelemetryEvent(from event: TelemetryEventSpec) -> TelemetryEvent {
@@ -184,7 +195,7 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
                 completion.signal()
                 return
             }
-            await self.sendBatches(events, using: session, timeoutInterval: Self.terminationRequestTimeout)
+            _ = await self.sendBatches(events, using: session, timeoutInterval: Self.terminationRequestTimeout)
             completion.signal()
         }
         _ = completion.wait(timeout: .now() + Self.terminationFlushMaxWait)
@@ -194,17 +205,20 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
         _ events: [TelemetryEvent],
         using session: URLSession,
         timeoutInterval: TimeInterval
-    ) async {
+    ) async -> [TelemetryEvent] {
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let url = baseURL.appendingPathComponent("telemetry")
+        var failedEvents: [TelemetryEvent] = []
 
         for batchStart in stride(from: 0, to: events.count, by: Self.maxBatchSize) {
             let batchEnd = min(batchStart + Self.maxBatchSize, events.count)
-            let payload = TelemetryPayload(events: Array(events[batchStart..<batchEnd]))
+            let batchEvents = Array(events[batchStart..<batchEnd])
+            let payload = TelemetryPayload(events: batchEvents)
 
             guard let body = try? encoder.encode(payload) else {
                 logger.error("Failed to encode telemetry payload")
+                failedEvents.append(contentsOf: batchEvents)
                 continue
             }
 
@@ -214,18 +228,26 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
             request.httpBody = body
             request.timeoutInterval = timeoutInterval
 
-            await sendAsync(request, using: session)
+            let sent = await sendAsync(request, using: session)
+            if !sent {
+                failedEvents.append(contentsOf: batchEvents)
+            }
         }
+
+        return failedEvents
     }
 
-    private func sendAsync(_ request: URLRequest, using session: URLSession) async {
+    private func sendAsync(_ request: URLRequest, using session: URLSession) async -> Bool {
         do {
             let (_, response) = try await session.data(for: request)
             if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
                 logger.warning("Telemetry server returned \(http.statusCode)")
+                return false
             }
+            return true
         } catch {
             logger.debug("Telemetry flush failed: \(error.localizedDescription)")
+            return false
         }
     }
 
@@ -241,19 +263,31 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
 /// Telemetry.send(.appLaunched)
 /// ```
 public enum Telemetry {
-    private static let lock = NSLock()
-    private static var _service: TelemetryServiceProtocol?
+    private final class ServiceStore: @unchecked Sendable {
+        private let lock = NSLock()
+        private var service: TelemetryServiceProtocol?
+
+        func set(_ service: TelemetryServiceProtocol) {
+            lock.lock()
+            self.service = service
+            lock.unlock()
+        }
+
+        func get() -> TelemetryServiceProtocol? {
+            lock.lock()
+            defer { lock.unlock() }
+            return service
+        }
+    }
+
+    private static let serviceStore = ServiceStore()
 
     private static func configuredService() -> TelemetryServiceProtocol? {
-        lock.lock()
-        defer { lock.unlock() }
-        return _service
+        serviceStore.get()
     }
 
     public static func configure(_ service: TelemetryServiceProtocol) {
-        lock.lock()
-        _service = service
-        lock.unlock()
+        serviceStore.set(service)
     }
 
     public static func send(_ event: TelemetryEventSpec) {

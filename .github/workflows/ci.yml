@@ -35,5 +35,11 @@ jobs:
           xcodebuild -version
           swift --version
 
+      - name: Swift Build (Release)
+        run: swift build -c release
+
+      - name: Swift Concurrency Safety
+        run: swift build -Xswiftc -warn-concurrency
+
       - name: Swift Test
         run: swift test --parallel

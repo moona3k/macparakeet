@@ -171,14 +171,14 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
 
     private var infoArea: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(highlightedText(transcription.fileName))
+            highlightedText(transcription.fileName)
                 .font(DesignSystem.Typography.bodySmall.weight(.medium))
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .lineLimit(2)
                 .truncationMode(.tail)
 
             if let channelName = transcription.channelName {
-                Text(highlightedText(channelName))
+                highlightedText(channelName)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
                     .lineLimit(1)
@@ -200,37 +200,41 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
 
     // MARK: - Search Highlighting
 
-    private func highlightedText(_ text: String) -> AttributedString {
-        var attributed = AttributedString(text)
-
+    @MainActor
+    private func highlightedText(_ text: String) -> Text {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return attributed }
+        guard !query.isEmpty else { return Text(text) }
 
-        var searchStart = attributed.startIndex
-        while searchStart < attributed.endIndex {
-            guard let range = attributed[searchStart...].range(
-                of: query,
-                options: .caseInsensitive
-            ) else { break }
+        var result = Text("")
+        var remainder = text[...]
 
-            attributed[range].backgroundColor = DesignSystem.Colors.accent.opacity(0.2)
-            searchStart = range.upperBound
+        while let range = remainder.range(of: query, options: .caseInsensitive) {
+            let prefix = String(remainder[..<range.lowerBound])
+            if !prefix.isEmpty {
+                result = result + Text(prefix)
+            }
+
+            let match = String(remainder[range])
+            result = result + Text(match)
+                .bold()
+
+            remainder = remainder[range.upperBound...]
         }
 
-        return attributed
+        if !remainder.isEmpty {
+            result = result + Text(String(remainder))
+        }
+
+        return result
     }
 }
 
 // MARK: - Helpers
 
 extension Date {
-    private static let relativeDateFormatter: RelativeDateTimeFormatter = {
-        let f = RelativeDateTimeFormatter()
-        f.unitsStyle = .short
-        return f
-    }()
-
     var relativeFormatted: String {
-        Self.relativeDateFormatter.localizedString(for: self, relativeTo: Date())
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: self, relativeTo: Date())
     }
 }

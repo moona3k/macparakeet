@@ -87,7 +87,7 @@ struct MeetingRowCard<MenuContent: View>: View {
         VStack(alignment: .leading, spacing: 4) {
             // Row 1: Title + relative time
             HStack(alignment: .firstTextBaseline) {
-                Text(highlightedText(transcription.fileName))
+                highlightedText(transcription.fileName)
                     .font(DesignSystem.Typography.bodySmall.weight(.medium))
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                     .lineLimit(1)
@@ -126,7 +126,7 @@ struct MeetingRowCard<MenuContent: View>: View {
 
             // Row 3: Transcript snippet
             if let snippet = transcriptSnippet {
-                Text(highlightedText(snippet))
+                highlightedText(snippet)
                     .font(.system(size: 12, weight: .regular))
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
                     .lineLimit(1)
@@ -213,21 +213,32 @@ struct MeetingRowCard<MenuContent: View>: View {
 
     // MARK: - Search Highlighting
 
-    private func highlightedText(_ text: String) -> AttributedString {
-        var attributed = AttributedString(text)
+    @MainActor
+    private func highlightedText(_ text: String) -> Text {
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return attributed }
+        guard !query.isEmpty else { return Text(text) }
 
-        var searchStart = attributed.startIndex
-        while searchStart < attributed.endIndex {
-            guard let range = attributed[searchStart...].range(
-                of: query,
-                options: .caseInsensitive
-            ) else { break }
-            attributed[range].backgroundColor = DesignSystem.Colors.accent.opacity(0.2)
-            searchStart = range.upperBound
+        var result = Text("")
+        var remainder = text[...]
+
+        while let range = remainder.range(of: query, options: .caseInsensitive) {
+            let prefix = String(remainder[..<range.lowerBound])
+            if !prefix.isEmpty {
+                result = result + Text(prefix)
+            }
+
+            let match = String(remainder[range])
+            result = result + Text(match)
+                .bold()
+
+            remainder = remainder[range.upperBound...]
         }
-        return attributed
+
+        if !remainder.isEmpty {
+            result = result + Text(String(remainder))
+        }
+
+        return result
     }
 }
 
