@@ -8,6 +8,7 @@ public enum LLMError: Error, LocalizedError, Sendable {
     case modelNotFound(String)
     case contextTooLong
     case formatterTruncated
+    case formatterEmptyResponse
     case providerError(String)
     case streamingError(String)
     case invalidResponse
@@ -32,6 +33,8 @@ public enum LLMError: Error, LocalizedError, Sendable {
             return "Text exceeds the model's context limit."
         case .formatterTruncated:
             return "AI formatter output was incomplete."
+        case .formatterEmptyResponse:
+            return "AI formatter returned an empty response."
         case .providerError(let message):
             return "Provider error: \(message)"
         case .streamingError(let detail):

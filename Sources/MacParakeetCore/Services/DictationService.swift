@@ -496,10 +496,20 @@ public actor DictationService: DictationServiceProtocol {
             )
         }
 
+        let promptTemplate = aiFormatterPromptTemplate()
+        // Normalize before comparing: `AIFormatter.renderPrompt` passes the
+        // template through `normalizedPromptTemplate` before sending, which
+        // trims whitespace and folds legacy-v1 prompts back onto the current
+        // default. Raw comparison would report those cases as custom prompts
+        // even though the LLM sees the shipped default.
+        let defaultPromptUsed = AIFormatter.normalizedPromptTemplate(promptTemplate)
+            == AIFormatter.defaultPromptTemplate
         do {
             let formatted = try await llmService.formatTranscript(
                 transcript: text,
-                promptTemplate: aiFormatterPromptTemplate()
+                promptTemplate: promptTemplate,
+                source: .dictation,
+                defaultPromptUsed: defaultPromptUsed
             )
             let trimmed = formatted.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed

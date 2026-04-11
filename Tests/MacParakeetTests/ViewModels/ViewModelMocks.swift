@@ -461,6 +461,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var lastSummarySystemPrompt: String?
     var lastFormattedTranscript: String?
     var lastFormatterPromptTemplate: String?
+    var lastFormatterSource: TelemetryFormatterSource?
+    var lastFormatterDefaultPromptUsed: Bool?
 
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         summarizeCallCount += 1
@@ -480,10 +482,17 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         return "Mock transform"
     }
 
-    func formatTranscript(transcript: String, promptTemplate: String) async throws -> String {
+    func formatTranscript(
+        transcript: String,
+        promptTemplate: String,
+        source: TelemetryFormatterSource,
+        defaultPromptUsed: Bool
+    ) async throws -> String {
         formatTranscriptCallCount += 1
         lastFormattedTranscript = transcript
         lastFormatterPromptTemplate = promptTemplate
+        lastFormatterSource = source
+        lastFormatterDefaultPromptUsed = defaultPromptUsed
         if let error = errorToThrow { throw error }
         return formatTranscriptResult
     }
