@@ -498,10 +498,14 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             return nil
         }
 
+        let promptTemplate = aiFormatterPromptTemplate()
+        let defaultPromptUsed = promptTemplate == AIFormatter.defaultPromptTemplate
         do {
             let formatted = try await llmService.formatTranscript(
                 transcript: text,
-                promptTemplate: aiFormatterPromptTemplate()
+                promptTemplate: promptTemplate,
+                source: .transcription,
+                defaultPromptUsed: defaultPromptUsed
             )
             let trimmed = formatted.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed

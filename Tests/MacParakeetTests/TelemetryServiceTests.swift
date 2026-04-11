@@ -459,6 +459,23 @@ final class TelemetryServiceTests: XCTestCase {
             .llmPromptResultFailed(provider: "openai", errorType: "auth"),
             .llmChatUsed(provider: "openai", messageCount: 3),
             .llmChatFailed(provider: "openai", errorType: "network"),
+            .llmFormatterUsed(
+                provider: "lmstudio",
+                source: .dictation,
+                durationSeconds: 1.2,
+                inputChars: 480,
+                outputChars: 512,
+                defaultPromptUsed: true,
+                inputTruncated: false
+            ),
+            .llmFormatterFailed(
+                provider: "lmstudio",
+                source: .transcription,
+                durationSeconds: 0.4,
+                errorType: "network",
+                defaultPromptUsed: false,
+                inputTruncated: true
+            ),
             .historySearched,
             .historyReplayed,
             .copyToClipboard(source: .transcription),

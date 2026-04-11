@@ -496,10 +496,14 @@ public actor DictationService: DictationServiceProtocol {
             )
         }
 
+        let promptTemplate = aiFormatterPromptTemplate()
+        let defaultPromptUsed = promptTemplate == AIFormatter.defaultPromptTemplate
         do {
             let formatted = try await llmService.formatTranscript(
                 transcript: text,
-                promptTemplate: aiFormatterPromptTemplate()
+                promptTemplate: promptTemplate,
+                source: .dictation,
+                defaultPromptUsed: defaultPromptUsed
             )
             let trimmed = formatted.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? nil : trimmed

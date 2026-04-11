@@ -6,7 +6,12 @@ public protocol LLMServiceProtocol: Sendable {
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String
     func chat(question: String, transcript: String, history: [ChatMessage]) async throws -> String
     func transform(text: String, prompt: String) async throws -> String
-    func formatTranscript(transcript: String, promptTemplate: String) async throws -> String
+    func formatTranscript(
+        transcript: String,
+        promptTemplate: String,
+        source: TelemetryFormatterSource,
+        defaultPromptUsed: Bool
+    ) async throws -> String
 
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
     func chatStream(question: String, transcript: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error>
@@ -131,37 +136,74 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         return response.content
     }
 
-    public func formatTranscript(transcript: String, promptTemplate: String) async throws -> String {
+    public func formatTranscript(
+        transcript: String,
+        promptTemplate: String,
+        source: TelemetryFormatterSource,
+        defaultPromptUsed: Bool
+    ) async throws -> String {
         let context = try loadContext()
         let config = context.providerConfig
-        let truncated = Self.truncateMiddle(transcript, limit: contextBudget(for: config))
-        let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: truncated)
-        let messages = [
-            ChatMessage(role: .system, content: Prompts.formatter),
-            ChatMessage(role: .user, content: renderedPrompt),
-        ]
+        let budget = contextBudget(for: config)
+        let truncated = Self.truncateMiddle(transcript, limit: budget)
+        let inputTruncated = truncated.count < transcript.count
+        let inputChars = transcript.count
+        let startedAt = Date()
 
-        if config.id == .lmstudio {
-            let response = try await client.chatCompletion(
-                messages: messages,
-                context: context,
-                options: ChatCompletionOptions(
-                    temperature: 0.2,
-                    responseFormat: .jsonSchema(
-                        name: "formatter_output",
-                        schema: Self.lmStudioFormatterSchema
+        do {
+            let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: truncated)
+            let messages = [
+                ChatMessage(role: .system, content: Prompts.formatter),
+                ChatMessage(role: .user, content: renderedPrompt),
+            ]
+
+            let output: String
+            if config.id == .lmstudio {
+                let response = try await client.chatCompletion(
+                    messages: messages,
+                    context: context,
+                    options: ChatCompletionOptions(
+                        temperature: 0.2,
+                        responseFormat: .jsonSchema(
+                            name: "formatter_output",
+                            schema: Self.lmStudioFormatterSchema
+                        )
                     )
                 )
-            )
-            if response.finishReason?.lowercased() == "length" {
-                throw LLMError.formatterTruncated
+                if response.finishReason?.lowercased() == "length" {
+                    throw LLMError.formatterTruncated
+                }
+                let formatted = parseLMStudioFormattedTranscript(response) ?? response.content
+                output = AIFormatter.normalizedFormattedOutput(formatted)
+            } else {
+                let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
+                output = AIFormatter.normalizedFormattedOutput(response.content)
             }
-            let formatted = parseLMStudioFormattedTranscript(response) ?? response.content
-            return AIFormatter.normalizedFormattedOutput(formatted)
-        }
 
-        let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
-        return AIFormatter.normalizedFormattedOutput(response.content)
+            Telemetry.send(.llmFormatterUsed(
+                provider: config.id.rawValue,
+                source: source,
+                durationSeconds: Date().timeIntervalSince(startedAt),
+                inputChars: inputChars,
+                outputChars: output.count,
+                defaultPromptUsed: defaultPromptUsed,
+                inputTruncated: inputTruncated
+            ))
+            return output
+        } catch {
+            if !(error is CancellationError) {
+                // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
+                Telemetry.send(.llmFormatterFailed(
+                    provider: config.id.rawValue,
+                    source: source,
+                    durationSeconds: Date().timeIntervalSince(startedAt),
+                    errorType: Self.errorType(for: error),
+                    defaultPromptUsed: defaultPromptUsed,
+                    inputTruncated: inputTruncated
+                ))
+            }
+            throw error
+        }
     }
 
     // MARK: - Streaming Variants

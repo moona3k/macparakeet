@@ -203,7 +203,12 @@ final class LLMServiceTests: XCTestCase {
         mockConfigStore.config = nil
 
         do {
-            _ = try await service.formatTranscript(transcript: "T", promptTemplate: "P")
+            _ = try await service.formatTranscript(
+                transcript: "T",
+                promptTemplate: "P",
+                source: .dictation,
+                defaultPromptUsed: true
+            )
             XCTFail("Expected LLMError.notConfigured")
         } catch let error as LLMError {
             if case .notConfigured = error {} else {
@@ -279,7 +284,9 @@ final class LLMServiceTests: XCTestCase {
     func testFormatTranscriptRendersPromptTemplateWithTranscriptPlaceholder() async throws {
         _ = try await service.formatTranscript(
             transcript: "hello world",
-            promptTemplate: "Clean this transcript:\n\(AIFormatter.transcriptPlaceholder)"
+            promptTemplate: "Clean this transcript:\n\(AIFormatter.transcriptPlaceholder)",
+            source: .dictation,
+            defaultPromptUsed: false
         )
 
         XCTAssertEqual(mockClient.capturedMessages.count, 2)
@@ -302,7 +309,9 @@ final class LLMServiceTests: XCTestCase {
 
         let result = try await service.formatTranscript(
             transcript: "hello world this is a test",
-            promptTemplate: AIFormatter.defaultPromptTemplate
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .dictation,
+            defaultPromptUsed: true
         )
 
         XCTAssertEqual(result, "Hello world. This is a test.")
@@ -335,7 +344,9 @@ final class LLMServiceTests: XCTestCase {
 
         let result = try await service.formatTranscript(
             transcript: "first paragraph second paragraph third paragraph",
-            promptTemplate: AIFormatter.defaultPromptTemplate
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .dictation,
+            defaultPromptUsed: true
         )
 
         XCTAssertEqual(result, "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.")
@@ -354,7 +365,9 @@ final class LLMServiceTests: XCTestCase {
 
         let result = try await service.formatTranscript(
             transcript: "intro and follow-up then new paragraph",
-            promptTemplate: AIFormatter.defaultPromptTemplate
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .dictation,
+            defaultPromptUsed: true
         )
 
         XCTAssertEqual(result, "Intro line.\nSecond line in same paragraph.\n\nNew paragraph starts here.")
@@ -374,7 +387,9 @@ final class LLMServiceTests: XCTestCase {
         do {
             _ = try await service.formatTranscript(
                 transcript: "long transcript content",
-                promptTemplate: AIFormatter.defaultPromptTemplate
+                promptTemplate: AIFormatter.defaultPromptTemplate,
+                source: .dictation,
+                defaultPromptUsed: true
             )
             XCTFail("Expected truncated formatter output to throw")
         } catch let error as LLMError {
