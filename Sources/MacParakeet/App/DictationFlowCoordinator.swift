@@ -127,7 +127,54 @@ final class DictationFlowCoordinator {
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onHistoryReload = onHistoryReload
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
+        observeFormatterNotifications()
     }
+
+    // MARK: - AI Formatter pill transitions
+
+    /// Observer token for `.macParakeetAIFormatterDidStart` — retained for the
+    /// lifetime of the coordinator so the pill can promote itself from
+    /// `.processing` to `.formatting` whenever the LLM formatter is about to
+    /// run on a dictation transcript.
+    private var formatterDidStartObserver: NSObjectProtocol?
+
+    private func observeFormatterNotifications() {
+        formatterDidStartObserver = NotificationCenter.default.addObserver(
+            forName: .macParakeetAIFormatterDidStart,
+            object: nil,
+            queue: .main
+        ) { [weak self] note in
+            // Only react to dictation-sourced formatter starts. The file
+            // transcription flow posts the same notification but routes
+            // through a different UI surface.
+            guard (note.userInfo?["source"] as? String) == "dictation" else { return }
+            // The observer is registered with `queue: .main`, so this block
+            // runs on the main thread — but Swift 6 strict concurrency
+            // requires explicit actor hopping before touching a
+            // `@MainActor`-isolated method. A `Task { @MainActor in ... }`
+            // hop is both correct and compile-safe across Swift 5/6.
+            Task { @MainActor [weak self] in
+                self?.promoteOverlayToFormatting()
+            }
+        }
+    }
+
+    /// Flip the overlay pill into `.formatting` if — and only if — it's
+    /// currently in `.processing`. Any other state (cancelled, noSpeech,
+    /// success, error, or already-formatting) is left untouched to avoid
+    /// clobbering terminal transitions that may have raced ahead.
+    private func promoteOverlayToFormatting() {
+        guard let vm = overlayViewModel else { return }
+        if case .processing = vm.state {
+            vm.state = .formatting
+        }
+    }
+
+    // NOTE: no `deinit` cleanup for `formatterDidStartObserver`. This
+    // coordinator is effectively a singleton for the app's lifetime, the
+    // observer block captures `[weak self]`, and Swift 6 forbids touching
+    // `@MainActor`-isolated stored properties from a nonisolated deinit.
+    // NotificationCenter cleans up automatically when the token drops.
 
     // MARK: - Public Methods (translate to state machine events)
 

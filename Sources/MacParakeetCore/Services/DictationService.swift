@@ -480,6 +480,24 @@ public actor DictationService: DictationServiceProtocol {
             return nil
         }
 
+        // Notify observers (e.g. the dictation flow coordinator) that the
+        // LLM formatter is about to run so the overlay pill can switch to
+        // its `.formatting` beat. We only post this *after* the guards
+        // above so "formatter disabled" dictations never flicker into the
+        // formatting visual.
+        NotificationCenter.default.post(
+            name: .macParakeetAIFormatterDidStart,
+            object: nil,
+            userInfo: ["source": "dictation"]
+        )
+        defer {
+            NotificationCenter.default.post(
+                name: .macParakeetAIFormatterDidFinish,
+                object: nil,
+                userInfo: ["source": "dictation"]
+            )
+        }
+
         do {
             let formatted = try await llmService.formatTranscript(
                 transcript: text,

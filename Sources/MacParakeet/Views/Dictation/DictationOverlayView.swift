@@ -282,6 +282,7 @@ struct DictationOverlayView: View {
             let isIconOnly: Bool = {
                 switch viewModel.state {
                 case .processing: return viewModel.sessionKind != .command
+                case .formatting: return viewModel.sessionKind != .command
                 case .success: return true
                 case .noSpeech: return !noSpeechExpanded
                 default: return false
@@ -360,6 +361,10 @@ struct DictationOverlayView: View {
             case .processing:
                 processingContent
                     .transition(.opacity.animation(.easeInOut(duration: 0.2)))
+
+            case .formatting:
+                formattingContent
+                    .transition(.opacity.animation(.easeInOut(duration: 0.25)))
 
             case .success:
                 successContent
@@ -546,6 +551,30 @@ struct DictationOverlayView: View {
         }
         // Circular spinner that matches the checkmark ring size for seamless morphing
         return AnyView(SpinnerRingView())
+    }
+
+    // MARK: - Formatting State (AI formatter refinement)
+
+    /// Shown between `.processing` and `.success` when the AI formatter is
+    /// enabled and actually running on the transcript. Renders the spinning
+    /// Seed of Life bloom via `FormatterVisualView`.
+    ///
+    /// For command sessions we fall back to the standard spinner + a
+    /// "Refining..." label so the copy continues to read during refinement
+    /// — formatting context is already implied by the visible command text.
+    private var formattingContent: some View {
+        Group {
+            if viewModel.sessionKind == .command {
+                HStack(spacing: 8) {
+                    SpinnerRingView()
+                    Text("Refining...")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.80))
+                }
+            } else {
+                FormatterVisualView()
+            }
+        }
     }
 
     // MARK: - Success State

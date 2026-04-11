@@ -183,6 +183,11 @@ final class DictationOverlayViewModel {
         case recording
         case cancelled(timeRemaining: Double)
         case processing
+        /// Post-STT LLM refinement beat. Visually distinct from `.processing`
+        /// so users can see their transcript is being polished by the AI
+        /// formatter before the checkmark lands. Only entered when the
+        /// formatter is enabled and actually about to run.
+        case formatting
         case success
         case noSpeech
         case error(String)
@@ -268,6 +273,8 @@ final class DictationOverlayViewModel {
         case .cancelled: return "cancelled"
         case .processing:
             return sessionKind == .command ? "commandProcessing" : "processing"
+        case .formatting:
+            return sessionKind == .command ? "commandFormatting" : "formatting"
         case .success: return "success"
         case .noSpeech:
             return sessionKind == .command ? "commandNoSpeech" : "noSpeech"
