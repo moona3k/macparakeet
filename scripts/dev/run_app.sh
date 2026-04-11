@@ -7,25 +7,94 @@ PRODUCT_DIR="$DERIVED_DATA_DIR/Build/Products/Debug"
 APP_BIN="$PRODUCT_DIR/MacParakeet"
 APP_BUNDLE="$PRODUCT_DIR/MacParakeet-Dev.app"
 LOG_FILE="${TMPDIR:-/tmp}/macparakeet-dev.log"
+BUILD_LOG_FILE="${TMPDIR:-/tmp}/macparakeet-dev-build.log"
+APP_MACOS_BIN="$APP_BUNDLE/Contents/MacOS/MacParakeet"
 
-echo "[1/5] Building debug app bundle (xcodebuild)…"
-xcodebuild build \
+pick_codesign_identity() {
+  local preferred="${MACPARAKEET_CODESIGN_IDENTITY:-}"
+  if [[ -n "$preferred" ]]; then
+    printf '%s\n' "$preferred"
+    return
+  fi
+
+  local identities
+  identities="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+
+  while IFS= read -r candidate; do
+    if grep -Fq "\"$candidate" <<<"$identities"; then
+      printf '%s\n' "$candidate"
+      return
+    fi
+  done < <(printf '%s\n' "Apple Development" "Mac Development")
+
+  local developer_id
+  developer_id="$(sed -n 's/.*"\(Developer ID Application:.*\)".*/\1/p' <<<"$identities" | head -n 1)"
+  if [[ -n "$developer_id" ]]; then
+    printf '%s\n' "$developer_id"
+    return
+  fi
+
+  # Ad-hoc signing keeps the bundle launchable even on machines without a
+  # development certificate. It is enough for local debugging, but TCC may be
+  # less sticky across rebuilds than a real signing identity.
+  printf '%s\n' "-"
+}
+
+CODESIGN_IDENTITY="$(pick_codesign_identity)"
+
+sync_frameworks_into_bundle() {
+  local source_dir="$1"
+  local bundle_fw_dir="$2"
+
+  [[ -d "$source_dir" ]] || return 0
+
+  for fw in "$source_dir"/*.framework; do
+    [[ -e "$fw" ]] || continue
+    local fw_name
+    local resolved_fw
+    fw_name="$(basename "$fw")"
+    resolved_fw="$(realpath "$fw")"
+    rm -rf "$bundle_fw_dir/$fw_name"
+    rsync -a --delete "$resolved_fw/" "$bundle_fw_dir/$fw_name/"
+  done
+}
+
+binary_has_rpath() {
+  local binary="$1"
+  local wanted="$2"
+  local current
+
+  while IFS= read -r current; do
+    [[ "$current" == "$wanted" ]] && return 0
+  done < <(otool -l "$binary" | awk '
+    $1 == "cmd" && $2 == "LC_RPATH" { in_rpath=1; next }
+    in_rpath && $1 == "path" { print $2; in_rpath=0 }
+  ')
+
+  return 1
+}
+
+echo "[1/5] Building debug app bundle (xcodebuild, target signing disabled)…"
+if ! xcodebuild build \
   -scheme MacParakeet \
   -configuration Debug \
   -destination "platform=OS X,arch=arm64" \
   -derivedDataPath "$DERIVED_DATA_DIR" \
-  CODE_SIGN_IDENTITY="Apple Development" \
-  DEVELOPMENT_TEAM="${DEVELOPMENT_TEAM:-FYAF2ZD7RM}" \
-  CODE_SIGNING_REQUIRED=YES \
-  CODE_SIGNING_ALLOWED=YES >/dev/null
+  CODE_SIGNING_ALLOWED=NO \
+  CODE_SIGNING_REQUIRED=NO >"$BUILD_LOG_FILE" 2>&1; then
+  echo "xcodebuild failed. Last 120 log lines from $BUILD_LOG_FILE:" >&2
+  tail -n 120 "$BUILD_LOG_FILE" >&2 || true
+  exit 1
+fi
 
 if [[ ! -x "$APP_BIN" ]]; then
   echo "Build succeeded but app binary not found at: $APP_BIN" >&2
   exit 1
 fi
 
-# Sparkle.framework is built to $PRODUCT_DIR but the binary's @rpath looks in
-# $PRODUCT_DIR/PackageFrameworks. Symlink so dyld can find it at runtime.
+# The raw xcodebuild product carries an absolute rpath into
+# $PRODUCT_DIR/PackageFrameworks. Keep that layout available before we rewrite
+# the wrapped app binary to use bundle-local Frameworks.
 PKGFW_DIR="$PRODUCT_DIR/PackageFrameworks"
 mkdir -p "$PKGFW_DIR"
 if [[ -d "$PRODUCT_DIR/Sparkle.framework" && ! -e "$PKGFW_DIR/Sparkle.framework" ]]; then
@@ -37,7 +106,7 @@ echo "[2/5] Wrapping in .app bundle for macOS permissions…"
 # identify and remember permissions for the dev build across rebuilds.
 MACOS_DIR="$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$MACOS_DIR"
-cp -f "$APP_BIN" "$MACOS_DIR/MacParakeet"
+cp -f "$APP_BIN" "$APP_MACOS_BIN"
 
 # Copy resource bundle (contains discover-fallback.json etc.)
 RESOURCE_BUNDLE="$PRODUCT_DIR/MacParakeet_MacParakeet.bundle"
@@ -47,26 +116,22 @@ if [[ -d "$RESOURCE_BUNDLE" ]]; then
   rsync -a --delete "$RESOURCE_BUNDLE" "$RESOURCES_DIR/"
 fi
 
-# Symlink frameworks into the bundle so dyld @rpath resolves
+# Copy frameworks into the bundle so dyld loads only bundle-local paths.
 BUNDLE_FW_DIR="$APP_BUNDLE/Contents/Frameworks"
+rm -rf "$BUNDLE_FW_DIR"
 mkdir -p "$BUNDLE_FW_DIR"
-for fw in "$PRODUCT_DIR"/*.framework; do
-  [[ -d "$fw" ]] || continue
-  fw_name="$(basename "$fw")"
-  if [[ ! -e "$BUNDLE_FW_DIR/$fw_name" ]]; then
-    ln -s "$fw" "$BUNDLE_FW_DIR/$fw_name"
-  fi
-done
-# Also link PackageFrameworks for SPM module frameworks
-BUNDLE_PKGFW_DIR="$MACOS_DIR/../Frameworks/PackageFrameworks"
-mkdir -p "$BUNDLE_PKGFW_DIR"
-for fw in "$PKGFW_DIR"/*.framework; do
-  [[ -d "$fw" ]] || continue
-  fw_name="$(basename "$fw")"
-  if [[ ! -e "$BUNDLE_PKGFW_DIR/$fw_name" ]]; then
-    ln -s "$fw" "$BUNDLE_PKGFW_DIR/$fw_name"
-  fi
-done
+sync_frameworks_into_bundle "$PRODUCT_DIR" "$BUNDLE_FW_DIR"
+sync_frameworks_into_bundle "$PKGFW_DIR" "$BUNDLE_FW_DIR"
+
+# The xcodebuild-produced binary carries an absolute PackageFrameworks rpath that
+# works in-place but fails once the app is launched as a signed bundle. Rewrite
+# it to use the embedded Frameworks directory instead.
+if binary_has_rpath "$APP_MACOS_BIN" "$PKGFW_DIR"; then
+  install_name_tool -delete_rpath "$PKGFW_DIR" "$APP_MACOS_BIN"
+fi
+if ! binary_has_rpath "$APP_MACOS_BIN" "@executable_path/../Frameworks"; then
+  install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_MACOS_BIN"
+fi
 
 cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
@@ -93,8 +158,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
-# Re-sign the bundle so TCC trusts it
-codesign --force --sign "Apple Development" --deep "$APP_BUNDLE" 2>/dev/null || true
+# Re-sign the bundle so TCC can identify the dev build consistently.
+codesign --force --sign "$CODESIGN_IDENTITY" --deep "$APP_BUNDLE"
 
 echo "[3/5] Stopping existing MacParakeet processes…"
 pkill -f "/Applications/MacParakeet.app/Contents/MacOS/MacParakeet" || true
@@ -127,7 +192,9 @@ echo "  bundle: $APP_BUNDLE"
 echo "  source: $BUILD_SOURCE"
 echo "  commit: $GIT_COMMIT"
 echo "  built-at: $BUILD_DATE_UTC"
+echo "  codesign: $CODESIGN_IDENTITY"
 echo "  log: $LOG_FILE"
+echo "  build-log: $BUILD_LOG_FILE"
 if [[ -n "$INSTALLED_PID" ]]; then
   echo "  warning: /Applications/MacParakeet.app is also running (pid $INSTALLED_PID)"
 fi
