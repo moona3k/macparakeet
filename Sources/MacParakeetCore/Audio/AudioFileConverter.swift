@@ -116,7 +116,7 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
         if inputPaths.count == 2 {
             args.append(contentsOf: [
                 "-filter_complex",
-                "[0:a][1:a]join=inputs=2:channel_layout=stereo[a]",
+                "[0:a]pan=stereo|c0=c0|c1=0*c0[a0];[1:a]pan=stereo|c0=0*c0|c1=c0[a1];[a0][a1]amix=inputs=2:duration=longest:normalize=0[a]",
                 "-map", "[a]"
             ])
             outputArgs = [

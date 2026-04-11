@@ -394,6 +394,7 @@ public final class TranscriptionViewModel {
     public func showInputPortal() {
         currentTranscription = nil
         selectedTab = .transcript
+        errorMessage = nil
     }
 
     private func completeFailedTranscription(taskID: UUID, error: Error) {

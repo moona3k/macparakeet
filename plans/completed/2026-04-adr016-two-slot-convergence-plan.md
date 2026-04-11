@@ -1,9 +1,12 @@
 # ADR-016 Two-Slot Convergence Plan
 
-> Status: **ACTIVE**
+> Status: **COMPLETED** (historical snapshot)
 > Date: 2026-04-06
+> Completed: 2026-04-10
 > Driving docs: `spec/adr/016-centralized-stt-runtime-scheduler.md`, `spec/03-architecture.md`, `spec/06-stt-engine.md`, `spec/adr/015-concurrent-dictation-meeting.md`
 > GitHub context: issue `#64`, PR `#65`
+> Implemented in: `70d76e7`, `585e142`, `a1af677` (+ follow-up hardening)
+> Note: This plan is preserved as the original convergence checklist. References below to "still not aligned" reflect pre-implementation state.
 
 ## Objective
 

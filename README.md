@@ -90,7 +90,7 @@ swift test
 scripts/dev/run_app.sh    # build, sign, launch
 ```
 
-The dev script creates a signed `.app` bundle so macOS grants mic and accessibility permissions. Set `DEVELOPMENT_TEAM=YOUR_TEAM_ID` if needed.
+The dev script creates a signed `.app` bundle so macOS grants mic and accessibility permissions. It disables target-level Xcode signing, then signs the finished bundle with the best available local identity. Override with `MACPARAKEET_CODESIGN_IDENTITY="Your Identity"` if needed.
 
 **CLI:**
 
@@ -111,6 +111,44 @@ swift run macparakeet-cli history
 | Auto-updates | Sparkle 2 |
 | YouTube | yt-dlp |
 | Platform | macOS 14.2+, Apple Silicon |
+
+## Vocabulary
+
+The Vocabulary panel controls how dictated text is cleaned up before pasting. No AI involved — it's a fast, deterministic pipeline that runs in under 1ms.
+
+You choose between two **processing modes**:
+
+- **Raw** — Paste exactly what the speech engine produces, no changes
+- **Clean** (default) — Run the text through a multi-step pipeline before pasting
+
+**The Clean pipeline** applies these steps in order:
+
+1. **Filler removal** — Strips "um", "uh", and sentence-start fillers like "so", "well", "like"
+2. **Custom words** — Applies your word replacement rules (e.g., "aye pee eye" becomes "API", or "kubernetes" gets capitalized to "Kubernetes"). Case-insensitive, whole-word matching. Words can be toggled on/off without deleting.
+3. **Voice Return** — If you've defined a trigger phrase (e.g., "press return") and speak it at the end of a dictation, it's stripped from the output and a Return keypress is simulated after paste
+4. **Snippet expansion** — Replaces short trigger phrases with longer text (e.g., "my signature" expands to "Best regards, David"). Triggers are natural language phrases because that's what the speech engine outputs. Matched longest-first to prevent collisions.
+5. **Whitespace cleanup** — Collapses spaces, fixes punctuation spacing, capitalizes the first letter
+
+Every dictation stores both the raw and clean transcript so you can always see what changed.
+
+## AI Features
+
+AI features are entirely **opt-in** and separate from speech recognition — transcription is always local. The LLM only sees transcript text, never audio.
+
+**What it does:**
+
+- **Summarize** — After a transcription or meeting recording finishes, click Summarize and pick a prompt ("Meeting Notes", "Action Items", "Key Quotes", etc.) or write your own. The LLM processes the transcript and streams back a summary. You can generate multiple summaries per transcript, each in its own tab. Prompts marked as auto-run generate summaries automatically for new transcriptions.
+- **Chat** — Ask questions about a transcript in a multi-turn chat interface. The LLM answers based on the transcript content.
+
+**Supported providers:**
+
+| Type | Options |
+|------|---------|
+| Cloud | Anthropic (Claude), OpenAI, Google Gemini, OpenRouter |
+| Local | Ollama, LM Studio |
+| CLI | Claude Code, Codex (runs as subprocess) |
+
+**Setup:** In Settings > Intelligence, pick a provider, enter an API key (cloud) or confirm the local server is running, select a model, and hit Test Connection. Cloud providers store keys in the macOS Keychain. Local providers (Ollama, LM Studio, CLI) keep everything on-device.
 
 ## Privacy
 

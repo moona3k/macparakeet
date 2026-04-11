@@ -44,6 +44,11 @@ struct MeetingAudioPairJoiner {
             storage.append(queued)
         }
 
+        mutating func prepend(_ queued: QueuedSamples) {
+            compactIfNeeded(force: true)
+            storage.insert(queued, at: headIndex)
+        }
+
         mutating func popFirst() -> QueuedSamples? {
             guard headIndex < storage.count else { return nil }
             let queued = storage[headIndex]
@@ -162,14 +167,33 @@ struct MeetingAudioPairJoiner {
     }
 
     private mutating func popPair() -> MeetingAudioPair? {
-        if let microphone = microphoneQueue.first, let system = systemQueue.first {
-            _ = microphoneQueue.popFirst()
-            _ = systemQueue.popFirst()
+        if microphoneQueue.first != nil, systemQueue.first != nil,
+           let microphone = microphoneQueue.popFirst(),
+           let system = systemQueue.popFirst() {
+            let frameCount = min(microphone.samples.count, system.samples.count)
+            guard frameCount > 0 else { return nil }
+
+            if microphone.samples.count > frameCount {
+                microphoneQueue.prepend(
+                    QueuedSamples(
+                        samples: Array(microphone.samples.dropFirst(frameCount)),
+                        hostTime: nil
+                    )
+                )
+            }
+            if system.samples.count > frameCount {
+                systemQueue.prepend(
+                    QueuedSamples(
+                        samples: Array(system.samples.dropFirst(frameCount)),
+                        hostTime: nil
+                    )
+                )
+            }
+
             activeSoloSource = nil
-            let aligned = Self.align(microphone: microphone.samples, system: system.samples)
             return MeetingAudioPair(
-                microphoneSamples: aligned.microphone,
-                systemSamples: aligned.system,
+                microphoneSamples: Array(microphone.samples.prefix(frameCount)),
+                systemSamples: Array(system.samples.prefix(frameCount)),
                 microphoneHostTime: microphone.hostTime,
                 systemHostTime: system.hostTime,
                 hasMicrophoneSignal: true,
@@ -259,18 +283,4 @@ struct MeetingAudioPairJoiner {
         queue.totalSampleCount()
     }
 
-    private static func align(microphone: [Float], system: [Float]) -> (microphone: [Float], system: [Float]) {
-        let frameCount = max(microphone.count, system.count)
-        guard frameCount > 0 else { return ([], []) }
-
-        var alignedMicrophone = microphone
-        var alignedSystem = system
-        if alignedMicrophone.count < frameCount {
-            alignedMicrophone.append(contentsOf: repeatElement(0, count: frameCount - alignedMicrophone.count))
-        }
-        if alignedSystem.count < frameCount {
-            alignedSystem.append(contentsOf: repeatElement(0, count: frameCount - alignedSystem.count))
-        }
-        return (alignedMicrophone, alignedSystem)
-    }
 }

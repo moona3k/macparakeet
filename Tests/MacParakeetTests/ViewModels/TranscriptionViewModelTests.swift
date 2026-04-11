@@ -512,12 +512,14 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.currentTranscription = t
         viewModel.selectedTab = .chat
         viewModel.hasConversations = true
+        viewModel.errorMessage = "Stale error"
 
         viewModel.showInputPortal()
 
         XCTAssertNil(viewModel.currentTranscription)
         XCTAssertEqual(viewModel.selectedTab, .transcript)
         XCTAssertFalse(viewModel.hasConversations)
+        XCTAssertNil(viewModel.errorMessage)
     }
 
     // MARK: - File Drop

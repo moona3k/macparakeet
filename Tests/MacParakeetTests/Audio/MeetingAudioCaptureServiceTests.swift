@@ -43,7 +43,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         )
 
         let capturedBuffer = CapturedPCMBuffer()
-        try await service.start { event in
+        _ = try await service.start { event in
             guard case let .microphoneBuffer(buffer, _) = event else { return }
             Task {
                 await capturedBuffer.store(buffer)
@@ -89,7 +89,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         )
 
         let events = await service.events
-        try await service.start()
+        _ = try await service.start()
 
         // 500 callbacks * 480 frames @ 48kHz = 5 seconds of source audio.
         // After 48kHz -> 16kHz resampling, that is exactly 80,000 samples,
@@ -114,6 +114,110 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         }
 
         XCTAssertEqual(systemBufferCount, 500)
+    }
+
+    func testStartReturnsVPIOSuccessReportWhenAvailable() async throws {
+        let microphone = MockMeetingMicrophoneCapture(
+            startHandler: { mode in
+                XCTAssertEqual(mode, .vpioPreferred)
+                return MeetingMicrophoneCaptureStartReport(
+                    requestedMode: .vpioPreferred,
+                    effectiveMode: .vpio
+                )
+            }
+        )
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioTapFactory: { MockMeetingSystemAudioTap() },
+            micProcessingMode: .vpioPreferred
+        )
+
+        let report = try await service.start()
+        await service.stop()
+
+        XCTAssertEqual(report.microphone.requestedMode, .vpioPreferred)
+        XCTAssertEqual(report.microphone.effectiveMode, .vpio)
+        XCTAssertEqual(microphone.requestedModes, [.vpioPreferred])
+    }
+
+    func testStartReturnsRawFallbackReportForVPIOPreferredFailure() async throws {
+        let microphone = MockMeetingMicrophoneCapture(
+            startHandler: { mode in
+                XCTAssertEqual(mode, .vpioPreferred)
+                return MeetingMicrophoneCaptureStartReport(
+                    requestedMode: .vpioPreferred,
+                    effectiveMode: .raw
+                )
+            }
+        )
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioTapFactory: { MockMeetingSystemAudioTap() },
+            micProcessingMode: .vpioPreferred
+        )
+
+        let report = try await service.start()
+        await service.stop()
+
+        XCTAssertTrue(report.microphone.fellBackToRaw)
+        XCTAssertEqual(report.microphone.effectiveMode, .raw)
+    }
+
+    func testStartThrowsWhenVPIOIsRequiredAndUnavailable() async {
+        let microphone = MockMeetingMicrophoneCapture(
+            startHandler: { mode in
+                XCTAssertEqual(mode, .vpioRequired)
+                throw MeetingAudioError.microphoneProcessingUnavailable(
+                    mode: .vpioRequired,
+                    reason: "simulated failure"
+                )
+            }
+        )
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioTapFactory: { MockMeetingSystemAudioTap() },
+            micProcessingMode: .vpioRequired
+        )
+
+        do {
+            _ = try await service.start()
+            XCTFail("Expected start to throw")
+        } catch let error as MeetingAudioError {
+            guard case .microphoneProcessingUnavailable(let mode, _) = error else {
+                XCTFail("Expected microphoneProcessingUnavailable, got \(error)")
+                return
+            }
+            XCTAssertEqual(mode, .vpioRequired)
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testEmitsRuntimeErrorEventWhenMicrophoneBufferCopyFails() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioTapFactory: { MockMeetingSystemAudioTap() }
+        )
+
+        let events = await service.events
+        _ = try await service.start()
+        defer { Task { await service.stop() } }
+
+        let invalidBuffer = try XCTUnwrap(makeInterleavedFloat64StereoBuffer(samples: [0.5, 0.5]))
+        microphone.emit(buffer: invalidBuffer, time: AVAudioTime(hostTime: 1))
+
+        var iterator = events.makeAsyncIterator()
+        let emitted = await iterator.next()
+        guard case let .error(error)? = emitted else {
+            XCTFail("Expected runtime error event, got \(String(describing: emitted))")
+            return
+        }
+
+        guard case .captureRuntimeFailure = error else {
+            XCTFail("Expected captureRuntimeFailure, got \(error)")
+            return
+        }
     }
 
     private func makeInterleavedFloatStereoBuffer(
@@ -142,13 +246,55 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         }
         return buffer
     }
+
+    private func makeInterleavedFloat64StereoBuffer(samples: [Double]) -> AVAudioPCMBuffer? {
+        guard let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat64,
+            sampleRate: 16_000,
+            channels: 2,
+            interleaved: true
+        ), let buffer = AVAudioPCMBuffer(
+            pcmFormat: format,
+            frameCapacity: AVAudioFrameCount(samples.count / 2)
+        ) else {
+            return nil
+        }
+
+        buffer.frameLength = AVAudioFrameCount(samples.count / 2)
+        let audioBuffer = buffer.audioBufferList.pointee.mBuffers
+        guard let data = audioBuffer.mData else { return nil }
+        let destination = data.assumingMemoryBound(to: Double.self)
+        samples.withUnsafeBufferPointer { pointer in
+            guard let baseAddress = pointer.baseAddress else { return }
+            destination.update(from: baseAddress, count: samples.count)
+        }
+        return buffer
+    }
 }
 
 private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @unchecked Sendable {
     private var handler: AudioBufferHandler?
+    private let startHandler: (MeetingMicProcessingMode) throws -> MeetingMicrophoneCaptureStartReport
+    private(set) var requestedModes: [MeetingMicProcessingMode] = []
 
-    func start(handler: @escaping AudioBufferHandler) throws {
+    init(
+        startHandler: @escaping (MeetingMicProcessingMode) throws -> MeetingMicrophoneCaptureStartReport = { _ in
+            MeetingMicrophoneCaptureStartReport(
+                requestedMode: .vpioPreferred,
+                effectiveMode: .vpio
+            )
+        }
+    ) {
+        self.startHandler = startHandler
+    }
+
+    func start(
+        processingMode: MeetingMicProcessingMode,
+        handler: @escaping AudioBufferHandler
+    ) throws -> MeetingMicrophoneCaptureStartReport {
         self.handler = handler
+        requestedModes.append(processingMode)
+        return try startHandler(processingMode)
     }
 
     func stop() {

@@ -66,7 +66,7 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 
 | Requirement | Source Files | Test Files |
 |------------|-------------|------------|
-| REQ-MEET-001 | `MacParakeetCore/Services/MeetingSoftwareAEC.swift`, `MacParakeetCore/Services/MeetingRecordingService.swift` | `MeetingSoftwareAECTests.swift`, `MeetingRecordingServiceTests.swift` |
+| REQ-MEET-001 | `MacParakeetCore/Audio/MicrophoneCapture.swift`, `MacParakeetCore/Audio/MeetingAudioCaptureService.swift`, `MacParakeetCore/Services/MicConditioner.swift`, `MacParakeetCore/Services/CaptureOrchestrator.swift`, `MacParakeetCore/Services/LiveChunkTranscriber.swift`, `MacParakeetCore/Services/MeetingRecordingService.swift`, `MacParakeetCore/Services/MeetingSoftwareAEC.swift` | `MeetingAudioCaptureServiceTests.swift`, `MeetingRecordingServiceTests.swift`, `MeetingSoftwareAECTests.swift` |
 | REQ-MEET-002 | `MacParakeetCore/Services/MeetingAudioPairJoiner.swift`, `MacParakeetCore/Services/MeetingRecordingService.swift` | `MeetingAudioPairJoinerTests.swift`, `MeetingRecordingServiceTests.swift` |
 | REQ-MEET-003 | `MacParakeet/Views/MeetingRecording/MeetingsView.swift` | (none — copy-only UI change) |
 | REQ-MEET-004 | `MacParakeetCore/Audio/AudioFileConverter.swift`, `MacParakeetCore/Audio/MeetingAudioStorageWriter.swift` | `AudioFileConverterTests.swift` |

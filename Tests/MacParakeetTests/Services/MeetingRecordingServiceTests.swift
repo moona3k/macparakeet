@@ -27,6 +27,26 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
     }
 
+    func testRuntimeCaptureErrorTransitionsCaptureModeToStopped() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording()
+        await captureService.yield(.error(.captureRuntimeFailure("simulated runtime failure")))
+        try await Task.sleep(for: .milliseconds(50))
+
+        let mode = await service.captureMode
+        XCTAssertEqual(mode, .stopped)
+
+        await service.cancelRecording()
+    }
+
     func testStopRecordingPreservesCrossStreamHostTimeOffsetsInPreparedTranscript() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
@@ -361,6 +381,46 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
     }
 
+    func testAsymmetricSourceCadenceDoesNotInflateSystemChunkTimeline() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = ChunkRangeRecordingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording()
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        for index in 0..<500 {
+            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 160, sampleValue: 0.25))
+            await captureService.yield(.systemBuffer(
+                systemBuffer,
+                AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0 + (Double(index) * 0.01)))
+            ))
+        }
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let ranges = await sttClient.rangesBySource
+        let microphoneRange = try XCTUnwrap(ranges[.microphone])
+        let systemRange = try XCTUnwrap(ranges[.system])
+        let microphoneSpanMs = microphoneRange.maxEndMs - microphoneRange.minStartMs
+        let systemSpanMs = systemRange.maxEndMs - systemRange.minStartMs
+
+        XCTAssertGreaterThan(microphoneSpanMs, 0)
+        XCTAssertGreaterThan(systemSpanMs, 0)
+        XCTAssertLessThanOrEqual(abs(microphoneSpanMs - systemSpanMs), 1_000)
+    }
+
     private func waitForLiveChunkTranscriptionStart(
         _ client: SleepingMeetingSTTClient,
         timeout: Duration = .seconds(1)
@@ -413,8 +473,14 @@ private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
         return stream
     }
 
-    func start() async throws {
+    func start() async throws -> MeetingAudioCaptureStartReport {
         _ = events
+        return MeetingAudioCaptureStartReport(
+            microphone: MeetingMicrophoneCaptureStartReport(
+                requestedMode: .vpioPreferred,
+                effectiveMode: .vpio
+            )
+        )
     }
 
     func stop() async {
@@ -677,6 +743,72 @@ private actor CountingMeetingSTTClient: STTClientProtocol {
         } else if fileName.hasPrefix("system-") {
             callCounts.system += 1
         }
+        return STTResult(text: "", words: [])
+    }
+
+    func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {}
+
+    func backgroundWarmUp() async {}
+
+    func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>) {
+        let stream = AsyncStream<STTWarmUpState> { continuation in
+            continuation.yield(.ready)
+            continuation.finish()
+        }
+        return (UUID(), stream)
+    }
+
+    func removeWarmUpObserver(id: UUID) async {}
+
+    func isReady() async -> Bool { true }
+
+    func clearModelCache() async {}
+
+    func shutdown() async {}
+}
+
+private actor ChunkRangeRecordingMeetingSTTClient: STTClientProtocol {
+    struct ChunkRange: Sendable {
+        var minStartMs: Int
+        var maxEndMs: Int
+    }
+
+    private(set) var rangesBySource: [AudioSource: ChunkRange] = [:]
+
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        let fileName = URL(fileURLWithPath: audioPath).lastPathComponent
+        let stem = fileName.replacingOccurrences(of: ".wav", with: "")
+        let parts = stem.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false)
+        guard parts.count == 3,
+              let startMs = Int(parts[1]),
+              let endMs = Int(parts[2]) else {
+            return STTResult(text: "", words: [])
+        }
+
+        let source: AudioSource?
+        if parts[0] == "microphone" {
+            source = .microphone
+        } else if parts[0] == "system" {
+            source = .system
+        } else {
+            source = nil
+        }
+
+        if let source {
+            if let existing = rangesBySource[source] {
+                rangesBySource[source] = ChunkRange(
+                    minStartMs: min(existing.minStartMs, startMs),
+                    maxEndMs: max(existing.maxEndMs, endMs)
+                )
+            } else {
+                rangesBySource[source] = ChunkRange(minStartMs: startMs, maxEndMs: endMs)
+            }
+        }
+
         return STTResult(text: "", words: [])
     }
 

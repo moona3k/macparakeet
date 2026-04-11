@@ -42,9 +42,16 @@ public final class MicrophoneCapture: @unchecked Sendable {
         }
     }
 
-    public func start(handler: @escaping AudioBufferHandler) throws {
+    public func start(
+        processingMode: MeetingMicProcessingMode = .vpioPreferred,
+        handler: @escaping AudioBufferHandler
+    ) throws -> MeetingMicrophoneCaptureStartReport {
         var startError: Error?
         var didStart = false
+        var startReport = MeetingMicrophoneCaptureStartReport(
+            requestedMode: processingMode,
+            effectiveMode: .raw
+        )
 
         lifecycleQueue.sync {
             guard state == .idle else {
@@ -61,7 +68,10 @@ public final class MicrophoneCapture: @unchecked Sendable {
             state = .starting
             handlerLock.withLock { bufferHandler = handler }
             do {
-                try installTapAndStartEngine(inputNode: inputNode)
+                startReport = try installTapAndStartEngine(
+                    inputNode: inputNode,
+                    processingMode: processingMode
+                )
                 state = .running
                 didStart = true
             } catch {
@@ -81,6 +91,7 @@ public final class MicrophoneCapture: @unchecked Sendable {
         if didStart {
             logger.info("Microphone capture started")
         }
+        return startReport
     }
 
     public func stop() {
@@ -106,7 +117,10 @@ public final class MicrophoneCapture: @unchecked Sendable {
         }
     }
 
-    private func installTapAndStartEngine(inputNode: AVAudioInputNode) throws {
+    private func installTapAndStartEngine(
+        inputNode: AVAudioInputNode,
+        processingMode: MeetingMicProcessingMode
+    ) throws -> MeetingMicrophoneCaptureStartReport {
         let format: AVAudioFormat
         do {
             format = try catchingObjCException {
@@ -121,6 +135,11 @@ public final class MicrophoneCapture: @unchecked Sendable {
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw MeetingAudioError.noMicrophoneAvailable
         }
+
+        let effectiveMode = try configureInputProcessing(
+            for: inputNode,
+            requestedMode: processingMode
+        )
 
         do {
             // Use `format: nil` so AVFAudio provides the bus's live format.
@@ -145,6 +164,66 @@ public final class MicrophoneCapture: @unchecked Sendable {
                 inputNode.removeTap(onBus: 0)
             }
             throw MeetingAudioError.audioEngineStartFailed(error.localizedDescription)
+        }
+
+        return MeetingMicrophoneCaptureStartReport(
+            requestedMode: processingMode,
+            effectiveMode: effectiveMode
+        )
+    }
+
+    private func configureInputProcessing(
+        for inputNode: AVAudioInputNode,
+        requestedMode: MeetingMicProcessingMode
+    ) throws -> MeetingMicProcessingEffectiveMode {
+        switch requestedMode {
+        case .raw:
+            do {
+                try setVoiceProcessing(enabled: false, on: inputNode)
+            } catch {
+                logger.debug(
+                    "meeting_mic_processing_raw_disable_failed reason=\(error.localizedDescription, privacy: .public)"
+                )
+            }
+            return .raw
+        case .vpioPreferred:
+            do {
+                try setVoiceProcessing(enabled: true, on: inputNode)
+                logger.info("meeting_mic_processing mode=vpio requested=vpioPreferred effective=vpio")
+                return .vpio
+            } catch {
+                logger.warning(
+                    "meeting_mic_processing_fallback requested=vpioPreferred effective=raw reason=\(error.localizedDescription, privacy: .public)"
+                )
+                do {
+                    try setVoiceProcessing(enabled: false, on: inputNode)
+                } catch {
+                    logger.debug(
+                        "meeting_mic_processing_fallback_disable_failed reason=\(error.localizedDescription, privacy: .public)"
+                    )
+                }
+                return .raw
+            }
+        case .vpioRequired:
+            do {
+                try setVoiceProcessing(enabled: true, on: inputNode)
+                logger.info("meeting_mic_processing mode=vpio requested=vpioRequired effective=vpio")
+                return .vpio
+            } catch {
+                throw MeetingAudioError.microphoneProcessingUnavailable(
+                    mode: .vpioRequired,
+                    reason: error.localizedDescription
+                )
+            }
+        }
+    }
+
+    private func setVoiceProcessing(
+        enabled: Bool,
+        on inputNode: AVAudioInputNode
+    ) throws {
+        try catchingObjCException {
+            try inputNode.setVoiceProcessingEnabled(enabled)
         }
     }
 }

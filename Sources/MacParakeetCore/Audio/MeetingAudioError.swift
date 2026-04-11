@@ -4,6 +4,7 @@ public enum MeetingAudioError: Error, LocalizedError, Sendable {
     case microphonePermissionDenied
     case screenRecordingPermissionDenied
     case noMicrophoneAvailable
+    case microphoneProcessingUnavailable(mode: MeetingMicProcessingMode, reason: String)
     case audioEngineStartFailed(String)
     case tapCreationFailed(OSStatus)
     case aggregateDeviceCreationFailed(OSStatus)
@@ -14,6 +15,7 @@ public enum MeetingAudioError: Error, LocalizedError, Sendable {
     case noAudioCaptured
     case storageFailed(String)
     case mixFailed(String)
+    case captureRuntimeFailure(String)
 
     public var errorDescription: String? {
         switch self {
@@ -23,6 +25,8 @@ public enum MeetingAudioError: Error, LocalizedError, Sendable {
             return "Screen Recording permission denied. Enable MacParakeet in System Settings > Privacy & Security > Screen & System Audio Recording."
         case .noMicrophoneAvailable:
             return "No microphone available."
+        case .microphoneProcessingUnavailable(let mode, let reason):
+            return "Microphone processing unavailable (\(String(describing: mode))): \(reason)"
         case .audioEngineStartFailed(let message):
             return "Audio engine failed to start: \(message)"
         case .tapCreationFailed(let status):
@@ -43,6 +47,8 @@ public enum MeetingAudioError: Error, LocalizedError, Sendable {
             return "Failed to store meeting audio: \(message)"
         case .mixFailed(let message):
             return "Failed to combine meeting audio: \(message)"
+        case .captureRuntimeFailure(let message):
+            return "Meeting capture failed while running: \(message)"
         }
     }
 }

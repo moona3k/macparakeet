@@ -41,28 +41,19 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let mixedAudioURL: URL
     }
 
-    private struct PendingChunkTask: Sendable {
-        let id: UUID
-        let task: Task<Void, Never>
-    }
-
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingRecordingService")
     private let clock = ContinuousClock()
     private let audioCaptureService: any MeetingAudioCapturing
     private let audioConverter: any AudioFileConverting
-    private let sttTranscriber: STTTranscribing
     private let fileManager: FileManager
+    private let requestedMicProcessingMode: MeetingMicProcessingMode
+    private let liveChunkTranscriber: LiveChunkTranscriber
 
     private var currentSession: Session?
     private var writer: MeetingAudioStorageWriter?
     private var processingTask: Task<Void, Never>?
-    private var pendingChunkTasks: [PendingChunkTask] = []
-    private var nextChunkSequence: [AudioSource: Int] = [:]
-    private var sourceTimelineOffsetsMs: [AudioSource: Int] = [:]
-    private var pairJoiner = MeetingAudioPairJoiner()
-    private var microphoneChunker = AudioChunker()
-    private var systemChunker = AudioChunker()
-    private var chunkResultBuffer = MeetingChunkResultBuffer()
+    private var captureOrchestrator = CaptureOrchestrator()
+    private var micConditioner: any MicConditioning = VPIOConditioner()
     private var transcriptAssembler = MeetingTranscriptAssembler()
     private var chunkTranscriptionFailed = false
     private var isTranscriptionLagging = false
@@ -71,7 +62,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var recentSystemRms: Float = 0
     private var recentProcessedMicRms: Float = 0
     private var latestSystemSignalAt: ContinuousClock.Instant?
-    private var softwareAEC = MeetingSoftwareAEC()
     private var syncLagEmaMs: Double?
     private var syncLagWarningActive = false
     private var lastLoggedSyncLagBucketMs: Int?
@@ -90,15 +80,22 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private static let syncLagWarningThresholdMs: Double = 120
 
     public init(
-        audioCaptureService: any MeetingAudioCapturing = MeetingAudioCaptureService(),
+        micProcessingMode: MeetingMicProcessingMode = .vpioPreferred,
+        audioCaptureService: (any MeetingAudioCapturing)? = nil,
         audioConverter: any AudioFileConverting = AudioFileConverter(),
         sttTranscriber: STTTranscribing,
         fileManager: FileManager = .default
     ) {
-        self.audioCaptureService = audioCaptureService
+        self.requestedMicProcessingMode = micProcessingMode
+        self.audioCaptureService = audioCaptureService ?? MeetingAudioCaptureService(
+            micProcessingMode: micProcessingMode
+        )
         self.audioConverter = audioConverter
-        self.sttTranscriber = sttTranscriber
         self.fileManager = fileManager
+        self.liveChunkTranscriber = LiveChunkTranscriber(
+            sttTranscriber: sttTranscriber,
+            fileManager: fileManager
+        )
     }
 
     public var isRecording: Bool {
@@ -162,12 +159,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.latestLevels = MeetingAudioLevels()
         self.writer = writer
         self.currentSession = session
-        self.pendingChunkTasks = []
-        self.nextChunkSequence = [:]
-        pairJoiner.reset()
-        await microphoneChunker.reset()
-        await systemChunker.reset()
-        chunkResultBuffer.reset()
+        await captureOrchestrator.reset()
+        micConditioner = VPIOConditioner()
         transcriptAssembler.reset()
         chunkTranscriptionFailed = false
         isTranscriptionLagging = false
@@ -175,10 +168,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         recentSystemRms = 0
         recentProcessedMicRms = 0
         latestSystemSignalAt = nil
-        softwareAEC.reset()
         syncLagEmaMs = nil
         syncLagWarningActive = false
         lastLoggedSyncLagBucketMs = nil
+
+        await liveChunkTranscriber.startSession(
+            .init(id: session.id, chunkFolderURL: session.chunkFolderURL),
+            onEvent: { [weak self] event in
+                await self?.handleLiveChunkTranscriberEvent(event, sessionID: session.id)
+            }
+        )
 
         processingTask = Task { [weak self] in
             guard let self else { return }
@@ -188,11 +187,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
 
         do {
-            try await audioCaptureService.start()
+            let captureStartReport = try await audioCaptureService.start()
+            configureMicConditioner(from: captureStartReport.microphone)
             logger.info("Meeting recording started: \(sessionID.uuidString, privacy: .public)")
         } catch {
             processingTask?.cancel()
             processingTask = nil
+            await liveChunkTranscriber.finishSession()
             self.writer?.finalize()
             self.writer = nil
             cleanupState()
@@ -209,19 +210,22 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         await audioCaptureService.stop()
         await processingTask?.value
         processingTask = nil
-        await flushPendingJoinedFrames(for: session)
-        await flushTranscriptChunkers(for: session)
+        await flushPendingJoinedFrames()
+        await flushTranscriptChunkers()
         // If live preview falls behind, discard partial speaker metadata so
         // finalization can rebuild speakers from the mixed recording instead.
-        let preparedTranscriptReady = await waitForPendingChunkTasksToDrain(timeout: .milliseconds(150))
+        let preparedTranscriptReady = await liveChunkTranscriber.waitForPendingTasksToDrain(
+            timeout: .milliseconds(150)
+        )
         if !preparedTranscriptReady {
-            await cancelPendingChunkTasks(waitForCancellation: false)
+            await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: false)
         }
         writer?.finalize()
         writer = nil
 
         let inputURLs = try existingSourceURLs(for: session)
         guard !inputURLs.isEmpty else {
+            await liveChunkTranscriber.finishSession()
             cleanupState()
             throw MeetingAudioError.noAudioCaptured
         }
@@ -229,6 +233,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         do {
             try await audioConverter.mixToM4A(inputURLs: inputURLs, outputURL: session.mixedAudioURL)
         } catch {
+            await liveChunkTranscriber.finishSession()
             cleanupState()
             throw MeetingAudioError.mixFailed(error.localizedDescription)
         }
@@ -247,6 +252,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 : transcriptAssembler.finalizedTranscript(durationMs: Int(durationSeconds * 1000))
         )
 
+        await liveChunkTranscriber.finishSession()
         cleanupState()
         logger.info("Meeting recording finalized: \(session.id.uuidString, privacy: .public)")
         return output
@@ -259,7 +265,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         processingTask?.cancel()
         await processingTask?.value
         processingTask = nil
-        await cancelPendingChunkTasks(waitForCancellation: true)
+        await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: true)
+        await liveChunkTranscriber.finishSession()
         writer?.finalize()
         writer = nil
         cleanupState()
@@ -270,283 +277,156 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private func handleCaptureEvent(_ event: MeetingAudioCaptureEvent) async {
         switch event {
         case .microphoneBuffer(let buffer, let time):
+            guard !captureFailed else { return }
             do {
                 try writer?.write(buffer, source: .microphone)
                 latestLevels.microphone = buffer.rmsLevel
-                if let samples = AudioChunker.extractAndResample(from: buffer),
-                   let session = currentSession {
+                if let samples = AudioChunker.extractAndResample(from: buffer) {
                     await ingestResampledSamples(
                         samples,
                         source: .microphone,
-                        hostTime: time.isHostTimeValid ? time.hostTime : nil,
-                        session: session
+                        hostTime: time.isHostTimeValid ? time.hostTime : nil
                     )
                 }
             } catch {
                 logger.error("Failed to write microphone audio: \(error.localizedDescription, privacy: .public)")
             }
         case .systemBuffer(let buffer, let time):
+            guard !captureFailed else { return }
             do {
                 try writer?.write(buffer, source: .system)
                 latestLevels.system = buffer.rmsLevel
                 updateSystemRms(with: latestLevels.system)
-                if let samples = AudioChunker.extractAndResample(from: buffer),
-                   let session = currentSession {
+                if let samples = AudioChunker.extractAndResample(from: buffer) {
                     await ingestResampledSamples(
                         samples,
                         source: .system,
-                        hostTime: time.isHostTimeValid ? time.hostTime : nil,
-                        session: session
+                        hostTime: time.isHostTimeValid ? time.hostTime : nil
                     )
                 }
             } catch {
                 logger.error("Failed to write system audio: \(error.localizedDescription, privacy: .public)")
             }
         case .error(let error):
+            guard !captureFailed else { return }
             captureFailed = true
+            latestLevels = MeetingAudioLevels()
             logger.error("Meeting capture event error: \(error.localizedDescription, privacy: .public)")
+            await audioCaptureService.stop()
         }
     }
 
     private func ingestResampledSamples(
         _ samples: [Float],
         source: AudioSource,
-        hostTime: UInt64?,
-        session: Session
+        hostTime: UInt64?
     ) async {
-        pairJoiner.push(samples: samples, hostTime: hostTime, source: source)
-        logJoinerDiagnostics(pairJoiner.drainDiagnostics())
-        for pair in pairJoiner.drainPairs() {
-            await processJoinedPair(pair, session: session)
-        }
-    }
-
-    private func processJoinedPair(_ pair: MeetingAudioPair, session: Session) async {
-        observePairSyncLag(pair)
-
-        if pair.hasMicrophoneSignal {
-            let processedMicrophone = softwareAEC.process(
-                microphone: pair.microphoneSamples,
-                speaker: pair.systemSamples
-            )
-            updateProcessedMicrophoneRms(with: chunkRms(for: processedMicrophone))
-            if let microphoneChunk = offsetChunk(
-                await microphoneChunker.addSamples(processedMicrophone),
-                source: .microphone,
-                hostTime: pair.microphoneHostTime
-            ) {
-                if !shouldTranscribeChunk(microphoneChunk) {
-                    logger.debug("Skipping low-signal microphone chunk")
-                } else if shouldSuppressMicrophoneChunkTranscription() {
-                    logger.debug("Suppressing microphone chunk due to dominant recent system audio")
-                } else {
-                    enqueueTranscription(for: microphoneChunk, source: .microphone, session: session)
-                }
-            }
-        }
-
-        if pair.hasSystemSignal {
-            if let systemChunk = offsetChunk(
-                await systemChunker.addSamples(pair.systemSamples),
-                source: .system,
-                hostTime: pair.systemHostTime
-            ) {
-                if shouldTranscribeChunk(systemChunk) {
-                    enqueueTranscription(for: systemChunk, source: .system, session: session)
-                } else {
-                    logger.debug("Skipping low-signal system chunk")
-                }
-            }
-        }
-    }
-
-    private func flushTranscriptChunkers(for session: Session) async {
-        if let chunk = offsetChunk(await microphoneChunker.flush(), source: .microphone) {
-            if !shouldTranscribeChunk(chunk) {
-                logger.debug("Skipping low-signal flushed microphone chunk")
-            } else if shouldSuppressMicrophoneChunkTranscription() {
-                logger.debug("Suppressing flushed microphone chunk due to dominant recent system audio")
-            } else {
-                enqueueTranscription(for: chunk, source: .microphone, session: session)
-            }
-        }
-        if let chunk = offsetChunk(await systemChunker.flush(), source: .system) {
-            if shouldTranscribeChunk(chunk) {
-                enqueueTranscription(for: chunk, source: .system, session: session)
-            } else {
-                logger.debug("Skipping low-signal flushed system chunk")
-            }
-        }
-    }
-
-    private func flushPendingJoinedFrames(for session: Session) async {
-        for pair in pairJoiner.flushRemainingPairs() {
-            await processJoinedPair(pair, session: session)
-        }
-    }
-
-    private func offsetChunk(
-        _ chunk: AudioChunker.AudioChunk?,
-        source: AudioSource,
-        hostTime: UInt64? = nil
-    ) -> AudioChunker.AudioChunk? {
-        guard let chunk else { return nil }
-        let offsetMs = timelineOffsetMs(for: source, hostTime: hostTime)
-        guard offsetMs != 0 else { return chunk }
-        return AudioChunker.AudioChunk(
-            samples: chunk.samples,
-            startMs: chunk.startMs + offsetMs,
-            endMs: chunk.endMs + offsetMs
-        )
-    }
-
-    private func timelineOffsetMs(for source: AudioSource, hostTime: UInt64?) -> Int {
-        if let existing = sourceTimelineOffsetsMs[source] {
-            return existing
-        }
-        guard let hostTime else {
-            return 0
-        }
-
-        let offsetMs = Int((AVAudioTime.seconds(forHostTime: hostTime) * 1000).rounded())
-        sourceTimelineOffsetsMs[source] = offsetMs
-        return offsetMs
-    }
-
-    private func enqueueTranscription(
-        for chunk: AudioChunker.AudioChunk,
-        source: AudioSource,
-        session: Session
-    ) {
-        let sequence = nextChunkSequence[source] ?? 0
-        nextChunkSequence[source] = sequence + 1
-
-        let taskID = UUID()
-        let task = Task { [weak self] in
-            guard let self else { return }
-
-            do {
-                let result = try await self.transcribeChunk(chunk, source: source, session: session)
-                await self.handleChunkTranscriptionResult(
-                    result,
-                    chunk: chunk,
-                    source: source,
-                    sequence: sequence,
-                    sessionID: session.id
-                )
-            } catch is CancellationError {
-                // Cancellation is expected when stopRecording prioritizes finalize.
-            } catch {
-                await self.handleChunkTranscriptionFailure(
-                    error,
-                    source: source,
-                    sequence: sequence,
-                    sessionID: session.id
-                )
-            }
-
-            await self.removePendingChunkTask(id: taskID)
-        }
-
-        pendingChunkTasks.append(PendingChunkTask(id: taskID, task: task))
-    }
-
-    private func transcribeChunk(
-        _ chunk: AudioChunker.AudioChunk,
-        source: AudioSource,
-        session: Session
-    ) async throws -> STTResult {
-        let chunkURL = session.chunkFolderURL
-            .appendingPathComponent("\(source.rawValue)-\(chunk.startMs)-\(chunk.endMs).wav")
-        try writeChunkAudio(samples: chunk.samples, to: chunkURL)
-        defer { try? fileManager.removeItem(at: chunkURL) }
-        return try await sttTranscriber.transcribe(
-            audioPath: chunkURL.path,
-            job: .meetingLiveChunk,
-            onProgress: nil
-        )
-    }
-
-    private func writeChunkAudio(samples: [Float], to url: URL) throws {
-        guard let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 16000,
-            channels: 1,
-            interleaved: false
-        ) else {
-            throw MeetingAudioError.storageFailed("invalid chunk format")
-        }
-        guard let buffer = AVAudioPCMBuffer(
-            pcmFormat: format,
-            frameCapacity: AVAudioFrameCount(samples.count)
-        ) else {
-            throw MeetingAudioError.storageFailed("failed to allocate chunk buffer")
-        }
-        buffer.frameLength = AVAudioFrameCount(samples.count)
-        if let channelData = buffer.floatChannelData {
-            samples.withUnsafeBufferPointer { pointer in
-                channelData[0].update(from: pointer.baseAddress!, count: samples.count)
-            }
-        }
-
-        let file = try AVAudioFile(
-            forWriting: url,
-            settings: format.settings,
-            commonFormat: .pcmFormatFloat32,
-            interleaved: false
-        )
-        try file.write(from: buffer)
-    }
-
-    private func handleChunkTranscriptionResult(
-        _ result: STTResult,
-        chunk: AudioChunker.AudioChunk,
-        source: AudioSource,
-        sequence: Int,
-        sessionID: UUID
-    ) {
-        guard currentSession?.id == sessionID else { return }
-        logger.info("Chunk transcribed: source=\(source.rawValue, privacy: .public) seq=\(sequence) words=\(result.words.count) range=\(chunk.startMs)-\(chunk.endMs)ms")
-        let readyResults = chunkResultBuffer.receiveSuccess(
-            sequence: sequence,
+        let output = await captureOrchestrator.ingest(
+            samples: samples,
             source: source,
-            chunk: chunk,
-            result: result
+            hostTime: hostTime,
+            micConditioner: micConditioner
         )
+        await handleCaptureOrchestratorOutput(output)
+    }
 
-        for ready in readyResults {
-            let update = transcriptAssembler.apply(result: ready.result, chunk: ready.chunk, source: source)
-            yieldTranscriptUpdate(update)
+    private func handleCaptureOrchestratorOutput(
+        _ output: CaptureOrchestratorOutput,
+        flushed: Bool = false
+    ) async {
+        logJoinerDiagnostics(output.diagnostics)
+
+        for pair in output.pairMetadata {
+            observePairSyncLag(microphoneHostTime: pair.microphoneHostTime, systemHostTime: pair.systemHostTime)
+            if let processedMicRms = pair.processedMicrophoneRms {
+                updateProcessedMicrophoneRms(with: processedMicRms)
+            }
+        }
+
+        for chunk in output.chunks {
+            switch chunk.source {
+            case .microphone:
+                if !shouldTranscribeChunk(chunk.chunk) {
+                    if flushed {
+                        logger.debug("Skipping low-signal flushed microphone chunk")
+                    } else {
+                        logger.debug("Skipping low-signal microphone chunk")
+                    }
+                } else if shouldSuppressMicrophoneChunkTranscription() {
+                    if flushed {
+                        logger.debug("Suppressing flushed microphone chunk due to dominant recent system audio")
+                    } else {
+                        logger.debug("Suppressing microphone chunk due to dominant recent system audio")
+                    }
+                } else {
+                    await liveChunkTranscriber.enqueue(chunk: chunk.chunk, source: .microphone)
+                }
+            case .system:
+                if shouldTranscribeChunk(chunk.chunk) {
+                    await liveChunkTranscriber.enqueue(chunk: chunk.chunk, source: .system)
+                } else {
+                    if flushed {
+                        logger.debug("Skipping low-signal flushed system chunk")
+                    } else {
+                        logger.debug("Skipping low-signal system chunk")
+                    }
+                }
+            }
         }
     }
 
-    private func handleChunkTranscriptionFailure(
-        _ error: Error,
-        source: AudioSource,
-        sequence: Int,
+    private func flushTranscriptChunkers() async {
+        let chunks = await captureOrchestrator.flushChunkers()
+        var output = CaptureOrchestratorOutput()
+        output.chunks = chunks
+        await handleCaptureOrchestratorOutput(output, flushed: true)
+    }
+
+    private func flushPendingJoinedFrames() async {
+        let output = await captureOrchestrator.flushPendingPairs(micConditioner: micConditioner)
+        await handleCaptureOrchestratorOutput(output)
+    }
+
+    private func handleLiveChunkTranscriberEvent(
+        _ event: LiveChunkTranscriber.Event,
         sessionID: UUID
     ) {
         guard currentSession?.id == sessionID else { return }
-        logger.notice("Chunk failed: source=\(source.rawValue, privacy: .public) seq=\(sequence) error=\(error.localizedDescription, privacy: .public)")
-
-        let droppedByBackpressure =
-            if case STTSchedulerError.droppedDueToBackpressure(job: .meetingLiveChunk) = error {
-                true
-            } else {
-                false
+        switch event {
+        case .orderedResults(let readyResults):
+            for ready in readyResults {
+                let update = transcriptAssembler.apply(
+                    result: ready.result,
+                    chunk: ready.chunk,
+                    source: ready.source
+                )
+                yieldTranscriptUpdate(update)
             }
-
-        if droppedByBackpressure {
-            logger.notice("Meeting live chunk dropped by scheduler backpressure")
+        case .backpressureDrop:
             isTranscriptionLagging = true
-        } else {
-            logger.error("Meeting chunk transcription failed: \(error.localizedDescription, privacy: .public)")
+            logger.notice("Meeting live chunk dropped by scheduler backpressure")
+        case .transcriptionFailed(let message):
             chunkTranscriptionFailed = true
+            logger.error("Meeting chunk transcription failed: \(message, privacy: .public)")
         }
-        let readyResults = chunkResultBuffer.receiveFailure(sequence: sequence, source: source)
-        for ready in readyResults {
-            let update = transcriptAssembler.apply(result: ready.result, chunk: ready.chunk, source: source)
-            yieldTranscriptUpdate(update)
+    }
+
+    private func configureMicConditioner(from report: MeetingMicrophoneCaptureStartReport) {
+        switch report.effectiveMode {
+        case .vpio:
+            micConditioner = VPIOConditioner()
+        case .raw:
+            micConditioner = SoftwareAECConditioner()
+        }
+
+        if report.fellBackToRaw {
+            logger.notice(
+                "meeting_mic_conditioner_fallback requested=\(String(describing: report.requestedMode), privacy: .public) effective=raw requested_policy=\(String(describing: self.requestedMicProcessingMode), privacy: .public)"
+            )
+        } else {
+            logger.info(
+                "meeting_mic_conditioner_selected requested=\(String(describing: report.requestedMode), privacy: .public) effective=\(report.effectiveMode.rawValue, privacy: .public)"
+            )
         }
     }
 
@@ -588,35 +468,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
     }
 
-    private func cancelPendingChunkTasks(waitForCancellation: Bool) async {
-        let tasks = pendingChunkTasks.map(\.task)
-        pendingChunkTasks = []
-
-        for task in tasks {
-            task.cancel()
-        }
-
-        guard waitForCancellation else { return }
-        for task in tasks {
-            await task.value
-        }
-    }
-
-    private func waitForPendingChunkTasksToDrain(timeout: Duration) async -> Bool {
-        let startedAt = ContinuousClock.now
-        while !pendingChunkTasks.isEmpty {
-            if startedAt.duration(to: .now) > timeout {
-                return false
-            }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        return true
-    }
-
-    private func removePendingChunkTask(id: UUID) {
-        pendingChunkTasks.removeAll { $0.id == id }
-    }
-
     private func updateSystemRms(with bufferRms: Float) {
         recentSystemRms = exponentialMovingAverage(previous: recentSystemRms, sample: bufferRms)
         if bufferRms > Self.systemActiveFloor {
@@ -654,8 +505,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
     }
 
-    private func observePairSyncLag(_ pair: MeetingAudioPair) {
-        guard let micHostTime = pair.microphoneHostTime, let systemHostTime = pair.systemHostTime else { return }
+    private func observePairSyncLag(
+        microphoneHostTime: UInt64?,
+        systemHostTime: UInt64?
+    ) {
+        guard let micHostTime = microphoneHostTime, let systemHostTime = systemHostTime else { return }
         let micSeconds = AVAudioTime.seconds(forHostTime: micHostTime)
         let systemSeconds = AVAudioTime.seconds(forHostTime: systemHostTime)
         let lagMs = (micSeconds - systemSeconds) * 1000
@@ -702,19 +556,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func cleanupState() {
         currentSession = nil
-        pendingChunkTasks = []
-        nextChunkSequence = [:]
-        sourceTimelineOffsetsMs = [:]
-        pairJoiner.reset()
+        micConditioner = VPIOConditioner()
         latestLevels = MeetingAudioLevels()
         recentSystemRms = 0
         recentProcessedMicRms = 0
         latestSystemSignalAt = nil
-        softwareAEC.reset()
         syncLagEmaMs = nil
         syncLagWarningActive = false
         lastLoggedSyncLagBucketMs = nil
-        chunkResultBuffer.reset()
         transcriptAssembler.reset()
         chunkTranscriptionFailed = false
         isTranscriptionLagging = false

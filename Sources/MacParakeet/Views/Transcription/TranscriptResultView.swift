@@ -418,7 +418,7 @@ struct TranscriptResultView: View {
                 } label: {
                     Label("New Transcription", systemImage: "plus")
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
                 .tint(DesignSystem.Colors.accent)
             }
 

@@ -59,11 +59,32 @@ final class AudioFileConverterTests: XCTestCase {
         )
 
         XCTAssertTrue(args.contains("-filter_complex"))
-        XCTAssertTrue(args.contains("[0:a][1:a]join=inputs=2:channel_layout=stereo[a]"))
+        XCTAssertTrue(args.contains(
+            "[0:a]pan=stereo|c0=c0|c1=0*c0[a0];[1:a]pan=stereo|c0=0*c0|c1=c0[a1];[a0][a1]amix=inputs=2:duration=longest:normalize=0[a]"
+        ))
         XCTAssertTrue(args.contains("-map"))
         XCTAssertTrue(args.contains("[a]"))
         XCTAssertTrue(args.contains("-ac"))
         XCTAssertTrue(args.contains("2"))
+    }
+
+    func testFFmpegMixArgumentsKeepLongestDualSourceDuration() {
+        let converter = AudioFileConverter()
+        let args = converter.ffmpegMixArguments(
+            inputPaths: ["/tmp/mic.m4a", "/tmp/system.m4a"],
+            outputPath: "/tmp/meeting.m4a"
+        )
+
+        guard let filterFlagIndex = args.firstIndex(of: "-filter_complex") else {
+            return XCTFail("Missing -filter_complex in ffmpeg mix args")
+        }
+        guard args.indices.contains(filterFlagIndex + 1) else {
+            return XCTFail("Missing -filter_complex value")
+        }
+
+        let filterArg = args[filterFlagIndex + 1]
+        XCTAssertTrue(filterArg.contains("duration=longest"))
+        XCTAssertTrue(filterArg.contains("normalize=0"))
     }
 
     func testConvertUnsupportedFormat() async {
