@@ -59,6 +59,21 @@ sync_frameworks_into_bundle() {
   done
 }
 
+binary_has_rpath() {
+  local binary="$1"
+  local wanted="$2"
+  local current
+
+  while IFS= read -r current; do
+    [[ "$current" == "$wanted" ]] && return 0
+  done < <(otool -l "$binary" | awk '
+    $1 == "cmd" && $2 == "LC_RPATH" { in_rpath=1; next }
+    in_rpath && $1 == "path" { print $2; in_rpath=0 }
+  ')
+
+  return 1
+}
+
 echo "[1/5] Building debug app bundle (xcodebuild, target signing disabled)…"
 if ! xcodebuild build \
   -scheme MacParakeet \
@@ -111,8 +126,12 @@ sync_frameworks_into_bundle "$PKGFW_DIR" "$BUNDLE_FW_DIR"
 # The xcodebuild-produced binary carries an absolute PackageFrameworks rpath that
 # works in-place but fails once the app is launched as a signed bundle. Rewrite
 # it to use the embedded Frameworks directory instead.
-install_name_tool -delete_rpath "$PKGFW_DIR" "$APP_MACOS_BIN" 2>/dev/null || true
-install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_MACOS_BIN" 2>/dev/null || true
+if binary_has_rpath "$APP_MACOS_BIN" "$PKGFW_DIR"; then
+  install_name_tool -delete_rpath "$PKGFW_DIR" "$APP_MACOS_BIN"
+fi
+if ! binary_has_rpath "$APP_MACOS_BIN" "@executable_path/../Frameworks"; then
+  install_name_tool -add_rpath "@executable_path/../Frameworks" "$APP_MACOS_BIN"
+fi
 
 cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
 <?xml version="1.0" encoding="UTF-8"?>
