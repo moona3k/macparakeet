@@ -5,6 +5,47 @@
 # Simulates a "fresh install" of the dev build for manual onboarding testing
 # without needing a new macOS user account or VM.
 #
+# ──────────────────────────────────────────────────────────────────────────────
+# Why this exists (durable dev tool — expected to be reused)
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# Your dev machine already has Microphone, Accessibility, and Screen &
+# System Audio Recording permissions granted to MacParakeet-Dev. That means
+# macOS's TCC database silently skips every permission prompt, so onboarding,
+# first-use flows, and permission-gated features APPEAR TO WORK PERFECTLY
+# even when they're completely broken for a brand-new user.
+#
+# This script exists so that a ~5-minute manual check is enough to test any
+# change that touches:
+#
+#   - Onboarding (any step), especially permission-gated steps
+#   - PermissionService / TCC flows
+#   - First-run behavior gated on `onboarding.completedAtISO`
+#   - Meeting recording first-use permission flow
+#   - The optional Screen & System Audio Recording step (added in 2631b83,
+#     see plans/completed/2026-04-onboarding-screen-recording-permission.md)
+#   - Any new onboarding capability work from the broader issue #66 refactor
+#
+# Reach for this script whenever you're about to touch code in those areas.
+# It is NOT a one-off — it was written to save every future session 10-15
+# minutes vs spinning up a VM or a second macOS user account.
+#
+# ──────────────────────────────────────────────────────────────────────────────
+# Maintenance notes
+# ──────────────────────────────────────────────────────────────────────────────
+#
+# - If Apple renames a TCC category (they did between macOS 12→13→14), the
+#   `tccutil reset <category>` lines below will need updating. `tccutil` with
+#   no args prints the current category list.
+# - If a new onboarding UserDefaults key gets added alongside existing ones
+#   (e.g. "onboarding.foo"), add a matching `defaults delete` line in step 3
+#   so the reset is complete.
+# - The `com.macparakeet.dev` bundle ID is the dev build only; production
+#   uses `com.macparakeet.MacParakeet`. Do not point this script at the
+#   production bundle — you'd nuke a real user's permissions.
+#
+# ──────────────────────────────────────────────────────────────────────────────
+#
 # What this does:
 #   1. Quits any running MacParakeet-Dev instance
 #   2. Resets TCC permissions (Microphone, Accessibility, Screen Recording, etc.)
