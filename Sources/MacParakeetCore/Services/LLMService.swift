@@ -147,16 +147,17 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 context: context,
                 options: ChatCompletionOptions(
                     temperature: 0.2,
-                    maxTokens: 512,
                     responseFormat: .jsonSchema(
                         name: "formatter_output",
                         schema: Self.lmStudioFormatterSchema
                     )
                 )
             )
-            return AIFormatter.normalizedFormattedOutput(
-                parseLMStudioFormattedTranscript(response) ?? response.content
-            )
+            if response.finishReason?.lowercased() == "length" {
+                throw LLMError.providerError("AI formatter output was incomplete.")
+            }
+            let formatted = parseLMStudioFormattedTranscript(response) ?? response.content
+            return AIFormatter.normalizedFormattedOutput(formatted)
         }
 
         let response = try await client.chatCompletion(messages: messages, context: context, options: .default)

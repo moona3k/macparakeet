@@ -43,6 +43,8 @@ extension DictationServiceProtocol {
 }
 
 public actor DictationService: DictationServiceProtocol {
+    private static let aiFormatterWarningMessage = "AI formatter output was incomplete. Used standard cleanup."
+
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "DictationService")
     private let audioProcessor: AudioProcessorProtocol
     private let sttTranscriber: STTTranscribing
@@ -489,7 +491,15 @@ public actor DictationService: DictationServiceProtocol {
             if error is CancellationError {
                 throw error
             }
-            logger.error("AI formatter failed error=\(error.localizedDescription, privacy: .public)")
+            logger.warning("AI formatter failed; falling back to standard cleanup error=\(error.localizedDescription, privacy: .public)")
+            NotificationCenter.default.post(
+                name: .macParakeetAIFormatterWarning,
+                object: nil,
+                userInfo: [
+                    "source": "dictation",
+                    "message": Self.aiFormatterWarningMessage,
+                ]
+            )
             return nil
         }
     }

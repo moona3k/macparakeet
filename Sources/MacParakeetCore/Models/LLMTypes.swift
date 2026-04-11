@@ -74,17 +74,20 @@ public struct ChatCompletionOptions: Sendable, Equatable {
 public struct ChatCompletionResponse: Sendable {
     public let content: String
     public let reasoningContent: String?
+    public let finishReason: String?
     public let model: String
     public let usage: TokenUsage?
 
     public init(
         content: String,
         reasoningContent: String? = nil,
+        finishReason: String? = nil,
         model: String,
         usage: TokenUsage? = nil
     ) {
         self.content = content
         self.reasoningContent = reasoningContent
+        self.finishReason = finishReason
         self.model = model
         self.usage = usage
     }

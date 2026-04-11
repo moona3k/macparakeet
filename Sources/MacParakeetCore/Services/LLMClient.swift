@@ -112,6 +112,7 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         return ChatCompletionResponse(
             content: content,
             reasoningContent: openAIResponse.choices.first?.message.reasoning_content,
+            finishReason: openAIResponse.choices.first?.finish_reason,
             model: openAIResponse.model,
             usage: usage
         )
@@ -801,6 +802,7 @@ struct OpenAIResponse: Decodable {
 
     struct OpenAIChoice: Decodable {
         let message: OpenAIChoiceMessage
+        let finish_reason: String?
     }
 
     struct OpenAIChoiceMessage: Decodable {

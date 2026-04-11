@@ -197,6 +197,39 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(mockLLMService.lastFormattedTranscript, "hello world")
     }
 
+    func testTranscribeFallsBackWhenAIFormatterFailsAndPostsWarning() async throws {
+        await mockSTT.configure(result: STTResult(text: "hello world"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.errorToThrow = LLMError.providerError("AI formatter output was incomplete.")
+
+        let warningPosted = expectation(description: "AI formatter warning posted")
+        let observer = NotificationCenter.default.addObserver(
+            forName: .macParakeetAIFormatterWarning,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard let source = notification.userInfo?["source"] as? String, source == "transcription" else { return }
+            warningPosted.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
+        )
+
+        let result = try await service.transcribe(fileURL: URL(fileURLWithPath: "/tmp/test.mp3"))
+
+        XCTAssertEqual(result.rawTranscript, "hello world")
+        XCTAssertNil(result.cleanTranscript)
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
+        await fulfillment(of: [warningPosted], timeout: 1.0)
+    }
+
     func testTranscribeURLKeepsDownloadedAudioByDefault() async throws {
         let downloadedURL = try makeTempDownloadedAudio()
         defer { try? FileManager.default.removeItem(at: downloadedURL) }

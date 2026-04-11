@@ -9,6 +9,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var capturedOptions: ChatCompletionOptions?
     var responseContent = "Mock response"
     var responseReasoningContent: String?
+    var responseFinishReason: String?
     var responseModel = "mock-model"
     var streamTokens: [String]?
     var testConnectionError: Error?
@@ -25,6 +26,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         return ChatCompletionResponse(
             content: responseContent,
             reasoningContent: responseReasoningContent,
+            finishReason: responseFinishReason,
             model: responseModel
         )
     }
@@ -337,6 +339,34 @@ final class LLMServiceTests: XCTestCase {
         )
 
         XCTAssertEqual(result, "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.")
+    }
+
+    func testFormatTranscriptForLMStudioThrowsWhenOutputIsTruncated() async throws {
+        mockConfigStore.config = LLMProviderConfig(
+            id: .lmstudio,
+            baseURL: URL(string: "http://localhost:1234/v1")!,
+            apiKey: nil,
+            modelName: "qwen3.5-4b-mlx",
+            isLocal: true
+        )
+        mockClient.responseContent = #"{"cleaned_text":"Partial output"}"#
+        mockClient.responseFinishReason = "length"
+
+        do {
+            _ = try await service.formatTranscript(
+                transcript: "long transcript content",
+                promptTemplate: AIFormatter.defaultPromptTemplate
+            )
+            XCTFail("Expected truncated formatter output to throw")
+        } catch let error as LLMError {
+            if case .providerError(let message) = error {
+                XCTAssertTrue(message.contains("incomplete"))
+            } else {
+                XCTFail("Expected providerError, got \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     // MARK: - Context Truncation
