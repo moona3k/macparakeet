@@ -36,7 +36,8 @@ extension TranscriptionServiceProtocol {
 }
 
 public actor TranscriptionService: TranscriptionServiceProtocol {
-    private static let aiFormatterWarningMessage = "AI formatter output was incomplete. Used standard cleanup."
+    private static let aiFormatterIncompleteWarningMessage = "AI formatter output was incomplete. Used standard cleanup."
+    private static let aiFormatterGenericWarningMessage = "AI formatter failed. Used standard cleanup."
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "TranscriptionService")
     private let audioProcessor: AudioProcessorProtocol
@@ -517,11 +518,19 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                 object: nil,
                 userInfo: [
                     "source": "transcription",
-                    "message": Self.aiFormatterWarningMessage,
+                    "message": Self.aiFormatterWarningMessage(for: error),
                 ]
             )
             return nil
         }
+    }
+
+    private static func aiFormatterWarningMessage(for error: Error) -> String {
+        if case LLMError.providerError(let message) = error,
+           message.localizedCaseInsensitiveContains("incomplete") {
+            return Self.aiFormatterIncompleteWarningMessage
+        }
+        return Self.aiFormatterGenericWarningMessage
     }
 
     private static func errorType(for error: Error) -> String {

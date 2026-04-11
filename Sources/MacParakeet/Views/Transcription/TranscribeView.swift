@@ -90,7 +90,10 @@ struct TranscribeView: View {
                 showingProgressDetail = false
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .macParakeetAIFormatterWarning)) { notification in
+        .onReceive(
+            NotificationCenter.default.publisher(for: .macParakeetAIFormatterWarning)
+                .receive(on: RunLoop.main)
+        ) { notification in
             guard let source = notification.userInfo?["source"] as? String, source == "transcription" else {
                 return
             }
