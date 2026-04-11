@@ -166,6 +166,8 @@ final class DictationFlowCoordinator {
     private func promoteOverlayToFormatting() {
         guard let vm = overlayViewModel else { return }
         if case .processing = vm.state {
+            vm.isHovered = false
+            vm.hoverTooltip = nil
             vm.state = .formatting
         }
     }

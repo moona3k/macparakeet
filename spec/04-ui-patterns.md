@@ -263,10 +263,11 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 
 **4. Formatting (AI Formatter refinement)**
 
-```
+```text
 ┌──────────────────────────────────────────┐
 │             [seed of life]               │
 └──────────────────────────────────────────┘
+```
 
 - Only entered when the AI Formatter is enabled and about to run on the
   transcript. Sits between Processing and Success; skipped entirely

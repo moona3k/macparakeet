@@ -93,7 +93,11 @@ struct LLMInlineOptions: ParsableArguments {
         case .ollama:
             providerConfig = .ollama(model: model ?? "qwen3.5:4b", baseURL: overrideURL)
         case .lmstudio:
-            providerConfig = .lmstudio(model: model ?? "", baseURL: overrideURL)
+            guard let rawModel = model?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !rawModel.isEmpty else {
+                throw ValidationError("--model is required for LM Studio")
+            }
+            providerConfig = .lmstudio(model: rawModel, baseURL: overrideURL)
         case .localCLI:
             guard let rawCommand = command,
                   !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
