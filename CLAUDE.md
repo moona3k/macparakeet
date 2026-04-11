@@ -392,6 +392,9 @@ swift test --parallel   # Full suite in parallel
 # Build, code-sign, and launch the dev app
 scripts/dev/run_app.sh
 
+# Optional: force a specific signing identity for the dev .app bundle
+MACPARAKEET_CODESIGN_IDENTITY="Apple Development: Your Name (TEAMID)" scripts/dev/run_app.sh
+
 # Build and run CLI
 swift build --target CLI
 swift run macparakeet-cli --help
