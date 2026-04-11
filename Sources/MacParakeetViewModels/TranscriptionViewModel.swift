@@ -391,6 +391,11 @@ public final class TranscriptionViewModel {
         promptResultsViewModel?.autoGeneratePromptResults(transcript: text, transcriptionId: transcription.id)
     }
 
+    public func showInputPortal() {
+        currentTranscription = nil
+        selectedTab = .transcript
+    }
+
     private func completeFailedTranscription(taskID: UUID, error: Error) {
         guard activeTranscriptionTaskID == taskID else { return }
         transcriptionTask = nil

@@ -20,6 +20,7 @@ struct TranscriptResultView: View {
     @Bindable var promptResultsViewModel: PromptResultsViewModel
     @Bindable var promptsViewModel: PromptsViewModel
     var onBack: (() -> Void)?
+    var onStartNew: (() -> Void)?
     var onRetranscribe: ((Transcription) -> Void)?
 
     @State private var backHovered = false
@@ -409,6 +410,16 @@ struct TranscriptResultView: View {
                 } message: {
                     Text("This replaces the transcript text in place. Existing prompt results and chats are preserved, but may no longer match the updated transcript.")
                 }
+            }
+
+            if let onStartNew {
+                Button {
+                    onStartNew()
+                } label: {
+                    Label("New Transcription", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(DesignSystem.Colors.accent)
             }
 
             Spacer()
