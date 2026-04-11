@@ -215,7 +215,7 @@ swift run macparakeet-cli flow snippets delete <ID>
 
 ## LLM Commands
 
-All LLM commands require `--provider` and `--api-key` (except Ollama and Local CLI).
+All LLM commands require `--provider` and `--api-key` (except Ollama, LM Studio, and Local CLI).
 
 ### Supported Providers
 
@@ -226,6 +226,7 @@ All LLM commands require `--provider` and `--api-key` (except Ollama and Local C
 | `gemini` | gemini-2.5-flash | Yes |
 | `openrouter` | anthropic/claude-sonnet-4 | Yes |
 | `ollama` | qwen3.5:4b | No (local) |
+| `lmstudio` | user-selected in LM Studio | No (local) |
 | `cli` | N/A (tool decides) | No (tool manages auth) |
 
 ### Test Connection
@@ -264,6 +265,16 @@ swift run macparakeet-cli llm chat transcript.txt \
 swift run macparakeet-cli llm transform transcript.txt \
   --provider anthropic --api-key sk-ant-... \
   --prompt "Translate to Spanish"
+```
+
+### LM Studio Provider
+
+```bash
+# Test a local LM Studio server
+swift run macparakeet-cli llm test-connection --provider lmstudio --model qwen3.5-27b
+
+# Summarize via LM Studio's OpenAI-compatible endpoint
+swift run macparakeet-cli llm summarize transcript.txt --provider lmstudio --model qwen3.5-27b
 ```
 
 ### Common Options

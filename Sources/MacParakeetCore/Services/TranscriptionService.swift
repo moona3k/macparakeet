@@ -45,6 +45,9 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     private let snippetRepo: TextSnippetRepositoryProtocol?
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
     private let textRefinementService: TextRefinementService
+    private let llmService: LLMServiceProtocol?
+    private let shouldUseAIFormatter: @Sendable () -> Bool
+    private let aiFormatterPromptTemplate: @Sendable () -> String
     private let shouldKeepDownloadedAudio: @Sendable () -> Bool
     private let shouldDiarize: @Sendable () -> Bool
     private let youtubeDownloader: YouTubeDownloading?
@@ -58,6 +61,9 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        llmService: LLMServiceProtocol? = nil,
+        shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
+        aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
         shouldDiarize: (@Sendable () -> Bool)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil,
@@ -71,6 +77,9 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         self.snippetRepo = snippetRepo
         self.processingMode = processingMode ?? { .raw }
         self.textRefinementService = TextRefinementService()
+        self.llmService = llmService
+        self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
+        self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
         self.shouldDiarize = shouldDiarize ?? { true }
         self.youtubeDownloader = youtubeDownloader
@@ -453,7 +462,9 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             customWords: customWords,
             snippets: snippets
         )
-        transcription.cleanTranscript = refinement.text
+        let baseText = refinement.text ?? rawText
+        let formattedTranscript = try await formatTranscriptIfNeeded(baseText)
+        transcription.cleanTranscript = formattedTranscript ?? refinement.text
 
         if !refinement.expandedSnippetIDs.isEmpty {
             try? snippetRepo?.incrementUseCount(ids: refinement.expandedSnippetIDs)
@@ -463,7 +474,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         transcription.updatedAt = Date()
         try transcriptionRepo.save(transcription)
 
-        let wordCount = transcription.rawTranscript?.split(whereSeparator: \.isWhitespace).count ?? 0
+        let outputText = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+        let wordCount = outputText.split(whereSeparator: \.isWhitespace).count
         let audioDurationSeconds = transcription.durationMs.map { Double($0) / 1000.0 }
         let processingSeconds = Date().timeIntervalSince(processingStartedAt)
         let diarizationApplied = !(transcription.diarizationSegments?.isEmpty ?? true)
@@ -479,6 +491,36 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         ))
 
         return transcription
+    }
+
+    private func formatTranscriptIfNeeded(_ text: String) async throws -> String? {
+        guard shouldUseAIFormatter(), let llmService else {
+            return nil
+        }
+
+        do {
+            let formatted = try await llmService.formatTranscript(
+                transcript: text,
+                promptTemplate: aiFormatterPromptTemplate()
+            )
+            let trimmed = formatted.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        } catch {
+            if error is CancellationError {
+                throw error
+            }
+            logger.warning("AI formatter failed; falling back to standard cleanup error=\(error.localizedDescription, privacy: .public)")
+            let message = "\(error.localizedDescription) Used standard cleanup."
+            NotificationCenter.default.post(
+                name: .macParakeetAIFormatterWarning,
+                object: nil,
+                userInfo: [
+                    "source": "transcription",
+                    "message": message,
+                ]
+            )
+            return nil
+        }
     }
 
     private static func errorType(for error: Error) -> String {

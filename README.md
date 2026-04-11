@@ -54,7 +54,7 @@ MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio]
 
 **Text cleanup** — Filler word removal, custom word replacements, text snippets with triggers. Deterministic pipeline, no LLM needed.
 
-**AI features** — Optional transcript summaries and chat. Ships with a prompt library, built-in and custom summary prompts, multi-summary tabs, and queued summary generation. Use Claude Code or Codex via Local CLI, or connect OpenAI, Anthropic, Google Gemini, Ollama, or OpenRouter. Entirely opt-in, with a fully local setup available when you stay on local providers/features.
+**AI features** — Optional transcript summaries and chat. Ships with a prompt library, built-in and custom summary prompts, multi-summary tabs, and queued summary generation. Use Claude Code or Codex via Local CLI, or connect OpenAI, Anthropic, Google Gemini, Ollama, LM Studio, or OpenRouter. Entirely opt-in, with a fully local setup available when you stay on local providers/features.
 
 ### Concurrent by design
 

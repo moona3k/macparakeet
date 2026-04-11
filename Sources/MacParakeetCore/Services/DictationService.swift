@@ -55,6 +55,9 @@ public actor DictationService: DictationServiceProtocol {
     private let voiceReturnTrigger: @Sendable () -> String?
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
     private let textRefinementService: TextRefinementService
+    private let llmService: LLMServiceProtocol?
+    private let shouldUseAIFormatter: @Sendable () -> Bool
+    private let aiFormatterPromptTemplate: @Sendable () -> String
     private let cancelWindow: Duration
 
     private var _state: DictationState = .idle
@@ -84,6 +87,9 @@ public actor DictationService: DictationServiceProtocol {
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         voiceReturnTrigger: (@Sendable () -> String?)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
+        llmService: LLMServiceProtocol? = nil,
+        shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
+        aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
         cancelWindow: Duration = .seconds(5)
     ) {
         self.audioProcessor = audioProcessor
@@ -97,6 +103,9 @@ public actor DictationService: DictationServiceProtocol {
         self.voiceReturnTrigger = voiceReturnTrigger ?? { nil }
         self.processingMode = processingMode ?? { .raw }
         self.textRefinementService = TextRefinementService()
+        self.llmService = llmService
+        self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
+        self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
         self.cancelWindow = cancelWindow
     }
 
@@ -418,15 +427,16 @@ public actor DictationService: DictationServiceProtocol {
         )
         let cleanTranscript = refinement.text
         let expandedSnippetIDs = refinement.expandedSnippetIDs
-
-        let finalText = cleanTranscript ?? result.text
+        let baseText = cleanTranscript ?? result.text
+        let formattedTranscript = try await formatTranscriptIfNeeded(baseText)
+        let finalText = formattedTranscript ?? baseText
         let wc = finalText.split(whereSeparator: \.isWhitespace).count
         let saveHistory = shouldSaveDictationHistory?() ?? true
 
         var dictation = Dictation(
             durationMs: computeDurationMs(from: result),
             rawTranscript: result.text,
-            cleanTranscript: cleanTranscript,
+            cleanTranscript: formattedTranscript ?? cleanTranscript,
             processingMode: mode,
             status: .completed,
             hidden: !saveHistory,
@@ -461,6 +471,54 @@ public actor DictationService: DictationServiceProtocol {
         }
 
         return DictationResult(dictation: dictation, postPasteAction: refinement.postPasteAction)
+    }
+
+    private func formatTranscriptIfNeeded(_ text: String) async throws -> String? {
+        guard shouldUseAIFormatter(), let llmService else {
+            return nil
+        }
+
+        // Notify observers (e.g. the dictation flow coordinator) that the
+        // LLM formatter is about to run so the overlay pill can switch to
+        // its `.formatting` beat. We only post this *after* the guards
+        // above so "formatter disabled" dictations never flicker into the
+        // formatting visual.
+        NotificationCenter.default.post(
+            name: .macParakeetAIFormatterDidStart,
+            object: nil,
+            userInfo: ["source": "dictation"]
+        )
+        defer {
+            NotificationCenter.default.post(
+                name: .macParakeetAIFormatterDidFinish,
+                object: nil,
+                userInfo: ["source": "dictation"]
+            )
+        }
+
+        do {
+            let formatted = try await llmService.formatTranscript(
+                transcript: text,
+                promptTemplate: aiFormatterPromptTemplate()
+            )
+            let trimmed = formatted.trimmingCharacters(in: .whitespacesAndNewlines)
+            return trimmed.isEmpty ? nil : trimmed
+        } catch {
+            if error is CancellationError {
+                throw error
+            }
+            logger.warning("AI formatter failed; falling back to standard cleanup error=\(error.localizedDescription, privacy: .public)")
+            let message = "\(error.localizedDescription) Used standard cleanup."
+            NotificationCenter.default.post(
+                name: .macParakeetAIFormatterWarning,
+                object: nil,
+                userInfo: [
+                    "source": "dictation",
+                    "message": message,
+                ]
+            )
+            return nil
+        }
     }
 
     private func computeDurationMs(from result: STTResult) -> Int {

@@ -7,6 +7,8 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var shouldSaveDictationHistory: Bool { get }
     var shouldSaveTranscriptionAudio: Bool { get }
     var shouldDiarize: Bool { get }
+    var aiFormatterEnabled: Bool { get }
+    var aiFormatterPrompt: String { get }
 }
 
 public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProtocol, @unchecked Sendable {
@@ -20,6 +22,8 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let saveAudioRecordingsKey = "saveAudioRecordings"
     public static let saveTranscriptionAudioKey = "saveTranscriptionAudio"
     public static let speakerDiarizationKey = "speakerDiarization"
+    public static let aiFormatterEnabledKey = "aiFormatterEnabled"
+    public static let aiFormatterPromptKey = "aiFormatterPrompt"
 
     private let defaults: UserDefaults
 
@@ -53,5 +57,14 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var shouldDiarize: Bool {
         defaults.object(forKey: Self.speakerDiarizationKey) as? Bool ?? true
+    }
+
+    public var aiFormatterEnabled: Bool {
+        defaults.object(forKey: Self.aiFormatterEnabledKey) as? Bool ?? false
+    }
+
+    public var aiFormatterPrompt: String {
+        let prompt = defaults.string(forKey: Self.aiFormatterPromptKey) ?? ""
+        return AIFormatter.normalizedPromptTemplate(prompt)
     }
 }

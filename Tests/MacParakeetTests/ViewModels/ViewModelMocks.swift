@@ -449,14 +449,18 @@ final class MockTextSnippetRepository: TextSnippetRepositoryProtocol, @unchecked
 final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var summarizeResult = "Mock summary"
     var chatResult = "Mock chat response"
+    var formatTranscriptResult = "Mock formatted transcript"
     var streamTokens: [String] = ["Hello", " world"]
     var streamDelayNs: UInt64 = 0
     var errorToThrow: Error?
     var summarizeCallCount = 0
     var chatCallCount = 0
+    var formatTranscriptCallCount = 0
     var lastChatQuestion: String?
     var lastChatHistory: [ChatMessage]?
     var lastSummarySystemPrompt: String?
+    var lastFormattedTranscript: String?
+    var lastFormatterPromptTemplate: String?
 
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
         summarizeCallCount += 1
@@ -474,6 +478,14 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     func transform(text: String, prompt: String) async throws -> String {
         if let error = errorToThrow { throw error }
         return "Mock transform"
+    }
+
+    func formatTranscript(transcript: String, promptTemplate: String) async throws -> String {
+        formatTranscriptCallCount += 1
+        lastFormattedTranscript = transcript
+        lastFormatterPromptTemplate = promptTemplate
+        if let error = errorToThrow { throw error }
+        return formatTranscriptResult
     }
 
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {

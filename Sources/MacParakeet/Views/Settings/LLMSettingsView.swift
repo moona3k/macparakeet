@@ -122,6 +122,10 @@ struct LLMSettingsView: View {
 
             Divider()
 
+            aiFormatterSection
+
+            Divider()
+
             // Save / Clear
             HStack(spacing: DesignSystem.Spacing.sm) {
                 Button("Save") {
@@ -152,6 +156,11 @@ struct LLMSettingsView: View {
                 TextField("Model ID (e.g. gpt-4o)", text: $viewModel.customModelName)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 220)
+            } else if viewModel.availableModels.isEmpty {
+                Text(viewModel.isLoadingModelList ? "Loading models..." : "No models available")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 220, alignment: .leading)
             } else {
                 Picker("Model", selection: $viewModel.modelName) {
                     ForEach(viewModel.availableModels, id: \.self) { model in
@@ -163,12 +172,115 @@ struct LLMSettingsView: View {
                 .frame(minWidth: 180)
             }
 
-            Button(viewModel.useCustomModel ? "Choose from list" : "Use custom model") {
-                viewModel.useCustomModel.toggle()
+            HStack(spacing: 10) {
+                if viewModel.useCustomModel {
+                    if viewModel.canChooseModelFromList {
+                        Button("Choose from list") {
+                            viewModel.useCustomModel = false
+                        }
+                        .buttonStyle(.plain)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Button("Use custom model") {
+                        viewModel.useCustomModel = true
+                    }
+                    .buttonStyle(.plain)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                if viewModel.canRefreshModelList {
+                    Button(viewModel.isLoadingModelList ? "Refreshing..." : "Refresh list") {
+                        viewModel.refreshAvailableModels()
+                    }
+                    .buttonStyle(.plain)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .disabled(viewModel.isLoadingModelList)
+                }
             }
-            .buttonStyle(.plain)
-            .font(DesignSystem.Typography.caption)
-            .foregroundStyle(.secondary)
+
+            if let errorMessage = viewModel.modelListErrorMessage {
+                Text(errorMessage)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    .frame(width: 220, alignment: .leading)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var aiFormatterSection: some View {
+        VStack(spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("AI Formatter")
+                        .font(DesignSystem.Typography.body)
+                    Text("Optionally run the final transcript through your AI provider after the usual cleanup step.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: DesignSystem.Spacing.md)
+                HStack(spacing: 8) {
+                    Toggle("", isOn: $viewModel.aiFormatterEnabled)
+                        .labelsHidden()
+                        .toggleStyle(.checkbox)
+                        .disabled(!viewModel.canToggleAIFormatter)
+
+                    Text(viewModel.aiFormatterStatusText)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(
+                            viewModel.aiFormatterEnabled
+                                ? DesignSystem.Colors.successGreen
+                                : DesignSystem.Colors.textSecondary
+                        )
+                }
+            }
+
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Prompt")
+                        .font(DesignSystem.Typography.body)
+                    Text("Uses `{{TRANSCRIPT}}` as the transcript placeholder and runs as the last output step.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: DesignSystem.Spacing.md)
+                VStack(alignment: .trailing, spacing: 6) {
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $viewModel.aiFormatterPrompt)
+                            .font(.system(.body, design: .monospaced))
+                            .scrollContentBackground(.hidden)
+                            .padding(6)
+                            .disabled(!viewModel.canToggleAIFormatter)
+                    }
+                    .frame(width: 380)
+                    .frame(minHeight: 220)
+                    .background(DesignSystem.Colors.background)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                            .strokeBorder(DesignSystem.Colors.border, lineWidth: 1)
+                    )
+
+                    Button("Reset Prompt") {
+                        viewModel.resetAIFormatterPrompt()
+                    }
+                    .buttonStyle(.plain)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .disabled(!viewModel.canResetAIFormatterPrompt)
+                }
+            }
+
+            if let disabledReason = viewModel.aiFormatterDisabledReason {
+                Text(disabledReason)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 

@@ -261,7 +261,44 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 - Cross-fades in from recording state via `.opacity` transition
 ```
 
-**4. Success**
+**4. Formatting (AI Formatter refinement)**
+
+```text
+┌──────────────────────────────────────────┐
+│             [seed of life]               │
+└──────────────────────────────────────────┘
+```
+
+- Only entered when the AI Formatter is enabled and about to run on the
+  transcript. Sits between Processing and Success; skipped entirely
+  when the formatter is disabled.
+- [seed of life]: Sacred geometry bloom — six coral petal circles
+  growing in place from tiny vertex dots into a full Seed of Life,
+  rotating continuously at ~10s/rev. Rendered by `FormatterVisualView`.
+  - 6-fold symmetry matches the `.processing` Merkaba's six vertex
+    lights so the cross-fade reads as "six things re-composing."
+  - Petal outer edges reach `size * 0.44`, visually close to the
+    Merkaba's outer-vertex radius of `size * 0.423` — same bounding
+    ring on both states.
+  - Color: `DesignSystem.Colors.accent` (warm coral), signaling a
+    different kind of work than the white `.processing` spinner.
+  - Phases: Bud (0 → 0.15s, dots ignite) → Bloom (0.15 → 1.00s,
+    petals grow in place) → Hold (1.00s → ∞, flower rotates and
+    breathes until the formatter returns).
+- Pill size: same 46×46 as Processing — the state change is a
+  hue/geometry evolution, not a resize.
+- Triggered by the `.macParakeetAIFormatterDidStart` notification
+  (posted from `DictationService.formatTranscriptIfNeeded`) which the
+  `DictationFlowCoordinator` observes to promote the overlay state
+  from `.processing` → `.formatting`. Terminal transitions
+  (cancellation, success, error) take precedence — the coordinator
+  only promotes when currently in `.processing`.
+- For command sessions, falls back to a spinner + "Refining..." label
+  so the visible command context continues to read during refinement.
+- Reduce Motion: presents the fully-bloomed peak state statically.
+- VoiceOver: "Refining transcript".
+
+**5. Success**
 
 ```
 ┌──────────────────────────────────────────┐
@@ -273,7 +310,7 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 - Auto-dismisses after 1.5 seconds
 ```
 
-**5. Error Card**
+**6. Error Card**
 
 Errors use a wider rounded-rectangle card instead of the compact pill — distinct shape signals a different kind of information.
 
