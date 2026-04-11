@@ -210,6 +210,10 @@ public final class LLMSettingsViewModel {
         return nil
     }
 
+    public var canResetAIFormatterPrompt: Bool {
+        draft.aiFormatterPrompt != AIFormatter.defaultPromptTemplate
+    }
+
     public var onConfigurationChanged: (() -> Void)?
 
     private var configStore: LLMConfigStoreProtocol?
@@ -347,6 +351,10 @@ public final class LLMSettingsViewModel {
         connectionTestState = .idle
         saveState = .idle
         onConfigurationChanged?()
+    }
+
+    public func resetAIFormatterPrompt() {
+        aiFormatterPrompt = AIFormatter.defaultPromptTemplate
     }
 
     public func refreshAvailableModels() {
@@ -547,6 +555,7 @@ public final class LLMSettingsViewModel {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey) ?? ""
         )
     }
+
     /// Popular models for each provider. Empty means free-text input.
     public static func suggestedModels(for provider: LLMProviderID) -> [String] {
         switch provider {

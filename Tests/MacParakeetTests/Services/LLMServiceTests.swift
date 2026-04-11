@@ -320,6 +320,25 @@ final class LLMServiceTests: XCTestCase {
         )
     }
 
+    func testFormatTranscriptForLMStudioNormalizesEscapedParagraphBreaks() async throws {
+        mockConfigStore.config = LLMProviderConfig(
+            id: .lmstudio,
+            baseURL: URL(string: "http://localhost:1234/v1")!,
+            apiKey: nil,
+            modelName: "qwen3.5-4b-mlx",
+            isLocal: true
+        )
+        mockClient.responseContent = ""
+        mockClient.responseReasoningContent = #"{"cleaned_text":"First paragraph.\\nSecond paragraph.\\nThird paragraph."}"#
+
+        let result = try await service.formatTranscript(
+            transcript: "first paragraph second paragraph third paragraph",
+            promptTemplate: AIFormatter.defaultPromptTemplate
+        )
+
+        XCTAssertEqual(result, "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.")
+    }
+
     // MARK: - Context Truncation
 
     func testShortTextNotTruncated() {

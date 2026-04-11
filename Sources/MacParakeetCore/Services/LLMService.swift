@@ -154,11 +154,13 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     )
                 )
             )
-            return parseLMStudioFormattedTranscript(response) ?? response.content
+            return AIFormatter.normalizedFormattedOutput(
+                parseLMStudioFormattedTranscript(response) ?? response.content
+            )
         }
 
         let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
-        return response.content
+        return AIFormatter.normalizedFormattedOutput(response.content)
     }
 
     // MARK: - Streaming Variants

@@ -148,6 +148,7 @@ struct LLMSettingsView: View {
             }
         }
     }
+
     @ViewBuilder
     private var modelPicker: some View {
         VStack(alignment: .trailing, spacing: 4) {
@@ -247,21 +248,31 @@ struct LLMSettingsView: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: DesignSystem.Spacing.md)
-                ZStack(alignment: .topLeading) {
-                    TextEditor(text: $viewModel.aiFormatterPrompt)
-                        .font(.system(.body, design: .monospaced))
-                        .scrollContentBackground(.hidden)
-                        .padding(6)
-                        .disabled(!viewModel.canToggleAIFormatter)
+                VStack(alignment: .trailing, spacing: 6) {
+                    ZStack(alignment: .topLeading) {
+                        TextEditor(text: $viewModel.aiFormatterPrompt)
+                            .font(.system(.body, design: .monospaced))
+                            .scrollContentBackground(.hidden)
+                            .padding(6)
+                            .disabled(!viewModel.canToggleAIFormatter)
+                    }
+                    .frame(width: 380)
+                    .frame(minHeight: 220)
+                    .background(DesignSystem.Colors.background)
+                    .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                            .strokeBorder(DesignSystem.Colors.border, lineWidth: 1)
+                    )
+
+                    Button("Reset Prompt") {
+                        viewModel.resetAIFormatterPrompt()
+                    }
+                    .buttonStyle(.plain)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .disabled(!viewModel.canResetAIFormatterPrompt)
                 }
-                .frame(width: 380)
-                .frame(minHeight: 220)
-                .background(DesignSystem.Colors.background)
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                        .strokeBorder(DesignSystem.Colors.border, lineWidth: 1)
-                )
             }
 
             if let disabledReason = viewModel.aiFormatterDisabledReason {

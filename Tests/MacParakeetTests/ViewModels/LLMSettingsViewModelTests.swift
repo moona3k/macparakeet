@@ -435,6 +435,15 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.aiFormatterPrompt, "Rewrite:\n\(AIFormatter.transcriptPlaceholder)")
     }
 
+    func testLoadsLegacyDefaultAIFormatterPromptAsUpdatedDefault() {
+        defaults.set(AIFormatter.legacyDefaultPromptTemplateV1, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
+    }
+
     func testAIFormatterStaysDisabledUntilProviderIsSaved() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
@@ -461,6 +470,33 @@ final class LLMSettingsViewModelTests: XCTestCase {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey),
             "Rewrite:\n\(AIFormatter.transcriptPlaceholder)"
         )
+    }
+
+    func testResetAIFormatterPromptRestoresDefaultInDraft() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.aiFormatterPrompt = "Rewrite:\n\(AIFormatter.transcriptPlaceholder)"
+
+        XCTAssertTrue(viewModel.canResetAIFormatterPrompt)
+
+        viewModel.resetAIFormatterPrompt()
+
+        XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
+        XCTAssertFalse(viewModel.canResetAIFormatterPrompt)
+    }
+
+    func testResetAIFormatterPromptPersistsDefaultWhenConfigured() {
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.aiFormatterPrompt = "Rewrite:\n\(AIFormatter.transcriptPlaceholder)"
+
+        viewModel.resetAIFormatterPrompt()
+
+        XCTAssertEqual(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey),
+            AIFormatter.defaultPromptTemplate
+        )
+        XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
     }
 
     // MARK: - Model Selection
