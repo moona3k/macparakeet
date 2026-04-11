@@ -145,8 +145,13 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         let context = try loadContext()
         let config = context.providerConfig
         let budget = contextBudget(for: config)
+        // Compare original transcript length against budget rather than the
+        // output of `truncateMiddle`, which can be longer than the original
+        // (the truncation marker adds ~32 chars) for inputs that only
+        // slightly exceed the budget. What we actually care about is "did
+        // we have to drop content to fit," which this expresses directly.
+        let inputTruncated = transcript.count > budget
         let truncated = Self.truncateMiddle(transcript, limit: budget)
-        let inputTruncated = truncated.count < transcript.count
         let inputChars = transcript.count
         let startedAt = Date()
 
@@ -178,6 +183,17 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             } else {
                 let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
                 output = AIFormatter.normalizedFormattedOutput(response.content)
+            }
+
+            // An empty or whitespace-only response is a failure, not a
+            // success: the caller will fall back to the deterministic
+            // cleanup, and counting this as a successful formatter run
+            // inflates the success-rate metric with runs that produced
+            // nothing usable. Throw into the failure path so the
+            // `.llmFormatterFailed` event is emitted with a meaningful
+            // error_type bucket.
+            if output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                throw LLMError.formatterEmptyResponse
             }
 
             Telemetry.send(.llmFormatterUsed(

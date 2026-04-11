@@ -403,6 +403,40 @@ final class LLMServiceTests: XCTestCase {
         }
     }
 
+    func testFormatTranscriptForLMStudioThrowsWhenResponseIsEmpty() async throws {
+        mockConfigStore.config = LLMProviderConfig(
+            id: .lmstudio,
+            baseURL: URL(string: "http://localhost:1234/v1")!,
+            apiKey: nil,
+            modelName: "qwen3.5-4b-mlx",
+            isLocal: true
+        )
+        // Cold-start LM Studio reasoning models can return an empty body or
+        // whitespace-only content. We should route those through the failure
+        // path so the success-rate metric isn't inflated with runs that
+        // produced nothing usable.
+        mockClient.responseContent = ""
+        mockClient.responseReasoningContent = #"{"cleaned_text":"   \n  "}"#
+
+        do {
+            _ = try await service.formatTranscript(
+                transcript: "hello world",
+                promptTemplate: AIFormatter.defaultPromptTemplate,
+                source: .dictation,
+                defaultPromptUsed: true
+            )
+            XCTFail("Expected empty formatter output to throw")
+        } catch let error as LLMError {
+            if case .formatterEmptyResponse = error {
+                // Expected
+            } else {
+                XCTFail("Expected formatterEmptyResponse, got \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     // MARK: - Context Truncation
 
     func testShortTextNotTruncated() {
