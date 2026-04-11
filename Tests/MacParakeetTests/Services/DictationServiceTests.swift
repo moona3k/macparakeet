@@ -87,15 +87,17 @@ final class DictationServiceTests: XCTestCase {
     func testStopRecordingFallsBackWhenAIFormatterFailsAndPostsWarning() async throws {
         await mockSTT.configure(result: STTResult(text: "hello world"))
         let mockLLMService = MockLLMService()
-        mockLLMService.errorToThrow = LLMError.providerError("AI formatter output was incomplete.")
+        mockLLMService.errorToThrow = LLMError.formatterTruncated
 
         let warningPosted = expectation(description: "AI formatter warning posted")
+        var warningMessage: String?
         let observer = NotificationCenter.default.addObserver(
             forName: .macParakeetAIFormatterWarning,
             object: nil,
             queue: nil
         ) { notification in
             guard let source = notification.userInfo?["source"] as? String, source == "dictation" else { return }
+            warningMessage = notification.userInfo?["message"] as? String
             warningPosted.fulfill()
         }
         defer { NotificationCenter.default.removeObserver(observer) }
@@ -117,6 +119,41 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(result.dictation.wordCount, 2)
         XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
         await fulfillment(of: [warningPosted], timeout: 1.0)
+        XCTAssertEqual(warningMessage, "AI formatter output was incomplete. Used standard cleanup.")
+    }
+
+    func testStopRecordingPostsAuthenticationWarningWhenAIFormatterAuthFails() async throws {
+        await mockSTT.configure(result: STTResult(text: "hello world"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.errorToThrow = LLMError.authenticationFailed(nil)
+
+        let warningPosted = expectation(description: "AI formatter auth warning posted")
+        var warningMessage: String?
+        let observer = NotificationCenter.default.addObserver(
+            forName: .macParakeetAIFormatterWarning,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard let source = notification.userInfo?["source"] as? String, source == "dictation" else { return }
+            warningMessage = notification.userInfo?["message"] as? String
+            warningPosted.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
+        )
+
+        try await service.startRecording()
+        _ = try await service.stopRecording()
+
+        await fulfillment(of: [warningPosted], timeout: 1.0)
+        XCTAssertEqual(warningMessage, "Authentication failed. Check your API key. Used standard cleanup.")
     }
 
     // Note: Cancel flow tests, stop-when-not-recording, and STT error propagation

@@ -154,7 +154,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 )
             )
             if response.finishReason?.lowercased() == "length" {
-                throw LLMError.providerError("AI formatter output was incomplete.")
+                throw LLMError.formatterTruncated
             }
             let formatted = parseLMStudioFormattedTranscript(response) ?? response.content
             return AIFormatter.normalizedFormattedOutput(formatted)

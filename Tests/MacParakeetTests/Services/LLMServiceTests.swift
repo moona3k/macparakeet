@@ -359,10 +359,10 @@ final class LLMServiceTests: XCTestCase {
             )
             XCTFail("Expected truncated formatter output to throw")
         } catch let error as LLMError {
-            if case .providerError(let message) = error {
-                XCTAssertTrue(message.contains("incomplete"))
+            if case .formatterTruncated = error {
+                // Expected
             } else {
-                XCTFail("Expected providerError, got \(error)")
+                XCTFail("Expected formatterTruncated, got \(error)")
             }
         } catch {
             XCTFail("Unexpected error: \(error)")
