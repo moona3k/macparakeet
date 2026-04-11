@@ -152,6 +152,11 @@ struct LLMSettingsView: View {
                 TextField("Model ID (e.g. gpt-4o)", text: $viewModel.customModelName)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 220)
+            } else if viewModel.availableModels.isEmpty {
+                Text(viewModel.isLoadingModelList ? "Loading models..." : "No models available")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 220, alignment: .leading)
             } else {
                 Picker("Model", selection: $viewModel.modelName) {
                     ForEach(viewModel.availableModels, id: \.self) { model in
@@ -163,12 +168,42 @@ struct LLMSettingsView: View {
                 .frame(minWidth: 180)
             }
 
-            Button(viewModel.useCustomModel ? "Choose from list" : "Use custom model") {
-                viewModel.useCustomModel.toggle()
+            HStack(spacing: 10) {
+                if viewModel.useCustomModel {
+                    if viewModel.canChooseModelFromList {
+                        Button("Choose from list") {
+                            viewModel.useCustomModel = false
+                        }
+                        .buttonStyle(.plain)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    }
+                } else {
+                    Button("Use custom model") {
+                        viewModel.useCustomModel = true
+                    }
+                    .buttonStyle(.plain)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                }
+
+                if viewModel.canRefreshModelList {
+                    Button(viewModel.isLoadingModelList ? "Refreshing..." : "Refresh list") {
+                        viewModel.refreshAvailableModels()
+                    }
+                    .buttonStyle(.plain)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .disabled(viewModel.isLoadingModelList)
+                }
             }
-            .buttonStyle(.plain)
-            .font(DesignSystem.Typography.caption)
-            .foregroundStyle(.secondary)
+
+            if let errorMessage = viewModel.modelListErrorMessage {
+                Text(errorMessage)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    .frame(width: 220, alignment: .leading)
+            }
         }
     }
 

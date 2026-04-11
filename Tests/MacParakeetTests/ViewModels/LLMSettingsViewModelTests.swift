@@ -47,6 +47,12 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.requiresAPIKey)
     }
 
+    func testLMStudioDoesNotRequireAPIKey() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .lmstudio
+        XCTAssertFalse(viewModel.requiresAPIKey)
+    }
+
     func testCloudProviderRequiresAPIKey() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
@@ -268,6 +274,33 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         viewModel.selectedProviderID = .ollama
         XCTAssertEqual(viewModel.apiKeyInput, "")
+    }
+
+    func testLMStudioLoadsAvailableModelsAndDefaultsToFirstResult() async throws {
+        mockClient.modelsList = ["llama-3.2", "qwen2.5"]
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .lmstudio
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(viewModel.availableModels, ["llama-3.2", "qwen2.5"])
+        XCTAssertFalse(viewModel.useCustomModel)
+        XCTAssertEqual(viewModel.modelName, "llama-3.2")
+        XCTAssertNil(viewModel.modelListErrorMessage)
+    }
+
+    func testLMStudioModelListFailureKeepsCustomMode() async throws {
+        mockClient.listModelsError = LLMError.connectionFailed("Failed to fetch models.")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .lmstudio
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertTrue(viewModel.availableModels.isEmpty)
+        XCTAssertTrue(viewModel.useCustomModel)
+        XCTAssertEqual(viewModel.modelListErrorMessage, "Connection failed: Failed to fetch models.")
     }
 
     func testSwitchingProviderLoadsStoredKey() {

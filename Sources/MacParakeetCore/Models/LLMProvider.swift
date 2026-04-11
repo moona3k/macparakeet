@@ -8,6 +8,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case gemini
     case openrouter
     case ollama
+    case lmstudio
     case localCLI
 
     public var displayName: String {
@@ -17,6 +18,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
         case .gemini: return "Google Gemini"
         case .openrouter: return "OpenRouter"
         case .ollama: return "Ollama"
+        case .lmstudio: return "LM Studio"
         case .localCLI: return "Local CLI"
         }
     }
@@ -25,7 +27,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     /// Local CLI tools typically forward to cloud APIs, so this is `false`.
     public var isLocal: Bool {
         switch self {
-        case .ollama: return true
+        case .ollama, .lmstudio: return true
         case .anthropic, .openai, .gemini, .openrouter, .localCLI: return false
         }
     }
@@ -33,7 +35,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     /// Whether the provider needs an API key to function.
     public var requiresAPIKey: Bool {
         switch self {
-        case .ollama, .localCLI: return false
+        case .ollama, .lmstudio, .localCLI: return false
         case .anthropic, .openai, .gemini, .openrouter: return true
         }
     }
@@ -117,6 +119,16 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
         LLMProviderConfig(
             id: .ollama,
             baseURL: baseURL ?? URL(string: "http://localhost:11434/v1")!,
+            apiKey: nil,
+            modelName: model,
+            isLocal: true
+        )
+    }
+
+    public static func lmstudio(model: String = "", baseURL: URL? = nil) -> LLMProviderConfig {
+        LLMProviderConfig(
+            id: .lmstudio,
+            baseURL: baseURL ?? URL(string: "http://localhost:1234/v1")!,
             apiKey: nil,
             modelName: model,
             isLocal: true

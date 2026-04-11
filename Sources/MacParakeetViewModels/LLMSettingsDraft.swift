@@ -4,6 +4,7 @@ import MacParakeetCore
 public struct LLMSettingsDraft: Equatable, Sendable {
     public enum ValidationError: LocalizedError, Equatable {
         case missingAPIKey
+        case missingModelSelection
         case missingCustomModel
         case invalidBaseURL
         case missingCommandTemplate
@@ -12,6 +13,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             switch self {
             case .missingAPIKey:
                 return "Enter an API key."
+            case .missingModelSelection:
+                return "Choose a model."
             case .missingCustomModel:
                 return "Enter a custom model ID."
             case .invalidBaseURL:
@@ -81,6 +84,10 @@ public struct LLMSettingsDraft: Equatable, Sendable {
     }
 
     public var validationError: ValidationError? {
+        validationError(allowMissingModelName: false)
+    }
+
+    private func validationError(allowMissingModelName: Bool) -> ValidationError? {
         guard let providerID else { return nil }
         if providerID == .localCLI {
             return trimmedCommandTemplate.isEmpty ? .missingCommandTemplate : nil
@@ -88,8 +95,13 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         if requiresAPIKey && trimmedAPIKey.isEmpty {
             return .missingAPIKey
         }
-        if useCustomModel && trimmedCustomModelName.isEmpty {
-            return .missingCustomModel
+        if useCustomModel {
+            if !allowMissingModelName && trimmedCustomModelName.isEmpty {
+                return .missingCustomModel
+            }
+        } else if !allowMissingModelName
+                    && suggestedModelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return .missingModelSelection
         }
         if !trimmedBaseURLOverride.isEmpty {
             guard let overrideURL = URL(string: trimmedBaseURLOverride),
@@ -104,9 +116,12 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         validationError == nil
     }
 
-    public func buildConfig(defaultBaseURL: String) throws -> LLMProviderConfig? {
+    public func buildConfig(
+        defaultBaseURL: String,
+        allowMissingModelName: Bool = false
+    ) throws -> LLMProviderConfig? {
         guard let providerID else { return nil }
-        if let validationError {
+        if let validationError = validationError(allowMissingModelName: allowMissingModelName) {
             throw validationError
         }
 
