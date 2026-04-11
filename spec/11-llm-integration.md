@@ -46,7 +46,7 @@ The current branch does not flatten every provider into one wire protocol. `Rout
 
 - **Anthropic** uses the native Messages API (`POST /v1/messages`).
 - **Ollama** uses the native chat API (`POST /api/chat`) so thinking can be disabled.
-- **OpenAI, Gemini, and OpenRouter** use the OpenAI-compatible chat completions API (`POST /chat/completions` off each provider's configured base URL).
+- **OpenAI, Gemini, OpenRouter, and LM Studio** use the OpenAI-compatible chat completions API (`POST /chat/completions` off each provider's configured base URL).
 - **Local CLI** is not HTTP at all; prompts are passed to a subprocess via stdin/environment.
 
 Streaming is provider-specific under the hood:
@@ -66,6 +66,7 @@ The service boundary stays stable even though the transport is mixed.
 | OpenAI | Cloud | `https://api.openai.com/v1` | `Authorization: Bearer` |
 | Google Gemini | Cloud | `https://generativelanguage.googleapis.com/v1beta/openai` | `Authorization: Bearer` |
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
+| LM Studio | Local | `http://localhost:1234/v1` | `apiKey: nil` in config |
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | `Authorization: Bearer` |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 
@@ -372,7 +373,7 @@ Custom transforms were the original plan. The current branch instead routes summ
 
 ## CLI Support
 
-All CLI LLM commands require `--provider` and `--api-key` (except Ollama and Local CLI). Supported providers: `anthropic`, `openai`, `gemini`, `openrouter`, `ollama`, `cli`.
+All CLI LLM commands require `--provider` and `--api-key` (except Ollama, LM Studio, and Local CLI). Supported providers: `anthropic`, `openai`, `gemini`, `openrouter`, `ollama`, `lmstudio`, `cli`.
 
 ```bash
 # Test provider connectivity
@@ -386,6 +387,10 @@ macparakeet-cli llm chat transcript.txt --provider openai --api-key sk-... --que
 
 # Transform text with custom instruction
 macparakeet-cli llm transform input.txt --provider anthropic --api-key sk-ant-... --prompt "Make formal"
+
+# LM Studio provider (no API key needed)
+macparakeet-cli llm test-connection --provider lmstudio --model qwen3.5-27b
+macparakeet-cli llm summarize transcript.txt --provider lmstudio --model qwen3.5-27b
 ```
 
 ```bash

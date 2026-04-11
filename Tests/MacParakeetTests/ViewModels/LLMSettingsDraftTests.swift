@@ -34,4 +34,30 @@ final class LLMSettingsDraftTests: XCTestCase {
 
         XCTAssertNil(draft.validationError)
     }
+
+    func testMissingSuggestedModelSelectionIsInvalid() {
+        let draft = LLMSettingsDraft(
+            providerID: .lmstudio,
+            suggestedModelName: "",
+            useCustomModel: false
+        )
+
+        XCTAssertEqual(draft.validationError, .missingModelSelection)
+    }
+
+    func testBuildConfigAllowsMissingModelNameForModelDiscovery() throws {
+        let draft = LLMSettingsDraft(
+            providerID: .lmstudio,
+            useCustomModel: true,
+            customModelName: ""
+        )
+
+        let config = try draft.buildConfig(
+            defaultBaseURL: "http://localhost:1234/v1",
+            allowMissingModelName: true
+        )
+
+        XCTAssertEqual(config?.id, .lmstudio)
+        XCTAssertEqual(config?.modelName, "")
+    }
 }

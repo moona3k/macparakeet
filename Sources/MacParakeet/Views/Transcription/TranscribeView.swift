@@ -11,6 +11,7 @@ struct TranscribeView: View {
     @Binding var showingProgressDetail: Bool
     var onNavigateBack: (() -> Void)?
     @State private var showCancelConfirmation = false
+    @State private var aiFormatterWarningMessage: String?
     private enum PipelineStep: CaseIterable {
         case download
         case convert
@@ -73,11 +74,28 @@ struct TranscribeView: View {
                 }
             }
 
+            if let warning = aiFormatterWarningMessage {
+                warningBanner(warning)
+                    .padding(.horizontal, DesignSystem.Spacing.xl)
+                    .padding(.bottom, DesignSystem.Spacing.md)
+            }
+
             // Bottom bar now rendered globally in MainWindowView
         }
         .onChange(of: viewModel.isTranscribing) { _, isTranscribing in
+            if isTranscribing {
+                aiFormatterWarningMessage = nil
+            }
             if !isTranscribing {
                 showingProgressDetail = false
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .macParakeetAIFormatterWarning)) { notification in
+            guard let source = notification.userInfo?["source"] as? String, source == "transcription" else {
+                return
+            }
+            if let message = notification.userInfo?["message"] as? String {
+                aiFormatterWarningMessage = message
             }
         }
     }
@@ -271,6 +289,32 @@ struct TranscribeView: View {
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .fill(DesignSystem.Colors.errorRed.opacity(0.08))
+        )
+    }
+
+    private func warningBanner(_ message: String) -> some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 13))
+                .foregroundStyle(DesignSystem.Colors.warningAmber)
+            Text(message)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .lineLimit(2)
+            Spacer()
+            Button {
+                aiFormatterWarningMessage = nil
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.warningAmber.opacity(0.12))
         )
     }
 

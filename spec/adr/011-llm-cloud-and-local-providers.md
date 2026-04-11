@@ -27,7 +27,7 @@ Cloud models (Claude, GPT-4, Gemini) are dramatically better than any local 8B f
 
 ### Competitive Validation
 
-Char (fastrepl/char, ~8K GitHub stars) — a meeting transcription app — supports this general BYO-provider pattern. That validates the product direction even though MacParakeet's current branch now uses a mixed transport layer: Anthropic native Messages API, Ollama native `/api/chat`, OpenAI-compatible providers, and Local CLI subprocess execution.
+Char (fastrepl/char, ~8K GitHub stars) — a meeting transcription app — supports this general BYO-provider pattern. That validates the product direction even though MacParakeet's current branch now uses a mixed transport layer: Anthropic native Messages API, Ollama native `/api/chat`, OpenAI-compatible providers including LM Studio, and Local CLI subprocess execution.
 
 ## Decision
 
@@ -44,11 +44,12 @@ The current branch supports these provider/runtime types through one shared serv
 | Google (Gemini) | Cloud | `https://generativelanguage.googleapis.com/v1beta/openai` | API key (`Authorization: Bearer`) |
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | API key (`Authorization: Bearer`) |
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
+| LM Studio | Local | `http://localhost:1234/v1` | `apiKey: nil` in config |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 
 **Amendment (2026-04-03): Local CLI provider.** Users with Claude Code or Codex subscriptions can use their CLI tools (`claude -p`, `codex exec`, or any custom command) for summaries, chat, and transforms — no separate API key needed. The CLI tool runs as a subprocess via `posix_spawn` with process group management. Prompts are delivered via stdin and `MACPARAKEET_*` environment variables. This extends the provider model without changing the `LLMClientProtocol` — a `RoutingLLMClient` dispatches `.localCLI` contexts to `LocalCLILLMClient` and everything else to the HTTP `LLMClient`. See PR #47.
 
-**Implementation note (2026-04-04):** Anthropic now uses the native Messages API and Ollama uses its native `/api/chat` endpoint. OpenAI, Gemini, and OpenRouter still use OpenAI-compatible chat completions. The shared abstraction is the service/client interface, not a single wire protocol.
+**Implementation note (2026-04-04):** Anthropic now uses the native Messages API and Ollama uses its native `/api/chat` endpoint. OpenAI, Gemini, OpenRouter, and LM Studio use OpenAI-compatible chat completions. The shared abstraction is the service/client interface, not a single wire protocol.
 
 ### Locked Decisions
 

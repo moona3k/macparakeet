@@ -36,7 +36,7 @@ func readInput(_ path: String) throws -> String {
 
 /// Shared options for CLI commands that call an LLM provider directly (no Keychain).
 struct LLMInlineOptions: ParsableArguments {
-    @Option(name: .long, help: "Provider: anthropic, openai, gemini, openrouter, ollama, cli.")
+    @Option(name: .long, help: "Provider: anthropic, openai, gemini, openrouter, ollama, lmstudio, cli.")
     var provider: String
 
     @Option(name: .long, help: "API key.")
@@ -58,7 +58,7 @@ struct LLMInlineOptions: ParsableArguments {
         // Accept "cli" as a short alias for "localCLI"
         let normalized = provider == "cli" ? "localCLI" : provider
         guard let providerID = LLMProviderID(rawValue: normalized) else {
-            throw ValidationError("Unknown provider '\(provider)'. Options: anthropic, openai, gemini, openrouter, ollama, cli")
+            throw ValidationError("Unknown provider '\(provider)'. Options: anthropic, openai, gemini, openrouter, ollama, lmstudio, cli")
         }
         return providerID
     }
@@ -92,6 +92,8 @@ struct LLMInlineOptions: ParsableArguments {
             providerConfig = .openrouter(apiKey: key, model: model ?? "anthropic/claude-sonnet-4", baseURL: overrideURL)
         case .ollama:
             providerConfig = .ollama(model: model ?? "qwen3.5:4b", baseURL: overrideURL)
+        case .lmstudio:
+            providerConfig = .lmstudio(model: model ?? "", baseURL: overrideURL)
         case .localCLI:
             guard let rawCommand = command,
                   !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

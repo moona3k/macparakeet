@@ -60,6 +60,65 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(fetched?.rawTranscript, "Hello world")
     }
 
+    func testStopRecordingAppliesAIFormatterAsFinalStep() async throws {
+        await mockSTT.configure(result: STTResult(text: "hello world"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Hello, world."
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "hello world")
+        XCTAssertEqual(result.dictation.cleanTranscript, "Hello, world.")
+        XCTAssertEqual(result.dictation.wordCount, 2)
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
+        XCTAssertEqual(mockLLMService.lastFormattedTranscript, "hello world")
+    }
+
+    func testStopRecordingFallsBackWhenAIFormatterFailsAndPostsWarning() async throws {
+        await mockSTT.configure(result: STTResult(text: "hello world"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.errorToThrow = LLMError.providerError("AI formatter output was incomplete.")
+
+        let warningPosted = expectation(description: "AI formatter warning posted")
+        let observer = NotificationCenter.default.addObserver(
+            forName: .macParakeetAIFormatterWarning,
+            object: nil,
+            queue: nil
+        ) { notification in
+            guard let source = notification.userInfo?["source"] as? String, source == "dictation" else { return }
+            warningPosted.fulfill()
+        }
+        defer { NotificationCenter.default.removeObserver(observer) }
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
+        )
+
+        try await service.startRecording()
+        let result = try await service.stopRecording()
+
+        XCTAssertEqual(result.dictation.rawTranscript, "hello world")
+        XCTAssertNil(result.dictation.cleanTranscript)
+        XCTAssertEqual(result.dictation.wordCount, 2)
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
+        await fulfillment(of: [warningPosted], timeout: 1.0)
+    }
+
     // Note: Cancel flow tests, stop-when-not-recording, and STT error propagation
     // are covered in CancelFlowTests.swift to avoid duplication.
 }

@@ -7,4 +7,5 @@ public extension Notification.Name {
     static let macParakeetMeetingHotkeyTriggerDidChange = Notification.Name("macparakeet.meetingHotkeyTriggerDidChange")
     static let macParakeetMenuBarOnlyModeDidChange = Notification.Name("macparakeet.menuBarOnlyModeDidChange")
     static let macParakeetShowIdlePillDidChange = Notification.Name("macparakeet.showIdlePillDidChange")
+    static let macParakeetAIFormatterWarning = Notification.Name("macparakeet.aiFormatterWarning")
 }
