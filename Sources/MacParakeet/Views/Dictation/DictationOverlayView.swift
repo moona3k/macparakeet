@@ -154,6 +154,57 @@ private struct NoSpeechContentView: View {
     }
 }
 
+/// Slow horizontal drift of warm light across the no-speech pill — the polish
+/// that accompanies the pill's farewell. Not a shimmer (that reads as sparkle
+/// or loading). A wide, soft band of light pools on the left after the leaf
+/// and label have settled, then drifts across the capsule at a contemplative
+/// pace, exiting the right edge exactly as the dismiss timer fires. The light
+/// completing its journey *is* the pill's goodbye — the motion and the
+/// disappearance are the same gesture.
+///
+/// Timing is anchored to `NoSpeechAnimationTiming.dismissSeconds` so the drift
+/// always lands right at the dismiss boundary regardless of future tuning:
+/// `delay + duration ≈ dismissSeconds − expansionDelay`.
+private struct NoSpeechLightDrift: View {
+    let active: Bool
+
+    /// Normalized horizontal offset of the light band, expressed in multiples
+    /// of the pill's width. `-1.2` parks it just off the left edge; `1.2`
+    /// pushes it just off the right edge so it fully enters and exits.
+    @State private var phase: CGFloat = -1.2
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            LinearGradient(
+                stops: [
+                    .init(color: .white.opacity(0),    location: 0.20),
+                    .init(color: .white.opacity(0.16), location: 0.50),
+                    .init(color: .white.opacity(0),    location: 0.80),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            // Wide, soft band — the falloff does the work, not a sharp edge.
+            .frame(width: w * 1.6)
+            .offset(x: phase * w)
+            .blendMode(.plusLighter)
+            .allowsHitTesting(false)
+        }
+        .mask(Capsule())
+        .opacity(active ? 1 : 0)
+        .onChange(of: active) { _, isActive in
+            guard isActive else { return }
+            // Reset off-left, then drift across with a slow easeInOut that
+            // lands right as the dismiss timer fires (~2.1s after expansion).
+            phase = -1.2
+            withAnimation(.easeInOut(duration: 1.6).delay(0.5)) {
+                phase = 1.2
+            }
+        }
+    }
+}
+
 /// The dictation overlay — compact dark capsule during dictation, wider card for errors.
 struct DictationOverlayView: View {
     @Bindable var viewModel: DictationOverlayViewModel
@@ -264,6 +315,12 @@ struct DictationOverlayView: View {
                             Capsule()
                                 .strokeBorder(DesignSystem.Colors.pillBorder, lineWidth: 1)
                         )
+                        // Slow horizontal light drift that accompanies the
+                        // no-speech pill's farewell — lands exactly at the
+                        // dismiss boundary. No-op for every other state:
+                        // `active` stays false, view sits at opacity 0, and
+                        // onChange never fires.
+                        .overlay(NoSpeechLightDrift(active: isNoSpeechExpanded))
                         .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
                 )
                 .animation(.easeInOut(duration: 0.25), value: viewModel.pillStateKey)
