@@ -111,6 +111,7 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
         return ChatCompletionResponse(
             content: content,
+            reasoningContent: openAIResponse.choices.first?.message.reasoning_content,
             model: openAIResponse.model,
             usage: usage
         )
@@ -616,6 +617,7 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             temperature: temperature,
             max_tokens: maxTokens,
             max_completion_tokens: maxCompletionTokens,
+            response_format: Self.responseFormat(from: options.responseFormat),
             options: ollamaOptions
         )
 
@@ -639,6 +641,21 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             return true
         }
         return false
+    }
+
+    private static func responseFormat(from format: ChatResponseFormat?) -> OpenAIResponseFormat? {
+        switch format {
+        case .none:
+            return nil
+        case .jsonSchema(let name, let schema):
+            return OpenAIResponseFormat(
+                type: "json_schema",
+                json_schema: OpenAIJSONSchemaSpec(
+                    name: name,
+                    schema: schema
+                )
+            )
+        }
     }
 
     internal enum SSEResult {
@@ -753,7 +770,18 @@ struct OpenAIRequestBody: Encodable {
     let temperature: Double?
     let max_tokens: Int?
     let max_completion_tokens: Int?
+    let response_format: OpenAIResponseFormat?
     let options: OllamaRequestOptions? // Ollama-specific: num_ctx etc.
+}
+
+struct OpenAIResponseFormat: Encodable {
+    let type: String
+    let json_schema: OpenAIJSONSchemaSpec?
+}
+
+struct OpenAIJSONSchemaSpec: Encodable {
+    let name: String
+    let schema: ChatJSONSchema
 }
 
 /// Ollama-specific request options to override defaults (e.g., context window size).
@@ -777,6 +805,7 @@ struct OpenAIResponse: Decodable {
 
     struct OpenAIChoiceMessage: Decodable {
         let content: String?
+        let reasoning_content: String?
     }
 
     struct OpenAIUsage: Decodable {

@@ -507,6 +507,19 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.currentTranscription?.id, t1.id)
     }
 
+    func testShowInputPortalClearsCurrentTranscriptionAndResetsSelection() {
+        let t = Transcription(fileName: "test.mp3", rawTranscript: "Hello", status: .completed)
+        viewModel.currentTranscription = t
+        viewModel.selectedTab = .chat
+        viewModel.hasConversations = true
+
+        viewModel.showInputPortal()
+
+        XCTAssertNil(viewModel.currentTranscription)
+        XCTAssertEqual(viewModel.selectedTab, .transcript)
+        XCTAssertFalse(viewModel.hasConversations)
+    }
+
     // MARK: - File Drop
 
     func testHandleFileDropReturnsFalseWhenAlreadyTranscribing() {

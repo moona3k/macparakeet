@@ -6,6 +6,7 @@ public protocol LLMServiceProtocol: Sendable {
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String
     func chat(question: String, transcript: String, history: [ChatMessage]) async throws -> String
     func transform(text: String, prompt: String) async throws -> String
+    func formatTranscript(transcript: String, promptTemplate: String) async throws -> String
 
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
     func chatStream(question: String, transcript: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error>
@@ -43,6 +44,14 @@ public extension LLMServiceProtocol {
 public final class LLMService: LLMServiceProtocol, Sendable {
     private let client: LLMClientProtocol
     private let contextResolver: any LLMExecutionContextResolving
+    private static let lmStudioFormatterSchema = ChatJSONSchema(
+        type: "object",
+        properties: [
+            "cleaned_text": ChatJSONSchemaProperty(type: "string")
+        ],
+        required: ["cleaned_text"],
+        additionalProperties: false
+    )
 
     // Context budgets (characters)
     internal static let cloudContextBudget = 100_000
@@ -118,6 +127,36 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             ChatMessage(role: .system, content: Prompts.transform),
             ChatMessage(role: .user, content: "Transform the following text according to this instruction: \(prompt)\n\n---\n\n\(truncated)"),
         ]
+        let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
+        return response.content
+    }
+
+    public func formatTranscript(transcript: String, promptTemplate: String) async throws -> String {
+        let context = try loadContext()
+        let config = context.providerConfig
+        let truncated = Self.truncateMiddle(transcript, limit: contextBudget(for: config))
+        let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: truncated)
+        let messages = [
+            ChatMessage(role: .system, content: Prompts.formatter),
+            ChatMessage(role: .user, content: renderedPrompt),
+        ]
+
+        if config.id == .lmstudio {
+            let response = try await client.chatCompletion(
+                messages: messages,
+                context: context,
+                options: ChatCompletionOptions(
+                    temperature: 0.2,
+                    maxTokens: 512,
+                    responseFormat: .jsonSchema(
+                        name: "formatter_output",
+                        schema: Self.lmStudioFormatterSchema
+                    )
+                )
+            )
+            return parseLMStudioFormattedTranscript(response) ?? response.content
+        }
+
         let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
         return response.content
     }
@@ -230,6 +269,30 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         return (trimmed?.isEmpty == false ? trimmed : nil) ?? Prompts.summary
     }
 
+    private func parseLMStudioFormattedTranscript(_ response: ChatCompletionResponse) -> String? {
+        let candidates = [
+            response.content,
+            response.reasoningContent ?? "",
+        ].map {
+            $0.trimmingCharacters(in: .whitespacesAndNewlines)
+        }.filter {
+            !$0.isEmpty
+        }
+
+        for candidate in candidates {
+            guard let data = candidate.data(using: .utf8),
+                  let payload = try? JSONDecoder().decode(FormatterStructuredOutput.self, from: data) else {
+                continue
+            }
+            let cleaned = payload.cleaned_text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleaned.isEmpty {
+                return cleaned
+            }
+        }
+
+        return nil
+    }
+
     private static func errorType(for error: Error) -> String {
         TelemetryErrorClassifier.classify(error)
     }
@@ -333,5 +396,14 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             Apply the requested transformation to the provided text. Return only the \
             transformed text without explanation.
             """
+
+        static let formatter = """
+            You are a transcription formatting assistant. Follow the user's formatting \
+            instructions exactly and return only the final formatted transcript.
+            """
+    }
+
+    private struct FormatterStructuredOutput: Decodable {
+        let cleaned_text: String
     }
 }

@@ -24,7 +24,7 @@ public final class LLMSettingsViewModel {
         case error(String)
     }
 
-    public private(set) var draft = LLMSettingsDraft()
+    public private(set) var draft: LLMSettingsDraft
     public var connectionTestState: ConnectionTestState = .idle
     public var saveState: SaveState = .idle
     public private(set) var modelListState: ModelListState = .idle
@@ -172,14 +172,59 @@ public final class LLMSettingsViewModel {
         }
     }
 
+    public var aiFormatterEnabled: Bool {
+        get { draft.providerID != nil && draft.aiFormatterEnabled }
+        set {
+            var nextDraft = draft
+            nextDraft.aiFormatterEnabled = canToggleAIFormatter ? newValue : false
+            updateDraft(nextDraft)
+            persistAIFormatterDraftIfNeeded()
+        }
+    }
+
+    public var aiFormatterPrompt: String {
+        get { draft.aiFormatterPrompt }
+        set {
+            var nextDraft = draft
+            nextDraft.aiFormatterPrompt = newValue
+            updateDraft(nextDraft)
+            persistAIFormatterDraftIfNeeded()
+        }
+    }
+
+    public var canToggleAIFormatter: Bool {
+        draft.providerID != nil && isConfigured
+    }
+
+    public var aiFormatterStatusText: String {
+        aiFormatterEnabled ? "Enabled" : "Disabled"
+    }
+
+    public var aiFormatterDisabledReason: String? {
+        if draft.providerID == nil {
+            return "Set an AI provider to enable the formatter."
+        }
+        if !isConfigured {
+            return "Save your AI provider first. Formatter changes apply immediately after that."
+        }
+        return nil
+    }
+
     public var onConfigurationChanged: (() -> Void)?
 
     private var configStore: LLMConfigStoreProtocol?
     private var llmClient: LLMClientProtocol?
     private var cliConfigStore: LocalCLIConfigStore?
+    private let defaults: UserDefaults
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LLMSettingsViewModel")
 
-    public init() {}
+    public init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        self.draft = LLMSettingsDraft(
+            aiFormatterEnabled: false,
+            aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
+        )
+    }
 
     public func configure(
         configStore: LLMConfigStoreProtocol,
@@ -210,6 +255,14 @@ public final class LLMSettingsViewModel {
                     timeoutSeconds: draft.cliTimeoutSeconds
                 )
                 try cliConfigStore?.save(cliConfig)
+            }
+
+            let normalizedFormatterPrompt = persistAIFormatterPreferences(from: draft)
+            if draft.aiFormatterPrompt != normalizedFormatterPrompt || draft.aiFormatterEnabled != aiFormatterEnabled {
+                var normalizedDraft = draft
+                normalizedDraft.aiFormatterEnabled = aiFormatterEnabled
+                normalizedDraft.aiFormatterPrompt = normalizedFormatterPrompt
+                draft = normalizedDraft
             }
 
             saveState = .saved
@@ -274,13 +327,17 @@ public final class LLMSettingsViewModel {
         } else {
             apiKey = ""
         }
+        defaults.set(false, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+        defaults.set(AIFormatter.defaultPromptTemplate, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
         draft = .defaults(
             for: currentProvider,
             apiKey: apiKey,
             defaultModelName: currentProvider == .lmstudio
                 ? discoveredModels.first ?? ""
                 : currentProvider.map { Self.defaultModelName(for: $0) } ?? "",
-            cliConfig: preservedCLIConfig
+            cliConfig: preservedCLIConfig,
+            aiFormatterEnabled: false,
+            aiFormatterPrompt: AIFormatter.defaultPromptTemplate
         )
         if currentProvider == .lmstudio {
             draft.useCustomModel = discoveredModels.isEmpty
@@ -334,9 +391,16 @@ public final class LLMSettingsViewModel {
 
     private func applyProviderChange(to providerID: LLMProviderID?) {
         guard draft.providerID != providerID else { return }
+        let formatterPrompt = draft.aiFormatterPrompt
+        let formatterEnabled = providerID == nil ? false : draft.aiFormatterEnabled
         guard let providerID else {
             resetDiscoveredModels()
-            updateDraft(LLMSettingsDraft())
+            updateDraft(
+                LLMSettingsDraft(
+                    aiFormatterEnabled: false,
+                    aiFormatterPrompt: formatterPrompt
+                )
+            )
             return
         }
         if providerID != .lmstudio {
@@ -348,7 +412,9 @@ public final class LLMSettingsViewModel {
             for: providerID,
             apiKey: apiKey,
             defaultModelName: Self.defaultModelName(for: providerID),
-            cliConfig: cliConfig
+            cliConfig: cliConfig,
+            aiFormatterEnabled: formatterEnabled,
+            aiFormatterPrompt: formatterPrompt
         )
         // Auto-switch to custom model input when provider has no suggested models
         if Self.suggestedModels(for: providerID).isEmpty && providerID != .localCLI {
@@ -362,7 +428,13 @@ public final class LLMSettingsViewModel {
 
     private func loadExistingConfig() {
         guard let configStore, let config = try? configStore.loadConfig() else {
+            draft = LLMSettingsDraft(
+                aiFormatterEnabled: false,
+                aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
+            )
             resetDiscoveredModels()
+            connectionTestState = .idle
+            saveState = .idle
             return
         }
         let cliConfig = config.id == .localCLI ? cliConfigStore?.load() : nil
@@ -371,7 +443,9 @@ public final class LLMSettingsViewModel {
             suggestedModels: Self.suggestedModels(for: config.id),
             defaultModelName: Self.defaultModelName(for: config.id),
             defaultBaseURL: Self.defaultBaseURL(for: config.id),
-            cliConfig: cliConfig
+            cliConfig: cliConfig,
+            aiFormatterEnabled: Self.loadStoredAIFormatterEnabled(from: defaults),
+            aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
         )
         if config.id == .lmstudio {
             refreshAvailableModels()
@@ -446,6 +520,33 @@ public final class LLMSettingsViewModel {
         modelListState = .idle
     }
 
+    private func persistAIFormatterPreferences(from draft: LLMSettingsDraft) -> String {
+        let enabled = draft.providerID != nil && draft.aiFormatterEnabled
+        let normalizedPrompt = draft.normalizedAIFormatterPrompt
+        defaults.set(enabled, forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey)
+        defaults.set(normalizedPrompt, forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey)
+        return normalizedPrompt
+    }
+
+    private func persistAIFormatterDraftIfNeeded() {
+        guard canToggleAIFormatter else { return }
+        let normalizedPrompt = persistAIFormatterPreferences(from: draft)
+        if draft.aiFormatterPrompt != normalizedPrompt {
+            var normalizedDraft = draft
+            normalizedDraft.aiFormatterPrompt = normalizedPrompt
+            updateDraft(normalizedDraft)
+        }
+    }
+
+    private static func loadStoredAIFormatterEnabled(from defaults: UserDefaults) -> Bool {
+        defaults.object(forKey: UserDefaultsAppRuntimePreferences.aiFormatterEnabledKey) as? Bool ?? false
+    }
+
+    private static func loadStoredAIFormatterPrompt(from defaults: UserDefaults) -> String {
+        AIFormatter.normalizedPromptTemplate(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.aiFormatterPromptKey) ?? ""
+        )
+    }
     /// Popular models for each provider. Empty means free-text input.
     public static func suggestedModels(for provider: LLMProviderID) -> [String] {
         switch provider {

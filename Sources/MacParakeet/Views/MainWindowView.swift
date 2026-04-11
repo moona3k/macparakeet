@@ -98,7 +98,14 @@ struct MainWindowView: View {
                             onNavigateBack: { state.navigateBack() }
                         )
                     case .library:
-                        TranscriptionLibraryView(viewModel: libraryViewModel) { transcription in
+                        TranscriptionLibraryView(
+                            viewModel: libraryViewModel,
+                            primaryActionTitle: "New Transcription",
+                            onPrimaryAction: {
+                                transcriptionViewModel.showInputPortal()
+                                state.selectedItem = .transcribe
+                            }
+                        ) { transcription in
                             transcriptionViewModel.currentTranscription = transcription
                             state.navigateToTranscription(from: .library)
                         }

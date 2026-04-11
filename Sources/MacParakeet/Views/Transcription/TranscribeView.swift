@@ -56,8 +56,11 @@ struct TranscribeView: View {
                         promptResultsViewModel: promptResultsViewModel,
                         promptsViewModel: promptsViewModel,
                         onBack: {
-                            viewModel.currentTranscription = nil
+                            viewModel.showInputPortal()
                             onNavigateBack?()
+                        },
+                        onStartNew: {
+                            viewModel.showInputPortal()
                         },
                         onRetranscribe: { original in
                             viewModel.retranscribe(original)

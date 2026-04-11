@@ -101,23 +101,13 @@ final class AppEnvironment {
             runtimePreferences.voiceReturnTrigger
         }
 
-        dictationService = DictationService(
-            audioProcessor: audioProcessor,
-            sttTranscriber: sttScheduler,
-            dictationRepo: dictationRepo,
-            shouldSaveAudio: { [runtimePreferences] in runtimePreferences.shouldSaveAudioRecordings },
-            shouldSaveDictationHistory: { [runtimePreferences] in runtimePreferences.shouldSaveDictationHistory },
-            entitlements: entitlementsService,
-            customWordRepo: customWordRepo,
-            snippetRepo: snippetRepo,
-            voiceReturnTrigger: voiceReturnTriggerClosure,
-            processingMode: processingModeClosure
-        )
+        let aiFormatterEnabledClosure: @Sendable () -> Bool = { [runtimePreferences] in
+            runtimePreferences.aiFormatterEnabled
+        }
 
-        telemetryService = TelemetryService()
-        Telemetry.configure(telemetryService)
-        Telemetry.send(.appLaunched)
-        CrashReporter.sendPendingReport(via: telemetryService)
+        let aiFormatterPromptClosure: @Sendable () -> String = { [runtimePreferences] in
+            runtimePreferences.aiFormatterPrompt
+        }
 
         llmClient = RoutingLLMClient()
         llmConfigStore = LLMConfigStore()
@@ -129,6 +119,27 @@ final class AppEnvironment {
             )
         )
 
+        dictationService = DictationService(
+            audioProcessor: audioProcessor,
+            sttTranscriber: sttScheduler,
+            dictationRepo: dictationRepo,
+            shouldSaveAudio: { [runtimePreferences] in runtimePreferences.shouldSaveAudioRecordings },
+            shouldSaveDictationHistory: { [runtimePreferences] in runtimePreferences.shouldSaveDictationHistory },
+            entitlements: entitlementsService,
+            customWordRepo: customWordRepo,
+            snippetRepo: snippetRepo,
+            voiceReturnTrigger: voiceReturnTriggerClosure,
+            processingMode: processingModeClosure,
+            llmService: llmService,
+            shouldUseAIFormatter: aiFormatterEnabledClosure,
+            aiFormatterPromptTemplate: aiFormatterPromptClosure
+        )
+
+        telemetryService = TelemetryService()
+        Telemetry.configure(telemetryService)
+        Telemetry.send(.appLaunched)
+        CrashReporter.sendPendingReport(via: telemetryService)
+
         transcriptionService = TranscriptionService(
             audioProcessor: audioProcessor,
             sttTranscriber: sttScheduler,
@@ -137,6 +148,9 @@ final class AppEnvironment {
             customWordRepo: customWordRepo,
             snippetRepo: snippetRepo,
             processingMode: processingModeClosure,
+            llmService: llmService,
+            shouldUseAIFormatter: aiFormatterEnabledClosure,
+            aiFormatterPromptTemplate: aiFormatterPromptClosure,
             shouldKeepDownloadedAudio: { [runtimePreferences] in runtimePreferences.shouldSaveTranscriptionAudio },
             shouldDiarize: { [runtimePreferences] in runtimePreferences.shouldDiarize },
             youtubeDownloader: youtubeDownloader,

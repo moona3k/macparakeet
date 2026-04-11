@@ -8,6 +8,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var capturedContext: LLMExecutionContext?
     var capturedOptions: ChatCompletionOptions?
     var responseContent = "Mock response"
+    var responseReasoningContent: String?
     var responseModel = "mock-model"
     var streamTokens: [String]?
     var testConnectionError: Error?
@@ -21,7 +22,11 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         capturedMessages = messages
         capturedContext = context
         capturedOptions = options
-        return ChatCompletionResponse(content: responseContent, model: responseModel)
+        return ChatCompletionResponse(
+            content: responseContent,
+            reasoningContent: responseReasoningContent,
+            model: responseModel
+        )
     }
 
     func chatCompletionStream(
@@ -192,6 +197,21 @@ final class LLMServiceTests: XCTestCase {
         }
     }
 
+    func testFormatTranscriptThrowsNotConfiguredWhenNoProvider() async {
+        mockConfigStore.config = nil
+
+        do {
+            _ = try await service.formatTranscript(transcript: "T", promptTemplate: "P")
+            XCTFail("Expected LLMError.notConfigured")
+        } catch let error as LLMError {
+            if case .notConfigured = error {} else {
+                XCTFail("Expected notConfigured, got \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     // MARK: - Summarize
 
     func testSummarizeAssemblesCorrectPrompt() async throws {
@@ -252,6 +272,52 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(mockClient.capturedMessages[1].role, .user)
         XCTAssertTrue(mockClient.capturedMessages[1].content.contains("Make it uppercase"))
         XCTAssertTrue(mockClient.capturedMessages[1].content.contains("hello world"))
+    }
+
+    func testFormatTranscriptRendersPromptTemplateWithTranscriptPlaceholder() async throws {
+        _ = try await service.formatTranscript(
+            transcript: "hello world",
+            promptTemplate: "Clean this transcript:\n\(AIFormatter.transcriptPlaceholder)"
+        )
+
+        XCTAssertEqual(mockClient.capturedMessages.count, 2)
+        XCTAssertEqual(mockClient.capturedMessages[0].role, .system)
+        XCTAssertTrue(mockClient.capturedMessages[0].content.contains("formatted transcript"))
+        XCTAssertEqual(mockClient.capturedMessages[1].role, .user)
+        XCTAssertEqual(mockClient.capturedMessages[1].content, "Clean this transcript:\nhello world")
+    }
+
+    func testFormatTranscriptForLMStudioUsesStructuredOutputFromReasoningContent() async throws {
+        mockConfigStore.config = LLMProviderConfig(
+            id: .lmstudio,
+            baseURL: URL(string: "http://localhost:1234/v1")!,
+            apiKey: nil,
+            modelName: "qwen3.5-4b-mlx",
+            isLocal: true
+        )
+        mockClient.responseContent = ""
+        mockClient.responseReasoningContent = #"{"cleaned_text":"Hello world. This is a test."}"#
+
+        let result = try await service.formatTranscript(
+            transcript: "hello world this is a test",
+            promptTemplate: AIFormatter.defaultPromptTemplate
+        )
+
+        XCTAssertEqual(result, "Hello world. This is a test.")
+        XCTAssertEqual(
+            mockClient.capturedOptions?.responseFormat,
+            .jsonSchema(
+                name: "formatter_output",
+                schema: ChatJSONSchema(
+                    type: "object",
+                    properties: [
+                        "cleaned_text": ChatJSONSchemaProperty(type: "string")
+                    ],
+                    required: ["cleaned_text"],
+                    additionalProperties: false
+                )
+            )
+        )
     }
 
     // MARK: - Context Truncation

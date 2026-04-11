@@ -175,6 +175,28 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(lastURL?.path, "/tmp/test.mp3")
     }
 
+    func testTranscribeAppliesAIFormatterAsFinalStep() async throws {
+        await mockSTT.configure(result: STTResult(text: "hello world"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Hello, world."
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            llmService: mockLLMService,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
+        )
+
+        let result = try await service.transcribe(fileURL: URL(fileURLWithPath: "/tmp/test.mp3"))
+
+        XCTAssertEqual(result.rawTranscript, "hello world")
+        XCTAssertEqual(result.cleanTranscript, "Hello, world.")
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
+        XCTAssertEqual(mockLLMService.lastFormattedTranscript, "hello world")
+    }
+
     func testTranscribeURLKeepsDownloadedAudioByDefault() async throws {
         let downloadedURL = try makeTempDownloadedAudio()
         defer { try? FileManager.default.removeItem(at: downloadedURL) }
