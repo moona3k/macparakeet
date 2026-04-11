@@ -103,7 +103,7 @@ struct MainWindowView: View {
                             primaryActionTitle: "New Transcription",
                             onPrimaryAction: {
                                 transcriptionViewModel.showInputPortal()
-                                state.selectedItem = .transcribe
+                                state.navigateToTranscription(from: .library)
                             }
                         ) { transcription in
                             transcriptionViewModel.currentTranscription = transcription
