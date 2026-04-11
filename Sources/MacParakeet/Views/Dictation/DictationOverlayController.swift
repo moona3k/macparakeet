@@ -85,11 +85,9 @@ final class DictationOverlayController {
         panel.hasShadow = false // SwiftUI handles shadows; system shadow creates visible outline
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentView = hosting
 
         // Mouse tracking overlay for hover tooltips
         let tracker = MouseTrackingView(frame: hosting.bounds)
-        tracker.autoresizingMask = [.width, .height]
         tracker.onEnter = { [weak self] in self?.overlayViewModel.isHovered = true }
         tracker.onExit = { [weak self] in
             self?.overlayViewModel.isHovered = false
@@ -98,7 +96,12 @@ final class DictationOverlayController {
         tracker.onMoved = { [weak self] point in
             self?.updateHoverTooltip(at: point, in: hosting.bounds)
         }
-        hosting.addSubview(tracker)
+        let contentView = OverlayHostingContainerView(
+            frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
+            hostingView: hosting,
+            overlayView: tracker
+        )
+        panel.contentView = contentView
         trackingView = tracker
 
         // Position at bottom-center, just above the Dock

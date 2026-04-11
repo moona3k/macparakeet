@@ -112,11 +112,9 @@ final class IdlePillController {
         panel.hasShadow = false
         panel.level = .floating
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-        panel.contentView = hosting
 
         // Mouse tracking overlay for hover + click
         let tracker = IdlePillTrackingView(frame: hosting.bounds)
-        tracker.autoresizingMask = [.width, .height]
         tracker.onEnter = { [weak self] in
             Task { @MainActor in self?.viewModel.isHovered = true }
         }
@@ -139,7 +137,12 @@ final class IdlePillController {
         let expandedX = (panelWidth - expandedW) / 2
         tracker.expandedPillRect = NSRect(x: expandedX, y: 0, width: expandedW, height: expandedH)
 
-        hosting.addSubview(tracker)
+        let contentView = OverlayHostingContainerView(
+            frame: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
+            hostingView: hosting,
+            overlayView: tracker
+        )
+        panel.contentView = contentView
         trackingView = tracker
 
         // Position at bottom-center, just above the Dock
