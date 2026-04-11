@@ -69,18 +69,25 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var captureFailed = false
     private var latestLevels = MeetingAudioLevels()
     private var recentSystemRms: Float = 0
-    private var recentMicRms: Float = 0
+    private var recentProcessedMicRms: Float = 0
     private var latestSystemSignalAt: ContinuousClock.Instant?
+    private var softwareAEC = MeetingSoftwareAEC()
+    private var syncLagEmaMs: Double?
+    private var syncLagWarningActive = false
+    private var lastLoggedSyncLagBucketMs: Int?
 
     private var transcriptContinuation: AsyncStream<MeetingTranscriptUpdate>.Continuation?
     private var cachedTranscriptUpdates: AsyncStream<MeetingTranscriptUpdate>?
 
     private static let rmsEmaAlpha: Float = 0.3
-    private static let systemDominanceRatio: Float = 4.0
+    private static let systemDominanceRatio: Float = 10.0
     private static let systemActiveFloor: Float = 0.02
     private static let systemSignalFreshnessWindow: Duration = .milliseconds(750)
     private static let rmsEpsilon: Float = 0.0001
-    private static let chunkSignalFloor: Float = 0.0005
+    private static let chunkSignalFloor: Float = 0.00025
+    private static let syncLagEmaAlpha: Double = 0.2
+    private static let syncLagLogBucketMs: Int = 20
+    private static let syncLagWarningThresholdMs: Double = 120
 
     public init(
         audioCaptureService: any MeetingAudioCapturing = MeetingAudioCaptureService(),
@@ -166,8 +173,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         isTranscriptionLagging = false
         captureFailed = false
         recentSystemRms = 0
-        recentMicRms = 0
+        recentProcessedMicRms = 0
         latestSystemSignalAt = nil
+        softwareAEC.reset()
+        syncLagEmaMs = nil
+        syncLagWarningActive = false
+        lastLoggedSyncLagBucketMs = nil
 
         processingTask = Task { [weak self] in
             guard let self else { return }
@@ -262,7 +273,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             do {
                 try writer?.write(buffer, source: .microphone)
                 latestLevels.microphone = buffer.rmsLevel
-                updateMicrophoneRms(with: latestLevels.microphone)
                 if let samples = AudioChunker.extractAndResample(from: buffer),
                    let session = currentSession {
                     await ingestResampledSamples(
@@ -305,15 +315,23 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         session: Session
     ) async {
         pairJoiner.push(samples: samples, hostTime: hostTime, source: source)
+        logJoinerDiagnostics(pairJoiner.drainDiagnostics())
         for pair in pairJoiner.drainPairs() {
             await processJoinedPair(pair, session: session)
         }
     }
 
     private func processJoinedPair(_ pair: MeetingAudioPair, session: Session) async {
+        observePairSyncLag(pair)
+
         if pair.hasMicrophoneSignal {
+            let processedMicrophone = softwareAEC.process(
+                microphone: pair.microphoneSamples,
+                speaker: pair.systemSamples
+            )
+            updateProcessedMicrophoneRms(with: chunkRms(for: processedMicrophone))
             if let microphoneChunk = offsetChunk(
-                await microphoneChunker.addSamples(pair.microphoneSamples),
+                await microphoneChunker.addSamples(processedMicrophone),
                 source: .microphone,
                 hostTime: pair.microphoneHostTime
             ) {
@@ -604,8 +622,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
     }
 
-    private func updateMicrophoneRms(with bufferRms: Float) {
-        recentMicRms = exponentialMovingAverage(previous: recentMicRms, sample: bufferRms)
+    private func updateProcessedMicrophoneRms(with rms: Float) {
+        recentProcessedMicRms = exponentialMovingAverage(previous: recentProcessedMicRms, sample: rms)
     }
 
     private func exponentialMovingAverage(previous: Float, sample: Float) -> Float {
@@ -618,8 +636,53 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         guard let latestSystemSignalAt else { return false }
         guard latestSystemSignalAt.duration(to: clock.now) <= Self.systemSignalFreshnessWindow else { return false }
 
-        let ratio = recentSystemRms / max(recentMicRms, Self.rmsEpsilon)
+        let ratio = recentSystemRms / max(recentProcessedMicRms, Self.rmsEpsilon)
         return ratio >= Self.systemDominanceRatio
+    }
+
+    private func logJoinerDiagnostics(_ diagnostics: [MeetingAudioJoinerDiagnostic]) {
+        guard !diagnostics.isEmpty else { return }
+        for diagnostic in diagnostics {
+            switch diagnostic.kind {
+            case .queueOverflow(let source, let droppedFrames, let queueDepth):
+                logger.notice(
+                    "Meeting joiner overflow source=\(source.rawValue, privacy: .public) dropped_frames=\(droppedFrames) queue_depth=\(queueDepth)"
+                )
+            }
+        }
+    }
+
+    private func observePairSyncLag(_ pair: MeetingAudioPair) {
+        guard let micHostTime = pair.microphoneHostTime, let systemHostTime = pair.systemHostTime else { return }
+        let micSeconds = AVAudioTime.seconds(forHostTime: micHostTime)
+        let systemSeconds = AVAudioTime.seconds(forHostTime: systemHostTime)
+        let lagMs = (micSeconds - systemSeconds) * 1000
+
+        let ema: Double
+        if let existing = syncLagEmaMs {
+            ema = existing + Self.syncLagEmaAlpha * (lagMs - existing)
+        } else {
+            ema = lagMs
+        }
+        syncLagEmaMs = ema
+
+        let bucket = Int((ema / Double(Self.syncLagLogBucketMs)).rounded()) * Self.syncLagLogBucketMs
+        if bucket != lastLoggedSyncLagBucketMs {
+            logger.debug(
+                "Meeting sync lag raw_ms=\(lagMs, privacy: .public) ema_ms=\(ema, privacy: .public)"
+            )
+            lastLoggedSyncLagBucketMs = bucket
+        }
+
+        let warning = abs(ema) >= Self.syncLagWarningThresholdMs
+        if warning != syncLagWarningActive {
+            if warning {
+                logger.notice("Meeting sync lag warning ema_ms=\(ema, privacy: .public)")
+            } else {
+                logger.info("Meeting sync lag recovered ema_ms=\(ema, privacy: .public)")
+            }
+            syncLagWarningActive = warning
+        }
     }
 
     private func shouldTranscribeChunk(_ chunk: AudioChunker.AudioChunk) -> Bool {
@@ -643,8 +706,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         pairJoiner.reset()
         latestLevels = MeetingAudioLevels()
         recentSystemRms = 0
-        recentMicRms = 0
+        recentProcessedMicRms = 0
         latestSystemSignalAt = nil
+        softwareAEC.reset()
+        syncLagEmaMs = nil
+        syncLagWarningActive = false
+        lastLoggedSyncLagBucketMs = nil
         chunkResultBuffer.reset()
         transcriptAssembler.reset()
         chunkTranscriptionFailed = false

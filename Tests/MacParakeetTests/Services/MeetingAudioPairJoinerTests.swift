@@ -54,4 +54,23 @@ final class MeetingAudioPairJoinerTests: XCTestCase {
         XCTAssertEqual(pairs.last?.microphoneSamples, [34.0])
         XCTAssertEqual(pairs.last?.microphoneHostTime, 34)
     }
+
+    func testDrainDiagnosticsReportsOverflowEvents() {
+        var joiner = MeetingAudioPairJoiner()
+        for index in 0..<35 {
+            joiner.push(samples: [Float(index)], hostTime: UInt64(index), source: .microphone)
+        }
+
+        let diagnostics = joiner.drainDiagnostics()
+        XCTAssertEqual(diagnostics.count, 5)
+        for diagnostic in diagnostics {
+            guard case .queueOverflow(let source, let droppedFrames, let queueDepth) = diagnostic.kind else {
+                return XCTFail("Expected queueOverflow diagnostic")
+            }
+            XCTAssertEqual(source, .microphone)
+            XCTAssertEqual(droppedFrames, 1)
+            XCTAssertEqual(queueDepth, 30)
+        }
+        XCTAssertTrue(joiner.drainDiagnostics().isEmpty)
+    }
 }

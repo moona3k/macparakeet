@@ -60,8 +60,10 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
         }
     }
 
-    /// Mix one or more audio files down to a single 16kHz mono AAC file.
-    /// Used by meeting recording to combine microphone + system audio before STT.
+    /// Produce a final meeting M4A from one or more source tracks.
+    /// For mic+system dual input, preserve channel separation as stereo:
+    /// channel 1 = microphone, channel 2 = system.
+    /// For single-input sessions, output a mono AAC file.
     public func mixToM4A(inputURLs: [URL], outputURL: URL) async throws {
         guard !inputURLs.isEmpty else {
             throw AudioProcessorError.conversionFailed("No audio files to mix")
@@ -110,21 +112,42 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
             args.append(contentsOf: ["-i", inputPath])
         }
 
-        if inputPaths.count > 1 {
+        let outputArgs: [String]
+        if inputPaths.count == 2 {
+            args.append(contentsOf: [
+                "-filter_complex",
+                "[0:a][1:a]join=inputs=2:channel_layout=stereo[a]",
+                "-map", "[a]"
+            ])
+            outputArgs = [
+                "-ar", "48000",
+                "-ac", "2",
+                "-c:a", "aac",
+                "-b:a", "128k",
+            ]
+        } else if inputPaths.count > 2 {
             let inputRefs = inputPaths.indices.map { "[\($0):a]" }.joined()
             args.append(contentsOf: [
                 "-filter_complex",
-                "\(inputRefs)amix=inputs=\(inputPaths.count):duration=longest:normalize=1"
+                "\(inputRefs)amix=inputs=\(inputPaths.count):duration=longest:normalize=1",
             ])
+            outputArgs = [
+                "-ar", "16000",
+                "-ac", "1",
+                "-c:a", "aac",
+                "-b:a", "64k",
+            ]
+        } else {
+            outputArgs = [
+                "-ar", "16000",
+                "-ac", "1",
+                "-c:a", "aac",
+                "-b:a", "64k",
+            ]
         }
 
-        args.append(contentsOf: [
-            "-ar", "16000",
-            "-ac", "1",
-            "-c:a", "aac",
-            "-b:a", "64k",
-            "-y",
-            outputPath
+        args.append(contentsOf: outputArgs + [
+            "-y", outputPath,
         ])
         return args
     }

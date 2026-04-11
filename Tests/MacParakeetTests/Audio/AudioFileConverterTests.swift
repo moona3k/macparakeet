@@ -51,7 +51,7 @@ final class AudioFileConverterTests: XCTestCase {
         XCTAssertTrue(args.contains("/tmp/output.wav"))
     }
 
-    func testFFmpegMixArgumentsNormalizeInputs() {
+    func testFFmpegMixArgumentsPreserveStereoForMicAndSystem() {
         let converter = AudioFileConverter()
         let args = converter.ffmpegMixArguments(
             inputPaths: ["/tmp/mic.m4a", "/tmp/system.m4a"],
@@ -59,7 +59,11 @@ final class AudioFileConverterTests: XCTestCase {
         )
 
         XCTAssertTrue(args.contains("-filter_complex"))
-        XCTAssertTrue(args.contains("[0:a][1:a]amix=inputs=2:duration=longest:normalize=1"))
+        XCTAssertTrue(args.contains("[0:a][1:a]join=inputs=2:channel_layout=stereo[a]"))
+        XCTAssertTrue(args.contains("-map"))
+        XCTAssertTrue(args.contains("[a]"))
+        XCTAssertTrue(args.contains("-ac"))
+        XCTAssertTrue(args.contains("2"))
     }
 
     func testConvertUnsupportedFormat() async {
