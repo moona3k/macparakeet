@@ -2,17 +2,23 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MeetingAudioPairJoinerTests: XCTestCase {
-    func testDrainPairsPadsToLongestFrameAndPreservesHostTimes() {
+    func testDrainPairsSplitsAsymmetricFramesWithoutPaddingAndPreservesHostTimes() {
         var joiner = MeetingAudioPairJoiner()
         joiner.push(samples: [0.1, 0.2], hostTime: 100, source: .microphone)
         joiner.push(samples: [0.3], hostTime: 200, source: .system)
 
         let pairs = joiner.drainPairs()
         XCTAssertEqual(pairs.count, 1)
-        XCTAssertEqual(pairs[0].microphoneSamples, [0.1, 0.2])
-        XCTAssertEqual(pairs[0].systemSamples, [0.3, 0.0])
+        XCTAssertEqual(pairs[0].microphoneSamples, [0.1])
+        XCTAssertEqual(pairs[0].systemSamples, [0.3])
         XCTAssertEqual(pairs[0].microphoneHostTime, 100)
         XCTAssertEqual(pairs[0].systemHostTime, 200)
+
+        let flushed = joiner.flushRemainingPairs()
+        XCTAssertEqual(flushed.count, 1)
+        XCTAssertEqual(flushed[0].microphoneSamples, [0.2])
+        XCTAssertEqual(flushed[0].systemSamples, [0.0])
+        XCTAssertNil(flushed[0].systemHostTime)
     }
 
     func testDrainPairsEmitsMicWithSilenceAfterLagThreshold() {

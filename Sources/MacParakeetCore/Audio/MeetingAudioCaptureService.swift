@@ -112,7 +112,11 @@ public actor MeetingAudioCaptureService {
 
         do {
             try microphoneCapture.start { [weak self] buffer, time in
-                guard let copy = Self.deepCopyBuffer(buffer) else { return }
+                guard let copy = Self.deepCopyBuffer(buffer) else {
+                    Logger(subsystem: "com.macparakeet.core", category: "MeetingAudioCaptureService")
+                        .warning("deepCopyBuffer nil for microphone capture: format=\(buffer.format.commonFormat.rawValue) rate=\(buffer.format.sampleRate) ch=\(buffer.format.channelCount) interleaved=\(buffer.format.isInterleaved) frames=\(buffer.frameLength)")
+                    return
+                }
                 self?.eventSink.emit(.microphoneBuffer(copy, time))
             }
 
