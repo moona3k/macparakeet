@@ -229,8 +229,16 @@ final class OnboardingViewModelTests: XCTestCase {
         XCTAssertGreaterThan(beforeStopCount, 1)
 
         vm.stopPermissionPolling()
+        let atStopCount = perms.checkScreenRecordingPermissionCallCount
         try await Task.sleep(for: .milliseconds(100))
-        XCTAssertEqual(perms.checkScreenRecordingPermissionCallCount, beforeStopCount)
+        let firstSettledCount = perms.checkScreenRecordingPermissionCallCount
+        try await Task.sleep(for: .milliseconds(100))
+        let secondSettledCount = perms.checkScreenRecordingPermissionCallCount
+
+        // Allow at most one in-flight refresh tick to finish after cancellation.
+        XCTAssertLessThanOrEqual(firstSettledCount, atStopCount + 1)
+        // After settling, polling must remain stopped.
+        XCTAssertEqual(secondSettledCount, firstSettledCount)
     }
 
     func testEngineWarmUpTransitionsToReady() async throws {

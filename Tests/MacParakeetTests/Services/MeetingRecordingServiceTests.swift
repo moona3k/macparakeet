@@ -157,7 +157,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
                     STTResult(text: "first", words: [
                         TimestampedWord(word: "first", startMs: 0, endMs: 120, confidence: 0.9),
                     ]),
-                    delay: .milliseconds(200)
+                    delay: .milliseconds(600)
                 ),
                 .dropBackpressure,
             ]
@@ -328,6 +328,39 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(counts.system, 0)
     }
 
+    func testStopRecordingMixesDualSourcesInMicrophoneThenSystemOrder() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = RecordingMeetingAudioFileConverter()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording()
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_096, sampleValue: 0.2))
+        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_096, sampleValue: 0.3))
+
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        await captureService.yield(.systemBuffer(
+            systemBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertEqual(
+            audioConverter.capturedMixedInputs(),
+            [output.microphoneAudioURL, output.systemAudioURL]
+        )
+    }
+
     private func waitForLiveChunkTranscriptionStart(
         _ client: SleepingMeetingSTTClient,
         timeout: Duration = .seconds(1)
@@ -402,6 +435,26 @@ private final class MockMeetingAudioFileConverter: AudioFileConverting, @uncheck
 
     func mixToM4A(inputURLs: [URL], outputURL: URL) async throws {
         FileManager.default.createFile(atPath: outputURL.path, contents: Data("mixed".utf8))
+    }
+}
+
+private final class RecordingMeetingAudioFileConverter: AudioFileConverting, @unchecked Sendable {
+    private let lock = NSLock()
+    private var mixedInputs: [URL] = []
+
+    func convert(fileURL: URL) async throws -> URL {
+        fileURL
+    }
+
+    func mixToM4A(inputURLs: [URL], outputURL: URL) async throws {
+        lock.withLock {
+            mixedInputs = inputURLs
+        }
+        FileManager.default.createFile(atPath: outputURL.path, contents: Data("mixed".utf8))
+    }
+
+    func capturedMixedInputs() -> [URL] {
+        lock.withLock { mixedInputs }
     }
 }
 

@@ -567,7 +567,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     private func existingSourceURLs(for session: Session) throws -> [URL] {
-        let candidates = [session.systemAudioURL, session.microphoneAudioURL]
+        // Preserve deterministic channel mapping for dual-source sessions:
+        // input[0] = microphone (L), input[1] = system (R).
+        let candidates = [session.microphoneAudioURL, session.systemAudioURL]
         return try candidates.filter { url in
             guard fileManager.fileExists(atPath: url.path) else { return false }
             let size = try fileManager.attributesOfItem(atPath: url.path)[.size] as? NSNumber
