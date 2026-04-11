@@ -80,8 +80,7 @@ public enum AIFormatter {
         }
 
         if normalized.contains("\\n") {
-            let replacement = normalized.contains("\n") ? "\n" : "\n\n"
-            normalized = normalized.replacingOccurrences(of: "\\n", with: replacement)
+            normalized = normalized.replacingOccurrences(of: "\\n", with: "\n\n")
         }
 
         while normalized.contains("\n\n\n") {

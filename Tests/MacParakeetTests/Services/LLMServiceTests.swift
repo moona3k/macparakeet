@@ -341,6 +341,25 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(result, "First paragraph.\n\nSecond paragraph.\n\nThird paragraph.")
     }
 
+    func testFormatTranscriptForLMStudioPreservesParagraphsWhenOutputMixesRealAndEscapedNewlines() async throws {
+        mockConfigStore.config = LLMProviderConfig(
+            id: .lmstudio,
+            baseURL: URL(string: "http://localhost:1234/v1")!,
+            apiKey: nil,
+            modelName: "qwen3.5-4b-mlx",
+            isLocal: true
+        )
+        mockClient.responseContent = ""
+        mockClient.responseReasoningContent = #"{"cleaned_text":"Intro line.\nSecond line in same paragraph.\\nNew paragraph starts here."}"#
+
+        let result = try await service.formatTranscript(
+            transcript: "intro and follow-up then new paragraph",
+            promptTemplate: AIFormatter.defaultPromptTemplate
+        )
+
+        XCTAssertEqual(result, "Intro line.\nSecond line in same paragraph.\n\nNew paragraph starts here.")
+    }
+
     func testFormatTranscriptForLMStudioThrowsWhenOutputIsTruncated() async throws {
         mockConfigStore.config = LLMProviderConfig(
             id: .lmstudio,
