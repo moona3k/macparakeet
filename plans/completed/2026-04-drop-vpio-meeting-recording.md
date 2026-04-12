@@ -93,13 +93,13 @@ Edit `Sources/MacParakeetCore/Audio/MicrophoneCapture.swift`:
 
 **Sanity grep after edits:**
 
-```
+```shell
 grep -rn "= \.vpioPreferred" Sources/
 ```
 
 Should return **zero matches**. Any remaining match is a missed default.
 
-```
+```shell
 grep -rn "\.vpioPreferred" Sources/
 ```
 
@@ -154,7 +154,7 @@ For `Tests/MacParakeetTests/Services/MeetingRecordingServiceTests.swift:480` —
 
 **Grep sanity check** at the end of step 3:
 
-```
+```shell
 grep -rn "\.vpioPreferred" Sources/ Tests/
 ```
 

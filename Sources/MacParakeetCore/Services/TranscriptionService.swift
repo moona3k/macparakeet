@@ -114,17 +114,29 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         recording: MeetingRecordingOutput,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        // Reserve `.meetingFinalize` for the immediate post-stop meeting path.
-        // Saved meeting retranscribes still go through the batch/file lane even
-        // though their telemetry source remains `.meeting`.
-        return try await transcribe(
-            fileURL: recording.mixedAudioURL,
-            storedFileURL: recording.mixedAudioURL,
-            displayFileName: recording.displayName,
+        if let entitlements {
+            try await entitlements.assertCanTranscribe(now: Date())
+        }
+
+        let fileSize = (try? FileManager.default.attributesOfItem(atPath: recording.mixedAudioURL.path)[.size] as? Int)
+            .flatMap { $0 }
+
+        var transcription = Transcription(
+            fileName: recording.displayName,
+            filePath: recording.mixedAudioURL.path,
+            fileSizeBytes: fileSize,
+            status: .processing,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(transcription)
+        Telemetry.send(.transcriptionStarted(
             source: .meeting,
-            sttJob: .meetingFinalize,
-            sourceType: .meeting,
-            meetingSpeakerMetadata: recording.preparedTranscript,
+            audioDurationSeconds: recording.durationSeconds
+        ))
+
+        return try await transcribeMeetingAudio(
+            recording: recording,
+            transcription: &transcription,
             onProgress: onProgress
         )
     }
@@ -136,7 +148,6 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         source: TelemetryTranscriptionSource,
         sttJob: STTJobKind,
         sourceType: Transcription.SourceType,
-        meetingSpeakerMetadata: MeetingRealtimeTranscript? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         if let entitlements {
@@ -178,7 +189,6 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             sttJob: sttJob,
             transcription: &transcription,
             tempFiles: [],
-            meetingSpeakerMetadata: meetingSpeakerMetadata,
             onProgress: onProgress
         )
     }
@@ -271,6 +281,235 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
     // MARK: - Private
 
+    private func transcribeMeetingAudio(
+        recording: MeetingRecordingOutput,
+        transcription: inout Transcription,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        let processingStartedAt = Date()
+        var lifecycleStage: TelemetryTranscriptionStage = .audioConversion
+        let diarizationRequested = diarizationService != nil && shouldDiarize() && recording.sourceAlignment.system != nil
+        var temporaryWavURLs: [URL] = []
+        var sourceWavURLs: [AudioSource: URL] = [:]
+        defer {
+            for wavURL in temporaryWavURLs {
+                try? FileManager.default.removeItem(at: wavURL)
+            }
+        }
+
+        do {
+            let sourceResults = try await transcribeMeetingSources(
+                recording: recording,
+                lifecycleStage: &lifecycleStage,
+                temporaryWavURLs: &temporaryWavURLs,
+                sourceWavURLs: &sourceWavURLs,
+                onProgress: onProgress
+            )
+
+            let systemDiarization = try await diarizeMeetingSystemIfNeeded(
+                recording: recording,
+                sourceWavURLs: sourceWavURLs,
+                requested: diarizationRequested,
+                lifecycleStage: &lifecycleStage,
+                onProgress: onProgress
+            )
+
+            let finalized = MeetingTranscriptFinalizer.finalize(
+                sourceTranscripts: sourceResults,
+                systemDiarization: systemDiarization
+            )
+
+            transcription.rawTranscript = finalized.rawTranscript
+            transcription.wordTimestamps = finalized.words
+            transcription.durationMs = max(
+                Int((recording.durationSeconds * 1000).rounded()),
+                finalized.durationMs ?? 0
+            )
+            transcription.speakers = finalized.speakers
+            transcription.speakerCount = finalized.speakers.isEmpty ? nil : finalized.speakers.count
+            transcription.diarizationSegments = finalized.diarizationSegments.isEmpty ? nil : finalized.diarizationSegments
+
+            lifecycleStage = .postProcessing
+            let completed = try await completeTranscription(
+                source: .meeting,
+                transcription: &transcription,
+                rawText: finalized.rawTranscript,
+                processingStartedAt: processingStartedAt,
+                diarizationRequested: diarizationRequested,
+                diarizationApplied: systemDiarization != nil
+            )
+
+            return completed
+        } catch {
+            let audioDurationSeconds = transcription.durationMs.map { Double($0) / 1000.0 } ?? recording.durationSeconds
+            if error is CancellationError {
+                Telemetry.send(.transcriptionCancelled(
+                    source: .meeting,
+                    audioDurationSeconds: audioDurationSeconds,
+                    stage: lifecycleStage
+                ))
+            } else {
+                Telemetry.send(.transcriptionFailed(
+                    source: .meeting,
+                    stage: lifecycleStage,
+                    errorType: Self.errorType(for: error),
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                ))
+            }
+
+            let txID = transcription.id
+            if error is CancellationError {
+                do {
+                    try transcriptionRepo.updateStatus(
+                        id: txID,
+                        status: .cancelled,
+                        errorMessage: nil
+                    )
+                } catch let dbError {
+                    logger.error("failed_to_update_cancelled_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+                }
+            } else {
+                do {
+                    try transcriptionRepo.updateStatus(
+                        id: txID,
+                        status: .error,
+                        errorMessage: error.localizedDescription
+                    )
+                } catch let dbError {
+                    logger.error("failed_to_update_error_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+                }
+            }
+            throw error
+        }
+    }
+
+    private func transcribeMeetingSources(
+        recording: MeetingRecordingOutput,
+        lifecycleStage: inout TelemetryTranscriptionStage,
+        temporaryWavURLs: inout [URL],
+        sourceWavURLs: inout [AudioSource: URL],
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> [MeetingTranscriptFinalizer.SourceTranscript] {
+        var outputs: [MeetingTranscriptFinalizer.SourceTranscript] = []
+        let activeSources = [AudioSource.microphone, .system].filter { recording.sourceAlignment.track(for: $0) != nil }
+
+        for (index, source) in activeSources.enumerated() {
+            let fileURL = meetingAudioURL(for: source, recording: recording)
+            lifecycleStage = .audioConversion
+            onProgress?(.converting)
+            let wavURL = try await audioProcessor.convert(fileURL: fileURL)
+            temporaryWavURLs.append(wavURL)
+            sourceWavURLs[source] = wavURL
+
+            lifecycleStage = .stt
+            onProgress?(.transcribing(percent: Int((Double(index) / Double(max(activeSources.count, 1))) * 100)))
+            let result = try await sttTranscriber.transcribe(
+                audioPath: wavURL.path,
+                job: .meetingFinalize,
+                onProgress: meetingSourceProgressMapper(
+                    sourceIndex: index,
+                    sourceCount: activeSources.count,
+                    onProgress: onProgress
+                )
+            )
+
+            outputs.append(
+                .init(
+                    source: source,
+                    result: result,
+                    startOffsetMs: recording.sourceAlignment.track(for: source)?.startOffsetMs ?? 0
+                )
+            )
+        }
+
+        return outputs
+    }
+
+    private func diarizeMeetingSystemIfNeeded(
+        recording: MeetingRecordingOutput,
+        sourceWavURLs: [AudioSource: URL],
+        requested: Bool,
+        lifecycleStage: inout TelemetryTranscriptionStage,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> MeetingTranscriptFinalizer.SystemDiarization? {
+        guard requested, let diarizationService else { return nil }
+        guard let systemTrack = recording.sourceAlignment.system else { return nil }
+        guard let systemWavURL = sourceWavURLs[.system] else { return nil }
+
+        lifecycleStage = .diarization
+        do {
+            onProgress?(.identifyingSpeakers)
+            Telemetry.send(.diarizationStarted(source: .meeting))
+            let diarStartedAt = Date()
+            let diarResult = try await diarizationService.diarize(audioURL: systemWavURL)
+            let diarDuration = Date().timeIntervalSince(diarStartedAt)
+            Telemetry.send(.diarizationCompleted(
+                source: .meeting,
+                speakerCount: diarResult.speakerCount,
+                durationSeconds: diarDuration
+            ))
+
+            guard !diarResult.segments.isEmpty else { return nil }
+
+            let mappedSpeakers = diarResult.speakers.enumerated().map { index, speaker in
+                SpeakerInfo(
+                    id: "\(AudioSource.system.rawValue):\(speaker.id)",
+                    label: "\(AudioSource.system.displayLabel) \(index + 1)"
+                )
+            }
+            let speakerIDMap = Dictionary(uniqueKeysWithValues: zip(
+                diarResult.speakers.map(\.id),
+                mappedSpeakers.map(\.id)
+            ))
+            let mappedSegments = diarResult.segments.map { segment in
+                SpeakerSegment(
+                    speakerId: speakerIDMap[segment.speakerId] ?? "\(AudioSource.system.rawValue):\(segment.speakerId)",
+                    startMs: segment.startMs + systemTrack.startOffsetMs,
+                    endMs: segment.endMs + systemTrack.startOffsetMs
+                )
+            }
+
+            return MeetingTranscriptFinalizer.SystemDiarization(
+                speakers: mappedSpeakers,
+                segments: mappedSegments
+            )
+        } catch is CancellationError {
+            throw CancellationError()
+        } catch {
+            logger.error("meeting_system_diarization_failed error=\(error.localizedDescription, privacy: .public)")
+            Telemetry.send(.diarizationFailed(
+                source: .meeting,
+                errorType: String(describing: type(of: error)),
+                errorDetail: TelemetryErrorClassifier.errorDetail(error)
+            ))
+            return nil
+        }
+    }
+
+    private func meetingAudioURL(for source: AudioSource, recording: MeetingRecordingOutput) -> URL {
+        switch source {
+        case .microphone:
+            return recording.microphoneAudioURL
+        case .system:
+            return recording.systemAudioURL
+        }
+    }
+
+    private func meetingSourceProgressMapper(
+        sourceIndex: Int,
+        sourceCount: Int,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) -> (@Sendable (Int, Int) -> Void)? {
+        guard let onProgress else { return nil }
+        return { current, total in
+            let phaseSpan = max(1, sourceCount)
+            let sourceFraction = total > 0 ? Double(current) / Double(total) : 0
+            let overall = (Double(sourceIndex) + sourceFraction) / Double(phaseSpan)
+            let percent = min(Int((overall * 100).rounded()), 99)
+            onProgress(.transcribing(percent: percent))
+        }
+    }
+
     private func transcribeAudio(
         fileURL: URL,
         source: TelemetryTranscriptionSource,
@@ -278,14 +517,12 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         transcription: inout Transcription,
         tempFiles: [URL],
         cleanUpDownloadedFiles: Bool = true,
-        meetingSpeakerMetadata: MeetingRealtimeTranscript? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         var wavURL: URL?
         let processingStartedAt = Date()
         var lifecycleStage: TelemetryTranscriptionStage = .audioConversion
-        let meetingPreparedTranscriptUsed = source == .meeting && meetingSpeakerMetadata != nil
-        let diarizationRequested = meetingPreparedTranscriptUsed || (diarizationService != nil && shouldDiarize())
+        let diarizationRequested = diarizationService != nil && shouldDiarize()
         do {
             onProgress?(.converting)
             wavURL = try await audioProcessor.convert(fileURL: fileURL)
@@ -321,19 +558,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             transcription.wordTimestamps = words
             transcription.durationMs = result.words.last?.endMs
 
-            if source == .meeting, let meetingSpeakerMetadata {
-                let speakerSegments = meetingSpeakerMetadata.diarizationSegments.map {
-                    SpeakerSegment(speakerId: $0.speakerId, startMs: $0.startMs, endMs: $0.endMs)
-                }
-                let mergedWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
-                    words: words,
-                    segments: speakerSegments
-                )
-                transcription.wordTimestamps = mergedWords
-                transcription.speakerCount = meetingSpeakerMetadata.speakerCount
-                transcription.speakers = meetingSpeakerMetadata.speakers
-                transcription.diarizationSegments = Self.buildDiarizationSegments(from: mergedWords)
-            } else if let diarizationService, shouldDiarize() {
+            let diarizationApplied: Bool
+            if let diarizationService, shouldDiarize() {
                 lifecycleStage = .diarization
                 do {
                     onProgress?(.identifyingSpeakers)
@@ -353,6 +579,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                             DiarizationSegmentRecord(speakerId: $0.speakerId, startMs: $0.startMs, endMs: $0.endMs)
                         }
                     }
+                    diarizationApplied = !diarResult.segments.isEmpty
                     Telemetry.send(.diarizationCompleted(
                         source: source,
                         speakerCount: diarResult.speakerCount,
@@ -361,6 +588,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch {
+                    diarizationApplied = false
                     logger.error("diarization_failed error=\(error.localizedDescription, privacy: .public)")
                     Telemetry.send(.diarizationFailed(
                         source: source,
@@ -368,6 +596,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                         errorDetail: TelemetryErrorClassifier.errorDetail(error)
                     ))
                 }
+            } else {
+                diarizationApplied = false
             }
 
             lifecycleStage = .postProcessing
@@ -377,7 +607,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                 rawText: result.text,
                 processingStartedAt: processingStartedAt,
                 diarizationRequested: diarizationRequested,
-                meetingPreparedTranscriptUsed: meetingPreparedTranscriptUsed
+                diarizationApplied: diarizationApplied
             )
 
             try? FileManager.default.removeItem(at: wavURL)
@@ -444,7 +674,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         rawText: String,
         processingStartedAt: Date,
         diarizationRequested: Bool,
-        meetingPreparedTranscriptUsed: Bool
+        diarizationApplied: Bool
     ) async throws -> Transcription {
         let mode = processingMode()
         var customWords: [CustomWord] = []
@@ -478,7 +708,6 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         let wordCount = outputText.split(whereSeparator: \.isWhitespace).count
         let audioDurationSeconds = transcription.durationMs.map { Double($0) / 1000.0 }
         let processingSeconds = Date().timeIntervalSince(processingStartedAt)
-        let diarizationApplied = !(transcription.diarizationSegments?.isEmpty ?? true)
         Telemetry.send(.transcriptionCompleted(
             source: source,
             audioDurationSeconds: audioDurationSeconds,
@@ -486,8 +715,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             wordCount: wordCount,
             speakerCount: transcription.speakerCount,
             diarizationRequested: diarizationRequested,
-            diarizationApplied: diarizationApplied,
-            meetingPreparedTranscriptUsed: source == .meeting ? meetingPreparedTranscriptUsed : nil
+            diarizationApplied: diarizationApplied
         ))
 
         return transcription
@@ -535,41 +763,6 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
     private static func errorType(for error: Error) -> String {
         TelemetryErrorClassifier.classify(error)
-    }
-
-    private static func buildDiarizationSegments(from words: [WordTimestamp]) -> [DiarizationSegmentRecord] {
-        guard let firstWord = words.first, let firstSpeaker = firstWord.speakerId else {
-            return []
-        }
-
-        var segments: [DiarizationSegmentRecord] = []
-        var currentSpeaker = firstSpeaker
-        var currentStart = firstWord.startMs
-        var currentEnd = firstWord.endMs
-
-        for word in words.dropFirst() {
-            guard let speakerId = word.speakerId else { continue }
-
-            if speakerId == currentSpeaker, word.startMs - currentEnd <= 1500 {
-                currentEnd = max(currentEnd, word.endMs)
-            } else {
-                segments.append(DiarizationSegmentRecord(
-                    speakerId: currentSpeaker,
-                    startMs: currentStart,
-                    endMs: currentEnd
-                ))
-                currentSpeaker = speakerId
-                currentStart = word.startMs
-                currentEnd = word.endMs
-            }
-        }
-
-        segments.append(DiarizationSegmentRecord(
-            speakerId: currentSpeaker,
-            startMs: currentStart,
-            endMs: currentEnd
-        ))
-        return segments
     }
 
     private static let videoExtensions: Set<String> = ["mp4", "mov", "mkv", "avi", "webm", "m4v", "flv", "wmv"]

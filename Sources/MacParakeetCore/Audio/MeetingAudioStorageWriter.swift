@@ -3,6 +3,11 @@ import Foundation
 import OSLog
 
 final class MeetingAudioStorageWriter {
+    struct SourceWriteMetrics: Sendable, Equatable {
+        let writtenFrameCount: Int64
+        let sampleRate: Double
+    }
+
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingAudioStorageWriter")
 
     private let targetFormat: AVAudioFormat
@@ -10,6 +15,8 @@ final class MeetingAudioStorageWriter {
     private var systemFile: AVAudioFile?
     private var microphoneConverter: AVAudioConverter?
     private var systemConverter: AVAudioConverter?
+    private var microphoneWrittenFrames: Int64 = 0
+    private var systemWrittenFrames: Int64 = 0
 
     let microphoneAudioURL: URL
     let systemAudioURL: URL
@@ -61,9 +68,19 @@ final class MeetingAudioStorageWriter {
     func write(_ buffer: AVAudioPCMBuffer, source: AudioSource) throws {
         switch source {
         case .microphone:
-            try write(buffer, to: &microphoneFile, converter: &microphoneConverter)
+            try write(
+                buffer,
+                to: &microphoneFile,
+                converter: &microphoneConverter,
+                writtenFrames: &microphoneWrittenFrames
+            )
         case .system:
-            try write(buffer, to: &systemFile, converter: &systemConverter)
+            try write(
+                buffer,
+                to: &systemFile,
+                converter: &systemConverter,
+                writtenFrames: &systemWrittenFrames
+            )
         }
     }
 
@@ -74,14 +91,31 @@ final class MeetingAudioStorageWriter {
         systemConverter = nil
     }
 
+    func metrics(for source: AudioSource) -> SourceWriteMetrics {
+        switch source {
+        case .microphone:
+            return SourceWriteMetrics(
+                writtenFrameCount: microphoneWrittenFrames,
+                sampleRate: targetFormat.sampleRate
+            )
+        case .system:
+            return SourceWriteMetrics(
+                writtenFrameCount: systemWrittenFrames,
+                sampleRate: targetFormat.sampleRate
+            )
+        }
+    }
+
     private func write(
         _ buffer: AVAudioPCMBuffer,
         to file: inout AVAudioFile?,
-        converter: inout AVAudioConverter?
+        converter: inout AVAudioConverter?,
+        writtenFrames: inout Int64
     ) throws {
         guard let file else { return }
         let converted = try convertIfNeeded(buffer, converter: &converter)
         try file.write(from: converted)
+        writtenFrames += Int64(converted.frameLength)
     }
 
     private func convertIfNeeded(

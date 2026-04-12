@@ -7,6 +7,8 @@ public actor MockSTTClient: STTClientProtocol {
     public var transcribeCallCount = 0
     public var lastAudioPath: String?
     public var lastJob: STTJobKind?
+    public var audioPaths: [String] = []
+    public var jobs: [STTJobKind] = []
     public var warmUpCalled = false
     public var warmUpCallCount = 0
     public var warmUpError: Error?
@@ -17,16 +19,36 @@ public actor MockSTTClient: STTClientProtocol {
     private var warmUpState: STTWarmUpState = .idle
     private var warmUpObservers: [UUID: AsyncStream<STTWarmUpState>.Continuation] = [:]
     private var backgroundWarmUpTask: Task<Void, Never>?
+    private var queuedTranscribeResults: [STTResult] = []
+    private var queuedTranscribeErrors: [Error] = []
 
     public init() {}
 
     public func configure(result: STTResult) {
         self.transcribeResult = result
         self.transcribeError = nil
+        self.queuedTranscribeResults = []
+        self.queuedTranscribeErrors = []
     }
 
     public func configure(error: Error) {
         self.transcribeError = error
+        self.transcribeResult = nil
+        self.queuedTranscribeResults = []
+        self.queuedTranscribeErrors = []
+    }
+
+    public func configureSequence(results: [STTResult]) {
+        self.queuedTranscribeResults = results
+        self.queuedTranscribeErrors = []
+        self.transcribeError = nil
+        self.transcribeResult = nil
+    }
+
+    public func configureSequence(errors: [Error]) {
+        self.queuedTranscribeErrors = errors
+        self.queuedTranscribeResults = []
+        self.transcribeError = nil
         self.transcribeResult = nil
     }
 
@@ -47,6 +69,16 @@ public actor MockSTTClient: STTClientProtocol {
         transcribeCallCount += 1
         lastAudioPath = audioPath
         lastJob = job
+        audioPaths.append(audioPath)
+        jobs.append(job)
+
+        if !queuedTranscribeErrors.isEmpty {
+            throw queuedTranscribeErrors.removeFirst()
+        }
+
+        if !queuedTranscribeResults.isEmpty {
+            return queuedTranscribeResults.removeFirst()
+        }
 
         if let error = transcribeError {
             throw error

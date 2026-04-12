@@ -108,8 +108,8 @@ This means:
 - file transcription yields to meeting work
 - file transcription does not receive dedicated always-on capacity
 
-Only the immediate post-stop meeting path uses `meetingFinalize`.
-Archived meeting retranscribes remain `fileTranscription` even when their telemetry/source metadata remains `.meeting`.
+Meeting recordings use `meetingFinalize` both immediately after stop and during archived retranscribe when the saved folder still contains `meeting-recording-metadata.json` plus the per-source files.
+Legacy meeting rows without that archived metadata fall back to `fileTranscription` on the mixed `meeting.m4a` artifact.
 
 Reference shape:
 
@@ -140,7 +140,7 @@ If the control plane exceeds configured queue or latency thresholds, it may:
 - drop pending live meeting chunks
 - cancel queued live preview work when meeting stop is requested
 - attempt to cancel running live preview work when practical
-- continue preserving the final mixed meeting artifact for post-stop transcription
+- continue preserving the per-source meeting artifacts and alignment metadata required for authoritative post-stop transcription
 
 This keeps the app responsive while preserving correctness of the final saved meeting.
 
@@ -214,7 +214,7 @@ This avoids crosstalk between:
 
 - `DictationService` submits interactive dictation jobs
 - `MeetingRecordingService` submits live chunk and immediate post-stop meeting-finalization jobs
-- `TranscriptionService` submits batch file / YouTube jobs plus saved-item retranscribes
+- `TranscriptionService` submits batch file / YouTube jobs plus saved-item retranscribes, including archived meetings that reconstruct into the dual-source `meetingFinalize` path when metadata is available
 
 ### Migration path
 

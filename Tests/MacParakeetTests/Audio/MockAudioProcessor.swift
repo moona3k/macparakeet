@@ -13,6 +13,7 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     public var stopCaptureCalled = false
     public var convertCallCount = 0
     public var lastConvertURL: URL?
+    public var convertURLs: [URL] = []
 
     public init() {}
 
@@ -57,6 +58,7 @@ public actor MockAudioProcessor: AudioProcessorProtocol {
     public func convert(fileURL: URL) async throws -> URL {
         convertCallCount += 1
         lastConvertURL = fileURL
+        convertURLs.append(fileURL)
         if let error = convertError { throw error }
         return convertResult ?? URL(fileURLWithPath: "/tmp/converted.wav")
     }

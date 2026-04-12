@@ -48,7 +48,8 @@ The scheduler defines:
 - a reserved dictation slot for the highest-priority interactive workload
 - a shared background slot where meeting finalization beats live preview work
 - meeting live chunks as best-effort under backlog
-- file / YouTube transcription and saved-meeting retranscribes as queued batch work behind active meeting STT
+- file / YouTube transcription and legacy saved-meeting fallbacks as queued batch work behind active meeting STT
+- saved meetings with archived source metadata reuse the higher-priority meeting-finalization path instead of the generic mixed-file path
 
 See ADR-016 for the full runtime and scheduler design.
 

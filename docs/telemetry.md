@@ -123,11 +123,11 @@ CREATE INDEX idx_events_session ON events(session);
 | Event | Props | Question It Answers |
 |---|---|---|
 | `transcription_started` | `source` (file, youtube, drag_drop, meeting), `audio_duration_seconds` | What sources are popular? How big are the jobs? |
-| `transcription_completed` | `source`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `meeting_prepared_transcript_used?` | Real-world performance, speaker-label coverage, and whether meeting finalization reused live preview metadata |
+| `transcription_completed` | `source`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied` | Real-world performance and speaker-label coverage across file, YouTube, and meeting pipelines |
 | `transcription_cancelled` | `source`, `audio_duration_seconds`, `stage` (download, audio_conversion, stt, diarization, post_processing) | Where do users abandon jobs? |
 | `transcription_failed` | `source`, `stage`, `error_type` | What's breaking, and in which pipeline stage? |
 
-`transcription_completed` is the canonical outcome event for batch/file/YouTube/meeting finalization. The separate `diarization_*` events remain useful for diarization-specific timing and failure analysis, but the completion event now carries enough context to answer product questions without joining multiple event streams first.
+`transcription_completed` is the canonical outcome event for batch/file/YouTube/meeting transcription. For meetings, the app now always treats the final transcript as fresh batch STT over the recorded source artifacts, not reused live-preview metadata. The separate `diarization_*` events remain useful for diarization-specific timing and failure analysis, but the completion event now carries enough context to answer product questions without joining multiple event streams first.
 
 ### 3b. Speaker Diarization — "Is speaker detection working?"
 

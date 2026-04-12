@@ -157,8 +157,7 @@ public enum TelemetryEventSpec: Sendable {
         wordCount: Int,
         speakerCount: Int? = nil,
         diarizationRequested: Bool,
-        diarizationApplied: Bool,
-        meetingPreparedTranscriptUsed: Bool? = nil
+        diarizationApplied: Bool
     )
     case transcriptionCancelled(
         source: TelemetryTranscriptionSource,
@@ -389,8 +388,7 @@ extension TelemetryEventSpec {
             let wordCount,
             let speakerCount,
             let diarizationRequested,
-            let diarizationApplied,
-            let meetingPreparedTranscriptUsed
+            let diarizationApplied
         ):
             return Self.compactProps(
                 ("source", source.rawValue),
@@ -399,8 +397,7 @@ extension TelemetryEventSpec {
                 ("word_count", "\(wordCount)"),
                 ("speaker_count", speakerCount.map(String.init)),
                 ("diarization_requested", Self.boolString(diarizationRequested)),
-                ("diarization_applied", Self.boolString(diarizationApplied)),
-                ("meeting_prepared_transcript_used", meetingPreparedTranscriptUsed.map(Self.boolString))
+                ("diarization_applied", Self.boolString(diarizationApplied))
             )
         case .transcriptionCancelled(let source, let audioDurationSeconds, let stage):
             return Self.compactProps(

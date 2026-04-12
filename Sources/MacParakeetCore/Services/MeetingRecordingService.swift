@@ -30,6 +30,11 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
 }
 
 public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
+    private struct SourceCaptureMetrics: Sendable {
+        var firstHostTime: UInt64?
+        var lastHostTime: UInt64?
+    }
+
     private struct Session: Sendable {
         let id: UUID
         let displayName: String
@@ -55,9 +60,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var captureOrchestrator = CaptureOrchestrator()
     private var micConditioner: any MicConditioning = SoftwareAECConditioner()
     private var transcriptAssembler = MeetingTranscriptAssembler()
-    private var chunkTranscriptionFailed = false
     private var isTranscriptionLagging = false
     private var captureFailed = false
+    private var sourceCaptureMetrics: [AudioSource: SourceCaptureMetrics] = [:]
     private var latestLevels = MeetingAudioLevels()
     private var recentSystemRms: Float = 0
     private var recentProcessedMicRms: Float = 0
@@ -162,9 +167,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         await captureOrchestrator.reset()
         micConditioner = SoftwareAECConditioner()
         transcriptAssembler.reset()
-        chunkTranscriptionFailed = false
         isTranscriptionLagging = false
         captureFailed = false
+        sourceCaptureMetrics = [:]
         recentSystemRms = 0
         recentProcessedMicRms = 0
         latestSystemSignalAt = nil
@@ -209,24 +214,34 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         await audioCaptureService.stop()
         await processingTask?.value
         processingTask = nil
-        await flushPendingJoinedFrames()
-        await flushTranscriptChunkers()
-        // If live preview falls behind, discard partial speaker metadata so
-        // finalization can rebuild speakers from the mixed recording instead.
-        let preparedTranscriptReady = await liveChunkTranscriber.waitForPendingTasksToDrain(
-            timeout: .milliseconds(150)
-        )
-        if !preparedTranscriptReady {
-            await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: false)
-        }
         writer?.finalize()
+        let writerMetrics = [
+            AudioSource.microphone: writer?.metrics(for: .microphone),
+            AudioSource.system: writer?.metrics(for: .system),
+        ]
         writer = nil
+        await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: false)
 
         let inputURLs = try existingSourceURLs(for: session)
         guard !inputURLs.isEmpty else {
             await liveChunkTranscriber.finishSession()
             cleanupState()
             throw MeetingAudioError.noAudioCaptured
+        }
+
+        let sourceAlignment = buildSourceAlignment(
+            availableSources: Set(inputURLs.map(source(for:))),
+            writerMetrics: writerMetrics
+        )
+        do {
+            try MeetingRecordingMetadataStore.save(
+                MeetingRecordingMetadata(sourceAlignment: sourceAlignment),
+                folderURL: session.folderURL
+            )
+        } catch {
+            await liveChunkTranscriber.finishSession()
+            cleanupState()
+            throw MeetingAudioError.storageFailed(error.localizedDescription)
         }
 
         do {
@@ -246,9 +261,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             microphoneAudioURL: session.microphoneAudioURL,
             systemAudioURL: session.systemAudioURL,
             durationSeconds: durationSeconds,
-            preparedTranscript: (chunkTranscriptionFailed || !preparedTranscriptReady)
-                ? nil
-                : transcriptAssembler.finalizedTranscript(durationMs: Int(durationSeconds * 1000))
+            sourceAlignment: sourceAlignment
         )
 
         await liveChunkTranscriber.finishSession()
@@ -278,6 +291,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         case .microphoneBuffer(let buffer, let time):
             guard !captureFailed else { return }
             do {
+                recordCaptureMetrics(for: .microphone, time: time)
                 try writer?.write(buffer, source: .microphone)
                 latestLevels.microphone = buffer.rmsLevel
                 if let samples = AudioChunker.extractAndResample(from: buffer) {
@@ -293,6 +307,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         case .systemBuffer(let buffer, let time):
             guard !captureFailed else { return }
             do {
+                recordCaptureMetrics(for: .system, time: time)
                 try writer?.write(buffer, source: .system)
                 latestLevels.system = buffer.rmsLevel
                 updateSystemRms(with: latestLevels.system)
@@ -374,18 +389,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
     }
 
-    private func flushTranscriptChunkers() async {
-        let chunks = await captureOrchestrator.flushChunkers()
-        var output = CaptureOrchestratorOutput()
-        output.chunks = chunks
-        await handleCaptureOrchestratorOutput(output, flushed: true)
-    }
-
-    private func flushPendingJoinedFrames() async {
-        let output = await captureOrchestrator.flushPendingPairs(micConditioner: micConditioner)
-        await handleCaptureOrchestratorOutput(output)
-    }
-
     private func handleLiveChunkTranscriberEvent(
         _ event: LiveChunkTranscriber.Event,
         sessionID: UUID
@@ -405,7 +408,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             isTranscriptionLagging = true
             logger.notice("Meeting live chunk dropped by scheduler backpressure")
         case .transcriptionFailed(let message):
-            chunkTranscriptionFailed = true
             logger.error("Meeting chunk transcription failed: \(message, privacy: .public)")
         }
     }
@@ -445,6 +447,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         transcriptContinuation?.yield(update)
     }
 
+    private func recordCaptureMetrics(for source: AudioSource, time: AVAudioTime) {
+        guard time.isHostTimeValid else { return }
+        var metrics = sourceCaptureMetrics[source] ?? SourceCaptureMetrics()
+        if metrics.firstHostTime == nil {
+            metrics.firstHostTime = time.hostTime
+        }
+        metrics.lastHostTime = time.hostTime
+        sourceCaptureMetrics[source] = metrics
+    }
+
     private func existingSourceURLs(for session: Session) throws -> [URL] {
         // Preserve deterministic channel mapping for dual-source sessions:
         // input[0] = microphone (L), input[1] = system (R).
@@ -465,6 +477,63 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             logger.error("Failed to inspect recorded source audio: \(error.localizedDescription, privacy: .public)")
             return false
         }
+    }
+
+    private func source(for url: URL) -> AudioSource {
+        if url == currentSession?.microphoneAudioURL {
+            return .microphone
+        }
+        if url != currentSession?.systemAudioURL {
+            assertionFailure("Unexpected URL passed to source(for:): \(url.path)")
+        }
+        return .system
+    }
+
+    private func buildSourceAlignment(
+        availableSources: Set<AudioSource>,
+        writerMetrics: [AudioSource: MeetingAudioStorageWriter.SourceWriteMetrics?]
+    ) -> MeetingSourceAlignment {
+        let candidateOrigins = availableSources.compactMap { sourceCaptureMetrics[$0]?.firstHostTime }
+        let meetingOriginHostTime = candidateOrigins.min()
+
+        let microphone = availableSources.contains(.microphone)
+            ? makeAlignedTrack(
+                source: .microphone,
+                meetingOriginHostTime: meetingOriginHostTime,
+                writerMetrics: writerMetrics[.microphone] ?? nil
+            )
+            : nil
+        let system = availableSources.contains(.system)
+            ? makeAlignedTrack(
+                source: .system,
+                meetingOriginHostTime: meetingOriginHostTime,
+                writerMetrics: writerMetrics[.system] ?? nil
+            )
+            : nil
+
+        return .make(
+            meetingOriginHostTime: meetingOriginHostTime,
+            microphone: microphone,
+            system: system
+        )
+    }
+
+    private func makeAlignedTrack(
+        source: AudioSource,
+        meetingOriginHostTime: UInt64?,
+        writerMetrics: MeetingAudioStorageWriter.SourceWriteMetrics?
+    ) -> MeetingSourceAlignment.Track {
+        let captureMetrics = sourceCaptureMetrics[source]
+        return MeetingSourceAlignment.Track(
+            firstHostTime: captureMetrics?.firstHostTime,
+            lastHostTime: captureMetrics?.lastHostTime,
+            startOffsetMs: MeetingSourceAlignment.startOffsetMs(
+                hostTime: captureMetrics?.firstHostTime,
+                originHostTime: meetingOriginHostTime
+            ),
+            writtenFrameCount: writerMetrics?.writtenFrameCount ?? 0,
+            sampleRate: writerMetrics?.sampleRate ?? 48_000
+        )
     }
 
     private func updateSystemRms(with bufferRms: Float) {
@@ -557,6 +626,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         currentSession = nil
         micConditioner = SoftwareAECConditioner()
         latestLevels = MeetingAudioLevels()
+        sourceCaptureMetrics = [:]
         recentSystemRms = 0
         recentProcessedMicRms = 0
         latestSystemSignalAt = nil
@@ -564,7 +634,6 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         syncLagWarningActive = false
         lastLoggedSyncLagBucketMs = nil
         transcriptAssembler.reset()
-        chunkTranscriptionFailed = false
         isTranscriptionLagging = false
         captureFailed = false
         transcriptContinuation?.finish()

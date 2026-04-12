@@ -115,7 +115,8 @@ CREATE INDEX idx_transcriptions_created_at ON transcriptions(createdAt DESC);
 - `wordTimestamps` is a JSON text column, not a separate table. One transcription = one blob of timestamps. GRDB can decode this via `Codable`.
 - `speakerCount` and `speakers` are nullable, populated only when diarization is available (v0.4).
 - `filePath` is nullable because the original file may be moved or deleted after transcription.
-- For meeting recordings, `filePath` points to the mixed `meeting.m4a` artifact used for playback/export, while the per-source `microphone.m4a` and `system.m4a` files remain inside the same session folder.
+- For meeting recordings, `filePath` points to the mixed `meeting.m4a` artifact used for playback/export, while the per-source `microphone.m4a`, `system.m4a`, and `meeting-recording-metadata.json` sidecar remain inside the same session folder.
+- Saved meeting retranscribes reconstruct the archived meeting from that folder when the sidecar exists, so the library path can reuse the same aligned dual-source finalization flow as the immediate post-stop path.
 - `sourceURL` distinguishes URL-sourced transcriptions (YouTube) from local file transcriptions. Added in v0.3.
 - `thumbnailURL`, `channelName`, `videoDescription` store YouTube metadata fetched during download. Added in v0.5.
 - `isFavorite` enables user-marked favorites with filtered library view. Added in v0.5.

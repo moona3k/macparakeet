@@ -33,6 +33,24 @@ private final class MutableDateBox: @unchecked Sendable {
 
 @MainActor
 final class OnboardingViewModelTests: XCTestCase {
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        pollInterval: Duration = .milliseconds(10),
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while !condition() {
+            if clock.now >= deadline {
+                XCTFail("Timed out waiting for condition", file: file, line: line)
+                return
+            }
+            try await Task.sleep(for: pollInterval)
+        }
+    }
+
     private func makeViewModel(
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
@@ -224,7 +242,9 @@ final class OnboardingViewModelTests: XCTestCase {
 
         vm.startPermissionPolling()
         vm.startPermissionPolling()
-        try await Task.sleep(for: .milliseconds(120))
+        try await waitUntil(timeout: .milliseconds(500)) {
+            perms.checkScreenRecordingPermissionCallCount > 1
+        }
         let beforeStopCount = perms.checkScreenRecordingPermissionCallCount
         XCTAssertGreaterThan(beforeStopCount, 1)
 

@@ -269,27 +269,42 @@ public final class TranscriptionViewModel {
         transcriptionTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                var result = try await service.transcribe(fileURL: url, source: retranscriptionSource) { [weak self] phase in
+                let progressHandler: @Sendable (TranscriptionProgress) -> Void = { [weak self] phase in
                     Task { @MainActor [weak self] in
                         self?.updateProgress(with: phase, taskID: taskID)
                     }
                 }
+                let result: Transcription
+                if original.sourceType == .meeting,
+                   let meetingRecording = archivedMeetingRecording(for: original, mixedAudioURL: url) {
+                    result = try await service.transcribeMeeting(
+                        recording: meetingRecording,
+                        onProgress: progressHandler
+                    )
+                } else {
+                    result = try await service.transcribe(
+                        fileURL: url,
+                        source: retranscriptionSource,
+                        onProgress: progressHandler
+                    )
+                }
+                var updatedResult = result
                 // Preserve row identity and user-owned metadata so retranscription updates
                 // the existing record instead of deleting and recreating it.
-                result.id = original.id
-                result.createdAt = original.createdAt
-                result.isFavorite = original.isFavorite
-                result.fileName = original.fileName
-                result.filePath = original.filePath
-                result.sourceURL = original.sourceURL
-                result.thumbnailURL = original.thumbnailURL
-                result.channelName = original.channelName
-                result.videoDescription = original.videoDescription
-                result.sourceType = original.sourceType
-                result.updatedAt = Date()
+                updatedResult.id = original.id
+                updatedResult.createdAt = original.createdAt
+                updatedResult.isFavorite = original.isFavorite
+                updatedResult.fileName = original.fileName
+                updatedResult.filePath = original.filePath
+                updatedResult.sourceURL = original.sourceURL
+                updatedResult.thumbnailURL = original.thumbnailURL
+                updatedResult.channelName = original.channelName
+                updatedResult.videoDescription = original.videoDescription
+                updatedResult.sourceType = original.sourceType
+                updatedResult.updatedAt = Date()
                 do {
-                    try transcriptionRepo?.save(result)
-                    completeSuccessfulTranscription(taskID: taskID, result: result)
+                    try transcriptionRepo?.save(updatedResult)
+                    completeSuccessfulTranscription(taskID: taskID, result: updatedResult)
                 } catch {
                     logger.error("Failed to save transcription result error=\(error.localizedDescription, privacy: .public)")
                     completeFailedTranscription(taskID: taskID, error: error)
@@ -299,6 +314,25 @@ public final class TranscriptionViewModel {
             } catch {
                 completeFailedTranscription(taskID: taskID, error: error)
             }
+        }
+    }
+
+    private func archivedMeetingRecording(
+        for original: Transcription,
+        mixedAudioURL: URL
+    ) -> MeetingRecordingOutput? {
+        let durationSeconds = Double(original.durationMs ?? 0) / 1000.0
+        do {
+            return try MeetingRecordingOutput.loadArchived(
+                displayName: original.fileName,
+                mixedAudioURL: mixedAudioURL,
+                durationSeconds: durationSeconds
+            )
+        } catch {
+            logger.notice(
+                "Meeting retranscribe falling back to mixed audio path file=\(original.fileName, privacy: .private) error=\(error.localizedDescription, privacy: .private)"
+            )
+            return nil
         }
     }
 

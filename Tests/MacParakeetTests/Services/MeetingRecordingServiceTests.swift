@@ -47,7 +47,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
         await service.cancelRecording()
     }
 
-    func testStopRecordingPreservesCrossStreamHostTimeOffsetsInPreparedTranscript() async throws {
+    func testStopRecordingPreservesCrossStreamHostTimeOffsetsInSourceAlignment() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
         let sttClient = SequencedMeetingSTTClient(results: [
@@ -83,15 +83,17 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
-        let prepared = try XCTUnwrap(output.preparedTranscript)
-        XCTAssertEqual(prepared.words.map(\.word), ["mic", "sys"])
-        XCTAssertEqual(prepared.words.map(\.speakerId), ["microphone", "system"])
-        XCTAssertLessThanOrEqual(abs(prepared.words[0].startMs - 0), 10)
-        XCTAssertLessThanOrEqual(abs(prepared.words[1].startMs - 150), 20)
-        XCTAssertEqual(prepared.diarizationSegments, [
-            DiarizationSegmentRecord(speakerId: "microphone", startMs: prepared.words[0].startMs, endMs: prepared.words[0].endMs),
-            DiarizationSegmentRecord(speakerId: "system", startMs: prepared.words[1].startMs, endMs: prepared.words[1].endMs),
-        ])
+        let microphone = try XCTUnwrap(output.sourceAlignment.microphone)
+        let system = try XCTUnwrap(output.sourceAlignment.system)
+        XCTAssertLessThanOrEqual(abs(microphone.startOffsetMs - 0), 10)
+        XCTAssertLessThanOrEqual(abs(system.startOffsetMs - 150), 20)
+        XCTAssertGreaterThan(microphone.writtenFrameCount, 0)
+        XCTAssertGreaterThan(system.writtenFrameCount, 0)
+
+        let metadataURL = MeetingRecordingMetadataStore.metadataURL(for: output.folderURL)
+        let metadataData = try Data(contentsOf: metadataURL)
+        let metadata = try JSONDecoder().decode(MeetingRecordingMetadata.self, from: metadataData)
+        XCTAssertEqual(metadata.sourceAlignment, output.sourceAlignment)
     }
 
     func testStopRecordingCancelsPendingLiveChunksInsteadOfWaitingForThem() async throws {
@@ -119,10 +121,10 @@ final class MeetingRecordingServiceTests: XCTestCase {
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
         XCTAssertLessThan(elapsed, .milliseconds(500))
-        XCTAssertNil(output.preparedTranscript)
+        XCTAssertNotNil(output.sourceAlignment.microphone)
     }
 
-    func testStopRecordingInvalidatesPreparedTranscriptWhenPendingChunksTimeOut() async throws {
+    func testStopRecordingKeepsSourceAlignmentWhenPendingChunksTimeOut() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
         let sttClient = PrefixScriptedMeetingSTTClient(
@@ -165,7 +167,8 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
 
-        XCTAssertNil(output.preparedTranscript)
+        XCTAssertNotNil(output.sourceAlignment.microphone)
+        XCTAssertNotNil(output.sourceAlignment.system)
     }
 
     func testBackpressureDropMarksNextTranscriptUpdateAsLagging() async throws {
@@ -214,7 +217,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
-        XCTAssertNotNil(output.preparedTranscript)
+        XCTAssertNotNil(output.sourceAlignment.microphone)
     }
 
     func testStaleChunkFailureFromPreviousSessionDoesNotPoisonNextSession() async throws {
@@ -242,7 +245,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         let firstOutput = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: firstOutput.folderURL) }
-        XCTAssertNil(firstOutput.preparedTranscript)
+        XCTAssertNotNil(firstOutput.sourceAlignment.microphone)
 
         try await service.startRecording()
 
@@ -256,9 +259,8 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let secondOutput = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: secondOutput.folderURL) }
 
-        let prepared = try XCTUnwrap(secondOutput.preparedTranscript)
-        XCTAssertEqual(prepared.words.map(\.word), ["fresh"])
-        XCTAssertEqual(prepared.words.map(\.speakerId), ["microphone"])
+        let microphone = try XCTUnwrap(secondOutput.sourceAlignment.microphone)
+        XCTAssertGreaterThan(microphone.writtenFrameCount, 0)
     }
 
     func testSuppressesMicrophoneChunksWhenRecentSystemAudioDominates() async throws {
