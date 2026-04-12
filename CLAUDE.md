@@ -104,7 +104,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - **v0.3** YouTube & Export -- YouTube URL transcription, DOCX/PDF/JSON export, drag-and-drop enhancements
 - **v0.4** Polish + Launch -- Diarization, custom hotkeys, Sparkle updates, LLM providers, voice stats, distribution
 - **v0.5** Data, UI & Prompts -- Private dictation, multi-conversation chat, favorites, video player, split-pane detail, library grid, prompt library, multi-summary, open-source release
-- **v0.6** Meeting Recording (in progress) -- System audio + mic capture via Core Audio Taps, meeting-mic voice processing + residual echo suppression, concurrent with dictation (ADR-015), centralized STT runtime + scheduler (ADR-016), sacred-geometry recording pill + meeting panel, library integration, prompt/summary/chat support (ADR-014)
+- **v0.6** Meeting Recording (in progress) -- System audio + raw mic capture via Core Audio Taps/AVAudioEngine, software AEC + transcript-layer suppression, concurrent with dictation (ADR-015), centralized STT runtime + scheduler (ADR-016), sacred-geometry recording pill + meeting panel, library integration, prompt/summary/chat support (ADR-014)
 
 ## Key Patterns
 

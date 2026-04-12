@@ -16,12 +16,17 @@ public final class SystemAudioTap: @unchecked Sendable {
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "SystemAudioTap")
     private let queue = DispatchQueue(label: "com.macparakeet.systemaudiotap", qos: .userInitiated)
+    private let watchdogQueue = DispatchQueue(label: "com.macparakeet.systemaudiotap.watchdog", qos: .utility)
 
     private var tapID: AudioObjectID = .meetingUnknown
     private var aggregateDeviceID: AudioObjectID = .meetingUnknown
     private var deviceProcID: AudioDeviceIOProcID?
     private var tapStreamDescription: AudioStreamBasicDescription?
     private var tapUUIDString: String?
+    private var lastPinnedOutputUID: String?
+    private let watchdogLock = NSLock()
+    private var firstBufferReceived = false
+    private var watchdogWorkItem: DispatchWorkItem?
 
     private var state: LifecycleState = .idle
     private var bufferHandler: AudioBufferHandler?
@@ -61,7 +66,9 @@ public final class SystemAudioTap: @unchecked Sendable {
             throw startError
         }
         if didStart {
-            logger.info("System audio tap started")
+            logger.info(
+                "system_audio_tap_started aggregate_device_id=\(self.aggregateDeviceID, privacy: .public) tap_id=\(self.tapID, privacy: .public) pinned_output_uid=\(self.lastPinnedOutputUID ?? "unknown", privacy: .public) sample_rate=\(self.tapStreamDescription?.mSampleRate ?? 0, privacy: .public) channels=\(self.tapStreamDescription?.mChannelsPerFrame ?? 0, privacy: .public)"
+            )
         }
     }
 
@@ -74,7 +81,7 @@ public final class SystemAudioTap: @unchecked Sendable {
             didStop = true
         }
         if didStop {
-            logger.info("System audio tap stopped")
+            logger.info("system_audio_tap_stopped")
         }
     }
 
@@ -100,6 +107,8 @@ public final class SystemAudioTap: @unchecked Sendable {
         }
         state = .idle
         tapUUIDString = nil
+        lastPinnedOutputUID = nil
+        resetDiagnosticsState()
     }
 
     private func createProcessTap() throws {
@@ -128,6 +137,7 @@ public final class SystemAudioTap: @unchecked Sendable {
         let systemOutputID = try AudioObjectID.readMeetingDefaultSystemOutputDevice()
         let outputUID = try systemOutputID.readMeetingDeviceUID()
         let aggregateUID = "com.macparakeet.aggregate.\(UUID().uuidString)"
+        lastPinnedOutputUID = outputUID
 
         let description: [String: Any] = [
             kAudioAggregateDeviceNameKey: "MacParakeet Capture",
@@ -174,6 +184,7 @@ public final class SystemAudioTap: @unchecked Sendable {
                 return
             }
 
+            self.markFirstBufferReceived()
             let time = AVAudioTime(hostTime: inInputTime.pointee.mHostTime)
             callback(buffer, time)
         }
@@ -186,10 +197,52 @@ public final class SystemAudioTap: @unchecked Sendable {
         }
 
         deviceProcID = procID
+        scheduleSilentBufferWatchdog()
         status = AudioDeviceStart(aggregateDeviceID, procID)
 
         guard status == noErr else {
             throw MeetingAudioError.aggregateDeviceCreationFailed(status)
+        }
+    }
+
+    private func scheduleSilentBufferWatchdog() {
+        let workItem = watchdogLock.withLock { () -> DispatchWorkItem in
+            firstBufferReceived = false
+            watchdogWorkItem?.cancel()
+            let item = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                let shouldLog = self.watchdogLock.withLock { !self.firstBufferReceived }
+                guard shouldLog else { return }
+                self.logger.warning(
+                    "system_audio_tap_no_buffers_within_timeout pinned_output_uid=\(self.lastPinnedOutputUID ?? "unknown", privacy: .public) aggregate_device_id=\(self.aggregateDeviceID, privacy: .public)"
+                )
+            }
+            watchdogWorkItem = item
+            return item
+        }
+        watchdogQueue.asyncAfter(deadline: .now() + 2, execute: workItem)
+    }
+
+    private func markFirstBufferReceived() {
+        let shouldLog = watchdogLock.withLock {
+            guard !firstBufferReceived else { return false }
+            firstBufferReceived = true
+            watchdogWorkItem?.cancel()
+            watchdogWorkItem = nil
+            return true
+        }
+        if shouldLog {
+            logger.info(
+                "system_audio_tap_first_buffer_received pinned_output_uid=\(self.lastPinnedOutputUID ?? "unknown", privacy: .public)"
+            )
+        }
+    }
+
+    private func resetDiagnosticsState() {
+        watchdogLock.withLock {
+            firstBufferReceived = false
+            watchdogWorkItem?.cancel()
+            watchdogWorkItem = nil
         }
     }
 }

@@ -56,7 +56,7 @@ public actor MeetingAudioCaptureService {
     private var eventContinuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
     private var cachedEvents: AsyncStream<MeetingAudioCaptureEvent>?
 
-    public init(micProcessingMode: MeetingMicProcessingMode = .vpioPreferred) {
+    public init(micProcessingMode: MeetingMicProcessingMode = .raw) {
         self.microphoneCapture = MicrophoneCapture()
         self.micProcessingMode = micProcessingMode
         self.systemAudioTapFactory = {
@@ -70,7 +70,7 @@ public actor MeetingAudioCaptureService {
     init(
         microphoneCaptureFactory: @escaping MeetingMicrophoneCaptureFactory,
         systemAudioTapFactory: @escaping @Sendable () throws -> any MeetingSystemAudioTapping,
-        micProcessingMode: MeetingMicProcessingMode = .vpioPreferred
+        micProcessingMode: MeetingMicProcessingMode = .raw
     ) {
         self.microphoneCapture = microphoneCaptureFactory()
         self.systemAudioTapFactory = systemAudioTapFactory
@@ -80,7 +80,7 @@ public actor MeetingAudioCaptureService {
     init(
         microphoneCapture: any MeetingMicrophoneCapturing,
         systemAudioTapFactory: @escaping @Sendable () throws -> any MeetingSystemAudioTapping,
-        micProcessingMode: MeetingMicProcessingMode = .vpioPreferred
+        micProcessingMode: MeetingMicProcessingMode = .raw
     ) {
         self.microphoneCapture = microphoneCapture
         self.systemAudioTapFactory = systemAudioTapFactory
