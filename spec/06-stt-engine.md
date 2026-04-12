@@ -209,7 +209,8 @@ Backpressure and queueing rules:
 
 - Meeting live chunks are best-effort and may be dropped under backlog
 - When a meeting stops, queued live-preview work may be cancelled/dropped so `meetingFinalize` runs next
-- Immediate post-stop meeting finalization uses `meetingFinalize`; archived meeting retranscribes remain `fileTranscription`
+- Meeting finalization uses `meetingFinalize` both immediately after stop and for archived meeting retranscribes when `meeting-recording-metadata.json` is available
+- Legacy meeting rows without archived source metadata fall back to `fileTranscription` on the mixed `meeting.m4a` artifact
 - Dictation must not be queued behind meeting or batch work
 - File transcription is intentionally queued and single-job in v1; a running long batch job may delay meeting STT on the background slot
 - Long-running batch work should be segmented into bounded work units in a future iteration if we want it to yield more gracefully
@@ -244,10 +245,19 @@ Meeting live preview (v0.6):
     → live transcript update
 
 Meeting stop / finalization:
-  Final mixed meeting artifact → STTScheduler.transcribe(audioPath:, job: .meetingFinalize, onProgress:) → background-slot STT → final saved meeting transcript
+  microphone.m4a + system.m4a + MeetingSourceAlignment
+    → convert each source to mono WAV
+    → STTScheduler.transcribe(audioPath:, job: .meetingFinalize, onProgress:) per source
+    → aligned merge
+    → final saved meeting transcript
 
 Saved meeting retranscription from the library:
-  Existing meeting audio file → AudioConverter.resampleAudioFile() → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STT → updated meeting transcript
+  meeting.m4a + archived meeting-recording-metadata.json + source files
+    → reconstruct MeetingRecordingOutput
+    → same dual-source meetingFinalize path as immediate post-stop finalization
+    → updated meeting transcript
+  Legacy fallback:
+    existing meeting.m4a only → AudioConverter.resampleAudioFile() → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STT → updated meeting transcript
 ```
 
 ---

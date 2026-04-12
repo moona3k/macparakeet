@@ -229,7 +229,8 @@ All STT work routes through a process-wide scheduler and a single shared Parakee
 
 - dictation on its own reserved interactive slot
 - meeting live preview best-effort under backlog, with immediate post-stop finalization prioritized on the shared background slot
-- file / YouTube transcription, plus saved-meeting retranscribes, queued behind meeting work on that same background slot
+- file / YouTube transcription, plus legacy saved-meeting fallbacks without archived metadata, queued behind meeting work on that same background slot
+- saved meetings with archived source metadata reuse the same `meetingFinalize` path as immediate post-stop finalization
 
 The primary concurrency use case remains meeting recording + dictation. File transcription may coexist architecturally, but it should never degrade dictation responsiveness.
 

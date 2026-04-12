@@ -116,7 +116,7 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 - File transcription waits behind active meeting work without corrupting progress callbacks
 - Meeting live chunks are dropped when queue thresholds are exceeded or when meeting stop promotes finalization
 - Already-cancelled jobs never enter the scheduler
-- Saved meeting retranscribes stay in the low-priority file-transcription class
+- Saved meeting retranscribes prefer the archived dual-source `meetingFinalize` path when metadata is present, and legacy rows without that metadata fall back to the low-priority file-transcription path
 - App warm-up, shutdown, and cache-clearing hit one shared runtime only
 - Onboarding readiness does not report success until required default-on speaker-detection assets are also ready
 

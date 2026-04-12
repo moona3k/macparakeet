@@ -256,6 +256,22 @@ Why it exists:
 
 Without this metadata, "transcribe both files and sort by timestamps" would be guesswork.
 
+## Archived meeting retranscription path
+
+Saved meeting retranscription from the library now reuses the same dual-source finalization flow when the archived meeting folder still contains:
+
+- `meeting.m4a`
+- `microphone.m4a`
+- `system.m4a`
+- `meeting-recording-metadata.json`
+
+`TranscriptionViewModel` reconstructs a `MeetingRecordingOutput` from the archived folder and calls `TranscriptionService.transcribeMeeting(recording:)` again instead of routing the meeting through generic mixed-file transcription.
+
+Important nuance:
+
+- this keeps later retranscribes aligned with the immediate post-stop correctness path
+- legacy meeting rows that only have `meeting.m4a` still fall back to mixed-file transcription so old data keeps working
+
 ## Post-stop final transcription path
 
 After stop, `TranscriptionService.transcribeMeeting(recording:)` performs a **fresh batch STT pass per source file**:
