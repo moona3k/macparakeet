@@ -24,7 +24,7 @@ Commit `97134e9b` flipped meeting mic capture to `.vpioPreferred`, enabling `AVA
 
 That refactor broke the meeting recording feature and also broke dictation under certain orderings. Empirical failure modes observed on macOS 15, Apple Silicon, dev build (full details in `docs/research/vpio-process-tap-conflict.md` section "Empirical observations"):
 
-- **Meeting alone with speakers**: mic stream captures, `system.wav` is 557-byte header-only (Core Audio process tap IO proc never fires, no OSStatus errors, no warning logs).
+- **Meeting alone with speakers**: mic stream captures, `system.m4a` is 557-byte header-only (Core Audio process tap IO proc never fires, no OSStatus errors, no warning logs).
 - **Dictation → meeting**: meeting mic AND system tap both silent.
 - **Meeting → dictation**: dictation after a meeting run captures silence (picks up stale `CADefaultDeviceAggregate-<PID>-N` virtual device as its input).
 
@@ -466,7 +466,7 @@ This is the critical validation step. The unit tests cannot catch VPIO/HAL issue
 5. Stop meeting recording.
 6. **Expected**:
    - Meeting is saved with a transcript.
-   - Both mic and system streams produced real audio (check `~/Library/Application Support/MacParakeet/recordings/<uuid>/` for `microphone.wav` and `system.wav`, both should be much larger than 557 bytes — at least tens of KB each).
+   - Both mic and system streams produced real audio (check `~/Library/Application Support/MacParakeet/meeting-recordings/<uuid>/` for `microphone.m4a` and `system.m4a`, both should be much larger than 557 bytes — at least tens of KB each).
    - Transcript contains the Safari video's speech, attributed to the system source.
 7. **Check logs**: `tap_started` and `mic_started` both present; neither `tap_no_buffers_2s` nor `mic_no_buffers_2s` warning.
 
@@ -493,8 +493,8 @@ This is the critical validation step. The unit tests cannot catch VPIO/HAL issue
 6. Let the meeting run for another 30 seconds with Safari still playing.
 7. Stop the meeting.
 8. **Expected**:
-   - The meeting's `system.wav` has unbroken audio for the full ~60+ seconds (no silent gap during the dictation segment).
-   - The meeting's `microphone.wav` has the user's voice throughout (including during the dictation moment — the mic was always live).
+   - The meeting's `system.m4a` has unbroken audio for the full ~60+ seconds (no silent gap during the dictation segment).
+   - The meeting's `microphone.m4a` has the user's voice throughout (including during the dictation moment — the mic was always live).
    - The dictation record is saved separately with its own transcribed text.
    - The meeting transcript shows the far-end speech correctly attributed to the system source.
    - The dictation text was pasted into the focused app.
@@ -566,10 +566,10 @@ This plan archival should be a follow-up commit (the implementation commit from 
 - [ ] `SystemAudioTap` logs `tap_started` at start and `tap_first_buffer_received` on first buffer; `tap_no_buffers_2s` never fires in any of the manual tests
 - [ ] `MicrophoneCapture` logs `mic_started` at start and `mic_first_buffer_received` on first buffer; `mic_no_buffers_2s` never fires in any of the manual tests
 - [ ] Manual test 1 (dictation alone) passes
-- [ ] Manual test 2 (meeting alone) passes — both `microphone.wav` and `system.wav` contain real audio, each much larger than 557 bytes
+- [ ] Manual test 2 (meeting alone) passes — both `microphone.m4a` and `system.m4a` contain real audio, each much larger than 557 bytes
 - [ ] Manual test 3 (meeting → dictation) passes — dictation's `mic_started` line shows the real built-in microphone, not a `CADefaultDeviceAggregate-*` device
 - [ ] Manual test 4 (dictation → meeting) passes
-- [ ] Manual test 5 (concurrent dictation during active meeting) passes — the hard ADR-015 requirement. Meeting's `system.wav` has unbroken audio across the full session, no silent gap during the dictation trigger, dictation captured separately
+- [ ] Manual test 5 (concurrent dictation during active meeting) passes — the hard ADR-015 requirement. Meeting's `system.m4a` has unbroken audio across the full session, no silent gap during the dictation trigger, dictation captured separately
 - [ ] Test 5 transcript has no or only minor mic-attributed far-end content (see step 9 acceptance criteria)
 - [ ] Commit message follows `docs/commit-guidelines.md` format
 - [ ] Plan archived to `plans/completed/` with implementation SHA referenced in header

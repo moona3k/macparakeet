@@ -13,6 +13,7 @@ public final class MicrophoneCapture: @unchecked Sendable {
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MicrophoneCapture")
     private let lifecycleQueue = DispatchQueue(label: "com.macparakeet.microphonecapture")
+    private let watchdogQueue = DispatchQueue(label: "com.macparakeet.microphonecapture.watchdog", qos: .utility)
     private let handlerLock = NSLock()
     private let audioEngine = AVAudioEngine()
     private let bufferSize: AVAudioFrameCount = 4096
@@ -238,18 +239,19 @@ public final class MicrophoneCapture: @unchecked Sendable {
     }
 
     private func scheduleSilentBufferWatchdog() {
-        watchdogLock.lock()
-        firstBufferReceived = false
-        watchdogWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            let shouldLog = self.watchdogLock.withLock { !self.firstBufferReceived }
-            guard shouldLog else { return }
-            self.logger.warning("microphone_capture_no_buffers_within_timeout")
+        let workItem = watchdogLock.withLock { () -> DispatchWorkItem in
+            firstBufferReceived = false
+            watchdogWorkItem?.cancel()
+            let item = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                let shouldLog = self.watchdogLock.withLock { !self.firstBufferReceived }
+                guard shouldLog else { return }
+                self.logger.warning("microphone_capture_no_buffers_within_timeout")
+            }
+            watchdogWorkItem = item
+            return item
         }
-        watchdogWorkItem = workItem
-        watchdogLock.unlock()
-        lifecycleQueue.asyncAfter(deadline: .now() + 2, execute: workItem)
+        watchdogQueue.asyncAfter(deadline: .now() + 2, execute: workItem)
     }
 
     private func markFirstBufferReceived() {

@@ -16,6 +16,7 @@ public final class SystemAudioTap: @unchecked Sendable {
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "SystemAudioTap")
     private let queue = DispatchQueue(label: "com.macparakeet.systemaudiotap", qos: .userInitiated)
+    private let watchdogQueue = DispatchQueue(label: "com.macparakeet.systemaudiotap.watchdog", qos: .utility)
 
     private var tapID: AudioObjectID = .meetingUnknown
     private var aggregateDeviceID: AudioObjectID = .meetingUnknown
@@ -205,20 +206,21 @@ public final class SystemAudioTap: @unchecked Sendable {
     }
 
     private func scheduleSilentBufferWatchdog() {
-        watchdogLock.lock()
-        firstBufferReceived = false
-        watchdogWorkItem?.cancel()
-        let workItem = DispatchWorkItem { [weak self] in
-            guard let self else { return }
-            let shouldLog = self.watchdogLock.withLock { !self.firstBufferReceived }
-            guard shouldLog else { return }
-            self.logger.warning(
-                "system_audio_tap_no_buffers_within_timeout pinned_output_uid=\(self.lastPinnedOutputUID ?? "unknown", privacy: .public) aggregate_device_id=\(self.aggregateDeviceID, privacy: .public)"
-            )
+        let workItem = watchdogLock.withLock { () -> DispatchWorkItem in
+            firstBufferReceived = false
+            watchdogWorkItem?.cancel()
+            let item = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                let shouldLog = self.watchdogLock.withLock { !self.firstBufferReceived }
+                guard shouldLog else { return }
+                self.logger.warning(
+                    "system_audio_tap_no_buffers_within_timeout pinned_output_uid=\(self.lastPinnedOutputUID ?? "unknown", privacy: .public) aggregate_device_id=\(self.aggregateDeviceID, privacy: .public)"
+                )
+            }
+            watchdogWorkItem = item
+            return item
         }
-        watchdogWorkItem = workItem
-        watchdogLock.unlock()
-        queue.asyncAfter(deadline: .now() + 2, execute: workItem)
+        watchdogQueue.asyncAfter(deadline: .now() + 2, execute: workItem)
     }
 
     private func markFirstBufferReceived() {
