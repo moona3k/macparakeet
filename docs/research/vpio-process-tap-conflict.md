@@ -1,13 +1,15 @@
 ---
 title: VPIO vs Core Audio Process Taps — Architecture Research & Decision
-status: ACTIVE
+status: IMPLEMENTED
 date: 2026-04-11
 authors: Claude Opus 4.6 (research), Codex/GPT (independent review), Daniel Moon (direction)
 ---
 
 # VPIO vs Core Audio Process Taps — Architecture Research & Decision
 
-> Status: **ACTIVE** — decision recorded 2026-04-11. Implementation pending.
+> Status: **IMPLEMENTED** — decision recorded and shipped on 2026-04-11.
+> Implemented in: `e815396f`
+> Note: This document is preserved as the research record behind the architecture change. Some narrative sections below describe the pre-fix investigation state.
 
 ## TL;DR
 
@@ -17,7 +19,7 @@ A refactor on 2026-04-10 (commit `97134e9b` "Refactor meeting recording to VPIO-
 
 Empirical result: **VPIO cannot coexist with Core Audio process taps in the same process.** Reproducible failure modes (documented below) show that any `setVoiceProcessingEnabled(true)` call in the process silently kills any Core Audio process tap and leaves stale aggregate devices that break subsequent `AVAudioEngine` instances. The user's explicit requirement — "trigger dictation while a meeting is actively recording" — is architecturally incompatible with VPIO being enabled anywhere in the process.
 
-**Decision:** Drop VPIO entirely. Ship raw mic capture in both dictation and meeting recording. Handle echo bleed at the transcript layer via the existing `MeetingRecordingService.shouldSuppressMicrophoneChunkTranscription` logic (drop mic chunks when system-audio RMS dominates). Recommend headphones for best meeting quality. This matches what every production open-source macOS meeting recorder does (Recap, AudioCap, VoiceInk).
+**Decision:** Remove VPIO from the shipped default path. Ship raw mic capture in both dictation and meeting recording, keep VPIO only as explicit opt-in plumbing, and handle echo bleed at the transcript layer via the existing `MeetingRecordingService.shouldSuppressMicrophoneChunkTranscription` logic (drop mic chunks when system-audio RMS dominates). Recommend headphones for best meeting quality. This matches what every production open-source macOS meeting recorder does (Recap, AudioCap, VoiceInk).
 
 Codex (OpenAI GPT) independently reviewed the analysis and agreed with the decision, while tightening two overclaims in my mechanism explanation.
 
@@ -83,7 +85,7 @@ All observations on macOS 15, Apple Silicon, built-in microphone and speakers, d
 
 ### Reordering attempt (did not fix the problem)
 
-An early attempted fix was to reorder `MeetingAudioCaptureService.start(handler:)` to start the system audio tap BEFORE enabling VPIO on the microphone engine (the theory being that if the tap snapshots the real default output device first, VPIO's later aggregate creation wouldn't poison it). Result: both mic and system went silent. Reordering did not fix the conflict. This reorder was subsequently left in the code pending the full fix.
+An early attempted fix was to reorder `MeetingAudioCaptureService.start(handler:)` to start the system audio tap BEFORE enabling VPIO on the microphone engine (the theory being that if the tap snapshots the real default output device first, VPIO's later aggregate creation wouldn't poison it). Result: both mic and system went silent. Reordering did not fix the conflict. The shipped implementation removed that experimental reorder and switched the default path to raw mic capture instead.
 
 ### User reframing
 

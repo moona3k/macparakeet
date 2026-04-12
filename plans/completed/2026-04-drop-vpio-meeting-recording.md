@@ -1,8 +1,10 @@
 # Drop VPIO from meeting recording to restore concurrent dictation + meeting
 
-> Status: **ACTIVE**
+> Status: **COMPLETED**
 > Date: 2026-04-11
 > Revision: 2026-04-11 (post-review: test strategy simplified, MeetingRecordingService default added, audit scope narrowed based on code read, spec diagram update added, watchdog implementation specified)
+> Implemented in: `e815396f`
+> Note: This document is preserved as a historical plan snapshot; checklist items and future-tense instructions below reflect the pre-implementation execution plan.
 > Related research: `docs/research/vpio-process-tap-conflict.md` (authoritative — read this first)
 > Related ADRs: `spec/adr/014-meeting-recording.md`, `spec/adr/015-concurrent-dictation-meeting.md`
 > Related spec: `spec/05-audio-pipeline.md`
