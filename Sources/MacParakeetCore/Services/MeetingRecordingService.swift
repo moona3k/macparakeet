@@ -53,7 +53,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var writer: MeetingAudioStorageWriter?
     private var processingTask: Task<Void, Never>?
     private var captureOrchestrator = CaptureOrchestrator()
-    private var micConditioner: any MicConditioning = VPIOConditioner()
+    private var micConditioner: any MicConditioning = SoftwareAECConditioner()
     private var transcriptAssembler = MeetingTranscriptAssembler()
     private var chunkTranscriptionFailed = false
     private var isTranscriptionLagging = false
@@ -80,7 +80,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private static let syncLagWarningThresholdMs: Double = 120
 
     public init(
-        micProcessingMode: MeetingMicProcessingMode = .vpioPreferred,
+        micProcessingMode: MeetingMicProcessingMode = .raw,
         audioCaptureService: (any MeetingAudioCapturing)? = nil,
         audioConverter: any AudioFileConverting = AudioFileConverter(),
         sttTranscriber: STTTranscribing,
@@ -160,7 +160,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.writer = writer
         self.currentSession = session
         await captureOrchestrator.reset()
-        micConditioner = VPIOConditioner()
+        micConditioner = SoftwareAECConditioner()
         transcriptAssembler.reset()
         chunkTranscriptionFailed = false
         isTranscriptionLagging = false
@@ -179,16 +179,15 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             }
         )
 
-        processingTask = Task { [weak self] in
-            guard let self else { return }
-            for await event in events {
-                await self.handleCaptureEvent(event)
-            }
-        }
-
         do {
             let captureStartReport = try await audioCaptureService.start()
             configureMicConditioner(from: captureStartReport.microphone)
+            processingTask = Task { [weak self] in
+                guard let self else { return }
+                for await event in events {
+                    await self.handleCaptureEvent(event)
+                }
+            }
             logger.info("Meeting recording started: \(sessionID.uuidString, privacy: .public)")
         } catch {
             processingTask?.cancel()
@@ -556,7 +555,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func cleanupState() {
         currentSession = nil
-        micConditioner = VPIOConditioner()
+        micConditioner = SoftwareAECConditioner()
         latestLevels = MeetingAudioLevels()
         recentSystemRms = 0
         recentProcessedMicRms = 0

@@ -16,9 +16,12 @@ public final class MicrophoneCapture: @unchecked Sendable {
     private let handlerLock = NSLock()
     private let audioEngine = AVAudioEngine()
     private let bufferSize: AVAudioFrameCount = 4096
+    private let watchdogLock = NSLock()
 
     private var state: LifecycleState = .idle
     private var bufferHandler: AudioBufferHandler?
+    private var firstBufferReceived = false
+    private var watchdogWorkItem: DispatchWorkItem?
 
     public init() {}
 
@@ -43,7 +46,7 @@ public final class MicrophoneCapture: @unchecked Sendable {
     }
 
     public func start(
-        processingMode: MeetingMicProcessingMode = .vpioPreferred,
+        processingMode: MeetingMicProcessingMode = .raw,
         handler: @escaping AudioBufferHandler
     ) throws -> MeetingMicrophoneCaptureStartReport {
         var startError: Error?
@@ -89,7 +92,10 @@ public final class MicrophoneCapture: @unchecked Sendable {
             throw startError
         }
         if didStart {
-            logger.info("Microphone capture started")
+            let activeFormat = inputFormat
+            logger.info(
+                "microphone_capture_started requested_mode=\(String(describing: processingMode), privacy: .public) effective_mode=\(startReport.effectiveMode.rawValue, privacy: .public) sample_rate=\(activeFormat?.sampleRate ?? 0, privacy: .public) channels=\(activeFormat?.channelCount ?? 0, privacy: .public) interleaved=\(activeFormat?.isInterleaved ?? false, privacy: .public)"
+            )
         }
         return startReport
     }
@@ -108,12 +114,13 @@ public final class MicrophoneCapture: @unchecked Sendable {
             handlerLock.withLock {
                 bufferHandler = nil
             }
+            resetDiagnosticsState()
             state = .idle
             didStop = true
         }
 
         if didStop {
-            logger.info("Microphone capture stopped")
+            logger.info("microphone_capture_stopped")
         }
     }
 
@@ -148,6 +155,7 @@ public final class MicrophoneCapture: @unchecked Sendable {
                 inputNode.installTap(onBus: 0, bufferSize: bufferSize, format: nil) { [weak self] buffer, time in
                     guard let self,
                           let callback = self.handlerLock.withLock({ self.bufferHandler }) else { return }
+                    self.markFirstBufferReceived()
                     callback(buffer, time)
                 }
             }
@@ -158,11 +166,13 @@ public final class MicrophoneCapture: @unchecked Sendable {
         }
 
         do {
+            scheduleSilentBufferWatchdog()
             try audioEngine.start()
         } catch {
             try? catchingObjCException {
                 inputNode.removeTap(onBus: 0)
             }
+            resetDiagnosticsState()
             throw MeetingAudioError.audioEngineStartFailed(error.localizedDescription)
         }
 
@@ -224,6 +234,42 @@ public final class MicrophoneCapture: @unchecked Sendable {
     ) throws {
         try catchingObjCException {
             try inputNode.setVoiceProcessingEnabled(enabled)
+        }
+    }
+
+    private func scheduleSilentBufferWatchdog() {
+        watchdogLock.lock()
+        firstBufferReceived = false
+        watchdogWorkItem?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            let shouldLog = self.watchdogLock.withLock { !self.firstBufferReceived }
+            guard shouldLog else { return }
+            self.logger.warning("microphone_capture_no_buffers_within_timeout")
+        }
+        watchdogWorkItem = workItem
+        watchdogLock.unlock()
+        lifecycleQueue.asyncAfter(deadline: .now() + 2, execute: workItem)
+    }
+
+    private func markFirstBufferReceived() {
+        let shouldLog = watchdogLock.withLock {
+            guard !firstBufferReceived else { return false }
+            firstBufferReceived = true
+            watchdogWorkItem?.cancel()
+            watchdogWorkItem = nil
+            return true
+        }
+        if shouldLog {
+            logger.info("microphone_capture_first_buffer_received")
+        }
+    }
+
+    private func resetDiagnosticsState() {
+        watchdogLock.withLock {
+            firstBufferReceived = false
+            watchdogWorkItem?.cancel()
+            watchdogWorkItem = nil
         }
     }
 }
