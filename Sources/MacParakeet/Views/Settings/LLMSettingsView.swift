@@ -34,12 +34,16 @@ struct LLMSettingsView: View {
                 Divider()
 
                 // API key (hidden for local providers)
-                if viewModel.requiresAPIKey {
+                if viewModel.supportsAPIKey {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("API Key")
                                 .font(DesignSystem.Typography.body)
-                            Text("Your key is stored securely in the macOS Keychain.")
+                            Text(
+                                viewModel.requiresAPIKey
+                                    ? "Your key is stored securely in the macOS Keychain."
+                                    : "Optional. Leave blank for servers that do not require authentication."
+                            )
                                 .font(DesignSystem.Typography.caption)
                                 .foregroundStyle(.secondary)
                         }

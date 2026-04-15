@@ -34,11 +34,19 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
         }
     }
 
-    /// Whether the provider needs an API key to function.
-    public var requiresAPIKey: Bool {
+    /// Whether the provider supports API-key-based auth.
+    public var supportsAPIKey: Bool {
         switch self {
         case .ollama, .lmstudio, .localCLI: return false
         case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter: return true
+        }
+    }
+
+    /// Whether the provider needs an API key to function.
+    public var requiresAPIKey: Bool {
+        switch self {
+        case .openaiCompatible, .ollama, .lmstudio, .localCLI: return false
+        case .anthropic, .openai, .gemini, .openrouter: return true
         }
     }
 
@@ -106,7 +114,7 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
     }
 
     public static func openaiCompatible(
-        apiKey: String,
+        apiKey: String? = nil,
         model: String,
         baseURL: URL
     ) -> LLMProviderConfig {

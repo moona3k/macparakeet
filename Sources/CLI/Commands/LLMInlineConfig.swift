@@ -95,13 +95,12 @@ struct LLMInlineOptions: ParsableArguments {
             guard let key = apiKey else { throw ValidationError("--api-key is required for OpenAI") }
             providerConfig = .openai(apiKey: key, model: model ?? "gpt-4.1", baseURL: overrideURL)
         case .openaiCompatible:
-            guard let key = apiKey else { throw ValidationError("--api-key is required for OpenAI-Compatible") }
             guard let overrideURL else { throw ValidationError("--base-url is required for OpenAI-Compatible") }
             guard let model, !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
                 throw ValidationError("--model is required for OpenAI-Compatible")
             }
             providerConfig = .openaiCompatible(
-                apiKey: key,
+                apiKey: apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
                 model: model.trimmingCharacters(in: .whitespacesAndNewlines),
                 baseURL: overrideURL
             )
@@ -141,5 +140,11 @@ struct LLMInlineOptions: ParsableArguments {
 
     func buildConfig() throws -> LLMProviderConfig {
         try buildExecutionContext().context.providerConfig
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }

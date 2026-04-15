@@ -64,7 +64,6 @@ final class LLMSettingsDraftTests: XCTestCase {
     func testOpenAICompatibleProviderRequiresCustomEndpoint() {
         let draft = LLMSettingsDraft(
             providerID: .openaiCompatible,
-            apiKeyInput: "test-key",
             useCustomModel: true,
             customModelName: "third-party-model"
         )

@@ -88,6 +88,10 @@ public final class LLMSettingsViewModel {
         draft.requiresAPIKey
     }
 
+    public var supportsAPIKey: Bool {
+        draft.supportsAPIKey
+    }
+
     public var availableModels: [String] {
         guard let providerID = draft.providerID else { return [] }
         if providerID == .lmstudio {
@@ -334,7 +338,7 @@ public final class LLMSettingsViewModel {
         }
         let currentProvider = draft.providerID
         let apiKey: String
-        if let currentProvider, currentProvider.requiresAPIKey {
+        if let currentProvider, currentProvider.supportsAPIKey {
             apiKey = (try? configStore.loadAPIKey(for: currentProvider)) ?? ""
         } else {
             apiKey = ""
@@ -422,7 +426,7 @@ public final class LLMSettingsViewModel {
         if providerID != .lmstudio {
             resetDiscoveredModels()
         }
-        let apiKey = providerID.requiresAPIKey ? ((try? configStore?.loadAPIKey(for: providerID)) ?? "") : ""
+        let apiKey = providerID.supportsAPIKey ? ((try? configStore?.loadAPIKey(for: providerID)) ?? "") : ""
         let cliConfig = providerID == .localCLI ? cliConfigStore?.load() : nil
         var nextDraft = LLMSettingsDraft.defaults(
             for: providerID,

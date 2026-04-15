@@ -79,7 +79,8 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openaiCompatible
 
-        XCTAssertTrue(viewModel.requiresAPIKey)
+        XCTAssertFalse(viewModel.requiresAPIKey)
+        XCTAssertTrue(viewModel.supportsAPIKey)
         XCTAssertTrue(viewModel.useCustomModel)
         XCTAssertTrue(viewModel.availableModels.isEmpty)
     }
@@ -117,7 +118,6 @@ final class LLMSettingsViewModelTests: XCTestCase {
     func testOpenAICompatibleProviderRequiresEndpointBeforeSave() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openaiCompatible
-        viewModel.apiKeyInput = "sk-third-party"
         viewModel.customModelName = "third-party-model"
 
         XCTAssertFalse(viewModel.canSave)
@@ -781,5 +781,18 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(saved?.apiKey, "sk-third-party")
         XCTAssertEqual(saved?.modelName, "vendor/model")
         XCTAssertEqual(saved?.baseURL.absoluteString, "https://api.example.com/v1")
+    }
+
+    func testSaveOpenAICompatibleProviderAllowsEmptyAPIKey() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openaiCompatible
+        viewModel.customModelName = "vendor/model"
+        viewModel.baseURLOverride = "https://api.example.com/v1"
+
+        viewModel.saveConfiguration()
+
+        let saved = mockConfigStore.config
+        XCTAssertEqual(saved?.id, .openaiCompatible)
+        XCTAssertNil(saved?.apiKey)
     }
 }
