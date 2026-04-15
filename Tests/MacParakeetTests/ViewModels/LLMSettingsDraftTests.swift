@@ -60,4 +60,15 @@ final class LLMSettingsDraftTests: XCTestCase {
         XCTAssertEqual(config?.id, .lmstudio)
         XCTAssertEqual(config?.modelName, "")
     }
+
+    func testOpenAICompatibleProviderRequiresCustomEndpoint() {
+        let draft = LLMSettingsDraft(
+            providerID: .openaiCompatible,
+            apiKeyInput: "test-key",
+            useCustomModel: true,
+            customModelName: "third-party-model"
+        )
+
+        XCTAssertEqual(draft.validationError, .invalidBaseURL)
+    }
 }

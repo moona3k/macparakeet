@@ -113,6 +113,9 @@ public struct LLMSettingsDraft: Equatable, Sendable {
                     && suggestedModelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .missingModelSelection
         }
+        if providerID.requiresCustomEndpoint && trimmedBaseURLOverride.isEmpty {
+            return .invalidBaseURL
+        }
         if !trimmedBaseURLOverride.isEmpty {
             guard let overrideURL = URL(string: trimmedBaseURLOverride),
                   Self.isAllowedBaseURLOverride(overrideURL) else {

@@ -27,7 +27,7 @@ struct LLMSettingsView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
-                .frame(width: 160)
+                .frame(width: 190)
             }
 
             if viewModel.selectedProviderID != nil {
@@ -55,6 +55,24 @@ struct LLMSettingsView: View {
                 if viewModel.selectedProviderID == .localCLI {
                     cliSettingsSection
                 } else {
+                    if viewModel.selectedProviderID?.requiresCustomEndpoint == true {
+                        HStack(alignment: .top) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Custom Endpoint")
+                                    .font(DesignSystem.Typography.body)
+                                Text("OpenAI-compatible base URL, for example https://api.example.com/v1.")
+                                    .font(DesignSystem.Typography.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: DesignSystem.Spacing.md)
+                            TextField("https://api.example.com/v1", text: $viewModel.baseURLOverride)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(width: 220)
+                        }
+
+                        Divider()
+                    }
+
                     // Model name
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -69,23 +87,25 @@ struct LLMSettingsView: View {
                     }
 
                     // Advanced: Base URL override
-                    DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
-                        HStack(alignment: .top) {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text("Base URL")
-                                    .font(DesignSystem.Typography.body)
-                                Text("Override the default API endpoint.")
-                                    .font(DesignSystem.Typography.caption)
-                                    .foregroundStyle(.secondary)
+                    if viewModel.selectedProviderID?.requiresCustomEndpoint != true {
+                        DisclosureGroup("Advanced", isExpanded: $showAdvanced) {
+                            HStack(alignment: .top) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Base URL")
+                                        .font(DesignSystem.Typography.body)
+                                    Text("Override the default API endpoint.")
+                                        .font(DesignSystem.Typography.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: DesignSystem.Spacing.md)
+                                TextField("https://...", text: $viewModel.baseURLOverride)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 220)
                             }
-                            Spacer(minLength: DesignSystem.Spacing.md)
-                            TextField("https://...", text: $viewModel.baseURLOverride)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 220)
+                            .padding(.top, DesignSystem.Spacing.sm)
                         }
-                        .padding(.top, DesignSystem.Spacing.sm)
+                        .font(DesignSystem.Typography.caption)
                     }
-                    .font(DesignSystem.Typography.caption)
                 }
 
                 Divider()

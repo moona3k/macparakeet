@@ -75,6 +75,15 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.requiresAPIKey)
     }
 
+    func testOpenAICompatibleProviderStartsInCustomModelMode() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openaiCompatible
+
+        XCTAssertTrue(viewModel.requiresAPIKey)
+        XCTAssertTrue(viewModel.useCustomModel)
+        XCTAssertTrue(viewModel.availableModels.isEmpty)
+    }
+
     // MARK: - Save
 
     func testSavePersistsToStore() {
@@ -103,6 +112,20 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         let saved = mockConfigStore.config
         XCTAssertEqual(saved?.baseURL.absoluteString, "https://my-server.com/v1")
+    }
+
+    func testOpenAICompatibleProviderRequiresEndpointBeforeSave() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openaiCompatible
+        viewModel.apiKeyInput = "sk-third-party"
+        viewModel.customModelName = "third-party-model"
+
+        XCTAssertFalse(viewModel.canSave)
+        XCTAssertEqual(viewModel.validationMessage, "Enter a valid HTTPS base URL, or use localhost for local servers.")
+
+        viewModel.baseURLOverride = "https://api.example.com/v1"
+
+        XCTAssertTrue(viewModel.canSave)
     }
 
     // MARK: - Load Existing
@@ -742,5 +765,21 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.selectedProviderID = .openai
         XCTAssertTrue(viewModel.requiresAPIKey)
         XCTAssertFalse(viewModel.availableModels.isEmpty)
+    }
+
+    func testSaveOpenAICompatibleProviderPersistsCustomEndpoint() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openaiCompatible
+        viewModel.apiKeyInput = "sk-third-party"
+        viewModel.customModelName = "vendor/model"
+        viewModel.baseURLOverride = "https://api.example.com/v1"
+
+        viewModel.saveConfiguration()
+
+        let saved = mockConfigStore.config
+        XCTAssertEqual(saved?.id, .openaiCompatible)
+        XCTAssertEqual(saved?.apiKey, "sk-third-party")
+        XCTAssertEqual(saved?.modelName, "vendor/model")
+        XCTAssertEqual(saved?.baseURL.absoluteString, "https://api.example.com/v1")
     }
 }

@@ -579,6 +579,7 @@ public final class LLMSettingsViewModel {
             "gpt-4.1",
             "gpt-4.1-mini",
         ]
+        case .openaiCompatible: return []
         case .gemini: return [
             "gemini-3.1-pro-preview",
             "gemini-3-flash-preview",
@@ -625,6 +626,7 @@ public final class LLMSettingsViewModel {
         switch provider {
         case .anthropic: return "https://api.anthropic.com/v1"
         case .openai: return "https://api.openai.com/v1"
+        case .openaiCompatible: return ""
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta/openai"
         case .openrouter: return "https://openrouter.ai/api/v1"
         case .ollama: return "http://localhost:11434/v1"
