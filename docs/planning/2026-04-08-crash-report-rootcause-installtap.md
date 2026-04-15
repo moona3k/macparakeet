@@ -83,7 +83,7 @@ ORDER BY ts DESC
 | `model_download_failed` | 5 | 2 |
 | `diarization_failed` | 4 | 3 |
 | `llm_prompt_result_failed` | 3 | 2 |
-| `llm_summary_failed` | 2 | 1 |
+| `llm_formatter_failed` | 2 | 1 |
 | `transcription_failed` | 2 | 2 |
 
 All 14 `crash_occurred` records are on `app_ver = 0.5.5` except one stale record

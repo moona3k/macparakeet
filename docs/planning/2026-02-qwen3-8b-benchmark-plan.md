@@ -1,6 +1,6 @@
 # Qwen3-8B Benchmark Plan (macOS Local)
 
-> Status: **HISTORICAL** - LLM support (Qwen3-8B / MLX-Swift) removed 2026-02-23.
+> Status: **HISTORICAL** - The on-device Qwen3-8B / MLX-Swift path documented here was removed 2026-02-23. Current LLM support uses external providers or local CLI instead.
 
 Last updated: 2026-02-13
 Purpose: Establish repeatable, practical measurements for local Qwen3-8B quality and performance in MacParakeet.

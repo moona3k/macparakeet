@@ -3,7 +3,7 @@
 > Status: **HISTORICAL** - Superseded by open-source release (GPL-3.0) in v0.5. MacParakeet is now free.
 > Date: 2026-02-08
 > Amended: 2026-03-24 — MacParakeet went free and open-source (GPL-3.0). LemonSqueezy kept as $0 product for download tracking. The $49 pricing model below is historical context only.
-> Note: References to "command mode" and "LLM modes" in pricing rationale are historical — LLM support removed 2026-02-23.
+> Note: References to the old local "command mode" / Qwen3-8B LLM modes in the pricing rationale are historical — that on-device path was removed 2026-02-23. Current provider-based LLM features are documented separately.
 
 ## Context
 

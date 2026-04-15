@@ -1,6 +1,6 @@
 # FluidAudio CoreML Migration: STT Backend Evaluation
 
-> Status: **HISTORICAL** — Research findings from February 12-13, 2026. FluidAudio migration is complete. LLM/Qwen3-8B GPU references are outdated — LLM support removed 2026-02-23.
+> Status: **HISTORICAL** — Research findings from February 12-13, 2026. FluidAudio migration is complete. The local Qwen3-8B GPU path referenced here is outdated because the on-device mlx-swift-lm runtime was removed 2026-02-23; current LLM support uses external providers or local CLI.
 
 ## Problem Statement
 

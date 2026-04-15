@@ -1,6 +1,6 @@
 # ADR-008: Local LLM Runtime and Model Baseline (Qwen3-8B)
 
-> Status: **HISTORICAL** - Superseded. LLM support removed 2026-02-23. Qwen3-8B and mlx-swift-lm dependency fully removed from codebase.
+> Status: **HISTORICAL** - Superseded. The on-device Qwen3-8B / mlx-swift-lm runtime was removed 2026-02-23. Current LLM support uses external providers or local CLI instead.
 > Date: 2026-02-13
 
 ## Context

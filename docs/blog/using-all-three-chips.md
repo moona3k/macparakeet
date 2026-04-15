@@ -1,6 +1,6 @@
 # Using All Three Chips: How We Rebuilt MacParakeet's Speech Engine for Apple Silicon
 
-> Status: **HISTORICAL** - LLM support removed 2026-02-23. MacParakeet now uses a two-chip architecture (CPU + ANE). GPU/LLM content below is outdated.
+> Status: **HISTORICAL** - The old on-device Qwen3-8B / mlx-swift-lm path was removed 2026-02-23. GPU-local LLM content below is outdated; current LLM features use external providers or local CLI, while core speech remains a two-chip architecture (CPU + ANE).
 
 *MacParakeet Engineering*
 

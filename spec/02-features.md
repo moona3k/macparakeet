@@ -795,49 +795,35 @@ CREATE TABLE text_snippets (
 
 ---
 
-### F8: AI Text Refinement — REMOVED
+### F8: AI Formatter
 
-> Status: **REMOVED** (2026-02-23) — LLM support removed. Formal/Email/Code modes and Qwen3-8B dependency eliminated. Only Raw and Clean (deterministic) modes remain.
+> Status: **IMPLEMENTED ON CURRENT BRANCH** — Optional provider-based formatter for dictation and transcription. The old on-device Qwen3-8B mode presets were removed; formatting now runs through the configured LLM provider or local CLI.
 
-**What:** ~~LLM-powered text transformation for cases where deterministic cleanup is not enough. Uses Qwen3-8B via MLX-Swift, running entirely on-device.~~
+**What:** Optional post-processing formatter that runs *after* deterministic cleanup when the user enables it in AI settings. It is intended to polish punctuation, capitalization, paragraphing, and obvious transcript errors without changing the underlying meaning.
 
-**Context modes:**
+**Current behavior:**
 
-| Mode | Pipeline | Behavior |
+| Stage | Pipeline | Behavior |
 |------|----------|----------|
 | Raw | None | Parakeet output, no processing |
 | Clean | Deterministic (F7) | Filler removal + custom words + snippets |
-| Formal | Clean + LLM | Professional tone, grammar fixes, clear structure |
-| Email | Clean + LLM | Format as email with greeting, body, sign-off |
-| Code | Clean + LLM | Technical dictation, preserve syntax, format as code |
+| AI Formatter | Clean + provider-based LLM | Optional transcript cleanup using the configured LLM provider/local CLI |
 
-Modes stack: Formal/Email/Code always run the clean pipeline first, then apply LLM refinement on top.
+Important constraints:
 
-**LLM details:**
-- Model: Qwen3-8B (4-bit quantized, `mlx-community/Qwen3-8B-4bit`)
-- Framework: MLX-Swift (Apple Silicon optimized)
-- Non-thinking mode for all refinement (fast, `temp=0.7, topP=0.8`)
-- System prompts per mode:
-
-| Mode | System Prompt Summary |
-|------|----------------------|
-| Formal | "Rewrite into professional, clear language. Preserve meaning. Fix grammar." |
-| Email | "Format as a professional email. Add appropriate greeting and sign-off." |
-| Code | "This is technical dictation about programming. Preserve code terms, format appropriately." |
-
-**Personal dictionary (auto-learn):**
-- Track words the user corrects via custom words (F9)
-- Over time, build a vocabulary profile
-- Surface suggestions: "You frequently correct 'react' to 'React'. Add as custom word?"
+- formatter is a separate toggle, not a dictation mode
+- formatter uses the shared `LLMService`
+- formatter can run for both dictation and file/meeting transcription
+- formatter falls back to deterministic cleanup if the provider errors or times out
+- formatter prompt is user-editable in AI settings
 
 **Acceptance criteria:**
-- [ ] Formal mode produces professional, grammatically correct output
-- [ ] Email mode formats text as proper email
-- [ ] Code mode preserves technical terms and syntax
-- [ ] LLM modes always apply clean pipeline first
-- [ ] LLM processing completes in <5 seconds for typical dictations
-- [x] Mode is a global default (set in Vocabulary, applies to all dictations)
-- [ ] Graceful fallback to Clean if LLM fails or times out
+- [x] Formatter can be enabled or disabled independently of Raw/Clean mode
+- [x] Formatter runs only after deterministic cleanup
+- [x] Formatter supports dictation and transcription flows
+- [x] Formatter uses the configured provider or local CLI through shared LLM infrastructure
+- [x] Formatter prompt is editable and resettable from settings
+- [x] Graceful fallback to deterministic cleanup if formatting fails
 
 ---
 
@@ -920,7 +906,7 @@ Modes stack: Formal/Email/Code always run the clean pipeline first, then apply L
 
 ### F10: Command Mode (Epic) — REMOVED
 
-> Status: **REMOVED** (2026-02-23) — LLM support removed. Command Mode (F10a/F10b) and Chat with Transcript (F10c) eliminated along with Qwen3-8B dependency.
+> Status: **PARTIALLY REMOVED** — Command Mode (F10a/F10b) was removed with the old local Qwen3-8B path. Transcript Chat (F10c) still exists through the current provider-based LLM architecture.
 
 **What:** ~~Select text in any app, activate command mode, speak a natural language command, and the text is edited in-place by the local LLM.~~
 
@@ -1021,17 +1007,17 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 
 ---
 
-### F10c: Transcript Chat (GUI MVP) — REMOVED
+### F10c: Transcript Chat (GUI MVP)
 
-> Status: **REMOVED** (2026-02-23) — LLM support removed.
+> Status: **IMPLEMENTED ON CURRENT BRANCH** — Transcript chat is available from the transcript detail screen through the configured LLM provider or local CLI.
 
-**What:** ~~Ask questions about the currently selected transcript from the transcript detail screen using local Qwen3-8B.~~
+**What:** Ask questions about the currently selected transcript from the transcript detail screen using the shared provider-based LLM service.
 
 **Scope (MVP):**
 - Current transcript scope only (no cross-transcript retrieval yet)
-- In-memory thread per transcript for current app session
+- Multiple persisted conversations per transcript
 - Bounded transcript context assembly to avoid prompt overflow
-- Local-only execution (no cloud calls)
+- Uses whichever provider/local CLI the user configured in AI settings
 
 **Flow:**
 
@@ -1046,9 +1032,9 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 │    - current transcript text                                   │
 │    - truncation marker if needed                               │
 ├─────────────────────────────────────────────────────────────────┤
-│ 4. Qwen3-8B generates response locally                         │
+│ 4. Configured LLM provider generates response                  │
 │    - loading state shown in panel                              │
-│    - no network dependency                                     │
+│    - local CLI / local provider / cloud provider supported     │
 ├─────────────────────────────────────────────────────────────────┤
 │ 5. Response appears in thread                                  │
 │    - retry available for failed generations                    │
@@ -1057,17 +1043,17 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 ```
 
 **Technical implementation:**
-- Prompt composed via shared `TranscriptChatPromptComposer`
-- Prompt task uses `LLMTask.transcriptChat(question:transcript:)`
-- Context bounded by `TranscriptContextAssembler.assemble(...)`
-- Response generated through `LLMServiceProtocol.generate(...)`
+- Response generated through `LLMServiceProtocol.chatStream(question:transcript:history:)`
+- Context is bounded before prompt submission
+- Conversations are persisted per transcript through `ChatConversationRepository`
+- Model/provider selection comes from the shared LLM settings/config store
 
 **Acceptance criteria:**
 - [x] Transcript detail shows chat panel UI
 - [x] User can send a question and receive a response in-thread
 - [x] Context is bounded for long transcripts
 - [x] Failed responses surface inline error with retry path
-- [x] Local model readiness status is visible in panel
+- [x] Current provider/model readiness is visible in the panel
 
 ---
 

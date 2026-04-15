@@ -1,6 +1,6 @@
 # Open Source Models Landscape (February 2026)
 
-> Status: **HISTORICAL** — Research snapshot as of February 12, 2026. LLM support (Qwen3-8B / MLX-Swift) removed from MacParakeet 2026-02-23. Only Parakeet STT via FluidAudio CoreML remains.
+> Status: **HISTORICAL** — Research snapshot as of February 12, 2026. The local Qwen3-8B / MLX-Swift path discussed here was removed from MacParakeet on 2026-02-23. Current LLM support uses external providers or local CLI; Parakeet STT via FluidAudio CoreML remains the speech engine.
 
 Deep dive into the current state of open source models relevant to MacParakeet: STT, small LLMs, and the Apple MLX ecosystem.
 

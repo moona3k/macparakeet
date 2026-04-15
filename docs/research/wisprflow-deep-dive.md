@@ -1,6 +1,6 @@
 # WisprFlow Deep Dive
 
-> Status: **HISTORICAL** - Competitive research from February 2026. LLM/Command Mode comparisons are outdated — MacParakeet removed LLM support 2026-02-23.
+> Status: **HISTORICAL** - Competitive research from February 2026. The local Qwen3-8B / Command Mode comparisons here are outdated because the on-device LLM path was removed 2026-02-23. Current LLM features use provider-based integrations or local CLI instead.
 
 ## What WisprFlow Does
 

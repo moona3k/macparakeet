@@ -1,6 +1,6 @@
 # LLM Runtime Risk Register (Qwen3-8B + MLX-Swift-LM)
 
-> Status: **HISTORICAL** - LLM support (Qwen3-8B / MLX-Swift) removed 2026-02-23.
+> Status: **HISTORICAL** - The on-device Qwen3-8B / MLX-Swift runtime documented here was removed 2026-02-23. Current LLM support uses external providers or local CLI instead.
 
 Last updated: 2026-02-13
 

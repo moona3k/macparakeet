@@ -142,13 +142,15 @@ CREATE INDEX idx_events_session ON events(session);
 | Event | Props | Question It Answers |
 |---|---|---|
 | `export_used` | `format` (txt, md, srt, vtt, docx, pdf, json) | Which export formats matter? |
-| `llm_summary_used` | `provider` (openai, anthropic, ollama, openrouter) | Is LLM worth maintaining? Which providers? |
-| `llm_summary_failed` | `provider`, `error_type` | LLM failure rates per provider |
+| `llm_prompt_result_used` | `provider` | Are prompt-library results and generated summaries being used? Which providers matter? |
+| `llm_prompt_result_failed` | `provider`, `error_type` | Failure rates for prompt-library result generation per provider |
 | `llm_chat_used` | `provider`, `message_count` | Do people chat with transcripts? |
 | `llm_chat_failed` | `provider`, `error_type` | Chat failure rates per provider |
+| `llm_formatter_used` | `provider`, `source`, `duration_seconds`, `input_chars`, `output_chars`, `default_prompt_used`, `input_truncated` | Is transcript/dictation formatting useful, and how expensive is it? |
+| `llm_formatter_failed` | `provider`, `source`, `duration_seconds`, `error_type`, `default_prompt_used`, `input_truncated` | Formatter failure rates and prompt-shape correlations |
 | `history_searched` | — | Is search useful? |
 | `history_replayed` | — | Do people re-listen to audio? |
-| `copy_to_clipboard` | `source` (dictation, transcription, history) | How do people get text out? |
+| `copy_to_clipboard` | `source` (dictation, transcription, history, meeting, discover) | How do people get text out? |
 | `keystroke_snippet_fired` | — | Are keystroke action snippets being used? |
 | `feedback_submitted` | `category` (bug, featureRequest, other) | Feedback volume and sentiment split |
 | `transcription_deleted` | — | Are users cleaning up transcriptions? |
@@ -165,7 +167,7 @@ CREATE INDEX idx_events_session ON events(session);
 | `processing_mode_changed` | `mode` (raw, clean) | Is the clean pipeline valued? |
 | `custom_word_added` | — | Are custom words used? (NOT the word itself) |
 | `snippet_added` | — | Are snippets used? |
-| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill) | Which settings get toggled? |
+| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, speaker_diarization, auto_save, meeting_auto_save, meeting_hotkey, launch_at_login, silence_auto_stop, voice_return) | Which settings get toggled? |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 6. Licensing — "Is the business working?"
@@ -197,7 +199,7 @@ CREATE INDEX idx_events_session ON events(session);
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `permission_prompted` | `permission` (microphone, accessibility) | How many prompts are shown? |
+| `permission_prompted` | `permission` (microphone, accessibility, screen_recording) | How many prompts are shown? |
 | `permission_granted` | `permission` | Grant rate |
 | `permission_denied` | `permission` | Denial rate — is something confusing? |
 
@@ -392,7 +394,7 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 | 5 | Missing `dictation_failed` — core feature failures are a blind spot | Added to Dictation events with `error_type` prop. |
 | 6 | Missing `transcription_cancelled` — long jobs get abandoned | Added with `source` and `audio_duration_seconds` props. |
 | 7 | Missing `model_download_cancelled` — onboarding funnel gap | Added to Performance events. |
-| 8 | Missing `llm_summary_failed` / `llm_chat_failed` — need failure rates per provider | Added both with `provider` + `error_type` props. |
+| 8 | Missing LLM failure telemetry — need provider-level failure rates | Added `llm_prompt_result_failed`, `llm_chat_failed`, and formatter failure events with provider + error props. |
 | 9 | Cut `dictation_private` — sensitive signal, user explicitly wanted privacy | Removed. |
 | 10 | Cut `hotkey_changed.key` value — track boolean, not which key | Changed to `hotkey_customized` with no props. |
 | 11 | Cut `pill_hidden` as separate event — redundant with `setting_changed` | Merged into `setting_changed` with `setting: "hide_pill"`. |

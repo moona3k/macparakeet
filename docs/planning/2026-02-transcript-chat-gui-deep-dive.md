@@ -1,6 +1,6 @@
 # Transcript Chat GUI Deep Dive
 
-> Status: **HISTORICAL** - Transcript Chat and LLM support removed 2026-02-23.
+> Status: **HISTORICAL** - The local transcript-chat/runtime plan in this doc was superseded when the on-device Qwen3-8B / MLX-Swift path was removed 2026-02-23. Transcript chat still exists via the current provider-based LLM architecture.
 
 Status: Draft proposal for implementation  
 Date: 2026-02-14  
