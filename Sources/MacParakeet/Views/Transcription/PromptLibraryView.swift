@@ -316,7 +316,7 @@ struct PromptLibraryView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
-            MeditativeMerkabaView(size: 40, revolutionDuration: 12.0, tintColor: DesignSystem.Colors.accent)
+            MeditativeMerkabaView(size: 40, revolutionDuration: 12.0, tintColor: DesignSystem.Colors.accent, animate: false)
             Text("No custom prompts yet")
                 .font(DesignSystem.Typography.bodyLarge.weight(.medium))
                 .foregroundStyle(DesignSystem.Colors.textPrimary)

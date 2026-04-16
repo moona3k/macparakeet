@@ -304,6 +304,8 @@ struct MeditativeMerkabaView: View {
     var tintColor: Color? = nil
     var animate: Bool = true
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var rotationCW: Double = 0
     @State private var rotationCCW: Double = 60
     @State private var centerPulse: Double = 0.15
@@ -311,6 +313,7 @@ struct MeditativeMerkabaView: View {
 
     private var effectiveColor: Color { tintColor ?? .primary }
     private var radius: CGFloat { size * 0.4 }
+    private var shouldAnimate: Bool { animate && !reduceMotion }
 
     var body: some View {
         ZStack {
@@ -334,11 +337,11 @@ struct MeditativeMerkabaView: View {
         .frame(width: size, height: size)
         .drawingGroup()
         .onAppear {
-            if animate {
+            if shouldAnimate {
                 startAnimation()
             }
         }
-        .onChange(of: animate) { _, newValue in
+        .onChange(of: shouldAnimate) { _, newValue in
             if newValue {
                 startAnimation()
             } else {

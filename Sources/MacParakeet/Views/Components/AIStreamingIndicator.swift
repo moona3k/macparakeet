@@ -2,25 +2,32 @@ import SwiftUI
 
 /// A sentient streaming indicator — three orbs that breathe with overlapping
 /// phases, each with a soft glow halo. Slow, organic, alive.
+///
+/// Uses SwiftUI animations instead of a 30fps TimelineView — the 1.3Hz sine
+/// wave only needs ~2 animation interpolations, not 30 redraws per second.
 struct AIStreamingIndicator: View {
-    var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { context in
-            let t = context.date.timeIntervalSinceReferenceDate
-            HStack(spacing: 14) {
-                ForEach(0..<3, id: \.self) { i in
-                    let phase = sin(t * 1.3 + Double(i) * 0.85)
-                    let intensity = 0.3 + 0.7 * ((phase + 1) / 2)
-                    let scale = 0.75 + 0.25 * ((phase + 1) / 2)
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var breathing = false
 
-                    Circle()
-                        .fill(DesignSystem.Colors.accent)
-                        .frame(width: 5, height: 5)
-                        .scaleEffect(scale)
-                        .opacity(intensity)
-                        .shadow(color: DesignSystem.Colors.accent.opacity(intensity * 0.4), radius: 4)
-                }
+    var body: some View {
+        HStack(spacing: 14) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .fill(DesignSystem.Colors.accent)
+                    .frame(width: 5, height: 5)
+                    .scaleEffect(breathing ? 1.0 : 0.75)
+                    .opacity(breathing ? 1.0 : 0.3)
+                    .shadow(color: DesignSystem.Colors.accent.opacity(breathing ? 0.4 : 0.12), radius: 4)
+                    .animation(
+                        reduceMotion ? nil : .easeInOut(duration: 1.0 / 1.3)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(i) * 0.10),
+                        value: breathing
+                    )
             }
         }
+        .onAppear { breathing = true }
+        .onDisappear { breathing = false }
     }
 }
 

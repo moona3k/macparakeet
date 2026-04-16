@@ -172,7 +172,7 @@ struct BreathingSeedOfLifeView: View {
             Circle()
                 .fill(strokeColor.opacity(glowBreathing ? 0.5 : 0.2))
                 .frame(width: circleRadius * 2, height: circleRadius * 2)
-                .blur(radius: 8)
+                .shadow(color: strokeColor.opacity(glowBreathing ? 0.4 : 0.15), radius: 12)
                 .scaleEffect(glowBreathing ? 1.2 : 0.9)
 
             // Center circle
