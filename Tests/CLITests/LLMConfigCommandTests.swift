@@ -44,6 +44,33 @@ final class LLMConfigCommandTests: XCTestCase {
         XCTAssertEqual(config.baseURL.absoluteString, "http://127.0.0.1:11435/v1")
     }
 
+    func testInlineOptionsBuildOpenAICompatibleConfig() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "openai-compatible",
+            "--api-key", "sk-third-party",
+            "--base-url", "https://api.example.com/v1",
+            "--model", "vendor/model"
+        ])
+
+        let config = try options.buildConfig()
+        XCTAssertEqual(config.id, .openaiCompatible)
+        XCTAssertEqual(config.apiKey, "sk-third-party")
+        XCTAssertEqual(config.baseURL.absoluteString, "https://api.example.com/v1")
+        XCTAssertEqual(config.modelName, "vendor/model")
+    }
+
+    func testInlineOptionsBuildOpenAICompatibleConfigWithoutAPIKey() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "openai-compatible",
+            "--base-url", "https://api.example.com/v1",
+            "--model", "vendor/model"
+        ])
+
+        let config = try options.buildConfig()
+        XCTAssertEqual(config.id, .openaiCompatible)
+        XCTAssertNil(config.apiKey)
+    }
+
     func testLocalCLIExecutionContextRoutesThroughCLIClient() async throws {
         let options = try LLMInlineOptions.parse([
             "--provider", "cli",

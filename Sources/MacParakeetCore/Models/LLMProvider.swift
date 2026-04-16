@@ -5,6 +5,7 @@ import Foundation
 public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case anthropic
     case openai
+    case openaiCompatible
     case gemini
     case openrouter
     case ollama
@@ -15,6 +16,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
         switch self {
         case .anthropic: return "Anthropic"
         case .openai: return "OpenAI"
+        case .openaiCompatible: return "OpenAI-Compatible"
         case .gemini: return "Google Gemini"
         case .openrouter: return "OpenRouter"
         case .ollama: return "Ollama"
@@ -28,15 +30,31 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     public var isLocal: Bool {
         switch self {
         case .ollama, .lmstudio: return true
-        case .anthropic, .openai, .gemini, .openrouter, .localCLI: return false
+        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .localCLI: return false
+        }
+    }
+
+    /// Whether the provider supports API-key-based auth.
+    public var supportsAPIKey: Bool {
+        switch self {
+        case .ollama, .lmstudio, .localCLI: return false
+        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter: return true
         }
     }
 
     /// Whether the provider needs an API key to function.
     public var requiresAPIKey: Bool {
         switch self {
-        case .ollama, .lmstudio, .localCLI: return false
+        case .openaiCompatible, .ollama, .lmstudio, .localCLI: return false
         case .anthropic, .openai, .gemini, .openrouter: return true
+        }
+    }
+
+    /// Whether the provider must be configured with a user-supplied endpoint.
+    public var requiresCustomEndpoint: Bool {
+        switch self {
+        case .openaiCompatible: return true
+        case .anthropic, .openai, .gemini, .openrouter, .ollama, .lmstudio, .localCLI: return false
         }
     }
 
@@ -89,6 +107,20 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
         LLMProviderConfig(
             id: .openai,
             baseURL: baseURL ?? URL(string: "https://api.openai.com/v1")!,
+            apiKey: apiKey,
+            modelName: model,
+            isLocal: false
+        )
+    }
+
+    public static func openaiCompatible(
+        apiKey: String? = nil,
+        model: String,
+        baseURL: URL
+    ) -> LLMProviderConfig {
+        LLMProviderConfig(
+            id: .openaiCompatible,
+            baseURL: baseURL,
             apiKey: apiKey,
             modelName: model,
             isLocal: false

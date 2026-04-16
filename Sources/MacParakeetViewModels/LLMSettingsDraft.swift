@@ -69,6 +69,10 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         providerID?.requiresAPIKey ?? false
     }
 
+    public var supportsAPIKey: Bool {
+        providerID?.supportsAPIKey ?? false
+    }
+
     public var trimmedAPIKey: String {
         apiKeyInput.trimmingCharacters(in: .whitespacesAndNewlines)
     }
@@ -112,6 +116,9 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         } else if !allowMissingModelName
                     && suggestedModelName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .missingModelSelection
+        }
+        if providerID.requiresCustomEndpoint && trimmedBaseURLOverride.isEmpty {
+            return .invalidBaseURL
         }
         if !trimmedBaseURLOverride.isEmpty {
             guard let overrideURL = URL(string: trimmedBaseURLOverride),
@@ -174,7 +181,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         let selectedCLITemplate = cliConfig.map { LocalCLITemplate.inferredTemplate(for: $0.commandTemplate) } ?? nil
         return LLMSettingsDraft(
             providerID: providerID,
-            apiKeyInput: providerID?.requiresAPIKey == true ? apiKey : "",
+            apiKeyInput: providerID?.supportsAPIKey == true ? apiKey : "",
             suggestedModelName: defaultModelName,
             useCustomModel: false,
             customModelName: "",

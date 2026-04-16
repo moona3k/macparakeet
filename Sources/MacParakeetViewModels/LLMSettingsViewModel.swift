@@ -88,6 +88,10 @@ public final class LLMSettingsViewModel {
         draft.requiresAPIKey
     }
 
+    public var supportsAPIKey: Bool {
+        draft.supportsAPIKey
+    }
+
     public var availableModels: [String] {
         guard let providerID = draft.providerID else { return [] }
         if providerID == .lmstudio {
@@ -334,7 +338,7 @@ public final class LLMSettingsViewModel {
         }
         let currentProvider = draft.providerID
         let apiKey: String
-        if let currentProvider, currentProvider.requiresAPIKey {
+        if let currentProvider, currentProvider.supportsAPIKey {
             apiKey = (try? configStore.loadAPIKey(for: currentProvider)) ?? ""
         } else {
             apiKey = ""
@@ -422,7 +426,7 @@ public final class LLMSettingsViewModel {
         if providerID != .lmstudio {
             resetDiscoveredModels()
         }
-        let apiKey = providerID.requiresAPIKey ? ((try? configStore?.loadAPIKey(for: providerID)) ?? "") : ""
+        let apiKey = providerID.supportsAPIKey ? ((try? configStore?.loadAPIKey(for: providerID)) ?? "") : ""
         let cliConfig = providerID == .localCLI ? cliConfigStore?.load() : nil
         var nextDraft = LLMSettingsDraft.defaults(
             for: providerID,
@@ -579,6 +583,7 @@ public final class LLMSettingsViewModel {
             "gpt-4.1",
             "gpt-4.1-mini",
         ]
+        case .openaiCompatible: return []
         case .gemini: return [
             "gemini-3.1-pro-preview",
             "gemini-3-flash-preview",
@@ -625,6 +630,7 @@ public final class LLMSettingsViewModel {
         switch provider {
         case .anthropic: return "https://api.anthropic.com/v1"
         case .openai: return "https://api.openai.com/v1"
+        case .openaiCompatible: return ""
         case .gemini: return "https://generativelanguage.googleapis.com/v1beta/openai"
         case .openrouter: return "https://openrouter.ai/api/v1"
         case .ollama: return "http://localhost:11434/v1"

@@ -36,7 +36,7 @@ func readInput(_ path: String) throws -> String {
 
 /// Shared options for CLI commands that call an LLM provider directly (no Keychain).
 struct LLMInlineOptions: ParsableArguments {
-    @Option(name: .long, help: "Provider: anthropic, openai, gemini, openrouter, ollama, lmstudio, cli.")
+    @Option(name: .long, help: "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, cli.")
     var provider: String
 
     @Option(name: .long, help: "API key.")
@@ -55,10 +55,20 @@ struct LLMInlineOptions: ParsableArguments {
     var local: Bool = false
 
     private func providerID() throws -> LLMProviderID {
-        // Accept "cli" as a short alias for "localCLI"
-        let normalized = provider == "cli" ? "localCLI" : provider
+        // Accept simple aliases for provider names used in docs and terminals.
+        let normalized: String
+        switch provider.lowercased() {
+        case "cli":
+            normalized = "localCLI"
+        case "openaicompatible", "openai-compatible":
+            normalized = "openaiCompatible"
+        default:
+            normalized = provider
+        }
         guard let providerID = LLMProviderID(rawValue: normalized) else {
-            throw ValidationError("Unknown provider '\(provider)'. Options: anthropic, openai, gemini, openrouter, ollama, lmstudio, cli")
+            throw ValidationError(
+                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, cli"
+            )
         }
         return providerID
     }
@@ -84,6 +94,16 @@ struct LLMInlineOptions: ParsableArguments {
         case .openai:
             guard let key = apiKey else { throw ValidationError("--api-key is required for OpenAI") }
             providerConfig = .openai(apiKey: key, model: model ?? "gpt-4.1", baseURL: overrideURL)
+        case .openaiCompatible:
+            guard let overrideURL else { throw ValidationError("--base-url is required for OpenAI-Compatible") }
+            guard let model, !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw ValidationError("--model is required for OpenAI-Compatible")
+            }
+            providerConfig = .openaiCompatible(
+                apiKey: apiKey?.trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+                model: model.trimmingCharacters(in: .whitespacesAndNewlines),
+                baseURL: overrideURL
+            )
         case .gemini:
             guard let key = apiKey else { throw ValidationError("--api-key is required for Gemini") }
             providerConfig = .gemini(apiKey: key, model: model ?? "gemini-2.5-flash", baseURL: overrideURL)
@@ -120,5 +140,11 @@ struct LLMInlineOptions: ParsableArguments {
 
     func buildConfig() throws -> LLMProviderConfig {
         try buildExecutionContext().context.providerConfig
+    }
+}
+
+private extension String {
+    var nilIfEmpty: String? {
+        isEmpty ? nil : self
     }
 }
