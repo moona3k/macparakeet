@@ -297,23 +297,29 @@ struct BreathingRingView: View {
 /// Softer opacity, adapts to light/dark mode via `.primary`.
 ///
 /// Animates by default (two counter-rotating triangles). Pass `animate: false`
-/// for purely static decoration, or bind to state (e.g. `animate: isDragging`)
-/// for interaction-driven animation.
+/// for purely static decoration. Purely decorative — hidden from VoiceOver.
 ///
 /// ## Performance
 /// Only the rotations animate — the center/vertex glow opacities are static.
-/// No `.drawingGroup()` anywhere on the animating path: `.drawingGroup()`
-/// forces offscreen bitmap rasterization, which CA invalidates whenever any
-/// child value changes — incompatible with animated sub-content. Instead,
-/// we rely on CA's native per-layer rendering. Each stroked triangle + vertex
-/// circle becomes its own CALayer, and `.rotationEffect()` animates via a
-/// `CATransform3D` property update on that layer — pure GPU, no CPU work
-/// per frame beyond SwiftUI's lightweight dependency diff.
+/// No `.drawingGroup()` on the animating path: `.drawingGroup()` flattens
+/// the subtree into an offscreen bitmap that CA must regenerate whenever
+/// any child value changes (including transforms), which is incompatible
+/// with animated sub-content. Without it, CA composites each stroked
+/// triangle + vertex circle as its own layer; `.rotationEffect()` updates
+/// the layer's transform per frame, which is GPU-cheap.
 ///
-/// See PR #107 (idle CPU/GPU fix) for the counter-example: pulsing opacities
-/// + `.drawingGroup()` forced Metal to re-rasterize the flattened bitmap
-/// every frame, burning ~15-18% CPU at idle. Freezing the pulses AND removing
-/// the drawing group drops idle cost to near zero while keeping the spin.
+/// **Note:** SwiftUI's `withAnimation` on `@State` still re-evaluates the
+/// view body at display-link rate — it is NOT a pure `CABasicAnimation`
+/// handoff to the render server. Expect single-digit-to-low-teens CPU on a
+/// visible window while spinning. Moving to `NSViewRepresentable` wrapping
+/// an explicit `CABasicAnimation(keyPath: "transform.rotation.z")` would
+/// drop window-visible CPU further, and is tracked as future work.
+///
+/// See PR #107 (idle CPU/GPU fix) for the counter-example: 4 `repeatForever`
+/// animations + `.drawingGroup()` forced Metal to re-rasterize the flattened
+/// bitmap every frame, burning ~15-18% CPU at idle. Freezing the opacity
+/// pulses AND removing the drawing group drops *closed-window* idle cost to
+/// 0% while restoring the hero spin.
 struct MeditativeMerkabaView: View {
     var size: CGFloat = 64
     var revolutionDuration: Double = 6.0
@@ -359,6 +365,7 @@ struct MeditativeMerkabaView: View {
                 .shadow(color: effectiveColor.opacity(centerGlow * 0.4), radius: size * 0.12)
         }
         .frame(width: size, height: size)
+        .accessibilityHidden(true)
         .onAppear {
             if shouldAnimate {
                 startAnimation()

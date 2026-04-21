@@ -524,7 +524,7 @@ Drop zone components:
 - Outer thin solid border: 0.5pt, primary 6% (accent 30% on drag-over)
 - Inner dashed border: 1.5pt, dash [8, 4], primary 15% (accentColor on drag-over)
 - Accent glow fill: accentColor 4% (on drag-over only)
-- MeditativeMerkabaView(size: 48): 6s revolution idle, 2s revolution on drag-over, tintColor switches to .accentColor on drag
+- MeditativeMerkabaView(size: 80): 6s revolution (constant), tintColor switches to .accentColor on drag; opacity 0.7 idle → 0.9 on drag (eased over 0.3s)
 - "Browse Files" button: .borderedProminent style
 - Supported formats text: caption, tertiary
 - Drop zone height: 200pt (DesignSystem.Layout.dropZoneHeight)
@@ -1038,15 +1038,16 @@ Shared components in `Views/Components/SacredGeometry.swift`:
 - `tintColor`: Default `.white` (overlay), `.accentColor` (main window), `.secondary` (decorative)
 
 **MeditativeMerkabaView parameters:**
-- `size`: Default 64pt, typically 48–56pt for empty states
-- `revolutionDuration`: Default 6.0s, 8.0s for background, 2.0s for drag-over acceleration
-- `tintColor`: Default nil (uses `.primary`), `.accentColor` on drag-over
+- `size`: Default 64pt, typically 40–80pt in app (drop zone 80, empty states 40–72)
+- `revolutionDuration`: Default 6.0s, 8.0s for background idle (DictationHistoryView), 12.0s for compact empty states (PromptLibraryView)
+- `tintColor`: Default nil (uses `.primary`), `.accentColor` when drawing user attention
+- `animate`: Default `true`. Respects `accessibilityReduceMotion` automatically
 
 | Animation | Duration | Curve | Usage |
 |-----------|----------|-------|-------|
-| Merkaba rotation | configurable | `.linear` (repeating) | Two counter-rotating triangles |
-| Merkaba vertex pulse | 1.0–1.6s | `.easeInOut` (repeating) | Vertex dot glow |
-| Merkaba center pulse | 1.4–2.0s | `.easeInOut` (repeating) | Center nexus glow |
+| Merkaba rotation | configurable | `.linear` (repeating) | Two counter-rotating triangles — the only animated property |
+
+Center and vertex glow are static (constants `centerGlow = 0.32`, `vertexGlow = 0.45`, set to the visual midpoint of the former pulse ranges). Removed in the idle CPU fix: pulsing those opacities alongside `.drawingGroup()` forced per-frame bitmap re-rasterization.
 
 ---
 

@@ -39,7 +39,7 @@ struct PortalDropZone: View {
 
                     MeditativeMerkabaView(
                         size: 80,
-                        revolutionDuration: isDragging ? 3.0 : 6.0,
+                        revolutionDuration: 6.0,
                         tintColor: DesignSystem.Colors.accent
                     )
                     .opacity(isDragging ? 0.9 : 0.7)
