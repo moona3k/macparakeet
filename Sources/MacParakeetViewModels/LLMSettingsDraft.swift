@@ -122,7 +122,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         }
         if !trimmedBaseURLOverride.isEmpty {
             guard let overrideURL = URL(string: trimmedBaseURLOverride),
-                  Self.isAllowedBaseURLOverride(overrideURL) else {
+                  Self.isAllowedBaseURLOverride(overrideURL, providerID: providerID) else {
                 return .invalidBaseURL
             }
         }
@@ -160,7 +160,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             guard let override = URL(string: trimmedBaseURLOverride) else {
                 throw ValidationError.invalidBaseURL
             }
-            guard Self.isAllowedBaseURLOverride(override) else {
+            guard Self.isAllowedBaseURLOverride(override, providerID: providerID) else {
                 throw ValidationError.invalidBaseURL
             }
             baseURL = override
@@ -237,7 +237,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         )
     }
 
-    private static func isAllowedBaseURLOverride(_ url: URL) -> Bool {
+    private static func isAllowedBaseURLOverride(_ url: URL, providerID: LLMProviderID) -> Bool {
         guard let scheme = url.scheme?.lowercased(),
               url.host != nil else {
             return false
@@ -247,6 +247,11 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         }
         guard scheme == "http" else {
             return false
+        }
+        // Local providers (Ollama, LM Studio) may be reachable over any host the
+        // user configures — LAN IP, mDNS hostname, Tailscale, 0.0.0.0 bind, etc.
+        if providerID.isLocal {
+            return true
         }
         return LLMProviderConfig.isLoopbackEndpoint(url)
     }
