@@ -18,7 +18,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             case .missingCustomModel:
                 return "Enter a custom model ID."
             case .invalidBaseURL:
-                return "Enter a valid HTTPS base URL, or use localhost for local servers."
+                return "Enter a valid base URL. Remote endpoints must use https."
             case .missingCommandTemplate:
                 return "Enter a CLI command."
             }

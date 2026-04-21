@@ -64,6 +64,41 @@ final class LLMSettingsDraftTests: XCTestCase {
         XCTAssertEqual(draft.validationError, .invalidBaseURL)
     }
 
+    // Regression: #118 — 0.0.0.0 bind addresses (common Ollama config) must be accepted.
+    func testOllamaWildcardBindBaseURLIsAllowed() {
+        let draft = LLMSettingsDraft(
+            providerID: .ollama,
+            suggestedModelName: "qwen3.5:4b",
+            baseURLOverride: "http://0.0.0.0:11434/v1"
+        )
+
+        XCTAssertNil(draft.validationError)
+    }
+
+    // IPv6 loopback must be treated as loopback for remote providers too. Pins
+    // the behavior of LLMProviderConfig.isLoopbackEndpoint + URL.host for `[::1]`.
+    func testIPv6LoopbackAllowedForRemoteProvider() {
+        let draft = LLMSettingsDraft(
+            providerID: .openaiCompatible,
+            useCustomModel: true,
+            customModelName: "third-party-model",
+            baseURLOverride: "http://[::1]:8080/v1"
+        )
+
+        XCTAssertNil(draft.validationError)
+    }
+
+    // Non-web schemes are rejected for every provider, including local ones.
+    func testNonHTTPSchemeRejectedForLocalProvider() {
+        let draft = LLMSettingsDraft(
+            providerID: .ollama,
+            suggestedModelName: "qwen3.5:4b",
+            baseURLOverride: "ftp://localhost:11434/v1"
+        )
+
+        XCTAssertEqual(draft.validationError, .invalidBaseURL)
+    }
+
     func testHTTPSRemoteBaseURLIsAllowed() {
         let draft = LLMSettingsDraft(
             providerID: .openai,
