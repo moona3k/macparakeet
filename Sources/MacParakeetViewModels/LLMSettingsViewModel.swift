@@ -62,6 +62,13 @@ public final class LLMSettingsViewModel {
         }
     }
 
+    public var baseURLPlaceholder: String {
+        guard let providerID = draft.providerID else { return "https://..." }
+        let fallback = providerID == .openaiCompatible ? "https://api.example.com/v1" : "https://..."
+        let defaultURL = Self.defaultBaseURL(for: providerID)
+        return defaultURL.isEmpty ? fallback : defaultURL
+    }
+
     public var useCustomModel: Bool {
         get { draft.useCustomModel }
         set {
