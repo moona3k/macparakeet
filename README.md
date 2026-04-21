@@ -52,7 +52,7 @@ MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio]
 
 **Text cleanup** — Filler word removal, custom word replacements, text snippets with triggers. Deterministic pipeline, no LLM needed.
 
-**AI features** — Optional transcript summaries, chat, and an AI formatter that polishes dictation or transcripts through your chosen model. Ships with a prompt library, built-in and custom summary prompts, multi-summary tabs, and queued summary generation. Use Claude Code or Codex via Local CLI, or connect OpenAI, Anthropic, Google Gemini, OpenRouter, Ollama, LM Studio, or any OpenAI-compatible endpoint. Entirely opt-in, with a fully local setup available when you stay on local providers/features.
+**AI features** — Optional summaries, chat, and an AI formatter. Connect any cloud provider (OpenAI, Anthropic, Gemini, OpenRouter), local runtime (Ollama, LM Studio), OpenAI-compatible endpoint, or CLI tool (Claude Code, Codex). Entirely opt-in.
 
 ### Performance
 
@@ -71,7 +71,7 @@ MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio]
 
 **Download:** Grab the [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) or visit [macparakeet.com](https://macparakeet.com). Drag to Applications, done.
 
-First launch downloads the speech model (~6 GB) plus speaker-detection assets (~130 MB) when that default-on feature remains enabled. After that, dictation and transcription work fully offline.
+First launch downloads the speech model (~6 GB) plus speaker-detection assets (~130 MB). Everything works fully offline after that.
 
 **Build from source:**
 
@@ -153,7 +153,7 @@ All speech recognition runs on the Neural Engine. Your audio never leaves your M
 - **Opt-out telemetry.** Non-identifying usage analytics and crash reporting go to a self-hosted endpoint only when telemetry is enabled. No persistent IDs, no IP storage, and no transcript/audio content is transmitted. [Source code is right here](Sources/MacParakeetCore/Services/TelemetryService.swift) — verify it yourself.
 - **Temp files cleaned up.** Audio deleted after transcription unless you save it.
 
-**What does use the network:** AI summaries and chat connect to configured LLM providers or CLI tools when you choose them. Sparkle checks for app updates. YouTube transcription downloads video via yt-dlp. Telemetry and crash reports go to our self-hosted server unless you opt out. Core dictation and transcription remain fully offline, and the app supports a 100% local setup when you use only local features/providers.
+**What does use the network:** AI summaries and chat connect to configured LLM providers or CLI tools when you choose them. Sparkle checks for app updates. YouTube transcription downloads video via yt-dlp. Telemetry and crash reports go to our self-hosted server unless you opt out. Core dictation and transcription stay fully offline.
 
 **Note:** Builds from source also send telemetry by default. Opt out in Settings or set `MACPARAKEET_TELEMETRY_URL` to override.
 
@@ -172,7 +172,3 @@ MacParakeet is free and open source. If it's useful to you, consider [sponsoring
 ## License
 
 GPL-3.0. Free software. [Full license](LICENSE).
-
----
-
-*Made for people who think faster than they type.*
