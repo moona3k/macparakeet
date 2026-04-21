@@ -69,7 +69,7 @@ struct LLMSettingsView: View {
                                     .foregroundStyle(.secondary)
                             }
                             Spacer(minLength: DesignSystem.Spacing.md)
-                            TextField("https://api.example.com/v1", text: $viewModel.baseURLOverride)
+                            TextField(viewModel.baseURLPlaceholder, text: $viewModel.baseURLOverride)
                                 .textFieldStyle(.roundedBorder)
                                 .frame(width: 220)
                         }
@@ -102,7 +102,7 @@ struct LLMSettingsView: View {
                                         .foregroundStyle(.secondary)
                                 }
                                 Spacer(minLength: DesignSystem.Spacing.md)
-                                TextField("https://...", text: $viewModel.baseURLOverride)
+                                TextField(viewModel.baseURLPlaceholder, text: $viewModel.baseURLOverride)
                                     .textFieldStyle(.roundedBorder)
                                     .frame(width: 220)
                             }
