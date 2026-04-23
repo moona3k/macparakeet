@@ -565,29 +565,22 @@ public final class SettingsViewModel {
 
     public func clearAllDictations() {
         guard let repo = dictationRepo else { return }
+        // `deleteAll()` only removes visible (hidden = 0) rows; `deleteHidden()`
+        // covers the metric-only entries created when "Save dictation history" was
+        // off. Together they truly clear all dictation rows. Each runs in its own
+        // GRDB write transaction; partial failure is logged but never silently
+        // corrupts state because the row counts are independent.
         do {
             try repo.deleteAll()
+            try repo.deleteHidden()
         } catch {
-            logger.error("Failed to delete all dictations error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to clear dictations error=\(error.localizedDescription, privacy: .public)")
         }
         // Also remove any saved audio files (best effort).
         let dir = AppPaths.dictationsDir
         if FileManager.default.fileExists(atPath: dir) {
             try? FileManager.default.removeItem(atPath: dir)
             try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
-        }
-        refreshStats()
-        onDictationStateChanged?()
-    }
-
-    /// Delete dictations marked private (`hidden = 1`). These are the metric-only
-    /// rows produced when "Save dictation history" is off.
-    public func deletePrivateDictations() {
-        guard let repo = dictationRepo else { return }
-        do {
-            try repo.deleteHidden()
-        } catch {
-            logger.error("Failed to delete private dictations error=\(error.localizedDescription, privacy: .public)")
         }
         refreshStats()
         onDictationStateChanged?()

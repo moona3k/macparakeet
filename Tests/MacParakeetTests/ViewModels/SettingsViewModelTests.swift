@@ -441,6 +441,29 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dictationCount, 0)
     }
 
+    func testClearAllDictationsAlsoDeletesPrivateRows() {
+        // "Clear All" must wipe both visible and hidden (metric-only) rows.
+        var hidden = Dictation(durationMs: 4000, rawTranscript: "")
+        hidden.hidden = true
+        mockRepo.dictations = [
+            Dictation(durationMs: 1000, rawTranscript: "Visible"),
+            hidden,
+        ]
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.clearAllDictations()
+
+        XCTAssertTrue(mockRepo.deleteAllCalled, "deleteAll() must run")
+        XCTAssertTrue(mockRepo.deleteHiddenCalled, "deleteHidden() must run too — 'All' means all")
+        XCTAssertTrue(mockRepo.dictations.isEmpty, "no dictation rows survive Clear All")
+    }
+
     // MARK: - Reset Lifetime Stats (#124)
 
     func testResetLifetimeStatsCallsRepo() {

@@ -14,7 +14,6 @@ struct SettingsView: View {
     @State private var automaticallyDownloadsUpdates: Bool
     @State private var showClearAllAlert = false
     @State private var showClearYouTubeAudioAlert = false
-    @State private var showResetPrivateStatsAlert = false
     @State private var showResetLifetimeStatsAlert = false
     @State private var copiedBuildIdentity = false
 
@@ -54,15 +53,7 @@ struct SettingsView: View {
                 viewModel.clearAllDictations()
             }
         } message: {
-            Text("This will permanently delete all \(viewModel.dictationCount) dictation\(viewModel.dictationCount == 1 ? "" : "s") and their audio files. This cannot be undone.")
-        }
-        .alert("Delete Private Dictations?", isPresented: $showResetPrivateStatsAlert) {
-            Button("Cancel", role: .cancel) {}
-            Button("Delete", role: .destructive) {
-                viewModel.deletePrivateDictations()
-            }
-        } message: {
-            Text("This will permanently delete the metric-only entries from dictations made while \"Save dictation history\" was off. Lifetime stats are not affected. This cannot be undone.")
+            Text("This will permanently delete all \(viewModel.dictationCount) dictation\(viewModel.dictationCount == 1 ? "" : "s"), their audio files, and any private metric-only entries. Lifetime stats are not affected. This cannot be undone.")
         }
         .alert("Reset Lifetime Stats?", isPresented: $showResetLifetimeStatsAlert) {
             Button("Cancel", role: .cancel) {}
@@ -580,11 +571,6 @@ struct SettingsView: View {
                     ) {
                         Button("Clear All Dictations...", role: .destructive) {
                             showClearAllAlert = true
-                        }
-                        .buttonStyle(.bordered)
-
-                        Button("Delete Private Dictations...", role: .destructive) {
-                            showResetPrivateStatsAlert = true
                         }
                         .buttonStyle(.bordered)
 
