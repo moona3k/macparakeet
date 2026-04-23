@@ -559,8 +559,9 @@ public final class SettingsViewModel {
         }
     }
 
-    /// Called after dictations are cleared so other VMs (e.g. history) can reload.
-    public var onDictationsCleared: (() -> Void)?
+    /// Fired after a dictation-state change (rows deleted or lifetime counters reset)
+    /// so other VMs (e.g. the history view) can reload their derived data.
+    public var onDictationStateChanged: (() -> Void)?
 
     public func clearAllDictations() {
         guard let repo = dictationRepo else { return }
@@ -576,18 +577,20 @@ public final class SettingsViewModel {
             try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         }
         refreshStats()
-        onDictationsCleared?()
+        onDictationStateChanged?()
     }
 
-    public func resetPrivateStatistics() {
+    /// Delete dictations marked private (`hidden = 1`). These are the metric-only
+    /// rows produced when "Save dictation history" is off.
+    public func deletePrivateDictations() {
         guard let repo = dictationRepo else { return }
         do {
             try repo.deleteHidden()
         } catch {
-            logger.error("Failed to delete hidden dictations error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to delete private dictations error=\(error.localizedDescription, privacy: .public)")
         }
         refreshStats()
-        onDictationsCleared?()
+        onDictationStateChanged?()
     }
 
     /// Zero the lifetime stats counters. Symmetric to `clearAllDictations()` —
@@ -601,7 +604,7 @@ public final class SettingsViewModel {
             logger.error("Failed to reset lifetime stats error=\(error.localizedDescription, privacy: .public)")
         }
         refreshStats()
-        onDictationsCleared?()
+        onDictationStateChanged?()
     }
 
     public func clearDownloadedYouTubeAudio() {

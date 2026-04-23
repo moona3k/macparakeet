@@ -109,7 +109,7 @@ final class AppEnvironmentConfigurer {
             llmClient: env.llmClient
         )
 
-        settingsViewModel.onDictationsCleared = { [weak self] in
+        settingsViewModel.onDictationStateChanged = { [weak self] in
             self?.historyViewModel.loadDictations()
         }
 

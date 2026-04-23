@@ -12,6 +12,8 @@ public protocol DictationRepositoryProtocol: Sendable {
     func deleteEmpty() throws -> Int
     func deleteHidden() throws
     func stats() throws -> DictationStats
+    /// Zero the lifetime stats counter row without touching any dictation rows.
+    /// Symmetric counterpart to `deleteAll()` (rows deleted, stats preserved).
     func resetLifetimeStats() throws
 }
 

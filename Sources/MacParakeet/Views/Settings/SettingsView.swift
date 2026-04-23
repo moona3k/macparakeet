@@ -56,13 +56,13 @@ struct SettingsView: View {
         } message: {
             Text("This will permanently delete all \(viewModel.dictationCount) dictation\(viewModel.dictationCount == 1 ? "" : "s") and their audio files. This cannot be undone.")
         }
-        .alert("Reset Private Statistics?", isPresented: $showResetPrivateStatsAlert) {
+        .alert("Delete Private Dictations?", isPresented: $showResetPrivateStatsAlert) {
             Button("Cancel", role: .cancel) {}
-            Button("Reset", role: .destructive) {
-                viewModel.resetPrivateStatistics()
+            Button("Delete", role: .destructive) {
+                viewModel.deletePrivateDictations()
             }
         } message: {
-            Text("This will delete all accumulated statistics from private dictations. This cannot be undone.")
+            Text("This will permanently delete the metric-only entries from dictations made while \"Save dictation history\" was off. Lifetime stats are not affected. This cannot be undone.")
         }
         .alert("Reset Lifetime Stats?", isPresented: $showResetLifetimeStatsAlert) {
             Button("Cancel", role: .cancel) {}
@@ -573,14 +573,18 @@ struct SettingsView: View {
                     )
                 }
 
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                    Text("Maintenance")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-
-                    HStack(spacing: DesignSystem.Spacing.sm) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                    maintenanceGroup(
+                        label: "Delete data",
+                        detail: "Removes rows from your library. Lifetime stats are preserved."
+                    ) {
                         Button("Clear All Dictations...", role: .destructive) {
                             showClearAllAlert = true
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Delete Private Dictations...", role: .destructive) {
+                            showResetPrivateStatsAlert = true
                         }
                         .buttonStyle(.bordered)
 
@@ -588,12 +592,12 @@ struct SettingsView: View {
                             showClearYouTubeAudioAlert = true
                         }
                         .buttonStyle(.bordered)
+                    }
 
-                        Button("Reset Private Statistics...", role: .destructive) {
-                            showResetPrivateStatsAlert = true
-                        }
-                        .buttonStyle(.bordered)
-
+                    maintenanceGroup(
+                        label: "Reset counters",
+                        detail: "Zeros lifetime stats. Your dictation history is untouched."
+                    ) {
                         Button("Reset Lifetime Stats...", role: .destructive) {
                             showResetLifetimeStatsAlert = true
                         }
@@ -879,6 +883,28 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .fill(DesignSystem.Colors.surfaceElevated)
         )
+    }
+
+    @ViewBuilder
+    private func maintenanceGroup<Buttons: View>(
+        label: String,
+        detail: String,
+        @ViewBuilder buttons: () -> Buttons
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+            HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.sm) {
+                Text(label)
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Text(detail)
+                    .font(DesignSystem.Typography.micro)
+                    .foregroundStyle(.tertiary)
+                Spacer(minLength: 0)
+            }
+            FlowLayout(spacing: DesignSystem.Spacing.sm) {
+                buttons()
+            }
+        }
     }
 
     private func metricTile(title: String, value: String, detail: String) -> some View {
