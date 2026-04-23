@@ -15,14 +15,23 @@ public protocol DictationRepositoryProtocol: Sendable {
 }
 
 public struct DictationStats: Sendable, Equatable {
+    /// Lifetime count of completed dictations. Survives history deletion (issue #124).
     public let totalCount: Int
-    /// Count of non-hidden (visible) dictations only. Use for UI that operates on visible rows (e.g. "Clear All").
+    /// Currently-visible (non-hidden) completed dictations. Reflects the user's history right now,
+    /// drops to 0 after "Clear All Dictations".
     public let visibleCount: Int
+    /// Lifetime sum of dictation durations (ms). Survives history deletion.
     public let totalDurationMs: Int
+    /// Lifetime sum of dictated words. Survives history deletion.
     public let totalWords: Int
+    /// Lifetime longest single dictation (ms). High-water mark — only ever increases.
     public let longestDurationMs: Int
+    /// Lifetime average duration (ms), derived from totalDurationMs / totalCount.
     public let averageDurationMs: Int
+    /// Current weekly streak. Derived from existing dictation rows; resets when history is cleared
+    /// (intentional — this is "are you on a streak right now?", not a lifetime metric).
     public let weeklyStreak: Int
+    /// Dictations completed this calendar week, derived from existing rows.
     public let dictationsThisWeek: Int
 
     public static let empty = DictationStats(totalCount: 0, visibleCount: 0, totalDurationMs: 0)
@@ -78,6 +87,13 @@ public extension DictationStats {
     }
 }
 
+public enum LifetimeStatsError: Error {
+    /// Raised when the singleton lifetime_dictation_stats row is missing during a hot-path
+    /// UPDATE. The recompute helper is the recovery path; the increment helpers fail loudly
+    /// to surface invariant violations (e.g. someone manually truncated the table in tests).
+    case singletonMissing
+}
+
 public final class DictationRepository: DictationRepositoryProtocol {
     private let dbQueue: DatabaseQueue
 
@@ -87,7 +103,34 @@ public final class DictationRepository: DictationRepositoryProtocol {
 
     public func save(_ dictation: Dictation) throws {
         try dbQueue.write { db in
+            // MUST fetch existing state BEFORE dictation.save(db). The delta path depends on
+            // the pre-write durationMs / wordCount / status. Reordering would silently turn
+            // every delta-path save into a zero-delta no-op.
+            let existing = try Dictation.fetchOne(db, key: dictation.id)
             try dictation.save(db)
+
+            switch (existing?.status, dictation.status) {
+            case (.some(.completed), .completed):
+                // Mutating an already-counted row (e.g. a future "edit transcript" path).
+                // Apply the delta. longestDurationMs is a high-water mark — never decrements.
+                let prior = existing!  // guaranteed by .some(.completed) match
+                try Self.applyLifetimeDelta(
+                    db: db,
+                    durationDelta: dictation.durationMs - prior.durationMs,
+                    wordDelta: dictation.wordCount - prior.wordCount,
+                    newDurationMs: dictation.durationMs
+                )
+            case (_, .completed):
+                // Fresh insert at .completed, or transition (.recording / .processing /
+                // .error → .completed). Increment by the full row.
+                try Self.incrementLifetimeStats(
+                    db: db,
+                    durationMs: dictation.durationMs,
+                    wordCount: dictation.wordCount
+                )
+            default:
+                break
+            }
         }
     }
 
@@ -180,30 +223,29 @@ public final class DictationRepository: DictationRepositoryProtocol {
 
     public func stats() throws -> DictationStats {
         try dbQueue.read { db in
-            // Numeric aggregates in SQL — includes hidden rows for complete stats
-            let row = try Row.fetchOne(db, sql: """
-                SELECT
-                    COUNT(*) AS cnt,
-                    SUM(CASE WHEN hidden = 0 THEN 1 ELSE 0 END) AS visibleCnt,
-                    COALESCE(SUM(durationMs), 0) AS totalDur,
-                    COALESCE(MAX(durationMs), 0) AS maxDur,
-                    CASE WHEN COUNT(*) > 0
-                        THEN COALESCE(SUM(durationMs), 0) / COUNT(*)
-                        ELSE 0
-                    END AS avgDur,
-                    COALESCE(SUM(wordCount), 0) AS totalWords
-                FROM dictations
-                WHERE status = 'completed'
+            // Lifetime totals — survive history deletion (issue #124).
+            let lifetime = try Row.fetchOne(db, sql: """
+                SELECT totalCount, totalDurationMs, totalWords, longestDurationMs
+                FROM lifetime_dictation_stats WHERE id = 1
                 """)
+            let totalCount: Int = lifetime?["totalCount"] ?? 0
+            let totalDuration: Int = lifetime?["totalDurationMs"] ?? 0
+            let totalWords: Int = lifetime?["totalWords"] ?? 0
+            let longestDuration: Int = lifetime?["longestDurationMs"] ?? 0
+            let averageDuration = totalCount > 0 ? totalDuration / totalCount : 0
 
-            let count: Int = row?["cnt"] ?? 0
-            let visibleCount: Int = row?["visibleCnt"] ?? 0
-            let totalDuration: Int = row?["totalDur"] ?? 0
-            let maxDuration: Int = row?["maxDur"] ?? 0
-            let avgDuration: Int = row?["avgDur"] ?? 0
-            let totalWords: Int = row?["totalWords"] ?? 0
+            // visibleCount reflects what's currently in the user's history.
+            let visibleCount: Int = try Int.fetchOne(
+                db,
+                sql: """
+                    SELECT COUNT(*) FROM dictations
+                    WHERE status = 'completed' AND hidden = 0
+                    """
+            ) ?? 0
 
-            // Weekly streak includes all completed rows (hidden contribute to streak)
+            // Weekly streak / this-week derived from current rows (intentionally
+            // resets when the user clears history — it's "are you on a streak right
+            // now?", not a lifetime metric).
             let dates = try Date.fetchAll(
                 db,
                 sql: "SELECT createdAt FROM dictations WHERE status = 'completed' ORDER BY createdAt DESC"
@@ -211,16 +253,86 @@ public final class DictationRepository: DictationRepositoryProtocol {
             let (streak, thisWeek) = Self.computeWeeklyStreak(from: dates)
 
             return DictationStats(
-                totalCount: count,
+                totalCount: totalCount,
                 visibleCount: visibleCount,
                 totalDurationMs: totalDuration,
                 totalWords: totalWords,
-                longestDurationMs: maxDuration,
-                averageDurationMs: avgDuration,
+                longestDurationMs: longestDuration,
+                averageDurationMs: averageDuration,
                 weeklyStreak: streak,
                 dictationsThisWeek: thisWeek
             )
         }
+    }
+
+    // MARK: - Lifetime stats helpers (issue #124)
+
+    /// Hot-path increment for a newly-completed dictation. UPDATE-only — asserts the
+    /// singleton row exists; throws `LifetimeStatsError.singletonMissing` if not.
+    static func incrementLifetimeStats(
+        db: Database,
+        durationMs: Int,
+        wordCount: Int,
+        now: Date = Date()
+    ) throws {
+        try db.execute(
+            sql: """
+                UPDATE lifetime_dictation_stats
+                SET totalCount        = totalCount + 1,
+                    totalDurationMs   = totalDurationMs + ?,
+                    totalWords        = totalWords + ?,
+                    longestDurationMs = MAX(longestDurationMs, ?),
+                    updatedAt         = ?
+                WHERE id = 1
+                """,
+            arguments: [durationMs, wordCount, durationMs, now]
+        )
+        guard db.changesCount == 1 else { throw LifetimeStatsError.singletonMissing }
+    }
+
+    /// Hot-path delta apply for an already-counted row whose duration / wordCount
+    /// changed (e.g. a future "edit transcript" feature). Does not touch totalCount.
+    /// longestDurationMs is a high-water mark and only ever increases.
+    static func applyLifetimeDelta(
+        db: Database,
+        durationDelta: Int,
+        wordDelta: Int,
+        newDurationMs: Int,
+        now: Date = Date()
+    ) throws {
+        try db.execute(
+            sql: """
+                UPDATE lifetime_dictation_stats
+                SET totalDurationMs   = totalDurationMs + ?,
+                    totalWords        = totalWords + ?,
+                    longestDurationMs = MAX(longestDurationMs, ?),
+                    updatedAt         = ?
+                WHERE id = 1
+                """,
+            arguments: [durationDelta, wordDelta, newDurationMs, now]
+        )
+        guard db.changesCount == 1 else { throw LifetimeStatsError.singletonMissing }
+    }
+
+    /// Recovery / migration path: rebuild the singleton row from current dictations.
+    /// Uses INSERT OR REPLACE so it self-heals even if the row was deleted. Caller
+    /// must pass an open `Database` handle (already inside a write transaction).
+    public static func recomputeLifetimeStats(db: Database, now: Date = Date()) throws {
+        try db.execute(
+            sql: """
+                INSERT OR REPLACE INTO lifetime_dictation_stats
+                  (id, totalCount, totalDurationMs, totalWords, longestDurationMs, updatedAt)
+                SELECT 1,
+                       COUNT(*),
+                       COALESCE(SUM(durationMs), 0),
+                       COALESCE(SUM(wordCount), 0),
+                       COALESCE(MAX(durationMs), 0),
+                       ?
+                FROM dictations
+                WHERE status = 'completed'
+                """,
+            arguments: [now]
+        )
     }
 
     /// Counts words by splitting on whitespace runs. Exact for any input.

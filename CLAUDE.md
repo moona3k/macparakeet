@@ -99,7 +99,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**v0.6 In Progress** -- ~222 source files, ~110 test files, 1414 tests passing (1401 XCTest + 13 Swift Testing, as of 2026-04-15)
+**v0.6 In Progress** -- ~222 source files, ~111 test files, 1445 tests passing (1432 XCTest + 13 Swift Testing, as of 2026-04-22)
 
 - **v0.1** MVP -- System-wide dictation, file transcription, overlay, history, export, SQLite, CLI, STT engine
 - **v0.2** Clean Pipeline -- Text processing (filler removal, custom words, snippets), Vocabulary UI, feedback form
@@ -157,6 +157,7 @@ ANE:  Parakeet STT (via FluidAudio/CoreML) -- dedicated ML chip
 - `macparakeet.db` (GRDB): Dictation history + transcription records in a single file
 - No vector search or embeddings needed (unlike Oatmeal)
 - One repository per table (GRDB pattern)
+- `lifetime_dictation_stats` (v0.7.4): singleton counter row keeping headline voice stats (total words, total time, total count, longest dictation) alive through history deletion. Incremented in the same transaction as each completed dictation save. See `spec/01-data-model.md` and issue #124.
 
 ### Audio Capture
 

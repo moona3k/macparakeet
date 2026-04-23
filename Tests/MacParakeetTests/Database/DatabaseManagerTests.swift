@@ -133,6 +133,9 @@ final class DatabaseManagerTests: XCTestCase {
                 )
             """)
 
+            // dictations table is required by the v0.7.4 lifetime stats backfill.
+            try Self.createV05DictationsTable(db: db)
+
             try db.execute(sql: """
                 CREATE TABLE text_snippets (
                     id TEXT PRIMARY KEY,
@@ -236,6 +239,9 @@ final class DatabaseManagerTests: XCTestCase {
                 )
             """)
 
+            // dictations table is required by the v0.7.4 lifetime stats backfill.
+            try Self.createV05DictationsTable(db: db)
+
             try db.execute(
                 sql: """
                     INSERT INTO transcriptions (
@@ -293,5 +299,28 @@ final class DatabaseManagerTests: XCTestCase {
 
         // Clean up
         try? FileManager.default.removeItem(atPath: dbPath)
+    }
+
+    /// Recreates the dictations table at its v0.5 shape (after `v0.5-private-dictation`
+    /// added `hidden` and `wordCount`). Used by partial-migration test fixtures so the
+    /// v0.7.4 lifetime-stats backfill has a real table to read from.
+    static func createV05DictationsTable(db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE dictations (
+                id TEXT PRIMARY KEY,
+                createdAt TEXT NOT NULL,
+                durationMs INTEGER NOT NULL,
+                rawTranscript TEXT NOT NULL,
+                cleanTranscript TEXT,
+                audioPath TEXT,
+                pastedToApp TEXT,
+                processingMode TEXT NOT NULL DEFAULT 'raw',
+                status TEXT NOT NULL DEFAULT 'completed',
+                errorMessage TEXT,
+                updatedAt TEXT NOT NULL,
+                hidden INTEGER NOT NULL DEFAULT 0,
+                wordCount INTEGER NOT NULL DEFAULT 0
+            )
+        """)
     }
 }

@@ -11,9 +11,10 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 ## Relationship Diagram
 
 ```
-┌──────────────────┐
-│    dictations    │   v0.1 — Voice dictation history
-└──────────────────┘
+┌──────────────────┐       ┌──────────────────────────────┐
+│    dictations    │ ────▶ │ lifetime_dictation_stats     │  v0.7.4 — Singleton counter
+└──────────────────┘       └──────────────────────────────┘    (survives row deletion)
+   v0.1 — Voice dictation history
 
 ┌──────────────────┐       ┌─────────────────────────┐
 │  transcriptions  │◄──FK──│   chat_conversations    │  v0.5 — Multi-conversation chat
@@ -261,6 +262,31 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 - `promptName` and `promptContent` are snapshots, not references to the `prompts` table. Editing or deleting a prompt after generation doesn't change the summary's metadata.
 - Legacy `transcriptions.summary` column is preserved and mirrors the newest completed summary for backward compatibility with existing export paths.
 - Migration from existing data: `transcriptions.summary` values migrate into `summaries` with `General Summary` prompt metadata.
+
+---
+
+### `lifetime_dictation_stats` (v0.7.4)
+
+Single-row counter table. Headline voice stats (total words, total duration, total count, longest dictation) survive deletion of the underlying `dictations` rows. Fixes [#124](https://github.com/moona3k/macparakeet/issues/124) — clearing dictation history used to wipe stats too because they were SQL aggregates.
+
+```sql
+CREATE TABLE lifetime_dictation_stats (
+    id                INTEGER PRIMARY KEY CHECK (id = 1),    -- singleton row
+    totalCount        INTEGER NOT NULL DEFAULT 0,
+    totalDurationMs   INTEGER NOT NULL DEFAULT 0,
+    totalWords        INTEGER NOT NULL DEFAULT 0,
+    longestDurationMs INTEGER NOT NULL DEFAULT 0,            -- high-water mark
+    updatedAt         TEXT NOT NULL
+);
+```
+
+**Notes:**
+- Singleton enforced by `CHECK (id = 1)`. Migration immediately seeds the row from existing `dictations` so subsequent updates are guaranteed plain `UPDATE`s.
+- Hot-path increments live in `DictationRepository.save()` inside the same write transaction as the row insert. Status transition guard ensures only `→ .completed` increments fire.
+- `applyLifetimeDelta` handles the `(.completed, .completed)` re-save case (e.g. a future "edit transcript" feature) without double-counting.
+- `recomputeLifetimeStats(db:)` (recovery / migration helper) uses `INSERT OR REPLACE` so it self-heals if the singleton row is missing. Increment helpers `UPDATE … WHERE id=1` and throw `LifetimeStatsError.singletonMissing` if `db.changesCount != 1`.
+- Hidden (private) dictations contribute to lifetime totals — privacy is "no transcript stored," not "no metric counted."
+- Weekly streak / "this week" intentionally remain derived from current rows, not lifetime.
 
 ---
 

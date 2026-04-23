@@ -401,6 +401,20 @@ public final class DatabaseManager: Sendable {
             try db.execute(sql: "UPDATE prompts SET isVisible = 1 WHERE isAutoRun = 1")
         }
 
+        // v0.7.4 - Lifetime dictation stats survive history deletion (issue #124).
+        // Single-row counter table, backfilled from existing completed dictations.
+        migrator.registerMigration("v0.7.4-lifetime-dictation-stats") { db in
+            try db.create(table: "lifetime_dictation_stats") { t in
+                t.column("id", .integer).primaryKey().check { $0 == 1 }
+                t.column("totalCount", .integer).notNull().defaults(to: 0)
+                t.column("totalDurationMs", .integer).notNull().defaults(to: 0)
+                t.column("totalWords", .integer).notNull().defaults(to: 0)
+                t.column("longestDurationMs", .integer).notNull().defaults(to: 0)
+                t.column("updatedAt", .text).notNull()
+            }
+            try DictationRepository.recomputeLifetimeStats(db: db)
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
     }
