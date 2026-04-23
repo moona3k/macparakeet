@@ -99,7 +99,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**v0.6 In Progress** -- ~222 source files, ~111 test files, 1445 tests passing (1432 XCTest + 13 Swift Testing, as of 2026-04-22)
+**v0.6 In Progress** -- ~222 source files, ~111 test files, 1450 tests passing (1437 XCTest + 13 Swift Testing, as of 2026-04-23)
 
 - **v0.1** MVP -- System-wide dictation, file transcription, overlay, history, export, SQLite, CLI, STT engine
 - **v0.2** Clean Pipeline -- Text processing (filler removal, custom words, snippets), Vocabulary UI, feedback form

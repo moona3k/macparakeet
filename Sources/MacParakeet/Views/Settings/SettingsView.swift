@@ -15,6 +15,7 @@ struct SettingsView: View {
     @State private var showClearAllAlert = false
     @State private var showClearYouTubeAudioAlert = false
     @State private var showResetPrivateStatsAlert = false
+    @State private var showResetLifetimeStatsAlert = false
     @State private var copiedBuildIdentity = false
 
     init(viewModel: SettingsViewModel, llmSettingsViewModel: LLMSettingsViewModel, updater: SPUUpdater) {
@@ -62,6 +63,14 @@ struct SettingsView: View {
             }
         } message: {
             Text("This will delete all accumulated statistics from private dictations. This cannot be undone.")
+        }
+        .alert("Reset Lifetime Stats?", isPresented: $showResetLifetimeStatsAlert) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                viewModel.resetLifetimeStats()
+            }
+        } message: {
+            Text("This will zero your total words, total time, total dictation count, and longest dictation. Your dictation history is not affected. This cannot be undone.")
         }
         .alert("Clear Downloaded YouTube Audio?", isPresented: $showClearYouTubeAudioAlert) {
             Button("Cancel", role: .cancel) {}
@@ -582,6 +591,11 @@ struct SettingsView: View {
 
                         Button("Reset Private Statistics...", role: .destructive) {
                             showResetPrivateStatsAlert = true
+                        }
+                        .buttonStyle(.bordered)
+
+                        Button("Reset Lifetime Stats...", role: .destructive) {
+                            showResetLifetimeStatsAlert = true
                         }
                         .buttonStyle(.bordered)
                     }

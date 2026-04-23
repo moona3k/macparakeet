@@ -441,6 +441,27 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dictationCount, 0)
     }
 
+    // MARK: - Reset Lifetime Stats (#124)
+
+    func testResetLifetimeStatsCallsRepo() {
+        mockRepo.dictations = [
+            Dictation(durationMs: 1000, rawTranscript: "One"),
+        ]
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.resetLifetimeStats()
+
+        XCTAssertTrue(mockRepo.resetLifetimeStatsCalled)
+        XCTAssertFalse(mockRepo.deleteAllCalled, "Reset should not delete dictation rows")
+        XCTAssertEqual(viewModel.dictationCount, 1, "Dictation count must survive lifetime reset")
+    }
+
     // MARK: - Unconfigured
 
     func testRefreshStatsBeforeConfigureIsNoOp() {
@@ -451,6 +472,12 @@ final class SettingsViewModelTests: XCTestCase {
     func testClearAllBeforeConfigureIsNoOp() {
         // Should not crash
         viewModel.clearAllDictations()
+        XCTAssertEqual(viewModel.dictationCount, 0)
+    }
+
+    func testResetLifetimeStatsBeforeConfigureIsNoOp() {
+        // Should not crash
+        viewModel.resetLifetimeStats()
         XCTAssertEqual(viewModel.dictationCount, 0)
     }
 

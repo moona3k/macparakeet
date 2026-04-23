@@ -71,6 +71,11 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
         dictations.removeAll { $0.hidden }
     }
 
+    var resetLifetimeStatsCalled = false
+    func resetLifetimeStats() throws {
+        resetLifetimeStatsCalled = true
+    }
+
     func stats() throws -> DictationStats {
         statsCallCount += 1
         let completed = dictations.filter { $0.status == .completed }

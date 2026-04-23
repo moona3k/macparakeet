@@ -590,6 +590,20 @@ public final class SettingsViewModel {
         onDictationsCleared?()
     }
 
+    /// Zero the lifetime stats counters. Symmetric to `clearAllDictations()` —
+    /// dictation rows are preserved; only the lifetime totals (total words,
+    /// total time, total count, longest dictation) are reset.
+    public func resetLifetimeStats() {
+        guard let repo = dictationRepo else { return }
+        do {
+            try repo.resetLifetimeStats()
+        } catch {
+            logger.error("Failed to reset lifetime stats error=\(error.localizedDescription, privacy: .public)")
+        }
+        refreshStats()
+        onDictationsCleared?()
+    }
+
     public func clearDownloadedYouTubeAudio() {
         let dir = youtubeDownloadsDirPath()
         let fm = FileManager.default

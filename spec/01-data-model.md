@@ -287,6 +287,7 @@ CREATE TABLE lifetime_dictation_stats (
 - `recomputeLifetimeStats(db:)` (recovery / migration helper) uses `INSERT OR REPLACE` so it self-heals if the singleton row is missing. Increment helpers `UPDATE … WHERE id=1` and throw `LifetimeStatsError.singletonMissing` if `db.changesCount != 1`.
 - Hidden (private) dictations contribute to lifetime totals — privacy is "no transcript stored," not "no metric counted."
 - Weekly streak / "this week" intentionally remain derived from current rows, not lifetime.
+- User-initiated reset: `DictationRepository.resetLifetimeStats()` zeros the singleton row without touching dictation rows. Symmetric counterpart to `deleteAll()` (rows deleted, stats preserved). Exposed as a "Reset Lifetime Stats..." button in Settings → Storage.
 
 ---
 

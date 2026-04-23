@@ -12,6 +12,7 @@ public protocol DictationRepositoryProtocol: Sendable {
     func deleteEmpty() throws -> Int
     func deleteHidden() throws
     func stats() throws -> DictationStats
+    func resetLifetimeStats() throws
 }
 
 public struct DictationStats: Sendable, Equatable {
@@ -312,6 +313,22 @@ public final class DictationRepository: DictationRepositoryProtocol {
             arguments: [durationDelta, wordDelta, newDurationMs, now]
         )
         guard db.changesCount == 1 else { throw LifetimeStatsError.singletonMissing }
+    }
+
+    /// User-initiated zeroing of lifetime stats. Independent of dictation deletion —
+    /// the symmetric counterpart to `deleteAll()`: rows preserved, counters reset.
+    /// Uses INSERT OR REPLACE so it self-heals if the singleton row is missing.
+    public func resetLifetimeStats() throws {
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT OR REPLACE INTO lifetime_dictation_stats
+                      (id, totalCount, totalDurationMs, totalWords, longestDurationMs, updatedAt)
+                    VALUES (1, 0, 0, 0, 0, ?)
+                    """,
+                arguments: [Date()]
+            )
+        }
     }
 
     /// Recovery / migration path: rebuild the singleton row from current dictations.

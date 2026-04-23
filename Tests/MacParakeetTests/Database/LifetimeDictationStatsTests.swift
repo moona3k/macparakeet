@@ -225,4 +225,48 @@ final class LifetimeDictationStatsTests: XCTestCase {
         XCTAssertEqual(stats.totalDurationMs, 4000)
         XCTAssertEqual(stats.totalWords, 3)
     }
+
+    // MARK: - User-initiated reset
+
+    func testResetLifetimeStatsZeroesCountersWithoutDeletingDictations() throws {
+        try repo.save(Dictation(durationMs: 5000, rawTranscript: "hello world", wordCount: 2))
+        try repo.save(Dictation(durationMs: 3000, rawTranscript: "again", wordCount: 1))
+        XCTAssertEqual(try repo.stats().totalCount, 2)
+
+        try repo.resetLifetimeStats()
+
+        let stats = try repo.stats()
+        XCTAssertEqual(stats.totalCount, 0)
+        XCTAssertEqual(stats.totalDurationMs, 0)
+        XCTAssertEqual(stats.totalWords, 0)
+        XCTAssertEqual(stats.longestDurationMs, 0)
+
+        // Dictation rows are preserved — symmetric counterpart to deleteAll().
+        XCTAssertEqual(try repo.fetchAll(limit: nil).count, 2)
+        XCTAssertEqual(stats.visibleCount, 2)
+    }
+
+    func testResetLifetimeStatsThenSaveContinuesAccumulating() throws {
+        try repo.save(Dictation(durationMs: 5000, rawTranscript: "old", wordCount: 1))
+        try repo.resetLifetimeStats()
+        try repo.save(Dictation(durationMs: 1000, rawTranscript: "fresh start", wordCount: 2))
+
+        let stats = try repo.stats()
+        XCTAssertEqual(stats.totalCount, 1, "only the post-reset save counts")
+        XCTAssertEqual(stats.totalWords, 2)
+        XCTAssertEqual(stats.totalDurationMs, 1000)
+    }
+
+    func testResetLifetimeStatsSelfHealsIfSingletonRowMissing() throws {
+        try repo.save(Dictation(durationMs: 1000, rawTranscript: "x", wordCount: 1))
+        try manager.dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM lifetime_dictation_stats WHERE id = 1")
+        }
+
+        // Reset uses INSERT OR REPLACE — should not throw even with row missing.
+        XCTAssertNoThrow(try repo.resetLifetimeStats())
+
+        let stats = try repo.stats()
+        XCTAssertEqual(stats.totalCount, 0)
+    }
 }
