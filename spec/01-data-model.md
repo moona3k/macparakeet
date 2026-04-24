@@ -12,9 +12,9 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 
 ```
 ┌──────────────────┐       ┌──────────────────────────────┐
-│    dictations    │ ────▶ │ lifetime_dictation_stats     │  v0.7.4 — Singleton counter
+│    dictations    │ ╌╌╌▶  │ lifetime_dictation_stats     │  v0.7.4 — Singleton counter
 └──────────────────┘       └──────────────────────────────┘    (survives row deletion)
-   v0.1 — Voice dictation history
+   v0.1 — Voice dictation history    (logical write-path, no FK)
 
 ┌──────────────────┐       ┌─────────────────────────┐
 │  transcriptions  │◄──FK──│   chat_conversations    │  v0.5 — Multi-conversation chat

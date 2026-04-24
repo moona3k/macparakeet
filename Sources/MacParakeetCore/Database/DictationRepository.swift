@@ -132,6 +132,11 @@ public final class DictationRepository: DictationRepositoryProtocol {
                     wordCount: dictation.wordCount
                 )
             default:
+                // Non-completed terminal states (.recording / .processing / .error)
+                // and a re-save of an already-completed row that transitions to one
+                // of those — both no-op. A completed → error transition (e.g. a
+                // post-processing failure) intentionally keeps the lifetime
+                // increment: "completed dictations ever", not "currently completed."
                 break
             }
         }
@@ -225,17 +230,31 @@ public final class DictationRepository: DictationRepositoryProtocol {
     }
 
     public func stats() throws -> DictationStats {
-        try dbQueue.read { db in
-            // Lifetime totals — survive history deletion (issue #124).
-            let lifetime = try Row.fetchOne(db, sql: """
+        // Write transaction (not read) so we can self-heal if the singleton row is
+        // missing. Migration seeds the row and nothing in code deletes it, so the
+        // heal path should never fire — but if it does (manual DB surgery, partial
+        // migration, etc.) we'd rather rebuild from `dictations` than silently show
+        // zeros and mask a broken invariant. See also `incrementLifetimeStats`,
+        // which throws on the write path for the same reason.
+        try dbQueue.write { db in
+            var lifetime = try Row.fetchOne(db, sql: """
                 SELECT totalCount, totalDurationMs, totalWords, longestDurationMs
                 FROM lifetime_dictation_stats WHERE id = 1
                 """)
+            if lifetime == nil {
+                try Self.recomputeLifetimeStats(db: db)
+                lifetime = try Row.fetchOne(db, sql: """
+                    SELECT totalCount, totalDurationMs, totalWords, longestDurationMs
+                    FROM lifetime_dictation_stats WHERE id = 1
+                    """)
+            }
             let totalCount: Int = lifetime?["totalCount"] ?? 0
             let totalDuration: Int = lifetime?["totalDurationMs"] ?? 0
             let totalWords: Int = lifetime?["totalWords"] ?? 0
             let longestDuration: Int = lifetime?["longestDurationMs"] ?? 0
-            let averageDuration = totalCount > 0 ? totalDuration / totalCount : 0
+            let averageDuration = totalCount > 0
+                ? Int((Double(totalDuration) / Double(totalCount)).rounded())
+                : 0
 
             // visibleCount reflects what's currently in the user's history.
             let visibleCount: Int = try Int.fetchOne(

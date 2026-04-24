@@ -478,11 +478,18 @@ final class SettingsViewModelTests: XCTestCase {
             checkoutURL: nil
         )
 
+        var stateChangedFireCount = 0
+        viewModel.onDictationStateChanged = { stateChangedFireCount += 1 }
+
         viewModel.resetLifetimeStats()
 
         XCTAssertTrue(mockRepo.resetLifetimeStatsCalled)
         XCTAssertFalse(mockRepo.deleteAllCalled, "Reset should not delete dictation rows")
         XCTAssertEqual(viewModel.dictationCount, 1, "Dictation count must survive lifetime reset")
+        XCTAssertEqual(
+            stateChangedFireCount, 1,
+            "onDictationStateChanged must fire once so dependent views (e.g. history) reload derived stats"
+        )
     }
 
     // MARK: - Unconfigured

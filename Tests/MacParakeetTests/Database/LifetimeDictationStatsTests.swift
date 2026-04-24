@@ -60,7 +60,7 @@ final class LifetimeDictationStatsTests: XCTestCase {
     // MARK: - Idempotency
 
     func testReSavingCompletedDictationWithSameValuesDoesNotDoubleCount() throws {
-        var d = Dictation(durationMs: 1000, rawTranscript: "hello", wordCount: 1)
+        let d = Dictation(durationMs: 1000, rawTranscript: "hello", wordCount: 1)
         try repo.save(d)
         try repo.save(d)  // identical re-save → zero delta
         try repo.save(d)
@@ -224,6 +224,29 @@ final class LifetimeDictationStatsTests: XCTestCase {
         XCTAssertEqual(stats.totalCount, 2)
         XCTAssertEqual(stats.totalDurationMs, 4000)
         XCTAssertEqual(stats.totalWords, 3)
+    }
+
+    func testStatsSelfHealsIfSingletonRowMissing() throws {
+        // stats() must rebuild from `dictations` rather than silently reporting zeros
+        // when the singleton row is absent — otherwise we'd mask the same invariant
+        // violation the hot write path throws on.
+        try repo.save(Dictation(durationMs: 1500, rawTranscript: "a", wordCount: 1))
+        try repo.save(Dictation(durationMs: 2500, rawTranscript: "b b", wordCount: 2))
+
+        try manager.dbQueue.write { db in
+            try db.execute(sql: "DELETE FROM lifetime_dictation_stats WHERE id = 1")
+        }
+
+        let stats = try repo.stats()
+        XCTAssertEqual(stats.totalCount, 2, "stats() must self-heal from dictations, not return 0")
+        XCTAssertEqual(stats.totalDurationMs, 4000)
+        XCTAssertEqual(stats.totalWords, 3)
+
+        // Row is persisted after the heal — next save's UPDATE hot-path finds it.
+        let countAfter = try manager.dbQueue.read { db in
+            try Int.fetchOne(db, sql: "SELECT COUNT(*) FROM lifetime_dictation_stats WHERE id = 1") ?? 0
+        }
+        XCTAssertEqual(countAfter, 1)
     }
 
     // MARK: - User-initiated reset
