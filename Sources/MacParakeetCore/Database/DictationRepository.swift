@@ -132,11 +132,13 @@ public final class DictationRepository: DictationRepositoryProtocol {
                     wordCount: dictation.wordCount
                 )
             default:
-                // Non-completed terminal states (.recording / .processing / .error)
-                // and a re-save of an already-completed row that transitions to one
-                // of those — both no-op. A completed → error transition (e.g. a
-                // post-processing failure) intentionally keeps the lifetime
-                // increment: "completed dictations ever", not "currently completed."
+                // Target status isn't .completed — no-op. In practice the app
+                // only saves dictations at .completed (DictationService.save),
+                // so this branch is defensive: if a future code path ever writes
+                // a non-completed status it won't perturb lifetime counters.
+                // Note: "lifetime totalCount" is defined as rows that reached
+                // .completed — consistent with `recomputeLifetimeStats`, which
+                // filters on `status = 'completed'`.
                 break
             }
         }
@@ -355,6 +357,11 @@ public final class DictationRepository: DictationRepositoryProtocol {
     /// Recovery / migration path: rebuild the singleton row from current dictations.
     /// Uses INSERT OR REPLACE so it self-heals even if the row was deleted. Caller
     /// must pass an open `Database` handle (already inside a write transaction).
+    ///
+    /// Counts only `status = 'completed'` rows — this matches the write-path
+    /// definition in `save()`, which increments lifetime counters only when the
+    /// row transitions to `.completed`. Keep the two filters in sync if the
+    /// "lifetime" definition ever broadens.
     public static func recomputeLifetimeStats(db: Database, now: Date = Date()) throws {
         try db.execute(
             sql: """
