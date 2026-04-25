@@ -462,7 +462,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let recoveries = try await env.meetingRecordingRecoveryService.discoverPendingRecoveries()
                 self.settingsViewModel.refreshPendingMeetingRecoveries()
                 guard !recoveries.isEmpty else { return }
-                self.presentMeetingRecoveryDialog(recoveries)
+                Telemetry.send(.meetingRecoveryDiscovered(count: recoveries.count, source: .launch))
+                self.presentMeetingRecoveryDialog(recoveries, source: .launch)
             } catch {
                 self.presentMeetingRecoveryError(error)
             }
@@ -477,14 +478,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let recoveries = try await env.meetingRecordingRecoveryService.discoverPendingRecoveries()
                 self.settingsViewModel.refreshPendingMeetingRecoveries()
                 guard !recoveries.isEmpty else { return }
-                self.presentMeetingRecoveryDialog(recoveries)
+                Telemetry.send(.meetingRecoveryDiscovered(count: recoveries.count, source: .settings))
+                self.presentMeetingRecoveryDialog(recoveries, source: .settings)
             } catch {
                 self.presentMeetingRecoveryError(error)
             }
         }
     }
 
-    private func presentMeetingRecoveryDialog(_ recoveries: [MeetingRecordingLockFile]) {
+    private func presentMeetingRecoveryDialog(
+        _ recoveries: [MeetingRecordingLockFile],
+        source: TelemetryMeetingRecoverySource
+    ) {
         guard let env = appEnvironment else { return }
 
         NSApp.activate(ignoringOtherApps: true)
@@ -502,12 +507,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case .alertFirstButtonReturn:
             Task { [weak self] in
                 guard let self else { return }
-                await self.recoverMeetingRecordings(recoveries, environment: env)
+                await self.recoverMeetingRecordings(recoveries, environment: env, source: source)
             }
         case .alertThirdButtonReturn:
             Task { [weak self] in
                 guard let self else { return }
-                await self.discardMeetingRecoveries(recoveries, environment: env)
+                await self.discardMeetingRecoveries(recoveries, environment: env, source: source)
             }
         default:
             settingsViewModel.refreshPendingMeetingRecoveries()
@@ -531,13 +536,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func recoverMeetingRecordings(
         _ recoveries: [MeetingRecordingLockFile],
-        environment env: AppEnvironment
+        environment env: AppEnvironment,
+        source: TelemetryMeetingRecoverySource
     ) async {
+        let startedAt = Date()
+        Telemetry.send(.meetingRecoveryStarted(count: recoveries.count, source: source))
         do {
             var recovered: [Transcription] = []
             for recovery in recoveries {
                 recovered.append(try await env.meetingRecordingRecoveryService.recover(recovery))
             }
+            Telemetry.send(.meetingRecoveryCompleted(
+                count: recovered.count,
+                durationSeconds: Date().timeIntervalSince(startedAt),
+                source: source
+            ))
             libraryViewModel.loadTranscriptions()
             meetingsViewModel.loadTranscriptions()
             settingsViewModel.refreshPendingMeetingRecoveries()
@@ -547,21 +560,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 windowCoordinator.openMainWindow()
             }
         } catch {
+            Telemetry.send(.meetingRecoveryFailed(
+                count: recoveries.count,
+                source: source,
+                errorType: TelemetryErrorClassifier.classify(error),
+                errorDetail: TelemetryErrorClassifier.errorDetail(error)
+            ))
             settingsViewModel.refreshPendingMeetingRecoveries()
-            presentMeetingRecoveryError(error, recoveries: recoveries, environment: env)
+            presentMeetingRecoveryError(error, recoveries: recoveries, environment: env, source: source)
         }
     }
 
     private func discardMeetingRecoveries(
         _ recoveries: [MeetingRecordingLockFile],
-        environment env: AppEnvironment
+        environment env: AppEnvironment,
+        source: TelemetryMeetingRecoverySource
     ) async {
         do {
             for recovery in recoveries {
                 try await env.meetingRecordingRecoveryService.discard(recovery)
             }
+            Telemetry.send(.meetingRecoveryDiscarded(count: recoveries.count, source: source))
             settingsViewModel.refreshPendingMeetingRecoveries()
         } catch {
+            Telemetry.send(.meetingRecoveryFailed(
+                count: recoveries.count,
+                source: source,
+                errorType: TelemetryErrorClassifier.classify(error),
+                errorDetail: TelemetryErrorClassifier.errorDetail(error)
+            ))
             settingsViewModel.refreshPendingMeetingRecoveries()
             presentMeetingRecoveryError(error)
         }
@@ -572,7 +599,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func presentMeetingRecoveryError(
         _ error: Error,
         recoveries: [MeetingRecordingLockFile] = [],
-        environment env: AppEnvironment? = nil
+        environment env: AppEnvironment? = nil,
+        source: TelemetryMeetingRecoverySource = .launch
     ) {
         NSApp.activate(ignoringOtherApps: true)
 
@@ -588,7 +616,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard response == .alertSecondButtonReturn, let env else { return }
         Task { [weak self] in
             guard let self else { return }
-            await self.discardMeetingRecoveries(recoveries, environment: env)
+            await self.discardMeetingRecoveries(recoveries, environment: env, source: source)
         }
     }
 

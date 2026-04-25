@@ -378,7 +378,7 @@ Resolved: the launch scan is gated behind onboarding completion. Lock files rema
 - `swift test --filter 'MeetingRecordingServiceTests|MeetingRecordingRecoveryServiceTests|MeetingRecordingLockFileStoreTests'` passed (33 tests) after final review fixes for awaiting-transcription locks, idempotent retry before remix, and corrupt-source salvage.
 - `swift test --filter MeetingRecordingCrashRecoveryTests/testKillNineMidRecordingProducesPlayableFiles` passed after switching steady-state fragments from 10 s to 1 s.
 - `swift test --filter Meeting` passed (163 tests).
-- `swift test` passed: 1551 XCTest tests + 13 Swift Testing tests.
+- `swift test` passed: 1552 XCTest tests + 13 Swift Testing tests.
 - Multi-LLM review: Codex Explore found lock-write cleanup and recovery-idempotence blockers; both were fixed with regression tests. Oracle multi-model API review timed out after 10 minutes with no model responses, so Gemini CLI (`gemini-2.5-pro`) reviewed the focused diff; remaining comments were nits/false positives after accounting for `@MainActor` and the untracked writer tests.
 - Manual Activity Monitor force-quit smoke was not run in this environment; the automated kill-9 verifier covers the file-survival property directly.
 

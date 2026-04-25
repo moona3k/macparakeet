@@ -68,6 +68,11 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case meetingRecordingCompleted = "meeting_recording_completed"
     case meetingRecordingCancelled = "meeting_recording_cancelled"
     case meetingRecordingFailed = "meeting_recording_failed"
+    case meetingRecoveryDiscovered = "meeting_recovery_discovered"
+    case meetingRecoveryStarted = "meeting_recovery_started"
+    case meetingRecoveryCompleted = "meeting_recovery_completed"
+    case meetingRecoveryDiscarded = "meeting_recovery_discarded"
+    case meetingRecoveryFailed = "meeting_recovery_failed"
     // Calendar auto-start (ADR-017)
     case calendarReminderShown = "calendar_reminder_shown"
     case calendarAutoStartTriggered = "calendar_auto_start_triggered"
@@ -131,6 +136,11 @@ public enum TelemetryMeetingRecordingTrigger: String, Sendable, Equatable {
     case manual
     case hotkey
     case calendarAutoStart = "calendar_auto_start"
+}
+
+public enum TelemetryMeetingRecoverySource: String, Sendable, Equatable {
+    case launch
+    case settings
 }
 
 public enum TelemetryPermission: String, Sendable, Equatable {
@@ -267,6 +277,16 @@ public enum TelemetryEventSpec: Sendable {
     case meetingRecordingCompleted(durationSeconds: Double, liveWordCount: Int, liveTranscriptLagged: Bool)
     case meetingRecordingCancelled(durationSeconds: Double)
     case meetingRecordingFailed(errorType: String, errorDetail: String? = nil)
+    case meetingRecoveryDiscovered(count: Int, source: TelemetryMeetingRecoverySource)
+    case meetingRecoveryStarted(count: Int, source: TelemetryMeetingRecoverySource)
+    case meetingRecoveryCompleted(count: Int, durationSeconds: Double, source: TelemetryMeetingRecoverySource)
+    case meetingRecoveryDiscarded(count: Int, source: TelemetryMeetingRecoverySource)
+    case meetingRecoveryFailed(
+        count: Int,
+        source: TelemetryMeetingRecoverySource,
+        errorType: String,
+        errorDetail: String? = nil
+    )
     // Calendar auto-start (ADR-017). Mode is "notify" / "auto_start" — `.off`
     // never produces an event because the coordinator short-circuits.
     case calendarReminderShown(mode: String, leadMinutes: Int, hasMeetUrl: Bool)
@@ -360,6 +380,11 @@ extension TelemetryEventSpec {
         case .meetingRecordingCompleted: return .meetingRecordingCompleted
         case .meetingRecordingCancelled: return .meetingRecordingCancelled
         case .meetingRecordingFailed: return .meetingRecordingFailed
+        case .meetingRecoveryDiscovered: return .meetingRecoveryDiscovered
+        case .meetingRecoveryStarted: return .meetingRecoveryStarted
+        case .meetingRecoveryCompleted: return .meetingRecoveryCompleted
+        case .meetingRecoveryDiscarded: return .meetingRecoveryDiscarded
+        case .meetingRecoveryFailed: return .meetingRecoveryFailed
         case .calendarReminderShown: return .calendarReminderShown
         case .calendarAutoStartTriggered: return .calendarAutoStartTriggered
         case .calendarAutoStartCancelled: return .calendarAutoStartCancelled
@@ -572,6 +597,35 @@ extension TelemetryEventSpec {
             var props = ["error_type": errorType]
             if let errorDetail { props["error_detail"] = errorDetail }
             return props
+        case .meetingRecoveryDiscovered(let count, let source):
+            return [
+                "count": "\(count)",
+                "source": source.rawValue,
+            ]
+        case .meetingRecoveryStarted(let count, let source):
+            return [
+                "count": "\(count)",
+                "source": source.rawValue,
+            ]
+        case .meetingRecoveryCompleted(let count, let durationSeconds, let source):
+            return [
+                "count": "\(count)",
+                "duration_seconds": Self.format(durationSeconds),
+                "source": source.rawValue,
+            ]
+        case .meetingRecoveryDiscarded(let count, let source):
+            return [
+                "count": "\(count)",
+                "source": source.rawValue,
+            ]
+        case .meetingRecoveryFailed(let count, let source, let errorType, let errorDetail):
+            var props = [
+                "count": "\(count)",
+                "source": source.rawValue,
+                "error_type": errorType,
+            ]
+            if let errorDetail { props["error_detail"] = errorDetail }
+            return props
         case .calendarReminderShown(let mode, let leadMinutes, let hasMeetUrl):
             return [
                 "mode": mode,
@@ -704,6 +758,11 @@ public enum TelemetryImplementedContract {
         .meetingRecordingCompleted: ["duration_seconds", "live_word_count", "live_transcript_lagged"],
         .meetingRecordingCancelled: ["duration_seconds"],
         .meetingRecordingFailed: ["error_type"],
+        .meetingRecoveryDiscovered: ["count", "source"],
+        .meetingRecoveryStarted: ["count", "source"],
+        .meetingRecoveryCompleted: ["count", "duration_seconds", "source"],
+        .meetingRecoveryDiscarded: ["count", "source"],
+        .meetingRecoveryFailed: ["count", "source", "error_type"],
         .calendarReminderShown: ["mode", "lead_minutes", "has_meet_url"],
         .calendarAutoStartTriggered: ["lead_seconds", "has_meet_url"],
         .calendarAutoStartCancelled: ["reason"],
