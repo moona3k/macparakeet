@@ -122,7 +122,9 @@ public actor CalendarService {
         }
 
         let lookAhead = days ?? lookAheadDays
-        let endDate = Calendar.current.date(byAdding: .day, value: lookAhead, to: from)!
+        guard let endDate = Calendar.current.date(byAdding: .day, value: lookAhead, to: from) else {
+            throw CalendarError.fetchFailed("Could not compute end date for lookAhead=\(lookAhead) from \(from)")
+        }
 
         logger.debug("Fetching events from \(from) to \(endDate)")
 

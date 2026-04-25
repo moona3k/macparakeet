@@ -73,9 +73,11 @@ final class MeetingMonitorTests: XCTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
-    func testNotifyModeFiresReminderButNotAutoStart() {
+    func testNotifyModeWithReminderMinutesZeroProducesNothing() {
         let now = Date()
-        // T-0: in both reminder window and auto-start window
+        // reminderMinutes=0 disables reminders entirely; .notify mode also
+        // gates `.autoStartDue`/`.lateJoinAvailable` off — so there is
+        // nothing to emit even though the event is at T-0.
         let evt = event(startsIn: 0, from: now)
         let result = MeetingMonitor.evaluate(
             events: [evt],
@@ -86,8 +88,31 @@ final class MeetingMonitorTests: XCTestCase {
             remindedEventIds: [],
             countdownShownEventIds: []
         )
-        // reminderMinutes=0 disables reminder; autoStart is gated off in .notify mode
         XCTAssertTrue(result.isEmpty)
+    }
+
+    func testNotifyModeFiresReminderButNotAutoStart() {
+        let now = Date()
+        // Event starts in 5 min — exactly the reminder time. .notify mode
+        // should emit `.reminderDue` and *not* `.autoStartDue` (which is
+        // gated off in this mode regardless of timing window).
+        let evt = event(startsIn: 5 * 60, from: now)
+        let result = MeetingMonitor.evaluate(
+            events: [evt],
+            now: now,
+            config: config(mode: .notify, reminderMinutes: 5),
+            activeRecording: false,
+            dismissedEventIds: [],
+            remindedEventIds: [],
+            countdownShownEventIds: []
+        )
+        XCTAssertEqual(result.count, 1)
+        if case .reminderDue(let e) = result[0] {
+            XCTAssertEqual(e.id, "evt-1")
+        } else {
+            XCTFail("Expected .reminderDue, got \(result[0])")
+        }
+        XCTAssertFalse(result.contains { if case .autoStartDue = $0 { return true } else { return false } })
     }
 
     func testAutoStartModeFiresAutoStartWhenAtTime() {
@@ -390,10 +415,9 @@ final class MeetingMonitorTests: XCTestCase {
 
     func testAutoStopFiresInLastSecondsOfMeeting() {
         let now = Date()
-        // Event ends in 20s and we're recording → inside [endTime - 30s, endTime]
-        let evt = event(startsIn: -25 * 60, from: now, durationMinutes: 25)  // ends 25s after now
-        // Actually we need ends ~20s in the future:
-        let evt2 = CalendarEvent(
+        // Event ends 20s after `now` (started 25 min ago, runs for 25 min) →
+        // inside the [endTime - 30s, endTime] auto-stop window.
+        let evt = CalendarEvent(
             id: "ending",
             title: "Wrap",
             startTime: now.addingTimeInterval(-1500),
@@ -402,9 +426,8 @@ final class MeetingMonitorTests: XCTestCase {
             participants: [EventParticipant(email: "x@y")],
             userStatus: .accepted
         )
-        _ = evt
         let result = MeetingMonitor.evaluate(
-            events: [evt2],
+            events: [evt],
             now: now,
             config: config(mode: .autoStart, autoStopEnabled: true),
             activeRecording: true,

@@ -274,6 +274,10 @@ public final class SettingsViewModel {
     private let permissionPollingInterval: Duration
     private var isApplyingLaunchAtLoginState = false
     private var permissionPollingTask: Task<Void, Never>?
+    private var calendarSettingsObserver: NSObjectProtocol?
+    /// Re-entrancy guard so `observeCalendarSettings()` doesn't fire `didSet`
+    /// → notification → re-resolve → `didSet` → … on every user toggle.
+    private var isResolvingCalendarSettings = false
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "SettingsViewModel")
 
     public init(
@@ -322,6 +326,48 @@ public final class SettingsViewModel {
         meetingTriggerFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
         calendarAutoStopEnabled = defaults.object(forKey: CalendarAutoStartPreferences.autoStopEnabledKey) as? Bool ?? true
         calendarExcludedIdentifiers = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
+        observeCalendarSettings()
+    }
+
+    /// Onboarding writes calendar settings directly to UserDefaults (it
+    /// doesn't own a `SettingsViewModel`). Without this observer, an open
+    /// Settings window would show stale mode/lead/filter until Settings was
+    /// closed and re-opened. Re-resolving from defaults keeps every UI
+    /// surface that holds a `SettingsViewModel` in sync.
+    private func observeCalendarSettings() {
+        let center = NotificationCenter.default
+        calendarSettingsObserver = center.addObserver(
+            forName: .macParakeetCalendarSettingsDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.reloadCalendarSettings() }
+        }
+    }
+
+    private func reloadCalendarSettings() {
+        // Avoid the `didSet` → post-notification → reload → `didSet` loop:
+        // re-resolving has to skip the `didSet` write-through. The flag
+        // guards the entire batch so partial updates can't fire telemetry
+        // for a value the user didn't actually change.
+        guard !isResolvingCalendarSettings else { return }
+        isResolvingCalendarSettings = true
+        defer { isResolvingCalendarSettings = false }
+
+        let resolvedMode = Self.resolveCalendarAutoStartMode(defaults: defaults)
+        if calendarAutoStartMode != resolvedMode { calendarAutoStartMode = resolvedMode }
+
+        let resolvedMinutes = Self.resolveCalendarReminderMinutes(defaults: defaults)
+        if calendarReminderMinutes != resolvedMinutes { calendarReminderMinutes = resolvedMinutes }
+
+        let resolvedFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
+        if meetingTriggerFilter != resolvedFilter { meetingTriggerFilter = resolvedFilter }
+
+        let resolvedAutoStop = defaults.object(forKey: CalendarAutoStartPreferences.autoStopEnabledKey) as? Bool ?? true
+        if calendarAutoStopEnabled != resolvedAutoStop { calendarAutoStopEnabled = resolvedAutoStop }
+
+        let resolvedExcluded = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
+        if calendarExcludedIdentifiers != resolvedExcluded { calendarExcludedIdentifiers = resolvedExcluded }
     }
 
     private static func resolveCalendarAutoStartMode(defaults: UserDefaults) -> CalendarAutoStartMode {
@@ -329,7 +375,14 @@ public final class SettingsViewModel {
               let mode = CalendarAutoStartMode(rawValue: raw) else {
             return .off  // Off by default — opt-in only via onboarding or Settings.
         }
-        return mode
+        // Phase 1 safety net: clamp `.autoStart` down to `.notify`. The
+        // enum + MeetingMonitor are Phase E-ready, but the UI Picker only
+        // exposes `.off`/`.notify`. Without this clamp, a stored `.autoStart`
+        // value (downgrade from a future build, sideloaded plist) would
+        // render the Picker blank *and* let the coordinator try to fire a
+        // countdown that has no toast UI to back it. Remove this when
+        // Phase 2 unclamps the Picker.
+        return mode == .autoStart ? .notify : mode
     }
 
     private static func resolveCalendarReminderMinutes(defaults: UserDefaults) -> Int {
