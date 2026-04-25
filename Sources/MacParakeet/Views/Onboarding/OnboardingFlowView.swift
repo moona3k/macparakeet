@@ -161,6 +161,7 @@ struct OnboardingFlowView: View {
         case .microphone: return "mic"
         case .accessibility: return "accessibility"
         case .meetingRecording: return "record.circle"
+        case .calendar: return "calendar"
         case .hotkey: return "keyboard"
         case .engine: return "cpu"
         case .done: return "checkmark.circle"
@@ -177,6 +178,8 @@ struct OnboardingFlowView: View {
             return viewModel.accessibilityGranted
         case .meetingRecording:
             return viewModel.screenRecordingGranted || viewModel.meetingRecordingSkipped
+        case .calendar:
+            return viewModel.calendarPermissionGranted || viewModel.calendarSkipped
         case .hotkey:
             return viewModel.step.rawValue > step.rawValue
         case .engine:
@@ -332,6 +335,8 @@ struct OnboardingFlowView: View {
             }
         case .meetingRecording:
             meetingRecordingStep
+        case .calendar:
+            calendarStep
         case .hotkey:
             hotkeyStep
         case .engine:
@@ -459,6 +464,59 @@ struct OnboardingFlowView: View {
                             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                                 .fill(DesignSystem.Colors.warningAmber.opacity(0.08))
                         )
+                }
+            }
+            .padding(DesignSystem.Spacing.lg)
+        }
+    }
+
+    private var calendarStep: some View {
+        onboardingCard {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Calendar Reminders (Optional)")
+                        .font(DesignSystem.Typography.sectionTitle)
+                    Spacer()
+                    Text(viewModel.calendarPermissionGranted ? "Granted" : "Not granted")
+                        .font(DesignSystem.Typography.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule().fill(
+                                viewModel.calendarPermissionGranted
+                                ? DesignSystem.Colors.successGreen.opacity(0.15)
+                                : DesignSystem.Colors.warningAmber.opacity(0.15)
+                            )
+                        )
+                        .foregroundStyle(
+                            viewModel.calendarPermissionGranted
+                            ? DesignSystem.Colors.successGreen
+                            : DesignSystem.Colors.warningAmber
+                        )
+                }
+
+                Text("MacParakeet can read your macOS calendar to send a quiet notification before each scheduled meeting — so you're ready to start the recording.")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("Events are read on-device only and never uploaded. You can change the lead time, ignore specific calendars, or turn this off entirely from Settings.")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 10) {
+                    accentButton(
+                        viewModel.isBusy ? "Requesting..." : "Enable Calendar Reminders",
+                        disabled: viewModel.isBusy || viewModel.calendarPermissionGranted
+                    ) {
+                        viewModel.requestCalendarAccess()
+                    }
+
+                    Button("Skip — I'll set this up later") {
+                        viewModel.skipCalendarStep()
+                    }
+                    .buttonStyle(.bordered)
                 }
             }
             .padding(DesignSystem.Spacing.lg)
@@ -912,6 +970,7 @@ struct OnboardingFlowView: View {
         case .microphone: return "Enable Microphone Access"
         case .accessibility: return "Enable Accessibility"
         case .meetingRecording: return "Meeting Recording (Optional)"
+        case .calendar: return "Calendar Reminders (Optional)"
         case .hotkey: return "Learn the Hotkey"
         case .engine: return "Prepare Speech Model"
         case .done: return "All Set"
@@ -928,6 +987,8 @@ struct OnboardingFlowView: View {
             return "Accessibility is required for the global hotkey and reliable paste automation."
         case .meetingRecording:
             return "Optional. This is only needed to capture system audio during meeting recording."
+        case .calendar:
+            return "Optional. Lets MacParakeet remind you before scheduled meetings so you never miss the start of a recording."
         case .hotkey:
             return "Two ways to dictate — pick whichever feels natural."
         case .engine:
@@ -943,6 +1004,7 @@ struct OnboardingFlowView: View {
         case .microphone: return "Continue"
         case .accessibility: return "Continue"
         case .meetingRecording: return "Continue"
+        case .calendar: return "Continue"
         case .hotkey: return "Continue"
         case .engine: return "Continue"
         case .done: return "Finish"
@@ -1065,7 +1127,7 @@ struct OnboardingFlowView: View {
             return "Grant microphone access to continue."
         case .accessibility:
             return "Enable Accessibility to continue."
-        case .meetingRecording:
+        case .meetingRecording, .calendar:
             return nil
         case .engine:
             return "Downloading — this can take several minutes. Everything works offline after setup."
@@ -1077,6 +1139,9 @@ struct OnboardingFlowView: View {
     private var continueButtonDisabled: Bool {
         if viewModel.step == .meetingRecording {
             return viewModel.isBusy || !(viewModel.screenRecordingGranted || viewModel.meetingRecordingSkipped)
+        }
+        if viewModel.step == .calendar {
+            return viewModel.isBusy || !(viewModel.calendarPermissionGranted || viewModel.calendarSkipped)
         }
         return !viewModel.canContinueFromCurrentStep() || viewModel.isBusy
     }

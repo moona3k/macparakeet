@@ -505,7 +505,7 @@ final class TelemetryServiceTests: XCTestCase {
             .onboardingStep(step: "microphone"),
             .licenseActivationFailed(errorType: "invalid_key"),
             .keystrokeSnippetFired(action: "return"),
-            .meetingRecordingStarted,
+            .meetingRecordingStarted(),
             .meetingRecordingCompleted(durationSeconds: 1800.0, liveWordCount: 4200, liveTranscriptLagged: false),
             .meetingRecordingCancelled(durationSeconds: 30.0),
             .meetingRecordingFailed(errorType: "tap_creation_failed"),

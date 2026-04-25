@@ -1,6 +1,6 @@
 # ADR-017: Calendar-Driven Meeting Auto-Start
 
-> Status: PROPOSED
+> Status: **IMPLEMENTED** — Phases 1 (notify-only) and 2 (auto-start + countdown + auto-stop) shipped 2026-04-25. Phase 3 (late-join, retro-link, generic URL extraction) remains **PROPOSED** (see Phased Rollout below).
 > Date: 2026-04-19
 > Related: ADR-002 (local-first), ADR-005 (onboarding), ADR-009 (custom hotkeys), ADR-014 (meeting recording), ADR-015 (concurrent dictation/meeting)
 
@@ -214,9 +214,9 @@ Repo: `https://github.com/moona3k/oatmeal` (same owner, GPL-3.0).
 
 ## Phased Rollout
 
-1. **Phase 1 — Notify only:** Port core services. Wire coordinator with `.notify` mode only. Settings UI + onboarding step. Ship behind `calendarAutoStartMode = .notify` as new-user default.
-2. **Phase 2 — Auto-start with countdown:** Add `.autoStart` mode + countdown toast + auto-stop toast. No new permissions.
-3. **Phase 3 — Refinements:** Per-calendar include list, better URL extraction (Phone/FaceTime/generic URLs), `.lateJoinAvailable` UI.
+1. **Phase 1 — Notify only ✅ IMPLEMENTED (2026-04-25):** Ported `CalendarService`, `MeetingLinkParser`, `MeetingMonitor`, `CalendarEvent` from Oatmeal. Built `MeetingAutoStartCoordinator` (`@MainActor`, adaptive 60s/15s/5s polling, `.EKEventStoreChanged` observer, daily stale-id cleanup). Settings card + onboarding step + per-calendar include list shipped. CLI surface (`macparakeet-cli calendar upcoming` + `health` extension) ships alongside for headless verification. Mode defaults to `.off` — opt-in via onboarding (auto-`.notify` on permission grant) or Settings. Phase 1 amendment: **per-calendar include list landed in Phase 1**, not Phase 3 — it was only ~30 lines and made onboarding feel finished.
+2. **Phase 2 — Auto-start with countdown ✅ IMPLEMENTED (2026-04-25):** Built `MeetingCountdownToastController` (5s pre-meeting countdown, 30s end-of-meeting countdown, `KeylessPanel` non-activating top-center floating panel). Coordinator handles `.autoStartDue` → toast → `MeetingRecordingFlowCoordinator.startFromCalendar()`; handles `.autoStopDue` (only for auto-started recordings) → toast → `toggleRecording()`. Tracks `autoStartedEventId` binding; clears on manual stop. Settings Picker unclamped to all three modes; auto-stop toggle exposed when mode == `.autoStart`. New telemetry events: `calendar_auto_start_triggered`, `calendar_auto_start_cancelled`, `calendar_auto_stop_shown`, `calendar_auto_stop_cancelled`. `meeting_recording_started` gained an optional `trigger` prop. `CalendarServicing` protocol + `MockCalendarService` extracted for `MeetingAutoStartCoordinatorTests` (8 integration tests covering routing, lifecycle, binding state machine).
+3. **Phase 3 — Refinements (PROPOSED):** Better URL extraction (Phone/FaceTime/generic URLs), `.lateJoinAvailable` UI (separate `lateJoinShownEventIds` set in `MeetingMonitor.evaluate(...)` so dismissed countdowns don't suppress late-join), optional retro-link (match a manually-started recording back to a calendar event).
 
 ## Open Questions
 

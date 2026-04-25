@@ -32,6 +32,7 @@ struct SettingsView: View {
                 dictationCard
                 if AppFeatures.meetingRecordingEnabled {
                     meetingRecordingCard
+                    calendarCard
                 }
                 transcriptionCard
                 aiProviderCard
@@ -296,6 +297,18 @@ struct SettingsView: View {
             onChooseFolder: { viewModel.chooseMeetingAutoSaveFolder(url: $0) },
             onClearFolder: { viewModel.clearMeetingAutoSaveFolder() }
         )
+    }
+
+    // MARK: - Calendar Auto-Start
+
+    private var calendarCard: some View {
+        settingsCard(
+            title: "Calendar",
+            subtitle: "Reminders before scheduled meetings, powered by your macOS calendar.",
+            icon: "calendar"
+        ) {
+            CalendarSettingsView(viewModel: viewModel)
+        }
     }
 
     private var transcriptionCard: some View {

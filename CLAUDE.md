@@ -92,7 +92,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-014 | Meeting recording via Core Audio Taps | `spec/adr/014-meeting-recording.md` |
 | ADR-015 | Concurrent dictation and meeting recording | `spec/adr/015-concurrent-dictation-meeting.md` |
 | ADR-016 | Centralized STT runtime and two-slot scheduler | `spec/adr/016-centralized-stt-runtime-scheduler.md` |
-| ADR-017 | Calendar-driven meeting auto-start (proposed) | `spec/adr/017-calendar-meeting-auto-start.md` |
+| ADR-017 | Calendar-driven meeting auto-start (Phases 1 + 2 implemented; Phase 3 proposed) | `spec/adr/017-calendar-meeting-auto-start.md` |
 | ADR-018 | Live meeting Ask tab (Insights dropped per amendment; Ask shipped) | `spec/adr/018-live-meeting-insights-and-ask.md` |
 | ADR-019 | Crash-resilient meeting recording (proposed) | `spec/adr/019-crash-resilient-meeting-recording.md` |
 
@@ -100,7 +100,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**v0.6 In Progress** -- ~223 source files, ~104 test files, 1465 tests passing (1452 XCTest + 13 Swift Testing, as of 2026-04-24)
+**v0.6 In Progress** -- ~238 source files, ~116 test files, 1534 tests passing (1521 XCTest + 13 Swift Testing, as of 2026-04-25)
 
 - **v0.1** MVP -- System-wide dictation, file transcription, overlay, history, export, SQLite, CLI, STT engine
 - **v0.2** Clean Pipeline -- Text processing (filler removal, custom words, snippets), Vocabulary UI, feedback form

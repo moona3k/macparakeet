@@ -94,9 +94,11 @@ What was deferred:
 - **Dedicated `TranscriptChatViewModelLivePersistenceTests.swift`** — not added; the existing 40-test `TranscriptChatViewModelTests` suite still passes and exercises the shared chat-VM surface. Add focused live-mode tests when we touch this surface again.
 - **Transcription-failure chat recovery** (JSON sidecar) — Future Work in ADR-018 § Future Work.
 
-### Phase D — Calendar auto-start: notify-only (ADR-017 phase 1)
+### Phase D — Calendar auto-start: notify-only (ADR-017 phase 1) ✅ shipped 2026-04-25
 
-Port the three core files from Oatmeal, add settings + onboarding, wire a coordinator that only does `.notify` (no auto-start yet). Safe to ship without Phase E.
+Ported the four core files from Oatmeal (`MeetingMonitor`, `MeetingLinkParser`, `CalendarService`, `CalendarEvent` — GRDB stripped per ADR-017 §6), wired a notify-only `MeetingAutoStartCoordinator` with adaptive 60s/15s/5s polling + `.EKEventStoreChanged` observer + daily stale-id cleanup. Settings card (mode/lead/filter/per-calendar checkboxes/permission CTA) and skippable onboarding step both shipped. CLI surface (`macparakeet-cli calendar upcoming` + `health` extension) shipped alongside for headless verification by AI agents and CI. **Amendment:** the per-calendar include list (originally Phase 3) landed in Phase D — only ~30 lines and made onboarding feel finished.
+
+**Original plan (kept for reference):**
 
 | File | Change |
 |------|--------|
@@ -120,7 +122,11 @@ Port the three core files from Oatmeal, add settings + onboarding, wire a coordi
 
 **Ship criteria:** User grants Calendar permission through onboarding or Settings. At T-5min of a calendar event with a video link, a macOS notification appears. `.autoStart` mode is exposed in the UI but is a no-op (shows a "Coming soon" hint if selected, or clamp the picker to not expose it yet — plan says clamp).
 
-### Phase E — Calendar auto-start: countdown + auto-stop (ADR-017 phase 2)
+### Phase E — Calendar auto-start: countdown + auto-stop (ADR-017 phase 2) ✅ shipped 2026-04-25
+
+Built `MeetingCountdownToastController` (5s pre-meeting + 30s end-of-meeting countdowns, `KeylessPanel` non-activating top-center floating panel with progress bar + Cancel/Start Now actions). Coordinator wires `.autoStartDue` → countdown → `MeetingRecordingFlowCoordinator.startFromCalendar()` and `.autoStopDue` (only for auto-started recordings) → countdown → `toggleRecording()`. Tracks `autoStartedEventId` binding; manual-stop detection via next-poll `isRecordingActive() == false` with binding still held. Settings Picker unclamped to all three modes; auto-stop toggle visible when mode == `.autoStart`. `CalendarServicing` protocol + `MockCalendarService` extracted; 8 new `MeetingAutoStartCoordinatorTests` cover routing, lifecycle, and the binding state machine. Four new telemetry events allowlisted on the website worker (`calendar_auto_start_triggered`, `calendar_auto_start_cancelled`, `calendar_auto_stop_shown`, `calendar_auto_stop_cancelled`); `meeting_recording_started` gained optional `trigger` prop.
+
+**Original plan (kept for reference):**
 
 Add the countdown toast and the actual recording triggers.
 
@@ -170,11 +176,11 @@ Low-value-per-unit cleanup that's better done in one pass.
 - Phase A (tab shell) — ✅ shipped 2026-04-24
 - ~~Phase B (Insights)~~ — dropped per ADR-018 amendment
 - Phase C (Live Ask) — ✅ shipped 2026-04-24
-- Phase D (Calendar notify-only) — 2 days remaining
-- Phase E (Calendar countdown + auto-stop) — 1 day remaining
+- Phase D (Calendar notify-only) — ✅ shipped 2026-04-25
+- Phase E (Calendar countdown + auto-stop) — ✅ shipped 2026-04-25
 - Phase F (Polish, naming, changelog) — 0.5 day remaining
 
-Total remaining: ~3.5 engineering days for the calendar half.
+Total remaining: ~0.5 engineering days for Phase F polish.
 
 ## Changelog line (when all phases land)
 

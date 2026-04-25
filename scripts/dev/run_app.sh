@@ -154,6 +154,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <string>MacParakeet needs microphone access for voice dictation.</string>
     <key>NSAudioCaptureUsageDescription</key>
     <string>MacParakeet needs system audio recording access for meeting recording.</string>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>MacParakeet reads your calendar so it can remind you before a meeting starts and (optionally) begin recording for you. Events stay on your Mac.</string>
 </dict>
 </plist>
 PLIST

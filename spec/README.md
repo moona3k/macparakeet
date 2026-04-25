@@ -57,7 +57,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-014](adr/014-meeting-recording.md) | Meeting recording via Core Audio Taps |
 | [ADR-015](adr/015-concurrent-dictation-meeting.md) | Concurrent dictation and meeting recording |
 | [ADR-016](adr/016-centralized-stt-runtime-scheduler.md) | Centralized STT runtime and two-slot scheduler |
-| [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (proposed) |
+| [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (Phases 1 + 2 implemented; Phase 3 proposed) |
 | [ADR-018](adr/018-live-meeting-insights-and-ask.md) | Live meeting Ask tab (Insights dropped per amendment; Ask shipped 2026-04-24) |
 
 ## Version Roadmap
@@ -189,9 +189,10 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Centralized STT runtime + two-slot scheduler (ADR-016)
 - [x] Live panel tabs: Transcript / Ask (ADR-018; Insights dropped per amendment 2026-04-24)
 - [x] Live Ask chat with thinking-partner starter pills + persistent follow-up pills + persist-on-finalize handoff
-- [ ] Calendar-driven auto-start (ADR-017): EventKit integration + onboarding + settings
-- [ ] Pre-meeting notifications + 5s countdown toast for auto-start
-- [ ] Auto-stop toast at calendar event end
+- [x] Calendar-driven reminders (ADR-017 Phase 1): EventKit integration + onboarding + settings + per-calendar include list
+- [x] Pre-meeting macOS notifications at configurable lead time (off / 1 / 5 / 10 min)
+- [x] Auto-start countdown toast (ADR-017 Phase 2): 5s cancellable, top-center, non-activating
+- [x] Auto-stop toast at calendar event end (ADR-017 Phase 2): 30s, "Keep Recording" cancels
 
 ## For AI Coding Assistants
 

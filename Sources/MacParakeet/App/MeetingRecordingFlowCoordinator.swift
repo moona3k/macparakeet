@@ -72,6 +72,20 @@ final class MeetingRecordingFlowCoordinator {
         panelViewModel?.chatViewModel.updateLLMService(service)
     }
 
+    /// Trigger source for the *next* `.startRequested` event. Reset to nil
+    /// after the start telemetry fires so subsequent toggles don't carry a
+    /// stale trigger. Calendar-driven starts call `startFromCalendar`,
+    /// which sets this and re-enters `toggleRecording`.
+    private var pendingTrigger: TelemetryMeetingRecordingTrigger?
+
+    /// Optional callback fired when an auto-start attempt couldn't actually
+    /// start a recording — either because the state machine wasn't idle
+    /// (back-to-back meeting, previous wrap-up still in progress) or the
+    /// underlying `startRecording()` threw. The auto-start coordinator
+    /// uses this to clear its `autoStartedEventId` binding so a stale id
+    /// doesn't suppress the *next* meeting's auto-stop.
+    var onAutoStartFailed: (() -> Void)?
+
     func toggleRecording() {
         switch stateMachine.state {
         case .idle:
@@ -81,6 +95,20 @@ final class MeetingRecordingFlowCoordinator {
         case .checkingPermissions, .transcribing, .finishing:
             break
         }
+    }
+
+    /// Calendar-driven entry point. Marks the next start as auto-start so
+    /// telemetry distinguishes it, then enters the normal start flow. No-op
+    /// if a recording is already in progress (manual recording wins by
+    /// arriving first — see ADR-017 §10). When non-idle, fires
+    /// `onAutoStartFailed` so the coordinator can drop its binding.
+    func startFromCalendar() {
+        guard stateMachine.state == .idle else {
+            onAutoStartFailed?()
+            return
+        }
+        pendingTrigger = .calendarAutoStart
+        sendEvent(.startRequested)
     }
 
     private func sendEvent(_ event: MeetingRecordingFlowEvent) {
@@ -184,10 +212,14 @@ final class MeetingRecordingFlowCoordinator {
 
         case .startRecording:
             let gen = stateMachine.generation
+            // Snapshot + clear before the async hop so a subsequent toggle
+            // can't smuggle a stale trigger into this start's telemetry.
+            let trigger = pendingTrigger
+            pendingTrigger = nil
             actionTask = Task { @MainActor in
                 do {
                     try await meetingRecordingService.startRecording()
-                    Telemetry.send(.meetingRecordingStarted)
+                    Telemetry.send(.meetingRecordingStarted(trigger: trigger))
                     self.onRecordingBegan()
                     self.sendEvent(.recordingStarted(generation: gen))
                 } catch {
@@ -195,6 +227,12 @@ final class MeetingRecordingFlowCoordinator {
                         errorType: TelemetryErrorClassifier.classify(error),
                         errorDetail: TelemetryErrorClassifier.errorDetail(error)
                     ))
+                    // If this start was driven by calendar auto-start, tell
+                    // the coordinator so it can drop the binding it set
+                    // optimistically when the countdown completed.
+                    if trigger == .calendarAutoStart {
+                        self.onAutoStartFailed?()
+                    }
                     self.sendEvent(.startFailed(generation: gen, message: error.localizedDescription))
                 }
             }

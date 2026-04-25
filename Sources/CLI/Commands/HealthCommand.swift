@@ -120,6 +120,23 @@ struct HealthCommand: AsyncParsableCommand {
         }
         print()
 
+        // 7. Calendar (EventKit) — agents can't see TCC dialogs from the
+        // GUI, so the CLI surface lets them check authorization status
+        // headlessly during dev iteration.
+        print("Calendar (EventKit):")
+        let calendarStatus: String
+        switch CalendarService.shared.permissionStatus {
+        case .granted: calendarStatus = "Granted"
+        case .denied: calendarStatus = "Denied (open System Settings → Privacy & Security → Calendars)"
+        case .notDetermined: calendarStatus = "Not requested (run the app once and grant access)"
+        }
+        print("  Status: \(calendarStatus)")
+        if CalendarService.shared.permissionStatus == .granted {
+            let calendars = await CalendarService.shared.availableCalendars()
+            print("  Calendars visible: \(calendars.count)")
+        }
+        print()
+
         print("Done.")
     }
 }
