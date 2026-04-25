@@ -1,38 +1,44 @@
 [
   {
+    "name": "Memo-Steered Notes",
+    "content": "You are summarizing a meeting. The user took the notes below during the meeting — treat them as the structure and priorities of the summary. Expand each note with supporting detail from the transcript provided. If the user wrote nothing, infer structure from the transcript and produce a clean meeting-notes view.\n\nUSER NOTES:\n{{userNotes}}\n\nOutput (omit any section that has no real content — don't fabricate to fill structure):\n\n**Key Points** — Each user note expanded with supporting detail from the transcript. Stay close to what the user emphasized; don't dilute their priorities.\n\n**Action Items** — Concrete commitments. Owner and deadline if stated. Only include items the transcript actually supports.\n\n**Decisions** — Anything that was agreed upon, resolved, or settled.\n\n**Open Questions** — Unresolved threads worth a follow-up.\n\nBe direct. Prefer specifics — names, numbers, exact wording — over generalizations. If the transcript is short, keep the output proportionally brief.",
+    "category": "summary",
+    "sortOrder": 0
+  },
+  {
     "name": "Summary",
     "content": "Analyze this transcript and produce a structured summary.\n\nOpen with a single sentence that captures what this is about and why it matters. Then organize the rest under clear headings:\n\n**Key Points** — The 3–7 most important ideas, findings, or arguments. Each should be a complete thought, not a fragment. If speakers are identified, attribute claims to them.\n\n**Decisions & Outcomes** — Anything that was agreed upon, concluded, or resolved. If nothing was decided, omit this section entirely — don't fabricate consensus.\n\n**Open Questions** — Unresolved threads, disagreements, or topics raised but not settled. Only include these if they're genuinely unresolved in the transcript.\n\nBe direct. Prefer specifics over generalizations — names, numbers, and concrete details beat vague summaries. If the transcript is short or straightforward, keep the output proportionally brief. Don't pad.",
     "category": "summary",
-    "sortOrder": 0
+    "sortOrder": 1
   },
   {
     "name": "Action Items & Decisions",
     "content": "Extract every concrete commitment, task, and decision from this transcript.\n\n**Decisions Made**\nList each decision as a single clear statement. Include who made or endorsed it if identifiable. Only list things that were actually decided — not proposals that were merely floated.\n\n**Action Items**\nFor each task or commitment:\n- What needs to happen (specific enough to act on)\n- Who owns it (if stated or clearly implied)\n- When it's due (if any timeline was mentioned — use exact wording as spoken, don't convert or guess)\n\n**Needs Follow-Up**\nAnything flagged as needing attention but with no clear owner or next step yet.\n\nIf the transcript contains no clear actions or decisions, say so plainly — don't invent structure where none exists. Order items by the sequence they appeared.",
     "category": "summary",
-    "sortOrder": 1
+    "sortOrder": 2
   },
   {
     "name": "Chapter Breakdown",
     "content": "Break this transcript into logical chapters or segments.\n\nFor each chapter:\n- **Title** — A concise, descriptive name (not generic labels like \"Discussion 1\" or \"Part 2\")\n- **Summary** — 2–4 sentences capturing what happened in this segment\n- **Notable Moments** — Any standout quotes, turning points, or key data points (attribute to the speaker if identifiable)\n\nChapters should reflect natural topic shifts, not arbitrary time splits. A short transcript might have 2–3 chapters; a long one might have 8–12. Let the content dictate the structure.\n\nIf the transcript is a monologue (lecture, presentation, solo recording), organize by topic or argument progression instead of conversational turns.",
     "category": "summary",
-    "sortOrder": 2
+    "sortOrder": 3
   },
   {
     "name": "Study Guide",
     "content": "Transform this transcript into a learning resource.\n\n**Overview** — One paragraph: what is being taught or discussed, and who would benefit from understanding it.\n\n**Key Concepts** — Each concept gets:\n- A clear, jargon-free explanation\n- An example or analogy from the transcript (quote directly when useful)\n- Why it matters or how it connects to the bigger picture\n\n**Common Misconceptions** — If the speaker corrects misunderstandings, challenges assumptions, or contrasts their view with a popular one, capture those moments. Omit this section if none exist.\n\n**Review Questions** — 3–5 questions to test understanding. Favor questions that require thinking over recall — \"Why does X matter?\" over \"What is X?\"\n\n**Key Terms** — Specialized vocabulary worth remembering, with concise definitions drawn from context.\n\nWrite for someone encountering this material for the first time. Prioritize understanding over completeness.",
     "category": "summary",
-    "sortOrder": 3
+    "sortOrder": 4
   },
   {
     "name": "Blog Post",
     "content": "Rewrite this transcript as a well-crafted blog post that stands entirely on its own — a reader who never heard the original should find it clear, engaging, and complete. Never reference \"the transcript\" or \"the recording.\"\n\n**Title** — Specific and compelling. Not clickbait, not boring.\n\n**Opening** — Hook the reader with the most interesting or surprising point. No throat-clearing or background preamble.\n\n**Body** — Develop the key ideas in a logical flow. Use direct quotes from speakers to add texture and credibility (attribute them by name). Break up dense sections with subheadings.\n\n**Closing** — End with a takeaway, provocation, or call to reflection — not a generic \"In conclusion.\"\n\nWrite in a clear, conversational tone. Vary sentence length. Cut filler. If the original conversation wandered or repeated itself, reorganize for the reader's benefit — the post should be tighter than the transcript, not a 1:1 rewrite.",
     "category": "summary",
-    "sortOrder": 4
+    "sortOrder": 5
   },
   {
     "name": "What Stood Out",
     "content": "Read this transcript closely and surface what's easy to miss. Don't summarize — the reader already knows what was discussed. Instead, focus on:\n\n**Underlying Tensions** — Where did people talk past each other, avoid a topic, or agree too quickly? What wasn't said that probably should have been?\n\n**Surprising Moments** — Anything unexpected: a reversal of position, an offhand remark that revealed more than intended, a data point that contradicts the prevailing narrative.\n\n**Patterns** — Recurring themes, repeated concerns, or ideas that surfaced in different forms across the conversation. What's the through-line the participants themselves might not have named?\n\n**Strongest Claim, Weakest Evidence** — Identify the most confidently stated position that had the least support. Not adversarial — just flagging where the group might be over-indexing on confidence.\n\nBe specific and grounded in the text. Every observation should point to a concrete moment in the transcript. If you're speculating, say so.",
     "category": "summary",
-    "sortOrder": 5
+    "sortOrder": 6
   }
 ]

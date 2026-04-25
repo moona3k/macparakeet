@@ -8,12 +8,14 @@ final class PromptResultsViewModelTests: XCTestCase {
     var llm: MockLLMService!
     var promptRepo: MockPromptRepository!
     var promptResultRepo: MockPromptResultRepository!
+    var transcriptionRepo: MockTranscriptionRepository!
 
     override func setUp() {
         viewModel = PromptResultsViewModel()
         llm = MockLLMService()
         promptRepo = MockPromptRepository()
         promptResultRepo = MockPromptResultRepository()
+        transcriptionRepo = MockTranscriptionRepository()
         promptRepo.prompts = Prompt.builtInPrompts()
     }
 
@@ -24,8 +26,11 @@ final class PromptResultsViewModelTests: XCTestCase {
             promptResultRepo: promptResultRepo
         )
 
-        XCTAssertEqual(viewModel.visiblePrompts.count, 6)
-        XCTAssertEqual(viewModel.selectedPrompt?.name, "Summary")
+        // 7 built-in prompts as of v0.8 (ADR-020 added "Memo-Steered Notes").
+        XCTAssertEqual(viewModel.visiblePrompts.count, 7)
+        // The new "Memo-Steered Notes" prompt is sortOrder=0 and isAutoRun=true,
+        // so it becomes the auto-selected default when no prior selection exists.
+        XCTAssertEqual(viewModel.selectedPrompt?.name, "Memo-Steered Notes")
         XCTAssertTrue(viewModel.canGeneratePromptResult)
         XCTAssertTrue(viewModel.canGenerateManualPromptResult)
     }
@@ -248,5 +253,178 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(queuedIDs.isEmpty)
         XCTAssertTrue(viewModel.pendingGenerations.isEmpty)
         XCTAssertEqual(llm.summarizeCallCount, 0)
+    }
+
+    // MARK: - ADR-020 §4–§6 — userNotes plumbing
+
+    func testGeneratePromptResultSubstitutesUserNotesIntoSystemPrompt() async throws {
+        let transcriptionID = UUID()
+        // Seed the transcription with the user's in-meeting notes so the VM
+        // picks them up via fetchUserNotes(for:).
+        try transcriptionRepo.save(
+            Transcription(
+                id: transcriptionID,
+                fileName: "meeting.m4a",
+                sourceType: .meeting,
+                userNotes: "decision: ship Friday\nQA owns smoke tests"
+            )
+        )
+
+        let memoSteered = Prompt(
+            name: "Memo-Steered Notes",
+            content: "Notes:\n{{userNotes}}\n---\nProduce structured output.",
+            category: .result,
+            isBuiltIn: false,
+            sortOrder: 0
+        )
+        promptRepo.prompts = [memoSteered]
+
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.selectedPrompt = memoSteered
+        llm.streamTokens = ["done"]
+
+        viewModel.generatePromptResult(
+            transcript: "Some transcript",
+            transcriptionId: transcriptionID
+        )
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertEqual(
+            llm.lastSummarySystemPrompt,
+            "Notes:\ndecision: ship Friday\nQA owns smoke tests\n---\nProduce structured output."
+        )
+    }
+
+    func testGeneratePromptResultSnapshotsUserNotesOntoSavedPromptResult() async throws {
+        let transcriptionID = UUID()
+        try transcriptionRepo.save(
+            Transcription(
+                id: transcriptionID,
+                fileName: "meeting.m4a",
+                sourceType: .meeting,
+                userNotes: "snapshot me"
+            )
+        )
+
+        let prompt = Prompt(
+            name: "Memo",
+            content: "{{userNotes}}",
+            category: .result,
+            isBuiltIn: false,
+            sortOrder: 0
+        )
+        promptRepo.prompts = [prompt]
+
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.selectedPrompt = prompt
+        llm.streamTokens = ["ok"]
+
+        viewModel.generatePromptResult(transcript: "transcript", transcriptionId: transcriptionID)
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertEqual(promptResultRepo.saveCalls.first?.userNotesSnapshot, "snapshot me")
+    }
+
+    func testGeneratePromptResultRendersEmptyWhenUserNotesAreNil() async throws {
+        let transcriptionID = UUID()
+        // No userNotes set — non-meeting transcript or untouched notepad.
+        try transcriptionRepo.save(
+            Transcription(id: transcriptionID, fileName: "podcast.m4a")
+        )
+
+        let prompt = Prompt(
+            name: "Memo",
+            content: "Notes: [{{userNotes}}] end",
+            category: .result,
+            isBuiltIn: false,
+            sortOrder: 0
+        )
+        promptRepo.prompts = [prompt]
+
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.selectedPrompt = prompt
+        llm.streamTokens = ["ok"]
+
+        viewModel.generatePromptResult(transcript: "transcript", transcriptionId: transcriptionID)
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertEqual(llm.lastSummarySystemPrompt, "Notes: [] end")
+        XCTAssertNil(promptResultRepo.saveCalls.first?.userNotesSnapshot)
+    }
+
+    func testGeneratePromptResultLeavesNonNotesPromptsUnchangedWhenUserNotesEmpty() async throws {
+        let transcriptionID = UUID()
+        try transcriptionRepo.save(
+            Transcription(id: transcriptionID, fileName: "f.m4a")
+        )
+
+        // A "classic" prompt with no `{{userNotes}}` reference — no regression
+        // on default output for users who took no notes.
+        let classic = Prompt(
+            name: "Classic",
+            content: "Summarize the transcript in 3 bullet points.",
+            category: .result,
+            isBuiltIn: false,
+            sortOrder: 0
+        )
+        promptRepo.prompts = [classic]
+
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            transcriptionRepo: transcriptionRepo
+        )
+        viewModel.selectedPrompt = classic
+        llm.streamTokens = ["ok"]
+
+        viewModel.generatePromptResult(transcript: "transcript", transcriptionId: transcriptionID)
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertEqual(
+            llm.lastSummarySystemPrompt,
+            "Summarize the transcript in 3 bullet points."
+        )
+    }
+
+    func testTruncateNotesForPromptStaysUnderSoftCap() {
+        let shortNotes = "one two three four five"
+        XCTAssertEqual(
+            PromptResultsViewModel.truncateNotesForPrompt(shortNotes),
+            shortNotes,
+            "notes under the cap pass through unmodified"
+        )
+
+        let longNotes = String(repeating: "word ", count: PromptResultsViewModel.userNotesPromptWordCap + 100)
+            .trimmingCharacters(in: .whitespaces)
+        let truncated = PromptResultsViewModel.truncateNotesForPrompt(longNotes)
+        let truncatedWordCount = truncated
+            .split(whereSeparator: \.isWhitespace)
+            .filter { !$0.contains("[") && !$0.contains("words") && !$0.contains("(") }
+            .count
+        XCTAssertLessThanOrEqual(
+            truncatedWordCount,
+            PromptResultsViewModel.userNotesPromptWordCap + 25,
+            "truncated notes must be near the soft cap (allowing for the suffix banner)"
+        )
+        XCTAssertTrue(
+            truncated.contains("Notes truncated to \(PromptResultsViewModel.userNotesPromptWordCap) words"),
+            "truncation must include the explanatory suffix"
+        )
     }
 }

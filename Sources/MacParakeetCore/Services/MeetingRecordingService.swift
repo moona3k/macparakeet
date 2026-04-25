@@ -25,6 +25,12 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     func stopRecording() async throws -> MeetingRecordingOutput
     func completeTranscription(for recording: MeetingRecordingOutput) async
     func cancelRecording() async
+    /// Persist the user's in-flight notepad text to the recording's lock file
+    /// without changing the recording state. Called by the notes view model on
+    /// every idle-debounce fire (ADR-020 §8). All `recording.lock` writes are
+    /// serialized through this actor — no other component touches the file —
+    /// so notes-saves cannot race with state-transition writes.
+    func updateNotes(_ notes: String) async
     var isRecording: Bool { get async }
     var micLevel: Float { get async }
     var systemLevel: Float { get async }
@@ -68,6 +74,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private let lockFileStore: MeetingRecordingLockFileStoring
 
     private var currentSession: Session?
+    /// In-flight notes text for the current session. Mutated by `updateNotes`
+    /// on each VM debounce; read at finalize time and surfaced via
+    /// `MeetingRecordingOutput.userNotes`. `nil` when no notes have been
+    /// typed (which we preserve as `nil` rather than empty so downstream
+    /// `Transcription.userNotes` is `nil` for non-notepad recordings).
+    private var currentNotes: String?
     private var writer: MeetingAudioStorageWriter?
     private var processingTask: Task<Void, Never>?
     private var captureOrchestrator = CaptureOrchestrator()
@@ -294,6 +306,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             throw MeetingAudioError.mixFailed(error.localizedDescription)
         }
 
+        let finalNotes = currentNotes
         try? lockFileStore.write(
             MeetingRecordingLockFile(
                 sessionId: session.id,
@@ -301,6 +314,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 pid: ProcessInfo.processInfo.processIdentifier,
                 displayName: session.displayName,
                 state: .awaitingTranscription,
+                notes: finalNotes,
                 folderURL: session.folderURL
             ),
             folderURL: session.folderURL
@@ -315,7 +329,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             microphoneAudioURL: session.microphoneAudioURL,
             systemAudioURL: session.systemAudioURL,
             durationSeconds: durationSeconds,
-            sourceAlignment: sourceAlignment
+            sourceAlignment: sourceAlignment,
+            userNotes: finalNotes
         )
 
         await liveChunkTranscriber.finishSession()
@@ -329,6 +344,45 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             try lockFileStore.delete(folderURL: recording.folderURL)
         } catch {
             logger.error("meeting_recording_lock_cleanup_failed session=\(recording.sessionID.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    public func updateNotes(_ notes: String) async {
+        guard let session = currentSession else { return }
+
+        // Normalize empty / whitespace-only input back to `nil` so the
+        // persisted lock-file `notes` field is absent rather than empty,
+        // and so downstream `Transcription.userNotes` is `nil` for
+        // recordings where the user typed nothing meaningful.
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized: String? = trimmed.isEmpty ? nil : notes
+        currentNotes = normalized
+
+        do {
+            // Read-modify-write to preserve any state already on disk
+            // (most importantly: the recording state field). If the file
+            // doesn't exist yet (extremely unlikely between startRecording
+            // succeeding and the first debounce), write a fresh recording-
+            // state record carrying the notes.
+            let existing = try lockFileStore.read(folderURL: session.folderURL)
+            let updated: MeetingRecordingLockFile
+            if let existing {
+                updated = existing.withNotes(normalized)
+            } else {
+                updated = MeetingRecordingLockFile(
+                    sessionId: session.id,
+                    startedAt: session.startedAt,
+                    pid: ProcessInfo.processInfo.processIdentifier,
+                    displayName: session.displayName,
+                    notes: normalized,
+                    folderURL: session.folderURL
+                )
+            }
+            try lockFileStore.write(updated, folderURL: session.folderURL)
+        } catch {
+            // Notes persistence is best-effort — losing one debounce write to
+            // an I/O error is preferable to surfacing a UI error mid-meeting.
+            logger.error("meeting_recording_notes_persist_failed session=\(session.id.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -689,6 +743,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func cleanupState() {
         currentSession = nil
+        currentNotes = nil
         micConditioner = SoftwareAECConditioner()
         latestLevels = MeetingAudioLevels()
         sourceCaptureMetrics = [:]

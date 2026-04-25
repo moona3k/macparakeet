@@ -632,6 +632,101 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
         return buffer
     }
+
+    // MARK: - ADR-020 §8 — updateNotes
+
+    func testUpdateNotesPersistsNotesIntoLockFileWithoutChangingState() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        try await service.startRecording()
+        let writeBeforeUpdate = try XCTUnwrap(lockStore.writes.last)
+        XCTAssertEqual(writeBeforeUpdate.file.state, .recording)
+        XCTAssertNil(writeBeforeUpdate.file.notes)
+
+        await service.updateNotes("first jot")
+
+        let writeAfterUpdate = try XCTUnwrap(lockStore.writes.last)
+        XCTAssertEqual(writeAfterUpdate.file.notes, "first jot")
+        // The state must be preserved — that's the load-bearing reason all
+        // lock-file writes route through this single actor (ADR-020 §8).
+        XCTAssertEqual(writeAfterUpdate.file.state, .recording)
+
+        await service.cancelRecording()
+    }
+
+    func testUpdateNotesWithEmptyOrWhitespaceStoresNil() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        try await service.startRecording()
+        await service.updateNotes("typed something")
+        XCTAssertEqual(lockStore.writes.last?.file.notes, "typed something")
+
+        await service.updateNotes("   \n  ")
+        XCTAssertNil(lockStore.writes.last?.file.notes, "whitespace-only notes must normalize to nil")
+
+        await service.updateNotes("")
+        XCTAssertNil(lockStore.writes.last?.file.notes, "empty notes must normalize to nil")
+
+        await service.cancelRecording()
+    }
+
+    func testUpdateNotesIsNoOpWhenNotRecording() async throws {
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: MockMeetingAudioCaptureService(),
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        await service.updateNotes("type without recording")
+
+        XCTAssertTrue(lockStore.writes.isEmpty, "no recording → no lock-file writes")
+    }
+
+    func testStopRecordingCarriesNotesIntoOutput() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        try await service.startRecording()
+        await service.updateNotes("notes from the meeting")
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertEqual(output.userNotes, "notes from the meeting")
+        // Final lock-file write at finalize keeps the notes around so a crash
+        // between finalize and Transcription save still recovers them.
+        XCTAssertEqual(lockStore.writes.last?.file.notes, "notes from the meeting")
+        XCTAssertEqual(lockStore.writes.last?.file.state, .awaitingTranscription)
+
+        await service.completeTranscription(for: output)
+    }
 }
 
 private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {

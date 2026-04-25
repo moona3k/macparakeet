@@ -7,6 +7,12 @@ public enum MeetingRecordingLockState: String, Codable, Sendable, Equatable {
 }
 
 public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
+    /// Schema version is intentionally left at 1 in v0.8 because the `notes`
+    /// field is a backward-compatible additive change (`decodeIfPresent`).
+    /// See ADR-020 §9. Any FUTURE non-additive bump must also relax the
+    /// equality guard in `MeetingRecordingLockFileStore.read()` to `>=`,
+    /// otherwise lock files written by the previous app version would be
+    /// silently discarded during a Sparkle update window.
     public static let currentSchemaVersion = 1
     public static let fileName = "recording.lock"
 
@@ -16,6 +22,12 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
     public let pid: Int32
     public let displayName: String
     public let state: MeetingRecordingLockState
+    /// Free-form notes the user typed during the meeting. Persisted on
+    /// every notepad debounce so a crash recovers what the user had written
+    /// up to the last debounce fire. Decoded independently of the rest of
+    /// the lock file (ADR-020 §9): a malformed `notes` value cannot block
+    /// recovery of the audio metadata.
+    public let notes: String?
     public let folderURL: URL?
 
     private enum CodingKeys: String, CodingKey {
@@ -25,6 +37,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         case pid
         case displayName
         case state
+        case notes
     }
 
     public init(
@@ -34,6 +47,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         pid: Int32 = ProcessInfo.processInfo.processIdentifier,
         displayName: String,
         state: MeetingRecordingLockState = .recording,
+        notes: String? = nil,
         folderURL: URL? = nil
     ) {
         self.schemaVersion = schemaVersion
@@ -42,6 +56,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         self.pid = pid
         self.displayName = displayName
         self.state = state
+        self.notes = notes
         self.folderURL = folderURL
     }
 
@@ -53,6 +68,10 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         pid = try container.decode(Int32.self, forKey: .pid)
         displayName = try container.decode(String.self, forKey: .displayName)
         state = try container.decodeIfPresent(MeetingRecordingLockState.self, forKey: .state) ?? .recording
+        // Notes are decoded independently — see ADR-020 §9. If a future encoder
+        // bug or hand-edited file produces a malformed `notes` value, recovery
+        // of the audio metadata still succeeds; only the typed notes are lost.
+        notes = (try? container.decodeIfPresent(String.self, forKey: .notes)) ?? nil
         folderURL = nil
     }
 
@@ -64,6 +83,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
         try container.encode(pid, forKey: .pid)
         try container.encode(displayName, forKey: .displayName)
         try container.encode(state, forKey: .state)
+        try container.encodeIfPresent(notes, forKey: .notes)
     }
 
     public func withFolderURL(_ folderURL: URL) -> MeetingRecordingLockFile {
@@ -74,6 +94,7 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             pid: pid,
             displayName: displayName,
             state: state,
+            notes: notes,
             folderURL: folderURL
         )
     }
@@ -86,6 +107,20 @@ public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
             pid: pid,
             displayName: displayName,
             state: state,
+            notes: notes,
+            folderURL: folderURL
+        )
+    }
+
+    public func withNotes(_ notes: String?) -> MeetingRecordingLockFile {
+        MeetingRecordingLockFile(
+            schemaVersion: schemaVersion,
+            sessionId: sessionId,
+            startedAt: startedAt,
+            pid: pid,
+            displayName: displayName,
+            state: state,
+            notes: notes,
             folderURL: folderURL
         )
     }

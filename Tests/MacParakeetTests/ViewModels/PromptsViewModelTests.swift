@@ -20,7 +20,8 @@ final class PromptsViewModelTests: XCTestCase {
 
         viewModel.addPrompt()
 
-        XCTAssertEqual(viewModel.prompts.count, 7)
+        // 7 built-ins (v0.8 added Memo-Steered Notes) + 1 custom = 8.
+        XCTAssertEqual(viewModel.prompts.count, 8)
         XCTAssertEqual(viewModel.prompts.last?.name, "Standup Notes")
         XCTAssertFalse(viewModel.prompts.last?.isBuiltIn ?? true)
     }
@@ -31,7 +32,8 @@ final class PromptsViewModelTests: XCTestCase {
 
         viewModel.addPrompt()
 
-        XCTAssertEqual(viewModel.prompts.count, 6)
+        // Rejected; the 7 built-ins remain (no add).
+        XCTAssertEqual(viewModel.prompts.count, 7)
         XCTAssertEqual(viewModel.errorMessage, "'summary' already exists")
     }
 
