@@ -541,10 +541,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     ) async {
         let startedAt = Date()
         Telemetry.send(.meetingRecoveryStarted(count: recoveries.count, source: source))
+        var pendingRecoveries = recoveries
         do {
             var recovered: [Transcription] = []
             for recovery in recoveries {
                 recovered.append(try await env.meetingRecordingRecoveryService.recover(recovery))
+                pendingRecoveries.removeAll { pending in
+                    pending.sessionId == recovery.sessionId
+                        && pending.folderURL?.path == recovery.folderURL?.path
+                }
             }
             Telemetry.send(.meetingRecoveryCompleted(
                 count: recovered.count,
@@ -561,13 +566,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } catch {
             Telemetry.send(.meetingRecoveryFailed(
-                count: recoveries.count,
+                count: pendingRecoveries.count,
                 source: source,
                 errorType: TelemetryErrorClassifier.classify(error),
                 errorDetail: TelemetryErrorClassifier.errorDetail(error)
             ))
             settingsViewModel.refreshPendingMeetingRecoveries()
-            presentMeetingRecoveryError(error, recoveries: recoveries, environment: env, source: source)
+            presentMeetingRecoveryError(error, recoveries: pendingRecoveries, environment: env, source: source)
         }
     }
 

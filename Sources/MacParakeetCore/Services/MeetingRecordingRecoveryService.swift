@@ -74,6 +74,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         if let existing = try existingCompletedTranscription(for: mixedURL) {
             return try completeExistingTranscription(existing, folderURL: folderURL, lock: lock)
         }
+        try deleteIncompleteTranscriptions(for: mixedURL)
 
         var recoveredSources: [(source: AudioSource, url: URL, duration: TimeInterval)] = []
         for (source, url) in [(AudioSource.microphone, microphoneURL), (.system, systemURL)] {
@@ -130,6 +131,12 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     public func discard(_ lock: MeetingRecordingLockFile) async throws {
         guard let folderURL = lock.folderURL else { return }
         if fileManager.fileExists(atPath: folderURL.path) {
+            let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
+            if try existingCompletedTranscription(for: mixedURL) != nil {
+                try lockFileStore.delete(folderURL: folderURL)
+                logger.info("meeting_recovery_discard_cleaned_completed_session session=\(lock.sessionId.uuidString, privacy: .public)")
+                return
+            }
             try fileManager.removeItem(at: folderURL)
         }
     }
@@ -157,10 +164,24 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     }
 
     private func existingCompletedTranscription(for mixedURL: URL) throws -> Transcription? {
-        try transcriptionRepo.fetchAll(limit: nil).first {
+        try existingTranscriptions(for: mixedURL).first {
+            $0.sourceType == .meeting
+                && $0.status == .completed
+        }
+    }
+
+    private func existingTranscriptions(for mixedURL: URL) throws -> [Transcription] {
+        try transcriptionRepo.fetchAll(limit: nil).filter {
             $0.sourceType == .meeting
                 && $0.filePath == mixedURL.path
-                && $0.status == .completed
+        }
+    }
+
+    private func deleteIncompleteTranscriptions(for mixedURL: URL) throws {
+        let incomplete = try existingTranscriptions(for: mixedURL)
+            .filter { $0.status != .completed }
+        for transcription in incomplete {
+            _ = try transcriptionRepo.delete(id: transcription.id)
         }
     }
 

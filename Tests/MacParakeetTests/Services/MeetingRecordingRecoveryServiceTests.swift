@@ -134,6 +134,50 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: fixture.folderURL.path))
     }
 
+    func testDiscardKeepsCompletedTranscriptAudioAndDeletesOnlyLock() async throws {
+        let fixture = try makeRecoverableSession(lockState: .awaitingTranscription)
+        let mixedURL = fixture.folderURL.appendingPathComponent("meeting.m4a")
+        FileManager.default.createFile(atPath: mixedURL.path, contents: Data("mixed".utf8))
+        let existing = Transcription(
+            fileName: fixture.lock.displayName,
+            filePath: mixedURL.path,
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(existing)
+
+        try await recoveryService.discard(fixture.lock)
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: fixture.folderURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mixedURL.path))
+        XCTAssertNil(try lockStore.read(folderURL: fixture.folderURL))
+        XCTAssertNotNil(try transcriptionRepo.fetch(id: existing.id))
+    }
+
+    func testRecoverRetryRemovesPreviousIncompleteRecoveryRow() async throws {
+        let fixture = try makeRecoverableSession()
+        let mixedURL = fixture.folderURL.appendingPathComponent("meeting.m4a")
+        let stale = Transcription(
+            fileName: fixture.lock.displayName,
+            filePath: mixedURL.path,
+            status: .error,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(stale)
+
+        let recovered = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertTrue(recovered.recoveredFromCrash)
+        let rows = try transcriptionRepo.fetchAll(limit: nil).filter {
+            $0.sourceType == .meeting && $0.filePath == mixedURL.path
+        }
+        XCTAssertEqual(rows.count, 1)
+        XCTAssertEqual(rows.first?.id, recovered.id)
+        XCTAssertNotEqual(rows.first?.id, stale.id)
+        XCTAssertEqual(rows.first?.status, .completed)
+        XCTAssertTrue(rows.first?.recoveredFromCrash == true)
+    }
+
     private enum SourceFixture {
         case valid
         case corrupt
@@ -315,7 +359,13 @@ private final class RecordingTranscriptionRepository: TranscriptionRepositoryPro
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription? { nil }
     func count() throws -> Int { lock.withLock { saved.count } }
     func search(query: String, limit: Int?) throws -> [Transcription] { [] }
-    func delete(id: UUID) throws -> Bool { false }
+    func delete(id: UUID) throws -> Bool {
+        lock.withLock {
+            let originalCount = saved.count
+            saved.removeAll { $0.id == id }
+            return saved.count != originalCount
+        }
+    }
     func deleteAll() throws {}
     func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws {}
     func updateFileName(id: UUID, fileName: String) throws {}
