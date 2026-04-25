@@ -129,6 +129,21 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertFalse(text.contains("[0:00]"))
     }
 
+    func testFormatPlainTextWithoutTimestampsJoinsSameSpeakerCues() {
+        let transcription = makeMultiCueSpeakerTranscription()
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: true,
+            includeMetadata: false
+        )
+
+        let text = exportService.formatPlainText(transcription: transcription, options: options)
+
+        XCTAssertTrue(text.contains("Alice:\nFirst cue. Second cue."))
+        XCTAssertFalse(text.contains("First cue.\nSecond cue."))
+        XCTAssertFalse(text.contains("[0:00]"))
+    }
+
     func testFormatMarkdownCanOmitMetadataTimestampsAndSpeakers() {
         let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
         let options = TranscriptExportOptions(
@@ -143,6 +158,21 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertFalse(markdown.contains("# interview.mp3"))
         XCTAssertFalse(markdown.contains("**Duration:**"))
         XCTAssertFalse(markdown.contains("**Alice**"))
+        XCTAssertFalse(markdown.contains("**[0:00]**"))
+    }
+
+    func testFormatMarkdownWithoutTimestampsJoinsSameSpeakerCues() {
+        let transcription = makeMultiCueSpeakerTranscription()
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: true,
+            includeMetadata: false
+        )
+
+        let markdown = exportService.formatMarkdown(transcription: transcription, options: options)
+
+        XCTAssertTrue(markdown.contains("**Alice**\n\nFirst cue. Second cue."))
+        XCTAssertFalse(markdown.contains("First cue.\n\nSecond cue."))
         XCTAssertFalse(markdown.contains("**[0:00]**"))
     }
 
@@ -732,6 +762,27 @@ final class ExportServiceTests: XCTestCase {
             wordTimestamps: [
                 WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
                 WordTimestamp(word: "Goodbye.", startMs: 2000, endMs: 2500, confidence: 0.97, speakerId: "S2"),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed
+        )
+    }
+
+    private func makeMultiCueSpeakerTranscription() -> Transcription {
+        Transcription(
+            fileName: "interview.mp3",
+            durationMs: 8000,
+            rawTranscript: "First cue. Second cue. Bob answers.",
+            wordTimestamps: [
+                WordTimestamp(word: "First", startMs: 0, endMs: 300, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "cue.", startMs: 350, endMs: 700, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Second", startMs: 3000, endMs: 3300, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "cue.", startMs: 3350, endMs: 3700, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Bob", startMs: 6000, endMs: 6300, confidence: 0.99, speakerId: "S2"),
+                WordTimestamp(word: "answers.", startMs: 6350, endMs: 6800, confidence: 0.99, speakerId: "S2"),
             ],
             speakers: [
                 SpeakerInfo(id: "S1", label: "Alice"),

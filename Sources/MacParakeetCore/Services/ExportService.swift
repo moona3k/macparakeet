@@ -264,23 +264,30 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(from: timestamps)
             if options.includeTimestamps || options.includeSpeakerLabels {
-                var lastSpeakerId: String? = nil
-                for cue in cues {
-                    if options.includeSpeakerLabels,
-                       let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
-                       cue.speakerId != lastSpeakerId {
-                        lines.append("**\(label)**")
-                        lines.append("")
-                    }
-                    lastSpeakerId = cue.speakerId
+                if options.includeTimestamps {
+                    var lastSpeakerId: String? = nil
+                    for cue in cues {
+                        if options.includeSpeakerLabels,
+                           let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
+                           cue.speakerId != lastSpeakerId {
+                            lines.append("**\(label)**")
+                            lines.append("")
+                        }
+                        lastSpeakerId = cue.speakerId
 
-                    if options.includeTimestamps {
                         let ts = formatReadableTimestamp(ms: cue.startMs)
                         lines.append("**[\(ts)]** \(cue.text)")
-                    } else {
-                        lines.append(cue.text)
+                        lines.append("")
                     }
-                    lines.append("")
+                } else {
+                    for paragraph in speakerParagraphs(from: cues, speakers: transcription.speakers) {
+                        if let label = paragraph.label {
+                            lines.append("**\(label)**")
+                            lines.append("")
+                        }
+                        lines.append(paragraph.text)
+                        lines.append("")
+                    }
                 }
             } else {
                 let text = preferredText(transcription: transcription)
@@ -423,22 +430,30 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(from: timestamps)
             if options.includeTimestamps || options.includeSpeakerLabels {
-                var lastSpeakerId: String? = nil
-                for cue in cues {
-                    if options.includeSpeakerLabels,
-                       let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
-                       cue.speakerId != lastSpeakerId {
-                        if !lines.isEmpty, lines.last != "" {
-                            lines.append("")
+                if options.includeTimestamps {
+                    var lastSpeakerId: String? = nil
+                    for cue in cues {
+                        if options.includeSpeakerLabels,
+                           let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
+                           cue.speakerId != lastSpeakerId {
+                            if !lines.isEmpty, lines.last != "" {
+                                lines.append("")
+                            }
+                            lines.append("\(label):")
                         }
-                        lines.append("\(label):")
-                    }
-                    lastSpeakerId = cue.speakerId
+                        lastSpeakerId = cue.speakerId
 
-                    if options.includeTimestamps {
                         lines.append("[\(formatReadableTimestamp(ms: cue.startMs))] \(cue.text)")
-                    } else {
-                        lines.append(cue.text)
+                    }
+                } else {
+                    for paragraph in speakerParagraphs(from: cues, speakers: transcription.speakers) {
+                        if let label = paragraph.label {
+                            if !lines.isEmpty, lines.last != "" {
+                                lines.append("")
+                            }
+                            lines.append("\(label):")
+                        }
+                        lines.append(paragraph.text)
                     }
                 }
             } else {
@@ -453,6 +468,30 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private struct SpeakerParagraph {
+        var speakerId: String?
+        var label: String?
+        var text: String
+    }
+
+    private func speakerParagraphs(from cues: [SubtitleCue], speakers: [SpeakerInfo]?) -> [SpeakerParagraph] {
+        var paragraphs: [SpeakerParagraph] = []
+        for cue in cues {
+            let label = speakerLabel(for: cue.speakerId, in: speakers)
+            if let last = paragraphs.indices.last,
+               paragraphs[last].speakerId == cue.speakerId {
+                paragraphs[last].text += " \(cue.text)"
+            } else {
+                paragraphs.append(SpeakerParagraph(
+                    speakerId: cue.speakerId,
+                    label: label,
+                    text: cue.text
+                ))
+            }
+        }
+        return paragraphs
     }
 
     // MARK: - Rich Text (AppKit)
