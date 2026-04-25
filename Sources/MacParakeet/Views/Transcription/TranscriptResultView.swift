@@ -38,6 +38,9 @@ struct TranscriptResultView: View {
     @State private var hoveredMessageId: UUID?
     @State private var exportConfirmation: ExportConfirmation?
     @State private var exportErrorMessage: String?
+    @State private var showingExportOptions = false
+    @State private var selectedExportFormat: TranscriptExportFormat = .txt
+    @State private var transcriptExportOptions = TranscriptExportOptions.default
     @State private var copiedResetTask: Task<Void, Never>?
     @State private var resultCopiedResetTask: Task<Void, Never>?
     @State private var resultButtonCopiedResetTask: Task<Void, Never>?
@@ -374,44 +377,14 @@ struct TranscriptResultView: View {
             }
             .buttonStyle(.bordered)
 
-            Menu {
-                Section("Document") {
-                    Button { exportToDownloads(format: .txt) } label: {
-                        Label("Plain Text (.txt)", systemImage: "doc.text")
-                    }
-                    Button { exportToDownloads(format: .md) } label: {
-                        Label("Markdown (.md)", systemImage: "text.document")
-                    }
-                    Button { exportToDownloads(format: .docx) } label: {
-                        Label("Word Document (.docx)", systemImage: "doc.richtext")
-                    }
-                    Button { exportToDownloads(format: .pdf) } label: {
-                        Label("PDF Document (.pdf)", systemImage: "doc.viewfinder")
-                    }
-                }
-
-                Section("Data") {
-                    Button { exportToDownloads(format: .json) } label: {
-                        Label("Raw Data (.json)", systemImage: "curlybraces")
-                    }
-                }
-
-                if hasTimestamps {
-                    Section("Subtitles") {
-                        Button { exportToDownloads(format: .srt) } label: {
-                            Label("SRT (.srt)", systemImage: "captions.bubble")
-                        }
-                        Button { exportToDownloads(format: .vtt) } label: {
-                            Label("WebVTT (.vtt)", systemImage: "captions.bubble.fill")
-                        }
-                    }
-                }
+            Button {
+                showingExportOptions.toggle()
             } label: {
                 Label("Export", systemImage: "arrow.down.doc")
             }
-            .menuStyle(.borderedButton)
-            .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
-                exportConfirmationPopover(confirmation)
+            .buttonStyle(.bordered)
+            .popover(isPresented: $showingExportOptions, arrowEdge: .top) {
+                exportOptionsPopover
             }
 
             if let onRetranscribe, let filePath = transcription.filePath,
@@ -445,6 +418,9 @@ struct TranscriptResultView: View {
             Spacer()
         }
         .padding(DesignSystem.Spacing.md)
+        .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
+            exportConfirmationPopover(confirmation)
+        }
     }
 
     private var activeTranscription: Transcription {
@@ -2226,6 +2202,126 @@ struct TranscriptResultView: View {
         return !words.isEmpty
     }
 
+    private var hasSpeakerLabelsForExport: Bool {
+        guard let speakers = activeTranscription.speakers, !speakers.isEmpty,
+              let words = activeTranscription.wordTimestamps else { return false }
+        return words.contains { $0.speakerId != nil }
+    }
+
+    private var resolvedTranscriptExportOptions: TranscriptExportOptions {
+        var options = transcriptExportOptions
+        if !hasTimestamps {
+            options.includeTimestamps = false
+        }
+        if !hasSpeakerLabelsForExport {
+            options.includeSpeakerLabels = false
+        }
+        return options
+    }
+
+    private var exportFormatOrder: [TranscriptExportFormat] {
+        [.txt, .md, .srt, .vtt, .json, .pdf, .docx]
+    }
+
+    private var exportOptionsPopover: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Label("Export Transcript", systemImage: "arrow.down.doc")
+                    .font(DesignSystem.Typography.body.bold())
+
+                Spacer()
+
+                Button {
+                    showingExportOptions = false
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close export options")
+            }
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                Text("Format")
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 104), spacing: 8)],
+                    alignment: .leading,
+                    spacing: 8
+                ) {
+                    ForEach(exportFormatOrder) { format in
+                        Button {
+                            selectedExportFormat = format
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: format.iconName)
+                                    .frame(width: 16)
+                                Text(format.shortName)
+                                    .lineLimit(1)
+                                    .minimumScaleFactor(0.85)
+                                Spacer(minLength: 0)
+                            }
+                            .font(DesignSystem.Typography.caption)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 7)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(selectedExportFormat == format
+                                          ? DesignSystem.Colors.accent.opacity(0.14)
+                                          : DesignSystem.Colors.surface)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .strokeBorder(
+                                        selectedExportFormat == format
+                                        ? DesignSystem.Colors.accent.opacity(0.7)
+                                        : DesignSystem.Colors.border.opacity(0.7),
+                                        lineWidth: 1
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                Text("Options")
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                Toggle("Include timestamps", isOn: $transcriptExportOptions.includeTimestamps)
+                    .disabled(!selectedExportFormat.supportsTranscriptOptions || !hasTimestamps)
+
+                Toggle("Include speaker labels", isOn: $transcriptExportOptions.includeSpeakerLabels)
+                    .disabled(!selectedExportFormat.supportsTranscriptOptions || !hasSpeakerLabelsForExport)
+
+                Toggle("Include metadata", isOn: $transcriptExportOptions.includeMetadata)
+                    .disabled(!selectedExportFormat.supportsTranscriptOptions)
+            }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button {
+                    showingExportOptions = false
+                    exportToDownloads(format: selectedExportFormat)
+                } label: {
+                    Label("Export", systemImage: "arrow.down.doc")
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(width: 380)
+    }
+
     // MARK: - Export Confirmation Popover
 
     @ViewBuilder
@@ -2308,7 +2404,8 @@ struct TranscriptResultView: View {
         do {
             let fileURL = try TranscriptResultActions.exportTranscriptToDownloads(
                 transcription: source,
-                format: format
+                format: format,
+                options: format.supportsTranscriptOptions ? resolvedTranscriptExportOptions : .default
             )
             exportErrorMessage = nil
             SoundManager.shared.play(.transcriptionComplete)

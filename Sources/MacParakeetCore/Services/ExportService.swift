@@ -16,6 +16,24 @@ public protocol ExportServiceProtocol: Sendable {
     func formatForClipboard(transcription: Transcription) -> String
 }
 
+public struct TranscriptExportOptions: Sendable, Equatable {
+    public var includeTimestamps: Bool
+    public var includeSpeakerLabels: Bool
+    public var includeMetadata: Bool
+
+    public init(
+        includeTimestamps: Bool = true,
+        includeSpeakerLabels: Bool = true,
+        includeMetadata: Bool = true
+    ) {
+        self.includeTimestamps = includeTimestamps
+        self.includeSpeakerLabels = includeSpeakerLabels
+        self.includeMetadata = includeMetadata
+    }
+
+    public static let `default` = TranscriptExportOptions()
+}
+
 /// Handles exporting transcriptions to files and clipboard.
 /// @MainActor because PDF/DOCX paths use NSTextStorage/NSLayoutManager (AppKit, not thread-safe).
 @MainActor
@@ -28,7 +46,15 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Export transcription as plain text file
     public func exportToTxt(transcription: Transcription, url: URL) throws {
-        let content = formatPlainText(transcription: transcription)
+        try exportToTxt(transcription: transcription, url: url, options: .default)
+    }
+
+    public func exportToTxt(
+        transcription: Transcription,
+        url: URL,
+        options: TranscriptExportOptions
+    ) throws {
+        let content = formatPlainText(transcription: transcription, options: options)
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
@@ -187,55 +213,78 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Export transcription as Markdown file
     public func exportToMarkdown(transcription: Transcription, url: URL) throws {
-        let content = formatMarkdown(transcription: transcription)
+        try exportToMarkdown(transcription: transcription, url: url, options: .default)
+    }
+
+    public func exportToMarkdown(
+        transcription: Transcription,
+        url: URL,
+        options: TranscriptExportOptions
+    ) throws {
+        let content = formatMarkdown(transcription: transcription, options: options)
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
     /// Format transcription as Markdown string
     public func formatMarkdown(transcription: Transcription) -> String {
+        formatMarkdown(transcription: transcription, options: .default)
+    }
+
+    public func formatMarkdown(transcription: Transcription, options: TranscriptExportOptions) -> String {
         var lines: [String] = []
 
-        // Title
-        lines.append("# \(transcription.fileName)")
-        lines.append("")
+        if options.includeMetadata {
+            lines.append("# \(transcription.fileName)")
+            lines.append("")
 
-        // Metadata table
-        var meta: [String] = []
-        if let durationMs = transcription.durationMs {
-            meta.append("**Duration:** \(durationMs.formattedDuration)")
-        }
-        if let sourceURL = transcription.sourceURL {
-            meta.append("**Source:** [\(sourceURL)](\(sourceURL))")
-        }
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        meta.append("**Transcribed:** \(formatter.string(from: transcription.createdAt))")
-        if let language = transcription.language {
-            meta.append("**Language:** \(language)")
-        }
+            var meta: [String] = []
+            if let durationMs = transcription.durationMs {
+                meta.append("**Duration:** \(durationMs.formattedDuration)")
+            }
+            if let sourceURL = transcription.sourceURL {
+                meta.append("**Source:** [\(sourceURL)](\(sourceURL))")
+            }
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            formatter.timeStyle = .short
+            meta.append("**Transcribed:** \(formatter.string(from: transcription.createdAt))")
+            if let language = transcription.language {
+                meta.append("**Language:** \(language)")
+            }
 
-        if !meta.isEmpty {
-            lines.append(contentsOf: meta)
+            if !meta.isEmpty {
+                lines.append(contentsOf: meta)
+                lines.append("")
+            }
+
+            lines.append("---")
             lines.append("")
         }
 
-        lines.append("---")
-        lines.append("")
-
-        // Transcript body
         if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(from: timestamps)
-            var lastSpeakerId: String? = nil
-            for cue in cues {
-                let ts = formatReadableTimestamp(ms: cue.startMs)
-                if let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
-                   cue.speakerId != lastSpeakerId {
-                    lines.append("**\(label)**")
+            if options.includeTimestamps || options.includeSpeakerLabels {
+                var lastSpeakerId: String? = nil
+                for cue in cues {
+                    if options.includeSpeakerLabels,
+                       let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
+                       cue.speakerId != lastSpeakerId {
+                        lines.append("**\(label)**")
+                        lines.append("")
+                    }
+                    lastSpeakerId = cue.speakerId
+
+                    if options.includeTimestamps {
+                        let ts = formatReadableTimestamp(ms: cue.startMs)
+                        lines.append("**[\(ts)]** \(cue.text)")
+                    } else {
+                        lines.append(cue.text)
+                    }
                     lines.append("")
                 }
-                lastSpeakerId = cue.speakerId
-                lines.append("**[\(ts)]** \(cue.text)")
+            } else {
+                let text = preferredText(transcription: transcription)
+                lines.append(text.isEmpty ? cues.map(\.text).joined(separator: " ") : text)
                 lines.append("")
             }
         } else {
@@ -360,28 +409,41 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     // MARK: - Plain Text
 
-    private func formatPlainText(transcription: Transcription) -> String {
+    public func formatPlainText(transcription: Transcription, options: TranscriptExportOptions = .default) -> String {
         var lines: [String] = []
 
-        // Header
-        lines.append(transcription.fileName)
-        if let durationMs = transcription.durationMs {
-            lines.append("Duration: \(durationMs.formattedDuration)")
+        if options.includeMetadata {
+            lines.append(transcription.fileName)
+            if let durationMs = transcription.durationMs {
+                lines.append("Duration: \(durationMs.formattedDuration)")
+            }
+            lines.append("")
         }
-        lines.append("")
 
-        // Transcript with timestamps and speaker labels at turn changes
         if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(from: timestamps)
-            var lastSpeakerId: String? = nil
-            for cue in cues {
-                if let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
-                   cue.speakerId != lastSpeakerId {
-                    lines.append("")
-                    lines.append("\(label):")
+            if options.includeTimestamps || options.includeSpeakerLabels {
+                var lastSpeakerId: String? = nil
+                for cue in cues {
+                    if options.includeSpeakerLabels,
+                       let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
+                       cue.speakerId != lastSpeakerId {
+                        if !lines.isEmpty, lines.last != "" {
+                            lines.append("")
+                        }
+                        lines.append("\(label):")
+                    }
+                    lastSpeakerId = cue.speakerId
+
+                    if options.includeTimestamps {
+                        lines.append("[\(formatReadableTimestamp(ms: cue.startMs))] \(cue.text)")
+                    } else {
+                        lines.append(cue.text)
+                    }
                 }
-                lastSpeakerId = cue.speakerId
-                lines.append(cue.text)
+            } else {
+                let text = preferredText(transcription: transcription)
+                lines.append(text.isEmpty ? cues.map(\.text).joined(separator: " ") : text)
             }
         } else {
             let text = preferredText(transcription: transcription)

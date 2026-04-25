@@ -83,6 +83,87 @@ final class ExportServiceTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempURL)
     }
 
+    func testFormatPlainTextDefaultIncludesMetadataTimestampsAndSpeakers() {
+        let transcription = makeExportOptionsTranscription()
+
+        let text = exportService.formatPlainText(transcription: transcription)
+
+        XCTAssertTrue(text.contains("interview.mp3"))
+        XCTAssertTrue(text.contains("Duration: 0:05"))
+        XCTAssertTrue(text.contains("Alice:"))
+        XCTAssertTrue(text.contains("Bob:"))
+        XCTAssertTrue(text.contains("[0:00] Hello."))
+        XCTAssertTrue(text.contains("[0:02] Goodbye."))
+    }
+
+    func testFormatPlainTextCanOmitMetadataTimestampsAndSpeakers() {
+        let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: false,
+            includeMetadata: false
+        )
+
+        let text = exportService.formatPlainText(transcription: transcription, options: options)
+
+        XCTAssertEqual(text, "Edited transcript without timing.")
+        XCTAssertFalse(text.contains("interview.mp3"))
+        XCTAssertFalse(text.contains("Duration:"))
+        XCTAssertFalse(text.contains("Alice:"))
+        XCTAssertFalse(text.contains("[0:00]"))
+    }
+
+    func testFormatPlainTextCanKeepSpeakersWithoutTimestamps() {
+        let transcription = makeExportOptionsTranscription()
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: true,
+            includeMetadata: false
+        )
+
+        let text = exportService.formatPlainText(transcription: transcription, options: options)
+
+        XCTAssertTrue(text.contains("Alice:"))
+        XCTAssertTrue(text.contains("Bob:"))
+        XCTAssertTrue(text.contains("Hello."))
+        XCTAssertFalse(text.contains("[0:00]"))
+    }
+
+    func testFormatMarkdownCanOmitMetadataTimestampsAndSpeakers() {
+        let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: false,
+            includeMetadata: false
+        )
+
+        let markdown = exportService.formatMarkdown(transcription: transcription, options: options)
+
+        XCTAssertEqual(markdown.trimmingCharacters(in: .whitespacesAndNewlines), "Edited transcript without timing.")
+        XCTAssertFalse(markdown.contains("# interview.mp3"))
+        XCTAssertFalse(markdown.contains("**Duration:**"))
+        XCTAssertFalse(markdown.contains("**Alice**"))
+        XCTAssertFalse(markdown.contains("**[0:00]**"))
+    }
+
+    func testExportToMarkdownUsesOptions() throws {
+        let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: false,
+            includeMetadata: false
+        )
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_options_\(UUID().uuidString).md")
+
+        try exportService.exportToMarkdown(transcription: transcription, url: tempURL, options: options)
+        let content = try String(contentsOf: tempURL, encoding: .utf8)
+
+        XCTAssertEqual(content.trimmingCharacters(in: .whitespacesAndNewlines), "Edited transcript without timing.")
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
     // MARK: - SRT Timestamp Formatting
 
     func testSRTTimestampFormatting() {
@@ -640,5 +721,23 @@ final class ExportServiceTests: XCTestCase {
         // Should still use word timestamps path (no speaker labels)
         XCTAssertTrue(content.contains("Hello world."))
         XCTAssertFalse(content.contains("Speaker"))
+    }
+
+    private func makeExportOptionsTranscription(cleanTranscript: String? = nil) -> Transcription {
+        Transcription(
+            fileName: "interview.mp3",
+            durationMs: 5000,
+            rawTranscript: "Hello. Goodbye.",
+            cleanTranscript: cleanTranscript,
+            wordTimestamps: [
+                WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Goodbye.", startMs: 2000, endMs: 2500, confidence: 0.97, speakerId: "S2"),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed
+        )
     }
 }
