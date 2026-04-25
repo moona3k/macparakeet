@@ -432,6 +432,13 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.7.7 - Distinguish user-edited transcript text from automatic cleanup.
+        migrator.registerMigration("v0.7.7-transcript-edited-flag") { db in
+            try db.alter(table: "transcriptions") { t in
+                t.add(column: "isTranscriptEdited", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
     }

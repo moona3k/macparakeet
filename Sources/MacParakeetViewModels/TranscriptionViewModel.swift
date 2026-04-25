@@ -575,6 +575,7 @@ public final class TranscriptionViewModel {
         guard trimmed != currentText else { return false }
 
         transcription.cleanTranscript = trimmed == transcription.rawTranscript ? nil : trimmed
+        transcription.isTranscriptEdited = transcription.cleanTranscript != nil
         transcription.updatedAt = Date()
 
         do {
@@ -601,6 +602,7 @@ public final class TranscriptionViewModel {
         }
 
         transcription.cleanTranscript = nil
+        transcription.isTranscriptEdited = false
         transcription.updatedAt = Date()
 
         do {

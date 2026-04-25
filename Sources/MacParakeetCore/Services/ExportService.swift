@@ -44,6 +44,16 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
     }
 
+    private func editedTranscriptText(transcription: Transcription) -> String? {
+        guard transcription.isTranscriptEdited,
+              let text = transcription.cleanTranscript?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty
+        else {
+            return nil
+        }
+        return text
+    }
+
     /// Export transcription as plain text file
     public func exportToTxt(transcription: Transcription, url: URL) throws {
         try exportToTxt(transcription: transcription, url: url, options: .default)
@@ -60,6 +70,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Export transcription as SRT subtitle file
     public func exportToSRT(transcription: Transcription, url: URL) throws {
+        if let text = editedTranscriptText(transcription: transcription) {
+            let duration = transcription.durationMs ?? 0
+            let content = "1\n00:00:00,000 --> \(srtTimestamp(ms: duration))\n\(text)\n"
+            try content.write(to: url, atomically: true, encoding: .utf8)
+            return
+        }
+
         guard let words = transcription.wordTimestamps, !words.isEmpty else {
             // Fall back to full transcript as a single cue
             let text = preferredText(transcription: transcription)
@@ -74,6 +91,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Export transcription as WebVTT subtitle file
     public func exportToVTT(transcription: Transcription, url: URL) throws {
+        if let text = editedTranscriptText(transcription: transcription) {
+            let duration = transcription.durationMs ?? 0
+            let content = "WEBVTT\n\n\(vttTimestamp(ms: 0)) --> \(vttTimestamp(ms: duration))\n\(text)\n"
+            try content.write(to: url, atomically: true, encoding: .utf8)
+            return
+        }
+
         guard let words = transcription.wordTimestamps, !words.isEmpty else {
             let text = preferredText(transcription: transcription)
             let duration = transcription.durationMs ?? 0
@@ -261,7 +285,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             lines.append("")
         }
 
-        if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
+        if let text = editedTranscriptText(transcription: transcription) {
+            lines.append(text)
+            lines.append("")
+        } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(from: timestamps)
             if options.includeTimestamps || options.includeSpeakerLabels {
                 if options.includeTimestamps {
@@ -427,7 +454,9 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             lines.append("")
         }
 
-        if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
+        if let text = editedTranscriptText(transcription: transcription) {
+            lines.append(text)
+        } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(from: timestamps)
             if options.includeTimestamps || options.includeSpeakerLabels {
                 if options.includeTimestamps {
@@ -529,7 +558,9 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         result.append(NSAttributedString(string: "----------------------------------------------------------\n\n", attributes: [.foregroundColor: NSColor.tertiaryLabelColor]))
 
         // Content
-        if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
+        if let text = editedTranscriptText(transcription: transcription) {
+            result.append(NSAttributedString(string: text, attributes: [.font: bodyFont]))
+        } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(from: timestamps)
             var lastSpeakerId: String? = nil
             for cue in cues {

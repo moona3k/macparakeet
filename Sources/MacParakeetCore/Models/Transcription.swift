@@ -32,6 +32,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var isFavorite: Bool
     public var sourceType: SourceType
     public var recoveredFromCrash: Bool
+    public var isTranscriptEdited: Bool
     public var updatedAt: Date
 
     public enum TranscriptionStatus: String, Codable, Sendable {
@@ -66,6 +67,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         isFavorite: Bool = false,
         sourceType: SourceType = .file,
         recoveredFromCrash: Bool = false,
+        isTranscriptEdited: Bool = false,
         updatedAt: Date = Date()
     ) {
         self.id = id
@@ -92,6 +94,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.isFavorite = isFavorite
         self.sourceType = sourceType
         self.recoveredFromCrash = recoveredFromCrash
+        self.isTranscriptEdited = isTranscriptEdited
         self.updatedAt = updatedAt
     }
 }
@@ -142,7 +145,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         case rawTranscript, cleanTranscript, wordTimestamps, language
         case speakerCount, speakers, diarizationSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
-        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, updatedAt
+        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, updatedAt
     }
 
     /// Backward-compatible decoding: `speakers` column may contain old `[String]` JSON
@@ -190,6 +193,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
             sourceType = .file
         }
         recoveredFromCrash = try container.decodeIfPresent(Bool.self, forKey: .recoveredFromCrash) ?? false
+        isTranscriptEdited = try container.decodeIfPresent(Bool.self, forKey: .isTranscriptEdited) ?? false
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }

@@ -650,9 +650,11 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(saved)
         XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Original transcript")
         XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Corrected transcript")
+        XCTAssertEqual(viewModel.currentTranscription?.isTranscriptEdited, true)
         let persisted = try XCTUnwrap(mockRepo.fetch(id: t.id))
         XCTAssertEqual(persisted.rawTranscript, "Original transcript")
         XCTAssertEqual(persisted.cleanTranscript, "Corrected transcript")
+        XCTAssertTrue(persisted.isTranscriptEdited)
     }
 
     func testUpdateCurrentTranscriptTextRejectsEmptyText() {
@@ -699,7 +701,8 @@ final class TranscriptionViewModelTests: XCTestCase {
             fileName: "test.mp3",
             rawTranscript: "Original transcript",
             cleanTranscript: "Corrected transcript",
-            status: .completed
+            status: .completed,
+            isTranscriptEdited: true
         )
         mockRepo.transcriptions = [t]
 
@@ -710,8 +713,10 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         XCTAssertTrue(reverted)
         XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
+        XCTAssertEqual(viewModel.currentTranscription?.isTranscriptEdited, false)
         let persisted = try XCTUnwrap(mockRepo.fetch(id: t.id))
         XCTAssertNil(persisted.cleanTranscript)
+        XCTAssertFalse(persisted.isTranscriptEdited)
     }
 
     func testRevertCurrentTranscriptToOriginalKeepsStateWhenSaveFails() {
@@ -719,7 +724,8 @@ final class TranscriptionViewModelTests: XCTestCase {
             fileName: "test.mp3",
             rawTranscript: "Original transcript",
             cleanTranscript: "Corrected transcript",
-            status: .completed
+            status: .completed,
+            isTranscriptEdited: true
         )
         mockRepo.transcriptions = [t]
         mockRepo.saveError = NSError(domain: "repo", code: 1)
@@ -731,6 +737,7 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         XCTAssertFalse(reverted)
         XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Corrected transcript")
+        XCTAssertEqual(viewModel.currentTranscription?.isTranscriptEdited, true)
     }
 
     func testRevertCurrentTranscriptToOriginalFailsWithoutConfiguredRepository() {
@@ -738,7 +745,8 @@ final class TranscriptionViewModelTests: XCTestCase {
             fileName: "test.mp3",
             rawTranscript: "Original transcript",
             cleanTranscript: "Corrected transcript",
-            status: .completed
+            status: .completed,
+            isTranscriptEdited: true
         )
         viewModel.currentTranscription = t
 
@@ -746,6 +754,7 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         XCTAssertFalse(reverted)
         XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Corrected transcript")
+        XCTAssertEqual(viewModel.currentTranscription?.isTranscriptEdited, true)
     }
 
     // MARK: - Speaker Rename

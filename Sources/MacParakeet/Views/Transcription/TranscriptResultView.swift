@@ -2210,7 +2210,18 @@ struct TranscriptResultView: View {
         return !words.isEmpty
     }
 
+    private var hasEditedTranscriptForExport: Bool {
+        guard activeTranscription.isTranscriptEdited else { return false }
+        guard let cleanTranscript = activeTranscription.cleanTranscript else { return false }
+        return !cleanTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasAlignedTimestampsForExport: Bool {
+        hasTimestamps && !hasEditedTranscriptForExport
+    }
+
     private var hasSpeakerLabelsForExport: Bool {
+        guard !hasEditedTranscriptForExport else { return false }
         guard let speakers = activeTranscription.speakers, !speakers.isEmpty,
               let words = activeTranscription.wordTimestamps else { return false }
         return words.contains { $0.speakerId != nil }
@@ -2218,7 +2229,7 @@ struct TranscriptResultView: View {
 
     private var resolvedTranscriptExportOptions: TranscriptExportOptions {
         var options = transcriptExportOptions
-        if !hasTimestamps {
+        if !hasAlignedTimestampsForExport {
             options.includeTimestamps = false
         }
         if !hasSpeakerLabelsForExport {
@@ -2303,7 +2314,7 @@ struct TranscriptResultView: View {
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
 
                 Toggle("Include timestamps", isOn: $transcriptExportOptions.includeTimestamps)
-                    .disabled(!selectedExportFormat.supportsTranscriptOptions || !hasTimestamps)
+                    .disabled(!selectedExportFormat.supportsTranscriptOptions || !hasAlignedTimestampsForExport)
 
                 Toggle("Include speaker labels", isOn: $transcriptExportOptions.includeSpeakerLabels)
                     .disabled(!selectedExportFormat.supportsTranscriptOptions || !hasSpeakerLabelsForExport)
