@@ -134,8 +134,12 @@ public final class TranscriptChatViewModel {
     public func sendMessage(richPrompt: String? = nil) {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isStreaming, let llmService else { return }
-        let trimmedRich = richPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let llmQuestion = (trimmedRich?.isEmpty == false) ? trimmedRich! : text
+        let llmQuestion: String
+        if let rich = richPrompt?.trimmingCharacters(in: .whitespacesAndNewlines), !rich.isEmpty {
+            llmQuestion = rich
+        } else {
+            llmQuestion = text
+        }
 
         // Live in-memory mode: no transcriptionId + no conversationRepo means we are
         // chatting against a not-yet-finalized transcript (e.g. an in-flight meeting).

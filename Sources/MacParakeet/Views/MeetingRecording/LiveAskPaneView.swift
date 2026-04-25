@@ -8,7 +8,6 @@ import SwiftUI
 /// the meeting is finalized (see TranscriptChatViewModel.bindPersistedConversation).
 struct LiveAskPaneView: View {
     @Bindable var viewModel: TranscriptChatViewModel
-    var onOpenLLMSettings: (() -> Void)?
 
     @FocusState private var inputFocused: Bool
 
@@ -18,12 +17,11 @@ struct LiveAskPaneView: View {
             composerArea
         }
         .background(DesignSystem.Colors.background)
-        .onAppear {
-            // Cursor lands in the input the moment you switch to Ask. Tiny delay
+        .task {
+            // Cursor lands in the input the moment you switch to Ask. Tiny await
             // so the focus state binding is wired before we set it (SwiftUI quirk).
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                inputFocused = true
-            }
+            try? await Task.sleep(for: .milliseconds(100))
+            inputFocused = true
         }
         .onKeyPress(.escape) {
             // Universal cancel for an in-flight assistant response.
@@ -63,6 +61,10 @@ struct LiveAskPaneView: View {
             .padding(.top, 10)
             .padding(.bottom, 4)
         }
+        // Communicate "wait for the current response" — fire() also guards.
+        .opacity(viewModel.isStreaming ? 0.45 : 1)
+        .allowsHitTesting(!viewModel.isStreaming)
+        .animation(.easeOut(duration: 0.18), value: viewModel.isStreaming)
     }
 
     /// Pill tap → bubble shows the short label, LLM gets the comprehensive prompt.
@@ -76,6 +78,11 @@ struct LiveAskPaneView: View {
     // MARK: - Messages
 
     private var messagesArea: some View {
+        // Single source of truth for scroll: the manual scrollTo on .messages.count.
+        // .defaultScrollAnchor(.bottom) was removed because it competes with the
+        // explicit animation and the panel chat VM is always fresh per session
+        // (panelVM is recreated in .showRecordingPill), so initial-anchor anchoring
+        // has no preexisting messages to anchor to anyway.
         ScrollViewReader { proxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
@@ -97,7 +104,6 @@ struct LiveAskPaneView: View {
                 .padding(DesignSystem.Spacing.lg)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .defaultScrollAnchor(.bottom)
             .onChange(of: viewModel.messages.count) {
                 guard let lastID = viewModel.messages.last?.id else { return }
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.85)) {
@@ -132,6 +138,7 @@ struct LiveAskPaneView: View {
                 .font(.system(size: 26, weight: .light))
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .padding(.bottom, 4)
+                .accessibilityHidden(true)
 
             Text("Ask needs an AI provider")
                 .font(DesignSystem.Typography.body.weight(.medium))
@@ -142,13 +149,6 @@ struct LiveAskPaneView: View {
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
-
-            if let onOpenLLMSettings {
-                Button("Open Settings") { onOpenLLMSettings() }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                    .padding(.top, 4)
-            }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DesignSystem.Spacing.lg)
@@ -159,6 +159,7 @@ struct LiveAskPaneView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(DesignSystem.Colors.errorRed)
                 .font(.system(size: 11))
+                .accessibilityHidden(true)
             Text(message)
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.errorRed)
@@ -208,9 +209,11 @@ struct LiveAskPaneView: View {
                 Image(systemName: "stop.circle.fill")
                     .font(.system(size: 24))
                     .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .accessibilityHidden(true)
             }
             .buttonStyle(.plain)
             .help("Stop response")
+            .accessibilityLabel("Stop response")
         } else {
             let canSend = !viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                 && viewModel.canSendMessage
@@ -220,9 +223,11 @@ struct LiveAskPaneView: View {
                     .foregroundStyle(canSend
                         ? DesignSystem.Colors.accent
                         : DesignSystem.Colors.accent.opacity(0.3))
+                    .accessibilityHidden(true)
             }
             .buttonStyle(.plain)
             .disabled(!canSend)
+            .accessibilityLabel("Send message")
         }
     }
 
@@ -450,6 +455,13 @@ struct ChatMarkdownText: View {
                         .lineSpacing(3)
                         .fixedSize(horizontal: false, vertical: true)
 
+                case .heading(let level, let text):
+                    Text(inlineAttributed(text))
+                        .font(.system(size: headingSize(level), weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .padding(.top, 2)
+                        .fixedSize(horizontal: false, vertical: true)
+
                 case .bullet(let indent, let content):
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("•")
@@ -484,6 +496,7 @@ struct ChatMarkdownText: View {
 
     private enum Block {
         case paragraph(String)
+        case heading(level: Int, text: String)
         case bullet(indent: Int, content: String)
         case ordered(indent: Int, marker: String, content: String)
     }
@@ -507,6 +520,11 @@ struct ChatMarkdownText: View {
                 flushParagraph()
                 continue
             }
+            if let heading = Self.parseHeading(line) {
+                flushParagraph()
+                out.append(heading)
+                continue
+            }
             if let listItem = Self.parseListItem(line) {
                 flushParagraph()
                 out.append(listItem)
@@ -516,6 +534,19 @@ struct ChatMarkdownText: View {
         }
         flushParagraph()
         return out
+    }
+
+    /// `# Foo`, `## Foo`, etc. up to level 6. Returns the level (count of `#`)
+    /// and the trimmed text after the markers and required space.
+    private static func parseHeading(_ line: String) -> Block? {
+        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        let hashCount = trimmed.prefix(while: { $0 == "#" }).count
+        guard hashCount >= 1, hashCount <= 6 else { return nil }
+        let afterHashes = trimmed.dropFirst(hashCount)
+        guard afterHashes.first == " " else { return nil }
+        let text = afterHashes.drop(while: { $0 == " " })
+        guard !text.isEmpty else { return nil }
+        return .heading(level: hashCount, text: String(text))
     }
 
     /// Recognizes `* foo`, `- foo`, and `1. foo` (with optional leading whitespace).
@@ -538,6 +569,16 @@ struct ChatMarkdownText: View {
             return .ordered(indent: indent, marker: marker, content: content)
         }
         return nil
+    }
+
+    /// Heading point sizes — H1 large, H6 same as body. Tuned for chat density.
+    private func headingSize(_ level: Int) -> CGFloat {
+        switch level {
+        case 1: return 19
+        case 2: return 17
+        case 3: return 15
+        default: return 14
+        }
     }
 
     /// Inline-only Markdown so `**bold**`, `*italic*`, `` `code` ``, and `[link](url)`

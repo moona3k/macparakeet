@@ -153,27 +153,27 @@ struct MeetingRecordingPanelView: View {
         .background(DesignSystem.Colors.background)
     }
 
+    /// Only rendered when `selectedTab == .transcript` (parent body guards), so
+    /// no inner conditional needed here.
     private var footer: some View {
         HStack(spacing: DesignSystem.Spacing.md) {
-            if viewModel.selectedTab == .transcript {
-                FooterButton(
-                    label: viewModel.showCopiedConfirmation ? "Copied" : "Copy",
-                    icon: viewModel.showCopiedConfirmation ? "checkmark" : "doc.on.doc",
-                    activeColor: viewModel.showCopiedConfirmation
-                        ? DesignSystem.Colors.successGreen
-                        : nil,
-                    disabled: !viewModel.canCopy
-                ) {
-                    copyTranscript()
-                }
+            FooterButton(
+                label: viewModel.showCopiedConfirmation ? "Copied" : "Copy",
+                icon: viewModel.showCopiedConfirmation ? "checkmark" : "doc.on.doc",
+                activeColor: viewModel.showCopiedConfirmation
+                    ? DesignSystem.Colors.successGreen
+                    : nil,
+                disabled: !viewModel.canCopy
+            ) {
+                copyTranscript()
+            }
 
-                FooterIconButton(
-                    icon: autoScroll ? "chevron.down.circle.fill" : "chevron.down.circle",
-                    activeColor: autoScroll ? DesignSystem.Colors.accent : nil,
-                    tooltip: autoScroll ? "Auto-scroll on" : "Auto-scroll paused"
-                ) {
-                    autoScroll.toggle()
-                }
+            FooterIconButton(
+                icon: autoScroll ? "chevron.down.circle.fill" : "chevron.down.circle",
+                activeColor: autoScroll ? DesignSystem.Colors.accent : nil,
+                tooltip: autoScroll ? "Auto-scroll on" : "Auto-scroll paused"
+            ) {
+                autoScroll.toggle()
             }
 
             Spacer()
