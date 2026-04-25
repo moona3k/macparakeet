@@ -157,8 +157,10 @@ final class MeetingCountdownToastController {
         // timer keeps firing during menu/scroll tracking. Track the spawned
         // Task so `finish()` can cancel it before nilling state.
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            self?.tickTask?.cancel()
-            self?.tickTask = Task { @MainActor [weak self] in self?.tick() }
+            Task { @MainActor [weak self] in
+                self?.tickTask?.cancel()
+                self?.tickTask = Task { @MainActor [weak self] in self?.tick() }
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer

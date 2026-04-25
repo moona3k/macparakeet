@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
@@ -516,23 +517,32 @@ struct DictationCardRow: View {
 
     private var highlightedTranscript: AttributedString {
         let text = dictation.cleanTranscript ?? dictation.rawTranscript
-        var attributed = AttributedString(text)
+        let attributed = NSMutableAttributedString(string: text)
 
         let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !query.isEmpty else { return attributed }
+        guard !query.isEmpty else { return AttributedString(attributed) }
 
-        var searchStart = attributed.startIndex
-        while searchStart < attributed.endIndex {
-            guard let range = attributed[searchStart...].range(
-                of: query,
-                options: .caseInsensitive
-            ) else { break }
-
-            attributed[range].backgroundColor = DesignSystem.Colors.accent.opacity(0.2)
-            searchStart = range.upperBound
+        let nsText = text as NSString
+        var searchRange = NSRange(location: 0, length: nsText.length)
+        let highlightColor = NSColor(name: nil) { appearance in
+            let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            return isDark
+                ? NSColor(red: 1.0, green: 0.54, blue: 0.36, alpha: 0.2)
+                : NSColor(red: 0.91, green: 0.42, blue: 0.23, alpha: 0.2)
         }
 
-        return attributed
+        while searchRange.length > 0 {
+            let found = nsText.range(of: query, options: .caseInsensitive, range: searchRange)
+            guard found.location != NSNotFound else { break }
+
+            attributed.addAttribute(.backgroundColor, value: highlightColor, range: found)
+
+            let nextLocation = found.location + max(found.length, 1)
+            guard nextLocation < nsText.length else { break }
+            searchRange = NSRange(location: nextLocation, length: nsText.length - nextLocation)
+        }
+
+        return AttributedString(attributed)
     }
 
     private func formatTime(_ date: Date) -> String {

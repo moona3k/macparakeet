@@ -29,7 +29,6 @@ actor LiveChunkTranscriber {
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "LiveChunkTranscriber")
     private let sttTranscriber: STTTranscribing
-    private let fileManager: FileManager
 
     private var sessionContext: SessionContext?
     private var eventHandler: EventHandler?
@@ -37,9 +36,8 @@ actor LiveChunkTranscriber {
     private var nextChunkSequence: [AudioSource: Int] = [:]
     private var chunkResultBuffer = MeetingChunkResultBuffer()
 
-    init(sttTranscriber: STTTranscribing, fileManager: FileManager = .default) {
+    init(sttTranscriber: STTTranscribing) {
         self.sttTranscriber = sttTranscriber
-        self.fileManager = fileManager
     }
 
     func startSession(
@@ -134,7 +132,7 @@ actor LiveChunkTranscriber {
         let chunkURL = context.chunkFolderURL
             .appendingPathComponent("\(source.rawValue)-\(chunk.startMs)-\(chunk.endMs).wav")
         try writeChunkAudio(samples: chunk.samples, to: chunkURL)
-        defer { try? fileManager.removeItem(at: chunkURL) }
+        defer { try? FileManager.default.removeItem(at: chunkURL) }
         return try await sttTranscriber.transcribe(
             audioPath: chunkURL.path,
             job: .meetingLiveChunk,

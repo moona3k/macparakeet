@@ -112,10 +112,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.audioConverter = audioConverter
         self.lockFileStore = lockFileStore
         self.fileManager = fileManager
-        self.liveChunkTranscriber = LiveChunkTranscriber(
-            sttTranscriber: sttTranscriber,
-            fileManager: fileManager
-        )
+        self.liveChunkTranscriber = LiveChunkTranscriber(sttTranscriber: sttTranscriber)
     }
 
     public var isRecording: Bool {

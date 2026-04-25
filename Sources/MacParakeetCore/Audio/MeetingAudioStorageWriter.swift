@@ -2,7 +2,9 @@ import AVFoundation
 import Foundation
 import OSLog
 
-final class MeetingAudioStorageWriter {
+/// Owned and serialized by MeetingRecordingService. The AVFoundation writer
+/// objects it wraps are reference types that are not annotated Sendable.
+final class MeetingAudioStorageWriter: @unchecked Sendable {
     struct SourceWriteMetrics: Sendable, Equatable {
         let writtenFrameCount: Int64
         let sampleRate: Double
@@ -81,9 +83,8 @@ final class MeetingAudioStorageWriter {
     }
 
     func finalize() async {
-        async let microphoneFinish: Void = finish(writer: microphoneWriter, input: microphoneInput)
-        async let systemFinish: Void = finish(writer: systemWriter, input: systemInput)
-        _ = await (microphoneFinish, systemFinish)
+        await finish(writer: microphoneWriter, input: microphoneInput)
+        await finish(writer: systemWriter, input: systemInput)
 
         microphoneWriter = nil
         microphoneInput = nil
@@ -164,15 +165,20 @@ final class MeetingAudioStorageWriter {
         }
 
         var error: NSError?
-        var provided = false
+        let inputBuffer = UncheckedSendableAudioPCMBuffer(buffer)
+        let provided = OSAllocatedUnfairLock(initialState: false)
         let status = converter.convert(to: output, error: &error) { _, outStatus in
-            if provided {
+            let shouldProvideInput = provided.withLock { didProvide -> Bool in
+                guard !didProvide else { return false }
+                didProvide = true
+                return true
+            }
+            if !shouldProvideInput {
                 outStatus.pointee = .noDataNow
                 return nil
             }
-            provided = true
             outStatus.pointee = .haveData
-            return buffer
+            return inputBuffer.buffer
         }
 
         if status == .error {

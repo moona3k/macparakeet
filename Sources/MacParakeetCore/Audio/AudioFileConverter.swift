@@ -253,7 +253,7 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
         let resumed = OSAllocatedUnfairLock(initialState: false)
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                let timeoutItem = DispatchWorkItem {
+                DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
                     let shouldResume = resumed.withLock { done -> Bool in
                         guard !done else { return false }
                         done = true
@@ -275,11 +275,8 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
                     }
                     if shouldResume {
                         continuation.resume()
-                        timeoutItem.cancel()
                     }
                 }
-
-                DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: timeoutItem)
 
                 if !process.isRunning {
                     let shouldResume = resumed.withLock { done -> Bool in
@@ -289,7 +286,6 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
                     }
                     if shouldResume {
                         continuation.resume()
-                        timeoutItem.cancel()
                     }
                 }
             }

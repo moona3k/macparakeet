@@ -41,5 +41,8 @@ jobs:
       - name: Swift Concurrency Safety
         run: swift build -Xswiftc -warn-concurrency
 
+      - name: Swift 6 Language Mode
+        run: swift build -Xswiftc -swift-version -Xswiftc 6
+
       - name: Swift Test
         run: swift test --parallel

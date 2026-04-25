@@ -192,7 +192,7 @@ public final class TranscriptionViewModel {
 
     public func handleFileDrop(
         providers: [NSItemProvider],
-        onAccepted: (() -> Void)? = nil
+        onAccepted: (@MainActor @Sendable () -> Void)? = nil
     ) -> Bool {
         guard !isTranscribing else { return false }
         let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier("public.file-url") }

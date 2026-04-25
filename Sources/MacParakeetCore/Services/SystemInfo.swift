@@ -58,6 +58,7 @@ public struct SystemInfo: Sendable, Codable {
         guard size > 0 else { return "Unknown" }
         var buffer = [CChar](repeating: 0, count: size)
         sysctlbyname("machdep.cpu.brand_string", &buffer, &size, nil, 0)
-        return String(cString: buffer)
+        let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 }

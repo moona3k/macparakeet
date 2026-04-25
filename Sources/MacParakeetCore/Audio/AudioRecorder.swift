@@ -307,8 +307,9 @@ public actor AudioRecorder {
         // IsFormatSampleRateAndChannelCountValid(hwFormat)"). Wrap the install
         // call so the caller sees a Swift error rather than a hard abort.
         do {
+            nonisolated(unsafe) let unsafeInputNode = inputNode
             try catchingObjCException {
-                inputNode.installTap(onBus: 0, bufferSize: 4096, format: nil) {
+                unsafeInputNode.installTap(onBus: 0, bufferSize: 4096, format: nil) {
                     [weak self] buffer, _ in
                     guard let self else { return }
 
@@ -382,16 +383,21 @@ public actor AudioRecorder {
                     // One-shot input block: provide the buffer exactly once per convert() call.
                     // The converter may call the input block multiple times if it needs more data;
                     // returning the same buffer repeatedly would duplicate samples.
-                    var inputConsumed = false
+                    let inputBuffer = UncheckedSendableAudioPCMBuffer(buffer)
+                    let inputConsumed = OSAllocatedUnfairLock(initialState: false)
                     var error: NSError?
                     let status = converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
-                        if inputConsumed {
+                        let shouldProvideInput = inputConsumed.withLock { consumed -> Bool in
+                            guard !consumed else { return false }
+                            consumed = true
+                            return true
+                        }
+                        if !shouldProvideInput {
                             outStatus.pointee = .noDataNow
                             return nil
                         }
-                        inputConsumed = true
                         outStatus.pointee = .haveData
-                        return buffer
+                        return inputBuffer.buffer
                     }
 
                     switch status {
@@ -400,8 +406,9 @@ public actor AudioRecorder {
                         // between the guard at the top and here.
                         guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
                         do {
+                            let convertedFrameLength = Int(convertedBuffer.frameLength)
                             try file.write(from: convertedBuffer)
-                            self.sampleCounter.withLock { $0 += Int(convertedBuffer.frameLength) }
+                            self.sampleCounter.withLock { $0 += convertedFrameLength }
                         } catch {
                             // Log but don't crash — we're on the audio thread.
                             // Throttled: only first error per session is logged.
@@ -459,8 +466,9 @@ public actor AudioRecorder {
         // observed to raise NSException in corner cases (stale CoreAudio state,
         // aggregate device teardown mid-start). Belt-and-braces wrap.
         do {
+            nonisolated(unsafe) let unsafeEngine = engine
             try catchingObjCException {
-                try engine.start()
+                try unsafeEngine.start()
             }
         } catch {
             // Clean up before propagating

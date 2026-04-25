@@ -65,8 +65,7 @@ public final class PermissionService: PermissionServiceProtocol, Sendable {
     }
 
     public func requestAccessibilityPermission(prompt: Bool = true) -> Bool {
-        let promptKey = kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String
-        let options: CFDictionary = [promptKey: prompt] as CFDictionary
+        let options: CFDictionary = ["AXTrustedCheckOptionPrompt": prompt] as CFDictionary
         return AXIsProcessTrustedWithOptions(options)
     }
 }
