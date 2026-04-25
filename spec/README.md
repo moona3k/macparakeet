@@ -60,6 +60,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (Phases 1 + 2 implemented; Phase 3 proposed) |
 | [ADR-018](adr/018-live-meeting-insights-and-ask.md) | Live meeting Ask tab (Insights dropped per amendment; Ask shipped 2026-04-24) |
 | [ADR-019](adr/019-crash-resilient-meeting-recording.md) | Crash-resilient meeting recording via fragmented MP4 + session lock files (implemented 2026-04-25) |
+| [ADR-020](adr/020-live-meeting-notepad-and-memo-summaries.md) | Live meeting notepad + memo-steered summaries (proposed 2026-04-25) |
 
 ## Version Roadmap
 
