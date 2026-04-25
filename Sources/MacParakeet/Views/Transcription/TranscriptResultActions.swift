@@ -2,8 +2,10 @@ import AppKit
 import Foundation
 import MacParakeetCore
 
-enum TranscriptExportFormat: String {
+enum TranscriptExportFormat: String, CaseIterable, Identifiable {
     case txt, md, srt, vtt, docx, pdf, json
+
+    var id: String { rawValue }
 
     var displayName: String {
         switch self {
@@ -15,6 +17,34 @@ enum TranscriptExportFormat: String {
         case .pdf: "PDF"
         case .json: "JSON"
         }
+    }
+
+    var shortName: String {
+        switch self {
+        case .txt: "Text"
+        case .md: "Markdown"
+        case .srt: "SRT"
+        case .vtt: "VTT"
+        case .docx: "DOCX"
+        case .pdf: "PDF"
+        case .json: "JSON"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .txt: "doc.text"
+        case .md: "text.document"
+        case .srt: "captions.bubble"
+        case .vtt: "captions.bubble.fill"
+        case .docx: "doc.richtext"
+        case .pdf: "doc.viewfinder"
+        case .json: "curlybraces"
+        }
+    }
+
+    var supportsTranscriptOptions: Bool {
+        self == .txt || self == .md
     }
 }
 
@@ -50,7 +80,8 @@ enum TranscriptResultActions {
 
     static func exportTranscriptToDownloads(
         transcription: Transcription,
-        format: TranscriptExportFormat
+        format: TranscriptExportFormat,
+        options: TranscriptExportOptions = .default
     ) throws -> URL {
         let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
         let downloadsURL = try downloadsDirectory()
@@ -58,8 +89,8 @@ enum TranscriptResultActions {
         let exportService = ExportService()
 
         switch format {
-        case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL)
-        case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL)
+        case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL, options: options)
+        case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)
         case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
         case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
         case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
