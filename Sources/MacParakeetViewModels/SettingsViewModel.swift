@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import MacParakeetCore
 import OSLog
@@ -181,6 +182,53 @@ public final class SettingsViewModel {
     }
     public var meetingAutoSaveFolderPath: String?
 
+    // Calendar auto-start (ADR-017)
+    //
+    // Each `didSet` writes the value through to `UserDefaults`, fires the
+    // shared `macParakeetCalendarSettingsDidChange` notification (so the
+    // coordinator re-reads its config without waiting for the next poll
+    // tick), and emits a typed telemetry event. Excluded calendar IDs flow
+    // through the same notification — the coordinator's filter changes the
+    // moment a checkbox is toggled.
+    public var calendarAutoStartMode: CalendarAutoStartMode {
+        didSet {
+            defaults.set(calendarAutoStartMode.rawValue, forKey: CalendarAutoStartPreferences.modeKey)
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarAutoStartMode))
+        }
+    }
+    public var calendarReminderMinutes: Int {
+        didSet {
+            defaults.set(calendarReminderMinutes, forKey: CalendarAutoStartPreferences.reminderMinutesKey)
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarReminderMinutes))
+        }
+    }
+    public var meetingTriggerFilter: MeetingTriggerFilter {
+        didSet {
+            defaults.set(meetingTriggerFilter.rawValue, forKey: CalendarAutoStartPreferences.triggerFilterKey)
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarTriggerFilter))
+        }
+    }
+    public var calendarAutoStopEnabled: Bool {
+        didSet {
+            defaults.set(calendarAutoStopEnabled, forKey: CalendarAutoStartPreferences.autoStopEnabledKey)
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarAutoStopEnabled))
+        }
+    }
+    public var calendarExcludedIdentifiers: Set<String> {
+        didSet {
+            defaults.set(Array(calendarExcludedIdentifiers), forKey: CalendarAutoStartPreferences.excludedCalendarIdsKey)
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarIncludedCalendars))
+        }
+    }
+    /// Permission status mirrors `microphoneGranted` etc. — refreshed via
+    /// `refreshCalendarPermission()`.
+    public var calendarPermissionGranted = false
+
     // Permission status
     public var microphoneGranted = false
     public var accessibilityGranted = false
@@ -269,6 +317,41 @@ public final class SettingsViewModel {
         meetingAutoSave = defaults.bool(forKey: AutoSaveScope.meeting.enabledKey)
         meetingAutoSaveFormat = AutoSaveFormat(rawValue: defaults.string(forKey: AutoSaveScope.meeting.formatKey) ?? "md") ?? .md
         meetingAutoSaveFolderPath = Self.resolveAutoSaveFolderPath(defaults: defaults, scope: .meeting)
+        calendarAutoStartMode = Self.resolveCalendarAutoStartMode(defaults: defaults)
+        calendarReminderMinutes = Self.resolveCalendarReminderMinutes(defaults: defaults)
+        meetingTriggerFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
+        calendarAutoStopEnabled = defaults.object(forKey: CalendarAutoStartPreferences.autoStopEnabledKey) as? Bool ?? true
+        calendarExcludedIdentifiers = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
+    }
+
+    private static func resolveCalendarAutoStartMode(defaults: UserDefaults) -> CalendarAutoStartMode {
+        guard let raw = defaults.string(forKey: CalendarAutoStartPreferences.modeKey),
+              let mode = CalendarAutoStartMode(rawValue: raw) else {
+            return .off  // Off by default — opt-in only via onboarding or Settings.
+        }
+        return mode
+    }
+
+    private static func resolveCalendarReminderMinutes(defaults: UserDefaults) -> Int {
+        guard defaults.object(forKey: CalendarAutoStartPreferences.reminderMinutesKey) != nil else {
+            return CalendarAutoStartPreferences.defaultReminderMinutes
+        }
+        return defaults.integer(forKey: CalendarAutoStartPreferences.reminderMinutesKey)
+    }
+
+    private static func resolveMeetingTriggerFilter(defaults: UserDefaults) -> MeetingTriggerFilter {
+        guard let raw = defaults.string(forKey: CalendarAutoStartPreferences.triggerFilterKey),
+              let filter = MeetingTriggerFilter(rawValue: raw) else {
+            return .withLink
+        }
+        return filter
+    }
+
+    private static func resolveCalendarExcludedIdentifiers(defaults: UserDefaults) -> Set<String> {
+        guard let raw = defaults.array(forKey: CalendarAutoStartPreferences.excludedCalendarIdsKey) as? [String] else {
+            return []
+        }
+        return Set(raw)
     }
 
     /// Resolve the stored bookmark to a display path.
@@ -367,6 +450,7 @@ public final class SettingsViewModel {
                 accessibilityGranted = accStatus
                 screenRecordingGranted = screenRecordingStatus
             }
+            refreshCalendarPermission()
         }
     }
 
@@ -379,6 +463,31 @@ public final class SettingsViewModel {
 
     public func openScreenRecordingSystemSettings() {
         permissionService?.openScreenRecordingSettings()
+    }
+
+    /// Refresh calendar permission from the singleton service. Cheap — no
+    /// network or disk; just reads `EKEventStore.authorizationStatus`. Called
+    /// by `refreshPermissions()` when the permission service is available.
+    public func refreshCalendarPermission() {
+        let service = CalendarService()
+        calendarPermissionGranted = service.permissionStatus == .granted
+    }
+
+    /// Trigger the EventKit permission prompt if not yet decided. Returns the
+    /// granted state. Settings UI calls this from a "Grant Calendar access"
+    /// button; onboarding shares the same code path.
+    @discardableResult
+    public func requestCalendarPermission() async -> Bool {
+        let service = CalendarService()
+        Telemetry.send(.permissionPrompted(permission: .calendar))
+        let granted = await service.requestPermission()
+        calendarPermissionGranted = granted
+        Telemetry.send(granted ? .permissionGranted(permission: .calendar) : .permissionDenied(permission: .calendar))
+        return granted
+    }
+
+    public func openCalendarSystemSettings() {
+        if NSWorkspace.shared.open(CalendarService.settingsURL) { return }
     }
 
     public func startPermissionPolling() {
