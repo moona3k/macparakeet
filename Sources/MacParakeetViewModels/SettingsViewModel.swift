@@ -393,14 +393,7 @@ public final class SettingsViewModel {
               let mode = CalendarAutoStartMode(rawValue: raw) else {
             return .off  // Off by default — opt-in only via onboarding or Settings.
         }
-        // Phase 1 safety net: clamp `.autoStart` down to `.notify`. The
-        // enum + MeetingMonitor are Phase E-ready, but the UI Picker only
-        // exposes `.off`/`.notify`. Without this clamp, a stored `.autoStart`
-        // value (downgrade from a future build, sideloaded plist) would
-        // render the Picker blank *and* let the coordinator try to fire a
-        // countdown that has no toast UI to back it. Remove this when
-        // Phase 2 unclamps the Picker.
-        return mode == .autoStart ? .notify : mode
+        return mode
     }
 
     private static func resolveCalendarReminderMinutes(defaults: UserDefaults) -> Int {

@@ -24,6 +24,11 @@ struct CalendarSettingsView: View {
                     Divider()
                     triggerFilterRow
 
+                    if viewModel.calendarAutoStartMode == .autoStart {
+                        Divider()
+                        autoStopRow
+                    }
+
                     if !availableCalendars.isEmpty {
                         Divider()
                         includedCalendarsRow
@@ -94,33 +99,34 @@ struct CalendarSettingsView: View {
 
     @ViewBuilder
     private var modeRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Calendar reminders")
-                        .font(DesignSystem.Typography.body)
-                    Text("Show a macOS notification before scheduled meetings.")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                }
-                Spacer(minLength: DesignSystem.Spacing.md)
-                Picker("", selection: $viewModel.calendarAutoStartMode) {
-                    Text("Off").tag(CalendarAutoStartMode.off)
-                    Text("Notify before meetings").tag(CalendarAutoStartMode.notify)
-                }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(minWidth: 200)
-            }
-
-            // Phase D: auto-start mode is implemented in MeetingMonitor but
-            // not yet wired to a countdown/recording flow. Surface the future
-            // capability so users aren't surprised when it appears.
-            if viewModel.calendarAutoStartMode == .notify {
-                Text("Auto-start recording on countdown — coming in a future update.")
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Calendar behavior")
+                    .font(DesignSystem.Typography.body)
+                Text(modeDetail)
                     .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.tertiary)
+                    .foregroundStyle(.secondary)
             }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            Picker("", selection: $viewModel.calendarAutoStartMode) {
+                Text("Off").tag(CalendarAutoStartMode.off)
+                Text("Notify before meetings").tag(CalendarAutoStartMode.notify)
+                Text("Start recording automatically").tag(CalendarAutoStartMode.autoStart)
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(minWidth: 240)
+        }
+    }
+
+    private var modeDetail: String {
+        switch viewModel.calendarAutoStartMode {
+        case .off:
+            return "MacParakeet ignores your calendar."
+        case .notify:
+            return "Quietly notifies you before each meeting starts."
+        case .autoStart:
+            return "Shows a 5-second cancellable countdown, then starts recording. You can keep the recording past the meeting end."
         }
     }
 
@@ -170,6 +176,25 @@ struct CalendarSettingsView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(minWidth: 200)
+        }
+    }
+
+    // MARK: - Auto-stop toggle (only when mode == .autoStart)
+
+    @ViewBuilder
+    private var autoStopRow: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Stop recording at meeting end")
+                    .font(DesignSystem.Typography.body)
+                Text("Shows a 30-second countdown when the meeting is scheduled to end. Click \"Keep Recording\" if it runs over.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            Toggle("", isOn: $viewModel.calendarAutoStopEnabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
         }
     }
 
