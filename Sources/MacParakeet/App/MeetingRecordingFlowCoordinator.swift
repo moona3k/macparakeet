@@ -120,6 +120,24 @@ final class MeetingRecordingFlowCoordinator {
         sendEvent(.startRequested)
     }
 
+    /// Discard the pending start context (trigger + title) when the start
+    /// sequence exits without ever reaching the `.startRecording` effect —
+    /// today, only the permissions-denied path. The `.startRecording`
+    /// effect handler clears these inline because it needs to snapshot
+    /// them first to fire telemetry; this helper is for the paths that
+    /// bail out earlier. If the bailing-out start was calendar-driven,
+    /// notifies the calendar coordinator so its `autoStartedEventId`
+    /// binding doesn't strand (it self-heals on the next poll, but
+    /// notifying immediately keeps the two coordinators in lockstep).
+    private func clearPendingStartContext() {
+        let wasCalendarTriggered = pendingTrigger == .calendarAutoStart
+        pendingTrigger = nil
+        pendingTitle = nil
+        if wasCalendarTriggered {
+            onAutoStartFailed?()
+        }
+    }
+
     private func sendEvent(_ event: MeetingRecordingFlowEvent) {
         let effects = stateMachine.handle(event)
         executeEffects(effects)
@@ -150,6 +168,7 @@ final class MeetingRecordingFlowCoordinator {
 
                 if !microphoneGranted {
                     Telemetry.send(.permissionDenied(permission: .microphone))
+                    self.clearPendingStartContext()
                     self.sendEvent(.permissionsDenied(generation: gen, reason: .microphone))
                     return
                 }
@@ -162,6 +181,7 @@ final class MeetingRecordingFlowCoordinator {
                 let screenGranted = existingScreenGrant || permissionService.requestScreenRecordingPermission()
                 if !screenGranted {
                     Telemetry.send(.permissionDenied(permission: .screenRecording))
+                    self.clearPendingStartContext()
                     self.sendEvent(.permissionsDenied(generation: gen, reason: .screenRecording))
                     return
                 }
