@@ -5,26 +5,27 @@ import MacParakeetViewModels
 import OSLog
 import UserNotifications
 
-/// Polls the user's calendar and surfaces upcoming meetings via macOS
-/// notifications. Phase D (ADR-017 Phase 1) — handles `.reminderDue` only;
-/// `.autoStartDue` / `.lateJoinAvailable` / `.autoStopDue` are recognized by
-/// `MeetingMonitor` but the coordinator no-ops on them. Phase E will wire the
-/// countdown toast and recording trigger.
+/// Polls the user's calendar and routes upcoming meetings to the right
+/// surface (notification / countdown toast / recording flow).
+/// ADR-017 Phases 1 + 2 are wired here; `.lateJoinAvailable` is the only
+/// `MeetingMonitor` event the coordinator still no-ops on (Phase 3
+/// territory — the enum case stays so Phase 3 can wire the late-join
+/// toast without changing `evaluate(...)`).
 ///
 /// ```
-///         ┌──────────────────────┐
-///         │ EKEventStoreChanged  │──┐
-///         └──────────────────────┘  │  immediate
-///                                   ▼
-///   60s/15s/5s adaptive Timer ──▶  poll() ──▶ MeetingMonitor.evaluate(...)
-///                                                       │
-///                                  ┌────────────────────┴────────────────┐
-///                                  ▼                                     ▼
-///                            .reminderDue                  (other cases queued for Phase E)
-///                                  │
-///                                  ▼
-///                       UNUserNotificationCenter
-///                       Telemetry.calendarReminderShown
+///   ┌──────────────────────┐
+///   │ EKEventStoreChanged  │──┐
+///   └──────────────────────┘  │  immediate
+///                             ▼
+///   60s/15s/5s adaptive Timer ──▶ poll() ──▶ MeetingMonitor.evaluate(...)
+///                                                  │
+///                ┌─────────────┬───────────────────┼──────────────────┐
+///                ▼             ▼                   ▼                  ▼
+///         .reminderDue   .autoStartDue       .autoStopDue    .lateJoinAvailable
+///                │             │                   │                  │
+///                ▼             ▼                   ▼              (no-op,
+///   UNUserNotificationCenter   5s countdown   30s countdown      Phase 3)
+///                              toast → start  toast → stop
 /// ```
 @MainActor
 final class MeetingAutoStartCoordinator {
