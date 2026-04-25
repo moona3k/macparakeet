@@ -20,11 +20,22 @@ struct FlowSnippetsCommand: AsyncParsableCommand {
             abstract: "List all text snippets."
         )
 
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
         func run() async throws {
             try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: AppPaths.databasePath)
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
             let snippets = try repo.fetchAll()
+
+            if json {
+                try printJSON(snippets)
+                return
+            }
 
             if snippets.isEmpty {
                 print("No text snippets configured.")
@@ -56,9 +67,12 @@ struct FlowSnippetsCommand: AsyncParsableCommand {
         @Argument(help: "The expansion text.")
         var expansion: String
 
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
         func run() async throws {
             try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: AppPaths.databasePath)
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
 
             let snippet = TextSnippet(trigger: trigger, expansion: expansion)
@@ -77,9 +91,12 @@ struct FlowSnippetsCommand: AsyncParsableCommand {
         @Argument(help: "The UUID (or prefix) of the snippet to delete.")
         var id: String
 
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
         func run() async throws {
             try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: AppPaths.databasePath)
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
 
             // Support UUID prefix matching

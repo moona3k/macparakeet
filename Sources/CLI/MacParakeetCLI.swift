@@ -15,6 +15,7 @@ struct CLI: AsyncParsableCommand {
             ModelsCommand.self,
             FlowCommand.self,
             LLMCommand.self,
+            PromptsCommand.self,
             CalendarCommand.self,
             FeedbackCommand.self,
         ],

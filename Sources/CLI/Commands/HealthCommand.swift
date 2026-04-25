@@ -14,6 +14,9 @@ struct HealthCommand: AsyncParsableCommand {
     @Option(name: .long, help: "Maximum repair attempts when --repair-models is set.")
     var repairAttempts: Int = 3
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     func run() async throws {
         let validatedRepairAttempts: Int?
         if repairModels {
@@ -22,126 +25,251 @@ struct HealthCommand: AsyncParsableCommand {
             validatedRepairAttempts = nil
         }
 
-        print("MacParakeet Health Check")
-        print("========================")
-        print()
+        // Operations are run unconditionally; printing is gated on `!json` so the
+        // final JSON dump is the only thing on stdout in --json mode.
+        var report = HealthReport()
+
+        if !json {
+            print("MacParakeet Health Check")
+            print("========================")
+            print()
+        }
 
         // 1. Paths
-        print("Paths:")
-        print("  App Support: \(AppPaths.appSupportDir)")
-        print("  Database:    \(AppPaths.databasePath)")
-        print("  Temp:        \(AppPaths.tempDir)")
-        print("  Bin:         \(AppPaths.binDir)")
-        print("  yt-dlp:      \(AppPaths.ytDlpBinaryPath)")
-        print()
+        report.paths = HealthReport.Paths(
+            appSupport: AppPaths.appSupportDir,
+            database: AppPaths.databasePath,
+            temp: AppPaths.tempDir,
+            bin: AppPaths.binDir,
+            ytDlp: AppPaths.ytDlpBinaryPath
+        )
+        if !json {
+            print("Paths:")
+            print("  App Support: \(report.paths.appSupport)")
+            print("  Database:    \(report.paths.database)")
+            print("  Temp:        \(report.paths.temp)")
+            print("  Bin:         \(report.paths.bin)")
+            print("  yt-dlp:      \(report.paths.ytDlp)")
+            print()
+        }
 
         // 2. Directories
-        print("Directories:")
         do {
             try AppPaths.ensureDirectories()
-            print("  All directories exist or created.")
+            report.directoriesOK = true
         } catch {
-            print("  ERROR: \(error.localizedDescription)")
+            report.directoriesOK = false
+            report.directoriesError = error.localizedDescription
         }
-        print()
+        if !json {
+            print("Directories:")
+            if report.directoriesOK {
+                print("  All directories exist or created.")
+            } else {
+                print("  ERROR: \(report.directoriesError ?? "unknown")")
+            }
+            print()
+        }
 
         // 3. Database
-        print("Database:")
-        let dbExists = FileManager.default.fileExists(atPath: AppPaths.databasePath)
-        if dbExists {
+        let database: HealthReport.Database
+        if FileManager.default.fileExists(atPath: AppPaths.databasePath) {
             do {
                 let dbManager = try DatabaseManager(path: AppPaths.databasePath)
-                let dictationRepo = DictationRepository(dbQueue: dbManager.dbQueue)
-                let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-
-                let dictStats = try dictationRepo.stats()
-                let transcriptions = try transcriptionRepo.fetchAll(limit: nil)
-
-                print("  Status: OK")
-                print("  Dictations: \(dictStats.totalCount)")
-                print("  Transcriptions: \(transcriptions.count)")
+                let dictStats = try DictationRepository(dbQueue: dbManager.dbQueue).stats()
+                let transcriptions = try TranscriptionRepository(dbQueue: dbManager.dbQueue).fetchAll(limit: nil)
+                database = .init(status: "ok", dictations: dictStats.totalCount, transcriptions: transcriptions.count, error: nil)
             } catch {
-                print("  Status: ERROR — \(error.localizedDescription)")
+                database = .init(status: "error", dictations: nil, transcriptions: nil, error: error.localizedDescription)
             }
         } else {
-            print("  Status: Not created yet (will be created on first use)")
+            database = .init(status: "missing", dictations: nil, transcriptions: nil, error: nil)
         }
-        print()
+        report.database = database
+        if !json {
+            print("Database:")
+            switch database.status {
+            case "ok":
+                print("  Status: OK")
+                print("  Dictations: \(database.dictations ?? 0)")
+                print("  Transcriptions: \(database.transcriptions ?? 0)")
+            case "missing":
+                print("  Status: Not created yet (will be created on first use)")
+            default:
+                print("  Status: ERROR — \(database.error ?? "unknown")")
+            }
+            print()
+        }
 
         // 4. Audio input
-        print("Audio Input:")
-        printAudioInputDiagnostics(loadAudioInputDiagnostics())
-        print()
+        let audio = loadAudioInputDiagnostics()
+        report.audioInput = HealthReport.AudioInput(
+            deviceCount: audio.devices.count,
+            selectedUID: audio.storedSelectedUID,
+            defaultDeviceName: audio.defaultDevice?.name,
+            builtInDeviceName: audio.builtInDevice?.name
+        )
+        if !json {
+            print("Audio Input:")
+            printAudioInputDiagnostics(audio)
+            print()
+        }
 
         // 5. Local speech stack
-        print("Local Speech Stack:")
         let sttClient = STTClient()
+        // CLI is about to exit anyway, but `defer` guarantees shutdown runs
+        // even if a future change adds a throw between init and the explicit
+        // shutdown below. Detached because defer can't await.
+        defer { Task { await sttClient.shutdown() } }
         let diarizationService = DiarizationService()
         let status = await loadSpeechStackStatus(
             sttClient: sttClient,
             diarizationService: diarizationService
         )
-        printSpeechStackStatus(status, includeHeader: false)
+        report.speechStack = SpeechStackPayload(status: status)
+        if !json {
+            print("Local Speech Stack:")
+            printSpeechStackStatus(status, includeHeader: false)
+        }
 
         if let repairAttempts = validatedRepairAttempts {
-            print()
-            print("Speech-stack repair requested...")
+            if !json { print(); print("Speech-stack repair requested...") }
             do {
                 try await prepareSpeechStack(
                     attempts: repairAttempts,
                     sttClient: sttClient,
                     diarizationService: diarizationService,
-                    log: { message in print("  \(message)") }
+                    log: { message in if !self.json { print("  \(message)") } }
                 )
-                print("Speech-stack repair completed.")
+                report.repair = HealthReport.Repair(attempted: true, completed: true, error: nil)
+                if !json { print("Speech-stack repair completed.") }
             } catch {
-                print("Speech-stack repair failed — \(error.localizedDescription)")
+                report.repair = HealthReport.Repair(attempted: true, completed: false, error: error.localizedDescription)
+                if !json { print("Speech-stack repair failed — \(error.localizedDescription)") }
             }
         }
-        await sttClient.shutdown()
-        print()
+        if !json { print() }
 
         // 6. Bundled FFmpeg
-        print("FFmpeg:")
+        let ffmpeg: HealthReport.Binary
         if let ffmpegPath = BinaryBootstrap.resolveRuntimeFFmpegPath() {
-            if ffmpegPath == AppPaths.bundledFFmpegPath() {
-                print("  Status: Found bundled binary at \(ffmpegPath)")
-            } else {
-                print("  Status: Found development fallback at \(ffmpegPath)")
-            }
+            let isBundled = ffmpegPath == AppPaths.bundledFFmpegPath()
+            ffmpeg = .init(status: isBundled ? "bundled" : "fallback", path: ffmpegPath, error: nil)
         } else {
-            print("  Status: Missing (bundle + development fallback)")
+            ffmpeg = .init(status: "missing", path: nil, error: nil)
         }
-        print()
+        report.ffmpeg = ffmpeg
+        if !json {
+            print("FFmpeg:")
+            switch ffmpeg.status {
+            case "bundled": print("  Status: Found bundled binary at \(ffmpeg.path ?? "")")
+            case "fallback": print("  Status: Found development fallback at \(ffmpeg.path ?? "")")
+            default: print("  Status: Missing (bundle + development fallback)")
+            }
+            print()
+        }
 
-        // 7. yt-dlp managed binary
-        print("yt-dlp:")
-        let bootstrap = BinaryBootstrap()
+        // 7. yt-dlp
+        let ytDlp: HealthReport.Binary
         do {
-            let path = try await bootstrap.ensureYtDlpAvailable()
-            print("  Status: Ready at \(path)")
+            let path = try await BinaryBootstrap().ensureYtDlpAvailable()
+            ytDlp = .init(status: "ready", path: path, error: nil)
         } catch {
-            print("  Status: Not available — \(error.localizedDescription)")
+            ytDlp = .init(status: "missing", path: nil, error: error.localizedDescription)
         }
-        print()
+        report.ytDlp = ytDlp
+        if !json {
+            print("yt-dlp:")
+            switch ytDlp.status {
+            case "ready": print("  Status: Ready at \(ytDlp.path ?? "")")
+            default:      print("  Status: Not available — \(ytDlp.error ?? "unknown")")
+            }
+            print()
+        }
 
-        // 8. Calendar (EventKit) — agents can't see TCC dialogs from the
-        // GUI, so the CLI surface lets them check authorization status
-        // headlessly during dev iteration.
-        print("Calendar (EventKit):")
+        // 8. Calendar
+        let permission = CalendarService.shared.permissionStatus
         let calendarStatus: String
-        switch CalendarService.shared.permissionStatus {
-        case .granted: calendarStatus = "Granted"
-        case .denied: calendarStatus = "Denied (open System Settings → Privacy & Security → Calendars)"
-        case .notDetermined: calendarStatus = "Not requested (run the app once and grant access)"
+        switch permission {
+        case .granted: calendarStatus = "granted"
+        case .denied: calendarStatus = "denied"
+        case .notDetermined: calendarStatus = "notDetermined"
         }
-        print("  Status: \(calendarStatus)")
-        if CalendarService.shared.permissionStatus == .granted {
-            let calendars = await CalendarService.shared.availableCalendars()
-            print("  Calendars visible: \(calendars.count)")
+        var calendarsVisible: Int?
+        if permission == .granted {
+            calendarsVisible = await CalendarService.shared.availableCalendars().count
         }
-        print()
+        report.calendar = HealthReport.Calendar(permission: calendarStatus, calendarsVisible: calendarsVisible)
+        if !json {
+            print("Calendar (EventKit):")
+            switch permission {
+            case .granted:
+                print("  Status: Granted")
+                if let n = calendarsVisible { print("  Calendars visible: \(n)") }
+            case .denied:
+                print("  Status: Denied (open System Settings → Privacy & Security → Calendars)")
+            case .notDetermined:
+                print("  Status: Not requested (run the app once and grant access)")
+            }
+            print()
+            print("Done.")
+        } else {
+            try printJSON(report)
+        }
+    }
+}
 
-        print("Done.")
+// Health JSON payload. Local to the CLI so adding diagnostic fields here
+// doesn't require touching the Core layer.
+private struct HealthReport: Encodable {
+    var paths: Paths = .empty
+    var directoriesOK: Bool = false
+    var directoriesError: String?
+    var database: Database?
+    var audioInput: AudioInput?
+    var speechStack: SpeechStackPayload?
+    var repair: Repair?
+    var ffmpeg: Binary?
+    var ytDlp: Binary?
+    var calendar: Calendar?
+
+    struct Paths: Encodable {
+        let appSupport: String
+        let database: String
+        let temp: String
+        let bin: String
+        let ytDlp: String
+        static let empty = Paths(appSupport: "", database: "", temp: "", bin: "", ytDlp: "")
+    }
+
+    struct Database: Encodable {
+        let status: String  // "ok" | "missing" | "error"
+        let dictations: Int?
+        let transcriptions: Int?
+        let error: String?
+    }
+
+    struct AudioInput: Encodable {
+        let deviceCount: Int
+        let selectedUID: String?
+        let defaultDeviceName: String?
+        let builtInDeviceName: String?
+    }
+
+    struct Repair: Encodable {
+        let attempted: Bool
+        let completed: Bool
+        let error: String?
+    }
+
+    struct Binary: Encodable {
+        let status: String
+        let path: String?
+        let error: String?
+    }
+
+    struct Calendar: Encodable {
+        let permission: String  // "granted" | "denied" | "notDetermined"
+        let calendarsVisible: Int?
     }
 }

@@ -22,6 +22,9 @@ extension ModelsCommand {
             abstract: "Show speech-stack status without forcing downloads."
         )
 
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
         func run() async throws {
             let sttClient = STTClient()
             let diarizationService = DiarizationService()
@@ -29,7 +32,11 @@ extension ModelsCommand {
                 sttClient: sttClient,
                 diarizationService: diarizationService
             )
-            printSpeechStackStatus(status)
+            if json {
+                try printJSON(SpeechStackPayload(status: status))
+            } else {
+                printSpeechStackStatus(status)
+            }
             await sttClient.shutdown()
         }
     }
@@ -92,6 +99,22 @@ extension ModelsCommand {
             DiarizationService.clearModelCache()
             print("Local speech and speaker model caches cleared")
         }
+    }
+}
+
+struct SpeechStackPayload: Encodable {
+    let speechModelCached: Bool
+    let speechRuntimeReady: Bool
+    let speakerModelsCached: Bool
+    let speakerModelsPrepared: Bool
+    let summary: String
+
+    init(status: SpeechStackStatus) {
+        self.speechModelCached = status.speechModelCached
+        self.speechRuntimeReady = status.speechRuntimeReady
+        self.speakerModelsCached = status.speakerModelsCached
+        self.speakerModelsPrepared = status.speakerModelsPrepared
+        self.summary = status.summary
     }
 }
 

@@ -30,6 +30,9 @@ struct DictationsSubcommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Maximum number of results.")
     var limit: Int = 20
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
@@ -38,6 +41,11 @@ struct DictationsSubcommand: ParsableCommand {
         let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
         let dictations = try repo.fetchAll(limit: limit)
+
+        if json {
+            try printJSON(dictations)
+            return
+        }
 
         if dictations.isEmpty {
             print("No dictations found.")
@@ -71,6 +79,9 @@ struct TranscriptionsSubcommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Maximum number of results.")
     var limit: Int = 20
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
@@ -79,6 +90,11 @@ struct TranscriptionsSubcommand: ParsableCommand {
         let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
         let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
         let transcriptions = try repo.fetchAll(limit: limit)
+
+        if json {
+            try printJSON(transcriptions)
+            return
+        }
 
         if transcriptions.isEmpty {
             print("No transcriptions found.")
@@ -116,6 +132,9 @@ struct SearchSubcommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Maximum number of results.")
     var limit: Int = 20
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
@@ -124,6 +143,11 @@ struct SearchSubcommand: ParsableCommand {
         let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
         let results = try repo.search(query: query, limit: limit)
+
+        if json {
+            try printJSON(results)
+            return
+        }
 
         if results.isEmpty {
             print("No results for \"\(query)\".")
@@ -158,6 +182,9 @@ struct SearchTranscriptionsSubcommand: ParsableCommand {
     @Option(name: .shortAndLong, help: "Maximum number of results.")
     var limit: Int = 20
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
@@ -166,6 +193,11 @@ struct SearchTranscriptionsSubcommand: ParsableCommand {
         let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
         let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
         let results = try repo.search(query: query, limit: limit)
+
+        if json {
+            try printJSON(results)
+            return
+        }
 
         if results.isEmpty {
             print("No transcriptions matching \"\(query)\".")
@@ -247,6 +279,9 @@ struct FavoritesSubcommand: ParsableCommand {
         abstract: "List favorite transcriptions."
     )
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
@@ -255,6 +290,11 @@ struct FavoritesSubcommand: ParsableCommand {
         let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
         let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
         let favorites = try repo.fetchFavorites()
+
+        if json {
+            try printJSON(favorites)
+            return
+        }
 
         if favorites.isEmpty {
             print("No favorite transcriptions.")

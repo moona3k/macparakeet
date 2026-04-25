@@ -8,6 +8,9 @@ struct StatsCommand: ParsableCommand {
         abstract: "Show voice stats dashboard."
     )
 
+    @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+    var json: Bool = false
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
@@ -20,6 +23,11 @@ struct StatsCommand: ParsableCommand {
         let stats = try dictationRepo.stats()
         let transcriptionCount = try transcriptionRepo.count()
         let favoriteCount = try transcriptionRepo.fetchFavorites().count
+
+        if json {
+            try printJSON(StatsPayload(stats: stats, transcriptionCount: transcriptionCount, favoriteCount: favoriteCount))
+            return
+        }
 
         if stats.visibleCount == 0 && transcriptionCount == 0 {
             print("No voice activity yet.")
@@ -80,5 +88,48 @@ struct StatsCommand: ParsableCommand {
         if favoriteCount > 0 {
             print("  Favorites:        \(favoriteCount)")
         }
+    }
+}
+
+private struct StatsPayload: Encodable {
+    let dictations: Dictations
+    let transcriptions: Transcriptions
+
+    init(stats: DictationStats, transcriptionCount: Int, favoriteCount: Int) {
+        self.dictations = Dictations(
+            visibleCount: stats.visibleCount,
+            totalCount: stats.totalCount,
+            totalWords: stats.totalWords,
+            totalDurationMs: stats.totalDurationMs,
+            averageDurationMs: stats.averageDurationMs,
+            averageWPM: stats.averageWPM,
+            longestDurationMs: stats.longestDurationMs,
+            weeklyStreak: stats.weeklyStreak,
+            dictationsThisWeek: stats.dictationsThisWeek,
+            timeSavedMs: stats.timeSavedMs,
+            booksEquivalent: stats.booksEquivalent,
+            emailsEquivalent: stats.emailsEquivalent
+        )
+        self.transcriptions = Transcriptions(total: transcriptionCount, favorites: favoriteCount)
+    }
+
+    struct Dictations: Encodable {
+        let visibleCount: Int
+        let totalCount: Int
+        let totalWords: Int
+        let totalDurationMs: Int
+        let averageDurationMs: Int
+        let averageWPM: Double
+        let longestDurationMs: Int
+        let weeklyStreak: Int
+        let dictationsThisWeek: Int
+        let timeSavedMs: Int
+        let booksEquivalent: Double
+        let emailsEquivalent: Double
+    }
+
+    struct Transcriptions: Encodable {
+        let total: Int
+        let favorites: Int
     }
 }
