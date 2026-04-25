@@ -13,6 +13,7 @@ final class AppEnvironmentConfigurer {
         let dictationFlowCoordinator: DictationFlowCoordinator
         let meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator
         let hotkeyCoordinator: AppHotkeyCoordinator
+        let meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
     }
 
     struct Callbacks {
@@ -261,10 +262,28 @@ final class AppEnvironmentConfigurer {
         hotkeyCoordinator.setupYouTubeTranscriptionHotkey()
         dictationCoordinator.showIdlePill()
 
+        // Calendar auto-start (ADR-017 Phase D — notify-only). The
+        // coordinator is a no-op when `calendarAutoStartMode == .off` so
+        // it's safe to start unconditionally; we still gate creation on the
+        // meeting-recording feature flag because calendar integration only
+        // makes sense when the user can actually record meetings.
+        let calendarCoordinator: MeetingAutoStartCoordinator?
+        if AppFeatures.meetingRecordingEnabled {
+            let coordinator = MeetingAutoStartCoordinator(
+                calendarService: CalendarService(),
+                settingsViewModel: settingsViewModel
+            )
+            coordinator.start()
+            calendarCoordinator = coordinator
+        } else {
+            calendarCoordinator = nil
+        }
+
         return Runtime(
             dictationFlowCoordinator: dictationCoordinator,
             meetingRecordingFlowCoordinator: meetingCoordinator,
-            hotkeyCoordinator: hotkeyCoordinator
+            hotkeyCoordinator: hotkeyCoordinator,
+            meetingAutoStartCoordinator: calendarCoordinator
         )
     }
 

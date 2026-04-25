@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotkeyCoordinator: AppHotkeyCoordinator?
     private var dictationFlowCoordinator: DictationFlowCoordinator?
     private var meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator?
+    private var meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
     private var hasPresentedHotkeyUnavailableAlert = false
     private var environmentSetupTask: Task<Void, Never>?
 
@@ -203,6 +204,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // would send duplicate appQuit events and double the termination delay.
         dictationFlowCoordinator?.hideIdlePill()
         hotkeyCoordinator?.stopAll()
+        meetingAutoStartCoordinator?.stop()
         settingsObserverCoordinator.stopObserving()
         environmentSetupTask?.cancel()
 
@@ -289,6 +291,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         dictationFlowCoordinator = runtime.dictationFlowCoordinator
         meetingRecordingFlowCoordinator = runtime.meetingRecordingFlowCoordinator
         hotkeyCoordinator = runtime.hotkeyCoordinator
+        meetingAutoStartCoordinator = runtime.meetingAutoStartCoordinator
 
         menuBarCoordinator.refreshHotkeyTitle()
         menuBarCoordinator.refreshMeetingHotkeyShortcut()
