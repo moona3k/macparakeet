@@ -131,7 +131,7 @@ final class MeetingCountdownToastController {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         panel.contentView = hosting
 
-        if let screen = NSScreen.main {
+        if let screen = Self.screenForToast() {
             // Top-center of the visible frame; sits below the menu bar but
             // above any active app window — makes the countdown impossible
             // to miss without being aggressive.
@@ -172,6 +172,23 @@ final class MeetingCountdownToastController {
         if progress >= 1 {
             finish(.completed)
         }
+    }
+
+    /// Pick the screen the toast should land on, in priority order:
+    ///   1. Screen containing the mouse cursor (where the user is looking
+    ///      *now*, regardless of which app's window has focus).
+    ///   2. `NSScreen.main` (screen with the key window — usually correct
+    ///      but can drift to MacParakeet's own settings panel when it's the
+    ///      active app).
+    ///   3. First connected screen as a last-resort fallback.
+    /// Returning `nil` is theoretically impossible on a launched macOS app
+    /// but the optional keeps the call site defensive.
+    private static func screenForToast() -> NSScreen? {
+        let mouseLocation = NSEvent.mouseLocation
+        if let screen = NSScreen.screens.first(where: { NSMouseInRect(mouseLocation, $0.frame, false) }) {
+            return screen
+        }
+        return NSScreen.main ?? NSScreen.screens.first
     }
 
     private func finish(_ outcome: MeetingCountdownToastOutcome) {
