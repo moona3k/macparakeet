@@ -193,6 +193,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Pre-meeting macOS notifications at configurable lead time (off / 1 / 5 / 10 min)
 - [x] Auto-start countdown toast (ADR-017 Phase 2): 5s cancellable, top-center, non-activating
 - [x] Auto-stop toast at calendar event end (ADR-017 Phase 2): 30s, "Keep Recording" cancels
+- [x] Calendar event title applied to auto-started recordings (instead of date-based default)
 
 ## For AI Coding Assistants
 

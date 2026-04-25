@@ -262,11 +262,12 @@ final class AppEnvironmentConfigurer {
         hotkeyCoordinator.setupYouTubeTranscriptionHotkey()
         dictationCoordinator.showIdlePill()
 
-        // Calendar auto-start (ADR-017 Phase 1 — notify-only). The
-        // coordinator is a no-op when `calendarAutoStartMode == .off` so
-        // it's safe to start unconditionally; we still gate creation on the
-        // meeting-recording feature flag because calendar integration only
-        // makes sense when the user can actually record meetings.
+        // Calendar auto-start (ADR-017 Phases 1 + 2 — reminders +
+        // countdown toast + auto-stop). The coordinator is a no-op when
+        // `calendarAutoStartMode == .off` so it's safe to start
+        // unconditionally; we still gate creation on the meeting-recording
+        // feature flag because calendar integration only makes sense when
+        // the user can actually record meetings.
         let calendarCoordinator: MeetingAutoStartCoordinator?
         if AppFeatures.meetingRecordingEnabled {
             let coordinator = MeetingAutoStartCoordinator(
@@ -275,8 +276,8 @@ final class AppEnvironmentConfigurer {
                 isRecordingActive: { [weak meetingCoordinator] in
                     meetingCoordinator?.isMeetingRecordingActive ?? false
                 },
-                onAutoStartConfirmed: { [weak meetingCoordinator] in
-                    meetingCoordinator?.startFromCalendar()
+                onAutoStartConfirmed: { [weak meetingCoordinator] title in
+                    meetingCoordinator?.startFromCalendar(title: title)
                 },
                 onAutoStopConfirmed: { [weak meetingCoordinator] in
                     meetingCoordinator?.toggleRecording()

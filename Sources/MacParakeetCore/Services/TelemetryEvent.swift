@@ -72,6 +72,7 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case calendarReminderShown = "calendar_reminder_shown"
     case calendarAutoStartTriggered = "calendar_auto_start_triggered"
     case calendarAutoStartCancelled = "calendar_auto_start_cancelled"
+    case calendarAutoStartFailed = "calendar_auto_start_failed"
     case calendarAutoStopShown = "calendar_auto_stop_shown"
     case calendarAutoStopCancelled = "calendar_auto_stop_cancelled"
     // Errors
@@ -275,10 +276,19 @@ public enum TelemetryEventSpec: Sendable {
     /// emits and `MeetingAutoStartCoordinator` actually presents the toast
     /// (after permission + active-recording checks).
     case calendarAutoStartTriggered(leadSeconds: Int, hasMeetUrl: Bool)
-    /// User actively cancelled the countdown before recording started, *or*
-    /// recording failed to start despite the user accepting. `.userCancel`
-    /// vs `.startError` is the distinction worth measuring.
+    /// User actively cancelled the countdown before recording started.
+    /// Currently only fires `reason: "user_cancel"`. System-side
+    /// failures (permission denial, service throw, state-busy) go
+    /// through `calendarAutoStartFailed` instead so the analyst can
+    /// tell "user said no" from "system couldn't" cleanly.
     case calendarAutoStartCancelled(reason: String)
+    /// Auto-start countdown completed but the recording flow couldn't
+    /// actually start. Distinguishes user opt-out from system failure
+    /// — see ADR-017 §10. Reasons:
+    /// - `permission_denied` — user denied mic/screen during the prompt
+    /// - `state_busy` — recording flow was non-idle (back-to-back meeting)
+    /// - `service_threw` — `MeetingRecordingService.startRecording` errored
+    case calendarAutoStartFailed(reason: String)
     /// Auto-stop countdown shown for an event currently being recorded.
     case calendarAutoStopShown(eventDurationSeconds: Double)
     /// User extended past the calendar event's end time (suppressed
@@ -364,6 +374,7 @@ extension TelemetryEventSpec {
         case .calendarReminderShown: return .calendarReminderShown
         case .calendarAutoStartTriggered: return .calendarAutoStartTriggered
         case .calendarAutoStartCancelled: return .calendarAutoStartCancelled
+        case .calendarAutoStartFailed: return .calendarAutoStartFailed
         case .calendarAutoStopShown: return .calendarAutoStopShown
         case .calendarAutoStopCancelled: return .calendarAutoStopCancelled
         case .errorOccurred: return .errorOccurred
@@ -586,6 +597,8 @@ extension TelemetryEventSpec {
             ]
         case .calendarAutoStartCancelled(let reason):
             return ["reason": reason]
+        case .calendarAutoStartFailed(let reason):
+            return ["reason": reason]
         case .calendarAutoStopShown(let eventDurationSeconds):
             return ["event_duration_seconds": Self.format(eventDurationSeconds)]
         case .calendarAutoStopCancelled:
@@ -708,6 +721,7 @@ public enum TelemetryImplementedContract {
         .calendarReminderShown: ["mode", "lead_minutes", "has_meet_url"],
         .calendarAutoStartTriggered: ["lead_seconds", "has_meet_url"],
         .calendarAutoStartCancelled: ["reason"],
+        .calendarAutoStartFailed: ["reason"],
         .calendarAutoStopShown: ["event_duration_seconds"],
         .calendarAutoStopCancelled: [],
         .errorOccurred: ["domain", "code", "description"],

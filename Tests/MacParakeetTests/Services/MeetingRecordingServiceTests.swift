@@ -423,6 +423,57 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertLessThanOrEqual(abs(microphoneSpanMs - systemSpanMs), 1_000)
     }
 
+    func testStartRecordingUsesProvidedTitleAsDisplayName() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording(title: "  Q1 Roadmap Standup  ")
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        // Trim is intentional — calendar event titles often have stray
+        // whitespace and the user shouldn't see it surface in their library.
+        XCTAssertEqual(output.displayName, "Q1 Roadmap Standup")
+    }
+
+    func testStartRecordingFallsBackToDateBasedDisplayNameWhenTitleIsBlank() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        // Whitespace-only title should not pollute the recording name —
+        // we want the same default a manual recording gets.
+        try await service.startRecording(title: "   \n  ")
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertTrue(output.displayName.hasPrefix("Meeting "),
+                      "Expected date-based fallback, got \(output.displayName)")
+    }
+
     private func waitForLiveChunkTranscriptionStart(
         _ client: SleepingMeetingSTTClient,
         timeout: Duration = .seconds(1)

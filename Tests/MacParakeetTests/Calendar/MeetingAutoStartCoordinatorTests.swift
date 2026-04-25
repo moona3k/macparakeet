@@ -15,6 +15,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     /// Tracks calls to the recording-flow callbacks the coordinator makes.
     private var recordingActiveStub = false
     private var autoStartConfirmedCount = 0
+    private var autoStartConfirmedTitles: [String] = []
     private var autoStopConfirmedCount = 0
 
     override func setUp() {
@@ -30,6 +31,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         calendarService = MockCalendarService()
         recordingActiveStub = false
         autoStartConfirmedCount = 0
+        autoStartConfirmedTitles = []
         autoStopConfirmedCount = 0
     }
 
@@ -64,7 +66,10 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             calendarService: calendarService,
             settingsViewModel: settingsViewModel,
             isRecordingActive: { [weak self] in self?.recordingActiveStub ?? false },
-            onAutoStartConfirmed: { [weak self] in self?.autoStartConfirmedCount += 1 },
+            onAutoStartConfirmed: { [weak self] title in
+                self?.autoStartConfirmedCount += 1
+                self?.autoStartConfirmedTitles.append(title)
+            },
             onAutoStopConfirmed: { [weak self] in self?.autoStopConfirmedCount += 1 },
             toastController: toastController
         )
@@ -172,13 +177,27 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         coordinator.start()
         await waitForPoll()
 
-        // Skip the actual countdown — manually invoke the test surface
-        // that the coordinator wires. The countdown UX is covered by
-        // toast-controller tests; here we're testing the coordinator's
-        // outcome plumbing.
-        coordinator.testHook_simulateAutoStartConfirmed(eventId: "evt-1")
+        // Skip the actual countdown — drive the outcome handler directly
+        // with a unique per-run title. The shared `testHook_` helper
+        // hardcodes "Test", which would let the title assertion pass
+        // even if the implementation hardcoded the title instead of
+        // forwarding `event.title`. The countdown UX itself is covered
+        // by toast-controller tests; here we're testing the coordinator's
+        // outcome plumbing only.
+        let uniqueTitle = "Roadmap Sync \(UUID().uuidString.prefix(8))"
+        let event = CalendarEvent(
+            id: "evt-1",
+            title: uniqueTitle,
+            startTime: Date(),
+            endTime: Date().addingTimeInterval(1800)
+        )
+        coordinator.handleAutoStartOutcome(.completed, for: event)
         XCTAssertEqual(autoStartConfirmedCount, 1,
                        "Recording start callback must fire on .completed outcome")
+        // Title forwarding: the calendar event name is what the saved
+        // recording will be titled, not the date-based default.
+        XCTAssertEqual(autoStartConfirmedTitles, [uniqueTitle],
+                       "Auto-start must forward the event title so the saved recording is named after the meeting")
 
         coordinator.stop()
     }
