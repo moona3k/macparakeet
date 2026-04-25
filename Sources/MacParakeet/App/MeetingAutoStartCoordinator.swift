@@ -290,18 +290,23 @@ final class MeetingAutoStartCoordinator {
             trigger: nil  // Deliver immediately
         )
 
+        // Only report `calendarReminderShown` after delivery actually succeeds —
+        // otherwise telemetry over-reports and we lose signal on real failure
+        // rates. The `remindedEventIds` mark above stays before the auth check,
+        // because the alternative (mark on success only) would re-attempt every
+        // poll tick when delivery transiently fails — better to miss a single
+        // reminder than spam the user.
         do {
             try await UNUserNotificationCenter.current().add(request)
+            Telemetry.send(.calendarReminderShown(
+                mode: mode.rawValue,
+                leadMinutes: leadMinutes,
+                hasMeetUrl: event.meetUrl != nil
+            ))
+            logger.info("Reminder posted for event id=\(event.id, privacy: .public)")
         } catch {
             logger.error("Reminder notification failed: \(error.localizedDescription, privacy: .public)")
         }
-
-        Telemetry.send(.calendarReminderShown(
-            mode: mode.rawValue,
-            leadMinutes: leadMinutes,
-            hasMeetUrl: event.meetUrl != nil
-        ))
-        logger.info("Reminder posted for event id=\(event.id, privacy: .public)")
     }
 
     // MARK: - Cleanup

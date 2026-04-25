@@ -73,12 +73,20 @@ public actor CalendarService {
 
     /// Modern macOS Sonoma+ API. Returns `false` when the user denies or the
     /// system reports an error (logged for debugging).
+    ///
+    /// Calls `eventStore.reset()` on successful grant so the *next*
+    /// `fetchUpcomingEvents` doesn't see a stale "no calendars" view from
+    /// before the prompt. Without this, the "grant access → reminder fires
+    /// for an event 5 min out" path could return zero events on the very
+    /// first poll after grant, until the next `EKEventStoreChanged` woke us
+    /// up.
     public func requestPermission() async -> Bool {
         logger.info("Requesting calendar permission")
         do {
             let granted = try await eventStore.requestFullAccessToEvents()
             if granted {
                 logger.info("Calendar permission granted")
+                eventStore.reset()
             } else {
                 logger.warning("Calendar permission denied")
             }
