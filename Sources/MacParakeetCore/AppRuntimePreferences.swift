@@ -9,6 +9,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var shouldDiarize: Bool { get }
     var aiFormatterEnabled: Bool { get }
     var aiFormatterPrompt: String { get }
+    var selectedMicrophoneDeviceUID: String? { get }
 }
 
 public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProtocol, @unchecked Sendable {
@@ -24,6 +25,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let speakerDiarizationKey = "speakerDiarization"
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
+    public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
 
     private let defaults: UserDefaults
 
@@ -66,5 +68,9 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public var aiFormatterPrompt: String {
         let prompt = defaults.string(forKey: Self.aiFormatterPromptKey) ?? ""
         return AIFormatter.normalizedPromptTemplate(prompt)
+    }
+
+    public var selectedMicrophoneDeviceUID: String? {
+        AudioDeviceManager.normalizedUID(defaults.string(forKey: Self.selectedMicrophoneDeviceUIDKey))
     }
 }

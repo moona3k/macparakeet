@@ -176,7 +176,7 @@ CREATE INDEX idx_events_session ON events(session);
 | `processing_mode_changed` | `mode` (raw, clean) | Is the clean pipeline valued? |
 | `custom_word_added` | — | Are custom words used? (NOT the word itself) |
 | `snippet_added` | — | Are snippets used? |
-| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, speaker_diarization, auto_save, meeting_auto_save, meeting_hotkey, launch_at_login, silence_auto_stop, voice_return) | Which settings get toggled? |
+| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, speaker_diarization, auto_save, meeting_auto_save, meeting_hotkey, file_transcription_hotkey, youtube_transcription_hotkey, microphone_selection, launch_at_login, silence_auto_stop, voice_return) | Which settings get toggled? |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 6. Licensing — "Is the business working?"

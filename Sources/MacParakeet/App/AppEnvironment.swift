@@ -47,17 +47,28 @@ final class AppEnvironment {
         promptResultRepo = PromptResultRepository(dbQueue: databaseManager.dbQueue)
 
         // Services
+        let runtimePreferences = UserDefaultsAppRuntimePreferences()
+        self.runtimePreferences = runtimePreferences
+        let selectedInputDeviceUIDProvider: @Sendable () -> String? = { [runtimePreferences] in
+            runtimePreferences.selectedMicrophoneDeviceUID
+        }
+
         sttRuntime = STTRuntime()
         sttScheduler = STTScheduler(runtime: sttRuntime)
-        audioProcessor = AudioProcessor()
-        meetingRecordingService = MeetingRecordingService(sttTranscriber: sttScheduler)
+        audioProcessor = AudioProcessor(
+            selectedInputDeviceUIDProvider: selectedInputDeviceUIDProvider
+        )
+        meetingRecordingService = MeetingRecordingService(
+            audioCaptureService: MeetingAudioCaptureService(
+                selectedInputDeviceUIDProvider: selectedInputDeviceUIDProvider
+            ),
+            sttTranscriber: sttScheduler
+        )
         clipboardService = ClipboardService()
         exportService = ExportService()
         permissionService = PermissionService()
         accessibilityService = AccessibilityService()
         launchAtLoginService = LaunchAtLoginService()
-        let runtimePreferences = UserDefaultsAppRuntimePreferences()
-        self.runtimePreferences = runtimePreferences
 
         // Licensing / entitlements (basic guards: 7-day trial + license unlock).
         //

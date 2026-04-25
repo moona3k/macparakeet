@@ -194,6 +194,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Pre-meeting macOS notifications at configurable lead time (off / 1 / 5 / 10 min)
 - [x] Auto-start countdown toast (ADR-017 Phase 2): 5s cancellable, top-center, non-activating
 - [x] Auto-stop toast at calendar event end (ADR-017 Phase 2): 30s, "Keep Recording" cancels
+- [x] Calendar event title applied to auto-started recordings (instead of date-based default)
 - [x] Crash-resilient meeting recovery (ADR-019): session lock files, launch/settings recovery affordance, recovered badge
 - [x] Fragmented MP4 meeting writer (ADR-019): 1s fragments, playable source audio after kill-9 up to the last fragment
 

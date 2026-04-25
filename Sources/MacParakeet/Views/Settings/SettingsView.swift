@@ -29,6 +29,7 @@ struct SettingsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                 headerCard
+                audioInputCard
                 dictationCard
                 if AppFeatures.meetingRecordingEnabled {
                     meetingRecordingCard
@@ -123,6 +124,135 @@ struct SettingsView: View {
                 )
             }
         }
+    }
+
+    // MARK: - Audio Input
+
+    private var audioInputCard: some View {
+        settingsCard(
+            title: "Audio Input",
+            subtitle: "Choose the microphone used for dictation and meetings.",
+            icon: "mic"
+        ) {
+            VStack(spacing: DesignSystem.Spacing.md) {
+                HStack(alignment: .center) {
+                    rowText(
+                        title: "Microphone",
+                        detail: viewModel.selectedMicrophoneStatusText
+                    )
+                    Spacer(minLength: DesignSystem.Spacing.md)
+                    HStack(spacing: DesignSystem.Spacing.sm) {
+                        Picker("Microphone", selection: $viewModel.selectedMicrophoneDeviceUID) {
+                            Text("System Default").tag(SettingsViewModel.systemDefaultMicrophoneSelection)
+                            ForEach(viewModel.microphoneDeviceOptions) { device in
+                                Text(device.displayName).tag(device.uid)
+                                    .disabled(!device.isAvailable)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(minWidth: 220, idealWidth: 260, maxWidth: 320)
+
+                        Button {
+                            viewModel.refreshMicrophoneDevices()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
+                        .help("Refresh microphones")
+                        .accessibilityLabel("Refresh microphones")
+                    }
+                }
+
+                Divider()
+
+                HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+                    microphoneTestStatus
+                    Spacer(minLength: DesignSystem.Spacing.md)
+                    Button {
+                        switch viewModel.microphoneTestState {
+                        case .testing:
+                            viewModel.cancelMicrophoneTest()
+                        default:
+                            viewModel.testSelectedMicrophone()
+                        }
+                    } label: {
+                        Label(
+                            viewModel.microphoneTestState == .testing ? "Stop Test" : "Test Input",
+                            systemImage: viewModel.microphoneTestState == .testing ? "stop.fill" : "waveform"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(DesignSystem.Colors.accent)
+                    .disabled(!viewModel.microphoneGranted && viewModel.microphoneTestState != .testing)
+                }
+            }
+        }
+    }
+
+    private var microphoneTestStatus: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            microphoneLevelMeter(level: viewModel.microphoneTestLevel)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(microphoneTestTitle)
+                    .font(DesignSystem.Typography.body)
+                Text(microphoneTestDetail)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(microphoneTestDetailColor)
+                    .lineLimit(2)
+            }
+        }
+    }
+
+    private var microphoneTestTitle: String {
+        switch viewModel.microphoneTestState {
+        case .idle:
+            return "Input test"
+        case .testing:
+            return "Listening..."
+        case .succeeded:
+            return "Input detected"
+        case .failed:
+            return "Input test failed"
+        }
+    }
+
+    private var microphoneTestDetail: String {
+        switch viewModel.microphoneTestState {
+        case .idle:
+            return viewModel.microphoneGranted ? "Run a short level check before recording." : "Grant microphone permission before testing."
+        case .testing:
+            return "Speak into the selected microphone."
+        case .succeeded:
+            return "This microphone is producing audio."
+        case .failed(let message):
+            return message
+        }
+    }
+
+    private var microphoneTestDetailColor: Color {
+        switch viewModel.microphoneTestState {
+        case .failed:
+            return DesignSystem.Colors.errorRed
+        default:
+            return .secondary
+        }
+    }
+
+    private func microphoneLevelMeter(level: Float) -> some View {
+        GeometryReader { proxy in
+            let clamped = CGFloat(max(0, min(1, level)))
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(DesignSystem.Colors.surfaceElevated)
+                Capsule()
+                    .fill(DesignSystem.Colors.accent)
+                    .frame(width: max(6, proxy.size.width * clamped))
+                    .animation(.easeOut(duration: 0.12), value: clamped)
+            }
+        }
+        .frame(width: 96, height: 8)
+        .accessibilityLabel("Microphone input level")
+        .accessibilityValue("\(Int(max(0, min(1, level)) * 100)) percent")
     }
 
     // MARK: - General

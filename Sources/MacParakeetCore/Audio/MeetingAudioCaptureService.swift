@@ -56,8 +56,13 @@ public actor MeetingAudioCaptureService {
     private var eventContinuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
     private var cachedEvents: AsyncStream<MeetingAudioCaptureEvent>?
 
-    public init(micProcessingMode: MeetingMicProcessingMode = .raw) {
-        self.microphoneCapture = MicrophoneCapture()
+    public init(
+        micProcessingMode: MeetingMicProcessingMode = .raw,
+        selectedInputDeviceUIDProvider: @escaping @Sendable () -> String? = { nil }
+    ) {
+        self.microphoneCapture = MicrophoneCapture(
+            selectedInputDeviceUIDProvider: selectedInputDeviceUIDProvider
+        )
         self.micProcessingMode = micProcessingMode
         self.systemAudioTapFactory = {
             guard #available(macOS 14.2, *) else {

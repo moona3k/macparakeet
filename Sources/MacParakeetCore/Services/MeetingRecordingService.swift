@@ -18,7 +18,10 @@ public enum CaptureMode: Sendable, Equatable {
 }
 
 public protocol MeetingRecordingServiceProtocol: Sendable {
-    func startRecording() async throws
+    /// `title` lets callers (e.g., the calendar auto-start path) pre-name
+    /// the recording. `nil` or whitespace-only falls back to the default
+    /// "Meeting <date>" label.
+    func startRecording(title: String?) async throws
     func stopRecording() async throws -> MeetingRecordingOutput
     func completeTranscription(for recording: MeetingRecordingOutput) async
     func cancelRecording() async
@@ -28,6 +31,14 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     var elapsedSeconds: Int { get async }
     var captureMode: CaptureMode { get async }
     var transcriptUpdates: AsyncStream<MeetingTranscriptUpdate> { get async }
+}
+
+public extension MeetingRecordingServiceProtocol {
+    /// Existing manual / hotkey callers use the no-arg form — the calendar
+    /// path is the only caller that has a meaningful title to pass.
+    func startRecording() async throws {
+        try await startRecording(title: nil)
+    }
 }
 
 public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
@@ -142,7 +153,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return stream
     }
 
-    public func startRecording() async throws {
+    public func startRecording(title: String? = nil) async throws {
         guard currentSession == nil else {
             throw MeetingAudioError.alreadyRunning
         }
@@ -153,10 +164,15 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let writer = try MeetingAudioStorageWriter(folderURL: folderURL)
         let chunkFolderURL = folderURL.appendingPathComponent("chunks", isDirectory: true)
         try fileManager.createDirectory(at: chunkFolderURL, withIntermediateDirectories: true)
+        // Single timestamp shared between displayName fallback and
+        // startedAt — back-to-back `Date()` calls would only diverge if
+        // the clock ticked over a minute boundary between them, which is
+        // vanishingly rare but trivially avoidable.
+        let now = Date()
         let session = Session(
             id: sessionID,
-            displayName: Self.makeDisplayName(for: Date()),
-            startedAt: Date(),
+            displayName: Self.resolveDisplayName(title: title, fallbackDate: now),
+            startedAt: now,
             folderURL: folderURL,
             chunkFolderURL: chunkFolderURL,
             microphoneAudioURL: writer.microphoneAudioURL,
@@ -683,6 +699,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         transcriptContinuation?.finish()
         transcriptContinuation = nil
         cachedTranscriptUpdates = nil
+    }
+
+    private static func resolveDisplayName(title: String?, fallbackDate: Date) -> String {
+        if let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty {
+            return trimmed
+        }
+        return makeDisplayName(for: fallbackDate)
     }
 
     private static func makeDisplayName(for date: Date) -> String {

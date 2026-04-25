@@ -16,6 +16,34 @@ public final class SettingsViewModel {
         case failed
     }
 
+    public enum MicrophoneTestState: Equatable {
+        case idle
+        case testing
+        case succeeded
+        case failed(String)
+    }
+
+    public struct MicrophoneDeviceOption: Identifiable, Equatable, Sendable {
+        public let id: String
+        public let uid: String
+        public let name: String
+        public let transportLabel: String
+        public let isDefault: Bool
+        public let isAvailable: Bool
+
+        public var displayName: String {
+            if !isAvailable { return "\(name) (unavailable)" }
+            return isDefault ? "\(name) (System Default)" : name
+        }
+
+        public var detail: String {
+            isAvailable ? transportLabel : "Reconnect this microphone or choose another input."
+        }
+    }
+
+    public static let systemDefaultMicrophoneSelection = "__system_default__"
+    private static let microphoneTestSilenceThreshold: Float = 0.01
+
     // General
     public var launchAtLogin: Bool {
         didSet {
@@ -95,6 +123,42 @@ public final class SettingsViewModel {
     }
     public var silenceDelay: Double {
         didSet { defaults.set(silenceDelay, forKey: UserDefaultsAppRuntimePreferences.silenceDelayKey) }
+    }
+    public var selectedMicrophoneDeviceUID: String {
+        didSet {
+            let normalized = Self.normalizedMicrophoneSelection(selectedMicrophoneDeviceUID)
+            if selectedMicrophoneDeviceUID != normalized {
+                selectedMicrophoneDeviceUID = normalized
+            }
+            if normalized == Self.systemDefaultMicrophoneSelection {
+                defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
+            } else {
+                defaults.set(normalized, forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
+            }
+            microphoneTestTask?.cancel()
+            microphoneTestTask = nil
+            microphoneTestState = .idle
+            microphoneTestLevel = 0
+            Telemetry.send(.settingChanged(setting: .microphoneSelection))
+        }
+    }
+    public var microphoneDeviceOptions: [MicrophoneDeviceOption] = []
+    public var microphoneTestState: MicrophoneTestState = .idle
+    public var microphoneTestLevel: Float = 0
+    public var selectedMicrophoneStatusText: String {
+        if selectedMicrophoneDeviceUID == Self.systemDefaultMicrophoneSelection {
+            if let currentDefault = microphoneDeviceOptions.first(where: \.isDefault) {
+                return "Using macOS System Default: \(currentDefault.name)."
+            }
+            return "Using macOS System Default."
+        }
+        guard let selected = microphoneDeviceOptions.first(where: { $0.uid == selectedMicrophoneDeviceUID }) else {
+            return "Selected microphone is unavailable. MacParakeet will use System Default until it returns."
+        }
+        guard selected.isAvailable else {
+            return "Selected microphone is unavailable. MacParakeet will use System Default until it returns."
+        }
+        return "Using \(selected.name) for dictation and meeting microphone capture."
     }
 
     // Voice Return
@@ -302,10 +366,16 @@ public final class SettingsViewModel {
     private let defaults: UserDefaults
     private let youtubeDownloadsDirPath: @Sendable () -> String
     private let isSpeechModelCached: @Sendable () -> Bool
+    private let inputDevicesProvider: @Sendable () -> [AudioDeviceManager.InputDevice]
+    private let defaultInputDeviceUIDProvider: @Sendable () -> String?
     private let permissionPollingInterval: Duration
     private var isApplyingLaunchAtLoginState = false
-    private var permissionPollingTask: Task<Void, Never>?
-    private var calendarSettingsObserver: NSObjectProtocol?
+    // `deinit` is nonisolated even though this type is `@MainActor`.
+    // These handles are only mutated on the main actor during the view
+    // model lifetime; unsafe access lets deinit cancel/unregister.
+    @ObservationIgnored nonisolated(unsafe) private var permissionPollingTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var microphoneTestTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var calendarSettingsObserver: NSObjectProtocol?
     /// Re-entrancy guard so `observeCalendarSettings()` doesn't fire `didSet`
     /// → notification → re-resolve → `didSet` → … on every user toggle.
     private var isResolvingCalendarSettings = false
@@ -315,12 +385,20 @@ public final class SettingsViewModel {
         defaults: UserDefaults = .standard,
         youtubeDownloadsDirPath: @escaping @Sendable () -> String = { AppPaths.youtubeDownloadsDir },
         isSpeechModelCached: @escaping @Sendable () -> Bool = { STTRuntime.isModelCached() },
+        inputDevicesProvider: @escaping @Sendable () -> [AudioDeviceManager.InputDevice] = {
+            AudioDeviceManager.inputDevices()
+        },
+        defaultInputDeviceUIDProvider: @escaping @Sendable () -> String? = {
+            AudioDeviceManager.defaultInputDeviceInfo()?.uid
+        },
         permissionPollingInterval: Duration = .seconds(2)
     ) {
         AutoSaveService.migrateLegacyMeetingSettingsIfNeeded(defaults: defaults)
         self.defaults = defaults
         self.youtubeDownloadsDirPath = youtubeDownloadsDirPath
         self.isSpeechModelCached = isSpeechModelCached
+        self.inputDevicesProvider = inputDevicesProvider
+        self.defaultInputDeviceUIDProvider = defaultInputDeviceUIDProvider
         self.permissionPollingInterval = permissionPollingInterval
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
         menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
@@ -339,6 +417,9 @@ public final class SettingsViewModel {
         silenceAutoStop = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.silenceAutoStopKey)
         let delay = defaults.double(forKey: UserDefaultsAppRuntimePreferences.silenceDelayKey)
         silenceDelay = delay == 0 ? 2.0 : delay
+        selectedMicrophoneDeviceUID = Self.normalizedMicrophoneSelection(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
+        )
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
@@ -357,7 +438,16 @@ public final class SettingsViewModel {
         meetingTriggerFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
         calendarAutoStopEnabled = defaults.object(forKey: CalendarAutoStartPreferences.autoStopEnabledKey) as? Bool ?? true
         calendarExcludedIdentifiers = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
+        refreshMicrophoneDevices()
         observeCalendarSettings()
+    }
+
+    deinit {
+        permissionPollingTask?.cancel()
+        microphoneTestTask?.cancel()
+        if let calendarSettingsObserver {
+            NotificationCenter.default.removeObserver(calendarSettingsObserver)
+        }
     }
 
     /// Onboarding writes calendar settings directly to UserDefaults (it
@@ -429,6 +519,10 @@ public final class SettingsViewModel {
             return []
         }
         return Set(raw)
+    }
+
+    private static func normalizedMicrophoneSelection(_ uid: String?) -> String {
+        AudioDeviceManager.normalizedUID(uid) ?? systemDefaultMicrophoneSelection
     }
 
     /// Resolve the stored bookmark to a display path.
@@ -542,6 +636,7 @@ public final class SettingsViewModel {
     }
 
     public func refreshPermissions() {
+        refreshMicrophoneDevices()
         Task {
             if let service = permissionService {
                 let micStatus = await service.checkMicrophonePermission()
@@ -553,6 +648,79 @@ public final class SettingsViewModel {
             }
             refreshCalendarPermission()
         }
+    }
+
+    public func refreshMicrophoneDevices() {
+        let defaultUID = defaultInputDeviceUIDProvider()
+        microphoneDeviceOptions = inputDevicesProvider().map { device in
+            MicrophoneDeviceOption(
+                id: device.uid,
+                uid: device.uid,
+                name: device.name,
+                transportLabel: device.transportLabel,
+                isDefault: device.uid == defaultUID,
+                isAvailable: true
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.isDefault != rhs.isDefault { return lhs.isDefault && !rhs.isDefault }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+        if selectedMicrophoneDeviceUID != Self.systemDefaultMicrophoneSelection,
+           !microphoneDeviceOptions.contains(where: { $0.uid == selectedMicrophoneDeviceUID }) {
+            microphoneDeviceOptions.append(
+                MicrophoneDeviceOption(
+                    id: selectedMicrophoneDeviceUID,
+                    uid: selectedMicrophoneDeviceUID,
+                    name: "Selected microphone",
+                    transportLabel: "unavailable",
+                    isDefault: false,
+                    isAvailable: false
+                )
+            )
+        }
+    }
+
+    public func testSelectedMicrophone() {
+        microphoneTestTask?.cancel()
+        microphoneTestLevel = 0
+        microphoneTestState = .testing
+
+        let selectedUID = selectedMicrophoneDeviceUID == Self.systemDefaultMicrophoneSelection
+            ? nil
+            : selectedMicrophoneDeviceUID
+        let levelBox = MicrophoneLevelBox()
+
+        microphoneTestTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let capture = MicrophoneCapture(selectedInputDeviceUIDProvider: { selectedUID })
+            do {
+                _ = try capture.start(processingMode: .raw) { buffer, _ in
+                    levelBox.record(buffer.rmsLevel)
+                }
+                for _ in 0..<40 {
+                    try await Task.sleep(for: .milliseconds(50))
+                    microphoneTestLevel = levelBox.latestLevel
+                }
+                capture.stop()
+                guard !Task.isCancelled else { return }
+                microphoneTestState = levelBox.maxLevel > Self.microphoneTestSilenceThreshold
+                    ? .succeeded
+                    : .failed("No input detected. Check the selected microphone and try again.")
+            } catch {
+                capture.stop()
+                guard !Task.isCancelled else { return }
+                microphoneTestState = .failed(error.localizedDescription)
+            }
+            microphoneTestTask = nil
+        }
+    }
+
+    public func cancelMicrophoneTest() {
+        microphoneTestTask?.cancel()
+        microphoneTestTask = nil
+        microphoneTestLevel = 0
+        microphoneTestState = .idle
     }
 
     public func requestScreenRecordingAccess() {
@@ -915,5 +1083,26 @@ public final class SettingsViewModel {
         }
 
         throw lastError ?? STTError.engineStartFailed("Model setup failed.")
+    }
+}
+
+private final class MicrophoneLevelBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var latestValue: Float = 0
+    private var peakValue: Float = 0
+
+    var latestLevel: Float {
+        lock.withLock { latestValue }
+    }
+
+    var maxLevel: Float {
+        lock.withLock { peakValue }
+    }
+
+    func record(_ level: Float) {
+        lock.withLock {
+            latestValue = level
+            peakValue = max(peakValue, level)
+        }
     }
 }
