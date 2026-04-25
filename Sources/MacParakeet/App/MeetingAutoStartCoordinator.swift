@@ -173,6 +173,16 @@ final class MeetingAutoStartCoordinator {
     // MARK: - Polling
 
     private func pollAsync() async {
+        // Run binding-cleanup *before* the early returns so toggling mode
+        // off (or losing permission) while an auto-started recording is in
+        // flight doesn't strand a stale `autoStartedEventId` until the
+        // user re-enables.
+        let activeRecording = isRecordingActive()
+        if !activeRecording, autoStartedEventId != nil {
+            autoStartedEventId = nil
+            autoStopCountdownEventId = nil
+        }
+
         let mode = settingsViewModel.calendarAutoStartMode
         guard mode != .off else { return }
         guard calendarService.permissionStatus == .granted else { return }
@@ -187,16 +197,6 @@ final class MeetingAutoStartCoordinator {
         } catch {
             logger.error("Failed to fetch events: \(error.localizedDescription, privacy: .public)")
             return
-        }
-
-        let activeRecording = isRecordingActive()
-        // If we held an `autoStartedEventId` and recording is no longer
-        // active, the user manually stopped the auto-started recording.
-        // Clear the binding so we don't fire `.autoStopDue` against a
-        // recording that no longer exists.
-        if !activeRecording, autoStartedEventId != nil {
-            autoStartedEventId = nil
-            autoStopCountdownEventId = nil
         }
 
         let config = currentConfig(mode: mode)
@@ -245,15 +245,27 @@ final class MeetingAutoStartCoordinator {
 
     private func adjustPollingFrequency(events: [CalendarEvent]) {
         let now = Date()
-        let nearest = events
+        // Soonest *future* start — drives auto-start window accuracy.
+        let nextStart = events
             .filter { $0.startTime > now }
-            .min(by: { $0.startTime < $1.startTime })
-
-        guard let event = nearest else {
+            .map { $0.startTime.timeIntervalSince(now) }
+            .min()
+        // Soonest *end* of an in-progress event we're recording — without
+        // this, a single isolated meeting would keep polling at 60s and
+        // the [endTime - 30s, endTime] auto-stop window would slip
+        // through (60s cadence + arbitrary phase = miss). Only relevant
+        // when auto-stop is enabled and we're actually recording.
+        let nextEnd: TimeInterval? = {
+            guard isRecordingActive(), settingsViewModel.calendarAutoStopEnabled else { return nil }
+            return events
+                .filter { $0.startTime <= now && $0.endTime > now }
+                .map { $0.endTime.timeIntervalSince(now) }
+                .min()
+        }()
+        guard let secondsUntil = [nextStart, nextEnd].compactMap({ $0 }).min() else {
             rescheduleTimer(interval: 60)
             return
         }
-        let secondsUntil = event.startTime.timeIntervalSince(now)
         let newInterval: TimeInterval
         if secondsUntil <= 30 {
             newInterval = 5
@@ -308,15 +320,13 @@ final class MeetingAutoStartCoordinator {
     /// - `.programmaticClose` → no-op (another toast preempted us)
     private func showAutoStartCountdown(_ event: CalendarEvent) {
         countdownShownEventIds.insert(event.id)
-        let leadSeconds = settingsViewModel.calendarReminderMinutes  // reused for telemetry context
+        // Actual lead time — how far before T-0 the toast went up. The
+        // auto-start window allows up to +30s past T-0, so clamp to 0
+        // when we surface it after the event has already started.
+        let leadSeconds = max(0, Int(event.startTime.timeIntervalSinceNow.rounded()))
         let serviceName = event.meetUrl.flatMap(MeetingLinkParser.shared.identifyService)
         let body = serviceName.map { "Recording will start automatically — joining \($0)?" }
             ?? "Recording will start automatically."
-
-        Telemetry.send(.calendarAutoStartTriggered(
-            leadSeconds: leadSeconds,
-            hasMeetUrl: event.meetUrl != nil
-        ))
 
         toastController.showAutoStart(
             title: event.title,
@@ -324,6 +334,26 @@ final class MeetingAutoStartCoordinator {
         ) { [weak self] outcome in
             self?.handleAutoStartOutcome(outcome, for: event)
         }
+
+        // Fire telemetry *after* `showAutoStart` returns so the event name
+        // matches what the user actually saw — its docstring says "fires
+        // when the toast is presented."
+        Telemetry.send(.calendarAutoStartTriggered(
+            leadSeconds: leadSeconds,
+            hasMeetUrl: event.meetUrl != nil
+        ))
+    }
+
+    /// Drop any optimistic auto-start binding. Called by
+    /// `MeetingRecordingFlowCoordinator.onAutoStartFailed` when the
+    /// downstream start either silently no-oped (state machine wasn't
+    /// idle — likely the previous meeting is still wrapping up) or threw
+    /// during the underlying `startRecording()`. Without this, a stale
+    /// binding can suppress the *next* meeting's auto-stop window.
+    func clearAutoStartBinding() {
+        autoStartedEventId = nil
+        autoStopCountdownEventId = nil
+        logger.info("Auto-start binding cleared (start failed or state busy)")
     }
 
     /// Internal entry point for the auto-start outcome routing. Public to

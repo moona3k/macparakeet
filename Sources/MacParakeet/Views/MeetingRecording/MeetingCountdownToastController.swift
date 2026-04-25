@@ -19,7 +19,12 @@ enum MeetingCountdownToastOutcome: Sendable {
 }
 
 private final class CountdownPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
+    // Must be `true` for SwiftUI's `.keyboardShortcut(.escape)` and
+    // `.keyboardShortcut(.return)` to fire — they require the hosting
+    // window to be the key window. The `.nonactivatingPanel` style mask
+    // (set in `present()`) prevents focus stealing on `orderFront`, so
+    // the user's app context isn't disturbed when the toast appears.
+    override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }
 
@@ -33,6 +38,11 @@ final class MeetingCountdownToastController {
     private var viewModel: MeetingCountdownToastViewModel?
     private var startTime: Date?
     private var timer: Timer?
+    /// In-flight tick Task. Tracked so `finish()` can cancel it before
+    /// nilling out `viewModel` / `startTime` — otherwise a Task scheduled
+    /// from the last timer tick can fire `tick()` against torn-down state
+    /// and fall through to the early `return` (silent, but a smell).
+    private var tickTask: Task<Void, Never>?
     private var onOutcome: ((MeetingCountdownToastOutcome) -> Void)?
 
     /// Show a pre-meeting auto-start countdown. Default duration 5s.
@@ -144,16 +154,18 @@ final class MeetingCountdownToastController {
         timer?.invalidate()
         // 60Hz refresh keeps the progress bar smooth without burning CPU —
         // a 5s auto-start ticks 300 times total. Add to .common so the
-        // timer keeps firing during menu/scroll tracking.
+        // timer keeps firing during menu/scroll tracking. Track the spawned
+        // Task so `finish()` can cancel it before nilling state.
         let timer = Timer(timeInterval: 1.0 / 60.0, repeats: true) { [weak self] _ in
-            Task { @MainActor [weak self] in self?.tick() }
+            self?.tickTask?.cancel()
+            self?.tickTask = Task { @MainActor [weak self] in self?.tick() }
         }
         RunLoop.main.add(timer, forMode: .common)
         self.timer = timer
     }
 
     private func tick() {
-        guard let viewModel, let startTime else { return }
+        guard !Task.isCancelled, let viewModel, let startTime else { return }
         let elapsed = Date().timeIntervalSince(startTime)
         let progress = min(1, elapsed / viewModel.duration)
         viewModel.progress = progress
@@ -165,7 +177,9 @@ final class MeetingCountdownToastController {
     private func finish(_ outcome: MeetingCountdownToastOutcome) {
         let callback = onOutcome
         timer?.invalidate()
+        tickTask?.cancel()
         timer = nil
+        tickTask = nil
         panel?.orderOut(nil)
         panel = nil
         viewModel = nil

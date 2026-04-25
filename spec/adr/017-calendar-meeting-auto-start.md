@@ -1,6 +1,6 @@
 # ADR-017: Calendar-Driven Meeting Auto-Start
 
-> Status: PARTIAL — Phase 1 (notify-only) + Phase 2 (auto-start + countdown + auto-stop) IMPLEMENTED 2026-04-25; Phase 3 (late-join, retro-link, generic URL extraction) PROPOSED
+> Status: **IMPLEMENTED** — Phases 1 (notify-only) and 2 (auto-start + countdown + auto-stop) shipped 2026-04-25. Phase 3 (late-join, retro-link, generic URL extraction) remains **PROPOSED** (see Phased Rollout below).
 > Date: 2026-04-19
 > Related: ADR-002 (local-first), ADR-005 (onboarding), ADR-009 (custom hotkeys), ADR-014 (meeting recording), ADR-015 (concurrent dictation/meeting)
 

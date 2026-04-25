@@ -282,6 +282,14 @@ final class AppEnvironmentConfigurer {
                     meetingCoordinator?.toggleRecording()
                 }
             )
+            // The recording flow tells the calendar coordinator when an
+            // auto-start attempt actually failed (state was non-idle, or
+            // the underlying start threw) so the optimistic binding gets
+            // dropped — otherwise the next meeting's auto-stop would be
+            // suppressed by a stale `autoStartedEventId`.
+            meetingCoordinator.onAutoStartFailed = { [weak coordinator] in
+                coordinator?.clearAutoStartBinding()
+            }
             coordinator.start()
             calendarCoordinator = coordinator
         } else {

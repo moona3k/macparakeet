@@ -45,7 +45,7 @@ struct CalendarCommand: AsyncParsableCommand {
             let events = raw.filter { passesFilter($0, filter: triggerFilter) }
 
             if json {
-                printJSON(events)
+                try printJSON(events)
             } else {
                 printHuman(events, filter: triggerFilter)
             }
@@ -100,17 +100,16 @@ struct CalendarCommand: AsyncParsableCommand {
             }
         }
 
-        private func printJSON(_ events: [CalendarEvent]) {
+        private func printJSON(_ events: [CalendarEvent]) throws {
+            // Re-throw encoding errors so the CLI exits non-zero — silently
+            // swallowing here makes the empty stdout look like "no events"
+            // to a CI script or agent calling this with `--json`.
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            do {
-                let data = try encoder.encode(events)
-                if let s = String(data: data, encoding: .utf8) {
-                    print(s)
-                }
-            } catch {
-                FileHandle.standardError.write(Data("Failed to encode JSON: \(error.localizedDescription)\n".utf8))
+            let data = try encoder.encode(events)
+            if let s = String(data: data, encoding: .utf8) {
+                print(s)
             }
         }
     }

@@ -1,5 +1,5 @@
 import Foundation
-@testable import MacParakeetCore
+import MacParakeetCore
 
 /// In-memory `CalendarServicing` for coordinator + ViewModel tests. Lets
 /// callers control the permission status (so tests can simulate

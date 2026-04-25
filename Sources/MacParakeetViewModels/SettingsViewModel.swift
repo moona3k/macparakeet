@@ -193,17 +193,23 @@ public final class SettingsViewModel {
     public var calendarAutoStartMode: CalendarAutoStartMode {
         didSet {
             defaults.set(calendarAutoStartMode.rawValue, forKey: CalendarAutoStartPreferences.modeKey)
+            // Guard ALL side effects (not just the auth prompt). Onboarding
+            // posts the cross-VM notification itself; if we re-post here
+            // during the resulting reload, the observer cycles indefinitely
+            // (the .common-mode Task hop drops the re-entrancy guard before
+            // the observer fires again). The originator already emitted
+            // telemetry — don't double-emit on sync.
+            guard !isResolvingCalendarSettings else { return }
             NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
             Telemetry.send(.settingChanged(setting: .calendarAutoStartMode))
             // Enabling reminders requires notification authorization. The
             // onboarding-grant flow asks for this in tandem with Calendar
             // access, but a user who granted Calendar earlier (or via
-            // System Settings) and *now* flips the mode picker to `.notify`
+            // System Settings) and *now* flips the mode picker to non-`.off`
             // would otherwise hit the silent-drop path: coordinator marks
             // the event reminded, finds notifications unauthorized, returns
-            // without delivering. Skip when re-entering via the settings
-            // observer to avoid prompting on every cross-VM sync.
-            if calendarAutoStartMode != .off && !isResolvingCalendarSettings {
+            // without delivering.
+            if calendarAutoStartMode != .off {
                 Task { await CalendarNotificationAuthorization.requestIfNeeded() }
             }
         }
@@ -211,6 +217,7 @@ public final class SettingsViewModel {
     public var calendarReminderMinutes: Int {
         didSet {
             defaults.set(calendarReminderMinutes, forKey: CalendarAutoStartPreferences.reminderMinutesKey)
+            guard !isResolvingCalendarSettings else { return }
             NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
             Telemetry.send(.settingChanged(setting: .calendarReminderMinutes))
         }
@@ -218,6 +225,7 @@ public final class SettingsViewModel {
     public var meetingTriggerFilter: MeetingTriggerFilter {
         didSet {
             defaults.set(meetingTriggerFilter.rawValue, forKey: CalendarAutoStartPreferences.triggerFilterKey)
+            guard !isResolvingCalendarSettings else { return }
             NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
             Telemetry.send(.settingChanged(setting: .calendarTriggerFilter))
         }
@@ -225,6 +233,7 @@ public final class SettingsViewModel {
     public var calendarAutoStopEnabled: Bool {
         didSet {
             defaults.set(calendarAutoStopEnabled, forKey: CalendarAutoStartPreferences.autoStopEnabledKey)
+            guard !isResolvingCalendarSettings else { return }
             NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
             Telemetry.send(.settingChanged(setting: .calendarAutoStopEnabled))
         }
@@ -232,6 +241,7 @@ public final class SettingsViewModel {
     public var calendarExcludedIdentifiers: Set<String> {
         didSet {
             defaults.set(Array(calendarExcludedIdentifiers), forKey: CalendarAutoStartPreferences.excludedCalendarIdsKey)
+            guard !isResolvingCalendarSettings else { return }
             NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
             Telemetry.send(.settingChanged(setting: .calendarIncludedCalendars))
         }

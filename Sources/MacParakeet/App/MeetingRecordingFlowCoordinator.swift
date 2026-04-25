@@ -78,6 +78,14 @@ final class MeetingRecordingFlowCoordinator {
     /// which sets this and re-enters `toggleRecording`.
     private var pendingTrigger: TelemetryMeetingRecordingTrigger?
 
+    /// Optional callback fired when an auto-start attempt couldn't actually
+    /// start a recording — either because the state machine wasn't idle
+    /// (back-to-back meeting, previous wrap-up still in progress) or the
+    /// underlying `startRecording()` threw. The auto-start coordinator
+    /// uses this to clear its `autoStartedEventId` binding so a stale id
+    /// doesn't suppress the *next* meeting's auto-stop.
+    var onAutoStartFailed: (() -> Void)?
+
     func toggleRecording() {
         switch stateMachine.state {
         case .idle:
@@ -92,9 +100,13 @@ final class MeetingRecordingFlowCoordinator {
     /// Calendar-driven entry point. Marks the next start as auto-start so
     /// telemetry distinguishes it, then enters the normal start flow. No-op
     /// if a recording is already in progress (manual recording wins by
-    /// arriving first — see ADR-017 §10).
+    /// arriving first — see ADR-017 §10). When non-idle, fires
+    /// `onAutoStartFailed` so the coordinator can drop its binding.
     func startFromCalendar() {
-        guard stateMachine.state == .idle else { return }
+        guard stateMachine.state == .idle else {
+            onAutoStartFailed?()
+            return
+        }
         pendingTrigger = .calendarAutoStart
         sendEvent(.startRequested)
     }
@@ -215,6 +227,12 @@ final class MeetingRecordingFlowCoordinator {
                         errorType: TelemetryErrorClassifier.classify(error),
                         errorDetail: TelemetryErrorClassifier.errorDetail(error)
                     ))
+                    // If this start was driven by calendar auto-start, tell
+                    // the coordinator so it can drop the binding it set
+                    // optimistically when the countdown completed.
+                    if trigger == .calendarAutoStart {
+                        self.onAutoStartFailed?()
+                    }
                     self.sendEvent(.startFailed(generation: gen, message: error.localizedDescription))
                 }
             }

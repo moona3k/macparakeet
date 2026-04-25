@@ -134,6 +134,10 @@ public final class OnboardingViewModel {
         engineState = .idle
         meetingRecordingSkipped = false
         calendarSkipped = false
+        // Re-resolve from the live calendar permission so a previously-
+        // granted user re-entering onboarding sees the correct "completed"
+        // state, not the stale value carried over from VM init.
+        calendarPermissionGranted = CalendarService.shared.permissionStatus == .granted
         clearMeetingRecordingPendingState()
     }
 
