@@ -158,6 +158,7 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.bordered)
                         .help("Refresh microphones")
+                        .accessibilityLabel("Refresh microphones")
                     }
                 }
 

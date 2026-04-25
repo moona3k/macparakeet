@@ -110,6 +110,12 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     func testSelectedMicrophoneNormalizesBlankSelectionToSystemDefault() {
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey),
+            "usb-mic-uid"
+        )
+
         viewModel.selectedMicrophoneDeviceUID = "   "
 
         XCTAssertEqual(viewModel.selectedMicrophoneDeviceUID, SettingsViewModel.systemDefaultMicrophoneSelection)
@@ -140,6 +146,7 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(vm.microphoneDeviceOptions.map(\.uid), ["builtin-zed", "usb-alpha"])
         XCTAssertEqual(vm.microphoneDeviceOptions.first?.displayName, "Zed Built-In Mic (System Default)")
+        XCTAssertEqual(vm.microphoneDeviceOptions.last?.displayName, "Alpha USB Mic")
         XCTAssertEqual(vm.microphoneDeviceOptions.last?.detail, "usb")
     }
 

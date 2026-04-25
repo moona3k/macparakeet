@@ -89,11 +89,22 @@ public enum AudioDeviceManager {
 
         return deviceIDs.compactMap { id in
             guard hasInputChannels(id) else { return nil }
-            guard let uid = deviceUID(id) else { return nil }
             let name = deviceName(id) ?? "Unknown Device"
+            guard let uid = deviceUID(id) else {
+                logger.debug(
+                    "skipping_input_device_without_uid id=\(id, privacy: .public) name=\(name, privacy: .public)"
+                )
+                return nil
+            }
             let transport = transportType(id)
             return InputDevice(id: id, uid: uid, name: name, transportType: transport)
         }
+    }
+
+    /// Normalizes persisted CoreAudio device UIDs, treating nil and whitespace as absent.
+    public static func normalizedUID(_ uid: String?) -> String? {
+        let trimmed = uid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     /// Returns the AudioDeviceID of the built-in microphone, if available.

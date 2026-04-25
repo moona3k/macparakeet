@@ -71,8 +71,6 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     }
 
     public var selectedMicrophoneDeviceUID: String? {
-        let value = defaults.string(forKey: Self.selectedMicrophoneDeviceUIDKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return value.isEmpty ? nil : value
+        AudioDeviceManager.normalizedUID(defaults.string(forKey: Self.selectedMicrophoneDeviceUIDKey))
     }
 }

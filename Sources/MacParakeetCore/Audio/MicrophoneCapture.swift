@@ -245,7 +245,23 @@ public final class MicrophoneCapture: @unchecked Sendable {
     }
 
     private func applySelectedInputDeviceIfAvailable(on engine: AVAudioEngine) {
-        guard let uid = normalizedDeviceUID(selectedInputDeviceUIDProvider()) else { return }
+        guard let uid = AudioDeviceManager.normalizedUID(selectedInputDeviceUIDProvider()) else {
+            guard let defaultID = AudioDeviceManager.defaultInputDevice() else {
+                logger.warning("meeting_default_input_device_missing")
+                return
+            }
+            guard AudioDeviceManager.setInputDevice(defaultID, on: engine) else {
+                logger.warning(
+                    "meeting_default_input_device_set_failed id=\(defaultID, privacy: .public)"
+                )
+                return
+            }
+            let name = AudioDeviceManager.deviceName(defaultID) ?? "unknown"
+            logger.info(
+                "meeting_default_input_device_applied id=\(defaultID, privacy: .public) name=\(name, privacy: .public)"
+            )
+            return
+        }
         guard let deviceID = AudioDeviceManager.inputDeviceID(forUID: uid) else {
             logger.warning("meeting_selected_input_device_missing uid=\(uid, privacy: .private)")
             return
@@ -260,11 +276,6 @@ public final class MicrophoneCapture: @unchecked Sendable {
         logger.info(
             "meeting_selected_input_device_applied uid=\(uid, privacy: .private) id=\(deviceID, privacy: .public) name=\(name, privacy: .public)"
         )
-    }
-
-    private func normalizedDeviceUID(_ uid: String?) -> String? {
-        let trimmed = uid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func scheduleSilentBufferWatchdog() {

@@ -42,6 +42,7 @@ public final class SettingsViewModel {
     }
 
     public static let systemDefaultMicrophoneSelection = "__system_default__"
+    private static let microphoneTestSilenceThreshold: Float = 0.01
 
     // General
     public var launchAtLogin: Bool {
@@ -128,7 +129,6 @@ public final class SettingsViewModel {
             let normalized = Self.normalizedMicrophoneSelection(selectedMicrophoneDeviceUID)
             if selectedMicrophoneDeviceUID != normalized {
                 selectedMicrophoneDeviceUID = normalized
-                return
             }
             if normalized == Self.systemDefaultMicrophoneSelection {
                 defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
@@ -519,8 +519,7 @@ public final class SettingsViewModel {
     }
 
     private static func normalizedMicrophoneSelection(_ uid: String?) -> String {
-        let trimmed = uid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? systemDefaultMicrophoneSelection : trimmed
+        AudioDeviceManager.normalizedUID(uid) ?? systemDefaultMicrophoneSelection
     }
 
     /// Resolve the stored bookmark to a display path.
@@ -678,7 +677,7 @@ public final class SettingsViewModel {
                 }
                 capture.stop()
                 guard !Task.isCancelled else { return }
-                microphoneTestState = levelBox.maxLevel > 0.01
+                microphoneTestState = levelBox.maxLevel > Self.microphoneTestSilenceThreshold
                     ? .succeeded
                     : .failed("No input detected. Check the selected microphone and try again.")
             } catch {

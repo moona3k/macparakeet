@@ -93,7 +93,7 @@ public actor AudioRecorder {
 
         logAvailableDevices()
 
-        let selectedDeviceUID = normalizedDeviceUID(selectedInputDeviceUIDProvider())
+        let selectedDeviceUID = AudioDeviceManager.normalizedUID(selectedInputDeviceUIDProvider())
         if let selectedDeviceUID {
             if let selectedDeviceID = AudioDeviceManager.inputDeviceID(forUID: selectedDeviceUID) {
                 do {
@@ -119,7 +119,7 @@ public actor AudioRecorder {
         do {
             try configureAndStart(
                 overrideDeviceID: nil,
-                fallbackUsed: false,
+                fallbackUsed: selectedDeviceUID != nil,
                 requestedDeviceUID: selectedDeviceUID
             )
         } catch {
@@ -488,11 +488,6 @@ public actor AudioRecorder {
                 "  device id=\(device.id, privacy: .public) uid=\(device.uid, privacy: .private) name=\(device.name, privacy: .public) transport=\(device.transportLabel, privacy: .public)\(isDefault, privacy: .public)"
             )
         }
-    }
-
-    private func normalizedDeviceUID(_ uid: String?) -> String? {
-        let trimmed = uid?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return trimmed.isEmpty ? nil : trimmed
     }
 
     private func logTapError(_ message: String) {
