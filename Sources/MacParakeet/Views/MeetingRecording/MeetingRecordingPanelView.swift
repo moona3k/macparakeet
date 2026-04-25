@@ -48,6 +48,7 @@ struct MeetingRecordingPanelView: View {
 
     private func tabButton(_ tab: MeetingRecordingPanelViewModel.LivePanelTab) -> some View {
         let isActive = viewModel.selectedTab == tab
+        let shortcut: KeyEquivalent = tab == .transcript ? "1" : "2"
         return Button {
             withAnimation(.easeOut(duration: 0.18)) {
                 viewModel.selectedTab = tab
@@ -69,6 +70,7 @@ struct MeetingRecordingPanelView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .keyboardShortcut(shortcut, modifiers: .command)
     }
 
     private var header: some View {

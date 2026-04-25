@@ -127,9 +127,15 @@ public final class TranscriptChatViewModel {
         refreshModelInfo()
     }
 
-    public func sendMessage() {
+    /// - Parameter richPrompt: Optional expanded prompt sent to the LLM in place of
+    ///   the visible `inputText`. Used by pills where the label is short ("Tell me
+    ///   more") but the actual prompt deserves to be more comprehensive. The
+    ///   user-visible bubble and persisted history both show `inputText`.
+    public func sendMessage(richPrompt: String? = nil) {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !isStreaming, let llmService else { return }
+        let trimmedRich = richPrompt?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let llmQuestion = (trimmedRich?.isEmpty == false) ? trimmedRich! : text
 
         // Live in-memory mode: no transcriptionId + no conversationRepo means we are
         // chatting against a not-yet-finalized transcript (e.g. an in-flight meeting).
@@ -190,7 +196,7 @@ public final class TranscriptChatViewModel {
             var accumulated = ""
             do {
                 let stream = llmService.chatStream(
-                    question: text,
+                    question: llmQuestion,
                     transcript: transcript,
                     history: historyForRequest
                 )

@@ -18,6 +18,21 @@ struct LiveAskPaneView: View {
             composerArea
         }
         .background(DesignSystem.Colors.background)
+        .onAppear {
+            // Cursor lands in the input the moment you switch to Ask. Tiny delay
+            // so the focus state binding is wired before we set it (SwiftUI quirk).
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                inputFocused = true
+            }
+        }
+        .onKeyPress(.escape) {
+            // Universal cancel for an in-flight assistant response.
+            if viewModel.isStreaming {
+                viewModel.cancelStreaming()
+                return .handled
+            }
+            return .ignored
+        }
     }
 
     /// Composer = follow-up pills (when conversation has started) + input.
@@ -38,11 +53,9 @@ struct LiveAskPaneView: View {
     private var followUpRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(LiveAskFollowUpPrompts.all, id: \.self) { prompt in
-                    FollowUpPill(prompt: prompt) {
-                        viewModel.inputText = prompt
-                        viewModel.sendMessage()
-                        inputFocused = true
+                ForEach(LiveAskFollowUpPrompts.all, id: \.self) { entry in
+                    FollowUpPill(label: entry.label) {
+                        fire(entry)
                     }
                 }
             }
@@ -50,6 +63,14 @@ struct LiveAskPaneView: View {
             .padding(.top, 10)
             .padding(.bottom, 4)
         }
+    }
+
+    /// Pill tap → bubble shows the short label, LLM gets the comprehensive prompt.
+    private func fire(_ entry: LiveAskPrompt) {
+        guard viewModel.canSendMessage, !viewModel.isStreaming else { return }
+        viewModel.inputText = entry.label
+        viewModel.sendMessage(richPrompt: entry.prompt)
+        inputFocused = true
     }
 
     // MARK: - Messages
@@ -96,11 +117,9 @@ struct LiveAskPaneView: View {
                 .padding(.leading, 4)
 
             VStack(spacing: 8) {
-                ForEach(LiveAskStarterPrompts.all, id: \.self) { prompt in
-                    StarterPromptPill(prompt: prompt) {
-                        viewModel.inputText = prompt
-                        viewModel.sendMessage()
-                        inputFocused = true
+                ForEach(LiveAskStarterPrompts.all, id: \.self) { entry in
+                    StarterPromptPill(label: entry.label) {
+                        fire(entry)
                     }
                 }
             }
@@ -158,7 +177,12 @@ struct LiveAskPaneView: View {
                 .padding(.horizontal, DesignSystem.Spacing.md)
                 .padding(.vertical, 11)
                 .focused($inputFocused)
-                .disabled(viewModel.isStreaming || !viewModel.canSendMessage)
+                // Intentionally NOT disabled while streaming. SwiftUI strips focus from
+                // a field the moment it becomes disabled, and re-focusing post-stream
+                // is unreliable inside an NSPanel. Letting the user type a follow-up
+                // while the assistant is still composing is also better UX. send()'s
+                // own guard prevents a double-send.
+                .disabled(!viewModel.canSendMessage)
                 .onSubmit { send() }
                 .background(
                     RoundedRectangle(cornerRadius: 14)
@@ -212,34 +236,88 @@ struct LiveAskPaneView: View {
 
 // MARK: - Prompts
 
+/// A pill is two strings: a short, gestural `label` rendered on the chip AND in
+/// the user's bubble, and a more comprehensive `prompt` actually sent to the LLM.
+/// The thread reads conversational ("Tell me more") while the model gets enough
+/// scaffolding to answer well.
+struct LiveAskPrompt: Hashable {
+    let label: String
+    let prompt: String
+}
+
 /// Empty-state "thinking-partner" prompts — meant to start a thread and make the
 /// user sharper in the meeting, not just summarize. English-first; localization deferred.
 enum LiveAskStarterPrompts {
-    static let all: [String] = [
-        "Summarize so far",
-        "What did I miss?",
-        "What question is worth asking?",
-        "What's worth pushing back on?",
-        "Where are we going in circles?",
-        "What's unresolved?",
+    static let all: [LiveAskPrompt] = [
+        LiveAskPrompt(
+            label: "Summarize so far",
+            prompt: "Give a concise summary of the meeting so far. Focus on the main topics, decisions made, and any clear conclusions. Skip verbal filler."
+        ),
+        LiveAskPrompt(
+            label: "What did I miss?",
+            prompt: "Catch me up on what I missed in the last few minutes — the most important points or shifts. Be terse, signal-rich."
+        ),
+        LiveAskPrompt(
+            label: "What question is worth asking?",
+            prompt: "Based on the meeting so far, suggest one sharp, useful question I could ask next that would advance the discussion or surface something important that hasn't been addressed."
+        ),
+        LiveAskPrompt(
+            label: "What's worth pushing back on?",
+            prompt: "Identify any claims, assumptions, or decisions in the meeting so far that deserve scrutiny. What might be wrong, weak, or worth challenging?"
+        ),
+        LiveAskPrompt(
+            label: "Where are we going in circles?",
+            prompt: "Have we revisited the same topic or argument without making progress? If so, point out where we're looping and what would actually move things forward."
+        ),
+        LiveAskPrompt(
+            label: "What's unresolved?",
+            prompt: "List the open questions, unmade decisions, or topics still hanging from the meeting so far. Be specific."
+        ),
     ]
 }
 
 /// Always-visible follow-up prompts above the input once a conversation exists.
-/// Framed as "drill deeper" actions — distinct surface from the starters.
+/// "Summarize so far" and "What did I miss?" earn a slot here too — both stay
+/// useful mid-conversation since the underlying transcript keeps growing.
 enum LiveAskFollowUpPrompts {
-    static let all: [String] = [
-        "Tell me more",
-        "Why?",
-        "Give an example",
-        "Counter-argument?",
-        "Action items?",
-        "TL;DR",
+    static let all: [LiveAskPrompt] = [
+        LiveAskPrompt(
+            label: "Tell me more",
+            prompt: "Expand on your previous response. Go deeper with concrete details and any nuances worth knowing."
+        ),
+        LiveAskPrompt(
+            label: "Summarize so far",
+            prompt: "Give a concise summary of the meeting so far. Focus on the main topics, decisions made, and any clear conclusions. Skip verbal filler."
+        ),
+        LiveAskPrompt(
+            label: "What did I miss?",
+            prompt: "Catch me up on what I missed in the last few minutes — the most important points or shifts. Be terse, signal-rich."
+        ),
+        LiveAskPrompt(
+            label: "Why?",
+            prompt: "Explain the reasoning behind your previous answer. What from the meeting transcript supports it?"
+        ),
+        LiveAskPrompt(
+            label: "Give an example",
+            prompt: "Give a specific, concrete example that illustrates your previous response — ideally pulled from what was actually said in the meeting."
+        ),
+        LiveAskPrompt(
+            label: "Counter-argument?",
+            prompt: "What's the strongest counter-argument to your previous response? Steelman the opposing view."
+        ),
+        LiveAskPrompt(
+            label: "Action items?",
+            prompt: "Pull out any action items, decisions, or commitments from the meeting so far. List them clearly, with owners if mentioned."
+        ),
+        LiveAskPrompt(
+            label: "TL;DR",
+            prompt: "Compress your previous response into one or two short, punchy sentences."
+        ),
     ]
 }
 
 private struct StarterPromptPill: View {
-    let prompt: String
+    let label: String
     let action: () -> Void
 
     @State private var isHovered = false
@@ -250,7 +328,7 @@ private struct StarterPromptPill: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: 11))
                     .foregroundStyle(DesignSystem.Colors.accent.opacity(0.75))
-                Text(prompt)
+                Text(label)
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                 Spacer(minLength: 0)
@@ -281,14 +359,14 @@ private struct StarterPromptPill: View {
 /// Compact horizontal-scroll pill for the follow-up row above the input.
 /// Smaller than StarterPromptPill — meant to be persistent, not announce itself.
 private struct FollowUpPill: View {
-    let prompt: String
+    let label: String
     let action: () -> Void
 
     @State private var isHovered = false
 
     var body: some View {
         Button(action: action) {
-            Text(prompt)
+            Text(label)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(isHovered
                     ? DesignSystem.Colors.textPrimary
