@@ -192,6 +192,13 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
                     .lineLimit(1)
             }
+
+            if transcription.recoveredFromCrash {
+                Label("Recovered", systemImage: "wrench.and.screwdriver")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    .lineLimit(1)
+            }
         }
         .padding(DesignSystem.Spacing.sm)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -16,6 +16,7 @@ final class AppEnvironment {
     let sttScheduler: STTScheduler
     let audioProcessor: AudioProcessor
     let meetingRecordingService: MeetingRecordingService
+    let meetingRecordingRecoveryService: MeetingRecordingRecoveryService
     let dictationService: DictationService
     let transcriptionService: TranscriptionService
     let youtubeDownloader: YouTubeDownloader
@@ -166,6 +167,11 @@ final class AppEnvironment {
             shouldDiarize: { [runtimePreferences] in runtimePreferences.shouldDiarize },
             youtubeDownloader: youtubeDownloader,
             diarizationService: diarizationService
+        )
+
+        meetingRecordingRecoveryService = MeetingRecordingRecoveryService(
+            transcriptionService: transcriptionService,
+            transcriptionRepo: transcriptionRepo
         )
     }
 }

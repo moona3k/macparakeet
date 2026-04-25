@@ -415,6 +415,13 @@ public final class DatabaseManager: Sendable {
             try DictationRepository.recomputeLifetimeStats(db: db)
         }
 
+        // v0.7.5 - Mark meeting transcripts recovered from interrupted recordings.
+        migrator.registerMigration("v0.7.5-meeting-recovery-flag") { db in
+            try db.alter(table: "transcriptions") { t in
+                t.add(column: "recoveredFromCrash", .boolean).notNull().defaults(to: false)
+            }
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
     }

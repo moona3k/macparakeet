@@ -158,6 +158,16 @@ CREATE INDEX idx_events_session ON events(session);
 | `dictation_undo_used` | — | Is the 5-second undo window used? |
 | `chat_conversation_created` | — | Multi-conversation adoption |
 
+### 4b. Meeting Recovery — "Does crash resilience work?"
+
+| Event | Props | Question It Answers |
+|---|---|---|
+| `meeting_recovery_discovered` | `count`, `source` (launch, settings) | How often interrupted recordings are found, and where users encounter them |
+| `meeting_recovery_started` | `count`, `source` | How often users choose to recover |
+| `meeting_recovery_completed` | `count`, `duration_seconds`, `source` | Recovery success rate and latency |
+| `meeting_recovery_discarded` | `count`, `source` | How often users intentionally discard interrupted recordings |
+| `meeting_recovery_failed` | `count`, `source`, `error_type`, `error_detail` | What blocks recovery in the field |
+
 ### 5. Settings & Customization — "How do people configure the app?"
 
 | Event | Props | Question It Answers |

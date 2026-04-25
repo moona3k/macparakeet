@@ -59,6 +59,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-016](adr/016-centralized-stt-runtime-scheduler.md) | Centralized STT runtime and two-slot scheduler |
 | [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (Phases 1 + 2 implemented; Phase 3 proposed) |
 | [ADR-018](adr/018-live-meeting-insights-and-ask.md) | Live meeting Ask tab (Insights dropped per amendment; Ask shipped 2026-04-24) |
+| [ADR-019](adr/019-crash-resilient-meeting-recording.md) | Crash-resilient meeting recording via fragmented MP4 + session lock files (implemented 2026-04-25) |
 
 ## Version Roadmap
 
@@ -194,6 +195,8 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Auto-start countdown toast (ADR-017 Phase 2): 5s cancellable, top-center, non-activating
 - [x] Auto-stop toast at calendar event end (ADR-017 Phase 2): 30s, "Keep Recording" cancels
 - [x] Calendar event title applied to auto-started recordings (instead of date-based default)
+- [x] Crash-resilient meeting recovery (ADR-019): session lock files, launch/settings recovery affordance, recovered badge
+- [x] Fragmented MP4 meeting writer (ADR-019): 1s fragments, playable source audio after kill-9 up to the last fragment
 
 ## For AI Coding Assistants
 

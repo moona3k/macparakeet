@@ -121,6 +121,11 @@ struct MeetingRowCard<MenuContent: View>: View {
                     )
                 }
 
+                if transcription.recoveredFromCrash {
+                    metadataLabel(icon: "wrench.and.screwdriver", text: "Recovered")
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                }
+
                 statusIndicator
             }
 

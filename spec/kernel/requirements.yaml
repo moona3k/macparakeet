@@ -190,3 +190,13 @@ REQ-MEET-004:
   description: Meeting final artifact preserves dual-source separation as stereo when both mic and system tracks exist
   version: v0.6
   status: implemented
+
+REQ-MEET-005:
+  description: Interrupted or not-yet-transcribed meeting recordings are detected by lock file and recoverable on launch or later from Settings
+  version: v0.6
+  status: implemented
+
+REQ-MEET-006:
+  description: Meeting source audio is written as fragmented MP4 so crash-interrupted recordings remain playable up to the last fragment
+  version: v0.6
+  status: implemented

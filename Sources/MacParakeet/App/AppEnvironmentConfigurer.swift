@@ -25,6 +25,7 @@ final class AppEnvironmentConfigurer {
         let onTriggerYouTubeTranscriptionFromHotkey: () -> Void
         let onHotkeyBecameAvailable: () -> Void
         let onHotkeyUnavailable: () -> Void
+        let onRecoverPendingMeetingRecordings: () -> Void
     }
 
     private let transcriptionViewModel: TranscriptionViewModel
@@ -101,8 +102,10 @@ final class AppEnvironmentConfigurer {
             checkoutURL: env.checkoutURL,
             customWordRepo: env.customWordRepo,
             snippetRepo: env.snippetRepo,
-            sttClient: env.sttScheduler
+            sttClient: env.sttScheduler,
+            meetingRecoveryService: env.meetingRecordingRecoveryService
         )
+        settingsViewModel.onRecoverPendingMeetingRecordings = callbacks.onRecoverPendingMeetingRecordings
         customWordsViewModel.configure(repo: env.customWordRepo)
         textSnippetsViewModel.configure(repo: env.snippetRepo)
         promptsViewModel.configure(repo: env.promptRepo)

@@ -640,6 +640,14 @@ struct TranscriptResultView: View {
                     .buttonStyle(.plain)
                     .help("Rename meeting")
                 }
+
+                if transcription.recoveredFromCrash {
+                    metadataChip(
+                        icon: "wrench.and.screwdriver",
+                        text: "Recovered",
+                        tint: DesignSystem.Colors.warningAmber
+                    )
+                }
             }
         }
     }

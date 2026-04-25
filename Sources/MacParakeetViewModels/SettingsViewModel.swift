@@ -217,6 +217,8 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .speakerDiarization))
         }
     }
+    public private(set) var pendingMeetingRecoveryCount = 0
+    public var onRecoverPendingMeetingRecordings: (() -> Void)?
 
     // Auto-save (transcription)
     public var autoSaveTranscripts: Bool {
@@ -360,6 +362,7 @@ public final class SettingsViewModel {
     private var entitlementsService: EntitlementsService?
     private var launchAtLoginService: LaunchAtLoginControlling?
     private var sttClient: STTClientProtocol?
+    private var meetingRecoveryService: MeetingRecordingRecoveryServicing?
     private let defaults: UserDefaults
     private let youtubeDownloadsDirPath: @Sendable () -> String
     private let isSpeechModelCached: @Sendable () -> Bool
@@ -579,7 +582,8 @@ public final class SettingsViewModel {
         checkoutURL: URL?,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
-        sttClient: STTClientProtocol? = nil
+        sttClient: STTClientProtocol? = nil,
+        meetingRecoveryService: MeetingRecordingRecoveryServicing? = nil
     ) {
         self.permissionService = permissionService
         self.dictationRepo = dictationRepo
@@ -590,11 +594,34 @@ public final class SettingsViewModel {
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.sttClient = sttClient
+        self.meetingRecoveryService = meetingRecoveryService
         refreshLaunchAtLoginStatus()
         refreshPermissions()
         refreshStats()
         refreshEntitlements()
         refreshModelStatus()
+        refreshPendingMeetingRecoveries()
+    }
+
+    public func refreshPendingMeetingRecoveries() {
+        guard let meetingRecoveryService else {
+            pendingMeetingRecoveryCount = 0
+            return
+        }
+
+        Task {
+            do {
+                let recoveries = try await meetingRecoveryService.discoverPendingRecoveries()
+                pendingMeetingRecoveryCount = recoveries.count
+            } catch {
+                logger.error("Failed to load pending meeting recoveries: \(error.localizedDescription)")
+                pendingMeetingRecoveryCount = 0
+            }
+        }
+    }
+
+    public func requestPendingMeetingRecovery() {
+        onRecoverPendingMeetingRecordings?()
     }
 
     public func refreshLaunchAtLoginStatus() {

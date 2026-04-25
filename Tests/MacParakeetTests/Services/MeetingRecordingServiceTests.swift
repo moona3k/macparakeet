@@ -4,6 +4,125 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MeetingRecordingServiceTests: XCTestCase {
+    func testStartRecordingWritesLockFileBeforeCaptureStarts() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        try await service.startRecording()
+
+        XCTAssertEqual(lockStore.writes.count, 1)
+        let startCallCount = await captureService.startCallCount
+        XCTAssertEqual(startCallCount, 1)
+        XCTAssertEqual(lockStore.writes.first?.file.displayName.isEmpty, false)
+
+        await service.cancelRecording()
+    }
+
+    func testStartRecordingCleansUpWhenLockWriteFails() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        lockStore.errorToThrow = TestError.lockWriteFailed
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        do {
+            try await service.startRecording()
+            XCTFail("Expected lock write failure")
+        } catch {
+            let startCallCount = await captureService.startCallCount
+            XCTAssertEqual(startCallCount, 0)
+            let folderURL = try XCTUnwrap(lockStore.writeAttempts.first?.folderURL)
+            XCTAssertFalse(FileManager.default.fileExists(atPath: folderURL.path))
+        }
+
+        lockStore.errorToThrow = nil
+        try await service.startRecording()
+        await service.cancelRecording()
+    }
+
+    func testStopRecordingKeepsLockUntilTranscriptionCompletes() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertTrue(lockStore.deletes.isEmpty)
+        XCTAssertEqual(lockStore.writes.last?.file.state, .awaitingTranscription)
+
+        await service.completeTranscription(for: output)
+        XCTAssertEqual(lockStore.deletes, [output.folderURL])
+    }
+
+    func testStopRecordingKeepsLockWhenMixFails() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: ThrowingMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        try await service.startRecording()
+        let writtenFolder = try XCTUnwrap(lockStore.writes.first?.folderURL)
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected mix failure")
+        } catch {
+            XCTAssertTrue(lockStore.deletes.isEmpty)
+            try? FileManager.default.removeItem(at: writtenFolder)
+        }
+    }
+
+    func testCancelRecordingDeletesLockAndSessionFolder() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        try await service.startRecording()
+        let folderURL = try XCTUnwrap(lockStore.writes.first?.folderURL)
+
+        await service.cancelRecording()
+
+        XCTAssertEqual(lockStore.deletes, [folderURL])
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folderURL.path))
+    }
+
     func testStopRecordingThrowsNoAudioCapturedWhenRecordedFilesHaveNoFrames() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
@@ -513,6 +632,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
 private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
     private var continuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
     private var stream: AsyncStream<MeetingAudioCaptureEvent>?
+    private(set) var startCallCount = 0
 
     var events: AsyncStream<MeetingAudioCaptureEvent> {
         if let stream {
@@ -527,6 +647,7 @@ private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
     }
 
     func start() async throws -> MeetingAudioCaptureStartReport {
+        startCallCount += 1
         _ = events
         return MeetingAudioCaptureStartReport(
             microphone: MeetingMicrophoneCaptureStartReport(
@@ -547,6 +668,47 @@ private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
     }
 }
 
+private enum TestError: Error {
+    case lockWriteFailed
+}
+
+private final class RecordingLockFileStore: MeetingRecordingLockFileStoring, @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var writes: [(file: MeetingRecordingLockFile, folderURL: URL)] = []
+    private(set) var writeAttempts: [(file: MeetingRecordingLockFile, folderURL: URL)] = []
+    private(set) var deletes: [URL] = []
+    var errorToThrow: Error?
+
+    func write(_ file: MeetingRecordingLockFile, folderURL: URL) throws {
+        if let errorToThrow {
+            lock.withLock {
+                writeAttempts.append((file, folderURL))
+            }
+            throw errorToThrow
+        }
+        lock.withLock {
+            writeAttempts.append((file, folderURL))
+            writes.append((file, folderURL))
+        }
+    }
+
+    func read(folderURL: URL) throws -> MeetingRecordingLockFile? {
+        lock.withLock {
+            writes.first { $0.folderURL == folderURL }?.file
+        }
+    }
+
+    func delete(folderURL: URL) throws {
+        lock.withLock {
+            deletes.append(folderURL)
+        }
+    }
+
+    func discoverOrphans(meetingsRoot: URL) throws -> [MeetingRecordingLockFile] {
+        []
+    }
+}
+
 private final class MockMeetingAudioFileConverter: AudioFileConverting, @unchecked Sendable {
     func convert(fileURL: URL) async throws -> URL {
         fileURL
@@ -554,6 +716,16 @@ private final class MockMeetingAudioFileConverter: AudioFileConverting, @uncheck
 
     func mixToM4A(inputURLs: [URL], outputURL: URL) async throws {
         FileManager.default.createFile(atPath: outputURL.path, contents: Data("mixed".utf8))
+    }
+}
+
+private final class ThrowingMeetingAudioFileConverter: AudioFileConverting, @unchecked Sendable {
+    func convert(fileURL: URL) async throws -> URL {
+        fileURL
+    }
+
+    func mixToM4A(inputURLs: [URL], outputURL: URL) async throws {
+        throw MeetingAudioError.mixFailed("simulated")
     }
 }
 

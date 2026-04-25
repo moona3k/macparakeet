@@ -71,6 +71,7 @@ final class DatabaseManagerTests: XCTestCase {
             XCTAssertTrue(columns.contains("videoDescription"), "transcriptions should have videoDescription column")
             XCTAssertTrue(columns.contains("isFavorite"), "transcriptions should have isFavorite column")
             XCTAssertTrue(columns.contains("sourceType"), "transcriptions should have sourceType column")
+            XCTAssertTrue(columns.contains("recoveredFromCrash"), "transcriptions should have recoveredFromCrash column")
         }
     }
 

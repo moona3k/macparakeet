@@ -79,6 +79,7 @@ struct SettingsView: View {
             viewModel.refreshStats()
             viewModel.refreshEntitlements()
             viewModel.refreshModelStatus()
+            viewModel.refreshPendingMeetingRecoveries()
         }
         .onDisappear {
             viewModel.stopPermissionPolling()
@@ -400,6 +401,24 @@ struct SettingsView: View {
                         if !viewModel.meetingHotkeyTrigger.isDisabled, viewModel.hotkeyTrigger == viewModel.meetingHotkeyTrigger {
                             hotkeyConflictText
                         }
+                    }
+                }
+
+                if viewModel.pendingMeetingRecoveryCount > 0 {
+                    Divider()
+
+                    HStack(alignment: .center) {
+                        rowText(
+                            title: "Pending recovery",
+                            detail: "\(viewModel.pendingMeetingRecoveryCount) partial recording\(viewModel.pendingMeetingRecoveryCount == 1 ? "" : "s")"
+                        )
+                        Spacer(minLength: DesignSystem.Spacing.md)
+                        Button {
+                            viewModel.requestPendingMeetingRecovery()
+                        } label: {
+                            Label("Recover", systemImage: "arrow.clockwise")
+                        }
+                        .buttonStyle(.bordered)
                     }
                 }
 

@@ -318,6 +318,7 @@ final class MeetingRecordingFlowCoordinator {
                         liveTranscriptLagged: liveTranscriptLagged
                     ))
                     let transcription = try await transcriptionService.transcribeMeeting(recording: output, onProgress: nil)
+                    await meetingRecordingService.completeTranscription(for: output)
                     self.completedTranscription = transcription
                     self.sendEvent(.transcriptionCompleted(generation: gen, transcriptionID: transcription.id))
                 } catch {

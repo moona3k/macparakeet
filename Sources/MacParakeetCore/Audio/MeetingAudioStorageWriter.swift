@@ -1,4 +1,4 @@
-import AVFAudio
+import AVFoundation
 import Foundation
 import OSLog
 
@@ -11,12 +11,15 @@ final class MeetingAudioStorageWriter {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingAudioStorageWriter")
 
     private let targetFormat: AVAudioFormat
-    private var microphoneFile: AVAudioFile?
-    private var systemFile: AVAudioFile?
+    private var microphoneWriter: AVAssetWriter?
+    private var microphoneInput: AVAssetWriterInput?
+    private var systemWriter: AVAssetWriter?
+    private var systemInput: AVAssetWriterInput?
     private var microphoneConverter: AVAudioConverter?
     private var systemConverter: AVAudioConverter?
     private var microphoneWrittenFrames: Int64 = 0
     private var systemWrittenFrames: Int64 = 0
+    private let sampleBufferFactory = PCMBufferToSampleBuffer()
 
     let microphoneAudioURL: URL
     let systemAudioURL: URL
@@ -44,24 +47,15 @@ final class MeetingAudioStorageWriter {
 
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
-        let settings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatMPEG4AAC,
-            AVSampleRateKey: sampleRate,
-            AVNumberOfChannelsKey: channels,
-            AVEncoderBitRateKey: 64000,
-        ]
-
-        microphoneFile = try AVAudioFile(
-            forWriting: microphoneAudioURL,
-            settings: settings,
-            commonFormat: format.commonFormat,
-            interleaved: false
+        (microphoneWriter, microphoneInput) = try Self.makeWriter(
+            outputURL: microphoneAudioURL,
+            sampleRate: sampleRate,
+            channels: channels
         )
-        systemFile = try AVAudioFile(
-            forWriting: systemAudioURL,
-            settings: settings,
-            commonFormat: format.commonFormat,
-            interleaved: false
+        (systemWriter, systemInput) = try Self.makeWriter(
+            outputURL: systemAudioURL,
+            sampleRate: sampleRate,
+            channels: channels
         )
     }
 
@@ -70,14 +64,16 @@ final class MeetingAudioStorageWriter {
         case .microphone:
             try write(
                 buffer,
-                to: &microphoneFile,
+                writer: microphoneWriter,
+                input: microphoneInput,
                 converter: &microphoneConverter,
                 writtenFrames: &microphoneWrittenFrames
             )
         case .system:
             try write(
                 buffer,
-                to: &systemFile,
+                writer: systemWriter,
+                input: systemInput,
                 converter: &systemConverter,
                 writtenFrames: &systemWrittenFrames
             )
@@ -85,8 +81,12 @@ final class MeetingAudioStorageWriter {
     }
 
     func finalize() {
-        microphoneFile = nil
-        systemFile = nil
+        finish(writer: microphoneWriter, input: microphoneInput)
+        finish(writer: systemWriter, input: systemInput)
+        microphoneWriter = nil
+        microphoneInput = nil
+        systemWriter = nil
+        systemInput = nil
         microphoneConverter = nil
         systemConverter = nil
     }
@@ -108,13 +108,32 @@ final class MeetingAudioStorageWriter {
 
     private func write(
         _ buffer: AVAudioPCMBuffer,
-        to file: inout AVAudioFile?,
+        writer: AVAssetWriter?,
+        input: AVAssetWriterInput?,
         converter: inout AVAudioConverter?,
         writtenFrames: inout Int64
     ) throws {
-        guard let file else { return }
+        guard let writer, let input else { return }
+        guard writer.status == .writing else {
+            if let error = writer.error {
+                throw MeetingAudioError.storageFailed(error.localizedDescription)
+            }
+            return
+        }
+
         let converted = try convertIfNeeded(buffer, converter: &converter)
-        try file.write(from: converted)
+        guard input.isReadyForMoreMediaData else {
+            throw MeetingAudioError.storageFailed("AVAssetWriter input is not ready for more media data")
+        }
+
+        let sampleBuffer = try sampleBufferFactory.makeSampleBuffer(
+            from: converted,
+            presentationTimeSamples: writtenFrames
+        )
+        guard input.append(sampleBuffer) else {
+            throw MeetingAudioError.storageFailed(writer.error?.localizedDescription ?? "append failed")
+        }
+
         writtenFrames += Int64(converted.frameLength)
     }
 
@@ -164,5 +183,55 @@ final class MeetingAudioStorageWriter {
         format.sampleRate != targetFormat.sampleRate
             || format.channelCount != targetFormat.channelCount
             || format.commonFormat != targetFormat.commonFormat
+    }
+
+    private static func makeWriter(
+        outputURL: URL,
+        sampleRate: Double,
+        channels: AVAudioChannelCount
+    ) throws -> (AVAssetWriter, AVAssetWriterInput) {
+        try? FileManager.default.removeItem(at: outputURL)
+
+        let writer = try AVAssetWriter(outputURL: outputURL, fileType: .m4a)
+        writer.movieFragmentInterval = CMTime(value: 1, timescale: 1)
+        writer.initialMovieFragmentInterval = CMTime(value: 1, timescale: 1)
+        writer.shouldOptimizeForNetworkUse = false
+
+        let outputSettings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: sampleRate,
+            AVNumberOfChannelsKey: channels,
+            AVEncoderBitRateKey: 64_000,
+        ]
+        let input = AVAssetWriterInput(mediaType: .audio, outputSettings: outputSettings)
+        input.expectsMediaDataInRealTime = true
+
+        guard writer.canAdd(input) else {
+            throw MeetingAudioError.storageFailed("AVAssetWriter cannot add audio input")
+        }
+        writer.add(input)
+        guard writer.startWriting() else {
+            throw MeetingAudioError.storageFailed(writer.error?.localizedDescription ?? "AVAssetWriter start failed")
+        }
+        writer.startSession(atSourceTime: .zero)
+
+        return (writer, input)
+    }
+
+    private func finish(writer: AVAssetWriter?, input: AVAssetWriterInput?) {
+        guard let writer else { return }
+        guard writer.status == .writing else { return }
+
+        input?.markAsFinished()
+        let group = DispatchGroup()
+        group.enter()
+        writer.finishWriting {
+            group.leave()
+        }
+        group.wait()
+
+        if let error = writer.error {
+            logger.error("meeting_audio_writer_finalize_failed error=\(error.localizedDescription, privacy: .public)")
+        }
     }
 }

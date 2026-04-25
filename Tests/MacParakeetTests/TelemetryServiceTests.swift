@@ -327,6 +327,30 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["error_type"], "download_failed")
     }
 
+    func testMeetingRecoveryCompletedSerializesSafeProps() throws {
+        let event = TelemetryEvent(
+            spec: .meetingRecoveryCompleted(count: 2, durationSeconds: 4.25, source: .settings),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(json["event"] as? String, "meeting_recovery_completed")
+        XCTAssertEqual(props["count"], "2")
+        XCTAssertEqual(props["duration_seconds"], "4.2")
+        XCTAssertEqual(props["source"], "settings")
+        XCTAssertNil(props["session_id"])
+        XCTAssertNil(props["file_path"])
+    }
+
     func testImplementedContractCoversEveryTypedEventName() {
         XCTAssertEqual(
             Set(TelemetryEventName.allCases),
@@ -509,6 +533,11 @@ final class TelemetryServiceTests: XCTestCase {
             .meetingRecordingCompleted(durationSeconds: 1800.0, liveWordCount: 4200, liveTranscriptLagged: false),
             .meetingRecordingCancelled(durationSeconds: 30.0),
             .meetingRecordingFailed(errorType: "tap_creation_failed"),
+            .meetingRecoveryDiscovered(count: 1, source: .launch),
+            .meetingRecoveryStarted(count: 1, source: .launch),
+            .meetingRecoveryCompleted(count: 1, durationSeconds: 4.2, source: .launch),
+            .meetingRecoveryDiscarded(count: 1, source: .settings),
+            .meetingRecoveryFailed(count: 1, source: .settings, errorType: "no_audio"),
             .errorOccurred(domain: "STTError", code: "engineFailed", description: "test"),
             .crashOccurred(
                 crashType: "signal", signal: "11", name: "SIGSEGV",

@@ -1,6 +1,6 @@
 # ADR-019: Crash-resilient meeting recording via fragmented MP4 + session lock files
 
-> Status: PROPOSED
+> Status: IMPLEMENTED
 > Date: 2026-04-24
 > Related: ADR-014 (meeting recording via Core Audio Taps), ADR-016 (centralized STT runtime + scheduler)
 
@@ -67,7 +67,7 @@ early-stage choice when 30-second clips were the model.
 (microphone + system), each configured with:
 
 ```swift
-writer.movieFragmentInterval = CMTime(value: 10, timescale: 1)         // 10 s steady-state
+writer.movieFragmentInterval = CMTime(value: 1, timescale: 1)          // 1 s steady-state
 writer.initialMovieFragmentInterval = CMTime(value: 1, timescale: 1)   // 1 s initial — macOS 14.0+
 writer.shouldOptimizeForNetworkUse = false  // not streaming, just resilient
 ```
@@ -81,7 +81,8 @@ standard pattern using `CMAudioFormatDescriptionCreate` +
 `CMSampleBufferCreate`.
 
 **Fragment interval rationale.** Apple's documentation directly
-addresses the trade-off and recommends a hybrid configuration.
+addresses the trade-off and recommends a short initial fragment when
+early crash recovery matters.
 Quoting
 [`AVAssetWriter.initialMovieFragmentInterval`](https://developer.apple.com/documentation/avfoundation/avassetwriter/initialmoviefragmentinterval)
 (available since macOS 14.0; we require 14.2+):
@@ -97,24 +98,19 @@ Quoting
 > initial fragment, and then use a 10 second interval for
 > subsequent fragments.
 
-That's exactly our scenario. We adopt Apple's recommended pair:
-**1 s initial** + **10 s steady-state**.
+The original ADR draft adopted Apple's example pair:
+**1 s initial** + **10 s steady-state**. The kill-9 verifier for this
+work showed that pair only recovers the first ~1 second when the
+process dies around the 5-second mark. That is technically consistent
+with a 10-second steady-state interval, but it misses the product
+intent: protect the recording itself. The implementation therefore
+uses **1 s initial** + **1 s steady-state**.
 
-- **Worst-case loss for short recordings:** ≤ 1 s. A recording that
-  crashes 2 s in still produces a playable file with the first
-  ~1 s of audio.
-- **Worst-case loss for long recordings:** ≤ 10 s. After the first
-  fragment lands, subsequent fragments flush every 10 s — Apple's
-  documented sweet spot for storage I/O.
+- **Worst-case loss:** ≤ 1 s after the first fragment lands.
 - **Disk overhead:** negligible. AAC at 64 kbps = 8 KB/s. A 1-hour
-  recording at 10 s intervals = 360 fragments × ~16 bytes of `moof`
-  header = ~6 KB total overhead. The 1 s initial adds one extra
-  fragment header. Both are imperceptible.
-
-The earlier draft of this ADR proposed 5 s for everything; the
-implementation plan briefly proposed 1 s for everything. Both were
-internally consistent but inferior to Apple's officially-recommended
-hybrid, which we discovered after re-reading the docs.
+  recording at 1 s intervals = 3,600 fragments × ~16 bytes of `moof`
+  header = ~58 KB per source, which is still imperceptible next to
+  the audio payload.
 
 ### 2. Session lock file + recovery scan on launch
 
@@ -122,22 +118,30 @@ hybrid, which we discovered after re-reading the docs.
 the session folder before any audio is captured:
 
 ```
-~/Library/Application Support/MacParakeet/meetings/<uuid>/recording.lock
+~/Library/Application Support/MacParakeet/meeting-recordings/<uuid>/recording.lock
 {
   "sessionId": "<uuid>",
   "startedAt": "<ISO8601>",
-  "schemaVersion": 1
+  "schemaVersion": 1,
+  "pid": 62326,
+  "displayName": "Meeting Apr 24, 2026 at 8:34 PM",
+  "state": "recording"
 }
 ```
 
-On `stopRecording()` (success path), the marker is **atomically
-deleted** (`FileManager.removeItem`) **after** the writers have been
-finalized and `metadata.json` is on disk. On any failure path
-(`cancelRecording`, capture error, mix failure) the marker stays in
-place — the session is treated as recoverable.
+On `stopRecording()` (success path), the marker is rewritten to
+`state: "awaitingTranscription"` after the writers have been
+finalized, `metadata.json` is on disk, and `meeting.m4a` has been
+mixed. The marker is **atomically deleted** only after the post-stop
+`Transcription` row has been saved. This keeps the audio recoverable
+if the app crashes in the clean-stop window between mixing and
+transcription persistence. On capture or mix failure, the marker
+stays in place and the session is treated as recoverable.
+`cancelRecording()` deletes the marker and the session folder because
+user-initiated cancel is not a crash.
 
 On `AppDelegate.applicationDidFinishLaunching`, a recovery scanner
-walks `meetings/` looking for any folder that contains
+walks `meeting-recordings/` looking for any folder that contains
 `recording.lock`. For each, it offers the user a **single**
 "recover partial recording" prompt at most (multiple recoverable
 sessions are presented as a list). Accepting runs the standard
@@ -163,7 +167,8 @@ recovery: 1 partial recording").
 
 ### 3. Schema version on the lock file
 
-The lock file embeds `schemaVersion: 1` so future format changes
+The lock file embeds `schemaVersion: 1` and a small state enum
+(`recording` or `awaitingTranscription`) so future format changes
 (new fields, different paths) can be migrated without breaking
 existing in-flight recordings on a user's machine across an app
 update.
@@ -180,9 +185,8 @@ to delete or keep the folder for later manual recovery.
 
 **Phase 2 (larger, ships second):** Replace `AVAudioFile` with
 `AVAssetWriter` + `movieFragmentInterval` / `initialMovieFragmentInterval`.
-Phase 1's recovery flow becomes lossless (up to the relevant
-fragment boundary — ≤ 1 s for short recordings, ≤ 10 s for long
-ones) without further UX changes. The migration is contained to
+Phase 1's recovery flow becomes lossless up to the relevant
+1-second fragment boundary without further UX changes. The migration is contained to
 `MeetingAudioStorageWriter` — its public surface (the
 `write(_:source:)` and `finalize()` methods) is preserved so
 callers don't change.
@@ -217,18 +221,16 @@ latency for the encode pass (potentially minutes for a long meeting).
 
 ### Worst-case data loss
 
-≤ 1 s for short recordings (before the steady-state interval kicks
-in); ≤ 10 s thereafter. Hard crash, kernel panic, and power loss
-all leave a playable file with everything up to the last fragment
-boundary the OS flushed.
+≤ 1 s after the first fragment lands. Hard crash, kernel panic, and
+power loss all leave a playable file with everything up to the last
+fragment boundary the OS flushed.
 
 ### Disk overhead
 
 Negligible. AAC at 64 kbps = 8 KB per second. Fragmented MP4 adds
-~16 bytes of `moof` header per fragment. A 1-hour meeting at 10 s
-intervals = 360 fragments × ~16 bytes ≈ 6 KB per source, ~12 KB
-total, plus one extra fragment header for the 1 s initial.
-Imperceptible.
+~16 bytes of `moof` header per fragment. A 1-hour meeting at 1 s
+intervals = 3,600 fragments × ~16 bytes ≈ 58 KB per source, ~116 KB
+total. Imperceptible.
 
 ### CPU overhead
 
@@ -251,9 +253,9 @@ user can tell the difference at a glance.
 - Unit: `MeetingRecordingLockFileStore` — write, read, delete,
   schema-version handling.
 - Integration: kill -9 mid-recording test (run a recording in a
-  child process, kill it after 10 s, assert the resulting
-  `microphone.m4a` is loadable as `AVAsset` and contains roughly
-  10 s of audio).
+  child process, kill it after 5 s, assert the resulting
+  `microphone.m4a` is loadable as `AVAsset` and contains at least
+  4 s of audio).
 - Integration: launch-time recovery scan finds N crashed sessions,
   recovers them via the standard pipeline, deletes lock files.
 
@@ -267,10 +269,11 @@ with both phases.
 
 ### Privacy
 
-Lock files contain only session UUID and start time — no audio,
-no transcript, no user-identifying content. They're stored in the
-same `~/Library/Application Support/MacParakeet/meetings/` tree as
-the audio they pertain to.
+Lock files contain only session UUID, start time, process ID, and
+display name — no audio, no transcript, no user-identifying content.
+They're stored in the same
+`~/Library/Application Support/MacParakeet/meeting-recordings/` tree
+as the audio they pertain to.
 
 ## References
 
