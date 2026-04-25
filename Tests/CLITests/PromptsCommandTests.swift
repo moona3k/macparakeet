@@ -156,16 +156,18 @@ final class PromptsCommandTests: XCTestCase {
     // MARK: - JSON encoder
 
     func testCLIJSONEncoderEmitsParseableJSON() throws {
+        // DatabaseManager() seeds 6 built-in prompts during migration, so we
+        // can't assume insertion order — search by name instead of position.
         let db = try DatabaseManager()
         let repo = PromptRepository(dbQueue: db.dbQueue)
-        let p = Prompt(name: "JSON Test", content: "Body")
-        try repo.save(p)
+        try repo.save(Prompt(name: "JSON Test", content: "Body"))
 
         let prompts = try repo.fetchAll()
         let data = try cliJSONEncoder.encode(prompts)
 
         let parsed = try JSONSerialization.jsonObject(with: data) as? [[String: Any]]
         XCTAssertNotNil(parsed)
-        XCTAssertEqual(parsed?.first?["name"] as? String, "JSON Test")
+        let names = parsed?.compactMap { $0["name"] as? String } ?? []
+        XCTAssertTrue(names.contains("JSON Test"), "Expected 'JSON Test' in encoded names; got: \(names)")
     }
 }

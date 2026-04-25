@@ -117,6 +117,10 @@ struct HealthCommand: AsyncParsableCommand {
 
         // 5. Local speech stack
         let sttClient = STTClient()
+        // CLI is about to exit anyway, but `defer` guarantees shutdown runs
+        // even if a future change adds a throw between init and the explicit
+        // shutdown below. Detached because defer can't await.
+        defer { Task { await sttClient.shutdown() } }
         let diarizationService = DiarizationService()
         let status = await loadSpeechStackStatus(
             sttClient: sttClient,
@@ -144,7 +148,6 @@ struct HealthCommand: AsyncParsableCommand {
                 if !json { print("Speech-stack repair failed — \(error.localizedDescription)") }
             }
         }
-        await sttClient.shutdown()
         if !json { print() }
 
         // 6. Bundled FFmpeg

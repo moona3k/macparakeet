@@ -28,7 +28,7 @@ parity for parity's sake. Each addition has a concrete dev/CI/agent use case.
 
 ### 1. `prompts` subcommand (new)
 
-```
+```text
 prompts list [--visible | --auto-run | --all] [--json]
 prompts show <id-or-name> [--json]
 prompts add --name "X" [--content "..." | --from-file path]
@@ -82,7 +82,7 @@ confirmation line; JSON would be noise).
 
 ### 3. `--source` filter on `flow words list`
 
-```
+```text
 flow words list [--source manual|learned|all] [--json]
 ```
 
@@ -108,7 +108,7 @@ Default: `all`. Closes a real GUI/CLI gap — the source column exists and is me
 
 | Decision | Choice | Why |
 |---|---|---|
-| Prompt set semantics | `--visible|--hidden` and `--auto-run|--no-auto-run` mutually-exclusive flag pairs | Idempotent; agents want "set to X," not "flip" |
+| Prompt set semantics | `--visible`/`--hidden` and `--auto-run`/`--no-auto-run` mutually-exclusive flag pairs | Idempotent; agents want "set to X," not "flip" |
 | Prompt delete on built-in | Error with clear message | Matches repo behavior; `restore-defaults` handles re-show case |
 | `prompts run` default | `--store true` (use `--no-store` to opt out) | The verb implies the action; opt-out preserves preview workflow |
 | JSON encoder | iso8601 dates, pretty-printed, sorted keys | Matches `CalendarCommand`; single convention is easier to remember |
