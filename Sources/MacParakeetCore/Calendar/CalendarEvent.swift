@@ -26,8 +26,16 @@ public struct CalendarEvent: Codable, Sendable, Identifiable {
 
     public var isAllDay: Bool
 
-    /// e.g. "Work", "Personal" — used for the per-calendar include list.
+    /// e.g. "Work", "Personal" — display label for UI surfaces. **Don't key
+    /// the per-calendar exclude list on this** — multiple accounts can have
+    /// the same human-readable title (two "Calendar"s, two "Work"s). Use
+    /// `calendarIdentifier` for filtering.
     public var calendarName: String?
+
+    /// Stable `EKCalendar.calendarIdentifier`. Used to key the per-calendar
+    /// exclude list — survives renames and disambiguates same-titled
+    /// calendars across accounts.
+    public var calendarIdentifier: String?
 
     /// Current user's participation status, lifted off `EKAttendee` before
     /// the participant list is filtered. Used to suppress declined events.
@@ -49,6 +57,7 @@ public struct CalendarEvent: Codable, Sendable, Identifiable {
         participants: [EventParticipant] = [],
         isAllDay: Bool = false,
         calendarName: String? = nil,
+        calendarIdentifier: String? = nil,
         userStatus: EventParticipant.ParticipantStatus? = nil,
         externalId: String? = nil,
         syncedAt: Date = Date()
@@ -62,6 +71,7 @@ public struct CalendarEvent: Codable, Sendable, Identifiable {
         self.participants = participants
         self.isAllDay = isAllDay
         self.calendarName = calendarName
+        self.calendarIdentifier = calendarIdentifier
         self.userStatus = userStatus
         self.externalId = externalId
         self.syncedAt = syncedAt

@@ -465,24 +465,26 @@ public final class SettingsViewModel {
         permissionService?.openScreenRecordingSettings()
     }
 
-    /// Refresh calendar permission from the singleton service. Cheap — no
-    /// network or disk; just reads `EKEventStore.authorizationStatus`. Called
-    /// by `refreshPermissions()` when the permission service is available.
+    /// Refresh calendar permission via the shared service. Cheap — no
+    /// network or disk; just reads `EKEventStore.authorizationStatus` (which
+    /// is `nonisolated` on the actor, so no await needed).
     public func refreshCalendarPermission() {
-        let service = CalendarService()
-        calendarPermissionGranted = service.permissionStatus == .granted
+        calendarPermissionGranted = CalendarService.shared.permissionStatus == .granted
     }
 
     /// Trigger the EventKit permission prompt if not yet decided. Returns the
-    /// granted state. Settings UI calls this from a "Grant Calendar access"
-    /// button; onboarding shares the same code path.
+    /// granted state. On grant, also requests notification authorization so
+    /// the eventual reminder isn't silently dropped by macOS — this single
+    /// async hop pairs the two permissions the feature actually needs.
     @discardableResult
     public func requestCalendarPermission() async -> Bool {
-        let service = CalendarService()
         Telemetry.send(.permissionPrompted(permission: .calendar))
-        let granted = await service.requestPermission()
+        let granted = await CalendarService.shared.requestPermission()
         calendarPermissionGranted = granted
         Telemetry.send(granted ? .permissionGranted(permission: .calendar) : .permissionDenied(permission: .calendar))
+        if granted {
+            await CalendarNotificationAuthorization.requestIfNeeded()
+        }
         return granted
     }
 

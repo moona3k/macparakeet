@@ -201,13 +201,16 @@ struct CalendarSettingsView: View {
     }
 
     private func bindingForCalendar(_ calendar: CalendarInfo) -> Binding<Bool> {
+        // Key on `calendar.id` (EKCalendar.calendarIdentifier), not title —
+        // titles aren't unique across accounts and rename silently breaks the
+        // exclude list. ID is stable across both.
         Binding(
-            get: { !viewModel.calendarExcludedIdentifiers.contains(calendar.title) },
+            get: { !viewModel.calendarExcludedIdentifiers.contains(calendar.id) },
             set: { isIncluded in
                 if isIncluded {
-                    viewModel.calendarExcludedIdentifiers.remove(calendar.title)
+                    viewModel.calendarExcludedIdentifiers.remove(calendar.id)
                 } else {
-                    viewModel.calendarExcludedIdentifiers.insert(calendar.title)
+                    viewModel.calendarExcludedIdentifiers.insert(calendar.id)
                 }
             }
         )
@@ -229,6 +232,12 @@ struct CalendarSettingsView: View {
             availableCalendars = []
             return
         }
-        availableCalendars = CalendarService().availableCalendars()
+        // CalendarService is an actor (EventKit isn't thread-safe), so this
+        // hops off main. Cheap — typically <5ms with permission already
+        // granted — but worth keeping off the main thread on principle.
+        Task {
+            let calendars = await CalendarService.shared.availableCalendars()
+            await MainActor.run { self.availableCalendars = calendars }
+        }
     }
 }

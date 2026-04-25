@@ -111,7 +111,7 @@ public final class OnboardingViewModel {
         self.relaunchHintDelay = relaunchHintDelay
         self.meetingRecordingSkipped = defaults.bool(forKey: Self.meetingRecordingSkippedKey)
         self.calendarSkipped = defaults.bool(forKey: Self.calendarSkippedKey)
-        self.calendarPermissionGranted = CalendarService().permissionStatus == .granted
+        self.calendarPermissionGranted = CalendarService.shared.permissionStatus == .granted
     }
 
     public var hasCompletedOnboarding: Bool {
@@ -284,17 +284,20 @@ public final class OnboardingViewModel {
     }
 
     /// Trigger the EventKit permission prompt. On grant, default the user
-    /// into `.notify` mode so the feature works out of the box. On denial,
-    /// leave the mode as-is (`.off` by default) — the user can opt back in
-    /// from Settings later. We write directly to UserDefaults + post the
+    /// into `.notify` mode so the feature works out of the box and request
+    /// notification authorization in the same flow — without it, macOS
+    /// silently drops every reminder we post and the user concludes the
+    /// feature is broken. We write directly to UserDefaults + post the
     /// shared notification so a running `MeetingAutoStartCoordinator`
     /// re-evaluates immediately.
     public func requestCalendarAccess() {
         isBusy = true
         Telemetry.send(.permissionPrompted(permission: .calendar))
         Task {
-            let service = CalendarService()
-            let granted = await service.requestPermission()
+            let granted = await CalendarService.shared.requestPermission()
+            if granted {
+                await CalendarNotificationAuthorization.requestIfNeeded()
+            }
             await MainActor.run {
                 self.isBusy = false
                 self.calendarPermissionGranted = granted

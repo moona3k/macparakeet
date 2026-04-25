@@ -32,8 +32,7 @@ struct CalendarCommand: AsyncParsableCommand {
             guard let triggerFilter = parsedFilter() else {
                 throw ValidationError("--filter must be one of: link, participants, all")
             }
-            let service = CalendarService()
-            switch service.permissionStatus {
+            switch CalendarService.shared.permissionStatus {
             case .denied:
                 throw CalendarCLIError.calendarPermissionDenied
             case .notDetermined:
@@ -42,7 +41,7 @@ struct CalendarCommand: AsyncParsableCommand {
                 break
             }
 
-            let raw = try await service.fetchUpcomingEvents(days: max(1, days))
+            let raw = try await CalendarService.shared.fetchUpcomingEvents(days: max(1, days))
             let events = raw.filter { passesFilter($0, filter: triggerFilter) }
 
             if json {

@@ -270,7 +270,7 @@ final class AppEnvironmentConfigurer {
         let calendarCoordinator: MeetingAutoStartCoordinator?
         if AppFeatures.meetingRecordingEnabled {
             let coordinator = MeetingAutoStartCoordinator(
-                calendarService: CalendarService(),
+                calendarService: .shared,
                 settingsViewModel: settingsViewModel
             )
             coordinator.start()

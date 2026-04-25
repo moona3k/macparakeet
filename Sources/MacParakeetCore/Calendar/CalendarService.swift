@@ -8,33 +8,29 @@ import OSLog
 /// MacParakeet does not run its own OAuth flows — the user's macOS Calendar
 /// already aggregates Google/iCloud/Exchange accounts. ADR-002 (local-first):
 /// events are read into memory on each poll and discarded, never persisted.
-public final class CalendarService: @unchecked Sendable {
+///
+/// **Concurrency.** `EKEventStore` is documented as not thread-safe, and
+/// Apple recommends a single long-lived store per app. This type is an
+/// `actor` so all instance-method calls are serialized on the actor's
+/// background executor — that solves both the thread-safety constraint *and*
+/// keeps EventKit's synchronous `events(matching:)` disk I/O off the main
+/// actor. Use `CalendarService.shared` rather than constructing your own.
+public actor CalendarService {
 
-    // MARK: - State (lock-guarded — service is `@unchecked Sendable`)
+    // MARK: - State
 
     private let eventStore = EKEventStore()
     private let linkParser = MeetingLinkParser()
     private let logger = Logger(subsystem: "com.macparakeet", category: "CalendarService")
-    private let lock = NSLock()
 
-    private var _lookAheadDays: Int = 7
-    private var _excludeAllDay: Bool = true
-    private var _excludeDeclined: Bool = true
+    public var lookAheadDays: Int = 7
+    public var excludeAllDay: Bool = true
+    public var excludeDeclined: Bool = true
 
-    public var lookAheadDays: Int {
-        get { lock.withLock { _lookAheadDays } }
-        set { lock.withLock { _lookAheadDays = newValue } }
-    }
-
-    public var excludeAllDay: Bool {
-        get { lock.withLock { _excludeAllDay } }
-        set { lock.withLock { _excludeAllDay = newValue } }
-    }
-
-    public var excludeDeclined: Bool {
-        get { lock.withLock { _excludeDeclined } }
-        set { lock.withLock { _excludeDeclined = newValue } }
-    }
+    /// Shared singleton — Apple recommends a single long-lived `EKEventStore`
+    /// for the lifetime of the app. Multiple stores can return stale data and
+    /// duplicate the file-system watcher cost.
+    public static let shared = CalendarService()
 
     public init() {}
 
@@ -46,7 +42,12 @@ public final class CalendarService: @unchecked Sendable {
         case denied
     }
 
-    public var permissionStatus: PermissionStatus {
+    /// `EKEventStore.authorizationStatus(for:)` is a thread-safe class method
+    /// that doesn't touch the instance store, so we can read it without
+    /// hopping into the actor — keeps Settings + Onboarding sync code paths
+    /// simple. (`requestPermission` *does* touch the store so it stays
+    /// actor-isolated.)
+    public nonisolated var permissionStatus: PermissionStatus {
         let status = EKEventStore.authorizationStatus(for: .event)
         switch status {
         case .notDetermined:
@@ -210,6 +211,7 @@ public final class CalendarService: @unchecked Sendable {
             participants: participants,
             isAllDay: ekEvent.isAllDay,
             calendarName: ekEvent.calendar?.title,
+            calendarIdentifier: ekEvent.calendar?.calendarIdentifier,
             userStatus: userStatus,
             externalId: ekEvent.calendarItemExternalIdentifier,
             syncedAt: Date()
@@ -249,5 +251,5 @@ public enum CalendarError: Error, LocalizedError {
 
 public extension CalendarService {
     /// Deep-link to the Calendar privacy pane in System Settings.
-    static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!
+    nonisolated static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars")!
 }

@@ -42,11 +42,14 @@ final class MeetingAutoStartCoordinator {
     private var remindedEventIds: Set<String> = []
     private var countdownShownEventIds: Set<String> = []
 
-    private var settingsObserver: NSObjectProtocol?
-    private var calendarChangeObserver: NSObjectProtocol?
+    // `nonisolated(unsafe)` so the nonisolated `deinit` can read these to
+    // unregister observers. They're write-only after start() / stop() and
+    // mutation always happens on the main actor — no race.
+    nonisolated(unsafe) private var settingsObserver: NSObjectProtocol?
+    nonisolated(unsafe) private var calendarChangeObserver: NSObjectProtocol?
     private var cleanupTask: Task<Void, Never>?
 
-    init(calendarService: CalendarService, settingsViewModel: SettingsViewModel) {
+    init(calendarService: CalendarService = .shared, settingsViewModel: SettingsViewModel) {
         self.calendarService = calendarService
         self.settingsViewModel = settingsViewModel
     }
@@ -104,8 +107,8 @@ final class MeetingAutoStartCoordinator {
             object: nil,
             queue: .main
         ) { [weak self] _ in
-            // Hop to the main actor; the queue:.main parameter keeps us on
-            // the main thread but Swift 6 still wants the explicit isolation.
+            // queue: .main lands the closure on the main thread but Swift 6
+            // strict isolation still requires an explicit @MainActor hop.
             Task { @MainActor [weak self] in self?.handleSettingsChanged() }
         }
     }
@@ -163,14 +166,10 @@ final class MeetingAutoStartCoordinator {
         )
 
         for event in monitorEvents {
-            handle(event, mode: mode)
+            await handle(event, mode: mode)
         }
 
         adjustPollingFrequency(events: events)
-    }
-
-    @objc private func pollFromTimer() {
-        Task { @MainActor [weak self] in await self?.pollAsync() }
     }
 
     private func currentConfig(mode: CalendarAutoStartMode) -> MeetingMonitor.Config {
@@ -189,12 +188,13 @@ final class MeetingAutoStartCoordinator {
         let excluded = settingsViewModel.calendarExcludedIdentifiers
         guard !excluded.isEmpty else { return events }
         return events.filter { event in
-            // CalendarEvent doesn't carry the calendar identifier, only the
-            // human-readable title. We match on title until/unless we add an
-            // identifier to the model — for now this is "good enough" because
-            // the include list is rendered with the same titles.
-            guard let title = event.calendarName else { return true }
-            return !excluded.contains(title)
+            // Filter by stable EKCalendar.calendarIdentifier — title-based
+            // filtering breaks when two calendars share a name or one is
+            // renamed. If the identifier is missing for some reason, default
+            // to including the event (fail open — better to over-notify than
+            // silently miss a meeting).
+            guard let identifier = event.calendarIdentifier else { return true }
+            return !excluded.contains(identifier)
         }
     }
 
@@ -235,20 +235,34 @@ final class MeetingAutoStartCoordinator {
 
     // MARK: - Event handling
 
-    private func handle(_ event: MeetingMonitor.MonitorEvent, mode: CalendarAutoStartMode) {
+    private func handle(_ event: MeetingMonitor.MonitorEvent, mode: CalendarAutoStartMode) async {
         switch event {
         case .reminderDue(let calEvent):
-            showReminder(calEvent, mode: mode)
+            await showReminder(calEvent, mode: mode)
 
         case .autoStartDue, .lateJoinAvailable, .autoStopDue:
-            // Phase D scope: notify-only. Mark these as "seen" so we don't
-            // log them on every tick once Phase E is wired.
+            // Phase D scope: notify-only. These are recognized by
+            // `MeetingMonitor` so the enum stays Phase E-ready, but the
+            // coordinator deliberately no-ops until the countdown toast +
+            // recording trigger land.
             return
         }
     }
 
-    private func showReminder(_ event: CalendarEvent, mode: CalendarAutoStartMode) {
+    private func showReminder(_ event: CalendarEvent, mode: CalendarAutoStartMode) async {
+        // Mark before posting so a failed delivery doesn't cause us to
+        // re-attempt every poll tick — better to miss one reminder than
+        // spam the user.
         remindedEventIds.insert(event.id)
+
+        // Defense in depth: we requested authorization at calendar grant
+        // time, but the user may have revoked notifications since. Without
+        // this check macOS silently drops `add()` and the user sees no
+        // reminder despite Calendar being granted.
+        guard await CalendarNotificationAuthorization.isAuthorized() else {
+            logger.warning("Notification authorization missing — reminder for event id=\(event.id, privacy: .public) not delivered")
+            return
+        }
 
         let leadMinutes = settingsViewModel.calendarReminderMinutes
         let title = event.title
@@ -271,10 +285,10 @@ final class MeetingAutoStartCoordinator {
             trigger: nil  // Deliver immediately
         )
 
-        UNUserNotificationCenter.current().add(request) { [logger] error in
-            if let error {
-                logger.error("Reminder notification failed: \(error.localizedDescription, privacy: .public)")
-            }
+        do {
+            try await UNUserNotificationCenter.current().add(request)
+        } catch {
+            logger.error("Reminder notification failed: \(error.localizedDescription, privacy: .public)")
         }
 
         Telemetry.send(.calendarReminderShown(
@@ -295,22 +309,21 @@ final class MeetingAutoStartCoordinator {
         cleanupTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(24 * 60 * 60))
-                guard let self else { return }
-                await MainActor.run { self.cleanupStaleIds() }
+                guard !Task.isCancelled else { return }
+                await self?.cleanupStaleIds()
             }
         }
     }
 
-    private func cleanupStaleIds() {
-        Task { [weak self] in
-            guard let self else { return }
-            guard let events = try? await self.calendarService.fetchUpcomingEvents(days: 7) else { return }
-            let liveIds = Set(events.map(\.id))
-            await MainActor.run {
-                self.dismissedEventIds.formIntersection(liveIds)
-                self.remindedEventIds.formIntersection(liveIds)
-                self.countdownShownEventIds.formIntersection(liveIds)
-            }
-        }
+    /// Async + structured. Runs on the main actor (the coordinator is
+    /// `@MainActor`), with the EventKit fetch hopping to the
+    /// `CalendarService` actor for thread safety. Errors propagate via the
+    /// `try?` — silent failure is acceptable for a 24-hour janitor.
+    private func cleanupStaleIds() async {
+        guard let events = try? await calendarService.fetchUpcomingEvents(days: 7) else { return }
+        let liveIds = Set(events.map(\.id))
+        dismissedEventIds.formIntersection(liveIds)
+        remindedEventIds.formIntersection(liveIds)
+        countdownShownEventIds.formIntersection(liveIds)
     }
 }

@@ -124,16 +124,15 @@ struct HealthCommand: AsyncParsableCommand {
         // GUI, so the CLI surface lets them check authorization status
         // headlessly during dev iteration.
         print("Calendar (EventKit):")
-        let calendarService = CalendarService()
         let calendarStatus: String
-        switch calendarService.permissionStatus {
+        switch CalendarService.shared.permissionStatus {
         case .granted: calendarStatus = "Granted"
         case .denied: calendarStatus = "Denied (open System Settings → Privacy & Security → Calendars)"
         case .notDetermined: calendarStatus = "Not requested (run the app once and grant access)"
         }
         print("  Status: \(calendarStatus)")
-        if calendarService.permissionStatus == .granted {
-            let calendars = calendarService.availableCalendars()
+        if CalendarService.shared.permissionStatus == .granted {
+            let calendars = await CalendarService.shared.availableCalendars()
             print("  Calendars visible: \(calendars.count)")
         }
         print()
