@@ -195,6 +195,17 @@ public final class SettingsViewModel {
             defaults.set(calendarAutoStartMode.rawValue, forKey: CalendarAutoStartPreferences.modeKey)
             NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
             Telemetry.send(.settingChanged(setting: .calendarAutoStartMode))
+            // Enabling reminders requires notification authorization. The
+            // onboarding-grant flow asks for this in tandem with Calendar
+            // access, but a user who granted Calendar earlier (or via
+            // System Settings) and *now* flips the mode picker to `.notify`
+            // would otherwise hit the silent-drop path: coordinator marks
+            // the event reminded, finds notifications unauthorized, returns
+            // without delivering. Skip when re-entering via the settings
+            // observer to avoid prompting on every cross-VM sync.
+            if calendarAutoStartMode != .off && !isResolvingCalendarSettings {
+                Task { await CalendarNotificationAuthorization.requestIfNeeded() }
+            }
         }
     }
     public var calendarReminderMinutes: Int {
@@ -225,9 +236,16 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .calendarIncludedCalendars))
         }
     }
-    /// Permission status mirrors `microphoneGranted` etc. — refreshed via
-    /// `refreshCalendarPermission()`.
-    public var calendarPermissionGranted = false
+    /// Three-state Calendar permission. Settings UI needs to distinguish
+    /// `.denied` from `.notDetermined` because macOS only shows the
+    /// EventKit prompt once — after denial, the only recovery path is
+    /// System Settings, so the Settings button label has to change too.
+    public var calendarPermissionStatus: CalendarService.PermissionStatus = .notDetermined
+    /// Convenience derived from `calendarPermissionStatus` for callers that
+    /// only care about the granted-or-not boolean (onboarding gating, etc.).
+    public var calendarPermissionGranted: Bool {
+        calendarPermissionStatus == .granted
+    }
 
     // Permission status
     public var microphoneGranted = false
@@ -522,7 +540,7 @@ public final class SettingsViewModel {
     /// network or disk; just reads `EKEventStore.authorizationStatus` (which
     /// is `nonisolated` on the actor, so no await needed).
     public func refreshCalendarPermission() {
-        calendarPermissionGranted = CalendarService.shared.permissionStatus == .granted
+        calendarPermissionStatus = CalendarService.shared.permissionStatus
     }
 
     /// Trigger the EventKit permission prompt if not yet decided. Returns the
@@ -533,7 +551,11 @@ public final class SettingsViewModel {
     public func requestCalendarPermission() async -> Bool {
         Telemetry.send(.permissionPrompted(permission: .calendar))
         let granted = await CalendarService.shared.requestPermission()
-        calendarPermissionGranted = granted
+        // Re-read the status (rather than just assigning .granted/.denied
+        // from the bool) so `.restricted` from MDM-managed Macs is reflected
+        // accurately — the service maps it to `.denied` so callers don't
+        // need a fourth case, but a fresh read is the source of truth.
+        calendarPermissionStatus = CalendarService.shared.permissionStatus
         Telemetry.send(granted ? .permissionGranted(permission: .calendar) : .permissionDenied(permission: .calendar))
         if granted {
             await CalendarNotificationAuthorization.requestIfNeeded()

@@ -53,20 +53,29 @@ struct CalendarSettingsView: View {
     }
 
     private var permissionDetail: String {
-        if viewModel.calendarPermissionGranted {
+        switch viewModel.calendarPermissionStatus {
+        case .granted:
             return "Granted. Events stay on your Mac — MacParakeet never uploads them."
+        case .denied:
+            // macOS only shows the EventKit prompt once. Once denied, the
+            // only path back is System Settings — telling the user to
+            // "grant access" via a button that can't actually re-prompt
+            // would mystify them.
+            return "Calendar access is blocked. Re-enable it in System Settings → Privacy & Security → Calendars to use reminders."
+        case .notDetermined:
+            return "Reads your macOS calendar so MacParakeet can remind you before a meeting starts. Events stay on your Mac."
         }
-        return "Reads your macOS calendar so MacParakeet can remind you before a meeting starts. Events stay on your Mac."
     }
 
     @ViewBuilder
     private var permissionAction: some View {
-        if viewModel.calendarPermissionGranted {
+        switch viewModel.calendarPermissionStatus {
+        case .granted, .denied:
             Button("Open System Settings") {
                 viewModel.openCalendarSystemSettings()
             }
             .controlSize(.small)
-        } else {
+        case .notDetermined:
             Button {
                 requestPermission()
             } label: {
