@@ -83,10 +83,11 @@ public actor CalendarService {
     public func requestPermission() async -> Bool {
         logger.info("Requesting calendar permission")
         do {
-            let granted = try await eventStore.requestFullAccessToEvents()
+            nonisolated(unsafe) let unsafeEventStore = eventStore
+            let granted = try await unsafeEventStore.requestFullAccessToEvents()
             if granted {
                 logger.info("Calendar permission granted")
-                eventStore.reset()
+                unsafeEventStore.reset()
             } else {
                 logger.warning("Calendar permission denied")
             }

@@ -308,6 +308,8 @@ public actor AudioRecorder {
         // call so the caller sees a Swift error rather than a hard abort.
         do {
             nonisolated(unsafe) let unsafeInputNode = inputNode
+            nonisolated(unsafe) let unsafeOutputFormat = outputFormat
+            nonisolated(unsafe) let unsafeFile = file
             try catchingObjCException {
                 unsafeInputNode.installTap(onBus: 0, bufferSize: 4096, format: nil) {
                     [weak self] buffer, _ in
@@ -354,7 +356,7 @@ public actor AudioRecorder {
                         cachedSourceFormat: converterCache.sourceFormat,
                         incomingBufferFormat: bufferFormat
                     ) {
-                        converterCache.converter = AVAudioConverter(from: bufferFormat, to: outputFormat)
+                        converterCache.converter = AVAudioConverter(from: bufferFormat, to: unsafeOutputFormat)
                         converterCache.sourceFormat = bufferFormat
                     }
                     guard let converter = converterCache.converter else {
@@ -371,11 +373,11 @@ public actor AudioRecorder {
 
                     // Convert to output format
                     let outputFrameCapacity = AVAudioFrameCount(
-                        ceil(Double(buffer.frameLength) * outputFormat.sampleRate / bufferFormat.sampleRate)
+                        ceil(Double(buffer.frameLength) * unsafeOutputFormat.sampleRate / bufferFormat.sampleRate)
                     )
                     guard outputFrameCapacity > 0,
                         let convertedBuffer = AVAudioPCMBuffer(
-                            pcmFormat: outputFormat,
+                            pcmFormat: unsafeOutputFormat,
                             frameCapacity: outputFrameCapacity
                         )
                     else { return }
@@ -407,7 +409,7 @@ public actor AudioRecorder {
                         guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
                         do {
                             let convertedFrameLength = Int(convertedBuffer.frameLength)
-                            try file.write(from: convertedBuffer)
+                            try unsafeFile.write(from: convertedBuffer)
                             self.sampleCounter.withLock { $0 += convertedFrameLength }
                         } catch {
                             // Log but don't crash — we're on the audio thread.
