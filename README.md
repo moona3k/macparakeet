@@ -21,6 +21,7 @@
 </p>
 
 <p align="center">
+  <a href="https://deepwiki.com/moona3k/macparakeet"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="GPL-3.0 License"></a>
   <img src="https://img.shields.io/badge/macOS-14.2%2B-000000.svg" alt="macOS 14.2+">
   <img src="https://img.shields.io/badge/Swift-6.0-F05138.svg" alt="Swift 6">
