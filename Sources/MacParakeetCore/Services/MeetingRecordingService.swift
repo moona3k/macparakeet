@@ -160,10 +160,15 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let writer = try MeetingAudioStorageWriter(folderURL: folderURL)
         let chunkFolderURL = folderURL.appendingPathComponent("chunks", isDirectory: true)
         try fileManager.createDirectory(at: chunkFolderURL, withIntermediateDirectories: true)
+        // Single timestamp shared between displayName fallback and
+        // startedAt — back-to-back `Date()` calls would only diverge if
+        // the clock ticked over a minute boundary between them, which is
+        // vanishingly rare but trivially avoidable.
+        let now = Date()
         let session = Session(
             id: sessionID,
-            displayName: Self.resolveDisplayName(title: title, fallbackDate: Date()),
-            startedAt: Date(),
+            displayName: Self.resolveDisplayName(title: title, fallbackDate: now),
+            startedAt: now,
             folderURL: folderURL,
             chunkFolderURL: chunkFolderURL,
             microphoneAudioURL: writer.microphoneAudioURL,
