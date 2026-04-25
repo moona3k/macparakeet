@@ -102,6 +102,8 @@ Existing prompts that don't use the variables continue to work — they receive 
 
 **Substitution is single-pass and simultaneous.** Replacements are computed against the original prompt text and applied atomically — no second pass, no recursion. User notes containing the literal string `{{transcript}}` (a paste of code, a quoted template, etc.) are not interpreted as a template token in a later pass. This eliminates a small but real injection vector where a user's own notes could double-inject the transcript or smuggle other variables into a position the prompt author never intended. Tested explicitly with adversarial inputs in `PromptTemplateRendererTests`.
 
+**Variable names are case-sensitive; canonical casing is lowercase.** `{{userNotes}}` and `{{Usernotes}}` are different keys; only the canonical form `{{userNotes}}` (and `{{transcript}}`) is recognized. Unknown casings fall through to the empty-string fallback for missing keys. This eliminates a class of prompt-authoring bugs where a typo silently produces empty output instead of a substitution.
+
 ### 5. New built-in prompt: "Memo-Steered Notes"
 
 A new built-in prompt is added to `Prompt.builtInPrompts()` and seeded on next launch. Approximate copy (the literal prompt string — no markdown formatting, the asterisks below are the spec's emphasis only):
@@ -185,6 +187,8 @@ The `recording.lock` JSON schema gains a `notes: String?` field. `MeetingRecordi
 The current `MeetingRecordingLockFileStore.read()` guards on `schemaVersion == currentSchemaVersion`. Because we are not bumping the version, that guard continues to behave correctly. Any *future* hard schema bump must relax the guard to `>=` first (separately) — otherwise a Sparkle-update window where the new app version reads lock files written by the previous version would silently discard recoverable sessions. This is called out for the implementer of any future bump and tracked as a follow-up.
 
 **Notes decoded independently.** The `notes` field is decoded as a separate `try?` step *after* the structural fields decode successfully. A malformed `notes` string (or any future encoder bug specific to that field) causes the recovery scanner to fall back to `notes = nil` for that session, but the audio metadata and recoverability of the recording itself are preserved. The user loses the typed notes for one specific recovery, but the meeting itself is still recoverable. Without this split, a single corrupted notes byte would tank the entire recovery.
+
+**Protection chain.** Field-level corruption is handled by `decodeIfPresent` + independent `try?`. *File-level* corruption (truncation mid-write, unclosed JSON anywhere) is handled separately by `MeetingRecordingLockFileStore.write`'s use of `Data.WritingOptions.atomic` — atomic writes either land the whole file or do not land at all, so partial-file states are not observable. Together: atomic write removes the truncation window; `decodeIfPresent` + independent `try?` covers field-level encoder/decoder bugs. The two layers are complementary, not redundant.
 
 The Ask conversation persistence sketched as Future Work in ADR-018 is **not** addressed here. Notes and Ask have different recovery requirements: notes are user-authored intent and must survive; Ask is a conversational scratch surface where loss is annoying but not load-bearing.
 
