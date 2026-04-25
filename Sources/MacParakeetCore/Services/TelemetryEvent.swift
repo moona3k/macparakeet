@@ -70,6 +70,10 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case meetingRecordingFailed = "meeting_recording_failed"
     // Calendar auto-start (ADR-017)
     case calendarReminderShown = "calendar_reminder_shown"
+    case calendarAutoStartTriggered = "calendar_auto_start_triggered"
+    case calendarAutoStartCancelled = "calendar_auto_start_cancelled"
+    case calendarAutoStopShown = "calendar_auto_stop_shown"
+    case calendarAutoStopCancelled = "calendar_auto_stop_cancelled"
     // Errors
     case errorOccurred = "error_occurred"
     // Crashes
@@ -119,6 +123,14 @@ public enum TelemetryCopySource: String, Sendable, Equatable {
 public enum TelemetryFormatterSource: String, Sendable, Equatable {
     case dictation
     case transcription
+}
+
+/// Why a meeting recording started. Lets us distinguish manual user action
+/// from calendar-driven auto-start in adoption metrics.
+public enum TelemetryMeetingRecordingTrigger: String, Sendable, Equatable {
+    case manual
+    case hotkey
+    case calendarAutoStart = "calendar_auto_start"
 }
 
 public enum TelemetryPermission: String, Sendable, Equatable {
@@ -251,13 +263,26 @@ public enum TelemetryEventSpec: Sendable {
     // Keystroke actions
     case keystrokeSnippetFired(action: String)
     // Meeting recording
-    case meetingRecordingStarted
+    case meetingRecordingStarted(trigger: TelemetryMeetingRecordingTrigger? = nil)
     case meetingRecordingCompleted(durationSeconds: Double, liveWordCount: Int, liveTranscriptLagged: Bool)
     case meetingRecordingCancelled(durationSeconds: Double)
     case meetingRecordingFailed(errorType: String, errorDetail: String? = nil)
     // Calendar auto-start (ADR-017). Mode is "notify" / "auto_start" — `.off`
     // never produces an event because the coordinator short-circuits.
     case calendarReminderShown(mode: String, leadMinutes: Int, hasMeetUrl: Bool)
+    /// Auto-start countdown shown to the user. Fires when `.autoStartDue`
+    /// emits and `MeetingAutoStartCoordinator` actually presents the toast
+    /// (after permission + active-recording checks).
+    case calendarAutoStartTriggered(leadSeconds: Int, hasMeetUrl: Bool)
+    /// User actively cancelled the countdown before recording started, *or*
+    /// recording failed to start despite the user accepting. `.userCancel`
+    /// vs `.startError` is the distinction worth measuring.
+    case calendarAutoStartCancelled(reason: String)
+    /// Auto-stop countdown shown for an event currently being recorded.
+    case calendarAutoStopShown(eventDurationSeconds: Double)
+    /// User extended past the calendar event's end time (suppressed
+    /// auto-stop). Tells us how often the 30s lead is wrong.
+    case calendarAutoStopCancelled
     // Errors
     case errorOccurred(domain: String, code: String, description: String)
     // Crashes
@@ -336,6 +361,10 @@ extension TelemetryEventSpec {
         case .meetingRecordingCancelled: return .meetingRecordingCancelled
         case .meetingRecordingFailed: return .meetingRecordingFailed
         case .calendarReminderShown: return .calendarReminderShown
+        case .calendarAutoStartTriggered: return .calendarAutoStartTriggered
+        case .calendarAutoStartCancelled: return .calendarAutoStartCancelled
+        case .calendarAutoStopShown: return .calendarAutoStopShown
+        case .calendarAutoStopCancelled: return .calendarAutoStopCancelled
         case .errorOccurred: return .errorOccurred
         case .crashOccurred: return .crashOccurred
         }
@@ -529,8 +558,8 @@ extension TelemetryEventSpec {
             return ["is_favorite": isFavorite ? "true" : "false"]
         case .keystrokeSnippetFired(let action):
             return ["action": action]
-        case .meetingRecordingStarted:
-            return nil
+        case .meetingRecordingStarted(let trigger):
+            return Self.compactProps(("trigger", trigger?.rawValue))
         case .meetingRecordingCompleted(let durationSeconds, let liveWordCount, let liveTranscriptLagged):
             return [
                 "duration_seconds": Self.format(durationSeconds),
@@ -549,6 +578,17 @@ extension TelemetryEventSpec {
                 "lead_minutes": "\(leadMinutes)",
                 "has_meet_url": Self.boolString(hasMeetUrl),
             ]
+        case .calendarAutoStartTriggered(let leadSeconds, let hasMeetUrl):
+            return [
+                "lead_seconds": "\(leadSeconds)",
+                "has_meet_url": Self.boolString(hasMeetUrl),
+            ]
+        case .calendarAutoStartCancelled(let reason):
+            return ["reason": reason]
+        case .calendarAutoStopShown(let eventDurationSeconds):
+            return ["event_duration_seconds": Self.format(eventDurationSeconds)]
+        case .calendarAutoStopCancelled:
+            return nil
         case .errorOccurred(let domain, let code, let description):
             return ["domain": domain, "code": code, "description": String(description.prefix(512))]
         case .crashOccurred(let crashType, let signal, let name, let crashTimestamp,
@@ -665,6 +705,10 @@ public enum TelemetryImplementedContract {
         .meetingRecordingCancelled: ["duration_seconds"],
         .meetingRecordingFailed: ["error_type"],
         .calendarReminderShown: ["mode", "lead_minutes", "has_meet_url"],
+        .calendarAutoStartTriggered: ["lead_seconds", "has_meet_url"],
+        .calendarAutoStartCancelled: ["reason"],
+        .calendarAutoStopShown: ["event_duration_seconds"],
+        .calendarAutoStopCancelled: [],
         .errorOccurred: ["domain", "code", "description"],
         .crashOccurred: ["crash_type", "signal", "name", "crash_ts", "crash_app_ver"],
     ]

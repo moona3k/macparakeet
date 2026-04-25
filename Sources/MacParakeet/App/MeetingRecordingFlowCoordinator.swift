@@ -72,6 +72,12 @@ final class MeetingRecordingFlowCoordinator {
         panelViewModel?.chatViewModel.updateLLMService(service)
     }
 
+    /// Trigger source for the *next* `.startRequested` event. Reset to nil
+    /// after the start telemetry fires so subsequent toggles don't carry a
+    /// stale trigger. Calendar-driven starts call `startFromCalendar`,
+    /// which sets this and re-enters `toggleRecording`.
+    private var pendingTrigger: TelemetryMeetingRecordingTrigger?
+
     func toggleRecording() {
         switch stateMachine.state {
         case .idle:
@@ -81,6 +87,16 @@ final class MeetingRecordingFlowCoordinator {
         case .checkingPermissions, .transcribing, .finishing:
             break
         }
+    }
+
+    /// Calendar-driven entry point. Marks the next start as auto-start so
+    /// telemetry distinguishes it, then enters the normal start flow. No-op
+    /// if a recording is already in progress (manual recording wins by
+    /// arriving first — see ADR-017 §10).
+    func startFromCalendar() {
+        guard stateMachine.state == .idle else { return }
+        pendingTrigger = .calendarAutoStart
+        sendEvent(.startRequested)
     }
 
     private func sendEvent(_ event: MeetingRecordingFlowEvent) {
@@ -184,10 +200,14 @@ final class MeetingRecordingFlowCoordinator {
 
         case .startRecording:
             let gen = stateMachine.generation
+            // Snapshot + clear before the async hop so a subsequent toggle
+            // can't smuggle a stale trigger into this start's telemetry.
+            let trigger = pendingTrigger
+            pendingTrigger = nil
             actionTask = Task { @MainActor in
                 do {
                     try await meetingRecordingService.startRecording()
-                    Telemetry.send(.meetingRecordingStarted)
+                    Telemetry.send(.meetingRecordingStarted(trigger: trigger))
                     self.onRecordingBegan()
                     self.sendEvent(.recordingStarted(generation: gen))
                 } catch {
