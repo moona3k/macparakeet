@@ -683,6 +683,17 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
     }
 
+    func testUpdateCurrentTranscriptTextFailsWithoutConfiguredRepository() {
+        let t = Transcription(fileName: "test.mp3", rawTranscript: "Original transcript", status: .completed)
+        viewModel.currentTranscription = t
+
+        let saved = viewModel.updateCurrentTranscriptText(to: "Corrected transcript")
+
+        XCTAssertFalse(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Original transcript")
+        XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
+    }
+
     func testRevertCurrentTranscriptToOriginalClearsCleanTranscript() throws {
         let t = Transcription(
             fileName: "test.mp3",
@@ -714,6 +725,21 @@ final class TranscriptionViewModelTests: XCTestCase {
         mockRepo.saveError = NSError(domain: "repo", code: 1)
 
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let reverted = viewModel.revertCurrentTranscriptToOriginal()
+
+        XCTAssertFalse(reverted)
+        XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Corrected transcript")
+    }
+
+    func testRevertCurrentTranscriptToOriginalFailsWithoutConfiguredRepository() {
+        let t = Transcription(
+            fileName: "test.mp3",
+            rawTranscript: "Original transcript",
+            cleanTranscript: "Corrected transcript",
+            status: .completed
+        )
         viewModel.currentTranscription = t
 
         let reverted = viewModel.revertCurrentTranscriptToOriginal()

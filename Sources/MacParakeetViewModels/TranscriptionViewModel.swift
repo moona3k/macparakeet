@@ -569,6 +569,10 @@ public final class TranscriptionViewModel {
     @discardableResult
     public func updateCurrentTranscriptText(to newText: String) -> Bool {
         guard var transcription = currentTranscription else { return false }
+        guard let repo = transcriptionRepo else {
+            reportMissingConfiguration("transcriptionRepo", action: "updateCurrentTranscriptText")
+            return false
+        }
         let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
 
@@ -579,7 +583,7 @@ public final class TranscriptionViewModel {
         transcription.updatedAt = Date()
 
         do {
-            try transcriptionRepo?.save(transcription)
+            try repo.save(transcription)
             currentTranscription = transcription
             if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
                 transcriptions[index] = transcription
@@ -596,12 +600,16 @@ public final class TranscriptionViewModel {
         guard var transcription = currentTranscription,
               transcription.cleanTranscript != nil
         else { return false }
+        guard let repo = transcriptionRepo else {
+            reportMissingConfiguration("transcriptionRepo", action: "revertCurrentTranscriptToOriginal")
+            return false
+        }
 
         transcription.cleanTranscript = nil
         transcription.updatedAt = Date()
 
         do {
-            try transcriptionRepo?.save(transcription)
+            try repo.save(transcription)
             currentTranscription = transcription
             if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
                 transcriptions[index] = transcription

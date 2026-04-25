@@ -32,7 +32,6 @@ struct TranscriptResultView: View {
     @State private var headerExpanded = false
     @State private var speakerOverviewExpanded = false
     @State private var copied = false
-    @State private var copiedAIText = false
     @State private var copiedResultID: UUID?
     @State private var copiedButtonResultID: UUID?
     @State private var copiedMessageId: UUID?
@@ -40,7 +39,6 @@ struct TranscriptResultView: View {
     @State private var exportConfirmation: ExportConfirmation?
     @State private var exportErrorMessage: String?
     @State private var copiedResetTask: Task<Void, Never>?
-    @State private var copiedAITextResetTask: Task<Void, Never>?
     @State private var resultCopiedResetTask: Task<Void, Never>?
     @State private var resultButtonCopiedResetTask: Task<Void, Never>?
     @State private var dismissTask: Task<Void, Never>?
@@ -50,6 +48,7 @@ struct TranscriptResultView: View {
     @State private var transcriptDraft = ""
     @State private var transcriptEditError: String?
     @State private var transcriptDisplayMode: TranscriptDisplayMode = .text
+    @State private var transcriptDisplayModeBeforeEdit: TranscriptDisplayMode?
     @State private var editingSpeakerId: String?
     @State private var editingSpeakerLabel: String = ""
     @State private var showConversationPopover = false
@@ -123,6 +122,7 @@ struct TranscriptResultView: View {
             editingTranscript = false
             transcriptDraft = ""
             transcriptEditError = nil
+            transcriptDisplayModeBeforeEdit = nil
             editingSpeakerId = nil
             editingSpeakerLabel = ""
             showConversationPopover = false
@@ -138,10 +138,13 @@ struct TranscriptResultView: View {
             let text = viewModel.currentTranscription?.cleanTranscript ?? viewModel.currentTranscription?.rawTranscript ?? ""
             chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id)
         }
-        .onChange(of: transcription.speakers) {
+        .onChange(of: activeTranscription.speakers) {
             rebuildSegmentCache()
         }
-        .onChange(of: transcription.wordTimestamps) {
+        .onChange(of: activeTranscription.wordTimestamps) {
+            rebuildSegmentCache()
+        }
+        .onChange(of: activeTranscription.diarizationSegments) {
             rebuildSegmentCache()
         }
         .onChange(of: viewModel.selectedTab) {
@@ -275,8 +278,6 @@ struct TranscriptResultView: View {
         .onDisappear {
             copiedResetTask?.cancel()
             copiedResetTask = nil
-            copiedAITextResetTask?.cancel()
-            copiedAITextResetTask = nil
             resultCopiedResetTask?.cancel()
             resultCopiedResetTask = nil
             resultButtonCopiedResetTask?.cancel()
@@ -373,17 +374,6 @@ struct TranscriptResultView: View {
             }
             .buttonStyle(.bordered)
 
-            Button {
-                copyAITextToClipboard()
-            } label: {
-                Label(
-                    copiedAIText ? "Copied!" : "Copy AI Text",
-                    systemImage: copiedAIText ? "checkmark" : "text.quote"
-                )
-                .foregroundStyle(copiedAIText ? DesignSystem.Colors.successGreen : .primary)
-            }
-            .buttonStyle(.bordered)
-
             Menu {
                 Section("Document") {
                     Button { exportToDownloads(format: .txt) } label: {
@@ -391,9 +381,6 @@ struct TranscriptResultView: View {
                     }
                     Button { exportToDownloads(format: .md) } label: {
                         Label("Markdown (.md)", systemImage: "text.document")
-                    }
-                    Button { exportToDownloads(format: .aiText) } label: {
-                        Label("AI Text (.md)", systemImage: "text.quote")
                     }
                     Button { exportToDownloads(format: .docx) } label: {
                         Label("Word Document (.docx)", systemImage: "doc.richtext")
@@ -482,14 +469,14 @@ struct TranscriptResultView: View {
 
     private var transcriptWordCount: Int {
         if transcriptDisplayMode == .timed,
-           let wordTimestamps = transcription.wordTimestamps, !wordTimestamps.isEmpty {
+           let wordTimestamps = activeTranscription.wordTimestamps, !wordTimestamps.isEmpty {
             return wordTimestamps.count
         }
         return transcriptText.split(whereSeparator: \.isWhitespace).count
     }
 
     private var speakerCountValue: Int {
-        transcription.speakers?.count ?? transcription.speakerCount ?? 0
+        activeTranscription.speakers?.count ?? activeTranscription.speakerCount ?? 0
     }
 
     private var resultHeaderCard: some View {
@@ -808,16 +795,12 @@ struct TranscriptResultView: View {
 
                     if editingTranscript {
                         transcriptEditor
-                    } else if let speakers = activeTranscription.speakers, !speakers.isEmpty,
-                              transcriptDisplayMode == .timed {
-                        speakerSummaryPanel(speakers: speakers)
-
-                        if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
-                            timestampedView(words: timestamps)
-                        }
                     } else if transcriptDisplayMode == .timed,
-                              let timestamps = transcription.wordTimestamps,
+                              let timestamps = activeTranscription.wordTimestamps,
                               !timestamps.isEmpty {
+                        if let speakers = activeTranscription.speakers, !speakers.isEmpty {
+                            speakerSummaryPanel(speakers: speakers)
+                        }
                         timestampedView(words: timestamps)
                     } else if !transcriptText.isEmpty {
                         transcriptTextBlock(transcriptText)
@@ -1883,11 +1866,13 @@ struct TranscriptResultView: View {
     // MARK: - Mandala Data
 
     private var mandalaData: MandalaData {
-        if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
+        if let timestamps = activeTranscription.wordTimestamps, !timestamps.isEmpty {
             return .from(wordTimestamps: timestamps)
         }
-        return .from(text: transcription.cleanTranscript ?? transcription.rawTranscript ?? transcription.fileName,
-                     durationMs: transcription.durationMs ?? 1000)
+        return .from(
+            text: activeTranscription.cleanTranscript ?? activeTranscription.rawTranscript ?? activeTranscription.fileName,
+            durationMs: activeTranscription.durationMs ?? 1000
+        )
     }
 
     // MARK: - Timestamped View
@@ -1920,8 +1905,8 @@ struct TranscriptResultView: View {
     private func speakerSummaryPanel(speakers: [SpeakerInfo]) -> some View {
         let colorMap = buildSpeakerColorMap()
         let speakerStats = TranscriptSegmenter.computeSpeakerStats(
-            diarizationSegments: transcription.diarizationSegments,
-            wordTimestamps: transcription.wordTimestamps
+            diarizationSegments: activeTranscription.diarizationSegments,
+            wordTimestamps: activeTranscription.wordTimestamps
         )
 
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
@@ -2035,6 +2020,7 @@ struct TranscriptResultView: View {
     private func commitSpeakerRename() {
         guard let speakerId = editingSpeakerId else { return }
         viewModel.renameSpeaker(id: speakerId, to: editingSpeakerLabel)
+        rebuildSegmentCache()
         editingSpeakerId = nil
     }
 
@@ -2053,7 +2039,7 @@ struct TranscriptResultView: View {
 
     /// Rebuild cached segment data. Called once on appear and when transcription.id changes.
     private func rebuildSegmentCache() {
-        guard let words = transcription.wordTimestamps, !words.isEmpty else {
+        guard let words = activeTranscription.wordTimestamps, !words.isEmpty else {
             cachedSegments = []
             cachedTurns = []
             cachedHasSpeakers = false
@@ -2138,7 +2124,7 @@ struct TranscriptResultView: View {
     // MARK: - Speaker Helpers
 
     private func buildSpeakerColorMap() -> [String: Color] {
-        guard let speakers = transcription.speakers else { return [:] }
+        guard let speakers = activeTranscription.speakers else { return [:] }
         var map: [String: Color] = [:]
         for (i, speaker) in speakers.enumerated() {
             map[speaker.id] = DesignSystem.Colors.speakerColor(for: i)
@@ -2147,7 +2133,7 @@ struct TranscriptResultView: View {
     }
 
     private func buildSpeakerLabelMap() -> [String: String] {
-        guard let speakers = transcription.speakers else { return [:] }
+        guard let speakers = activeTranscription.speakers else { return [:] }
         var map: [String: String] = [:]
         for speaker in speakers {
             map[speaker.id] = speaker.label
@@ -2162,6 +2148,7 @@ struct TranscriptResultView: View {
     private func beginTranscriptEdit() {
         transcriptDraft = transcriptText
         transcriptEditError = nil
+        transcriptDisplayModeBeforeEdit = transcriptDisplayMode
         editingTranscript = true
         transcriptDisplayMode = .text
         Task { @MainActor in
@@ -2173,6 +2160,8 @@ struct TranscriptResultView: View {
         transcriptDraft = ""
         transcriptEditError = nil
         editingTranscript = false
+        transcriptDisplayMode = transcriptDisplayModeBeforeEdit ?? transcriptDisplayMode
+        transcriptDisplayModeBeforeEdit = nil
     }
 
     private func commitTranscriptEdit() {
@@ -2202,6 +2191,7 @@ struct TranscriptResultView: View {
         transcriptEditError = nil
         editingTranscript = false
         transcriptDisplayMode = .text
+        transcriptDisplayModeBeforeEdit = nil
         SoundManager.shared.play(.transcriptionComplete)
     }
 
@@ -2213,6 +2203,7 @@ struct TranscriptResultView: View {
         transcriptEditError = nil
         editingTranscript = false
         transcriptDisplayMode = hasTimestamps ? .timed : .text
+        transcriptDisplayModeBeforeEdit = nil
         SoundManager.shared.play(.transcriptionComplete)
     }
 
@@ -2230,20 +2221,8 @@ struct TranscriptResultView: View {
         }
     }
 
-    private func copyAITextToClipboard() {
-        let text = ExportService().formatAIText(transcription: activeTranscription)
-        TranscriptResultActions.copyText(text)
-        copiedAITextResetTask?.cancel()
-        withAnimation(DesignSystem.Animation.hoverTransition) { copiedAIText = true }
-        copiedAITextResetTask = Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.5))
-            guard !Task.isCancelled else { return }
-            withAnimation(DesignSystem.Animation.hoverTransition) { copiedAIText = false }
-        }
-    }
-
     private var hasTimestamps: Bool {
-        guard let words = transcription.wordTimestamps else { return false }
+        guard let words = activeTranscription.wordTimestamps else { return false }
         return !words.isEmpty
     }
 

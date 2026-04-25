@@ -7,14 +7,12 @@ public protocol ExportServiceProtocol: Sendable {
     func exportToSRT(transcription: Transcription, url: URL) throws
     func exportToVTT(transcription: Transcription, url: URL) throws
     func exportToMarkdown(transcription: Transcription, url: URL) throws
-    func exportToAIText(transcription: Transcription, url: URL) throws
     func exportToJSON(transcription: Transcription, url: URL) throws
     @MainActor func exportToPDF(transcription: Transcription, url: URL) throws
     @MainActor func exportToDocx(transcription: Transcription, url: URL) throws
     func formatSRT(words: [WordTimestamp], speakers: [SpeakerInfo]?) -> String
     func formatVTT(words: [WordTimestamp], speakers: [SpeakerInfo]?) -> String
     func formatMarkdown(transcription: Transcription) -> String
-    func formatAIText(transcription: Transcription) -> String
     func formatForClipboard(transcription: Transcription) -> String
 }
 
@@ -193,12 +191,6 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         try content.write(to: url, atomically: true, encoding: .utf8)
     }
 
-    /// Export transcription as timestamp-free text optimized for AI tools.
-    public func exportToAIText(transcription: Transcription, url: URL) throws {
-        let content = formatAIText(transcription: transcription)
-        try content.write(to: url, atomically: true, encoding: .utf8)
-    }
-
     /// Format transcription as Markdown string
     public func formatMarkdown(transcription: Transcription) -> String {
         var lines: [String] = []
@@ -257,113 +249,9 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return lines.joined(separator: "\n")
     }
 
-    /// Format a transcript without timestamps or metadata. This keeps user-edited
-    /// text authoritative, and otherwise derives readable paragraphs from timing
-    /// data when that is the best available structure.
-    public func formatAIText(transcription: Transcription) -> String {
-        if let edited = transcription.cleanTranscript?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !edited.isEmpty {
-            return normalizeParagraphText(edited)
-        }
-
-        if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
-            let cues = buildSubtitleCues(from: timestamps)
-            if let speakers = transcription.speakers, !speakers.isEmpty {
-                return formatSpeakerParagraphs(cues: cues, speakers: speakers)
-            }
-
-            if let raw = transcription.rawTranscript?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !raw.isEmpty {
-                return normalizeParagraphText(raw)
-            }
-
-            return formatPlainParagraphs(cues: cues)
-        }
-
-        return normalizeParagraphText(preferredText(transcription: transcription))
-    }
-
     /// Format transcription text for clipboard copy
     public func formatForClipboard(transcription: Transcription) -> String {
         preferredText(transcription: transcription)
-    }
-
-    private func normalizeParagraphText(_ text: String) -> String {
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return "" }
-
-        let normalizedNewlines = trimmed.replacingOccurrences(of: "\r\n", with: "\n")
-            .replacingOccurrences(of: "\r", with: "\n")
-        let rawParagraphs = normalizedNewlines.components(separatedBy: "\n\n")
-        let paragraphs = rawParagraphs
-            .map { paragraph in
-                paragraph
-                    .components(separatedBy: .newlines)
-                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                    .filter { !$0.isEmpty }
-                    .joined(separator: " ")
-            }
-            .filter { !$0.isEmpty }
-
-        return paragraphs.joined(separator: "\n\n")
-    }
-
-    private func formatPlainParagraphs(cues: [SubtitleCue]) -> String {
-        var paragraphs: [String] = []
-        var current: [String] = []
-        var wordCount = 0
-
-        for cue in cues {
-            let text = cue.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { continue }
-
-            current.append(text)
-            wordCount += text.split(whereSeparator: \.isWhitespace).count
-            let endsSentence = text.last.map { ".!?".contains($0) } ?? false
-            if endsSentence && wordCount >= 55 || wordCount >= 90 {
-                paragraphs.append(current.joined(separator: " "))
-                current = []
-                wordCount = 0
-            }
-        }
-
-        if !current.isEmpty {
-            paragraphs.append(current.joined(separator: " "))
-        }
-
-        return paragraphs.joined(separator: "\n\n")
-    }
-
-    private func formatSpeakerParagraphs(cues: [SubtitleCue], speakers: [SpeakerInfo]) -> String {
-        var lines: [String] = []
-        var currentSpeakerId: String?
-        var currentText: [String] = []
-
-        func flush() {
-            guard !currentText.isEmpty else { return }
-            if let speaker = speakerLabel(for: currentSpeakerId, in: speakers) {
-                lines.append("\(speaker):")
-            }
-            lines.append(currentText.joined(separator: " "))
-            lines.append("")
-            currentText = []
-        }
-
-        for cue in cues {
-            let text = cue.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !text.isEmpty else { continue }
-            if cue.speakerId != currentSpeakerId {
-                flush()
-                currentSpeakerId = cue.speakerId
-            }
-            currentText.append(text)
-        }
-
-        flush()
-        while lines.last == "" {
-            lines.removeLast()
-        }
-        return lines.joined(separator: "\n")
     }
 
     // MARK: - Subtitle Cue Building
