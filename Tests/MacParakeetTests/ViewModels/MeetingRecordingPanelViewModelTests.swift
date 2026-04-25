@@ -123,6 +123,7 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
             ],
             isTranscriptionLagging: true
         )
+        viewModel.selectedTab = .ask
 
         viewModel.reset()
 
@@ -132,5 +133,40 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.systemLevel, 0)
         XCTAssertTrue(viewModel.previewLines.isEmpty)
         XCTAssertFalse(viewModel.isTranscriptionLagging)
+        XCTAssertEqual(viewModel.selectedTab, .notes, "reset() returns the panel to the default Notes tab (ADR-020 §2)")
+    }
+
+    func testSelectedTabDefaultsToNotes() {
+        let viewModel = MeetingRecordingPanelViewModel()
+
+        XCTAssertEqual(
+            viewModel.selectedTab, .notes,
+            "Notes is the primary 'active' surface and the default landing tab (ADR-020 §1, §2)"
+        )
+    }
+
+    func testLivePanelTabAllCasesOrderedNotesTranscriptAsk() {
+        XCTAssertEqual(
+            MeetingRecordingPanelViewModel.LivePanelTab.allCases,
+            [.notes, .transcript, .ask],
+            "Tab order is Notes / Transcript / Ask — left-to-right matches ⌘1 / ⌘2 / ⌘3"
+        )
+    }
+
+    func testNotesViewModelExistsAndIsObservable() {
+        let viewModel = MeetingRecordingPanelViewModel()
+
+        // Sanity: the composed notes VM is non-nil and starts empty.
+        XCTAssertEqual(viewModel.notesViewModel.notesText, "")
+        XCTAssertEqual(viewModel.notesViewModel.wordCount, 0)
+    }
+
+    func testResetClearsComposedNotesViewModel() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.notesViewModel.notesBinding.wrappedValue = "Some notes"
+
+        viewModel.reset()
+
+        XCTAssertEqual(viewModel.notesViewModel.notesText, "")
     }
 }

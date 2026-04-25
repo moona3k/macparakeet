@@ -10,12 +10,17 @@ public final class MeetingRecordingPanelViewModel {
         case error(String)
     }
 
+    /// Tab order chosen so the user lands in Notes by default — note-taking is
+    /// the primary "active" surface in a live meeting (ADR-020 §1, §2). Transcript
+    /// is the rolling reference, Ask is the on-demand thinking-partner.
     public enum LivePanelTab: String, Equatable, CaseIterable, Sendable {
+        case notes
         case transcript
         case ask
 
         public var title: String {
             switch self {
+            case .notes: return "Notes"
             case .transcript: return "Transcript"
             case .ask: return "Ask"
             }
@@ -29,8 +34,11 @@ public final class MeetingRecordingPanelViewModel {
     public var previewLines: [MeetingRecordingPreviewLine] = []
     public var isTranscriptionLagging: Bool = false
     public var showCopiedConfirmation: Bool = false
-    public var selectedTab: LivePanelTab = .transcript
+    /// Default to `.notes` per ADR-020 §2 — opening the panel should put the
+    /// cursor in the notepad, not stare the user down with raw transcript.
+    public var selectedTab: LivePanelTab = .notes
     public let chatViewModel: TranscriptChatViewModel = TranscriptChatViewModel()
+    public let notesViewModel: MeetingNotesViewModel = MeetingNotesViewModel()
     public var onStop: (() -> Void)?
     public var onClose: (() -> Void)?
 
@@ -101,7 +109,8 @@ public final class MeetingRecordingPanelViewModel {
         isTranscriptionLagging = false
         copiedResetTask?.cancel()
         showCopiedConfirmation = false
-        selectedTab = .transcript
+        selectedTab = .notes
+        notesViewModel.reset()
     }
 
     public var formattedElapsed: String {

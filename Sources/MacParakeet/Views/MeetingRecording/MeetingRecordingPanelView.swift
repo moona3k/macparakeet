@@ -14,8 +14,11 @@ struct MeetingRecordingPanelView: View {
             tabBar
             Divider()
             paneContent
-            // Ask owns its own bottom area (composer + follow-up pills). The Stop control
-            // lives on the floating recording pill, so the panel stays focused on chat.
+            // Notes and Ask own their own bottom UI (Notes shows a soft-cap
+            // footer when relevant; Ask owns its composer + follow-up pills).
+            // The Stop control lives on the floating recording pill, so the
+            // panel footer is reserved for transcript-specific controls
+            // (Copy, auto-scroll toggle).
             if viewModel.selectedTab == .transcript {
                 Divider()
                 footer
@@ -28,6 +31,8 @@ struct MeetingRecordingPanelView: View {
     @ViewBuilder
     private var paneContent: some View {
         switch viewModel.selectedTab {
+        case .notes:
+            LiveNotesPaneView(viewModel: viewModel.notesViewModel)
         case .transcript:
             transcriptContent
         case .ask:
@@ -48,7 +53,13 @@ struct MeetingRecordingPanelView: View {
 
     private func tabButton(_ tab: MeetingRecordingPanelViewModel.LivePanelTab) -> some View {
         let isActive = viewModel.selectedTab == tab
-        let shortcut: KeyEquivalent = tab == .transcript ? "1" : "2"
+        let shortcut: KeyEquivalent = {
+            switch tab {
+            case .notes: return "1"
+            case .transcript: return "2"
+            case .ask: return "3"
+            }
+        }()
         return Button {
             withAnimation(.easeOut(duration: 0.18)) {
                 viewModel.selectedTab = tab
