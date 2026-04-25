@@ -636,6 +636,92 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.llmAvailable)
     }
 
+    // MARK: - Transcript Editing
+
+    func testUpdateCurrentTranscriptTextStoresEditedTextAsCleanTranscript() throws {
+        let t = Transcription(fileName: "test.mp3", rawTranscript: "Original transcript", status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let saved = viewModel.updateCurrentTranscriptText(to: " Corrected transcript ")
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Original transcript")
+        XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Corrected transcript")
+        let persisted = try XCTUnwrap(mockRepo.fetch(id: t.id))
+        XCTAssertEqual(persisted.rawTranscript, "Original transcript")
+        XCTAssertEqual(persisted.cleanTranscript, "Corrected transcript")
+    }
+
+    func testUpdateCurrentTranscriptTextRejectsEmptyText() {
+        let t = Transcription(fileName: "test.mp3", rawTranscript: "Original transcript", status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let saved = viewModel.updateCurrentTranscriptText(to: "   ")
+
+        XCTAssertFalse(saved)
+        XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
+    }
+
+    func testUpdateCurrentTranscriptTextKeepsStateWhenSaveFails() {
+        let t = Transcription(fileName: "test.mp3", rawTranscript: "Original transcript", status: .completed)
+        mockRepo.transcriptions = [t]
+        mockRepo.saveError = NSError(domain: "repo", code: 1)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let saved = viewModel.updateCurrentTranscriptText(to: "Corrected transcript")
+
+        XCTAssertFalse(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Original transcript")
+        XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
+    }
+
+    func testRevertCurrentTranscriptToOriginalClearsCleanTranscript() throws {
+        let t = Transcription(
+            fileName: "test.mp3",
+            rawTranscript: "Original transcript",
+            cleanTranscript: "Corrected transcript",
+            status: .completed
+        )
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let reverted = viewModel.revertCurrentTranscriptToOriginal()
+
+        XCTAssertTrue(reverted)
+        XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
+        let persisted = try XCTUnwrap(mockRepo.fetch(id: t.id))
+        XCTAssertNil(persisted.cleanTranscript)
+    }
+
+    func testRevertCurrentTranscriptToOriginalKeepsStateWhenSaveFails() {
+        let t = Transcription(
+            fileName: "test.mp3",
+            rawTranscript: "Original transcript",
+            cleanTranscript: "Corrected transcript",
+            status: .completed
+        )
+        mockRepo.transcriptions = [t]
+        mockRepo.saveError = NSError(domain: "repo", code: 1)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let reverted = viewModel.revertCurrentTranscriptToOriginal()
+
+        XCTAssertFalse(reverted)
+        XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Corrected transcript")
+    }
+
     // MARK: - Speaker Rename
 
     func testRenameSpeakerUpdatesInMemoryState() {

@@ -113,8 +113,12 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var updateSummaryCalls: [(id: UUID, summary: String?)] = []
     var updateChatMessagesCalls: [(id: UUID, chatMessages: [ChatMessage]?)] = []
     var updateSpeakersCalls: [(id: UUID, speakers: [SpeakerInfo]?)] = []
+    var saveError: Error?
 
     func save(_ transcription: Transcription) throws {
+        if let saveError {
+            throw saveError
+        }
         if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
             transcriptions[idx] = transcription
         } else {

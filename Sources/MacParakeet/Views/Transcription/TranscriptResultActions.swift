@@ -3,7 +3,21 @@ import Foundation
 import MacParakeetCore
 
 enum TranscriptExportFormat: String {
-    case txt, md, srt, vtt, docx, pdf, json
+    case txt, md, srt, vtt, docx, pdf, json, aiText = "ai-text"
+
+    var fileExtension: String {
+        switch self {
+        case .aiText: return "md"
+        default: return rawValue
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .aiText: return "AI Text"
+        default: return rawValue.uppercased()
+        }
+    }
 }
 
 @MainActor
@@ -48,6 +62,7 @@ enum TranscriptResultActions {
         switch format {
         case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL)
         case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL)
+        case .aiText: try exportService.exportToAIText(transcription: transcription, url: fileURL)
         case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
         case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
         case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
@@ -71,10 +86,10 @@ enum TranscriptResultActions {
         stem: String,
         format: TranscriptExportFormat
     ) -> URL {
-        var url = directory.appendingPathComponent("\(stem).\(format.rawValue)")
+        var url = directory.appendingPathComponent("\(stem).\(format.fileExtension)")
         var counter = 1
         while FileManager.default.fileExists(atPath: url.path) {
-            url = directory.appendingPathComponent("\(stem) (\(counter)).\(format.rawValue)")
+            url = directory.appendingPathComponent("\(stem) (\(counter)).\(format.fileExtension)")
             counter += 1
         }
         return url

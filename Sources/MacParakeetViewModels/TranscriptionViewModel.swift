@@ -564,6 +564,55 @@ public final class TranscriptionViewModel {
         self.llmAvailable = available
     }
 
+    // MARK: - Transcript Editing
+
+    @discardableResult
+    public func updateCurrentTranscriptText(to newText: String) -> Bool {
+        guard var transcription = currentTranscription else { return false }
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let currentText = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+        guard trimmed != currentText else { return false }
+
+        transcription.cleanTranscript = trimmed == transcription.rawTranscript ? nil : trimmed
+        transcription.updatedAt = Date()
+
+        do {
+            try transcriptionRepo?.save(transcription)
+            currentTranscription = transcription
+            if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[index] = transcription
+            }
+            return true
+        } catch {
+            logger.error("Failed to persist transcript edit error=\(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    @discardableResult
+    public func revertCurrentTranscriptToOriginal() -> Bool {
+        guard var transcription = currentTranscription,
+              transcription.cleanTranscript != nil
+        else { return false }
+
+        transcription.cleanTranscript = nil
+        transcription.updatedAt = Date()
+
+        do {
+            try transcriptionRepo?.save(transcription)
+            currentTranscription = transcription
+            if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[index] = transcription
+            }
+            return true
+        } catch {
+            logger.error("Failed to persist transcript revert error=\(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
     // MARK: - Speaker Rename
 
     public func renameSpeaker(id speakerId: String, to newLabel: String) {

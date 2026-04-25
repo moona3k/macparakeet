@@ -314,6 +314,65 @@ final class ExportServiceTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempURL)
     }
 
+    func testFormatAITextPrefersEditedCleanTranscriptAndRemovesMetadata() {
+        let transcription = Transcription(
+            fileName: "video.mp4",
+            durationMs: 5000,
+            rawTranscript: "Original transcript.",
+            cleanTranscript: " Edited transcript.\nwith wrapped line. ",
+            wordTimestamps: [
+                WordTimestamp(word: "Original", startMs: 0, endMs: 500, confidence: 0.99),
+                WordTimestamp(word: "transcript.", startMs: 600, endMs: 1000, confidence: 0.98),
+            ],
+            status: .completed
+        )
+
+        let text = exportService.formatAIText(transcription: transcription)
+
+        XCTAssertEqual(text, "Edited transcript. with wrapped line.")
+        XCTAssertFalse(text.contains("video.mp4"))
+        XCTAssertFalse(text.contains("[0:"))
+    }
+
+    func testFormatAITextUsesSpeakerLabelsWithoutTimestamps() {
+        let transcription = Transcription(
+            fileName: "meeting.m4a",
+            wordTimestamps: [
+                WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Hi.", startMs: 600, endMs: 1000, confidence: 0.98, speakerId: "S2"),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed
+        )
+
+        let text = exportService.formatAIText(transcription: transcription)
+
+        XCTAssertTrue(text.contains("Alice:\nHello."))
+        XCTAssertTrue(text.contains("Bob:\nHi."))
+        XCTAssertFalse(text.contains("[0:"))
+    }
+
+    func testExportToAIText() throws {
+        let transcription = Transcription(
+            fileName: "test.mp3",
+            rawTranscript: "Hello world",
+            status: .completed
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_\(UUID().uuidString).md")
+
+        try exportService.exportToAIText(transcription: transcription, url: tempURL)
+
+        let content = try String(contentsOf: tempURL, encoding: .utf8)
+        XCTAssertEqual(content, "Hello world")
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
     // MARK: - New Export Formats
 
     func testExportToJSON() throws {
