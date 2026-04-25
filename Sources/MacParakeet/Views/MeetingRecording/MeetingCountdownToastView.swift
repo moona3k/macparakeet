@@ -96,11 +96,14 @@ struct MeetingCountdownToastView: View {
         .frame(width: viewModel.calendarContext == nil ? 280 : 320)
     }
 
-    /// SF Symbol name for the meeting service. Falls back to a generic
-    /// video icon for services we don't have a specific symbol for.
+    /// SF Symbol name for the meeting service. Names match the strings
+    /// `MeetingLinkParser.identifyService` returns — keep this list in
+    /// sync with that switch (Sources/MacParakeetCore/Calendar/
+    /// MeetingLinkParser.swift). Unknown services fall through to a
+    /// generic link icon.
     private func serviceIconName(for service: String) -> String {
         switch service {
-        case "Zoom", "Google Meet", "Microsoft Teams", "Webex":
+        case "Zoom", "Google Meet", "Microsoft Teams", "Webex", "Around":
             return "video.fill"
         default:
             return "link"
