@@ -262,7 +262,7 @@ final class AppEnvironmentConfigurer {
         hotkeyCoordinator.setupYouTubeTranscriptionHotkey()
         dictationCoordinator.showIdlePill()
 
-        // Calendar auto-start (ADR-017 Phase D — notify-only). The
+        // Calendar auto-start (ADR-017 Phase 1 — notify-only). The
         // coordinator is a no-op when `calendarAutoStartMode == .off` so
         // it's safe to start unconditionally; we still gate creation on the
         // meeting-recording feature flag because calendar integration only

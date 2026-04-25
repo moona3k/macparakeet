@@ -265,18 +265,23 @@ final class MeetingAutoStartCoordinator {
         }
 
         let leadMinutes = settingsViewModel.calendarReminderMinutes
-        let title = event.title
-        let body: String = {
+        // Notification UX: the headline is the timing + event name (the part
+        // the user will scan first); the supporting line is the meeting
+        // service ("Zoom", "Google Meet", etc.) so the user knows where to
+        // click. Names match the field they populate in
+        // `UNMutableNotificationContent`, not the semantic role of "title"
+        // and "subtitle" — the previous swap was confusing on a re-read.
+        let notificationTitle: String = {
             if leadMinutes > 0 {
-                return "\(title) starts in \(leadMinutes) minute\(leadMinutes == 1 ? "" : "s")"
+                return "\(event.title) starts in \(leadMinutes) minute\(leadMinutes == 1 ? "" : "s")"
             }
-            return "\(title) is starting"
+            return "\(event.title) is starting"
         }()
-        let subtitle = event.meetUrl.flatMap(MeetingLinkParser.shared.identifyService) ?? "MacParakeet"
+        let notificationBody = event.meetUrl.flatMap(MeetingLinkParser.shared.identifyService) ?? "MacParakeet"
 
         let content = UNMutableNotificationContent()
-        content.title = body
-        content.body = subtitle
+        content.title = notificationTitle
+        content.body = notificationBody
         content.sound = nil  // Reminders shouldn't compete with the user's Zoom join sound
 
         let request = UNNotificationRequest(
