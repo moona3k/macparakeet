@@ -94,6 +94,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-016 | Centralized STT runtime and two-slot scheduler | `spec/adr/016-centralized-stt-runtime-scheduler.md` |
 | ADR-017 | Calendar-driven meeting auto-start (proposed) | `spec/adr/017-calendar-meeting-auto-start.md` |
 | ADR-018 | Live meeting Insights and Ask tabs (proposed) | `spec/adr/018-live-meeting-insights-and-ask.md` |
+| ADR-019 | Crash-resilient meeting recording (proposed) | `spec/adr/019-crash-resilient-meeting-recording.md` |
 
 > Historical ADRs (still in `spec/adr/`, kept for context): ADR-003 (one-time purchase pricing), ADR-006 (trial + license activation), ADR-008 (local LLM runtime). The app is now free/GPL-3.0.
 
