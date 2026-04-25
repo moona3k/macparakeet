@@ -88,6 +88,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     )
 
+    private lazy var meetingRecoveryCoordinator = MeetingRecoveryCoordinator(
+        environmentProvider: { [weak self] in
+            self?.appEnvironment
+        },
+        settingsViewModel: settingsViewModel,
+        libraryViewModel: libraryViewModel,
+        meetingsViewModel: meetingsViewModel,
+        onPresentRecoveredTranscription: { [weak self] transcription in
+            guard let self else { return }
+            self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
+            self.mainWindowState.navigateToTranscription(from: .meetings)
+            self.windowCoordinator.openMainWindow()
+        }
+    )
+
     private lazy var windowCoordinator = AppWindowCoordinator(
         mainWindowState: mainWindowState,
         transcriptionViewModel: transcriptionViewModel,
@@ -286,7 +301,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.presentHotkeyUnavailableAlertIfNeeded()
                 },
                 onRecoverPendingMeetingRecordings: { [weak self] in
-                    self?.presentPendingMeetingRecoveryDialog()
+                    self?.meetingRecoveryCoordinator.presentPendingMeetingRecoveryDialog()
                 }
             )
         )
@@ -300,7 +315,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menuBarCoordinator.refreshMeetingHotkeyShortcut()
         menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
         onboardingCoordinator.maybeShow(environment: env)
-        scheduleLaunchRecoveryScanIfReady(environment: env)
+        meetingRecoveryCoordinator.scheduleLaunchRecoveryScanIfReady(environment: env)
     }
 
     private func presentEnvironmentSetupError(_ error: Error) {
@@ -452,178 +467,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingRecordingFlowCoordinator?.toggleRecording()
     }
 
-    private func scheduleLaunchRecoveryScanIfReady(environment env: AppEnvironment) {
-        let onboardingDone = UserDefaults.standard.string(forKey: OnboardingViewModel.onboardingCompletedKey) != nil
-        guard onboardingDone else { return }
-
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let recoveries = try await env.meetingRecordingRecoveryService.discoverPendingRecoveries()
-                self.settingsViewModel.refreshPendingMeetingRecoveries()
-                guard !recoveries.isEmpty else { return }
-                Telemetry.send(.meetingRecoveryDiscovered(count: recoveries.count, source: .launch))
-                self.presentMeetingRecoveryDialog(recoveries, source: .launch)
-            } catch {
-                self.presentMeetingRecoveryError(error)
-            }
-        }
-    }
-
-    private func presentPendingMeetingRecoveryDialog() {
-        guard let env = appEnvironment else { return }
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                let recoveries = try await env.meetingRecordingRecoveryService.discoverPendingRecoveries()
-                self.settingsViewModel.refreshPendingMeetingRecoveries()
-                guard !recoveries.isEmpty else { return }
-                Telemetry.send(.meetingRecoveryDiscovered(count: recoveries.count, source: .settings))
-                self.presentMeetingRecoveryDialog(recoveries, source: .settings)
-            } catch {
-                self.presentMeetingRecoveryError(error)
-            }
-        }
-    }
-
-    private func presentMeetingRecoveryDialog(
-        _ recoveries: [MeetingRecordingLockFile],
-        source: TelemetryMeetingRecoverySource
-    ) {
-        guard let env = appEnvironment else { return }
-
-        NSApp.activate(ignoringOtherApps: true)
-
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "We found \(recoveries.count) interrupted recording\(recoveries.count == 1 ? "" : "s")"
-        alert.informativeText = recoveryDialogMessage(for: recoveries)
-        alert.addButton(withTitle: "Recover")
-        alert.addButton(withTitle: "Recover Later")
-        alert.addButton(withTitle: "Discard")
-
-        let response = alert.runModal()
-        switch response {
-        case .alertFirstButtonReturn:
-            Task { [weak self] in
-                guard let self else { return }
-                await self.recoverMeetingRecordings(recoveries, environment: env, source: source)
-            }
-        case .alertThirdButtonReturn:
-            Task { [weak self] in
-                guard let self else { return }
-                await self.discardMeetingRecoveries(recoveries, environment: env, source: source)
-            }
-        default:
-            settingsViewModel.refreshPendingMeetingRecoveries()
-        }
-    }
-
-    private func recoveryDialogMessage(for recoveries: [MeetingRecordingLockFile]) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = .autoupdatingCurrent
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-
-        let sessionLines = recoveries.prefix(5).map { recovery in
-            "\(formatter.string(from: recovery.startedAt)) - \(recovery.displayName)"
-        }
-        let extraCount = max(0, recoveries.count - sessionLines.count)
-        let extraLine = extraCount > 0 ? ["and \(extraCount) more"] : []
-        return (sessionLines + extraLine).joined(separator: "\n")
-            + "\n\nRecovery transcribes the saved audio again and marks the result as recovered."
-    }
-
-    private func recoverMeetingRecordings(
-        _ recoveries: [MeetingRecordingLockFile],
-        environment env: AppEnvironment,
-        source: TelemetryMeetingRecoverySource
-    ) async {
-        let startedAt = Date()
-        Telemetry.send(.meetingRecoveryStarted(count: recoveries.count, source: source))
-        var pendingRecoveries = recoveries
-        do {
-            var recovered: [Transcription] = []
-            for recovery in recoveries {
-                recovered.append(try await env.meetingRecordingRecoveryService.recover(recovery))
-                pendingRecoveries.removeAll { pending in
-                    pending.sessionId == recovery.sessionId
-                        && pending.folderURL?.path == recovery.folderURL?.path
-                }
-            }
-            Telemetry.send(.meetingRecoveryCompleted(
-                count: recovered.count,
-                durationSeconds: Date().timeIntervalSince(startedAt),
-                source: source
-            ))
-            libraryViewModel.loadTranscriptions()
-            meetingsViewModel.loadTranscriptions()
-            settingsViewModel.refreshPendingMeetingRecoveries()
-            if let first = recovered.first {
-                transcriptionViewModel.presentCompletedTranscription(first, autoSave: true)
-                mainWindowState.navigateToTranscription(from: .meetings)
-                windowCoordinator.openMainWindow()
-            }
-        } catch {
-            Telemetry.send(.meetingRecoveryFailed(
-                count: pendingRecoveries.count,
-                source: source,
-                errorType: TelemetryErrorClassifier.classify(error),
-                errorDetail: TelemetryErrorClassifier.errorDetail(error)
-            ))
-            settingsViewModel.refreshPendingMeetingRecoveries()
-            presentMeetingRecoveryError(error, recoveries: pendingRecoveries, environment: env, source: source)
-        }
-    }
-
-    private func discardMeetingRecoveries(
-        _ recoveries: [MeetingRecordingLockFile],
-        environment env: AppEnvironment,
-        source: TelemetryMeetingRecoverySource
-    ) async {
-        do {
-            for recovery in recoveries {
-                try await env.meetingRecordingRecoveryService.discard(recovery)
-            }
-            Telemetry.send(.meetingRecoveryDiscarded(count: recoveries.count, source: source))
-            settingsViewModel.refreshPendingMeetingRecoveries()
-        } catch {
-            Telemetry.send(.meetingRecoveryFailed(
-                count: recoveries.count,
-                source: source,
-                errorType: TelemetryErrorClassifier.classify(error),
-                errorDetail: TelemetryErrorClassifier.errorDetail(error)
-            ))
-            settingsViewModel.refreshPendingMeetingRecoveries()
-            presentMeetingRecoveryError(error)
-        }
-    }
-
     // MARK: - Alerts
-
-    private func presentMeetingRecoveryError(
-        _ error: Error,
-        recoveries: [MeetingRecordingLockFile] = [],
-        environment env: AppEnvironment? = nil,
-        source: TelemetryMeetingRecoverySource = .launch
-    ) {
-        NSApp.activate(ignoringOtherApps: true)
-
-        let alert = NSAlert()
-        alert.alertStyle = .warning
-        alert.messageText = "Meeting Recovery Failed"
-        alert.informativeText = error.localizedDescription
-        alert.addButton(withTitle: "OK")
-        if !recoveries.isEmpty, env != nil {
-            alert.addButton(withTitle: "Discard Pending")
-        }
-        let response = alert.runModal()
-        guard response == .alertSecondButtonReturn, let env else { return }
-        Task { [weak self] in
-            guard let self else { return }
-            await self.discardMeetingRecoveries(recoveries, environment: env, source: source)
-        }
-    }
 
     private func presentEntitlementsAlert(_ error: Error) {
         NSApp.activate(ignoringOtherApps: true)
