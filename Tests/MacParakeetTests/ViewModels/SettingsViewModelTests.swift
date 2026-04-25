@@ -1,4 +1,5 @@
 import XCTest
+import CoreAudio
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
@@ -62,6 +63,11 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
         XCTAssertEqual(viewModel.meetingHotkeyTrigger, .chord(modifiers: ["command", "shift"], keyCode: 46))
+        XCTAssertEqual(
+            viewModel.selectedMicrophoneDeviceUID,
+            SettingsViewModel.systemDefaultMicrophoneSelection,
+            "microphone selection should default to macOS System Default"
+        )
     }
 
     func testInitLoadsFromUserDefaults() {
@@ -73,6 +79,7 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(3.0, forKey: "silenceDelay")
         testDefaults.set(false, forKey: "saveAudioRecordings")
         testDefaults.set(false, forKey: "saveTranscriptionAudio")
+        testDefaults.set("usb-mic-uid", forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 46)
             .save(to: testDefaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
 
@@ -85,7 +92,89 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.silenceDelay, 3.0)
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
+        XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "usb-mic-uid")
         XCTAssertEqual(vm.meetingHotkeyTrigger, .chord(modifiers: ["control", "option"], keyCode: 46))
+    }
+
+    func testSelectedMicrophonePersistsUIDAndClearsForSystemDefault() {
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
+
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey),
+            "usb-mic-uid"
+        )
+
+        viewModel.selectedMicrophoneDeviceUID = SettingsViewModel.systemDefaultMicrophoneSelection
+
+        XCTAssertNil(testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey))
+    }
+
+    func testSelectedMicrophoneNormalizesBlankSelectionToSystemDefault() {
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey),
+            "usb-mic-uid"
+        )
+
+        viewModel.selectedMicrophoneDeviceUID = "   "
+
+        XCTAssertEqual(viewModel.selectedMicrophoneDeviceUID, SettingsViewModel.systemDefaultMicrophoneSelection)
+        XCTAssertNil(testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey))
+    }
+
+    func testRefreshMicrophoneDevicesUsesInjectedDevicesAndMarksDefaultFirst() {
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            inputDevicesProvider: {
+                [
+                    AudioDeviceManager.InputDevice(
+                        id: 20,
+                        uid: "usb-alpha",
+                        name: "Alpha USB Mic",
+                        transportType: kAudioDeviceTransportTypeUSB
+                    ),
+                    AudioDeviceManager.InputDevice(
+                        id: 10,
+                        uid: "builtin-zed",
+                        name: "Zed Built-In Mic",
+                        transportType: kAudioDeviceTransportTypeBuiltIn
+                    )
+                ]
+            },
+            defaultInputDeviceUIDProvider: { "builtin-zed" }
+        )
+
+        XCTAssertEqual(vm.microphoneDeviceOptions.map(\.uid), ["builtin-zed", "usb-alpha"])
+        XCTAssertEqual(vm.microphoneDeviceOptions.first?.displayName, "Zed Built-In Mic (System Default)")
+        XCTAssertEqual(vm.microphoneDeviceOptions.last?.displayName, "Alpha USB Mic")
+        XCTAssertEqual(vm.microphoneDeviceOptions.last?.detail, "usb")
+    }
+
+    func testRefreshMicrophoneDevicesPreservesUnavailableStoredSelection() {
+        testDefaults.set("missing-usb-mic", forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
+
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            inputDevicesProvider: {
+                [
+                    AudioDeviceManager.InputDevice(
+                        id: 10,
+                        uid: "builtin-zed",
+                        name: "Zed Built-In Mic",
+                        transportType: kAudioDeviceTransportTypeBuiltIn
+                    )
+                ]
+            },
+            defaultInputDeviceUIDProvider: { "builtin-zed" }
+        )
+
+        XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "missing-usb-mic")
+        XCTAssertEqual(vm.microphoneDeviceOptions.map(\.uid), ["builtin-zed", "missing-usb-mic"])
+        XCTAssertEqual(vm.microphoneDeviceOptions.last?.displayName, "Selected microphone (unavailable)")
+        XCTAssertEqual(
+            vm.selectedMicrophoneStatusText,
+            "Selected microphone is unavailable. MacParakeet will use System Default until it returns."
+        )
     }
 
     func testMeetingAutoSaveMigratesLegacyTranscriptionSettings() {

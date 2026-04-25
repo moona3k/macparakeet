@@ -5,8 +5,12 @@ public actor AudioProcessor: AudioProcessorProtocol {
     private let recorder: AudioRecorder
     private let converter: AudioFileConverter
 
-    public init() {
-        self.recorder = AudioRecorder()
+    public init(
+        selectedInputDeviceUIDProvider: @escaping @Sendable () -> String? = { nil }
+    ) {
+        self.recorder = AudioRecorder(
+            selectedInputDeviceUIDProvider: selectedInputDeviceUIDProvider
+        )
         self.converter = AudioFileConverter()
     }
 

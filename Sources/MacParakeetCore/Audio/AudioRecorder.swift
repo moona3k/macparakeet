@@ -13,6 +13,8 @@ public struct RecordingDeviceInfo: Sendable, Equatable {
     public let sampleRate: Double
     public let channels: UInt32
     public let fallbackUsed: Bool
+    public let deviceUID: String?
+    public let requestedDeviceUID: String?
 }
 
 /// Manages microphone recording via AVAudioEngine.
@@ -22,6 +24,7 @@ public struct RecordingDeviceInfo: Sendable, Equatable {
 /// in HFP mode reporting 0 Hz sample rate), automatically falls back to the built-in microphone.
 public actor AudioRecorder {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "AudioRecorder")
+    private let selectedInputDeviceUIDProvider: @Sendable () -> String?
     private var audioEngine: AVAudioEngine?
     private var audioFile: AVAudioFile?
     /// Thread-safe sample counter updated synchronously from the audio tap callback.
@@ -46,7 +49,11 @@ public actor AudioRecorder {
     /// FluidAudio requires at least 1 second of 16kHz audio (16,000 samples).
     private static let minimumSamples = 16_000
 
-    public init() {}
+    public init(
+        selectedInputDeviceUIDProvider: @escaping @Sendable () -> String? = { nil }
+    ) {
+        self.selectedInputDeviceUIDProvider = selectedInputDeviceUIDProvider
+    }
 
     public var audioLevel: Float {
         // Read the latest value written by the audio tap thread
@@ -86,9 +93,35 @@ public actor AudioRecorder {
 
         logAvailableDevices()
 
-        // Try with the system default device first
+        let selectedDeviceUID = AudioDeviceManager.normalizedUID(selectedInputDeviceUIDProvider())
+        if let selectedDeviceUID {
+            if let selectedDeviceID = AudioDeviceManager.inputDeviceID(forUID: selectedDeviceUID) {
+                do {
+                    try configureAndStart(
+                        overrideDeviceID: selectedDeviceID,
+                        fallbackUsed: false,
+                        requestedDeviceUID: selectedDeviceUID
+                    )
+                    return
+                } catch {
+                    logger.warning(
+                        "selected_input_device_failed uid=\(selectedDeviceUID, privacy: .private) error=\(error.localizedDescription, privacy: .public) — retrying with system default"
+                    )
+                }
+            } else {
+                logger.warning(
+                    "selected_input_device_missing uid=\(selectedDeviceUID, privacy: .private) — retrying with system default"
+                )
+            }
+        }
+
+        // Try with the system default device next.
         do {
-            try configureAndStart(overrideDeviceID: nil)
+            try configureAndStart(
+                overrideDeviceID: nil,
+                fallbackUsed: selectedDeviceUID != nil,
+                requestedDeviceUID: selectedDeviceUID
+            )
         } catch {
             logger.warning(
                 "default_device_failed error=\(error.localizedDescription, privacy: .public) — retrying with built-in mic"
@@ -103,7 +136,11 @@ public actor AudioRecorder {
             logger.info(
                 "retrying_with_built_in_mic id=\(builtInID, privacy: .public) name=\(name, privacy: .public)"
             )
-            try configureAndStart(overrideDeviceID: builtInID)
+            try configureAndStart(
+                overrideDeviceID: builtInID,
+                fallbackUsed: true,
+                requestedDeviceUID: selectedDeviceUID
+            )
         }
     }
 
@@ -149,7 +186,11 @@ public actor AudioRecorder {
     ///
     /// If `overrideDeviceID` is provided, explicitly sets that device on the engine's
     /// input audio unit before reading the format. Otherwise uses the system default.
-    private func configureAndStart(overrideDeviceID: AudioDeviceID?) throws {
+    private func configureAndStart(
+        overrideDeviceID: AudioDeviceID?,
+        fallbackUsed: Bool,
+        requestedDeviceUID: String?
+    ) throws {
         let engine = AVAudioEngine()
         let inputNode = engine.inputNode
 
@@ -165,10 +206,11 @@ public actor AudioRecorder {
         // Log the resolved device
         if let resolvedID = AudioDeviceManager.currentInputDevice(of: engine) {
             let name = AudioDeviceManager.deviceName(resolvedID) ?? "unknown"
+            let uid = AudioDeviceManager.deviceUID(resolvedID) ?? "unknown"
             let transport = AudioDeviceManager.transportType(resolvedID)
             let transportLabel = AudioDeviceManager.InputDevice.label(for: transport)
             logger.info(
-                "input_device id=\(resolvedID, privacy: .public) name=\(name, privacy: .public) transport=\(transportLabel, privacy: .public)"
+                "input_device id=\(resolvedID, privacy: .public) uid=\(uid, privacy: .private) name=\(name, privacy: .public) transport=\(transportLabel, privacy: .public) requested_uid=\(requestedDeviceUID ?? "system-default", privacy: .private)"
             )
         }
 
@@ -186,6 +228,7 @@ public actor AudioRecorder {
         // Capture device info for telemetry (before validation — we want info even on failure)
         if let resolvedID = AudioDeviceManager.currentInputDevice(of: engine) {
             let name = AudioDeviceManager.deviceName(resolvedID) ?? "unknown"
+            let uid = AudioDeviceManager.deviceUID(resolvedID)
             let transport = AudioDeviceManager.transportType(resolvedID)
             let subTransport = AudioDeviceManager.subDeviceTransport(resolvedID)
             _deviceInfo = RecordingDeviceInfo(
@@ -194,7 +237,9 @@ public actor AudioRecorder {
                 subTransport: subTransport.map { AudioDeviceManager.InputDevice.label(for: $0) },
                 sampleRate: inputFormat.sampleRate,
                 channels: inputFormat.channelCount,
-                fallbackUsed: overrideDeviceID != nil
+                fallbackUsed: fallbackUsed,
+                deviceUID: uid,
+                requestedDeviceUID: requestedDeviceUID
             )
         }
 
@@ -440,7 +485,7 @@ public actor AudioRecorder {
         for device in devices {
             let isDefault = device.id == defaultID ? " [DEFAULT]" : ""
             logger.info(
-                "  device id=\(device.id, privacy: .public) name=\(device.name, privacy: .public) transport=\(device.transportLabel, privacy: .public)\(isDefault, privacy: .public)"
+                "  device id=\(device.id, privacy: .public) uid=\(device.uid, privacy: .private) name=\(device.name, privacy: .public) transport=\(device.transportLabel, privacy: .public)\(isDefault, privacy: .public)"
             )
         }
     }

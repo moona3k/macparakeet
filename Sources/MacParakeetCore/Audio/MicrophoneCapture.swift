@@ -2,6 +2,54 @@ import Foundation
 import OSLog
 @preconcurrency import AVFoundation
 
+struct MeetingInputDeviceAttempt: Equatable, Sendable {
+    enum Source: Equatable, Sendable {
+        case selected(uid: String)
+        case systemDefault
+        case builtIn
+    }
+
+    let source: Source
+    let deviceID: AudioDeviceID
+}
+
+extension MeetingInputDeviceAttempt.Source {
+    var logValue: String {
+        switch self {
+        case .selected:
+            return "selected"
+        case .systemDefault:
+            return "system_default"
+        case .builtIn:
+            return "built_in"
+        }
+    }
+}
+
+func meetingInputDeviceAttempts(
+    selectedUID: String?,
+    selectedInputDeviceID: (String) -> AudioDeviceID?,
+    defaultInputDevice: () -> AudioDeviceID?,
+    builtInMicrophone: () -> AudioDeviceID?
+) -> [MeetingInputDeviceAttempt] {
+    var attempts: [MeetingInputDeviceAttempt] = []
+    var seenDeviceIDs = Set<AudioDeviceID>()
+
+    func append(_ source: MeetingInputDeviceAttempt.Source, deviceID: AudioDeviceID?) {
+        guard let deviceID, seenDeviceIDs.insert(deviceID).inserted else { return }
+        attempts.append(MeetingInputDeviceAttempt(source: source, deviceID: deviceID))
+    }
+
+    if let selectedUID {
+        append(.selected(uid: selectedUID), deviceID: selectedInputDeviceID(selectedUID))
+    }
+
+    append(.systemDefault, deviceID: defaultInputDevice())
+    append(.builtIn, deviceID: builtInMicrophone())
+
+    return attempts
+}
+
 public final class MicrophoneCapture: @unchecked Sendable {
     public typealias AudioBufferHandler = @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
     private enum LifecycleState {
@@ -15,6 +63,7 @@ public final class MicrophoneCapture: @unchecked Sendable {
     private let lifecycleQueue = DispatchQueue(label: "com.macparakeet.microphonecapture")
     private let watchdogQueue = DispatchQueue(label: "com.macparakeet.microphonecapture.watchdog", qos: .utility)
     private let handlerLock = NSLock()
+    private let selectedInputDeviceUIDProvider: @Sendable () -> String?
     private let audioEngine = AVAudioEngine()
     private let bufferSize: AVAudioFrameCount = 4096
     private let watchdogLock = NSLock()
@@ -24,7 +73,11 @@ public final class MicrophoneCapture: @unchecked Sendable {
     private var firstBufferReceived = false
     private var watchdogWorkItem: DispatchWorkItem?
 
-    public init() {}
+    public init(
+        selectedInputDeviceUIDProvider: @escaping @Sendable () -> String? = { nil }
+    ) {
+        self.selectedInputDeviceUIDProvider = selectedInputDeviceUIDProvider
+    }
 
     deinit {
         stop()
@@ -69,12 +122,14 @@ public final class MicrophoneCapture: @unchecked Sendable {
             }
 
             let inputNode = audioEngine.inputNode
+            let inputDeviceAttempts = makeInputDeviceAttempts()
             state = .starting
             handlerLock.withLock { bufferHandler = handler }
             do {
-                startReport = try installTapAndStartEngine(
+                startReport = try installTapAndStartEngineWithFallback(
                     inputNode: inputNode,
-                    processingMode: processingMode
+                    processingMode: processingMode,
+                    inputDeviceAttempts: inputDeviceAttempts
                 )
                 state = .running
                 didStart = true
@@ -236,6 +291,114 @@ public final class MicrophoneCapture: @unchecked Sendable {
         try catchingObjCException {
             try inputNode.setVoiceProcessingEnabled(enabled)
         }
+    }
+
+    private func installTapAndStartEngineWithFallback(
+        inputNode: AVAudioInputNode,
+        processingMode: MeetingMicProcessingMode,
+        inputDeviceAttempts: [MeetingInputDeviceAttempt]
+    ) throws -> MeetingMicrophoneCaptureStartReport {
+        guard !inputDeviceAttempts.isEmpty else {
+            throw MeetingAudioError.noMicrophoneAvailable
+        }
+
+        var lastError: Error?
+        for attempt in inputDeviceAttempts {
+            guard applyInputDeviceAttempt(attempt, on: audioEngine) else {
+                if lastError == nil {
+                    lastError = MeetingAudioError.noMicrophoneAvailable
+                }
+                resetAfterFailedStart(inputNode: inputNode)
+                continue
+            }
+
+            do {
+                let report = try installTapAndStartEngine(
+                    inputNode: inputNode,
+                    processingMode: processingMode
+                )
+                logInputDeviceAttemptSucceeded(attempt)
+                return report
+            } catch {
+                lastError = error
+                logger.warning(
+                    "meeting_input_device_start_failed source=\(attempt.source.logValue, privacy: .public) id=\(attempt.deviceID, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
+                resetAfterFailedStart(inputNode: inputNode)
+            }
+        }
+
+        if let meetingError = lastError as? MeetingAudioError {
+            throw meetingError
+        }
+        if let lastError {
+            throw MeetingAudioError.audioEngineStartFailed(lastError.localizedDescription)
+        }
+        throw MeetingAudioError.noMicrophoneAvailable
+    }
+
+    private func makeInputDeviceAttempts() -> [MeetingInputDeviceAttempt] {
+        let selectedUID = AudioDeviceManager.normalizedUID(selectedInputDeviceUIDProvider())
+        let selectedDeviceID: AudioDeviceID?
+        if let selectedUID {
+            selectedDeviceID = AudioDeviceManager.inputDeviceID(forUID: selectedUID)
+            if selectedDeviceID == nil {
+                logger.warning("meeting_selected_input_device_missing uid=\(selectedUID, privacy: .private)")
+            }
+        } else {
+            selectedDeviceID = nil
+        }
+
+        let defaultDeviceID = AudioDeviceManager.defaultInputDevice()
+        if defaultDeviceID == nil {
+            logger.warning("meeting_default_input_device_missing")
+        }
+
+        let builtInDeviceID = AudioDeviceManager.builtInMicrophone()
+        if builtInDeviceID == nil {
+            logger.debug("meeting_built_in_input_device_missing")
+        }
+
+        return meetingInputDeviceAttempts(
+            selectedUID: selectedUID,
+            selectedInputDeviceID: { _ in selectedDeviceID },
+            defaultInputDevice: { defaultDeviceID },
+            builtInMicrophone: { builtInDeviceID }
+        )
+    }
+
+    private func applyInputDeviceAttempt(
+        _ attempt: MeetingInputDeviceAttempt,
+        on engine: AVAudioEngine
+    ) -> Bool {
+        guard AudioDeviceManager.setInputDevice(attempt.deviceID, on: engine) else {
+            logger.warning(
+                "meeting_input_device_set_failed source=\(attempt.source.logValue, privacy: .public) id=\(attempt.deviceID, privacy: .public)"
+            )
+            return false
+        }
+
+        let name = AudioDeviceManager.deviceName(attempt.deviceID) ?? "unknown"
+        logger.info(
+            "meeting_input_device_applied source=\(attempt.source.logValue, privacy: .public) id=\(attempt.deviceID, privacy: .public) name=\(name, privacy: .public)"
+        )
+        return true
+    }
+
+    private func logInputDeviceAttemptSucceeded(_ attempt: MeetingInputDeviceAttempt) {
+        let name = AudioDeviceManager.deviceName(attempt.deviceID) ?? "unknown"
+        logger.info(
+            "meeting_input_device_started source=\(attempt.source.logValue, privacy: .public) id=\(attempt.deviceID, privacy: .public) name=\(name, privacy: .public)"
+        )
+    }
+
+    private func resetAfterFailedStart(inputNode: AVAudioInputNode) {
+        try? catchingObjCException {
+            inputNode.removeTap(onBus: 0)
+        }
+        audioEngine.stop()
+        audioEngine.reset()
+        resetDiagnosticsState()
     }
 
     private func scheduleSilentBufferWatchdog() {
