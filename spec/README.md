@@ -60,7 +60,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (Phases 1 + 2 implemented; Phase 3 proposed) |
 | [ADR-018](adr/018-live-meeting-insights-and-ask.md) | Live meeting Ask tab (Insights dropped per amendment; Ask shipped 2026-04-24) |
 | [ADR-019](adr/019-crash-resilient-meeting-recording.md) | Crash-resilient meeting recording via fragmented MP4 + session lock files (implemented 2026-04-25) |
-| [ADR-020](adr/020-live-meeting-notepad-and-memo-summaries.md) | Live meeting notepad + memo-steered summaries (proposed 2026-04-25) |
+| [ADR-020](adr/020-live-meeting-notepad-and-memo-summaries.md) | Live meeting notepad + memo-steered summaries (implemented 2026-04-25) |
 
 ## Version Roadmap
 
@@ -198,6 +198,12 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Calendar event title applied to auto-started recordings (instead of date-based default)
 - [x] Crash-resilient meeting recovery (ADR-019): session lock files, launch/settings recovery affordance, recovered badge
 - [x] Fragmented MP4 meeting writer (ADR-019): 1s fragments, playable source audio after kill-9 up to the last fragment
+- [x] Live meeting notepad (ADR-020): Notes/Transcript/Ask three-tab layout with Notes default (⌘1/⌘2/⌘3), debounced auto-save through `MeetingRecordingService.updateNotes`, lock-file extension carries notes through crash recovery, soft-cap warning at 7,500 words
+- [x] Memo-steered summaries (ADR-020): `{{userNotes}}` + `{{transcript}}` template variables via `PromptTemplateRenderer` (single-pass, simultaneous), new "Memo-Steered Notes" built-in prompt seeded auto-run with the existing-auto-run guard, `userNotesSnapshot` captured on the `Summary` row at generation time
+- [x] Slash commands in Notes pane (ADR-020): `/action`, `/decision`, `/now` with in-view ZStack overlay (NSPanel-safe — never SwiftUI `.popover`), arrow-key + Return + Esc nav via `.onKeyPress`
+- [x] State-bearing tab labels (ADR-020): `Notes · Nw`, `Transcript · LIVE`, `Ask · N` with `ViewThatFits` collapse to plain noun + tooltip at the 360px floor
+- [x] Rich pre-meeting countdown toast for calendar starts (ADR-020): attendees + service icon row + steering hint pointing the user at the Notes tab. Manual-trigger toasts unchanged
+- [x] STT failure copy refinement (ADR-020): "Recording Error" → "Meeting interrupted" + Library-recovery hint wrapper around the technical detail
 
 ## For AI Coding Assistants
 

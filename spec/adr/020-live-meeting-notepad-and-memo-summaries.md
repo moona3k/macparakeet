@@ -1,7 +1,7 @@
 # ADR-020: Live Meeting Notepad + Memo-Steered Summaries
 
-> Status: Proposed
-> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review)
+> Status: Implemented
+> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4)
 > Related: ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-017 (calendar auto-start), ADR-018 (live meeting Ask tab), ADR-019 (crash-resilient meeting recording)
 
 ## Amendment (2026-04-25, post-review)
