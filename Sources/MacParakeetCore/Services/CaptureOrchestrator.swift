@@ -22,12 +22,17 @@ actor CaptureOrchestrator {
     private var pairJoiner = MeetingAudioPairJoiner()
     private var microphoneChunker = AudioChunker()
     private var systemChunker = AudioChunker()
+    /// First valid hostTime (in ms) seen from any source, kept as the shared
+    /// recording-relative origin so per-source offsets stay in the recording
+    /// duration's range instead of leaking absolute mach uptime.
+    private var sharedOriginMs: Int?
     private var sourceTimelineOffsetsMs: [AudioSource: Int] = [:]
 
     func reset() async {
         pairJoiner.reset()
         await microphoneChunker.reset()
         await systemChunker.reset()
+        sharedOriginMs = nil
         sourceTimelineOffsetsMs = [:]
     }
 
@@ -133,10 +138,15 @@ actor CaptureOrchestrator {
             return existing
         }
         guard let hostTime else {
+            // Don't cache: a later buffer from this source may carry a valid
+            // hostTime, and we want that one to define the cross-stream delta.
             return 0
         }
 
-        let offsetMs = Int((AVAudioTime.seconds(forHostTime: hostTime) * 1000).rounded())
+        let absoluteMs = Int((AVAudioTime.seconds(forHostTime: hostTime) * 1000).rounded())
+        let origin = sharedOriginMs ?? absoluteMs
+        sharedOriginMs = origin
+        let offsetMs = absoluteMs - origin
         sourceTimelineOffsetsMs[source] = offsetMs
         return offsetMs
     }
