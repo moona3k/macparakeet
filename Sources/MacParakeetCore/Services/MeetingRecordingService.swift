@@ -360,18 +360,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         for chunk in output.chunks {
             switch chunk.source {
             case .microphone:
-                if !shouldTranscribeChunk(chunk.chunk) {
-                    if flushed {
-                        logger.debug("Skipping low-signal flushed microphone chunk")
-                    } else {
-                        logger.debug("Skipping low-signal microphone chunk")
-                    }
+                let micRms = chunkRms(for: chunk.chunk.samples)
+                if micRms <= Self.chunkSignalFloor {
+                    logger.notice(
+                        "mic_chunk_dropped reason=low_signal flushed=\(flushed, privacy: .public) rms=\(micRms, privacy: .public) floor=\(Self.chunkSignalFloor, privacy: .public)"
+                    )
                 } else if shouldSuppressMicrophoneChunkTranscription() {
-                    if flushed {
-                        logger.debug("Suppressing flushed microphone chunk due to dominant recent system audio")
-                    } else {
-                        logger.debug("Suppressing microphone chunk due to dominant recent system audio")
-                    }
+                    let ratio = recentSystemRms / max(recentProcessedMicRms, Self.rmsEpsilon)
+                    logger.notice(
+                        "mic_chunk_dropped reason=system_dominant flushed=\(flushed, privacy: .public) sys_rms=\(self.recentSystemRms, privacy: .public) proc_mic_rms=\(self.recentProcessedMicRms, privacy: .public) ratio=\(ratio, privacy: .public) threshold=\(Self.systemDominanceRatio, privacy: .public)"
+                    )
                 } else {
                     await liveChunkTranscriber.enqueue(chunk: chunk.chunk, source: .microphone)
                 }
@@ -379,11 +377,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 if shouldTranscribeChunk(chunk.chunk) {
                     await liveChunkTranscriber.enqueue(chunk: chunk.chunk, source: .system)
                 } else {
-                    if flushed {
-                        logger.debug("Skipping low-signal flushed system chunk")
-                    } else {
-                        logger.debug("Skipping low-signal system chunk")
-                    }
+                    let sysRms = chunkRms(for: chunk.chunk.samples)
+                    logger.notice(
+                        "system_chunk_dropped reason=low_signal flushed=\(flushed, privacy: .public) rms=\(sysRms, privacy: .public) floor=\(Self.chunkSignalFloor, privacy: .public)"
+                    )
                 }
             }
         }

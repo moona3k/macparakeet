@@ -81,29 +81,39 @@ actor CaptureOrchestrator {
     ) async -> CaptureOrchestratorOutput {
         var output = CaptureOrchestratorOutput()
         for pair in pairs {
+            // Feed both chunkers on every pair so their sample-position
+            // counters stay aligned with wallclock. The pair joiner already
+            // pads the absent source with silence on solo drains; without
+            // pushing those zeros through to the absent chunker, its
+            // `totalSamplesProcessed` freezes while the active source's
+            // tracks wallclock — producing future-dated chunks (e.g.
+            // "Me 17:24" inside a 9:20 recording).
             var processedMicrophoneRms: Float?
-
+            let micSamples: [Float]
             if pair.hasMicrophoneSignal {
                 let processedMic = micConditioner.condition(
                     microphone: pair.microphoneSamples,
                     speaker: pair.systemSamples
                 )
                 processedMicrophoneRms = chunkRms(for: processedMic)
-                if let micChunk = offsetChunk(
-                    await microphoneChunker.addSamples(processedMic),
-                    source: .microphone,
-                    hostTime: pair.microphoneHostTime
-                ) {
-                    output.chunks.append(CaptureOrchestratorChunk(source: .microphone, chunk: micChunk))
-                }
+                micSamples = processedMic
+            } else {
+                micSamples = pair.microphoneSamples
             }
 
-            if pair.hasSystemSignal,
-               let systemChunk = offsetChunk(
-                   await systemChunker.addSamples(pair.systemSamples),
-                   source: .system,
-                   hostTime: pair.systemHostTime
-               ) {
+            if let micChunk = offsetChunk(
+                await microphoneChunker.addSamples(micSamples),
+                source: .microphone,
+                hostTime: pair.microphoneHostTime
+            ) {
+                output.chunks.append(CaptureOrchestratorChunk(source: .microphone, chunk: micChunk))
+            }
+
+            if let systemChunk = offsetChunk(
+                await systemChunker.addSamples(pair.systemSamples),
+                source: .system,
+                hostTime: pair.systemHostTime
+            ) {
                 output.chunks.append(CaptureOrchestratorChunk(source: .system, chunk: systemChunk))
             }
 

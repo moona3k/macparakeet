@@ -95,6 +95,65 @@ final class CaptureOrchestratorTests: XCTestCase {
         )
     }
 
+    /// Long-recording drift bug: when the system tap goes quiet for an
+    /// extended stretch, the pair joiner emits "solo mic" pairs (mic samples +
+    /// silence-padded system samples). Pre-fix, only the mic chunker was fed —
+    /// the system chunker's `totalSamplesProcessed` stayed frozen while mic's
+    /// kept tracking wallclock. Mic chunk timestamps drifted into the future
+    /// relative to system; in a real recording, this rendered as
+    /// "Me 17:24" inside a 9:20 elapsed session.
+    ///
+    /// Fix: feed both chunkers on every pair, using the silence-padded samples
+    /// from the absent source so the two `totalSamplesProcessed` counters
+    /// remain in lockstep with wallclock.
+    func testMicOnlyStretchKeepsSystemChunkerAlignedWithMic() async {
+        let orchestrator = CaptureOrchestrator()
+        let conditioner = PassthroughMicConditioner()
+
+        // Drive 30 cycles of mic-only ingests (no system pushes). At 8k samples
+        // per cycle (0.5 s), the joiner enters solo-mic mode after the first
+        // couple of cycles and stays there — exactly the pattern that produced
+        // the observed drift in real recordings.
+        var allChunks: [CaptureOrchestratorChunk] = []
+        let cycleSeconds = Double(cycleFrames) / 16_000.0
+        for cycle in 0..<30 {
+            let micBatch = [Float](repeating: 0.1, count: cycleFrames)
+            let micHostTime = AVAudioTime.hostTime(forSeconds: 100.0 + Double(cycle) * cycleSeconds)
+            let out = await orchestrator.ingest(
+                samples: micBatch,
+                source: .microphone,
+                hostTime: micHostTime,
+                micConditioner: conditioner
+            )
+            allChunks.append(contentsOf: out.chunks)
+        }
+
+        let micChunks = allChunks.filter { $0.source == .microphone }
+        let systemChunks = allChunks.filter { $0.source == .system }
+
+        XCTAssertFalse(micChunks.isEmpty, "expected mic chunks during mic-only stretch")
+        XCTAssertFalse(
+            systemChunks.isEmpty,
+            "system chunker emitted nothing during a mic-only stretch — its sample counter froze while mic's tracked wallclock, which is exactly the drift that produced 'Me 17:24' inside a 9:20 recording"
+        )
+        // Both chunkers should have processed the same amount of audio, so
+        // they should emit the same number of chunks.
+        XCTAssertEqual(
+            micChunks.count,
+            systemChunks.count,
+            "mic and system chunkers diverged during mic-only stretch (mic=\(micChunks.count), system=\(systemChunks.count))"
+        )
+        // First-chunk startMs values should match — both saw the same wallclock.
+        if let firstMic = micChunks.first?.chunk.startMs,
+           let firstSystem = systemChunks.first?.chunk.startMs {
+            XCTAssertEqual(
+                firstMic,
+                firstSystem,
+                "first mic and system chunks misaligned: mic=\(firstMic)ms system=\(firstSystem)ms"
+            )
+        }
+    }
+
     /// `reset()` must clear the shared origin so a fresh recording starts at
     /// t=0 instead of latching onto the previous session's uptime baseline.
     func testResetClearsTimelineOriginAcrossRecordings() async {

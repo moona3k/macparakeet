@@ -8,5 +8,5 @@ public enum AppFeatures {
     /// points are hidden: sidebar item, menu-bar "Record Meeting", global meeting
     /// hotkey, settings card, library filter, onboarding step, and the screen
     /// recording permission row. Data model, services, and tests remain intact.
-    public static let meetingRecordingEnabled: Bool = false
+    public static let meetingRecordingEnabled: Bool = true
 }
