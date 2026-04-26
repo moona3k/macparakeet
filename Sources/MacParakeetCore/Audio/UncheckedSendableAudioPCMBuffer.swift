@@ -10,3 +10,22 @@ final class UncheckedSendableAudioPCMBuffer: @unchecked Sendable {
         self.buffer = buffer
     }
 }
+
+/// Values captured by the serialized AVAudioEngine tap callback. These wrappers
+/// keep the unchecked boundary explicit without muting diagnostics around the
+/// rest of the recording actor.
+final class UncheckedSendableAudioFormat: @unchecked Sendable {
+    let format: AVAudioFormat
+
+    init(_ format: AVAudioFormat) {
+        self.format = format
+    }
+}
+
+final class UncheckedSendableAudioFile: @unchecked Sendable {
+    let file: AVAudioFile
+
+    init(_ file: AVAudioFile) {
+        self.file = file
+    }
+}
