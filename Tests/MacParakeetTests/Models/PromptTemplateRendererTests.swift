@@ -111,4 +111,55 @@ final class PromptTemplateRendererTests: XCTestCase {
         )
         XCTAssertEqual(mixed, "||")
     }
+
+    /// Symmetric to `testSinglePassDoesNotInterpretValueAsTemplate`: ensures
+    /// the single-pass invariant holds the OTHER direction too — a transcript
+    /// value containing a literal `{{userNotes}}` token must NOT be re-
+    /// interpreted on a second pass. Pinned by Codex fresh-eye review of PR
+    /// #143 to prevent a silent regression to a naïve sequential renderer.
+    func testTranscriptValueContainingUserNotesTokenIsNotReinterpreted() {
+        let result = PromptTemplateRenderer.render(
+            "T={{transcript}};U={{userNotes}}",
+            substitutions: [
+                .transcript: "[{{userNotes}}]",
+                .userNotes: "SECRET",
+            ]
+        )
+        XCTAssertEqual(
+            result,
+            "T=[{{userNotes}}];U=SECRET",
+            "Substituted transcript value must not be re-scanned for further `{{...}}` tokens — the literal `{{userNotes}}` inside the transcript must survive verbatim."
+        )
+    }
+
+    /// Partial / malformed markers must not be silently consumed. A single
+    /// closing brace with no matching opener should appear verbatim in output.
+    func testPartialClosingMarkerSurvivesLiterally() {
+        let result = PromptTemplateRenderer.render(
+            "before } after",
+            substitutions: [.userNotes: "ignored"]
+        )
+        XCTAssertEqual(result, "before } after")
+    }
+
+    /// `}}` with no preceding `{{` must survive literally — the scanner
+    /// only triggers on `{{` openings.
+    func testStandaloneClosingMarkerSurvivesLiterally() {
+        let result = PromptTemplateRenderer.render(
+            "before }} after",
+            substitutions: [.userNotes: "ignored"]
+        )
+        XCTAssertEqual(result, "before }} after")
+    }
+
+    /// Empty token `{{}}` resolves to the empty-string fallback (per the
+    /// renderer's "unknown key → empty" contract). Pinned so a future change
+    /// to "leave literal on empty key" doesn't slip through.
+    func testEmptyTokenRendersAsEmptyString() {
+        let result = PromptTemplateRenderer.render(
+            "before{{}}after",
+            substitutions: [.userNotes: "ignored"]
+        )
+        XCTAssertEqual(result, "beforeafter")
+    }
 }

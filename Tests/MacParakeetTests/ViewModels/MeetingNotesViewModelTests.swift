@@ -342,6 +342,39 @@ final class MeetingNotesViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.notesText, "Plain text", "Accept must no-op when the menu isn't active")
     }
+
+    /// Regression for the latent debounce-leak caught in Codex fresh-eye review
+    /// of PR #143. `bindPersist` was replacing the persist target without
+    /// cancelling any pending debounce — so a snapshot scheduled against the
+    /// previous session could fire against the new session's persist callback.
+    /// The current code path always recreates the panel VM tree per session,
+    /// so this was latent rather than active, but the invariant is worth pinning.
+    func testBindPersistCancelsPendingDebounceFromPreviousTarget() async {
+        let viewModel = MeetingNotesViewModel()
+        let firstTarget = AsyncRecorder()
+        let secondTarget = AsyncRecorder()
+
+        viewModel.bindPersist { notes in
+            await firstTarget.record(notes)
+        }
+
+        // Schedule a debounced write against the first target, then re-bind
+        // BEFORE the debounce window elapses.
+        viewModel.notesBinding.wrappedValue = "queued for first target"
+        viewModel.bindPersist { notes in
+            await secondTarget.record(notes)
+        }
+
+        // Wait past the debounce window. The cancelled task must NOT fire
+        // against either target — there's nothing new to persist; the rebind
+        // semantics are "clean slate."
+        try? await Task.sleep(for: .milliseconds(800))
+
+        let first = await firstTarget.snapshots
+        let second = await secondTarget.snapshots
+        XCTAssertTrue(first.isEmpty, "First persist target must not receive a write after rebind cancels its scheduled debounce")
+        XCTAssertTrue(second.isEmpty, "Second target should not receive the cancelled write either — only fresh edits should reach it")
+    }
 }
 
 /// Thread-safe sink for async persist callbacks.

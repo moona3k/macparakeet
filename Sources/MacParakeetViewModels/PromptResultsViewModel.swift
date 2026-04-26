@@ -502,9 +502,17 @@ public final class PromptResultsViewModel {
         userNotes: String? = nil,
         transcript: String? = nil
     ) -> String {
-        // Substitute supported template variables (ADR-020 §4). Single-pass
-        // simultaneous; user notes containing literal `{{transcript}}` cannot
-        // smuggle further substitutions on a second pass.
+        // Substitute supported template variables (ADR-020 §4).
+        //
+        // Single-pass matters here specifically: `cappedNotes` is user-typed
+        // text that may contain literal `{{transcript}}` (pasted code, a
+        // quoted prompt, etc.) and the renderer walks the original template
+        // string only — substituted values are appended to a fresh buffer
+        // and never re-scanned. A naïve sequential `replacingOccurrences`
+        // implementation would re-interpret notes-injected `{{...}}` tokens
+        // on the second pass, leaking transcript content into the rendered
+        // prompt anywhere a user's note happens to look like a template
+        // variable. Do not "simplify" this back to sequential substitution.
         //
         // For prompts that include `{{transcript}}` in their template, the
         // transcript is rendered inline in the system prompt AND still sent
@@ -548,39 +556,44 @@ public final class PromptResultsViewModel {
     }
 
     /// Returns the index in `text` immediately after the `n`-th
-    /// whitespace-delimited word. Returns `nil` if `text` has `n` or
-    /// fewer words (no truncation needed). The boundary lands on a
-    /// non-whitespace character so the kept slice ends with the last
+    /// whitespace-delimited word, or `nil` if `text` has `n` or fewer
+    /// words (no truncation needed). The boundary lands on a non-
+    /// whitespace character so the kept slice ends with the last
     /// retained word's final character — trailing whitespace stays
     /// behind, which keeps the inserted suffix on a clean line break.
+    ///
+    /// Truncation is only signaled when we observe a transition INTO an
+    /// (n+1)-th word. Earlier versions returned a non-nil index when the
+    /// n-th word was followed by trailing whitespace (e.g. the user typed
+    /// exactly 8,000 words and a final newline), which produced a false
+    /// "[Notes truncated...]" banner even though the entire input was kept.
     private static func indexAfterNthWord(in text: String, n: Int) -> String.Index? {
         guard n > 0 else { return text.startIndex }
         var wordCount = 0
         var inWord = false
-        var lastWordEndIndex: String.Index?
+        var nthWordEndIndex: String.Index?
         var index = text.startIndex
         while index < text.endIndex {
             let char = text[index]
             if char.isWhitespace {
-                if inWord {
-                    inWord = false
-                    if wordCount == n {
-                        return lastWordEndIndex
-                    }
-                }
+                inWord = false
             } else {
                 if !inWord {
                     wordCount += 1
                     inWord = true
+                    if wordCount == n + 1 {
+                        return nthWordEndIndex
+                    }
                 }
-                lastWordEndIndex = text.index(after: index)
+                if wordCount == n {
+                    nthWordEndIndex = text.index(after: index)
+                }
             }
             index = text.index(after: index)
         }
-        // Reached end of text. If we never crossed the cap we don't
-        // need to truncate; if the text ended mid-word at exactly n
-        // words, the suffix would be redundant.
-        return wordCount > n ? lastWordEndIndex : nil
+        // Reached end of text without ever entering an (n+1)-th word —
+        // text contains at most `n` words and needs no truncation.
+        return nil
     }
 
     private func fetchUserNotes(for transcriptionId: UUID) -> String? {

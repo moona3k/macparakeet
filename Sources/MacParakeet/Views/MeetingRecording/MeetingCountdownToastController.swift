@@ -114,8 +114,8 @@ final class MeetingCountdownToastController {
 
         let view = MeetingCountdownToastView(
             viewModel: viewModel,
-            onPrimary: { [weak self] in self?.finish(.userDismissed) },
-            onSecondary: viewModel.secondaryActionLabel == nil
+            onDismiss: { [weak self] in self?.finish(.userDismissed) },
+            onConfirm: viewModel.secondaryActionLabel == nil
                 ? nil
                 : { [weak self] in self?.finish(.primedEarly) }
         )

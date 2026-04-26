@@ -11,8 +11,13 @@ import SwiftUI
 /// from a 60Hz timer without re-rendering the whole subtree.
 struct MeetingCountdownToastView: View {
     @Bindable var viewModel: MeetingCountdownToastViewModel
-    let onPrimary: () -> Void
-    let onSecondary: (() -> Void)?
+    /// Always present — the dismissive action (Cancel / Keep Recording).
+    /// Bound to `.escape` and rendered with `.bordered` (less prominent).
+    let onDismiss: () -> Void
+    /// Optional affirmative action (Start Now). Only present in the
+    /// `.autoStart` style; bound to `.return` and rendered with
+    /// `.borderedProminent` so it visually reads as the default.
+    let onConfirm: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
@@ -63,7 +68,7 @@ struct MeetingCountdownToastView: View {
             progressBar
 
             HStack(spacing: DesignSystem.Spacing.sm) {
-                Button(action: onPrimary) {
+                Button(action: onDismiss) {
                     Text(viewModel.primaryActionLabel)
                         .frame(maxWidth: .infinity)
                 }
@@ -71,10 +76,10 @@ struct MeetingCountdownToastView: View {
                 .controlSize(.small)
                 .keyboardShortcut(.escape, modifiers: [])
 
-                if let secondaryLabel = viewModel.secondaryActionLabel,
-                   let onSecondary {
-                    Button(action: onSecondary) {
-                        Text(secondaryLabel)
+                if let confirmLabel = viewModel.secondaryActionLabel,
+                   let onConfirm {
+                    Button(action: onConfirm) {
+                        Text(confirmLabel)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderedProminent)

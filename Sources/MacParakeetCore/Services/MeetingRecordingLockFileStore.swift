@@ -9,10 +9,12 @@ public enum MeetingRecordingLockState: String, Codable, Sendable, Equatable {
 public struct MeetingRecordingLockFile: Codable, Sendable, Equatable {
     /// Schema version is intentionally left at 1 in v0.8 because the `notes`
     /// field is a backward-compatible additive change (`decodeIfPresent`).
-    /// See ADR-020 §9. Any FUTURE non-additive bump must also relax the
-    /// equality guard in `MeetingRecordingLockFileStore.read()` to `>=`,
-    /// otherwise lock files written by the previous app version would be
-    /// silently discarded during a Sparkle update window.
+    /// See ADR-020 §9. The version guard in `MeetingRecordingLockFileStore.read()`
+    /// uses `<=` so a lock file written by an OLDER app version is still
+    /// readable; a future bump only needs to keep this property + bump the
+    /// constant, not add a migration path. Lock files written by a NEWER app
+    /// version are intentionally treated as opaque and skipped (we cannot
+    /// know which fields they require).
     public static let currentSchemaVersion = 1
     public static let fileName = "recording.lock"
 
@@ -180,7 +182,11 @@ public final class MeetingRecordingLockFileStore: MeetingRecordingLockFileStorin
                 MeetingRecordingLockFile.self,
                 from: data
             )
-            guard lockFile.schemaVersion == MeetingRecordingLockFile.currentSchemaVersion else {
+            // Accept any version up to and including the current — older
+            // schemas decode via `decodeIfPresent` for added fields. A
+            // newer schema is opaque to us, so skip it rather than risk
+            // misinterpreting required fields we don't know about yet.
+            guard lockFile.schemaVersion <= MeetingRecordingLockFile.currentSchemaVersion else {
                 return nil
             }
             return lockFile.withFolderURL(folderURL)

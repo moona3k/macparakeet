@@ -21,6 +21,7 @@ struct LiveNotesPaneView: View {
     var elapsedSeconds: Int = 0
 
     @FocusState private var editorFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(spacing: 0) {
@@ -92,8 +93,14 @@ struct LiveNotesPaneView: View {
                     .padding(.horizontal, DesignSystem.Spacing.md)
                     .padding(.bottom, DesignSystem.Spacing.sm)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    .animation(.easeOut(duration: 0.15), value: viewModel.matchingCommands)
+                    // Honor System Settings → Accessibility → Display →
+                    // Reduce Motion: opacity-only transition with no slide
+                    // and no easing curve.
+                    .transition(reduceMotion
+                        ? .opacity
+                        : .opacity.combined(with: .move(edge: .bottom)))
+                    .animation(reduceMotion ? nil : .easeOut(duration: 0.15),
+                               value: viewModel.matchingCommands)
                     .allowsHitTesting(true)
             }
         }
@@ -211,5 +218,10 @@ struct LiveNotesPaneView: View {
         .padding(.horizontal, DesignSystem.Spacing.md)
         .padding(.vertical, DesignSystem.Spacing.xs + 2)
         .background(DesignSystem.Colors.cardBackground)
+        // Combine into a single VoiceOver element so the warning + word
+        // count are announced together when the footer appears (otherwise
+        // VoiceOver users get no signal that the soft cap is active).
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Notes approaching soft cap: \(viewModel.wordCount) words. Summary will start trimming past 8,000 words.")
     }
 }

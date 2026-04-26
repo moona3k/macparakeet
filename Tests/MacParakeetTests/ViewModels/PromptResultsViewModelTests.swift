@@ -496,4 +496,28 @@ final class PromptResultsViewModelTests: XCTestCase {
             "{{transcript}} must be substituted with the transcript text passed to generatePromptResult"
         )
     }
+
+    /// Regression for the truncation-banner edge case caught in Codex
+    /// fresh-eye review of PR #143: `indexAfterNthWord` returned a non-nil
+    /// index whenever the n-th word was followed by trailing whitespace,
+    /// triggering a false `[Notes truncated...]` banner even though the
+    /// entire input fit under the cap.
+    func testTruncateNotesForPromptDoesNotBannerWhenInputFitsExactlyWithTrailingWhitespace() {
+        let cap = PromptResultsViewModel.userNotesPromptWordCap
+
+        // Exactly `cap` words, ending with trailing whitespace (newline).
+        let exactlyAtCap = String(repeating: "word ", count: cap) + "\n"
+        let resultExact = PromptResultsViewModel.truncateNotesForPrompt(exactlyAtCap)
+        XCTAssertFalse(
+            resultExact.contains("Notes truncated"),
+            "Input with exactly \(cap) words must NOT be banner-tagged even when followed by trailing whitespace."
+        )
+        XCTAssertEqual(resultExact, exactlyAtCap, "No truncation → input passes through verbatim.")
+
+        // Fewer than `cap` words, also ending with trailing whitespace.
+        let underCap = String(repeating: "word ", count: cap - 50) + "\n\n"
+        let resultUnder = PromptResultsViewModel.truncateNotesForPrompt(underCap)
+        XCTAssertFalse(resultUnder.contains("Notes truncated"))
+        XCTAssertEqual(resultUnder, underCap)
+    }
 }

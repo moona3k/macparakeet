@@ -219,8 +219,8 @@ The corollary: there is no "insert this Ask response into Notes" affordance. If 
 
 **Code-level enforcement.** `Transcription.userNotes` is set on the row by exactly two call sites:
 
-1. `MeetingRecordingService.persistNotes(_:)` — called at finalize, reads from `MeetingNotesViewModel.notesText`
-2. `MeetingRecordingRecoveryService.restoreNotes(_:)` — called at launch when a recoverable session has notes in its lock file
+1. `TranscriptionService.transcribeMeeting(...)` — called at finalize, reads `MeetingRecordingOutput.userNotes` which the recording service captured from the in-memory notes state at stop time
+2. `MeetingRecordingRecoveryService.completeRecovery(...)` — called at launch when a recoverable session has `notes` in its lock file; copies directly onto the row without involving any live VM
 
 `MeetingNotesViewModel.notesText` is a single property bound exclusively to the `TextEditor` in `LiveNotesPaneView` via `$notesText`. The view model exposes no public mutator that writes to `notesText` from anywhere else. A future engineer who wants to insert AI-generated content into notes would have to either bypass `MeetingNotesViewModel` (caught in code review) or add a programmatic setter to it (which the type guards against by keeping the property `private(set)` for external readers). Either change is a visible signal that the invariant is being touched.
 
@@ -391,7 +391,7 @@ If post-implementation the diff is genuinely too large to review in one sitting,
 - `TranscriptionRepository`: read/write the new column
 - `MeetingRecordingService` *(extended)*: new actor-isolated APIs `updateNotes(_:)` (debounce write target — merges into in-memory lock-file struct, atomically rewrites the file without changing `state`) and `persistNotes(_:)` (called at finalize; writes notes to `transcriptions` row in the same transaction as transcript metadata). All `recording.lock` writes are serialized through this actor — no other component touches the file.
 - `MeetingRecordingLockFileStore`: extend JSON schema with `notes: String?` decoded via `decodeIfPresent`; **no schema version bump** (additive change). Notes decoded as a separate `try?` step so a malformed value cannot block recovery of the audio metadata. Document the future-bump strategy in source comments (any future bump must relax the `==` version guard to `>=`).
-- `MeetingRecordingRecoveryService`: surface restored notes onto the recovered VM via a `restoreNotes(_:)` entry point.
+- `MeetingRecordingRecoveryService`: at recovery time, copy any surviving lock-file `notes` directly onto the recovered `Transcription.userNotes` row in the same persistence path that finalizes the audio. The live `MeetingNotesViewModel` is not in scope here — by the time recovery runs, the panel VM tree from the crashed session no longer exists. `MeetingNotesViewModel.restore(_:)` exists for a possible future mid-session-resume feature but is not on the v0.6 hard-crash recovery path.
 - `PromptTemplateRenderer` *(new)*: `{{key}}` substitution. Single-pass simultaneous: all replacements collected, applied atomically. Empty-string fallback for missing keys. Adversarial-input tests (user notes containing `{{transcript}}` literals) verify single-pass semantics.
 - `Prompt.builtInPrompts()`: add "Memo-Steered Notes" prompt; update copy on existing built-ins to optionally reference `{{userNotes}}` (per-prompt judgment per Rationale §"Which prompt classes benefit").
 - Auto-run insertion guard: when seeding the new prompt, set `isAutoRun = true` only if at least one existing prompt currently has `isAutoRun = true`; otherwise insert with `isAutoRun = false`.

@@ -91,15 +91,21 @@ public final class MeetingNotesViewModel {
     /// Wire the persistence target. Called once per recording session by the
     /// flow coordinator. Subsequent calls replace the target (used when a
     /// session ends and a new one begins on the same VM instance, though in
-    /// practice the panel VM tree is recreated per session).
+    /// practice the panel VM tree is recreated per session). Cancels any
+    /// in-flight debounce so a queued write from the previous session can't
+    /// fire against the new persist target.
     public func bindPersist(_ persist: @escaping (String) async -> Void) {
+        debounceTask?.cancel()
+        debounceTask = nil
         self.persist = persist
     }
 
-    /// Restore notes recovered from a crash (ADR-020 §9). Called at launch
-    /// when `MeetingRecordingRecoveryService` finds notes in the lock file.
-    /// Does not trigger the debounce — the recovery path persists notes
-    /// onto the row directly via `Transcription.userNotes`.
+    /// Restore notes into a live VM. Reserved for a future mid-session-resume
+    /// path; the v0.6 hard-crash recovery path writes notes directly to
+    /// `Transcription.userNotes` via `MeetingRecordingRecoveryService` and
+    /// never touches the live VM, so no production caller invokes this today.
+    /// Kept for symmetry with `reset()` and to give the future resume feature
+    /// a documented entry point.
     public func restore(_ notes: String?) {
         notesText = notes ?? ""
         wordCount = Self.wordCount(for: notesText)
@@ -254,8 +260,23 @@ public final class MeetingNotesViewModel {
         }
     }
 
+    /// Counts whitespace-delimited words without allocating a Substring array.
+    /// Called on every keystroke from `applyEdit`; a `split(whereSeparator:)`
+    /// implementation materializes one Substring per word — at 8,000 words
+    /// that is 8,000 heap allocations per keystroke on `@MainActor`, which
+    /// produces visible input latency on slower Macs.
     private static func wordCount(for text: String) -> Int {
-        text.split(whereSeparator: \.isWhitespace).count
+        var count = 0
+        var inWord = false
+        for character in text {
+            if character.isWhitespace {
+                inWord = false
+            } else if !inWord {
+                inWord = true
+                count += 1
+            }
+        }
+        return count
     }
 
     /// The full slash-command catalog, in display order. ADR-020 §7 locks
