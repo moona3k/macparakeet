@@ -80,6 +80,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     /// typed (which we preserve as `nil` rather than empty so downstream
     /// `Transcription.userNotes` is `nil` for non-notepad recordings).
     private var currentNotes: String?
+    /// Keeps replacement starts out while `audioCaptureService.start()` is still
+    /// unwinding after cancellation. `currentSession` may already be nil then.
+    private var startingSessionID: UUID?
     private var writer: MeetingAudioStorageWriter?
     private var processingTask: Task<Void, Never>?
     private var captureOrchestrator = CaptureOrchestrator()
@@ -163,7 +166,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     }
 
     public func startRecording(title: String? = nil) async throws {
-        guard currentSession == nil else {
+        guard currentSession == nil, startingSessionID == nil else {
             throw MeetingAudioError.alreadyRunning
         }
 
@@ -188,6 +191,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             systemAudioURL: writer.systemAudioURL,
             mixedAudioURL: writer.mixedAudioURL
         )
+        startingSessionID = session.id
+        defer {
+            if startingSessionID == session.id {
+                startingSessionID = nil
+            }
+        }
+        self.writer = writer
+        self.currentSession = session
 
         do {
             try lockFileStore.write(
@@ -201,16 +212,18 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 folderURL: session.folderURL
             )
         } catch {
+            self.writer = nil
             await writer.finalize()
+            cleanupState()
             try? fileManager.removeItem(at: folderURL)
             throw error
         }
 
         let events = await audioCaptureService.events
+        try await validateStartStillCurrent(session)
         self.latestLevels = MeetingAudioLevels()
-        self.writer = writer
-        self.currentSession = session
         await captureOrchestrator.reset()
+        try await validateStartStillCurrent(session)
         micConditioner = SoftwareAECConditioner()
         transcriptAssembler.reset()
         isTranscriptionLagging = false
@@ -229,6 +242,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 await self?.handleLiveChunkTranscriberEvent(event, sessionID: session.id)
             }
         )
+        try await validateStartStillCurrent(session)
 
         do {
             let captureStartReport = try await audioCaptureService.start()

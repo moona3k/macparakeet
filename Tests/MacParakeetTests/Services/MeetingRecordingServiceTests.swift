@@ -84,6 +84,89 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(lockStore.deletes.count, 1)
     }
 
+    func testStartWhileCanceledAsyncStartIsUnwindingThrowsAlreadyRunning() async throws {
+        let captureService = BlockingStartMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        let firstStartTask = Task {
+            try await service.startRecording()
+        }
+        await captureService.waitForStartCall()
+
+        await service.cancelRecording()
+
+        do {
+            try await service.startRecording()
+            XCTFail("Expected replacement start to be rejected while stale async start is unwinding")
+        } catch let error as MeetingAudioError {
+            guard case .alreadyRunning = error else {
+                return XCTFail("Expected alreadyRunning, got \(error)")
+            }
+        }
+
+        let startCallCountBeforeRelease = await captureService.startCallCount
+        XCTAssertEqual(startCallCountBeforeRelease, 1)
+
+        await captureService.releaseStart()
+        do {
+            try await firstStartTask.value
+            XCTFail("startRecording() must not report success after cancellation")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        let secondStartTask = Task {
+            try await service.startRecording()
+        }
+        await captureService.waitForStartCall(count: 2)
+        await captureService.releaseStart()
+        try await secondStartTask.value
+
+        let startCallCountAfterRetry = await captureService.startCallCount
+        XCTAssertEqual(startCallCountAfterRetry, 2)
+        await service.cancelRecording()
+    }
+
+    func testCancelDuringAsyncEventsSetupPreventsCaptureStart() async throws {
+        let captureService = BlockingEventsMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: lockStore
+        )
+
+        let startTask = Task {
+            try await service.startRecording()
+        }
+        await captureService.waitForEventsCall()
+
+        await service.cancelRecording()
+        let isRecordingAfterCancel = await service.isRecording
+        XCTAssertFalse(isRecordingAfterCancel)
+
+        await captureService.releaseEvents()
+        do {
+            try await startTask.value
+            XCTFail("startRecording() must not continue into capture start after cancellation")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        let startCallCount = await captureService.startCallCount
+        let stopCallCount = await captureService.stopCallCount
+        XCTAssertEqual(startCallCount, 0)
+        XCTAssertGreaterThanOrEqual(stopCallCount, 1)
+        XCTAssertGreaterThanOrEqual(lockStore.deletes.count, 1)
+    }
+
     func testStopRecordingKeepsLockUntilTranscriptionCompletes() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
@@ -763,6 +846,68 @@ final class MeetingRecordingServiceTests: XCTestCase {
     }
 }
 
+private actor BlockingEventsMeetingAudioCaptureService: MeetingAudioCapturing {
+    private var continuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
+    private var stream: AsyncStream<MeetingAudioCaptureEvent>?
+    private var eventsWaiters: [CheckedContinuation<Void, Never>] = []
+    private var eventsGate: CheckedContinuation<Void, Never>?
+    private(set) var eventsCallCount = 0
+    private(set) var startCallCount = 0
+    private(set) var stopCallCount = 0
+
+    var events: AsyncStream<MeetingAudioCaptureEvent> {
+        get async {
+            eventsCallCount += 1
+            let waiters = eventsWaiters
+            eventsWaiters.removeAll()
+            waiters.forEach { $0.resume() }
+
+            await withCheckedContinuation { continuation in
+                eventsGate = continuation
+            }
+
+            if let stream {
+                return stream
+            }
+
+            let stream = AsyncStream<MeetingAudioCaptureEvent>(bufferingPolicy: .unbounded) {
+                self.continuation = $0
+            }
+            self.stream = stream
+            return stream
+        }
+    }
+
+    func start() async throws -> MeetingAudioCaptureStartReport {
+        startCallCount += 1
+        return MeetingAudioCaptureStartReport(
+            microphone: MeetingMicrophoneCaptureStartReport(
+                requestedMode: .vpioPreferred,
+                effectiveMode: .vpio
+            )
+        )
+    }
+
+    func stop() async {
+        stopCallCount += 1
+        continuation?.finish()
+        continuation = nil
+        stream = nil
+    }
+
+    func waitForEventsCall() async {
+        guard eventsCallCount == 0 else { return }
+        await withCheckedContinuation { continuation in
+            eventsWaiters.append(continuation)
+        }
+    }
+
+    func releaseEvents() {
+        eventsGate?.resume()
+        eventsGate = nil
+    }
+}
+
 private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
     private var continuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
     private var stream: AsyncStream<MeetingAudioCaptureEvent>?
@@ -805,7 +950,7 @@ private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
 private actor BlockingStartMeetingAudioCaptureService: MeetingAudioCapturing {
     private var continuation: AsyncStream<MeetingAudioCaptureEvent>.Continuation?
     private var stream: AsyncStream<MeetingAudioCaptureEvent>?
-    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var startWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
     private var startGate: CheckedContinuation<Void, Never>?
     private(set) var startCallCount = 0
     private(set) var stopCallCount = 0
@@ -824,9 +969,7 @@ private actor BlockingStartMeetingAudioCaptureService: MeetingAudioCapturing {
 
     func start() async throws -> MeetingAudioCaptureStartReport {
         startCallCount += 1
-        let waiters = startWaiters
-        startWaiters.removeAll()
-        waiters.forEach { $0.resume() }
+        resumeSatisfiedStartWaiters()
 
         await withCheckedContinuation { continuation in
             startGate = continuation
@@ -846,16 +989,28 @@ private actor BlockingStartMeetingAudioCaptureService: MeetingAudioCapturing {
         stream = nil
     }
 
-    func waitForStartCall() async {
-        guard startCallCount == 0 else { return }
+    func waitForStartCall(count: Int = 1) async {
+        guard startCallCount < count else { return }
         await withCheckedContinuation { continuation in
-            startWaiters.append(continuation)
+            startWaiters.append((count, continuation))
         }
     }
 
     func releaseStart() {
         startGate?.resume()
         startGate = nil
+    }
+
+    private func resumeSatisfiedStartWaiters() {
+        var remaining: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
+        for waiter in startWaiters {
+            if startCallCount >= waiter.count {
+                waiter.continuation.resume()
+            } else {
+                remaining.append(waiter)
+            }
+        }
+        startWaiters = remaining
     }
 }
 
