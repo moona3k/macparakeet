@@ -128,9 +128,19 @@ final class DictationStatsQueryTests: XCTestCase {
     }
 
     func testWeeklyStreakCurrentWeekOnly() {
-        let now = Date()
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let now = DateComponents(
+            calendar: calendar,
+            timeZone: calendar.timeZone,
+            year: 2026,
+            month: 4,
+            day: 22,
+            hour: 12
+        ).date!
         let (streak, thisWeek) = DictationRepository.computeWeeklyStreak(
             from: [now, now.addingTimeInterval(-3600)],
+            calendar: calendar,
             now: now
         )
         XCTAssertEqual(streak, 1)
