@@ -1,4 +1,5 @@
 import Cocoa
+import CoreGraphics
 import Foundation
 import IOKit.hidsystem
 import MacParakeetCore
