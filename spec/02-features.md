@@ -1205,7 +1205,7 @@ new scheduling architecture.
 - Manual renaming: click speaker label to assign real name
 - Speaker colors in transcript view (visual differentiation)
 - Per-speaker analytics: speaking time, word count
-- Always-on for file transcription (Option-key alternate to skip for power users)
+- On by default for file transcription, with a Settings toggle and CLI `--no-diarize` escape hatch
 
 **Transcript with speakers:**
 

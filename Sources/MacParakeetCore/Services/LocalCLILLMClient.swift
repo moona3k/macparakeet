@@ -27,6 +27,8 @@ public final class LocalCLILLMClient: LLMClientProtocol, Sendable {
             return ChatCompletionResponse(content: output, model: "cli")
         } catch let error as LLMError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw LLMError.cliError(error.localizedDescription)
         }
@@ -58,6 +60,8 @@ public final class LocalCLILLMClient: LLMClientProtocol, Sendable {
             try await executor.testConnection(config: try localCLIConfig(from: context))
         } catch let error as LLMError {
             throw error
+        } catch is CancellationError {
+            throw CancellationError()
         } catch {
             throw LLMError.cliError(error.localizedDescription)
         }

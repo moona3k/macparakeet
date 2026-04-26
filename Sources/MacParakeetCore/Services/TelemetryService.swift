@@ -8,8 +8,34 @@ import AppKit
 
 public protocol TelemetryServiceProtocol: Sendable {
     func send(_ event: TelemetryEventSpec)
+    @discardableResult
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool
     func flush() async
     func flushForTermination()
+}
+
+private actor TelemetryFlushGate {
+    private var isLocked = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func enter() async {
+        if !isLocked {
+            isLocked = true
+            return
+        }
+
+        await withCheckedContinuation { continuation in
+            waiters.append(continuation)
+        }
+    }
+
+    func leave() {
+        if waiters.isEmpty {
+            isLocked = false
+        } else {
+            waiters.removeFirst().resume()
+        }
+    }
 }
 
 // MARK: - Implementation
@@ -17,6 +43,7 @@ public protocol TelemetryServiceProtocol: Sendable {
 public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendable {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "Telemetry")
     private let lock = NSLock()
+    private let flushGate = TelemetryFlushGate()
     private var queue: [TelemetryEvent] = []
     private var flushTimer: Timer?
     private var lifecycleObserver: NSObjectProtocol?
@@ -119,11 +146,32 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
         }
     }
 
+    @discardableResult
+    public func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        guard isEnabled() || event.name == .telemetryOptedOut else { return true }
+
+        let telemetryEvent = makeTelemetryEvent(from: event)
+
+        await flushGate.enter()
+        enqueue(telemetryEvent)
+        let failedEventIds = await flushQueuedEvents()
+        await flushGate.leave()
+
+        return !failedEventIds.contains(telemetryEvent.eventId)
+    }
+
     public func flush() async {
+        await flushGate.enter()
+        _ = await flushQueuedEvents()
+        await flushGate.leave()
+    }
+
+    private func flushQueuedEvents() async -> Set<String> {
         let events = takeQueuedEvents()
-        guard !events.isEmpty else { return }
+        guard !events.isEmpty else { return [] }
         let failedEvents = await sendBatches(events, using: session, timeoutInterval: 10)
         requeueFailedEvents(failedEvents)
+        return Set(failedEvents.map(\.eventId))
     }
 
     // MARK: - Internal (for testing)
@@ -135,6 +183,15 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
     }
 
     // MARK: - Private
+
+    private func enqueue(_ event: TelemetryEvent) {
+        lock.lock()
+        queue.append(event)
+        if queue.count > Self.maxQueueSize {
+            queue.removeFirst(queue.count - Self.maxQueueSize)
+        }
+        lock.unlock()
+    }
 
     private func takeQueuedEvents() -> [TelemetryEvent] {
         lock.lock()
@@ -319,6 +376,7 @@ public enum Telemetry {
 public final class NoOpTelemetryService: TelemetryServiceProtocol {
     public init() {}
     public func send(_ event: TelemetryEventSpec) {}
+    public func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool { true }
     public func flush() async {}
     public func flushForTermination() {}
 }

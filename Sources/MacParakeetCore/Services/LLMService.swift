@@ -86,7 +86,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     internal static let localContextBudget = 24_000
 
     public init(
-        client: LLMClientProtocol = LLMClient(),
+        client: LLMClientProtocol = RoutingLLMClient(),
         contextResolver: any LLMExecutionContextResolving = StoredLLMExecutionContextResolver()
     ) {
         self.client = client
@@ -94,7 +94,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     }
 
     public convenience init(
-        client: LLMClientProtocol = LLMClient(),
+        client: LLMClientProtocol = RoutingLLMClient(),
         configStore: LLMConfigStoreProtocol = LLMConfigStore(),
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
     ) {

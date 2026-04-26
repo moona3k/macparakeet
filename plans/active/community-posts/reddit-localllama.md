@@ -33,7 +33,7 @@ Alternatives if 100-char limit is tight:
 
 ## Post body
 
-```markdown
+````markdown
 TL;DR: I just tagged `macparakeet-cli 1.0`, a Swift-native CLI that runs NVIDIA's Parakeet TDT 0.6B v3 on the Apple Neural Engine via FluidAudio. ~155x realtime, ~2.5% WER, ~66 MB memory per inference slot. Free + open-source (GPL-3.0). `brew install moona3k/tap/macparakeet-cli`.
 
 ## Why I'm posting it here
@@ -73,7 +73,7 @@ Parakeet TDT runs on the ANE via CoreML. That's the entire performance story. On
 - Compatibility policy: <https://github.com/moona3k/macparakeet/blob/main/Sources/CLI/CHANGELOG.md>
 
 I'm the maintainer (Daniel, [@moona3k](https://github.com/moona3k)) — happy to answer questions and take feature requests. Issues filed on the repo get a real human response.
-```
+````
 
 ## Self-comment to add (optional, after a few hours)
 

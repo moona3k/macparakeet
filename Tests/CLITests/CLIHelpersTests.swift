@@ -203,4 +203,10 @@ final class CLIHelpersTests: XCTestCase {
         let path = resolvedDatabasePath(custom)
         XCTAssertEqual(path, custom)
     }
+
+    func testResolvedDatabasePathExpandsTilde() {
+        let path = resolvedDatabasePath("~/macparakeet-test.db")
+        XCTAssertFalse(path.hasPrefix("~"))
+        XCTAssertTrue(path.hasSuffix("/macparakeet-test.db"))
+    }
 }

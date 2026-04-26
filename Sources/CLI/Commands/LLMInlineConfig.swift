@@ -27,7 +27,7 @@ func readInput(_ path: String) throws -> String {
         }
         return lines.joined()
     } else {
-        let url = URL(fileURLWithPath: path)
+        let url = URL(fileURLWithPath: expandTilde(path))
         return try String(contentsOf: url, encoding: .utf8)
     }
 }

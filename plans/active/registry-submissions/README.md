@@ -1,10 +1,9 @@
 # Registry submission drafts
 
 Drafts of the content + submission bodies for placing `macparakeet-cli`
-in the relevant agent skill registries. **None of these have been
-submitted.** Each requires explicit user confirmation before opening
-an external action (per the standing "ask before visible-to-others
-actions" rule).
+in the relevant agent skill registries. The Hermes and OpenClaw
+awesome-list issues have been submitted; the ClawHub path is deferred
+until its CLI and SKILL.md schema are verified.
 
 ## Status snapshot (post-2026-04-25 reconnaissance)
 
@@ -26,17 +25,15 @@ The `SOUL.md` filename in `integrations/openclaw/` was based on a
 mistaken belief that ClawHub uses SOUL.md. **It does not.** ClawHub
 uses `SKILL.md` with frontmatter metadata. `SOUL.md` is the format
 used by a different agent registry (onlycrabs.ai). See `clawhub.md`
-for details. A follow-up PR to `macparakeet` should rename or
-reframe `integrations/openclaw/SOUL.md` so it accurately reflects
-the SKILL.md target.
+for details. PR #146 reframed the OpenClaw entry point as
+`integrations/openclaw/README.md` and documents the SKILL.md target.
 
 ## Submission order (revised)
 
 The previous "submit all four" plan was incorrect. Updated:
 
-1. **Now** (with explicit user OK): Open issues on `awesome-hermes-agent`
-   and `awesome-openclaw`. Both maintainers vet additions; issues are
-   the prescribed entry point.
+1. **Now**: Monitor the submitted `awesome-hermes-agent` issue #49
+   and `awesome-openclaw` issue #71 for maintainer feedback.
 2. **Later** (separate, more involved): If pursuing ClawHub publication,
    install the OpenClaw CLI, verify SKILL.md frontmatter spec via
    `docs.openclaw.ai/tools/clawhub`, prepare a real SKILL.md package,

@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 import SwiftUI
 
 /// View model for the live meeting notepad pane (ADR-020 §1, §8, §11).
@@ -84,7 +83,6 @@ public final class MeetingNotesViewModel {
 
     private var persist: ((String) async -> Void)?
     private var debounceTask: Task<Void, Never>?
-    private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "MeetingNotesViewModel")
 
     public init() {}
 

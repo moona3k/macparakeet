@@ -38,6 +38,9 @@ struct LLMTestCommand: AsyncParsableCommand {
         } catch let error as LLMError {
             printErr("Connection failed: \(error.errorDescription ?? String(describing: error))")
             throw ExitCode.failure
+        } catch {
+            printErr("Connection failed: \(error.localizedDescription)")
+            throw ExitCode.failure
         }
     }
 }

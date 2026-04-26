@@ -7,14 +7,19 @@ func macParakeetAppDefaults() -> UserDefaults {
     UserDefaults(suiteName: macParakeetAppDefaultsSuiteName) ?? .standard
 }
 
+func expandTilde(_ path: String) -> String {
+    (path as NSString).expandingTildeInPath
+}
+
 // MARK: - Database Path Resolution
 
 func resolvedDatabasePath(_ database: String?) -> String {
     let opt = database?.trimmingCharacters(in: .whitespacesAndNewlines)
     if let opt, !opt.isEmpty {
-        let dir = URL(fileURLWithPath: opt).deletingLastPathComponent()
+        let resolved = expandTilde(opt)
+        let dir = URL(fileURLWithPath: resolved).deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return opt
+        return resolved
     }
     return AppPaths.databasePath
 }
@@ -136,5 +141,5 @@ func printJSON<T: Encodable>(_ value: T) throws {
 /// for callers piping `--json` output to `jq`, scripts, or skill manifests.
 /// Append a trailing newline.
 func printErr(_ s: String) {
-    FileHandle.standardError.write(Data((s + "\n").utf8))
+    try? FileHandle.standardError.write(contentsOf: Data((s + "\n").utf8))
 }

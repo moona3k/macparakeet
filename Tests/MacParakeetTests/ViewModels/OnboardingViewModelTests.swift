@@ -12,6 +12,11 @@ private final class OnboardingTelemetrySpy: TelemetryServiceProtocol, @unchecked
         lock.unlock()
     }
 
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
     func flush() async {}
 
     func flushForTermination() {}

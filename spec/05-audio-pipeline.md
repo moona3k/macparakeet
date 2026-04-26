@@ -181,16 +181,17 @@ Mic Input    → AVAudioEngine (raw tap) → Input Node Tap ──────�
 
 ### Meeting Recording Flow
 
-```
+```text
 User clicks "Start Meeting Recording"
     → Check Screen Recording permission (CGPreflightScreenCaptureAccess)
     → If denied: show error + "Open System Settings" button, block recording
     → Start MeetingAudioCaptureService (both streams)
     → Show recording pill (red dot + elapsed timer + stop button)
     → Consume AsyncStream<MeetingAudioCaptureEvent>, write buffers to M4A files
+      and continuously update `meeting-recording-metadata.json` with source alignment
     → User clicks Stop
     → Stop capture, finalize `microphone.m4a` + `system.m4a`
-    → Persist `meeting-recording-metadata.json` with per-source alignment
+    → Read persisted source alignment from `meeting-recording-metadata.json`
     → Merge streams into `meeting.m4a` (stereo for dual input; mono for single input)
     → Convert `microphone.m4a` → 16kHz mono WAV via FFmpeg
     → Send mic WAV to FluidAudio STT (CoreML/ANE)
@@ -204,7 +205,7 @@ User clicks "Start Meeting Recording"
 
 ### Storage
 
-```
+```text
 ~/Library/Application Support/MacParakeet/meeting-recordings/{uuid}/
     ├── microphone.m4a    # Mic audio (AAC, 48kHz mono)
     ├── system.m4a        # System audio (AAC, 48kHz mono)

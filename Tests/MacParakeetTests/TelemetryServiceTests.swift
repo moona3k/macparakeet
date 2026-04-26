@@ -172,6 +172,25 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(service.pendingEventCount, 0)
     }
 
+    func testSendAndFlushReturnsTrueWhenDeliverySucceeds() async {
+        let service = makeService()
+
+        let delivered = await service.sendAndFlush(.appLaunched)
+
+        XCTAssertTrue(delivered)
+        XCTAssertEqual(service.pendingEventCount, 0)
+    }
+
+    func testSendAndFlushReturnsFalseAndRequeuesWhenDeliveryFails() async {
+        TelemetryMockURLProtocol.statusCode = 500
+        let service = makeService()
+
+        let delivered = await service.sendAndFlush(.appLaunched)
+
+        XCTAssertFalse(delivered)
+        XCTAssertEqual(service.pendingEventCount, 1)
+    }
+
     func testFlushSplitsRequestsIntoBatchesOf100() async throws {
         let eventCount = 150
         let service = makeService()
@@ -454,6 +473,8 @@ final class TelemetryServiceTests: XCTestCase {
         let service = NoOpTelemetryService()
         service.send(.appLaunched)
         service.send(.dictationStarted(trigger: .hotkey, mode: .hold))
+        let handled = await service.sendAndFlush(.appLaunched)
+        XCTAssertTrue(handled)
         await service.flush()
     }
 

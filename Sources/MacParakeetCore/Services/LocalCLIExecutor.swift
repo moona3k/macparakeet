@@ -71,7 +71,7 @@ public enum LocalCLIError: Error, LocalizedError, Sendable {
     public var errorDescription: String? {
         switch self {
         case .commandNotConfigured:
-            return "Local CLI command is not configured. Choose a template or enter a command in Settings."
+            return "Local CLI command is not configured. Choose a template or pass a command."
         case .commandNotFound(let details):
             return "CLI command not found. Ensure it is installed and on your PATH. Details: \(details)"
         case .timeout(let seconds):

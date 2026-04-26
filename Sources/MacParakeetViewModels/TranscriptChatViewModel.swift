@@ -423,6 +423,8 @@ public final class TranscriptChatViewModel {
                 chatHistory.removeAll()
                 currentConversation = nil
             }
+            errorMessage = nil
+            inputText = ""
         }
 
         notifyConversationsChanged()

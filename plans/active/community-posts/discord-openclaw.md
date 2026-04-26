@@ -21,7 +21,7 @@ short, embed the install command, and let them ask follow-ups.
 
 ## Post text
 
-```
+````markdown
 hey openclaw folks 👋
 
 just shipped macparakeet-cli 1.0 — a swift-native CLI that runs Parakeet TDT 0.6B v3 on the Apple Neural Engine. ~155x realtime, ~2.5% WER, ~66 MB per inference slot. free + open-source (GPL-3.0).
@@ -35,7 +35,7 @@ what it gives an OpenClaw skill author:
 
 requires macOS 14.2+ on Apple Silicon (M1/M2/M3/M4). install:
 
-```
+```bash
 brew install moona3k/tap/macparakeet-cli
 macparakeet-cli health --json
 ```
@@ -46,7 +46,7 @@ agent-facing landing: https://macparakeet.com/agents
 launch blog: https://macparakeet.com/blog/macparakeet-cli-1-0/
 
 i'm the maintainer (@moona3k on github), happy to answer Qs or take feature requests. ClawHub publication is on the roadmap — open to guidance from anyone who's been through it.
-```
+````
 
 ## What to avoid
 

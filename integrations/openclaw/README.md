@@ -46,7 +46,7 @@ ffmpeg + yt-dlp as runtime deps. First `transcribe` call downloads
 | Search transcriptions | `macparakeet-cli history search-transcriptions "<query>" --json` |
 | Search dictations | `macparakeet-cli history search "<query>" --json` |
 | List prompts | `macparakeet-cli prompts list --json` |
-| Run a prompt on a transcription | `macparakeet-cli prompts run <prompt-name> --transcription <id> --provider <p> --api-key "$KEY" --model <m>` |
+| Run a prompt on a transcription | `macparakeet-cli prompts run <prompt-name> --transcription <id-or-name> --provider <p> --api-key "$KEY" --model <m>` |
 
 ## Conventions
 
@@ -71,7 +71,7 @@ fields and validation rules may have evolved.
 name: macparakeet-stt
 version: 1.0.0
 author: <your-username>
-description: Local Parakeet TDT speech-to-text on Apple Silicon. Wraps macparakeet-cli (GPL-3.0).
+description: Local Parakeet TDT speech-to-text on Apple Silicon. Wraps macparakeet-cli (GPL-3.0-or-later).
 tags: [stt, transcription, voice, apple-silicon, local, parakeet]
 requires:
   - platform: darwin

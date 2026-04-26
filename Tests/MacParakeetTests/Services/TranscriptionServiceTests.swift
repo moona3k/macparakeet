@@ -33,6 +33,11 @@ private final class TelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable 
         lock.unlock()
     }
 
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
     func flush() async {}
 
     func flushForTermination() {}

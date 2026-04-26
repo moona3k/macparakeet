@@ -40,14 +40,15 @@ This is mostly a **MacParakeetCore refactor**: today `LLMService.summarize/chat/
 
 ### Streaming (`--stream --json`) — deferred NDJSON follow-up
 
-```
+```ndjson
 {"type":"delta","output":"Hello"}
 {"type":"delta","output":" world"}
-{"type":"final","provider":"anthropic","model":"claude-sonnet-4-6","usage":{...},"latencyMs":2345,"stopReason":"end_turn"}
+{"type":"final","output":"","provider":"anthropic","model":"claude-sonnet-4-6","usage":{...},"latencyMs":2345,"stopReason":"end_turn"}
 ```
 
 - One JSON object per line, terminated with `\n`.
 - Always ends with exactly one `final` line. Usage-less providers omit `usage`, matching the one-shot envelope.
+- Streaming deltas carry content as it arrives; the final `output` is empty unless a future implementation explicitly chooses to repeat the concatenated text.
 - Lets agents share a parser between streaming and one-shot paths.
 - In PR #149, `--json --stream` is rejected during argument validation with a clear error.
 

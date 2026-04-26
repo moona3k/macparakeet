@@ -475,6 +475,10 @@ final class HotkeyTriggerTests: XCTestCase {
         }
     }
 
+    func testDefaultMeetingChordIsAllowed() {
+        XCTAssertEqual(HotkeyTrigger.defaultMeetingRecording.validation, .allowed)
+    }
+
     func testChordCmdQWithoutCommandIsAllowed() {
         // Q with Shift only (no Cmd) — should not trigger the Cmd+Q warning
         let trigger = HotkeyTrigger.chord(modifiers: ["shift"], keyCode: 12)

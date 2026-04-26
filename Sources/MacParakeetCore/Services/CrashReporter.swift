@@ -64,10 +64,9 @@ public final class CrashReporter {
         installed = true
 
         // 1. Ensure the crash directory exists
-        let dir = AppPaths.appSupportDir
-        var isDir: ObjCBool = false
-        if !FileManager.default.fileExists(atPath: dir, isDirectory: &isDir) {
-            try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        guard prepareCrashDirectory(at: AppPaths.appSupportDir) else {
+            installed = false
+            return
         }
 
         // 2. Pre-resolve crash file path to C string
@@ -259,6 +258,24 @@ public final class CrashReporter {
         previousExceptionHandler?(exception)
     }
 
+    private static func prepareCrashDirectory(at dir: String) -> Bool {
+        var isDir: ObjCBool = false
+        do {
+            if FileManager.default.fileExists(atPath: dir, isDirectory: &isDir) {
+                if !isDir.boolValue {
+                    try FileManager.default.removeItem(atPath: dir)
+                    try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+                }
+            } else {
+                try FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+            }
+            return true
+        } catch {
+            fputs("MacParakeet CrashReporter: failed to prepare crash directory at \(dir): \(error)\n", stderr)
+            return false
+        }
+    }
+
     // MARK: - Mach-O UUID Extraction
 
     private static func snapshotMachOUUID() {
@@ -374,19 +391,20 @@ public final class CrashReporter {
         )
     }
 
-    /// Send any pending crash report as a telemetry event, then delete the file.
+    /// Send any pending crash report as a telemetry event. Delete the file only
+    /// when telemetry reports that the event was delivered or intentionally dropped.
     /// Call after TelemetryService is initialized.
-    public static func sendPendingReport(via telemetry: TelemetryServiceProtocol) {
-        sendPendingReport(via: telemetry, from: crashReportPath)
+    public static func sendPendingReport(via telemetry: TelemetryServiceProtocol) async {
+        await sendPendingReport(via: telemetry, from: crashReportPath)
     }
 
     /// Internal variant with injectable path for testing.
-    static func sendPendingReport(via telemetry: TelemetryServiceProtocol, from path: String) {
+    static func sendPendingReport(via telemetry: TelemetryServiceProtocol, from path: String) async {
         guard let report = loadPendingReport(from: path) else { return }
 
         let stackTraceString = report.stackTrace.joined(separator: "\n")
 
-        telemetry.send(.crashOccurred(
+        let delivered = await telemetry.sendAndFlush(.crashOccurred(
             crashType: report.crashType,
             signal: report.signal,
             name: report.name,
@@ -399,8 +417,10 @@ public final class CrashReporter {
             stackTrace: stackTraceString
         ))
 
-        // Always delete — even if telemetry is disabled (send() handles opt-out)
-        deleteCrashFile(at: path)
+        if delivered {
+            // Delete only after telemetry has either been flushed or intentionally dropped by opt-out.
+            deleteCrashFile(at: path)
+        }
     }
 
     private static func deleteCrashFile(at path: String? = nil) {

@@ -147,10 +147,13 @@ final class AppEnvironment {
             aiFormatterPromptTemplate: aiFormatterPromptClosure
         )
 
-        telemetryService = TelemetryService()
-        Telemetry.configure(telemetryService)
+        let telemetry = TelemetryService()
+        telemetryService = telemetry
+        Telemetry.configure(telemetry)
         Telemetry.send(.appLaunched)
-        CrashReporter.sendPendingReport(via: telemetryService)
+        Task {
+            await CrashReporter.sendPendingReport(via: telemetry)
+        }
 
         transcriptionService = TranscriptionService(
             audioProcessor: audioProcessor,

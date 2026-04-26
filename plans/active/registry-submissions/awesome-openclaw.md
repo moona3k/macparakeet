@@ -136,8 +136,8 @@ alphabetical by repo path. `moona3k/macparakeet` would slot between
 - [x] Issue template fields pre-filled
 - [x] A-Z ordering location identified
 - [x] Maintainer affiliation disclosure prepared
-- [ ] User has confirmed go-ahead
-- [ ] Issue opened via `Add Resource Request` template
-- [ ] Issue URL captured in this file
+- [x] User has confirmed go-ahead
+- [x] Issue opened via `Add Resource Request` template
+- [x] Issue URL captured in this file
 - [ ] (After approval) PR opened with the exact entry text
 - [ ] PR URL captured in this file

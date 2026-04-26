@@ -1,6 +1,6 @@
-# Submission notes — `openclaw/clawhub` (deferred)
+# Submission notes — `openclaw/clawhub`
 
-> **Status:** **deferred.** ClawHub submission requires the OpenClaw
+> **Status:** **PROPOSAL.** ClawHub submission requires the OpenClaw
 > CLI installed locally and a SKILL.md package; the submission flow
 > is non-trivial and needs verification of the current SKILL.md
 > frontmatter schema before attempting.
@@ -54,7 +54,7 @@ content to reference the SKILL.md format.
 name: macparakeet-stt
 version: 1.0.0
 author: moona3k
-description: Local Parakeet TDT speech-to-text for Apple Silicon. Wraps macparakeet-cli (GPL-3.0).
+description: Local Parakeet TDT speech-to-text for Apple Silicon. Wraps macparakeet-cli (GPL-3.0-or-later).
 tags: [stt, transcription, voice, apple-silicon, local, parakeet]
 requires:
   - platform: darwin
@@ -118,9 +118,8 @@ When ready to pursue:
    ClawHub README.
 4. Pick or build a sandbox environment to test `clawhub skill publish`
    before publishing to the live registry.
-5. (Optional) Rename `integrations/openclaw/SOUL.md` →
-   `integrations/openclaw/SKILL.md` (or `README.md`) in a small
-   macparakeet PR to reflect the corrected understanding.
+5. Confirm the `integrations/openclaw/README.md` scaffold still
+   matches the verified ClawHub schema before publishing.
 
 ## Downstream dependency
 
@@ -135,7 +134,7 @@ this ClawHub publication succeeding first.
 - [ ] OpenClaw CLI installed locally
 - [ ] SKILL.md frontmatter schema verified against current docs
 - [ ] Sandbox test of `clawhub skill publish` succeeded
-- [ ] `integrations/openclaw/SOUL.md` renamed to SKILL.md (or otherwise corrected)
+- [x] `integrations/openclaw/SOUL.md` renamed or otherwise corrected (PR #146)
 - [ ] User has confirmed go-ahead
 - [ ] `clawhub skill publish` run for live registry
 - [ ] ClawHub URL captured in this file

@@ -49,7 +49,7 @@ Suggest: macparakeet-cli — local Parakeet STT on Apple Silicon (Tools & Utilit
 
 ## Issue body
 
-```markdown
+````markdown
 **Resource name:** `macparakeet-cli`
 **URL:** <https://github.com/moona3k/macparakeet>
 **Author:** [@moona3k](https://github.com/moona3k) (Daniel Moon — maintainer)
@@ -115,7 +115,7 @@ For a Hermes skill author specifically:
 ## Maintainer disclosure
 
 I am the maintainer of MacParakeet (Daniel Moon, @moona3k).
-```
+````
 
 ## Submission checklist
 
@@ -124,6 +124,6 @@ I am the maintainer of MacParakeet (Daniel Moon, @moona3k).
 - [x] Entry shape matches existing entries
 - [x] Quality criteria addressed (per CONTRIBUTING)
 - [x] Maintainer affiliation disclosed
-- [ ] User has confirmed go-ahead
-- [ ] Issue opened against `0xNyk/awesome-hermes-agent`
-- [ ] Issue URL captured in this file
+- [x] User has confirmed go-ahead
+- [x] Issue opened against `0xNyk/awesome-hermes-agent`
+- [x] Issue URL captured in this file

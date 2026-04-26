@@ -265,7 +265,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         let version = modelVersion
         let warmUpProgressHandler = self.warmUpProgressHandler
         let task = Task {
-            let lastProgressUpdate = OSAllocatedUnfairLock(initialState: Date.distantPast)
+            let clock = ContinuousClock()
+            let lastProgressUpdate = OSAllocatedUnfairLock(initialState: clock.now - .seconds(1))
             let lastProgressMessage = OSAllocatedUnfairLock(initialState: "")
             var interactiveManager: AsrManager?
             var backgroundManager: AsrManager?
@@ -274,9 +275,9 @@ public actor STTRuntime: STTRuntimeProtocol {
                 let progressCallback: @Sendable (String) -> Void = warmUpProgressHandler
                 progressHandler = { progress in
                     guard let message = Self.warmUpProgressMessage(from: progress) else { return }
-                    let now = Date()
+                    let now = clock.now
                     let shouldEmit = lastProgressUpdate.withLock { lastUpdate in
-                        guard now.timeIntervalSince(lastUpdate) >= 0.25 else {
+                        guard lastUpdate.duration(to: now) >= .milliseconds(250) else {
                             return false
                         }
                         lastUpdate = now
