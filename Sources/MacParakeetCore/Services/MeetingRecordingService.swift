@@ -232,6 +232,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
         do {
             let captureStartReport = try await audioCaptureService.start()
+            try await validateStartStillCurrent(session)
             configureMicConditioner(from: captureStartReport.microphone)
             processingTask = Task { [weak self] in
                 guard let self else { return }
@@ -250,6 +251,20 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             cleanupState()
             try? lockFileStore.delete(folderURL: folderURL)
             try? fileManager.removeItem(at: folderURL)
+            throw error
+        }
+    }
+
+    private func validateStartStillCurrent(_ session: Session) async throws {
+        guard currentSession?.id == session.id else {
+            await audioCaptureService.stop()
+            throw CancellationError()
+        }
+
+        do {
+            try Task.checkCancellation()
+        } catch {
+            await audioCaptureService.stop()
             throw error
         }
     }
