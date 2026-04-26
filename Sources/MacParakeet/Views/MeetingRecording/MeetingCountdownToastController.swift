@@ -46,10 +46,14 @@ final class MeetingCountdownToastController {
     private var onOutcome: ((MeetingCountdownToastOutcome) -> Void)?
 
     /// Show a pre-meeting auto-start countdown. Default duration 5s.
+    /// `calendarContext` is optional — present it for calendar-driven starts
+    /// (the coordinator's `MeetingMonitor` path) and omit it for manual
+    /// trigger paths that already work cleanly per ADR-020 §10.
     func showAutoStart(
         title: String,
         body: String,
         duration: TimeInterval = 5,
+        calendarContext: MeetingCountdownToastViewModel.CalendarContext? = nil,
         onOutcome: @escaping (MeetingCountdownToastOutcome) -> Void
     ) {
         present(
@@ -57,7 +61,8 @@ final class MeetingCountdownToastController {
                 style: .autoStart,
                 title: title,
                 body: body,
-                duration: duration
+                duration: duration,
+                calendarContext: calendarContext
             ),
             onOutcome: onOutcome
         )
@@ -109,8 +114,8 @@ final class MeetingCountdownToastController {
 
         let view = MeetingCountdownToastView(
             viewModel: viewModel,
-            onPrimary: { [weak self] in self?.finish(.userDismissed) },
-            onSecondary: viewModel.secondaryActionLabel == nil
+            onDismiss: { [weak self] in self?.finish(.userDismissed) },
+            onConfirm: viewModel.secondaryActionLabel == nil
                 ? nil
                 : { [weak self] in self?.finish(.primedEarly) }
         )

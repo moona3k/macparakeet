@@ -23,7 +23,9 @@ final class PromptRepositoryTests: XCTestCase {
         XCTAssertEqual(prompts.count, Prompt.builtInPrompts().count)
         XCTAssertTrue(prompts.allSatisfy(\.isBuiltIn))
         XCTAssertTrue(prompts.allSatisfy(\.isVisible))
-        XCTAssertEqual(prompts.first?.name, "Summary")
+        // Memo-Steered Notes (ADR-020) is the new sortOrder=0 default and
+        // therefore the first prompt returned by fetchAll's sort.
+        XCTAssertEqual(prompts.first?.name, "Memo-Steered Notes")
     }
 
     func testCommunityPromptArtifactMatchesBuiltInPrompts() throws {

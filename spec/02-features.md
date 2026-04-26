@@ -1484,6 +1484,78 @@ Prompt library and multi-summary system. Users control how AI processes transcri
 
 ---
 
+## v0.6 — Meeting Recording (In Progress)
+
+The v0.6 release ships system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), calendar-driven auto-start (ADR-017), the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad + memo-steered summaries (ADR-020). The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 feature surface that this PR introduces.
+
+### F36: Live Meeting Notepad
+
+> Status: **IMPLEMENTED**
+
+**What:** Three-tab live meeting panel — Notes / Transcript / Ask, Notes default — with a plaintext `TextEditor` for free-form note-taking during a recording. Auto-saves through `MeetingRecordingService.updateNotes(_:)` on a 250 ms idle debounce; survives crashes via the ADR-019 lock file's additive `notes` field; persists onto `transcriptions.userNotes` at finalize where it steers post-meeting summary generation.
+
+**Acceptance criteria:**
+- [x] `MeetingRecordingPanelView` defaults to the Notes tab when the panel opens
+- [x] ⌘1 / ⌘2 / ⌘3 navigate to Notes / Transcript / Ask respectively
+- [x] State-bearing tab labels (`Notes · Nw`, `Transcript · LIVE`, `Ask · N`) collapse to plain noun + tooltip at the 360px panel-width floor via `ViewThatFits`
+- [x] Notes auto-save serializes through `MeetingRecordingService.updateNotes(_:)` so all `recording.lock` writes share one writer
+- [x] Notes round-trip through crash recovery via lock-file `notes` (additive, decoded with `decodeIfPresent`, decoded independently so a malformed notes value doesn't block audio recovery)
+- [x] Soft-cap warning footer at 7,500 words; notes themselves are never truncated (cap applies only at prompt-assembly time)
+- [x] `MeetingNotesViewModel.notesText` is `private(set)` and bound exclusively to the editor — code-level enforcement of the "notes are user-authored only" invariant (ADR-020 §11)
+
+### F37: Memo-Steered Summaries
+
+> Status: **IMPLEMENTED**
+
+**What:** New "Memo-Steered Notes" built-in prompt that treats the user's typed notes as the structure and priorities of the post-meeting summary, expanding each note with detail from the transcript. Existing prompts can adopt the same pattern by using the new template variables.
+
+**Acceptance criteria:**
+- [x] `PromptTemplateRenderer` supports `{{userNotes}}` and `{{transcript}}` substitution; single-pass and simultaneous to prevent injection via user notes containing `{{transcript}}` literals
+- [x] Variable names are case-sensitive; canonical lowercase (typos fall through to empty-string fallback rather than silently producing empty output)
+- [x] "Memo-Steered Notes" prompt seeded as a built-in via `Prompt.builtInPrompts()` and `community-prompts.json`
+- [x] Auto-run insertion guard: the new prompt is inserted with `isAutoRun = true` only when at least one existing prompt has `isAutoRun = true`, preserving ADR-013's "zero auto-run is valid" invariant
+- [x] `Summary` row gains `userNotesSnapshot: String?` — the value of `userNotes` at the moment of summary generation, captured alongside the existing prompt snapshot per ADR-013
+
+### F38: Slash Commands in Notes
+
+> Status: **IMPLEMENTED**
+
+**What:** Minimal slash menu in the Notes pane for the highest-signal structuring actions. Three commands fixed for v0.6.
+
+**Acceptance criteria:**
+- [x] `/action` inserts the literal `**Action:** ` (cursor after)
+- [x] `/decision` inserts the literal `**Decision:** ` (cursor after)
+- [x] `/now` inserts the current meeting time as `[M:SS] ` (cursor after)
+- [x] Menu activates on `/` at start-of-text or after whitespace (mid-word slashes like `https:/` don't trigger)
+- [x] Filtering by typed query is case-insensitive prefix match
+- [x] Arrow keys navigate, Return accepts, Escape dismisses — all via `.onKeyPress` so the overlay never owns first responder
+- [x] Overlay is a SwiftUI ZStack anchored to the editor frame (not a `.popover`) — avoids the `KeylessPanel` clipping / focus-stealing / key-routing pitfalls flagged in ADR-020 §7
+
+### F39: Rich Pre-Meeting Countdown Toast
+
+> Status: **IMPLEMENTED**
+
+**What:** Calendar-driven auto-start countdowns (ADR-017 Phase 2) carry richer context — attendee count + meeting service icon + a steering hint pointing the user at the Notes tab. Manual hotkey/menu-bar/panel starts continue to surface the existing minimal layout.
+
+**Acceptance criteria:**
+- [x] `MeetingCountdownToastViewModel` accepts an optional `CalendarContext` (attendee count, service name, steering hint)
+- [x] `contextSummary` formats "N attendees · Service" with sensible singular/empty fallbacks (1 attendee, just service, just attendees, or nothing → row hidden)
+- [x] `MeetingAutoStartCoordinator.showAutoStartCountdown` populates context from `CalendarEvent.attendeeCount` + `MeetingLinkParser.shared.identifyService(from: event.meetUrl)` + the canonical steering hint copy
+- [x] Manual-trigger toasts pass `nil` context and render at the existing 280pt width; rich toasts widen to 320pt to absorb the extra rows
+
+### F40: Meeting-Interrupted Copy
+
+> Status: **IMPLEMENTED**
+
+**What:** Refined copy when the meeting flow lands in the `.error` state — softer title and a wrapper around the technical detail that points the user at the Library for recovery.
+
+**Acceptance criteria:**
+- [x] `statusTitle` for `.error` is "Meeting interrupted" (was "Recording Error" — overclaims since the same state is reached from both `startFailed` and `transcriptionFailed`)
+- [x] `statusMessage` for `.error` reads `<technical detail>\n\nIf any audio was captured it's in your Library, where you can retry transcription or export the audio.`
+- [x] Empty/whitespace-only error strings fall back to "An unexpected error occurred." instead of producing a leading newline
+
+---
+
 ## Future Features (Post-Launch)
 
 ### F30: iOS Companion App

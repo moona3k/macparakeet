@@ -216,6 +216,14 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
     ) throws -> Transcription {
         var recovered = transcription
         recovered.recoveredFromCrash = true
+        // Carry forward any notes the user typed during the meeting (ADR-020 §9).
+        // Lock file's `notes` is `nil` for pre-v0.8 recordings or recordings
+        // where the user typed nothing. We only overwrite when the lock file
+        // actually has notes — never clobber notes a recovered transcription
+        // somehow already carries.
+        if let lockNotes = lock.notes, recovered.userNotes == nil {
+            recovered.userNotes = lockNotes
+        }
         recovered.updatedAt = Date()
         try transcriptionRepo.save(recovered)
         try lockFileStore.delete(folderURL: folderURL)

@@ -197,11 +197,31 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         case corrupt
     }
 
+    // MARK: - ADR-020 §9 — recovered notes
+
+    func testRecoverAppliesLockFileNotesToRecoveredTranscriptionUserNotes() async throws {
+        let fixture = try makeRecoverableSession(notes: "key decision: ship Friday\nfollow up with QA")
+
+        let transcription = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertTrue(transcription.recoveredFromCrash)
+        XCTAssertEqual(transcription.userNotes, "key decision: ship Friday\nfollow up with QA")
+    }
+
+    func testRecoverDoesNotSetUserNotesWhenLockHasNone() async throws {
+        let fixture = try makeRecoverableSession(notes: nil)
+
+        let transcription = try await recoveryService.recover(fixture.lock)
+
+        XCTAssertNil(transcription.userNotes, "lock with no notes leaves userNotes nil")
+    }
+
     private func makeRecoverableSession(
         microphoneSampleRate: Double = 48_000,
         systemAudio: SourceFixture = .valid,
         systemSampleRate: Double = 48_000,
-        lockState: MeetingRecordingLockState = .recording
+        lockState: MeetingRecordingLockState = .recording,
+        notes: String? = nil
     ) throws -> (folderURL: URL, lock: MeetingRecordingLockFile) {
         let sessionID = UUID()
         let folderURL = tempRoot.appendingPathComponent(sessionID.uuidString, isDirectory: true)
@@ -226,6 +246,7 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
             pid: 42,
             displayName: "Recovered Team Sync",
             state: lockState,
+            notes: notes,
             folderURL: folderURL
         )
         try lockStore.write(lock, folderURL: folderURL)

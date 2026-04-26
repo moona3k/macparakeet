@@ -215,6 +215,14 @@ final class MeetingRecordingFlowCoordinator {
                 configStore: configStore,
                 cliConfigStore: cliConfigStore
             )
+            // Wire the notepad's debounced persistence target through the
+            // recording service. The service serializes lock-file writes and
+            // carries the latest notes into MeetingRecordingOutput.userNotes,
+            // where TranscriptionService persists them onto the Transcription
+            // for Memo-Steered Notes summary generation (ADR-020 §8, §10).
+            panelVM.notesViewModel.bindPersist { [weak self] notes in
+                await self?.meetingRecordingService.updateNotes(notes)
+            }
             panelViewModel = panelVM
 
             if pillController == nil {
@@ -309,8 +317,13 @@ final class MeetingRecordingFlowCoordinator {
             let gen = stateMachine.generation
             let liveWordCount = panelViewModel?.wordCount ?? 0
             let liveTranscriptLagged = panelViewModel?.isTranscriptionLagging ?? false
+            let notesVM = panelViewModel?.notesViewModel
             actionTask = Task { @MainActor in
                 do {
+                    // Flush any keystrokes typed in the last < 250 ms so
+                    // they make it onto the lock file and into the saved
+                    // Transcription.userNotes (ADR-020 §8).
+                    await notesVM?.commit()
                     let output = try await meetingRecordingService.stopRecording()
                     Telemetry.send(.meetingRecordingCompleted(
                         durationSeconds: output.durationSeconds,

@@ -33,6 +33,11 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var sourceType: SourceType
     public var recoveredFromCrash: Bool
     public var isTranscriptEdited: Bool
+    /// Free-form notes the user typed during a meeting recording.
+    /// Persisted alongside the transcript so they can steer post-meeting
+    /// summary generation (ADR-020 §3). `nil` for non-meeting transcripts
+    /// and for meetings where the user took no notes.
+    public var userNotes: String?
     public var updatedAt: Date
 
     public enum TranscriptionStatus: String, Codable, Sendable {
@@ -68,6 +73,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         sourceType: SourceType = .file,
         recoveredFromCrash: Bool = false,
         isTranscriptEdited: Bool = false,
+        userNotes: String? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
@@ -95,6 +101,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.sourceType = sourceType
         self.recoveredFromCrash = recoveredFromCrash
         self.isTranscriptEdited = isTranscriptEdited
+        self.userNotes = userNotes
         self.updatedAt = updatedAt
     }
 }
@@ -145,7 +152,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         case rawTranscript, cleanTranscript, wordTimestamps, language
         case speakerCount, speakers, diarizationSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
-        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, updatedAt
+        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, updatedAt
     }
 
     /// Backward-compatible decoding: `speakers` column may contain old `[String]` JSON
@@ -194,6 +201,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
         }
         recoveredFromCrash = try container.decodeIfPresent(Bool.self, forKey: .recoveredFromCrash) ?? false
         isTranscriptEdited = try container.decodeIfPresent(Bool.self, forKey: .isTranscriptEdited) ?? false
+        userNotes = try container.decodeIfPresent(String.self, forKey: .userNotes)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }

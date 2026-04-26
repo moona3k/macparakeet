@@ -17,6 +17,10 @@ public final class PromptResultsViewModel {
         public var promptContent: String
         public var extraInstructions: String?
         public var transcript: String
+        /// Snapshot of `Transcription.userNotes` captured at enqueue time. Used
+        /// both to substitute `{{userNotes}}` in the prompt template and to
+        /// snapshot onto the resulting `PromptResult` (ADR-020 §4, §6).
+        public var userNotes: String?
         public var replacingPromptResultID: UUID?
         public var state: State
         public var content: String
@@ -28,6 +32,7 @@ public final class PromptResultsViewModel {
             promptContent: String,
             extraInstructions: String?,
             transcript: String,
+            userNotes: String? = nil,
             replacingPromptResultID: UUID? = nil,
             state: State = .queued,
             content: String = ""
@@ -38,6 +43,7 @@ public final class PromptResultsViewModel {
             self.promptContent = promptContent
             self.extraInstructions = extraInstructions
             self.transcript = transcript
+            self.userNotes = userNotes
             self.replacingPromptResultID = replacingPromptResultID
             self.state = state
             self.content = content
@@ -45,6 +51,10 @@ public final class PromptResultsViewModel {
     }
 
     private static let autoGenerationTranscriptLengthThreshold = 500
+    /// Soft cap on user notes for prompt-assembly only — full notes remain on
+    /// the Transcription row. ~11k tokens at typical English word→token ratio,
+    /// leaving headroom for transcript + system prompt + response (ADR-020 §3).
+    static let userNotesPromptWordCap = 8_000
 
     public var promptResults: [PromptResult] = []
     public var pendingGenerations: [PendingGeneration] = []
@@ -66,6 +76,11 @@ public final class PromptResultsViewModel {
     private var llmService: LLMServiceProtocol?
     private var promptRepo: PromptRepositoryProtocol?
     private var promptResultRepo: PromptResultRepositoryProtocol?
+    /// Read-only access to the underlying transcription so prompt assembly
+    /// can pull `userNotes` for `{{userNotes}}` substitution and snapshotting
+    /// (ADR-020 §4, §6). The legacy `updateSummary` write-back path that
+    /// also lived through this property was removed in v0.7.6.
+    private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var configStore: LLMConfigStoreProtocol?
     private var cliConfigStore: LocalCLIConfigStore?
     private var currentTranscriptionID: UUID?
@@ -126,12 +141,14 @@ public final class PromptResultsViewModel {
         llmService: LLMServiceProtocol?,
         promptRepo: PromptRepositoryProtocol?,
         promptResultRepo: PromptResultRepositoryProtocol?,
+        transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
         configStore: LLMConfigStoreProtocol? = nil,
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
     ) {
         self.llmService = llmService
         self.promptRepo = promptRepo
         self.promptResultRepo = promptResultRepo
+        self.transcriptionRepo = transcriptionRepo
         self.configStore = configStore
         self.cliConfigStore = cliConfigStore
         loadVisiblePrompts()
@@ -268,7 +285,8 @@ public final class PromptResultsViewModel {
             transcript: transcript,
             transcriptionId: transcriptionId,
             prompt: prompt,
-            extraInstructions: normalizedExtraInstructions(extraInstructions)
+            extraInstructions: normalizedExtraInstructions(extraInstructions),
+            userNotes: fetchUserNotes(for: transcriptionId)
         )
     }
 
@@ -280,11 +298,16 @@ public final class PromptResultsViewModel {
             isBuiltIn: false,
             sortOrder: 0
         )
+        // Regeneration re-snapshots from the *current* notes on the row — if
+        // the user edited notes between summary generations they expect the
+        // new summary to reflect the new notes. The original summary's
+        // snapshot remains untouched on its row (ADR-020 §6).
         return enqueueGeneration(
             transcript: transcript,
             transcriptionId: promptResult.transcriptionId,
             prompt: prompt,
             extraInstructions: promptResult.extraInstructions,
+            userNotes: fetchUserNotes(for: promptResult.transcriptionId),
             replacingPromptResultID: promptResult.id
         )
     }
@@ -292,17 +315,19 @@ public final class PromptResultsViewModel {
     @discardableResult
     public func autoGeneratePromptResults(transcript: String, transcriptionId: UUID) -> [UUID] {
         guard transcript.count > Self.autoGenerationTranscriptLengthThreshold else { return [] }
-        
+
         let autoPrompts = (try? promptRepo?.fetchAutoRunPrompts()) ?? [Prompt.defaultPrompt]
         guard !autoPrompts.isEmpty else { return [] }
-        
+
+        let userNotes = fetchUserNotes(for: transcriptionId)
         var queuedIDs: [UUID] = []
         for prompt in autoPrompts {
             if let id = enqueueGeneration(
                 transcript: transcript,
                 transcriptionId: transcriptionId,
                 prompt: prompt,
-                extraInstructions: nil
+                extraInstructions: nil,
+                userNotes: userNotes
             ) {
                 queuedIDs.append(id)
             }
@@ -336,6 +361,7 @@ public final class PromptResultsViewModel {
         transcriptionId: UUID,
         prompt: Prompt,
         extraInstructions: String?,
+        userNotes: String? = nil,
         replacingPromptResultID: UUID? = nil
     ) -> UUID? {
         guard llmService != nil else { return nil }
@@ -349,6 +375,7 @@ public final class PromptResultsViewModel {
             promptContent: prompt.content,
             extraInstructions: extraInstructions,
             transcript: transcript,
+            userNotes: userNotes,
             replacingPromptResultID: replacingPromptResultID
         )
         pendingGenerations.append(generation)
@@ -368,7 +395,9 @@ public final class PromptResultsViewModel {
         let generationID = generation.id
         let systemPrompt = assembledSystemPrompt(
             promptContent: generation.promptContent,
-            extraInstructions: generation.extraInstructions
+            extraInstructions: generation.extraInstructions,
+            userNotes: generation.userNotes,
+            transcript: generation.transcript
         )
 
         streamingTask = Task { @MainActor [weak self] in
@@ -415,6 +444,7 @@ public final class PromptResultsViewModel {
             promptContent: generation.promptContent,
             extraInstructions: generation.extraInstructions,
             content: generation.content,
+            userNotesSnapshot: generation.userNotes,
             createdAt: timestamp,
             updatedAt: timestamp
         )
@@ -466,12 +496,114 @@ public final class PromptResultsViewModel {
         processNextQueuedGeneration()
     }
 
-    private func assembledSystemPrompt(promptContent: String, extraInstructions: String?) -> String {
+    private func assembledSystemPrompt(
+        promptContent: String,
+        extraInstructions: String?,
+        userNotes: String? = nil,
+        transcript: String? = nil
+    ) -> String {
+        // Substitute supported template variables (ADR-020 §4).
+        //
+        // Single-pass matters here specifically: `cappedNotes` is user-typed
+        // text that may contain literal `{{transcript}}` (pasted code, a
+        // quoted prompt, etc.) and the renderer walks the original template
+        // string only — substituted values are appended to a fresh buffer
+        // and never re-scanned. A naïve sequential `replacingOccurrences`
+        // implementation would re-interpret notes-injected `{{...}}` tokens
+        // on the second pass, leaking transcript content into the rendered
+        // prompt anywhere a user's note happens to look like a template
+        // variable. Do not "simplify" this back to sequential substitution.
+        //
+        // For prompts that include `{{transcript}}` in their template, the
+        // transcript is rendered inline in the system prompt AND still sent
+        // as the user message via `LLMService.generatePromptResultStream`.
+        // The duplication is intentional for v0.6: the LLM provider's own
+        // truncation handles the user-message side, and skipping the
+        // user-message when the template references `{{transcript}}` would
+        // require empty-user-message handling that varies per provider.
+        // Suppression-on-template-use is tracked as Future Work in ADR-020.
+        let cappedNotes = userNotes.map { Self.truncateNotesForPrompt($0) }
+        let renderedPrompt = PromptTemplateRenderer.render(
+            promptContent,
+            substitutions: [
+                .userNotes: cappedNotes ?? "",
+                .transcript: transcript ?? "",
+            ]
+        )
+
         let trimmedInstructions = extraInstructions?.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let trimmedInstructions, !trimmedInstructions.isEmpty else {
-            return promptContent
+            return renderedPrompt
         }
-        return promptContent + "\n\n" + trimmedInstructions
+        return renderedPrompt + "\n\n" + trimmedInstructions
+    }
+
+    /// Truncate user notes to the prompt-assembly soft cap (8,000 words).
+    /// Persisted notes are never modified — this only protects the LLM
+    /// context window at generation time (ADR-020 §3).
+    ///
+    /// Whitespace in the kept portion is preserved as-typed (newlines,
+    /// tabs, indentation, blank lines) so structural cues — bullet lists,
+    /// section headings, slash-command markers — survive truncation.
+    /// A naive `split + join(" ")` would flatten everything to single
+    /// spaces and strip the structure the user typed to *steer* the
+    /// summary in the first place, which defeats the point.
+    static func truncateNotesForPrompt(_ notes: String) -> String {
+        let truncationIndex = indexAfterNthWord(in: notes, n: userNotesPromptWordCap)
+        guard let truncationIndex else { return notes }
+        let kept = notes[..<truncationIndex]
+        return String(kept) + "\n\n[Notes truncated to \(userNotesPromptWordCap) words for summary generation; full notes preserved on the recording.]"
+    }
+
+    /// Returns the index in `text` immediately after the `n`-th
+    /// whitespace-delimited word, or `nil` if `text` has `n` or fewer
+    /// words (no truncation needed). The boundary lands on a non-
+    /// whitespace character so the kept slice ends with the last
+    /// retained word's final character — trailing whitespace stays
+    /// behind, which keeps the inserted suffix on a clean line break.
+    ///
+    /// Truncation is only signaled when we observe a transition INTO an
+    /// (n+1)-th word. Earlier versions returned a non-nil index when the
+    /// n-th word was followed by trailing whitespace (e.g. the user typed
+    /// exactly 8,000 words and a final newline), which produced a false
+    /// "[Notes truncated...]" banner even though the entire input was kept.
+    private static func indexAfterNthWord(in text: String, n: Int) -> String.Index? {
+        guard n > 0 else { return text.startIndex }
+        var wordCount = 0
+        var inWord = false
+        var nthWordEndIndex: String.Index?
+        var index = text.startIndex
+        while index < text.endIndex {
+            let char = text[index]
+            if char.isWhitespace {
+                inWord = false
+            } else {
+                if !inWord {
+                    wordCount += 1
+                    inWord = true
+                    if wordCount == n + 1 {
+                        return nthWordEndIndex
+                    }
+                }
+                if wordCount == n {
+                    nthWordEndIndex = text.index(after: index)
+                }
+            }
+            index = text.index(after: index)
+        }
+        // Reached end of text without ever entering an (n+1)-th word —
+        // text contains at most `n` words and needs no truncation.
+        return nil
+    }
+
+    private func fetchUserNotes(for transcriptionId: UUID) -> String? {
+        guard let transcriptionRepo else { return nil }
+        do {
+            return try transcriptionRepo.fetch(id: transcriptionId)?.userNotes
+        } catch {
+            logger.warning("Failed to fetch userNotes for transcription \(transcriptionId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     private func normalizedExtraInstructions(_ value: String) -> String? {

@@ -353,15 +353,29 @@ public final class DatabaseManager: Sendable {
                 }
 
                 let createdAt = Date.fromDatabaseValue(row["createdAt"] as DatabaseValue) ?? now
-                let migratedSummary = PromptResult(
-                    transcriptionId: transcriptionId,
-                    promptName: Prompt.defaultPrompt.name,
-                    promptContent: Prompt.defaultPrompt.content,
-                    content: summaryText,
-                    createdAt: createdAt,
-                    updatedAt: createdAt
+                // Raw SQL rather than `PromptResult.insert(db)` so this historic
+                // migration is decoupled from later additions to the model
+                // (e.g. v0.8 added `userNotesSnapshot` to PromptResult — using
+                // the model's auto-CRUD here would generate SQL referencing
+                // columns that don't exist yet at v0.7 migration time).
+                try db.execute(
+                    sql: """
+                        INSERT INTO summaries (
+                            id, transcriptionId, promptName, promptContent,
+                            extraInstructions, content, createdAt, updatedAt
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                    arguments: [
+                        UUID(),
+                        transcriptionId,
+                        Prompt.defaultPrompt.name,
+                        Prompt.defaultPrompt.content,
+                        nil as String?,
+                        summaryText,
+                        createdAt,
+                        createdAt,
+                    ]
                 )
-                try migratedSummary.insert(db)
             }
         }
 
@@ -439,6 +453,23 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.8 - Live meeting notepad: capture user notes alongside the transcript so
+        // they can steer the post-meeting summary (ADR-020).
+        migrator.registerMigration("v0.8-meeting-notepad-user-notes") { db in
+            try db.alter(table: "transcriptions") { t in
+                t.add(column: "userNotes", .text)
+            }
+        }
+
+        // v0.8 - Snapshot the userNotes value used at summary generation time, so
+        // editing notes later doesn't retroactively change historic summaries
+        // (mirrors the prompt-snapshot pattern from ADR-013).
+        migrator.registerMigration("v0.8-summaries-user-notes-snapshot") { db in
+            try db.alter(table: "summaries") { t in
+                t.add(column: "userNotesSnapshot", .text)
+            }
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
     }
@@ -446,8 +477,18 @@ public final class DatabaseManager: Sendable {
     private func reconcileBuiltInPrompts() throws {
         let builtInPrompts = Prompt.builtInPrompts(now: Date())
         let canonicalIDs = builtInPrompts.map { $0.id }
-        
+
         try dbQueue.write { db in
+            // Auto-run insertion guard (ADR-020 §5): a brand-new built-in prompt
+            // whose canonical isAutoRun is `true` is only inserted with auto-run
+            // enabled if the user already has at least one auto-run prompt today.
+            // This preserves ADR-013's "zero auto-run is a valid state" invariant
+            // for users who have explicitly disabled every auto-run prompt.
+            let userHasAnyAutoRunPrompt = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM prompts WHERE isAutoRun = 1)"
+            ) ?? false
+
             for prompt in builtInPrompts {
                 if let existing = try Prompt.fetchOne(db, key: prompt.id) {
                     try db.execute(
@@ -516,7 +557,14 @@ public final class DatabaseManager: Sendable {
                     continue
                 }
 
-                try prompt.insert(db)
+                // Apply the auto-run insertion guard (ADR-020 §5): if the user has
+                // explicitly disabled every auto-run prompt, do not silently
+                // re-introduce one via a new built-in.
+                var promptToInsert = prompt
+                if promptToInsert.isAutoRun && !userHasAnyAutoRunPrompt {
+                    promptToInsert.isAutoRun = false
+                }
+                try promptToInsert.insert(db)
             }
 
             // Delete any built-in prompts that are no longer in the canonical list

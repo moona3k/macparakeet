@@ -126,7 +126,8 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             filePath: recording.mixedAudioURL.path,
             fileSizeBytes: fileSize,
             status: .processing,
-            sourceType: .meeting
+            sourceType: .meeting,
+            userNotes: recording.userNotes
         )
         try transcriptionRepo.save(transcription)
         Telemetry.send(.transcriptionStarted(

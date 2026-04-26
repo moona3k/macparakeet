@@ -333,9 +333,19 @@ final class MeetingAutoStartCoordinator {
         let body = serviceName.map { "Recording will start automatically — joining \($0)?" }
             ?? "Recording will start automatically."
 
+        // Rich variant per ADR-020 §10: only the calendar-driven start
+        // path supplies CalendarContext. Manual hotkey/menu-bar/panel
+        // starts continue to surface the minimal layout.
+        let calendarContext = MeetingCountdownToastViewModel.CalendarContext(
+            attendeeCount: event.attendeeCount,
+            serviceName: serviceName,
+            steeringHint: "Take notes to shape the summary. ⌘1 jumps to Notes."
+        )
+
         toastController.showAutoStart(
             title: event.title,
-            body: body
+            body: body,
+            calendarContext: calendarContext
         ) { [weak self] outcome in
             self?.handleAutoStartOutcome(outcome, for: event)
         }
