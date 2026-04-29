@@ -1,11 +1,32 @@
 #!/usr/bin/env bash
-# Launcher for the persistent cleanup daemon.
+# Launcher for the persistent cleanup daemon. Keeps the same runtime
+# resolution order as macparakeet-cleanup so the daemon and CLI always
+# agree on which Python and which site-packages they're using.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON="${HERE}/.venv/bin/python"
-if [[ ! -x "${PYTHON}" ]]; then
-  PYTHON="$(command -v python3)"
+APP_SUPPORT="${HOME}/Library/Application Support/MacParakeet"
+MANAGED_RUNTIME="${MACPARAKEET_CLEANUP_RUNTIME:-${APP_SUPPORT}/cleanup-runtime/site-packages}"
+
+PYTHONPATH_ENTRIES=("${HERE}")
+
+if [[ -d "${MANAGED_RUNTIME}" ]]; then
+  PYTHONPATH_ENTRIES+=("${MANAGED_RUNTIME}")
+  PYTHON="/usr/bin/python3"
+elif [[ -x "${HERE}/.venv/bin/python" ]]; then
+  PYTHON="${HERE}/.venv/bin/python"
+else
+  PYTHON="/usr/bin/python3"
 fi
-export PYTHONPATH="${HERE}${PYTHONPATH:+:${PYTHONPATH}}"
+
+export HF_HOME="${HF_HOME:-${APP_SUPPORT}/models/llm}"
+
+IFS=":" read -r existing_pp <<< "${PYTHONPATH:-}"
+joined_pp="$(IFS=":"; echo "${PYTHONPATH_ENTRIES[*]}")"
+if [[ -n "${existing_pp:-}" ]]; then
+  export PYTHONPATH="${joined_pp}:${existing_pp}"
+else
+  export PYTHONPATH="${joined_pp}"
+fi
+
 exec "${PYTHON}" -m macparakeet_cleanup.daemon "$@"

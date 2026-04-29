@@ -47,6 +47,39 @@ public enum AppPaths {
         "\(binDir)/yt-dlp"
     }
 
+    /// Root for the cleanup CLI's managed Python runtime. The "Install Python
+    /// dependencies" Settings button populates `site-packages` here; the
+    /// launcher script picks it up via $PYTHONPATH.
+    public static var cleanupRuntimeDir: String {
+        "\(appSupportDir)/cleanup-runtime"
+    }
+
+    /// site-packages directory inside the managed cleanup runtime.
+    public static var cleanupRuntimeSitePackagesDir: String {
+        "\(cleanupRuntimeDir)/site-packages"
+    }
+
+    /// Sentinel file marking a successful dep install. The trailing version
+    /// lets us invalidate when we bump pinned requirements without leaving
+    /// half-installed wheels around.
+    public static func cleanupRuntimeReadyMarker(version: Int) -> String {
+        "\(cleanupRuntimeDir)/.ready-v\(version)"
+    }
+
+    /// Hugging Face cache root used by the cleanup daemon. Cleanup launchers
+    /// export `HF_HOME` to this path so model downloads land predictably.
+    public static var llmModelsHFHome: String {
+        "\(appSupportDir)/models/llm"
+    }
+
+    /// Resolve the bundled `cleanup/requirements.txt` from app resources.
+    public static func bundledCleanupRequirementsPath() -> String? {
+        guard let resourcePath = Bundle.main.resourcePath else { return nil }
+        let path = (resourcePath as NSString)
+            .appendingPathComponent("cleanup/requirements.txt")
+        return FileManager.default.fileExists(atPath: path) ? path : nil
+    }
+
     /// Resolve bundled yt-dlp seed binary from app resources.
     /// Returns nil when running outside an app bundle or when yt-dlp is not present.
     public static func bundledYtDlpPath() -> String? {

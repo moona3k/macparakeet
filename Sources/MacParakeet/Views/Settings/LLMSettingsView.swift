@@ -173,6 +173,13 @@ struct LLMSettingsView: View {
 
                 Spacer()
             }
+
+            if let blocker = viewModel.saveBlockerMessage {
+                Text(blocker)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
@@ -317,6 +324,10 @@ struct LLMSettingsView: View {
 
         Divider()
 
+        formattingModelRuntimeSection
+
+        Divider()
+
         // Mode picker
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {
@@ -357,6 +368,161 @@ struct LLMSettingsView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(width: 220)
+        }
+
+        formattingModelDownloadRow
+    }
+
+    @ViewBuilder
+    private var formattingModelRuntimeSection: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Python Dependencies")
+                    .font(DesignSystem.Typography.body)
+                Text("MLX, mlx-lm and friends. Installed once into ~/Library/Application Support/MacParakeet — about 350 MB on disk. Doesn't ship in the app bundle to keep downloads small.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                runtimeStatusLabel
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            VStack(alignment: .trailing, spacing: 6) {
+                Button(runtimeButtonTitle) {
+                    viewModel.installRuntime()
+                }
+                .buttonStyle(.bordered)
+                .disabled(!viewModel.canInstallRuntime)
+
+                if case .installing(let line) = viewModel.runtimeBootstrapState {
+                    Text(line)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(width: 220, alignment: .trailing)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var runtimeStatusLabel: some View {
+        let state = viewModel.runtimeBootstrapState
+        HStack(spacing: 4) {
+            switch state {
+            case .ready:
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignSystem.Colors.successGreen)
+                Text("Installed")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.successGreen)
+            case .missing:
+                Image(systemName: "exclamationmark.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                Text("Not installed")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+            case .outdated(let v):
+                Image(systemName: "arrow.up.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                Text("Out of date (v\(v))")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+            case .installing:
+                ProgressView().controlSize(.small)
+                Text("Installing…")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            case .error(let msg):
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                Text(msg)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .lineLimit(2)
+            case .unknown:
+                EmptyView()
+            }
+        }
+    }
+
+    private var runtimeButtonTitle: String {
+        switch viewModel.runtimeBootstrapState {
+        case .ready: return "Reinstall"
+        case .installing: return "Installing…"
+        case .outdated: return "Update"
+        default: return "Install"
+        }
+    }
+
+    @ViewBuilder
+    private var formattingModelDownloadRow: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                modelDownloadStatusLabel
+                if case .downloading(let line) = viewModel.modelDownloadState {
+                    Text(line)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            Button(modelDownloadButtonTitle) {
+                viewModel.downloadFormattingModel()
+            }
+            .buttonStyle(.bordered)
+            .disabled(!viewModel.canDownloadModel)
+        }
+    }
+
+    @ViewBuilder
+    private var modelDownloadStatusLabel: some View {
+        let state = viewModel.modelDownloadState
+        HStack(spacing: 4) {
+            switch state {
+            case .ready:
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignSystem.Colors.successGreen)
+                Text("Model downloaded")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.successGreen)
+            case .missing:
+                Image(systemName: "arrow.down.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+                Text("Not downloaded")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.warningAmber)
+            case .downloading:
+                ProgressView().controlSize(.small)
+                Text("Downloading…")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            case .error(let msg):
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                Text(msg)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .lineLimit(2)
+            case .unknown:
+                EmptyView()
+            }
+        }
+    }
+
+    private var modelDownloadButtonTitle: String {
+        switch viewModel.modelDownloadState {
+        case .ready: return "Re-download"
+        case .downloading: return "Downloading…"
+        default: return "Download"
         }
     }
 

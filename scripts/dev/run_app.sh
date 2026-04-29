@@ -116,14 +116,27 @@ if [[ -d "$RESOURCE_BUNDLE" ]]; then
   rsync -a --delete "$RESOURCE_BUNDLE" "$RESOURCES_DIR/"
 fi
 
-# Symlink the cleanup CLI tree into Contents/Resources/cleanup so the bundled
-# Local Formatting Model provider resolves to the in-repo launcher (which
-# carries its own .venv and Python module). Symlink keeps dev iteration fast.
+# Copy the cleanup CLI tree into Contents/Resources/cleanup. We deliberately
+# copy (not symlink) so the bundle is self-contained; production code-signing
+# rejects symlinks pointing outside the bundle, and we don't want dev and
+# prod to diverge here. Heavy Python deps (mlx, transformers, etc.) live in
+# ~/Library/Application Support/MacParakeet/cleanup-runtime — installed by
+# the app's "Install Python dependencies" Settings button — so the bundle
+# stays small.
 RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
 mkdir -p "$RESOURCES_DIR"
 if [[ -d "$ROOT_DIR/cleanup" ]]; then
   rm -rf "$RESOURCES_DIR/cleanup"
-  ln -s "$ROOT_DIR/cleanup" "$RESOURCES_DIR/cleanup"
+  mkdir -p "$RESOURCES_DIR/cleanup"
+  rsync -a \
+    --exclude '.venv' \
+    --exclude '.pytest_cache' \
+    --exclude '__pycache__' \
+    --exclude 'tests' \
+    --exclude 'bench_*.py' \
+    "$ROOT_DIR/cleanup/" "$RESOURCES_DIR/cleanup/"
+  chmod +x "$RESOURCES_DIR/cleanup/bin/macparakeet-cleanup" \
+           "$RESOURCES_DIR/cleanup/bin/macparakeet-cleanupd"
 fi
 
 # Copy frameworks into the bundle so dyld loads only bundle-local paths.

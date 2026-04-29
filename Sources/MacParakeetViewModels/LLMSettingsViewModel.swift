@@ -24,10 +24,32 @@ public final class LLMSettingsViewModel {
         case error(String)
     }
 
+    /// Drives the "Install Python dependencies" button + log view.
+    public enum RuntimeBootstrapState: Equatable {
+        case unknown
+        case ready
+        case missing
+        case outdated(installedVersion: Int)
+        case installing(latestLine: String)
+        case error(String)
+    }
+
+    /// Drives the "Download model" button + log view, scoped to the
+    /// currently-selected model.
+    public enum ModelDownloadState: Equatable {
+        case unknown
+        case ready
+        case missing
+        case downloading(latestLine: String)
+        case error(String)
+    }
+
     public private(set) var draft: LLMSettingsDraft
     public var connectionTestState: ConnectionTestState = .idle
     public var saveState: SaveState = .idle
     public private(set) var modelListState: ModelListState = .idle
+    public private(set) var runtimeBootstrapState: RuntimeBootstrapState = .unknown
+    public private(set) var modelDownloadState: ModelDownloadState = .unknown
     private var discoveredModels: [String] = []
 
     public var selectedProviderID: LLMProviderID? {
@@ -135,7 +157,45 @@ public final class LLMSettingsViewModel {
 
     public var canSave: Bool {
         if draft.providerID == nil { return isConfigured }
-        return draft.isValid
+        guard draft.isValid else { return false }
+        if draft.providerID == .localFormattingModel {
+            // Block save until both the Python runtime and the selected model
+            // are present locally — saving an unusable formatter config is
+            // the worst kind of foot-gun (silent failure on first dictation).
+            guard runtimeBootstrapState == .ready,
+                  modelDownloadState == .ready else {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// Why the Save button is disabled, beyond plain "fill in the form".
+    /// Surfaced inline in the Settings UI so the user knows what to fix.
+    public var saveBlockerMessage: String? {
+        guard draft.providerID == .localFormattingModel else { return nil }
+        switch runtimeBootstrapState {
+        case .missing:
+            return "Install Python dependencies before saving."
+        case .outdated:
+            return "Python dependencies are out of date. Reinstall to continue."
+        case .installing:
+            return "Installing Python dependencies…"
+        case .error(let msg):
+            return "Python dependencies error: \(msg)"
+        case .unknown, .ready:
+            break
+        }
+        switch modelDownloadState {
+        case .missing:
+            return "Download the selected model before saving."
+        case .downloading:
+            return "Downloading model…"
+        case .error(let msg):
+            return "Model download error: \(msg)"
+        case .unknown, .ready:
+            return nil
+        }
     }
 
     public var canTestConnection: Bool {
@@ -243,6 +303,8 @@ public final class LLMSettingsViewModel {
     private var llmClient: LLMClientProtocol?
     private var cliConfigStore: LocalCLIConfigStore?
     private var formattingModelConfigStore: LocalFormattingModelConfigStore?
+    private var runtimeBootstrap: CleanupRuntimeBootstrap = CleanupRuntimeBootstrap()
+    private var modelDownloader: LocalFormattingModelDownloader = LocalFormattingModelDownloader()
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LLMSettingsViewModel")
 
@@ -258,13 +320,19 @@ public final class LLMSettingsViewModel {
         configStore: LLMConfigStoreProtocol,
         llmClient: LLMClientProtocol,
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore(),
-        formattingModelConfigStore: LocalFormattingModelConfigStore = LocalFormattingModelConfigStore()
+        formattingModelConfigStore: LocalFormattingModelConfigStore = LocalFormattingModelConfigStore(),
+        runtimeBootstrap: CleanupRuntimeBootstrap = CleanupRuntimeBootstrap(),
+        modelDownloader: LocalFormattingModelDownloader = LocalFormattingModelDownloader()
     ) {
         self.configStore = configStore
         self.llmClient = llmClient
         self.cliConfigStore = cliConfigStore
         self.formattingModelConfigStore = formattingModelConfigStore
+        self.runtimeBootstrap = runtimeBootstrap
+        self.modelDownloader = modelDownloader
         loadExistingConfig()
+        refreshRuntimeStatus()
+        refreshModelDownloadStatus()
     }
 
     // MARK: - Local Formatting Model bindings
@@ -284,6 +352,7 @@ public final class LLMSettingsViewModel {
             var nextDraft = draft
             nextDraft.formattingModelModelID = newValue
             updateDraft(nextDraft)
+            refreshModelDownloadStatus()
         }
     }
 
@@ -455,6 +524,85 @@ public final class LLMSettingsViewModel {
         aiFormatterPrompt = AIFormatter.defaultPromptTemplate
     }
 
+    // MARK: - Cleanup runtime bootstrap
+
+    public var canInstallRuntime: Bool {
+        if case .installing = runtimeBootstrapState { return false }
+        return true
+    }
+
+    public var canDownloadModel: Bool {
+        if runtimeBootstrapState != .ready { return false }
+        if case .downloading = modelDownloadState { return false }
+        return !draft.trimmedFormattingModelModelID.isEmpty
+            || !LocalFormattingModelConfig.defaultModelID.isEmpty
+    }
+
+    public func refreshRuntimeStatus() {
+        switch runtimeBootstrap.currentStatus() {
+        case .ready: runtimeBootstrapState = .ready
+        case .missing: runtimeBootstrapState = .missing
+        case .outdated(let v): runtimeBootstrapState = .outdated(installedVersion: v)
+        }
+    }
+
+    public func refreshModelDownloadStatus() {
+        let modelID = effectiveFormattingModelID
+        guard !modelID.isEmpty else {
+            modelDownloadState = .unknown
+            return
+        }
+        modelDownloadState = modelDownloader.isDownloaded(modelID: modelID) ? .ready : .missing
+    }
+
+    public func installRuntime() {
+        guard canInstallRuntime else { return }
+        runtimeBootstrapState = .installing(latestLine: "Starting…")
+        Task { [bootstrap = runtimeBootstrap] in
+            do {
+                try await bootstrap.install { [weak self] event in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        if case .installing = self.runtimeBootstrapState {
+                            self.runtimeBootstrapState = .installing(latestLine: event.line)
+                        }
+                    }
+                }
+                self.runtimeBootstrapState = .ready
+                self.refreshModelDownloadStatus()
+            } catch {
+                self.runtimeBootstrapState = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    public func downloadFormattingModel() {
+        guard canDownloadModel else { return }
+        let modelID = effectiveFormattingModelID
+        guard !modelID.isEmpty else { return }
+        modelDownloadState = .downloading(latestLine: "Starting…")
+        Task { [downloader = modelDownloader] in
+            do {
+                try await downloader.download(modelID: modelID) { [weak self] event in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        if case .downloading = self.modelDownloadState {
+                            self.modelDownloadState = .downloading(latestLine: event.line)
+                        }
+                    }
+                }
+                self.modelDownloadState = .ready
+            } catch {
+                self.modelDownloadState = .error(error.localizedDescription)
+            }
+        }
+    }
+
+    private var effectiveFormattingModelID: String {
+        let trimmed = draft.trimmedFormattingModelModelID
+        return trimmed.isEmpty ? LocalFormattingModelConfig.defaultModelID : trimmed
+    }
+
     public func refreshAvailableModels() {
         guard let llmClient, canRefreshModelList else { return }
 
@@ -535,6 +683,10 @@ public final class LLMSettingsViewModel {
         updateDraft(nextDraft)
         if providerID == .lmstudio {
             refreshAvailableModels()
+        }
+        if providerID == .localFormattingModel {
+            refreshRuntimeStatus()
+            refreshModelDownloadStatus()
         }
     }
 

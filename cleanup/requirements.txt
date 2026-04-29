@@ -1,0 +1,11 @@
+# Runtime dependencies for the macparakeet-cleanup CLI.
+#
+# Pinned for compatibility with the system /usr/bin/python3 on macOS 14+,
+# which currently ships Python 3.9 via the Xcode Command Line Tools. The
+# `mlx` 0.29.x line is the last one with cp39 wheels; bumping past that
+# requires Python 3.10+.
+#
+# Apple Silicon only — mlx publishes arm64 wheels exclusively.
+mlx==0.29.3
+mlx-lm==0.29.1
+huggingface_hub==0.36.2

@@ -1,11 +1,43 @@
 #!/usr/bin/env bash
-# Thin launcher for the cleanup CLI. Uses the cleanup folder's venv if present.
+# Launcher for the cleanup CLI.
+#
+# Resolves the Python runtime in this order:
+#   1. $MACPARAKEET_CLEANUP_RUNTIME (override for tests / dev)
+#   2. ~/Library/Application Support/MacParakeet/cleanup-runtime/site-packages
+#      — populated by the in-app "Install Python dependencies" button.
+#   3. The cleanup folder's local .venv (developer convenience).
+# Falls back to system PYTHONPATH when none of the above exists; the CLI
+# will then fail loudly with an import error, which the app surfaces as
+# "dependencies not installed".
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-PYTHON="${HERE}/.venv/bin/python"
-if [[ ! -x "${PYTHON}" ]]; then
-  PYTHON="$(command -v python3)"
+APP_SUPPORT="${HOME}/Library/Application Support/MacParakeet"
+MANAGED_RUNTIME="${MACPARAKEET_CLEANUP_RUNTIME:-${APP_SUPPORT}/cleanup-runtime/site-packages}"
+
+# Always include the bundled module on PYTHONPATH so `python -m
+# macparakeet_cleanup.cli` resolves regardless of where deps live.
+PYTHONPATH_ENTRIES=("${HERE}")
+
+if [[ -d "${MANAGED_RUNTIME}" ]]; then
+  PYTHONPATH_ENTRIES+=("${MANAGED_RUNTIME}")
+  PYTHON="/usr/bin/python3"
+elif [[ -x "${HERE}/.venv/bin/python" ]]; then
+  PYTHON="${HERE}/.venv/bin/python"
+else
+  PYTHON="/usr/bin/python3"
 fi
-export PYTHONPATH="${HERE}${PYTHONPATH:+:${PYTHONPATH}}"
+
+# Default Hugging Face cache to the app's Application Support folder so
+# downloaded models live in a known place the Settings UI can manage.
+export HF_HOME="${HF_HOME:-${APP_SUPPORT}/models/llm}"
+
+IFS=":" read -r existing_pp <<< "${PYTHONPATH:-}"
+joined_pp="$(IFS=":"; echo "${PYTHONPATH_ENTRIES[*]}")"
+if [[ -n "${existing_pp:-}" ]]; then
+  export PYTHONPATH="${joined_pp}:${existing_pp}"
+else
+  export PYTHONPATH="${joined_pp}"
+fi
+
 exec "${PYTHON}" -m macparakeet_cleanup.cli "$@"

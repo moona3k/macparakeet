@@ -463,6 +463,27 @@ if [[ -f "$ROOT_DIR/THIRD_PARTY_LICENSES.md" ]]; then
 fi
 echo "Bundled legal notices: $LEGAL_DIR"
 
+# Copy the cleanup CLI source tree (Python module + launchers + requirements.txt)
+# into Resources/cleanup. Heavy dependencies (mlx, mlx-lm, transformers, ...)
+# are NOT bundled — they're installed by the app's "Install Python
+# dependencies" Settings button into ~/Library/Application Support/MacParakeet/
+# cleanup-runtime/. The launcher resolves PYTHONPATH at runtime.
+if [[ -d "$ROOT_DIR/cleanup" ]]; then
+  echo "Bundling cleanup CLI source tree (no .venv)…"
+  rm -rf "$RESOURCES_DIR/cleanup"
+  mkdir -p "$RESOURCES_DIR/cleanup"
+  rsync -a \
+    --exclude '.venv' \
+    --exclude '.pytest_cache' \
+    --exclude '__pycache__' \
+    --exclude 'tests' \
+    --exclude 'bench_*.py' \
+    "$ROOT_DIR/cleanup/" "$RESOURCES_DIR/cleanup/"
+  chmod +x "$RESOURCES_DIR/cleanup/bin/macparakeet-cleanup" \
+           "$RESOURCES_DIR/cleanup/bin/macparakeet-cleanupd"
+  echo "Bundled cleanup tree: $RESOURCES_DIR/cleanup ($(du -sh "$RESOURCES_DIR/cleanup" | awk '{print $1}'))"
+fi
+
 echo "[3/4] Writing Info.plist…"
 INFO_PLIST="$CONTENTS_DIR/Info.plist"
 CHECKOUT_URL="${MACPARAKEET_CHECKOUT_URL:-}"
