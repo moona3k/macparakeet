@@ -185,6 +185,11 @@ public final class LocalFormattingModelExecutor: Sendable {
         }
     }
 
+    /// Warm-up should return in well under a second — the launcher just asks
+    /// the daemon to start loading and exits. Anything beyond this means the
+    /// daemon is wedged; kill it rather than blocking the warmup task forever.
+    private static let warmupTimeoutSeconds: Double = 10
+
     private static func runWarmup(config: LocalFormattingModelConfig) throws {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")
@@ -211,12 +216,26 @@ public final class LocalFormattingModelExecutor: Sendable {
         process.standardOutput = Pipe()
         process.standardError = Pipe()
 
+        let semaphore = DispatchSemaphore(value: 0)
+        process.terminationHandler = { _ in semaphore.signal() }
+
         do {
             try process.run()
         } catch {
             throw LocalFormattingModelError.executionFailed(error.localizedDescription)
         }
-        process.waitUntilExit()
+
+        let waitResult = semaphore.wait(timeout: .now() + warmupTimeoutSeconds)
+        if waitResult == .timedOut {
+            if process.isRunning {
+                kill(process.processIdentifier, SIGTERM)
+                _ = semaphore.wait(timeout: .now() + 1)
+                if process.isRunning {
+                    kill(process.processIdentifier, SIGKILL)
+                }
+            }
+            throw LocalFormattingModelError.timeout(seconds: warmupTimeoutSeconds)
+        }
     }
 
     // MARK: - Private
@@ -279,6 +298,15 @@ public final class LocalFormattingModelExecutor: Sendable {
         process.standardOutput = outputPipe
         process.standardError = errorPipe
 
+        // Wire the termination handler BEFORE run() so an instant exit can't
+        // race past us and leave the semaphore unsignaled.
+        let semaphore = DispatchSemaphore(value: 0)
+        let terminationStatus = TerminationBox()
+        process.terminationHandler = { proc in
+            terminationStatus.set(proc.terminationStatus)
+            semaphore.signal()
+        }
+
         do {
             try process.run()
         } catch {
@@ -305,13 +333,6 @@ public final class LocalFormattingModelExecutor: Sendable {
         DispatchQueue.global(qos: .utility).async {
             stderrCapture.set((try? errorPipe.fileHandleForReading.readToEnd()) ?? Data())
             readGroup.leave()
-        }
-
-        let semaphore = DispatchSemaphore(value: 0)
-        let terminationStatus = TerminationBox()
-        process.terminationHandler = { proc in
-            terminationStatus.set(proc.terminationStatus)
-            semaphore.signal()
         }
 
         let waitResult = semaphore.wait(timeout: .now() + config.timeoutSeconds + 5)

@@ -841,6 +841,7 @@ Important constraints:
 - formatter runs for dictation and file/YouTube transcription flows; meeting transcripts currently use deterministic cleanup only (see `TelemetryFormatterSource` — `.dictation` and `.transcription` are the only emitter sources wired today)
 - formatter falls back to deterministic cleanup if the provider errors or times out
 - formatter prompt is user-editable in AI settings
+- supported providers include cloud APIs (Anthropic, OpenAI, Gemini, OpenRouter), local servers (Ollama, LM Studio, OpenAI-compatible), the Local CLI provider (e.g. `claude -p`), and the **Local Formatting Model** provider — a bundled Python CLI that runs deterministic rules, a local MLX model, or auto-routes between them. Heavy MLX deps and model weights are user-installed from Settings, not bundled (ADR-011 amendment 2026-04-30)
 
 **Acceptance criteria:**
 - [x] Formatter can be enabled or disabled independently of Raw/Clean mode

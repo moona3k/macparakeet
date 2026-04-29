@@ -100,18 +100,21 @@ public final class CleanupRuntimeBootstrap: @unchecked Sendable {
             withIntermediateDirectories: true
         )
 
-        let priorMarker = priorReadyMarkerPath()
-        if let priorMarker {
-            try? fileManager.removeItem(atPath: priorMarker)
-        }
-
         try await runPipInstall(
             requirementsPath: requirementsPath,
             progress: progress
         )
 
+        // Write the new sentinel first, then drop the old one. If pip fails,
+        // the prior `.ready-vN` stays put so currentStatus() reports
+        // `.outdated` instead of `.missing` over a half-overwritten
+        // site-packages tree.
         let marker = AppPaths.cleanupRuntimeReadyMarker(version: Self.requirementsVersion)
         try Data().write(to: URL(fileURLWithPath: marker))
+
+        if let priorMarker = priorReadyMarkerPath() {
+            try? fileManager.removeItem(atPath: priorMarker)
+        }
     }
 
     /// Remove the entire managed runtime. Free for the user to reclaim disk

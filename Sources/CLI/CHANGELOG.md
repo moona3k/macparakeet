@@ -88,6 +88,17 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   stdout when `--output` is omitted. `schema` prints an LLM-friendly spec
   (or `--json` structured form) so a local coding agent can generate valid
   bundles. Bundle format is versioned (`macparakeet.vocabulary` v1).
+- `--provider local-formatting` (aliases: `localformatting`,
+  `local-formatting-model`, `cleanup`) for LLM-backed commands. Routes
+  prompts through the bundled `macparakeet-cleanup` Python CLI, which runs
+  rules-only cleanup, a local MLX model, or auto-routes between them. No
+  API key. `--model <mlx-repo-id>` selects the MLX model (default
+  `mlx-community/Qwen2.5-3B-Instruct-4bit`); `--command <path>` overrides
+  the cleanup CLI path. Heavy Python deps (`mlx`, `mlx-lm`,
+  `huggingface_hub`) and the MLX model itself are user-installed via the
+  GUI Settings panel — the CLI errors out with a clear message when they
+  are missing rather than blocking on a multi-GB download. The provider
+  follows the existing `--json` failure-envelope contract.
 
 ## [1.4.0] -- 2026-04-28
 

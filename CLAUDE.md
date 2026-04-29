@@ -456,6 +456,8 @@ open Package.swift  # Select MacParakeet scheme
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
 | Parakeet STT models | FluidAudio default cache (CoreML, ~6 GB) |
 | Whisper STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
+| Local Formatting Model Python deps | `~/Library/Application Support/MacParakeet/cleanup-runtime/site-packages/` (~350 MB, user-installed via Settings) |
+| Local Formatting Model HF cache | `~/Library/Application Support/MacParakeet/models/llm/hub/` (MLX model snapshots) |
 | yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
 | FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |
 | Settings | `~/Library/Preferences/com.macparakeet.plist` |

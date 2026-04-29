@@ -47,19 +47,27 @@ public final class LocalFormattingModelDownloader: @unchecked Sendable {
         self.sitePackagesDir = sitePackagesDir
     }
 
-    /// Cheap probe — true when at least one snapshot exists for the model.
+    /// Cheap probe — true when at least one snapshot has both a `config.json`
+    /// and a weights shard (`.safetensors` / `.npz` / `.bin`). A killed
+    /// `snapshot_download` can leave a non-empty snapshot dir behind, so
+    /// directory presence alone isn't enough — we'd flip the UI to
+    /// "Downloaded" and silently fail on first dictation.
     public func isDownloaded(modelID: String) -> Bool {
         let dir = modelHubDir(modelID: modelID)
         let snapshots = (dir as NSString).appendingPathComponent("snapshots")
         guard let entries = try? fileManager.contentsOfDirectory(atPath: snapshots) else {
             return false
         }
-        // Any non-empty snapshot dir is good enough; mlx_lm.load picks the
-        // resolved revision via its own logic.
         for name in entries {
             let snapDir = (snapshots as NSString).appendingPathComponent(name)
-            if let contents = try? fileManager.contentsOfDirectory(atPath: snapDir),
-               !contents.isEmpty {
+            guard let contents = try? fileManager.contentsOfDirectory(atPath: snapDir) else {
+                continue
+            }
+            let hasConfig = contents.contains("config.json")
+            let hasWeights = contents.contains { name in
+                name.hasSuffix(".safetensors") || name.hasSuffix(".npz") || name.hasSuffix(".bin")
+            }
+            if hasConfig && hasWeights {
                 return true
             }
         }

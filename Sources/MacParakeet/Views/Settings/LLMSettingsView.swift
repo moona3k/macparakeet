@@ -361,7 +361,7 @@ struct LLMSettingsView: View {
             }
             Spacer(minLength: DesignSystem.Spacing.md)
             Picker("Model", selection: $viewModel.formattingModelModelID) {
-                ForEach(viewModel.availableModels, id: \.self) { model in
+                ForEach(formattingModelPickerOptions, id: \.self) { model in
                     Text(model).tag(model)
                 }
             }
@@ -371,6 +371,19 @@ struct LLMSettingsView: View {
         }
 
         formattingModelDownloadRow
+    }
+
+    /// Always include the currently-bound `formattingModelModelID` in the
+    /// picker's option set. If a user previously saved a custom MLX repo (or
+    /// we drop a tag from `suggestedModels`), the bound value is otherwise
+    /// not in the menu and SwiftUI's `Picker` falls into undefined behavior.
+    private var formattingModelPickerOptions: [String] {
+        var options = viewModel.availableModels
+        let current = viewModel.formattingModelModelID
+        if !current.isEmpty, !options.contains(current) {
+            options.insert(current, at: 0)
+        }
+        return options
     }
 
     @ViewBuilder
