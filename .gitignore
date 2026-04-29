@@ -22,6 +22,7 @@ __pycache__/
 *.pyc
 *.pyo
 .Python
+.pytest_cache/
 
 # Node / web tooling
 node_modules/

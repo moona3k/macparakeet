@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Launcher for the persistent cleanup daemon.
+set -euo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+PYTHON="${HERE}/.venv/bin/python"
+if [[ ! -x "${PYTHON}" ]]; then
+  PYTHON="$(command -v python3)"
+fi
+exec "${PYTHON}" -m macparakeet_cleanup.daemon "$@"
