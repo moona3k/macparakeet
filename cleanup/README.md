@@ -109,6 +109,19 @@ If `--mode llm` and the daemon is unreachable (e.g. with `--no-spawn`), the
 CLI **falls back to rules** automatically so dictation still ships text. With
 `--debug`, the fallback is logged to stderr.
 
+### Roadmap: split prompt and transcript in the MacParakeet config UI
+
+Today MacParakeet's "LLM cleanup" feature sends a single concatenated string
+(prompt + transcript) on stdin. The cleanup CLI uses its own internal prompt
+and treats stdin as raw transcript, so the integration only works if the
+caller sends *only* the transcript.
+
+Future work in MacParakeet: split the LLM-cleanup config into two fields —
+"system prompt" (sent via a flag like `--prompt-file`) and "transcript"
+(sent on stdin). Then the user can swap prompts without touching the cleanup
+CLI, and our daemon can be a generic local LLM endpoint instead of a
+cleanup-specific one.
+
 ### Roadmap: pre-warm from MacParakeet on listening start
 
 The cold-load penalty (~2.4s on the 3B) only matters on the **first** cleanup

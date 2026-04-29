@@ -7,4 +7,5 @@ PYTHON="${HERE}/.venv/bin/python"
 if [[ ! -x "${PYTHON}" ]]; then
   PYTHON="$(command -v python3)"
 fi
+export PYTHONPATH="${HERE}${PYTHONPATH:+:${PYTHONPATH}}"
 exec "${PYTHON}" -m macparakeet_cleanup.cli "$@"
