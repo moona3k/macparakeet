@@ -8,8 +8,8 @@ DEFAULT_SOCKET_PATH = os.environ.get(
     str(Path.home() / "Library" / "Application Support" / "MacParakeet" / "cleanup.sock"),
 )
 
-DEFAULT_MODEL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
-ALT_MODEL = "mlx-community/Qwen2.5-3B-Instruct-4bit"
+DEFAULT_MODEL = "mlx-community/Qwen2.5-3B-Instruct-4bit"
+ALT_MODEL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
 
 LLM_PROMPT = (
     "Clean this dictated text into a concise message. "

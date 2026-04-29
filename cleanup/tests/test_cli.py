@@ -47,23 +47,25 @@ def test_cli_empty_input_yields_empty():
     assert r.stdout == ""
 
 
-def test_cli_llm_falls_back_to_rules_when_daemon_missing():
-    # Point at a socket that doesn't exist; daemon failure should fall back.
+def test_cli_llm_falls_back_to_rules_when_daemon_missing_no_spawn():
+    # With --no-spawn, the CLI must not auto-spawn the daemon; LLM fails;
+    # the output should be the rules-cleaned version.
     r = _run([
         "--mode", "llm",
+        "--no-spawn",
         "--socket", "/tmp/macparakeet-cleanup-nonexistent-xyz.sock",
         "--debug",
         "um hello world",
     ])
     assert r.returncode == 0
-    # The output should be the rules-cleaned version.
     assert r.stdout.strip() == "Hello world."
     assert "rules-fallback" in r.stderr
 
 
-def test_cli_auto_uses_rules_for_short_input():
+def test_cli_auto_uses_rules_for_short_input_no_spawn():
     r = _run([
         "--mode", "auto",
+        "--no-spawn",
         "--socket", "/tmp/macparakeet-cleanup-nonexistent-xyz.sock",
         "--debug",
         "hello world",

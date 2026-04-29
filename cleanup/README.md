@@ -4,14 +4,21 @@ Self-contained, local-first dictation cleanup. Lives outside the main MacParakee
 Swift sources so it doesn't interfere with in-progress work.
 
 - **Rules mode** — pure regex. ~0.1ms p95. Always available, even if MLX isn't.
-- **LLM mode** — Qwen2.5-Instruct-4bit on MLX, served by a warm daemon over a
-  Unix socket. ~200–360ms p95 on Apple Silicon.
+- **LLM mode** — Qwen2.5-Instruct-4bit on MLX, served by a daemon over a Unix
+  socket. ~200–360ms p95 once the model is loaded.
 - **Auto mode** — rules for short/clean inputs, LLM only when the transcript is
   long, very repetitive, or full of false starts.
 
-The model is **never cold-started per request** — the daemon loads it once and
-keeps it resident. The CLI is a thin client that opens a Unix socket and writes
-a JSON line.
+**Zero configuration.** Just run the CLI. If the daemon isn't running, the CLI
+auto-spawns it detached, warms it up, and routes the request. If the daemon
+sees no activity for 30 minutes, it exits on its own. The next CLI call brings
+it back. No launchd plist, no service to manage.
+
+The daemon is **lazy**: on boot it binds the socket immediately and does **not**
+load the model. The first cleanup request triggers an in-process load
+(~2.4s on Apple Silicon with weights cached for the 3B), or a `--warmup`
+request loads it asynchronously so a real cleanup arriving moments later
+runs warm.
 
 ## Recommendation (after benchmarking on this Mac)
 
@@ -39,51 +46,94 @@ environment (the model download goes through HuggingFace).
 The first daemon launch will download the model (~1 GB for 1.5B, ~1.8 GB for 3B)
 into `~/.cache/huggingface/`.
 
-## Run the daemon
+## Run the daemon (optional — CLI auto-spawns it)
 
-Recommended (3B, fits the 1s budget with quality margin):
+You normally don't need to run the daemon yourself. The CLI does it for you.
+But if you want to run it manually (debugging, custom flags), the launcher is:
 
 ```bash
 ./bin/macparakeet-cleanupd \
-  --socket /tmp/macparakeet-cleanup.sock \
+  --socket ~/Library/Application\ Support/MacParakeet/cleanup.sock \
   --model mlx-community/Qwen2.5-3B-Instruct-4bit
 ```
 
-Faster start, lower latency, more paraphrasing risk:
+The default socket path is `~/Library/Application Support/MacParakeet/cleanup.sock`
+(overridable with `MACPARAKEET_CLEANUP_SOCKET`). Both the auto-spawn and the
+manual launch use the same path, so they're interchangeable.
 
-```bash
-./bin/macparakeet-cleanupd \
-  --socket /tmp/macparakeet-cleanup.sock \
-  --model mlx-community/Qwen2.5-1.5B-Instruct-4bit
-```
+Useful flags:
 
-Add `--debug` for per-request log lines on stderr.
+| Flag                    | Default | What                                                     |
+| ----------------------- | ------- | -------------------------------------------------------- |
+| `--idle-exit-seconds N` | `1800`  | Process exits after N seconds of no cleanup activity     |
+| `--eager-load`          | off     | Load the model on boot (skip lazy load)                  |
+| `--debug`               | off     | Per-request log lines on stderr                          |
 
-The daemon prints "model warm" once it's ready to serve. First boot:
-- 1.5B: ~22s (load + JIT compile + 8-token warmup)
-- 3B: ~2.4s when weights are already cached
+Model load takes ~2.4s for the 3B on Apple Silicon when weights are cached.
+The daemon's socket is up within a few hundred ms — the model load happens
+asynchronously on first request or `--warmup`.
+
+Logs from auto-spawned daemons go to `~/Library/Logs/MacParakeet/cleanupd.log`.
 
 ## Call cleanup from MacParakeet
 
 The CLI accepts text via stdin or argv and writes the cleaned text to stdout.
-Nothing else is printed unless `--debug` is passed.
+Nothing else is printed unless `--debug` is passed. If the daemon isn't running
+yet, the CLI auto-spawns it (logs to `~/Library/Logs/MacParakeet/cleanupd.log`).
 
 ```bash
-# auto mode (recommended) — picks rules vs LLM heuristically
+# auto mode (recommended) — picks rules vs LLM heuristically; spawns if needed
 echo "um so I think I think we should ship today" | \
-  ./bin/macparakeet-cleanup --mode auto --socket /tmp/macparakeet-cleanup.sock
+  ./bin/macparakeet-cleanup --mode auto
 
-# force rules-only (no daemon required)
+# force rules-only (no daemon ever touched)
 ./bin/macparakeet-cleanup --mode rules "um the the cat"
 
 # force LLM, with explicit hard timeout
-./bin/macparakeet-cleanup --mode llm --timeout 0.9 \
-  --socket /tmp/macparakeet-cleanup.sock < transcript.txt
+./bin/macparakeet-cleanup --mode llm --timeout 0.9 < transcript.txt
+
+# warmup (fire-and-forget) — spawns daemon if needed, returns in ~50ms while
+# the model loads asynchronously
+./bin/macparakeet-cleanup --warmup
+
+# disable auto-spawn (CLI fails fast if daemon is unreachable, instead of
+# starting one)
+./bin/macparakeet-cleanup --mode llm --no-spawn < transcript.txt
 ```
 
-If `--mode llm` and the daemon is unreachable, the CLI **falls back to rules**
-automatically (so dictation still ships text). With `--debug`, the fallback is
-logged to stderr.
+When the CLI auto-spawns a daemon, it sends a warmup and bumps that one run's
+timeout to 5s so the cold-load latency doesn't trip the normal 0.9s deadline.
+Subsequent runs hit the warm daemon and respect the normal timeout.
+
+If `--mode llm` and the daemon is unreachable (e.g. with `--no-spawn`), the
+CLI **falls back to rules** automatically so dictation still ships text. With
+`--debug`, the fallback is logged to stderr.
+
+### Roadmap: pre-warm from MacParakeet on listening start
+
+The cold-load penalty (~2.4s on the 3B) only matters on the **first** cleanup
+after the daemon boots or after the 30-minute idle-exit. The daemon exposes a
+`--warmup` endpoint that returns in ~50ms while the model loads asynchronously,
+**and** the warmup call itself auto-spawns the daemon if it isn't running.
+
+The natural integration: when MacParakeet enters the "listening" state for
+dictation, it shells out (fire-and-forget) to:
+
+```bash
+/path/to/cleanup/bin/macparakeet-cleanup --warmup &
+```
+
+By the time the user finishes speaking and the transcript is ready for cleanup
+(typically several seconds later), the model is already warm. This makes the
+LLM cleanup path consistently sub-second from the user's perspective, even on
+the first cleanup of the day.
+
+Suggested call sites in `Sources/MacParakeet/`:
+- Whenever the dictation hotkey fires (start of recording).
+- Whenever a meeting recording stops and is queued for cleanup.
+
+This is a small change to the Swift app — kept out of scope here so this
+folder stays self-contained.
 
 ## Modes
 
@@ -138,9 +188,11 @@ removing fillers and repetitions.
 .venv/bin/pytest tests/
 ```
 
-35 tests covering: filler removal, duplicate word/phrase removal, sentence
+49 tests covering: filler removal, duplicate word/phrase removal, sentence
 restarts, spacing/punctuation, capitalization, meaning preservation, CLI
-stdin/argv behavior, and LLM fallback when the daemon is missing.
+stdin/argv behavior, LLM fallback when the daemon is missing, lazy load,
+async warmup, idle-exit (process self-termination), the `--warmup` CLI flag,
+and CLI auto-spawn (stale-socket cleanup, detached launch, no-op when alive).
 
 ## Files
 
@@ -151,7 +203,8 @@ cleanup/
 │   └── macparakeet-cleanupd      # daemon launcher
 ├── macparakeet_cleanup/
 │   ├── cli.py                    # argparse, stdin/argv, mode dispatch, fallback
-│   ├── daemon.py                 # Unix socket server, signal handling
+│   ├── daemon.py                 # Unix socket server, lazy load, idle-exit
+│   ├── spawn.py                  # detached daemon launch + ensure_daemon()
 │   ├── llm.py                    # MLX-LM wrapper, chat-template prompt
 │   ├── rules.py                  # deterministic regex pipeline
 │   ├── complexity.py             # auto-mode heuristic
@@ -164,10 +217,13 @@ cleanup/
 
 ## Why a daemon (not subprocess-per-call)
 
-Cold-loading Qwen2.5-3B-4bit takes ~2s after weights are cached and ~22s for
+Cold-loading Qwen2.5-3B-4bit takes ~2.4s after weights are cached and ~22s for
 1.5B on first JIT. Inference itself is ~150–350ms. Per-call subprocess startup
-would dominate the latency budget; the daemon keeps the model resident so the
-CLI's marginal cost is just a Unix-socket round-trip and a single generation.
+would dominate the latency budget; the daemon keeps the model resident
+between requests so the CLI's marginal cost is just a Unix-socket round-trip
+and a single generation. With auto-spawn + idle-exit + warmup, the daemon
+appears when needed, stays cheap while you're idle, and exits when truly
+unused — no service to manage.
 
 ## Why Python (and not Swift here)
 

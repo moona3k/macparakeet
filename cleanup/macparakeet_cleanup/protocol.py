@@ -3,9 +3,11 @@
 Each request is a single JSON line. Each response is a single JSON line.
 Newline-delimited so we don't need a length prefix; cleanup payloads are tiny.
 
-Request:  {"text": "...", "max_tokens": 150, "timeout": 0.9}
-Response: {"ok": true, "text": "..."}
-       or {"ok": false, "error": "..."}
+Cleanup request:  {"text": "...", "max_tokens": 150, "timeout": 0.9}
+Warmup request:   {"warmup": true}
+Response:         {"ok": true, "text": "..."}        (cleanup)
+                  {"ok": true, "loaded": true|false} (warmup)
+               or {"ok": false, "error": "..."}
 """
 
 import json
@@ -73,3 +75,33 @@ def send_response(conn: socket.socket, *, ok: bool, text: str = "", error: str =
     else:
         payload["error"] = error
     conn.sendall((json.dumps(payload) + "\n").encode("utf-8"))
+
+
+def send_warmup(socket_path: str, *, timeout: float = 0.5) -> None:
+    """Fire-and-forget warmup ping. Returns as soon as the daemon ACKs receipt.
+
+    The daemon dispatches the actual model load to a background thread, so this
+    call returns in milliseconds even on a cold model. Raises only if the
+    daemon is unreachable (e.g. socket missing).
+    """
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.settimeout(timeout)
+    try:
+        sock.connect(socket_path)
+        sock.sendall((json.dumps({"warmup": True}) + "\n").encode("utf-8"))
+        # Read the small ACK response (don't block long).
+        chunks = []
+        while True:
+            chunk = sock.recv(1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+            if b"\n" in chunk:
+                break
+        raw = b"".join(chunks).decode("utf-8").strip()
+        if raw:
+            resp = json.loads(raw)
+            if not resp.get("ok"):
+                raise RuntimeError(resp.get("error", "warmup failed"))
+    finally:
+        sock.close()
