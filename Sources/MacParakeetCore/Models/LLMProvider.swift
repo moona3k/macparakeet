@@ -11,6 +11,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case ollama
     case lmstudio
     case localCLI
+    case localFormattingModel
 
     public var displayName: String {
         switch self {
@@ -22,6 +23,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
         case .ollama: return "Ollama"
         case .lmstudio: return "LM Studio"
         case .localCLI: return "Local CLI"
+        case .localFormattingModel: return "Local Formatting Model"
         }
     }
 
@@ -29,7 +31,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     /// Local CLI tools typically forward to cloud APIs, so this is `false`.
     public var isLocal: Bool {
         switch self {
-        case .ollama, .lmstudio: return true
+        case .ollama, .lmstudio, .localFormattingModel: return true
         case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .localCLI: return false
         }
     }
@@ -37,7 +39,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     /// Whether the provider supports API-key-based auth.
     public var supportsAPIKey: Bool {
         switch self {
-        case .ollama, .lmstudio, .localCLI: return false
+        case .ollama, .lmstudio, .localCLI, .localFormattingModel: return false
         case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter: return true
         }
     }
@@ -45,7 +47,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     /// Whether the provider needs an API key to function.
     public var requiresAPIKey: Bool {
         switch self {
-        case .openaiCompatible, .ollama, .lmstudio, .localCLI: return false
+        case .openaiCompatible, .ollama, .lmstudio, .localCLI, .localFormattingModel: return false
         case .anthropic, .openai, .gemini, .openrouter: return true
         }
     }
@@ -54,7 +56,7 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     public var requiresCustomEndpoint: Bool {
         switch self {
         case .openaiCompatible: return true
-        case .anthropic, .openai, .gemini, .openrouter, .ollama, .lmstudio, .localCLI: return false
+        case .anthropic, .openai, .gemini, .openrouter, .ollama, .lmstudio, .localCLI, .localFormattingModel: return false
         }
     }
 
@@ -175,6 +177,19 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
             apiKey: nil,
             modelName: "cli",
             isLocal: false
+        )
+    }
+
+    /// Local Formatting Model provider — runs the bundled `macparakeet-cleanup`
+    /// CLI (rules / local MLX LLM / auto). Configuration lives in
+    /// `LocalFormattingModelConfig` carried via `LLMExecutionContext`.
+    public static func localFormattingModel(model: String = "mlx-community/Qwen2.5-3B-Instruct-4bit") -> LLMProviderConfig {
+        LLMProviderConfig(
+            id: .localFormattingModel,
+            baseURL: URL(string: "http://localhost")!,
+            apiKey: nil,
+            modelName: model,
+            isLocal: true
         )
     }
 

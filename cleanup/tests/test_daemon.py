@@ -55,10 +55,11 @@ class FakeEngine:
     def warmup(self) -> None:
         self.load()
 
-    def clean(self, text: str, max_tokens: int = 150) -> str:
+    def clean(self, text: str, max_tokens: int = 150, prompt: str | None = None) -> str:
         self.load()
         self.last_used = time.monotonic()
         self.clean_calls += 1
+        self.last_prompt = prompt
         return f"CLEANED:{text}"
 
 
@@ -327,6 +328,37 @@ def test_cli_warmup_flag_against_running_daemon():
                     break
                 time.sleep(0.02)
             assert engine.is_loaded is True
+        finally:
+            _shutdown(sock, thread)
+
+
+def test_custom_prompt_reaches_engine():
+    """A request carrying a `prompt` field must arrive at engine.clean(prompt=...)."""
+    from macparakeet_cleanup.protocol import send_request
+
+    with tempfile.TemporaryDirectory() as td:
+        sock = str(Path(td) / "d.sock")
+        engine = FakeEngine("fake")
+        thread = _serve_in_thread(sock, engine, idle_exit_seconds=3600)
+        try:
+            out = send_request(sock, "hello", timeout=2.0, prompt="be terse")
+            assert out == "CLEANED:hello"
+            assert engine.last_prompt == "be terse"
+        finally:
+            _shutdown(sock, thread)
+
+
+def test_omitted_prompt_passes_none_to_engine():
+    """Backwards compat: requests without a prompt field => engine.clean(prompt=None)."""
+    from macparakeet_cleanup.protocol import send_request
+
+    with tempfile.TemporaryDirectory() as td:
+        sock = str(Path(td) / "d.sock")
+        engine = FakeEngine("fake")
+        thread = _serve_in_thread(sock, engine, idle_exit_seconds=3600)
+        try:
+            send_request(sock, "hello", timeout=2.0)
+            assert engine.last_prompt is None
         finally:
             _shutdown(sock, thread)
 

@@ -65,12 +65,14 @@ struct LLMInlineOptions: ParsableArguments {
             normalized = "localCLI"
         case "openaicompatible", "openai-compatible":
             normalized = "openaiCompatible"
+        case "local-formatting", "localformatting", "local-formatting-model", "cleanup":
+            normalized = "localFormattingModel"
         default:
             normalized = provider
         }
         guard let providerID = LLMProviderID(rawValue: normalized) else {
             throw ValidationError(
-                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, cli"
+                "Unknown provider '\(provider)'. Options: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, cli, local-formatting"
             )
         }
         return providerID
@@ -91,6 +93,7 @@ struct LLMInlineOptions: ParsableArguments {
 
         var providerConfig: LLMProviderConfig
         var localCLIConfig: LocalCLIConfig?
+        var localFormattingModelConfig: LocalFormattingModelConfig?
 
         switch providerID {
         case .anthropic:
@@ -148,6 +151,17 @@ struct LLMInlineOptions: ParsableArguments {
             localCLIConfig = LocalCLIConfig(
                 commandTemplate: rawCommand.trimmingCharacters(in: .whitespacesAndNewlines)
             )
+        case .localFormattingModel:
+            let cliPath: String
+            if let rawCommand = command?.trimmingCharacters(in: .whitespacesAndNewlines), !rawCommand.isEmpty {
+                cliPath = rawCommand
+            } else {
+                cliPath = LocalFormattingModelConfig.defaultCLIPath
+            }
+            let modelID = (model?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap { $0.isEmpty ? nil : $0 }
+                ?? LocalFormattingModelConfig.defaultModelID
+            providerConfig = .localFormattingModel(model: modelID)
+            localFormattingModelConfig = LocalFormattingModelConfig(cliPath: cliPath, modelID: modelID)
         }
 
         if local && !providerConfig.isLocal {
@@ -163,7 +177,8 @@ struct LLMInlineOptions: ParsableArguments {
         return InlineLLMExecutionContext(
             context: LLMExecutionContext(
                 providerConfig: providerConfig,
-                localCLIConfig: localCLIConfig
+                localCLIConfig: localCLIConfig,
+                localFormattingModelConfig: localFormattingModelConfig
             ),
             client: client
         )

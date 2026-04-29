@@ -6,6 +6,7 @@ struct LLMSettingsView: View {
     @Bindable var viewModel: LLMSettingsViewModel
 
     @State private var showAdvanced = false
+    @State private var showFormattingModelOverride = false
 
     var body: some View {
         VStack(spacing: DesignSystem.Spacing.md) {
@@ -58,6 +59,8 @@ struct LLMSettingsView: View {
 
                 if viewModel.selectedProviderID == .localCLI {
                     cliSettingsSection
+                } else if viewModel.selectedProviderID == .localFormattingModel {
+                    formattingModelSettingsSection
                 } else {
                     if viewModel.selectedProviderID?.requiresCustomEndpoint == true {
                         HStack(alignment: .top) {
@@ -309,6 +312,120 @@ struct LLMSettingsView: View {
     }
 
     @ViewBuilder
+    private var formattingModelSettingsSection: some View {
+        formattingModelCLISection
+
+        Divider()
+
+        // Mode picker
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Mode")
+                    .font(DesignSystem.Typography.body)
+                Text("Auto picks rules for short text and the local LLM for complex transcripts.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            Picker("Mode", selection: $viewModel.formattingModelMode) {
+                ForEach(LocalFormattingModelMode.allCases, id: \.self) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .frame(width: 220)
+        }
+
+        Divider()
+
+        // Model picker
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Model")
+                    .font(DesignSystem.Typography.body)
+                Text("Local MLX model the cleanup daemon should load when LLM mode runs.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            Picker("Model", selection: $viewModel.formattingModelModelID) {
+                ForEach(viewModel.availableModels, id: \.self) { model in
+                    Text(model).tag(model)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 220)
+        }
+    }
+
+    @ViewBuilder
+    private var formattingModelCLISection: some View {
+        let bundledPath = viewModel.bundledFormattingModelCLIPath
+        let trimmedOverride = viewModel.formattingModelCLIPath
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let hasOverride = !trimmedOverride.isEmpty && trimmedOverride != "macparakeet-cleanup"
+
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Cleanup CLI")
+                    .font(DesignSystem.Typography.body)
+                if let bundledPath, !hasOverride {
+                    Text("Bundled with MacParakeet. Nothing to configure.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    Text(bundledPath)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                } else if bundledPath == nil && !hasOverride {
+                    Text("Bundled cleanup CLI not found in this build. Set a path to use a system install.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("Using a custom path. Clear to fall back to the bundled CLI.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            if bundledPath != nil && !hasOverride {
+                Button(showFormattingModelOverride ? "Hide override" : "Override") {
+                    showFormattingModelOverride.toggle()
+                }
+                .buttonStyle(.borderless)
+                .font(DesignSystem.Typography.caption)
+                .frame(width: 220, alignment: .trailing)
+            } else {
+                TextField("macparakeet-cleanup", text: $viewModel.formattingModelCLIPath)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 220)
+            }
+        }
+
+        if bundledPath != nil && !hasOverride && showFormattingModelOverride {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Custom path")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                    Text("Absolute path to a `macparakeet-cleanup` launcher. Useful if you maintain your own checkout.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer(minLength: DesignSystem.Spacing.md)
+                TextField("/path/to/macparakeet-cleanup", text: $viewModel.formattingModelCLIPath)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 220)
+            }
+        }
+    }
+
+    @ViewBuilder
     private var cliSettingsSection: some View {
         // Template picker
         HStack(alignment: .top) {
@@ -374,16 +491,19 @@ struct LLMSettingsView: View {
     private var privacyInfo: some View {
         let isLocal = viewModel.isLocalConfiguration
         let isCLI = viewModel.selectedProviderID == .localCLI
+        let isFormattingModel = viewModel.selectedProviderID == .localFormattingModel
         HStack(spacing: DesignSystem.Spacing.sm) {
             Image(systemName: isLocal ? "lock.fill" : "arrow.up.right.circle")
                 .font(.system(size: 12))
                 .foregroundStyle(isLocal ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
 
-            Text(isLocal
-                 ? "Everything stays on your device."
-                 : isCLI
-                    ? "Runs via CLI on your device. The tool may send data to its cloud service."
-                    : "Transcription is always local. AI features send transcript text to your chosen provider.")
+            Text(isFormattingModel
+                 ? "Runs the bundled cleanup script on your device. Nothing leaves your Mac."
+                 : isLocal
+                    ? "Everything stays on your device."
+                    : isCLI
+                        ? "Runs via CLI on your device. The tool may send data to its cloud service."
+                        : "Transcription is always local. AI features send transcript text to your chosen provider.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }

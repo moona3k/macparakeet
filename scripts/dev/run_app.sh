@@ -116,6 +116,16 @@ if [[ -d "$RESOURCE_BUNDLE" ]]; then
   rsync -a --delete "$RESOURCE_BUNDLE" "$RESOURCES_DIR/"
 fi
 
+# Symlink the cleanup CLI tree into Contents/Resources/cleanup so the bundled
+# Local Formatting Model provider resolves to the in-repo launcher (which
+# carries its own .venv and Python module). Symlink keeps dev iteration fast.
+RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+mkdir -p "$RESOURCES_DIR"
+if [[ -d "$ROOT_DIR/cleanup" ]]; then
+  rm -rf "$RESOURCES_DIR/cleanup"
+  ln -s "$ROOT_DIR/cleanup" "$RESOURCES_DIR/cleanup"
+fi
+
 # Copy frameworks into the bundle so dyld loads only bundle-local paths.
 BUNDLE_FW_DIR="$APP_BUNDLE/Contents/Frameworks"
 rm -rf "$BUNDLE_FW_DIR"

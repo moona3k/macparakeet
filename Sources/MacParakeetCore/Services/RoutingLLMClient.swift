@@ -1,17 +1,22 @@
 import Foundation
 
 /// Routes LLM requests to the appropriate client based on provider ID.
-/// HTTP-based providers go to `LLMClient`; `.localCLI` goes to `LocalCLILLMClient`.
+/// HTTP-based providers go to `LLMClient`; `.localCLI` goes to
+/// `LocalCLILLMClient`; `.localFormattingModel` goes to
+/// `LocalFormattingModelClient`.
 public final class RoutingLLMClient: LLMClientProtocol, Sendable {
     private let httpClient: LLMClient
     private let cliClient: LocalCLILLMClient
+    private let formattingModelClient: LocalFormattingModelClient
 
     public init(
         httpClient: LLMClient = LLMClient(),
-        cliClient: LocalCLILLMClient = LocalCLILLMClient()
+        cliClient: LocalCLILLMClient = LocalCLILLMClient(),
+        formattingModelClient: LocalFormattingModelClient = LocalFormattingModelClient()
     ) {
         self.httpClient = httpClient
         self.cliClient = cliClient
+        self.formattingModelClient = formattingModelClient
     }
 
     public func chatCompletion(
@@ -38,7 +43,20 @@ public final class RoutingLLMClient: LLMClientProtocol, Sendable {
         try await client(for: context).listModels(context: context)
     }
 
+    /// Best-effort pre-warm for providers that benefit from it. Currently
+    /// only the bundled cleanup CLI's MLX daemon needs this — other providers
+    /// no-op. Errors are swallowed; the caller fires this and forgets.
+    public func warmUp(context: LLMExecutionContext) async {
+        if context.providerConfig.id == .localFormattingModel {
+            await formattingModelClient.warmUp(context: context)
+        }
+    }
+
     private func client(for context: LLMExecutionContext) -> LLMClientProtocol {
-        context.providerConfig.id == .localCLI ? cliClient : httpClient
+        switch context.providerConfig.id {
+        case .localCLI: return cliClient
+        case .localFormattingModel: return formattingModelClient
+        default: return httpClient
+        }
     }
 }

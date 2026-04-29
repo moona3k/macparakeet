@@ -243,9 +243,15 @@ final class AppEnvironmentConfigurer {
         coordinatorRefs.meeting = meetingCoordinator
         liveMeetingCoordinator = meetingCoordinator
 
+        let warmupCoordinator = LocalFormattingModelWarmupCoordinator(
+            llmClient: env.llmClient,
+            configStore: env.llmConfigStore
+        )
+
         let hotkeyCoordinator = AppHotkeyCoordinator(
             settingsViewModel: settingsViewModel,
             onStartDictation: { mode in
+                warmupCoordinator.warmUpIfNeeded()
                 coordinatorRefs.dictation?.startDictation(mode: mode, trigger: .hotkey)
             },
             onStopDictation: {

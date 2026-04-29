@@ -8,6 +8,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         case missingCustomModel
         case invalidBaseURL
         case missingCommandTemplate
+        case missingFormattingModelCLIPath
 
         public var errorDescription: String? {
             switch self {
@@ -21,6 +22,8 @@ public struct LLMSettingsDraft: Equatable, Sendable {
                 return "Enter a valid base URL. Remote endpoints must use https."
             case .missingCommandTemplate:
                 return "Enter a CLI command."
+            case .missingFormattingModelCLIPath:
+                return "Enter the path to macparakeet-cleanup."
             }
         }
     }
@@ -39,6 +42,11 @@ public struct LLMSettingsDraft: Equatable, Sendable {
     public var aiFormatterEnabled: Bool
     public var aiFormatterPrompt: String
 
+    // Local Formatting Model fields
+    public var formattingModelCLIPath: String
+    public var formattingModelModelID: String
+    public var formattingModelMode: LocalFormattingModelMode
+
     public init(
         providerID: LLMProviderID? = nil,
         apiKeyInput: String = "",
@@ -50,7 +58,10 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         selectedCLITemplate: LocalCLITemplate? = nil,
         cliTimeoutSeconds: Double = LocalCLIConfig.defaultTimeout,
         aiFormatterEnabled: Bool = false,
-        aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate
+        aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate,
+        formattingModelCLIPath: String = LocalFormattingModelConfig.defaultCLIPath,
+        formattingModelModelID: String = LocalFormattingModelConfig.defaultModelID,
+        formattingModelMode: LocalFormattingModelMode = .auto
     ) {
         self.providerID = providerID
         self.apiKeyInput = apiKeyInput
@@ -63,6 +74,17 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         self.cliTimeoutSeconds = max(LocalCLIConfig.minimumTimeout, cliTimeoutSeconds)
         self.aiFormatterEnabled = aiFormatterEnabled
         self.aiFormatterPrompt = AIFormatter.normalizedPromptTemplate(aiFormatterPrompt)
+        self.formattingModelCLIPath = formattingModelCLIPath
+        self.formattingModelModelID = formattingModelModelID
+        self.formattingModelMode = formattingModelMode
+    }
+
+    public var trimmedFormattingModelCLIPath: String {
+        formattingModelCLIPath.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public var trimmedFormattingModelModelID: String {
+        formattingModelModelID.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     public var requiresAPIKey: Bool {
@@ -105,6 +127,12 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         guard let providerID else { return nil }
         if providerID == .localCLI {
             return trimmedCommandTemplate.isEmpty ? .missingCommandTemplate : nil
+        }
+        if providerID == .localFormattingModel {
+            // Empty cliPath means "use bundled / env / PATH" — that's the
+            // normal happy path now. The executor resolves an actual binary at
+            // run time. Only flag invalid input.
+            return nil
         }
         if requiresAPIKey && trimmedAPIKey.isEmpty {
             return .missingAPIKey
@@ -155,6 +183,13 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             return .localCLI()
         }
 
+        if providerID == .localFormattingModel {
+            let modelID = trimmedFormattingModelModelID.isEmpty
+                ? LocalFormattingModelConfig.defaultModelID
+                : trimmedFormattingModelModelID
+            return .localFormattingModel(model: modelID)
+        }
+
         let baseURL: URL
         if !trimmedBaseURLOverride.isEmpty {
             guard let override = URL(string: trimmedBaseURLOverride) else {
@@ -192,6 +227,7 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         apiKey: String = "",
         defaultModelName: String = "",
         cliConfig: LocalCLIConfig? = nil,
+        formattingModelConfig: LocalFormattingModelConfig? = nil,
         aiFormatterEnabled: Bool = false,
         aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate
     ) -> Self {
@@ -207,7 +243,10 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             selectedCLITemplate: selectedCLITemplate,
             cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout,
             aiFormatterEnabled: aiFormatterEnabled,
-            aiFormatterPrompt: aiFormatterPrompt
+            aiFormatterPrompt: aiFormatterPrompt,
+            formattingModelCLIPath: formattingModelConfig?.cliPath ?? LocalFormattingModelConfig.defaultCLIPath,
+            formattingModelModelID: formattingModelConfig?.modelID ?? LocalFormattingModelConfig.defaultModelID,
+            formattingModelMode: formattingModelConfig?.mode ?? .auto
         )
     }
 
@@ -217,11 +256,19 @@ public struct LLMSettingsDraft: Equatable, Sendable {
         defaultModelName: String,
         defaultBaseURL: String,
         cliConfig: LocalCLIConfig? = nil,
+        formattingModelConfig: LocalFormattingModelConfig? = nil,
         aiFormatterEnabled: Bool = false,
         aiFormatterPrompt: String = AIFormatter.defaultPromptTemplate
     ) -> Self {
         let isSuggestedModel = suggestedModels.contains(config.modelName)
         let selectedCLITemplate = cliConfig.map { LocalCLITemplate.inferredTemplate(for: $0.commandTemplate) } ?? nil
+        let resolvedFormattingModelID: String
+        if config.id == .localFormattingModel {
+            resolvedFormattingModelID = formattingModelConfig?.modelID
+                ?? (config.modelName.isEmpty ? LocalFormattingModelConfig.defaultModelID : config.modelName)
+        } else {
+            resolvedFormattingModelID = LocalFormattingModelConfig.defaultModelID
+        }
         return LLMSettingsDraft(
             providerID: config.id,
             apiKeyInput: config.apiKey ?? "",
@@ -233,7 +280,10 @@ public struct LLMSettingsDraft: Equatable, Sendable {
             selectedCLITemplate: selectedCLITemplate,
             cliTimeoutSeconds: cliConfig?.timeoutSeconds ?? LocalCLIConfig.defaultTimeout,
             aiFormatterEnabled: aiFormatterEnabled,
-            aiFormatterPrompt: aiFormatterPrompt
+            aiFormatterPrompt: aiFormatterPrompt,
+            formattingModelCLIPath: formattingModelConfig?.cliPath ?? LocalFormattingModelConfig.defaultCLIPath,
+            formattingModelModelID: resolvedFormattingModelID,
+            formattingModelMode: formattingModelConfig?.mode ?? .auto
         )
     }
 

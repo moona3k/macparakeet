@@ -3,10 +3,16 @@ import Foundation
 public struct LLMExecutionContext: Sendable, Equatable {
     public let providerConfig: LLMProviderConfig
     public let localCLIConfig: LocalCLIConfig?
+    public let localFormattingModelConfig: LocalFormattingModelConfig?
 
-    public init(providerConfig: LLMProviderConfig, localCLIConfig: LocalCLIConfig? = nil) {
+    public init(
+        providerConfig: LLMProviderConfig,
+        localCLIConfig: LocalCLIConfig? = nil,
+        localFormattingModelConfig: LocalFormattingModelConfig? = nil
+    ) {
         self.providerConfig = providerConfig
         self.localCLIConfig = localCLIConfig
+        self.localFormattingModelConfig = localFormattingModelConfig
     }
 }
 
@@ -29,13 +35,16 @@ public struct StaticLLMExecutionContextResolver: LLMExecutionContextResolving, S
 public final class StoredLLMExecutionContextResolver: LLMExecutionContextResolving, @unchecked Sendable {
     private let configStore: LLMConfigStoreProtocol
     private let cliConfigStore: LocalCLIConfigStore
+    private let formattingModelConfigStore: LocalFormattingModelConfigStore
 
     public init(
         configStore: LLMConfigStoreProtocol = LLMConfigStore(),
-        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
+        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore(),
+        formattingModelConfigStore: LocalFormattingModelConfigStore = LocalFormattingModelConfigStore()
     ) {
         self.configStore = configStore
         self.cliConfigStore = cliConfigStore
+        self.formattingModelConfigStore = formattingModelConfigStore
     }
 
     public func resolveContext() throws -> LLMExecutionContext? {
@@ -50,9 +59,17 @@ public final class StoredLLMExecutionContextResolver: LLMExecutionContextResolvi
             localCLIConfig = nil
         }
 
+        let formattingModelConfig: LocalFormattingModelConfig?
+        if providerConfig.id == .localFormattingModel {
+            formattingModelConfig = formattingModelConfigStore.load() ?? LocalFormattingModelConfig()
+        } else {
+            formattingModelConfig = nil
+        }
+
         return LLMExecutionContext(
             providerConfig: providerConfig,
-            localCLIConfig: localCLIConfig
+            localCLIConfig: localCLIConfig,
+            localFormattingModelConfig: formattingModelConfig
         )
     }
 }

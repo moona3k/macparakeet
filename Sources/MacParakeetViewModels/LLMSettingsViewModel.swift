@@ -242,6 +242,7 @@ public final class LLMSettingsViewModel {
     private var configStore: LLMConfigStoreProtocol?
     private var llmClient: LLMClientProtocol?
     private var cliConfigStore: LocalCLIConfigStore?
+    private var formattingModelConfigStore: LocalFormattingModelConfigStore?
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LLMSettingsViewModel")
 
@@ -256,12 +257,49 @@ public final class LLMSettingsViewModel {
     public func configure(
         configStore: LLMConfigStoreProtocol,
         llmClient: LLMClientProtocol,
-        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
+        cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore(),
+        formattingModelConfigStore: LocalFormattingModelConfigStore = LocalFormattingModelConfigStore()
     ) {
         self.configStore = configStore
         self.llmClient = llmClient
         self.cliConfigStore = cliConfigStore
+        self.formattingModelConfigStore = formattingModelConfigStore
         loadExistingConfig()
+    }
+
+    // MARK: - Local Formatting Model bindings
+
+    public var formattingModelCLIPath: String {
+        get { draft.formattingModelCLIPath }
+        set {
+            var nextDraft = draft
+            nextDraft.formattingModelCLIPath = newValue
+            updateDraft(nextDraft)
+        }
+    }
+
+    public var formattingModelModelID: String {
+        get { draft.formattingModelModelID }
+        set {
+            var nextDraft = draft
+            nextDraft.formattingModelModelID = newValue
+            updateDraft(nextDraft)
+        }
+    }
+
+    public var formattingModelMode: LocalFormattingModelMode {
+        get { draft.formattingModelMode }
+        set {
+            var nextDraft = draft
+            nextDraft.formattingModelMode = newValue
+            updateDraft(nextDraft)
+        }
+    }
+
+    /// Path to the bundled cleanup CLI inside `Contents/Resources/cleanup/bin/`,
+    /// or nil when running outside an app bundle / cleanup tree not shipped.
+    public var bundledFormattingModelCLIPath: String? {
+        AppPaths.bundledCleanupCLIPath()
     }
 
     public func saveConfiguration() {
@@ -282,6 +320,21 @@ public final class LLMSettingsViewModel {
                     timeoutSeconds: draft.cliTimeoutSeconds
                 )
                 try cliConfigStore?.save(cliConfig)
+            }
+
+            // Save Local Formatting Model config separately
+            if draft.providerID == .localFormattingModel {
+                let modelID = draft.trimmedFormattingModelModelID.isEmpty
+                    ? LocalFormattingModelConfig.defaultModelID
+                    : draft.trimmedFormattingModelModelID
+                let formattingConfig = LocalFormattingModelConfig(
+                    cliPath: draft.trimmedFormattingModelCLIPath.isEmpty
+                        ? LocalFormattingModelConfig.defaultCLIPath
+                        : draft.trimmedFormattingModelCLIPath,
+                    modelID: modelID,
+                    mode: draft.formattingModelMode
+                )
+                try formattingModelConfigStore?.save(formattingConfig)
             }
 
             let normalizedFormatterPrompt = persistAIFormatterPreferences(from: draft)
@@ -306,12 +359,27 @@ public final class LLMSettingsViewModel {
         let context: LLMExecutionContext
         do {
             guard let config = try buildConfig(from: snapshot) else { return }
-            context = LLMExecutionContext(
-                providerConfig: config,
-                localCLIConfig: snapshot.providerID == .localCLI ? LocalCLIConfig(
+            let cliConfig: LocalCLIConfig? = snapshot.providerID == .localCLI
+                ? LocalCLIConfig(
                     commandTemplate: snapshot.trimmedCommandTemplate,
                     timeoutSeconds: snapshot.cliTimeoutSeconds
-                ) : nil
+                )
+                : nil
+            let formattingModelConfig: LocalFormattingModelConfig? = snapshot.providerID == .localFormattingModel
+                ? LocalFormattingModelConfig(
+                    cliPath: snapshot.trimmedFormattingModelCLIPath.isEmpty
+                        ? LocalFormattingModelConfig.defaultCLIPath
+                        : snapshot.trimmedFormattingModelCLIPath,
+                    modelID: snapshot.trimmedFormattingModelModelID.isEmpty
+                        ? LocalFormattingModelConfig.defaultModelID
+                        : snapshot.trimmedFormattingModelModelID,
+                    mode: snapshot.formattingModelMode
+                )
+                : nil
+            context = LLMExecutionContext(
+                providerConfig: config,
+                localCLIConfig: cliConfig,
+                localFormattingModelConfig: formattingModelConfig
             )
         } catch {
             connectionTestState = .error(error.localizedDescription)
@@ -339,6 +407,9 @@ public final class LLMSettingsViewModel {
         let preservedCLIConfig = draft.providerID == .localCLI && storedProviderID != .localCLI
             ? cliConfigStore?.load()
             : nil
+        let preservedFormattingModelConfig = draft.providerID == .localFormattingModel && storedProviderID != .localFormattingModel
+            ? formattingModelConfigStore?.load()
+            : nil
         do {
             try configStore.deleteConfig()
         } catch {
@@ -346,6 +417,9 @@ public final class LLMSettingsViewModel {
         }
         if storedProviderID == .localCLI {
             cliConfigStore?.delete()
+        }
+        if storedProviderID == .localFormattingModel {
+            formattingModelConfigStore?.delete()
         }
         let currentProvider = draft.providerID
         let apiKey: String
@@ -363,6 +437,7 @@ public final class LLMSettingsViewModel {
                 ? discoveredModels.first ?? ""
                 : currentProvider.map { Self.defaultModelName(for: $0) } ?? "",
             cliConfig: preservedCLIConfig,
+            formattingModelConfig: preservedFormattingModelConfig,
             aiFormatterEnabled: false,
             aiFormatterPrompt: AIFormatter.defaultPromptTemplate
         )
@@ -439,16 +514,22 @@ public final class LLMSettingsViewModel {
         }
         let apiKey = providerID.supportsAPIKey ? ((try? configStore?.loadAPIKey(for: providerID)) ?? "") : ""
         let cliConfig = providerID == .localCLI ? cliConfigStore?.load() : nil
+        let formattingConfig = providerID == .localFormattingModel
+            ? (formattingModelConfigStore?.load() ?? LocalFormattingModelConfig())
+            : nil
         var nextDraft = LLMSettingsDraft.defaults(
             for: providerID,
             apiKey: apiKey,
             defaultModelName: Self.defaultModelName(for: providerID),
             cliConfig: cliConfig,
+            formattingModelConfig: formattingConfig,
             aiFormatterEnabled: formatterEnabled,
             aiFormatterPrompt: formatterPrompt
         )
         // Auto-switch to custom model input when provider has no suggested models
-        if Self.suggestedModels(for: providerID).isEmpty && providerID != .localCLI {
+        if Self.suggestedModels(for: providerID).isEmpty
+            && providerID != .localCLI
+            && providerID != .localFormattingModel {
             nextDraft.useCustomModel = true
         }
         updateDraft(nextDraft)
@@ -469,12 +550,16 @@ public final class LLMSettingsViewModel {
             return
         }
         let cliConfig = config.id == .localCLI ? cliConfigStore?.load() : nil
+        let formattingConfig = config.id == .localFormattingModel
+            ? (formattingModelConfigStore?.load() ?? LocalFormattingModelConfig())
+            : nil
         draft = .fromStoredConfig(
             config,
             suggestedModels: Self.suggestedModels(for: config.id),
             defaultModelName: Self.defaultModelName(for: config.id),
             defaultBaseURL: Self.defaultBaseURL(for: config.id),
             cliConfig: cliConfig,
+            formattingModelConfig: formattingConfig,
             aiFormatterEnabled: Self.loadStoredAIFormatterEnabled(from: defaults),
             aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
         )
@@ -630,6 +715,10 @@ public final class LLMSettingsViewModel {
         ]
         case .lmstudio: return []
         case .localCLI: return []
+        case .localFormattingModel: return [
+            "mlx-community/Qwen2.5-3B-Instruct-4bit",
+            "mlx-community/Qwen2.5-1.5B-Instruct-4bit",
+        ]
         }
     }
 
@@ -647,6 +736,7 @@ public final class LLMSettingsViewModel {
         case .ollama: return "http://localhost:11434/v1"
         case .lmstudio: return "http://localhost:1234/v1"
         case .localCLI: return "http://localhost"
+        case .localFormattingModel: return "http://localhost"
         }
     }
 }

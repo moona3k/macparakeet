@@ -3,7 +3,8 @@
 Each request is a single JSON line. Each response is a single JSON line.
 Newline-delimited so we don't need a length prefix; cleanup payloads are tiny.
 
-Cleanup request:  {"text": "...", "max_tokens": 150, "timeout": 0.9}
+Cleanup request:  {"text": "...", "max_tokens": 150, "timeout": 0.9,
+                   "prompt": "..." (optional — overrides default cleanup prompt)}
 Warmup request:   {"warmup": true}
 Response:         {"ok": true, "text": "..."}        (cleanup)
                   {"ok": true, "loaded": true|false} (warmup)
@@ -20,17 +21,26 @@ def send_request(
     text: str,
     max_tokens: int = 150,
     timeout: float = 1.5,
+    prompt: Optional[str] = None,
 ) -> str:
-    """Send a cleanup request to the daemon. Returns cleaned text or raises."""
+    """Send a cleanup request to the daemon. Returns cleaned text or raises.
+
+    If `prompt` is provided, it replaces the daemon's default cleanup prompt
+    for this call. Callers using the daemon as a generic local LLM endpoint
+    pass their own system prompt this way; cleanup-only callers omit it.
+    """
     sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     sock.settimeout(timeout)
     try:
         sock.connect(socket_path)
-        payload = json.dumps({
+        body = {
             "text": text,
             "max_tokens": max_tokens,
             "timeout": timeout,
-        }) + "\n"
+        }
+        if prompt is not None:
+            body["prompt"] = prompt
+        payload = json.dumps(body) + "\n"
         sock.sendall(payload.encode("utf-8"))
         # Read response (single line).
         chunks = []

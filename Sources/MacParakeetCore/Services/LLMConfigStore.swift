@@ -53,8 +53,8 @@ public final class LLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
         let data = try JSONEncoder().encode(config)
         defaults.set(data, forKey: Self.configKey)
 
-        // Local CLI has no API key — skip Keychain operations
-        guard config.id != .localCLI else { return }
+        // Local CLI / Local Formatting Model have no API key — skip Keychain operations
+        guard config.id != .localCLI, config.id != .localFormattingModel else { return }
 
         // Save apiKey to per-provider Keychain key
         let providerKey = Self.apiKeyKeychainKey(for: config.id)

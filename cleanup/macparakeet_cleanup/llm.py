@@ -68,16 +68,23 @@ class MLXEngine:
         self.load()
         _ = self.clean("Hello world.", max_tokens=8)
 
-    def clean(self, text: str, max_tokens: int = 150) -> str:
-        """Run the cleanup prompt on `text`. Returns cleaned text only."""
+    def clean(self, text: str, max_tokens: int = 150, prompt: Optional[str] = None) -> str:
+        """Run the cleanup prompt on `text`. Returns cleaned text only.
+
+        If `prompt` is provided, it overrides the default cleanup prompt for
+        this call (treated as the chat system message). Lets callers reuse the
+        daemon as a generic local LLM endpoint instead of a cleanup-only one.
+        """
         if self._model is None:
             self.load()
         self.last_used = time.monotonic()
 
+        system_prompt = prompt if prompt else LLM_PROMPT
+
         # Build chat-formatted prompt using the tokenizer's chat template
         # (Qwen2.5-Instruct expects this).
         messages = [
-            {"role": "system", "content": LLM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": text},
         ]
         prompt = self._tokenizer.apply_chat_template(  # type: ignore[union-attr]

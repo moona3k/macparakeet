@@ -183,10 +183,12 @@ def serve(
 
                 text = req.get("text", "")
                 max_tokens = int(req.get("max_tokens", 150))
+                prompt = req.get("prompt")
                 t0 = time.perf_counter()
-                cleaned = engine.clean(text, max_tokens=max_tokens)
+                cleaned = engine.clean(text, max_tokens=max_tokens, prompt=prompt)
                 dt_ms = (time.perf_counter() - t0) * 1000
-                _log(f"served {len(text)}ch in {dt_ms:.0f}ms", debug=debug)
+                custom = " custom-prompt" if prompt else ""
+                _log(f"served {len(text)}ch in {dt_ms:.0f}ms{custom}", debug=debug)
                 send_response(conn, ok=True, text=cleaned)
             except Exception as e:
                 try:

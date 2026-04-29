@@ -74,3 +74,56 @@ def test_cli_auto_uses_rules_for_short_input_no_spawn():
     # Short, simple input — auto should pick rules and never touch daemon.
     assert r.stdout.strip() == "Hello world."
     assert "mode=rules" in r.stderr
+
+
+def test_cli_rules_mode_ignores_prompt():
+    """Rules path is deterministic regex; --prompt must not change its behavior."""
+    r = _run([
+        "--mode", "rules",
+        "--prompt", "Translate to French.",
+        "um the the cat",
+    ])
+    assert r.returncode == 0
+    assert r.stdout.strip() == "The cat."
+
+
+def test_cli_apply_prompt_interpolation():
+    """Unit-level: a prompt with {{transcript}} substitutes and clears system override."""
+    from macparakeet_cleanup.cli import _apply_prompt
+
+    user, system = _apply_prompt("hello", "Clean this: {{transcript}}")
+    assert user == "Clean this: hello"
+    assert system is None
+
+
+def test_cli_apply_prompt_no_placeholder_uses_system_override():
+    """Unit-level: a prompt without {{transcript}} becomes the system prompt."""
+    from macparakeet_cleanup.cli import _apply_prompt
+
+    user, system = _apply_prompt("hello", "You are a cleanup model.")
+    assert user == "hello"
+    assert system == "You are a cleanup model."
+
+
+def test_cli_apply_prompt_none_passes_through():
+    """Unit-level: no override prompt → daemon defaults stay."""
+    from macparakeet_cleanup.cli import _apply_prompt
+
+    user, system = _apply_prompt("hello", None)
+    assert user == "hello"
+    assert system is None
+
+
+def test_cli_resolve_prompt_file_wins_over_literal(tmp_path):
+    """Unit-level: --prompt-file beats --prompt when both are set."""
+    import argparse
+    from macparakeet_cleanup.cli import _resolve_prompt
+
+    prompt_path = tmp_path / "p.txt"
+    prompt_path.write_text("from-file")
+
+    args = argparse.Namespace(
+        prompt="from-literal",
+        prompt_file=str(prompt_path),
+    )
+    assert _resolve_prompt(args) == "from-file"

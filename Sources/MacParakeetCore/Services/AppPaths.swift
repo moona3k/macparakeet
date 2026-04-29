@@ -87,4 +87,16 @@ public enum AppPaths {
         let ffmpegPath = (resourcePath as NSString).appendingPathComponent("ffmpeg")
         return FileManager.default.isExecutableFile(atPath: ffmpegPath) ? ffmpegPath : nil
     }
+
+    /// Resolve bundled `macparakeet-cleanup` launcher from app resources.
+    /// Looks for `Contents/Resources/cleanup/bin/macparakeet-cleanup` (the launcher
+    /// script needs the surrounding `cleanup/` layout to find its `.venv` and
+    /// Python module). Returns nil when running outside an app bundle or when the
+    /// cleanup tree is not present.
+    public static func bundledCleanupCLIPath() -> String? {
+        guard let resourcePath = Bundle.main.resourcePath else { return nil }
+        let cliPath = (resourcePath as NSString)
+            .appendingPathComponent("cleanup/bin/macparakeet-cleanup")
+        return FileManager.default.isExecutableFile(atPath: cliPath) ? cliPath : nil
+    }
 }

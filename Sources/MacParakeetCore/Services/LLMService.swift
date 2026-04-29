@@ -366,11 +366,25 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         let truncated = Self.truncateMiddle(transcript, limit: budget)
 
         do {
-            let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: truncated)
-            let messages = [
-                ChatMessage(role: .system, content: Prompts.formatter),
-                ChatMessage(role: .user, content: renderedPrompt),
-            ]
+            // For `.localFormattingModel`, pass the template literally as the
+            // system prompt and the transcript as the user message. The
+            // bundled cleanup CLI does the `{{TRANSCRIPT}}` interpolation
+            // when LLM mode runs and ignores the prompt entirely on the
+            // rules path. App-side rendering would defeat the rules path.
+            let messages: [ChatMessage]
+            if config.id == .localFormattingModel {
+                let normalizedTemplate = AIFormatter.normalizedPromptTemplate(promptTemplate)
+                messages = [
+                    ChatMessage(role: .system, content: normalizedTemplate),
+                    ChatMessage(role: .user, content: truncated),
+                ]
+            } else {
+                let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: truncated)
+                messages = [
+                    ChatMessage(role: .system, content: Prompts.formatter),
+                    ChatMessage(role: .user, content: renderedPrompt),
+                ]
+            }
 
             let output: String
             if config.id == .lmstudio {

@@ -18,6 +18,11 @@ from .rules import clean_rules
 from .spawn import ensure_daemon
 
 
+# Matches MacParakeet's `AIFormatter.transcriptPlaceholder`. Lowercase form
+# is also accepted for ergonomic CLI use.
+TRANSCRIPT_PLACEHOLDERS = ("{{TRANSCRIPT}}", "{{transcript}}")
+
+
 def _read_input(args: argparse.Namespace) -> str:
     if args.text:
         return " ".join(args.text)
@@ -25,12 +30,54 @@ def _read_input(args: argparse.Namespace) -> str:
     return data
 
 
-def _llm_clean(text: str, *, socket_path: str, max_tokens: int, timeout: float) -> str:
+def _resolve_prompt(args: argparse.Namespace) -> str | None:
+    """Resolve the optional override system prompt from --prompt-file or --prompt.
+
+    --prompt-file wins if both are provided. Returns None when no override is
+    set, in which case the daemon's built-in cleanup prompt is used.
+    """
+    if args.prompt_file:
+        with open(args.prompt_file, "r", encoding="utf-8") as f:
+            return f.read()
+    if args.prompt is not None:
+        return args.prompt
+    return None
+
+
+def _apply_prompt(transcript: str, prompt: str | None) -> tuple[str, str | None]:
+    """Decide how to combine transcript + override prompt.
+
+    Returns (user_text, system_prompt_override).
+
+    - No override prompt → (transcript, None). Daemon uses its built-in prompt.
+    - Override contains {{TRANSCRIPT}} (or {{transcript}}) → substitute and
+      send the result as the user message. System prompt stays at the daemon
+      default. This matches MacParakeet's existing formatter template shape.
+    - Override has no placeholder → treat it as a custom system prompt;
+      transcript becomes the user message.
+    """
+    if prompt is None:
+        return transcript, None
+    for placeholder in TRANSCRIPT_PLACEHOLDERS:
+        if placeholder in prompt:
+            return prompt.replace(placeholder, transcript), None
+    return transcript, prompt
+
+
+def _llm_clean(
+    text: str,
+    *,
+    socket_path: str,
+    max_tokens: int,
+    timeout: float,
+    prompt: str | None,
+) -> str:
     return send_request(
         socket_path,
         text,
         max_tokens=max_tokens,
         timeout=timeout,
+        prompt=prompt,
     )
 
 
@@ -68,6 +115,22 @@ def main(argv: list[str] | None = None) -> int:
         "--no-spawn",
         action="store_true",
         help="don't auto-spawn the daemon if it isn't running",
+    )
+    p.add_argument(
+        "--prompt",
+        default=None,
+        help=(
+            "override system prompt as a literal string. If it contains "
+            "{{transcript}}, that placeholder is substituted with the input "
+            "and the result is sent as the user message; otherwise the "
+            "string is used as the system prompt and the input is the user "
+            "message. Only applies in LLM mode (rules ignore it)."
+        ),
+    )
+    p.add_argument(
+        "--prompt-file",
+        default=None,
+        help="read --prompt from a file path. Wins over --prompt if both set.",
     )
     p.add_argument("--debug", action="store_true")
     args = p.parse_args(argv)
@@ -111,7 +174,19 @@ def main(argv: list[str] | None = None) -> int:
     if not text:
         return 0
 
+    override_prompt = _resolve_prompt(args)
+
     t0 = time.perf_counter()
+
+    def run_llm() -> str:
+        user_text, system_override = _apply_prompt(text, override_prompt)
+        return _llm_clean(
+            user_text,
+            socket_path=args.socket,
+            max_tokens=args.max_tokens,
+            timeout=args.timeout,
+            prompt=system_override,
+        )
 
     if args.mode == "rules":
         out = clean_rules(text)
@@ -119,12 +194,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.mode == "llm":
         _ensure()
         try:
-            out = _llm_clean(
-                text,
-                socket_path=args.socket,
-                max_tokens=args.max_tokens,
-                timeout=args.timeout,
-            )
+            out = run_llm()
             chosen = "llm"
         except Exception as e:
             if args.debug:
@@ -135,12 +205,7 @@ def main(argv: list[str] | None = None) -> int:
         if is_complex(text):
             _ensure()
             try:
-                out = _llm_clean(
-                    text,
-                    socket_path=args.socket,
-                    max_tokens=args.max_tokens,
-                    timeout=args.timeout,
-                )
+                out = run_llm()
                 chosen = "llm"
             except Exception as e:
                 if args.debug:
