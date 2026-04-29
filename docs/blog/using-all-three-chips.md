@@ -203,6 +203,8 @@ These aren't the reason we're making this change — the architecture is. But th
 
 ## Why Parakeet, Not Whisper
 
+> Update: MacParakeet now includes optional local WhisperKit recognition for languages Parakeet does not cover. This section explains why Parakeet remains the default engine.
+
 A natural question: why not use OpenAI's Whisper? It's the most well-known open-source speech model.
 
 The short answer is that Parakeet is better at the job:
@@ -238,4 +240,4 @@ That's what we're building.
 
 ---
 
-*MacParakeet is a fast, private, local-first voice app for macOS with system-wide dictation and file transcription. No cloud. No subscriptions. Learn more at [macparakeet.com](https://macparakeet.com).*
+*MacParakeet is a fast, private, local-first voice app for macOS with system-wide dictation and file transcription. Core speech runs locally with no cloud STT subscription required. Learn more at [macparakeet.com](https://macparakeet.com).*

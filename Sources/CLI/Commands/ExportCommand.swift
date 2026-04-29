@@ -55,16 +55,20 @@ struct ExportCommand: AsyncParsableCommand {
             print(content)
         } else {
             let outputURL = resolveOutputURL(transcription: transcription)
+            try FileManager.default.createDirectory(
+                at: outputURL.deletingLastPathComponent(),
+                withIntermediateDirectories: true
+            )
             try await writeExport(transcription: transcription, exportService: exportService, url: outputURL)
             print("Exported to \(outputURL.path)")
         }
     }
 
-    private func resolveOutputURL(transcription: Transcription) -> URL {
+    func resolveOutputURL(transcription: Transcription) -> URL {
         if let output {
-            return URL(fileURLWithPath: output)
+            return URL(fileURLWithPath: expandTilde(output))
         }
-        let baseName = URL(fileURLWithPath: transcription.fileName).deletingPathExtension().lastPathComponent
+        let baseName = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
         let fileName = "\(baseName).\(format.fileExtension)"
         return URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(fileName)
     }
@@ -76,15 +80,9 @@ struct ExportCommand: AsyncParsableCommand {
         case .markdown:
             return await exportService.formatMarkdown(transcription: transcription)
         case .srt:
-            if let words = transcription.wordTimestamps, !words.isEmpty {
-                return await exportService.formatSRT(words: words, speakers: transcription.speakers)
-            }
-            return transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+            return await exportService.formatSRT(transcription: transcription)
         case .vtt:
-            if let words = transcription.wordTimestamps, !words.isEmpty {
-                return await exportService.formatVTT(words: words, speakers: transcription.speakers)
-            }
-            return transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+            return await exportService.formatVTT(transcription: transcription)
         case .json:
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

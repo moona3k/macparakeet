@@ -94,6 +94,7 @@ public enum DictationFlowEffect: Equatable, Sendable {
     case rescheduleReadyDismissTimer
     case showRecordingOverlay(mode: FnKeyStateMachine.RecordingMode)
     case showProcessingState
+    case showBusyProcessingHint
     case showCancelCountdown
     case showSuccess
     case showNoSpeech
@@ -355,13 +356,8 @@ public struct DictationFlowStateMachine: Sendable, Equatable {
 
         // MARK: Processing
 
-        case (.processing, .startRequested(let mode)):
-            generation += 1
-            state = .checkingEntitlements(mode: mode)
-            return [
-                .cancelAllTimers, .cancelActionTask,
-                .hideOverlay, .hideIdlePill, .checkEntitlements,
-            ]
+        case (.processing, .startRequested):
+            return [.showBusyProcessingHint]
 
         case (.processing, .transcriptionCompleted(let gen)):
             guard gen == generation else { return [] }

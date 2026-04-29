@@ -28,6 +28,13 @@ public enum MeetingRecordingFlowEvent: Equatable, Sendable {
     case startFailed(generation: Int, message: String)
     case stopRequested
     case cancelRequested
+    /// Emitted by the pill polling task when it detects that audio capture
+    /// has stopped unexpectedly while the state machine still believes a
+    /// recording is in progress (e.g., a USB mic was unplugged mid-meeting,
+    /// `MeetingRecordingService.failCapture` ran). Routes through the same
+    /// stop+transcribe path as `.stopRequested` so whatever audio was
+    /// captured before the failure still becomes a saved Transcription.
+    case captureFailed(generation: Int)
     case transcriptionCompleted(generation: Int, transcriptionID: UUID)
     case transcriptionFailed(generation: Int, message: String)
     case dismissRequested
@@ -74,6 +81,10 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
             state = .idle
             return [.updateMenuBar(.idle), .presentPermissionAlert(reason)]
 
+        case (.checkingPermissions, .cancelRequested):
+            state = .idle
+            return [.cancelRecording, .hidePill, .updateMenuBar(.idle)]
+
         case (.starting, .recordingStarted(let gen)):
             guard gen == generation else { return [] }
             state = .recording
@@ -107,6 +118,11 @@ public struct MeetingRecordingFlowStateMachine: Equatable, Sendable {
             return [.cancelRecording, .hidePill, .updateMenuBar(.idle)]
 
         case (.recording, .stopRequested):
+            state = .transcribing
+            return [.showTranscribingState, .updateMenuBar(.processing), .stopRecordingAndTranscribe]
+
+        case (.recording, .captureFailed(let gen)):
+            guard gen == generation else { return [] }
             state = .transcribing
             return [.showTranscribingState, .updateMenuBar(.processing), .stopRecordingAndTranscribe]
 

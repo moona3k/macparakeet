@@ -13,7 +13,8 @@ public actor EntitlementsService: EntitlementsChecking {
     private let store: KeyValueStore
     private let api: LicenseAPI
 
-    /// 7-day full-feature trial.
+    /// 7-day trial duration retained for activation-code compatibility.
+    /// `currentState` and `assertCanTranscribe` always unlock free/GPL builds.
     private let trialLength: TimeInterval = 7 * 24 * 60 * 60
 
     /// One-time purchase = yours forever. Once validated, never lock out due to offline use.
@@ -39,21 +40,25 @@ public actor EntitlementsService: EntitlementsChecking {
                 try store.setString(UUID().uuidString, forKey: Keys.installID)
             }
         } catch {
-            // Licensing should never prevent core features from running; entitlement checks will fall back to "locked"
-            // only when needed.
+            // Licensing should never prevent core features from running; current
+            // free/GPL builds remain unlocked even if legacy state cannot be written.
             _ = error
         }
     }
 
     // MARK: - Public API
 
+    // The app is currently free/GPL and always unlocked, but the activation
+    // methods below are intentionally retained as future-option plumbing. Do
+    // not remove the old entitlement surface as "dead code" without explicit
+    // owner direction and an ADR/spec update.
     public func currentState(now: Date = Date()) async -> EntitlementsState {
-        // App is free and open-source (GPL-3.0) — always unlocked.
+        // App is free and open-source (GPL-3.0): always unlocked.
         return EntitlementsState(access: .unlocked, licenseKeyMasked: nil, lastValidatedAt: nil)
     }
 
     public func assertCanTranscribe(now: Date = Date()) async throws {
-        // App is free and open-source (GPL-3.0) — all users have unlimited access.
+        // App is free and open-source (GPL-3.0): all users have unlimited access.
     }
 
     public func activate(licenseKey: String, now: Date = Date()) async throws -> EntitlementsState {
@@ -131,7 +136,8 @@ public actor EntitlementsService: EntitlementsChecking {
             if validation.valid {
                 try store.setString(iso(now), forKey: Keys.lastValidatedISO)
             } else {
-                // License no longer valid. Lock the app (trial may still be active).
+                // License no longer valid. Clear legacy activation state; current
+                // free/GPL builds still remain unlocked.
                 try? store.delete(Keys.licenseKey)
                 try? store.delete(Keys.licenseInstanceID)
                 try? store.delete(Keys.lastValidatedISO)

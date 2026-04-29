@@ -34,7 +34,7 @@ struct FeedbackCommand: AsyncParsableCommand {
 
     func run() async throws {
         guard !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            print("Error: Feedback message must not be empty.")
+            printErr("Error: Feedback message must not be empty.")
             throw ExitCode.validationFailure
         }
 

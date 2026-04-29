@@ -17,6 +17,10 @@ public final class PromptResultsViewModel {
         public var promptContent: String
         public var extraInstructions: String?
         public var transcript: String
+        /// Snapshot of `Transcription.userNotes` captured at enqueue time. Used
+        /// both to substitute `{{userNotes}}` in the prompt template and to
+        /// snapshot onto the resulting `PromptResult` (ADR-020 §4, §6).
+        public var userNotes: String?
         public var replacingPromptResultID: UUID?
         public var state: State
         public var content: String
@@ -28,6 +32,7 @@ public final class PromptResultsViewModel {
             promptContent: String,
             extraInstructions: String?,
             transcript: String,
+            userNotes: String? = nil,
             replacingPromptResultID: UUID? = nil,
             state: State = .queued,
             content: String = ""
@@ -38,6 +43,7 @@ public final class PromptResultsViewModel {
             self.promptContent = promptContent
             self.extraInstructions = extraInstructions
             self.transcript = transcript
+            self.userNotes = userNotes
             self.replacingPromptResultID = replacingPromptResultID
             self.state = state
             self.content = content
@@ -45,6 +51,10 @@ public final class PromptResultsViewModel {
     }
 
     private static let autoGenerationTranscriptLengthThreshold = 500
+    /// Soft cap on user notes for prompt-assembly only — full notes remain on
+    /// the Transcription row. ~11k tokens at typical English word→token ratio,
+    /// leaving headroom for transcript + system prompt + response (ADR-020 §3).
+    static let userNotesPromptWordCap = PromptSystemPromptAssembler.userNotesPromptWordCap
 
     public var promptResults: [PromptResult] = []
     public var pendingGenerations: [PendingGeneration] = []
@@ -59,7 +69,6 @@ public final class PromptResultsViewModel {
     public var unreadPromptResultIDs: Set<UUID> = []
     public var onModelChanged: (() -> Void)?
     public var onPromptResultsChanged: ((UUID, Bool) -> Void)?
-    public var onLegacySummaryChanged: ((UUID, String?) -> Void)?
     public var onGenerationCompleted: ((UUID, UUID) -> Void)?
     public var onDeletedPromptResult: ((UUID) -> Void)?
     public var shouldMarkPromptResultUnread: ((UUID) -> Bool)?
@@ -67,6 +76,10 @@ public final class PromptResultsViewModel {
     private var llmService: LLMServiceProtocol?
     private var promptRepo: PromptRepositoryProtocol?
     private var promptResultRepo: PromptResultRepositoryProtocol?
+    /// Read-only access to the underlying transcription so prompt assembly
+    /// can pull `userNotes` for `{{userNotes}}` substitution and snapshotting
+    /// (ADR-020 §4, §6). The legacy `updateSummary` write-back path that
+    /// also lived through this property was removed in v0.7.6.
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var configStore: LLMConfigStoreProtocol?
     private var cliConfigStore: LocalCLIConfigStore?
@@ -255,11 +268,6 @@ public final class PromptResultsViewModel {
             _ = try promptResultRepo.delete(id: promptResult.id)
             promptResults.removeAll { $0.id == promptResult.id }
             unreadPromptResultIDs.remove(promptResult.id)
-            do {
-                try syncLegacySummary(for: promptResult.transcriptionId)
-            } catch {
-                logger.warning("Legacy summary sync failed after delete: \(error.localizedDescription, privacy: .public)")
-            }
             if let transcriptionID = currentTranscriptionID {
                 onPromptResultsChanged?(transcriptionID, !promptResults.isEmpty)
             }
@@ -277,7 +285,8 @@ public final class PromptResultsViewModel {
             transcript: transcript,
             transcriptionId: transcriptionId,
             prompt: prompt,
-            extraInstructions: normalizedExtraInstructions(extraInstructions)
+            extraInstructions: normalizedExtraInstructions(extraInstructions),
+            userNotes: fetchUserNotes(for: transcriptionId)
         )
     }
 
@@ -289,11 +298,16 @@ public final class PromptResultsViewModel {
             isBuiltIn: false,
             sortOrder: 0
         )
+        // Regeneration re-snapshots from the *current* notes on the row — if
+        // the user edited notes between summary generations they expect the
+        // new summary to reflect the new notes. The original summary's
+        // snapshot remains untouched on its row (ADR-020 §6).
         return enqueueGeneration(
             transcript: transcript,
             transcriptionId: promptResult.transcriptionId,
             prompt: prompt,
             extraInstructions: promptResult.extraInstructions,
+            userNotes: fetchUserNotes(for: promptResult.transcriptionId),
             replacingPromptResultID: promptResult.id
         )
     }
@@ -301,17 +315,25 @@ public final class PromptResultsViewModel {
     @discardableResult
     public func autoGeneratePromptResults(transcript: String, transcriptionId: UUID) -> [UUID] {
         guard transcript.count > Self.autoGenerationTranscriptLengthThreshold else { return [] }
-        
-        let autoPrompts = (try? promptRepo?.fetchAutoRunPrompts()) ?? [Prompt.defaultPrompt]
+
+        let autoPrompts: [Prompt]
+        do {
+            autoPrompts = try promptRepo?.fetchAutoRunPrompts() ?? []
+        } catch {
+            logger.warning("Skipping auto-run prompts because preferences could not be loaded: \(error.localizedDescription, privacy: .private)")
+            return []
+        }
         guard !autoPrompts.isEmpty else { return [] }
-        
+
+        let userNotes = fetchUserNotes(for: transcriptionId)
         var queuedIDs: [UUID] = []
         for prompt in autoPrompts {
             if let id = enqueueGeneration(
                 transcript: transcript,
                 transcriptionId: transcriptionId,
                 prompt: prompt,
-                extraInstructions: nil
+                extraInstructions: nil,
+                userNotes: userNotes
             ) {
                 queuedIDs.append(id)
             }
@@ -345,6 +367,7 @@ public final class PromptResultsViewModel {
         transcriptionId: UUID,
         prompt: Prompt,
         extraInstructions: String?,
+        userNotes: String? = nil,
         replacingPromptResultID: UUID? = nil
     ) -> UUID? {
         guard llmService != nil else { return nil }
@@ -358,6 +381,7 @@ public final class PromptResultsViewModel {
             promptContent: prompt.content,
             extraInstructions: extraInstructions,
             transcript: transcript,
+            userNotes: userNotes,
             replacingPromptResultID: replacingPromptResultID
         )
         pendingGenerations.append(generation)
@@ -377,7 +401,9 @@ public final class PromptResultsViewModel {
         let generationID = generation.id
         let systemPrompt = assembledSystemPrompt(
             promptContent: generation.promptContent,
-            extraInstructions: generation.extraInstructions
+            extraInstructions: generation.extraInstructions,
+            userNotes: generation.userNotes,
+            transcript: generation.transcript
         )
 
         streamingTask = Task { @MainActor [weak self] in
@@ -424,6 +450,7 @@ public final class PromptResultsViewModel {
             promptContent: generation.promptContent,
             extraInstructions: generation.extraInstructions,
             content: generation.content,
+            userNotesSnapshot: generation.userNotes,
             createdAt: timestamp,
             updatedAt: timestamp
         )
@@ -432,12 +459,6 @@ public final class PromptResultsViewModel {
             try promptResultRepo?.replace(promptResult, deletingExistingID: replacingPromptResultID)
         } else {
             try promptResultRepo?.save(promptResult)
-        }
-        do {
-            try transcriptionRepo?.updateSummary(id: generation.transcriptionId, summary: promptResult.content)
-            onLegacySummaryChanged?(generation.transcriptionId, promptResult.content)
-        } catch {
-            logger.warning("Legacy summary sync failed, prompt result saved successfully: \(error.localizedDescription, privacy: .public)")
         }
 
         pendingGenerations.remove(at: index)
@@ -481,22 +502,46 @@ public final class PromptResultsViewModel {
         processNextQueuedGeneration()
     }
 
-    private func assembledSystemPrompt(promptContent: String, extraInstructions: String?) -> String {
-        let trimmedInstructions = extraInstructions?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let trimmedInstructions, !trimmedInstructions.isEmpty else {
-            return promptContent
+    private func assembledSystemPrompt(
+        promptContent: String,
+        extraInstructions: String?,
+        userNotes: String? = nil,
+        transcript: String? = nil
+    ) -> String {
+        PromptSystemPromptAssembler.assemble(
+            promptContent: promptContent,
+            extraInstructions: extraInstructions,
+            userNotes: userNotes,
+            transcript: transcript
+        )
+    }
+
+    /// Truncate user notes to the prompt-assembly soft cap (8,000 words).
+    /// Persisted notes are never modified — this only protects the LLM
+    /// context window at generation time (ADR-020 §3).
+    ///
+    /// Whitespace in the kept portion is preserved as-typed (newlines,
+    /// tabs, indentation, blank lines) so structural cues — bullet lists,
+    /// section headings, slash-command markers — survive truncation.
+    /// A naive `split + join(" ")` would flatten everything to single
+    /// spaces and strip the structure the user typed to *steer* the
+    /// summary in the first place, which defeats the point.
+    static func truncateNotesForPrompt(_ notes: String) -> String {
+        PromptSystemPromptAssembler.truncateNotesForPrompt(notes)
+    }
+
+    private func fetchUserNotes(for transcriptionId: UUID) -> String? {
+        guard let transcriptionRepo else { return nil }
+        do {
+            return try transcriptionRepo.fetch(id: transcriptionId)?.userNotes
+        } catch {
+            logger.warning("Failed to fetch userNotes for transcription \(transcriptionId.uuidString, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
         }
-        return promptContent + "\n\n" + trimmedInstructions
     }
 
     private func normalizedExtraInstructions(_ value: String) -> String? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
-    }
-
-    private func syncLegacySummary(for transcriptionId: UUID) throws {
-        let latestPromptResult = try promptResultRepo?.fetchAll(transcriptionId: transcriptionId).first
-        try transcriptionRepo?.updateSummary(id: transcriptionId, summary: latestPromptResult?.content)
-        onLegacySummaryChanged?(transcriptionId, latestPromptResult?.content)
     }
 }

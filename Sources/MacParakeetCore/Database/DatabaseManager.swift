@@ -1,5 +1,6 @@
 import Foundation
 import GRDB
+import OSLog
 
 public final class DatabaseManager: Sendable {
     public let dbQueue: DatabaseQueue
@@ -187,11 +188,19 @@ public final class DatabaseManager: Sendable {
             }
         }
 
-        // v0.5 — Private dictation mode: hidden flag + wordCount column
+        // v0.5 — Private dictation mode: hidden flag + wordCount column.
+        // Pre-check column existence so a hand-restored DB (or one whose
+        // grdb_migrations row was lost) doesn't fail with `duplicate column`
+        // on re-run. Mirrors the v0.7.1-prompt-default pattern below.
         migrator.registerMigration("v0.5-private-dictation") { db in
+            let existingColumns = try db.columns(in: "dictations").map(\.name)
             try db.alter(table: "dictations") { t in
-                t.add(column: "hidden", .boolean).notNull().defaults(to: false)
-                t.add(column: "wordCount", .integer).notNull().defaults(to: 0)
+                if !existingColumns.contains("hidden") {
+                    t.add(column: "hidden", .boolean).notNull().defaults(to: false)
+                }
+                if !existingColumns.contains("wordCount") {
+                    t.add(column: "wordCount", .integer).notNull().defaults(to: 0)
+                }
             }
             // Backfill wordCount for existing completed rows.
             // Use DatabaseValue to safely skip rows with corrupt/non-UUID ids.
@@ -225,22 +234,52 @@ public final class DatabaseManager: Sendable {
                 columns: ["transcriptionId"]
             )
 
-            // Migrate existing chatMessages from transcriptions into chat_conversations
+            // Migrate existing chatMessages from transcriptions into chat_conversations.
+            //
+            // We track exactly which rows successfully migrated so the
+            // chatMessages-nullification at the end only touches rows whose
+            // content has actually been preserved in chat_conversations.
+            // Earlier versions of this migration ran a blanket
+            // `UPDATE ... SET chatMessages = NULL WHERE chatMessages IS NOT NULL`
+            // after the loop, which silently nulled rows whose primary key
+            // couldn't be parsed as a UUID -- their content was dropped with
+            // no audit trail. Now: skipped rows are logged via OSLog and
+            // their chatMessages column is left intact for forensic recovery.
+            let logger = Logger(subsystem: "com.macparakeet.core", category: "DatabaseMigration")
             let rows = try Row.fetchAll(db, sql: """
                 SELECT id, chatMessages FROM transcriptions WHERE chatMessages IS NOT NULL
             """)
             let now = Date()
+            var migratedRawIDs: [String] = []
+            var skippedCount = 0
             for row in rows {
+                let rawIDString: String? = row["id"]
                 guard let transcriptionId = UUID.fromDatabaseValue(row["id"] as DatabaseValue),
-                      let chatMessagesJSON = String.fromDatabaseValue(row["chatMessages"] as DatabaseValue) else { continue }
+                      let chatMessagesJSON = String.fromDatabaseValue(row["chatMessages"] as DatabaseValue) else {
+                    skippedCount += 1
+                    if let rawIDString {
+                        logger.warning(
+                            "v0.5-chat-conversations migration skipped row with unparseable id rawID=\(rawIDString, privacy: .private(mask: .hash))"
+                        )
+                    } else {
+                        logger.warning("v0.5-chat-conversations migration skipped row with missing id")
+                    }
+                    continue
+                }
 
-                // Derive title from first user message
+                // Derive title from first user message. Decode failure here
+                // only loses the derived title -- the raw JSON is still
+                // preserved in chat_conversations.messages.
                 var title = "Chat"
                 if let data = chatMessagesJSON.data(using: .utf8),
                    let messages = try? JSONDecoder().decode([ChatMessage].self, from: data) {
                     if let firstUser = messages.first(where: { $0.role == .user }) {
                         title = String(firstUser.content.prefix(50))
                     }
+                } else {
+                    logger.notice(
+                        "v0.5-chat-conversations migration could not decode messages for title derivation transcriptionId=\(transcriptionId.uuidString, privacy: .public)"
+                    )
                 }
 
                 let conversationId = UUID()
@@ -248,10 +287,21 @@ public final class DatabaseManager: Sendable {
                     INSERT INTO chat_conversations (id, transcriptionId, title, messages, createdAt, updatedAt)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, arguments: [conversationId, transcriptionId, title, chatMessagesJSON, now, now])
+                migratedRawIDs.append(rawIDString ?? transcriptionId.uuidString)
             }
 
-            // Null out migrated chatMessages (keep column for backward compat)
-            try db.execute(sql: "UPDATE transcriptions SET chatMessages = NULL WHERE chatMessages IS NOT NULL")
+            if skippedCount > 0 {
+                logger.warning(
+                    "v0.5-chat-conversations migration finished with skipped=\(skippedCount, privacy: .public) migrated=\(migratedRawIDs.count, privacy: .public). Skipped rows retain their chatMessages column for recovery."
+                )
+            }
+
+            // Null out migrated chatMessages only -- skipped rows keep their
+            // column intact. SQLite has no efficient `id IN (large list)`
+            // when the list grows; null per-id which preserves the contract.
+            for rawID in migratedRawIDs {
+                try db.execute(sql: "UPDATE transcriptions SET chatMessages = NULL WHERE id = ?", arguments: [rawID])
+            }
         }
 
         // v0.5 — Remove unused FTS5 infrastructure
@@ -316,6 +366,7 @@ public final class DatabaseManager: Sendable {
             """)
 
             let now = Date()
+            let legacySummaryPrompt = Prompt.classicSummaryPrompt(now: now)
             for prompt in Prompt.builtInPrompts(now: now) {
                 try prompt.insert(db)
             }
@@ -353,15 +404,29 @@ public final class DatabaseManager: Sendable {
                 }
 
                 let createdAt = Date.fromDatabaseValue(row["createdAt"] as DatabaseValue) ?? now
-                let migratedSummary = PromptResult(
-                    transcriptionId: transcriptionId,
-                    promptName: Prompt.defaultPrompt.name,
-                    promptContent: Prompt.defaultPrompt.content,
-                    content: summaryText,
-                    createdAt: createdAt,
-                    updatedAt: createdAt
+                // Raw SQL rather than `PromptResult.insert(db)` so this historic
+                // migration is decoupled from later additions to the model
+                // (e.g. v0.8 added `userNotesSnapshot` to PromptResult — using
+                // the model's auto-CRUD here would generate SQL referencing
+                // columns that don't exist yet at v0.7 migration time).
+                try db.execute(
+                    sql: """
+                        INSERT INTO summaries (
+                            id, transcriptionId, promptName, promptContent,
+                            extraInstructions, content, createdAt, updatedAt
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                    arguments: [
+                        UUID(),
+                        transcriptionId,
+                        legacySummaryPrompt.name,
+                        legacySummaryPrompt.content,
+                        nil as String?,
+                        summaryText,
+                        createdAt,
+                        createdAt,
+                    ]
                 )
-                try migratedSummary.insert(db)
             }
         }
 
@@ -401,6 +466,98 @@ public final class DatabaseManager: Sendable {
             try db.execute(sql: "UPDATE prompts SET isVisible = 1 WHERE isAutoRun = 1")
         }
 
+        // v0.7.4 - Lifetime dictation stats survive history deletion (issue #124).
+        // Single-row counter table, backfilled from existing completed dictations.
+        migrator.registerMigration("v0.7.4-lifetime-dictation-stats") { db in
+            try db.create(table: "lifetime_dictation_stats") { t in
+                t.column("id", .integer).primaryKey().check { $0 == 1 }
+                t.column("totalCount", .integer).notNull().defaults(to: 0)
+                t.column("totalDurationMs", .integer).notNull().defaults(to: 0)
+                t.column("totalWords", .integer).notNull().defaults(to: 0)
+                t.column("longestDurationMs", .integer).notNull().defaults(to: 0)
+                t.column("updatedAt", .text).notNull()
+            }
+            try DictationRepository.recomputeLifetimeStats(db: db)
+        }
+
+        // v0.7.5 - Mark meeting transcripts recovered from interrupted recordings.
+        migrator.registerMigration("v0.7.5-meeting-recovery-flag") { db in
+            try db.alter(table: "transcriptions") { t in
+                t.add(column: "recoveredFromCrash", .boolean).notNull().defaults(to: false)
+            }
+        }
+
+        // v0.7.6 - Drop legacy one-summary column after v0.7 migrates content to summaries.
+        migrator.registerMigration("v0.7.6-drop-legacy-transcription-summary") { db in
+            let columns = try db.columns(in: "transcriptions")
+            if columns.contains(where: { $0.name == "summary" }) {
+                try db.alter(table: "transcriptions") { t in
+                    t.drop(column: "summary")
+                }
+            }
+        }
+
+        // v0.7.7 - Distinguish user-edited transcript text from automatic cleanup.
+        migrator.registerMigration("v0.7.7-transcript-edited-flag") { db in
+            try db.alter(table: "transcriptions") { t in
+                t.add(column: "isTranscriptEdited", .boolean).notNull().defaults(to: false)
+            }
+        }
+
+        // v0.8 - Live meeting notepad: capture user notes alongside the transcript so
+        // they can steer the post-meeting summary (ADR-020).
+        migrator.registerMigration("v0.8-meeting-notepad-user-notes") { db in
+            try db.alter(table: "transcriptions") { t in
+                t.add(column: "userNotes", .text)
+            }
+        }
+
+        // v0.8 - Snapshot the userNotes value used at summary generation time, so
+        // editing notes later doesn't retroactively change historic summaries
+        // (mirrors the prompt-snapshot pattern from ADR-013).
+        migrator.registerMigration("v0.8-summaries-user-notes-snapshot") { db in
+            try db.alter(table: "summaries") { t in
+                t.add(column: "userNotesSnapshot", .text)
+            }
+        }
+
+        // v0.8 - Engine attribution: capture which STT engine + variant produced
+        // each transcript/dictation. NULL for legacy rows is intentional —
+        // pre-Whisper data is unambiguously Parakeet but post-Whisper-merge
+        // rows of unknown engine should not be silently labeled.
+        migrator.registerMigration("v0.8-engine-attribution") { db in
+            let transcriptionColumns = try db.columns(in: "transcriptions").map(\.name)
+            try db.alter(table: "transcriptions") { t in
+                if !transcriptionColumns.contains("engine") {
+                    t.add(column: "engine", .text)
+                }
+                if !transcriptionColumns.contains("engineVariant") {
+                    t.add(column: "engineVariant", .text)
+                }
+            }
+            let dictationColumns = try db.columns(in: "dictations").map(\.name)
+            try db.alter(table: "dictations") { t in
+                if !dictationColumns.contains("engine") {
+                    t.add(column: "engine", .text)
+                }
+                if !dictationColumns.contains("engineVariant") {
+                    t.add(column: "engineVariant", .text)
+                }
+            }
+        }
+
+        migrator.registerMigration("v0.9-derived-title-snippet") { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            try db.alter(table: "transcriptions") { t in
+                if !columns.contains("derivedTitle") {
+                    t.add(column: "derivedTitle", .text)
+                }
+                if !columns.contains("derivedSnippet") {
+                    t.add(column: "derivedSnippet", .text)
+                }
+            }
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
     }
@@ -408,8 +565,18 @@ public final class DatabaseManager: Sendable {
     private func reconcileBuiltInPrompts() throws {
         let builtInPrompts = Prompt.builtInPrompts(now: Date())
         let canonicalIDs = builtInPrompts.map { $0.id }
-        
+
         try dbQueue.write { db in
+            // Auto-run insertion guard (ADR-020 §5): a brand-new built-in prompt
+            // whose canonical isAutoRun is `true` is only inserted with auto-run
+            // enabled if the user already has at least one auto-run prompt today.
+            // This preserves ADR-013's "zero auto-run is a valid state" invariant
+            // for users who have explicitly disabled every auto-run prompt.
+            let userHasAnyAutoRunPrompt = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM prompts WHERE isAutoRun = 1)"
+            ) ?? false
+
             for prompt in builtInPrompts {
                 if let existing = try Prompt.fetchOne(db, key: prompt.id) {
                     try db.execute(
@@ -478,7 +645,14 @@ public final class DatabaseManager: Sendable {
                     continue
                 }
 
-                try prompt.insert(db)
+                // Apply the auto-run insertion guard (ADR-020 §5): if the user has
+                // explicitly disabled every auto-run prompt, do not silently
+                // re-introduce one via a new built-in.
+                var promptToInsert = prompt
+                if promptToInsert.isAutoRun && !userHasAnyAutoRunPrompt {
+                    promptToInsert.isAutoRun = false
+                }
+                try promptToInsert.insert(db)
             }
 
             // Delete any built-in prompts that are no longer in the canonical list

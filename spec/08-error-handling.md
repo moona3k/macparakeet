@@ -7,7 +7,7 @@
 1. **Never lose user data** -- Dictation text, transcription results, and recordings must survive crashes.
 2. **Graceful degradation** -- If STT fails, show an actionable error and offer retry. Never silently fail.
 3. **User-facing errors must be actionable** -- Every error the user sees must tell them what went wrong and what to do about it.
-4. **Crash recovery via ring buffer** -- During active recording, audio is written to a ring buffer on disk so data survives unexpected termination.
+4. **Crash recovery for meetings** -- During active meeting recording, fragmented source audio plus a session lock file preserve recoverable state after unexpected termination.
 5. **Structured logging** -- All internal errors logged via `os.Logger` with appropriate levels. User-facing errors are a separate concern.
 
 ## Error Categories
@@ -29,6 +29,8 @@
 | Out of memory | Model too large for available RAM | "Close other apps to free memory" |
 | Model not found | First run, model not downloaded | Show download progress |
 | Model download failed | Network error during CoreML model download | "Check internet connection and retry" |
+| Whisper model missing | Whisper selected before its local model is downloaded | Keep Parakeet available; show Whisper download action |
+| Engine busy | STT jobs are queued/running or a meeting speech-engine lease is active | Disable engine switch; retry after work finishes |
 
 ### Processing Errors
 
@@ -63,27 +65,26 @@
 | Database corruption | Unexpected shutdown during write | Auto-recover from WAL, warn user if data lost |
 | Import failed | Unsupported format or corrupt file | "This file format is not supported" |
 
-## Ring Buffer Crash Recovery
+## Meeting Recording Crash Recovery
 
-During active recording, audio is continuously written to a temporary ring buffer file:
+During active meeting recording, MacParakeet writes fragmented source audio and a lock file into the meeting session directory:
 
 ```
-~/Library/Application Support/MacParakeet/recovery/
-  recording-buffer.raw      # Current recording ring buffer
-  recording-meta.json       # Timestamps, sample rate, channel config
+~/Library/Application Support/MacParakeet/meeting-recordings/{uuid}/
+  microphone.m4a
+  system.m4a
+  recording.lock
 ```
 
 **Recovery flow:**
-1. On app launch, check for `recording-meta.json`
-2. If found, a previous recording was interrupted
-3. Prompt user: "A recording was interrupted. Recover audio?"
-4. If yes, import the buffer as a new dictation
-5. Clean up recovery files after user decision
+1. On app launch, scan meeting-recording directories for `recording.lock`.
+2. If a lock exists, the previous meeting session was interrupted.
+3. Validate surviving source audio and load lock metadata, including title, notes, and captured speech engine/language.
+4. Recover the meeting into the transcription library when audio exists; otherwise clean up empty sessions according to the recovery service rules.
+5. Final transcription uses the same captured speech engine/language that was active when the meeting started.
+6. Remove the lock after successful recovery/finalization.
 
-**Buffer parameters:**
-- Format: Raw PCM (same as capture pipeline)
-- Max size: 500 MB (~4 hours at 16-bit 16kHz mono)
-- Flush interval: Every 5 seconds
+Dictation does not use this lock-file recovery path. Short dictation audio is written as a temp WAV and rejected before STT if it contains too little audio.
 
 ## Error States in UI
 
@@ -95,7 +96,7 @@ Errors in the dictation overlay use a wider rounded-rectangle card (not the comp
 - Auto-dismiss after 2-5 seconds depending on error path, with Dismiss affordance where available
 - Red icon in tinted circle
 - Technical errors mapped to 6 friendly categories with contextual hints
-- Speech-engine failures explicitly direct users to onboarding or `Settings > Local Models > Repair`
+- Speech-engine failures explicitly direct users to onboarding or `Settings > Speech Recognition` repair/download actions
 
 ### Dictation Stop/Start Race Handling
 

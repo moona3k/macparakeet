@@ -1,8 +1,9 @@
 # ADR-003: One-Time Purchase Pricing Model
 
-> Status: **HISTORICAL** - Superseded by open-source release (GPL-3.0) in v0.5. MacParakeet is now free.
+> Status: **HISTORICAL / REFERENCE** - The specific $49 plan was superseded by the free/GPL-3.0 public release in v0.5.
 > Date: 2026-02-08
-> Amended: 2026-03-24 — MacParakeet went free and open-source (GPL-3.0). LemonSqueezy kept as $0 product for download tracking. The $49 pricing model below is historical context only.
+> Amended: 2026-03-24 — MacParakeet went free and open-source (GPL-3.0). LemonSqueezy kept as $0 product for download tracking. The $49 pricing model below is historical context, but GPL-compatible paid official distribution, support, hosted services, or future paid builds remain valid monetization options.
+> Guardrail: Do not delete purchase activation / entitlement code as dead code solely because current public builds are free and unlocked.
 > Note: References to the old local "command mode" / Qwen3-8B LLM modes in the pricing rationale are historical — that on-device path was removed 2026-02-23. Current provider-based LLM features are documented separately.
 
 ## Context

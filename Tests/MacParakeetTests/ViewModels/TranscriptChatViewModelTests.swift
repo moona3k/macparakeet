@@ -575,15 +575,19 @@ final class TranscriptChatViewModelTests: XCTestCase {
         let conv1 = ChatConversation(
             transcriptionId: transcriptionId,
             title: "Keep",
-            messages: [ChatMessage(role: .user, content: "Q1")]
+            messages: [ChatMessage(role: .user, content: "Q1")],
+            updatedAt: Date(timeIntervalSinceReferenceDate: 2)
         )
         let conv2 = ChatConversation(
             transcriptionId: transcriptionId,
             title: "Delete",
-            messages: [ChatMessage(role: .user, content: "Q2")]
+            messages: [ChatMessage(role: .user, content: "Q2")],
+            updatedAt: Date(timeIntervalSinceReferenceDate: 1)
         )
         mockConversationRepo.conversations = [conv1, conv2]
         viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+        viewModel.inputText = "draft from deleted chat"
+        viewModel.errorMessage = "stale error"
 
         // Delete conv1 (current)
         viewModel.deleteConversation(conv1)
@@ -592,6 +596,8 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.conversations[0].id, conv2.id)
         // Should switch to remaining conversation
         XCTAssertEqual(viewModel.currentConversation?.id, conv2.id)
+        XCTAssertEqual(viewModel.inputText, "")
+        XCTAssertNil(viewModel.errorMessage)
         XCTAssertTrue(mockConversationRepo.deleteCalls.contains(conv1.id))
     }
 

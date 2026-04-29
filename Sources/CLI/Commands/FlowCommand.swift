@@ -8,6 +8,7 @@ struct FlowCommand: AsyncParsableCommand {
             FlowProcessCommand.self,
             FlowWordsCommand.self,
             FlowSnippetsCommand.self,
+            FlowVocabularyCommand.self,
         ]
     )
 }

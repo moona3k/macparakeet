@@ -64,14 +64,16 @@ private final class IdlePillTrackingView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        if expandedPillRect.contains(point) {
+        let activeRect = isExpanded ? expandedPillRect : collapsedPillRect
+        if activeRect.contains(point) {
             onClicked?()
         }
     }
 
-    // Only intercept clicks in the expanded pill region; pass through everywhere else
+    // Only intercept clicks in the visible pill region; pass through everywhere else.
     override func hitTest(_ point: NSPoint) -> NSView? {
-        expandedPillRect.contains(point) ? self : nil
+        let activeRect = isExpanded ? expandedPillRect : collapsedPillRect
+        return activeRect.contains(point) ? self : nil
     }
 }
 

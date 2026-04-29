@@ -93,18 +93,27 @@ public actor DiarizationService: DiarizationServiceProtocol {
             return MacParakeetDiarizationResult(segments: [], speakerCount: 0, speakers: [])
         }
 
+        // Sort by start time before assigning stable IDs so "S1" is the
+        // first speaker to *talk* (chronologically), not the first speaker
+        // to appear in whatever order FluidAudio's offline pipeline happens
+        // to return segments. FluidAudio doesn't formally document the
+        // ordering of its `segments` array, so we don't rely on it.
+        let chronologicalSegments = fluidResult.segments.sorted { lhs, rhs in
+            lhs.startTimeSeconds < rhs.startTimeSeconds
+        }
+
         // Collect unique speaker IDs from FluidAudio (e.g. "speaker_0", "speaker_1")
-        // and normalize to stable IDs ("S1", "S2")
+        // and normalize to stable IDs ("S1", "S2") in chronological encounter order.
         var idMapping: [String: String] = [:]
         var nextIndex = 1
-        for segment in fluidResult.segments {
+        for segment in chronologicalSegments {
             if idMapping[segment.speakerId] == nil {
                 idMapping[segment.speakerId] = "S\(nextIndex)"
                 nextIndex += 1
             }
         }
 
-        let segments: [SpeakerSegment] = fluidResult.segments.map { seg in
+        let segments: [SpeakerSegment] = chronologicalSegments.map { seg in
             let mappedId = idMapping[seg.speakerId] ?? seg.speakerId
             let startMs = max(0, Int((seg.startTimeSeconds * 1000).rounded()))
             let endMs = max(0, Int((seg.endTimeSeconds * 1000).rounded()))

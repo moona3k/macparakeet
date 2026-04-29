@@ -13,6 +13,7 @@ final class AppEnvironmentConfigurer {
         let dictationFlowCoordinator: DictationFlowCoordinator
         let meetingRecordingFlowCoordinator: MeetingRecordingFlowCoordinator
         let hotkeyCoordinator: AppHotkeyCoordinator
+        let meetingAutoStartCoordinator: MeetingAutoStartCoordinator?
     }
 
     struct Callbacks {
@@ -24,6 +25,7 @@ final class AppEnvironmentConfigurer {
         let onTriggerYouTubeTranscriptionFromHotkey: () -> Void
         let onHotkeyBecameAvailable: () -> Void
         let onHotkeyUnavailable: () -> Void
+        let onRecoverPendingMeetingRecordings: () -> Void
     }
 
     private let transcriptionViewModel: TranscriptionViewModel
@@ -31,6 +33,7 @@ final class AppEnvironmentConfigurer {
     private let settingsViewModel: SettingsViewModel
     private let customWordsViewModel: CustomWordsViewModel
     private let textSnippetsViewModel: TextSnippetsViewModel
+    private let vocabularyBackupViewModel: VocabularyBackupViewModel
     private let libraryViewModel: TranscriptionLibraryViewModel
     private let meetingsViewModel: TranscriptionLibraryViewModel
     private let llmSettingsViewModel: LLMSettingsViewModel
@@ -38,6 +41,7 @@ final class AppEnvironmentConfigurer {
     private let promptResultsViewModel: PromptResultsViewModel
     private let promptsViewModel: PromptsViewModel
     private let mainWindowState: MainWindowState
+    private weak var liveMeetingCoordinator: MeetingRecordingFlowCoordinator?
 
     init(
         transcriptionViewModel: TranscriptionViewModel,
@@ -45,6 +49,7 @@ final class AppEnvironmentConfigurer {
         settingsViewModel: SettingsViewModel,
         customWordsViewModel: CustomWordsViewModel,
         textSnippetsViewModel: TextSnippetsViewModel,
+        vocabularyBackupViewModel: VocabularyBackupViewModel,
         libraryViewModel: TranscriptionLibraryViewModel,
         meetingsViewModel: TranscriptionLibraryViewModel,
         llmSettingsViewModel: LLMSettingsViewModel,
@@ -58,6 +63,7 @@ final class AppEnvironmentConfigurer {
         self.settingsViewModel = settingsViewModel
         self.customWordsViewModel = customWordsViewModel
         self.textSnippetsViewModel = textSnippetsViewModel
+        self.vocabularyBackupViewModel = vocabularyBackupViewModel
         self.libraryViewModel = libraryViewModel
         self.meetingsViewModel = meetingsViewModel
         self.llmSettingsViewModel = llmSettingsViewModel
@@ -99,17 +105,30 @@ final class AppEnvironmentConfigurer {
             checkoutURL: env.checkoutURL,
             customWordRepo: env.customWordRepo,
             snippetRepo: env.snippetRepo,
-            sttClient: env.sttScheduler
+            sttClient: env.sttScheduler,
+            speechEngineSwitcher: env.sttScheduler,
+            meetingRecoveryService: env.meetingRecordingRecoveryService
         )
+        settingsViewModel.onRecoverPendingMeetingRecordings = callbacks.onRecoverPendingMeetingRecordings
         customWordsViewModel.configure(repo: env.customWordRepo)
         textSnippetsViewModel.configure(repo: env.snippetRepo)
+        let vocabularyBackupService = VocabularyImportExportService(
+            customWordRepo: env.customWordRepo,
+            snippetRepo: env.snippetRepo,
+            dbQueue: env.databaseManager.dbQueue
+        )
+        vocabularyBackupViewModel.configure(service: vocabularyBackupService) { [weak self] in
+            self?.customWordsViewModel.loadWords()
+            self?.textSnippetsViewModel.loadSnippets()
+            self?.settingsViewModel.refreshStats()
+        }
         promptsViewModel.configure(repo: env.promptRepo)
         llmSettingsViewModel.configure(
             configStore: env.llmConfigStore,
             llmClient: env.llmClient
         )
 
-        settingsViewModel.onDictationsCleared = { [weak self] in
+        settingsViewModel.onDictationStateChanged = { [weak self] in
             self?.historyViewModel.loadDictations()
         }
 
@@ -129,6 +148,9 @@ final class AppEnvironmentConfigurer {
             llmService: hasLLMConfig ? env.llmService : nil,
             promptRepo: env.promptRepo,
             promptResultRepo: env.promptResultRepo,
+            // Without this, `fetchUserNotes` short-circuits to `nil`, which
+            // would silently render `{{userNotes}}` as an empty string and
+            // break the headline ADR-020 memo→summary mechanic.
             transcriptionRepo: env.transcriptionRepo,
             configStore: env.llmConfigStore
         )
@@ -151,10 +173,6 @@ final class AppEnvironmentConfigurer {
         promptResultsViewModel.onPromptResultsChanged = { [weak self] transcriptionID, hasPromptResults in
             guard self?.transcriptionViewModel.currentTranscription?.id == transcriptionID else { return }
             self?.transcriptionViewModel.hasPromptResultTabs = hasPromptResults
-        }
-
-        promptResultsViewModel.onLegacySummaryChanged = { [weak self] transcriptionID, summary in
-            self?.transcriptionViewModel.updateLegacySummary(id: transcriptionID, summary: summary)
         }
 
         promptResultsViewModel.onGenerationCompleted = { [weak self] generationID, promptResultID in
@@ -199,6 +217,11 @@ final class AppEnvironmentConfigurer {
             meetingRecordingService: env.meetingRecordingService,
             transcriptionService: env.transcriptionService,
             permissionService: env.permissionService,
+            transcriptionRepo: env.transcriptionRepo,
+            conversationRepo: env.chatConversationRepo,
+            configStore: env.llmConfigStore,
+            meetingAudioSourceModeProvider: { env.runtimePreferences.meetingAudioSourceMode },
+            llmService: hasLLMConfig ? env.llmService : nil,
             onMenuBarIconUpdate: { _ in callbacks.onMenuBarIconUpdate() },
             onTranscriptionReady: { [weak self] transcription in
                 guard let self else { return }
@@ -218,6 +241,7 @@ final class AppEnvironmentConfigurer {
             }
         )
         coordinatorRefs.meeting = meetingCoordinator
+        liveMeetingCoordinator = meetingCoordinator
 
         let hotkeyCoordinator = AppHotkeyCoordinator(
             settingsViewModel: settingsViewModel,
@@ -255,10 +279,46 @@ final class AppEnvironmentConfigurer {
         hotkeyCoordinator.setupYouTubeTranscriptionHotkey()
         dictationCoordinator.showIdlePill()
 
+        // Calendar auto-start (ADR-017 Phases 1 + 2 — reminders +
+        // countdown toast + auto-stop). The coordinator is a no-op when
+        // `calendarAutoStartMode == .off` so it's safe to start
+        // unconditionally; we still gate creation on the meeting-recording
+        // feature flag because calendar integration only makes sense when
+        // the user can actually record meetings.
+        let calendarCoordinator: MeetingAutoStartCoordinator?
+        if AppFeatures.meetingRecordingEnabled {
+            let coordinator = MeetingAutoStartCoordinator(
+                calendarService: CalendarService.shared,
+                settingsViewModel: settingsViewModel,
+                isRecordingActive: { [weak meetingCoordinator] in
+                    meetingCoordinator?.isMeetingRecordingActive ?? false
+                },
+                onAutoStartConfirmed: { [weak meetingCoordinator] title in
+                    meetingCoordinator?.startFromCalendar(title: title)
+                },
+                onAutoStopConfirmed: { [weak meetingCoordinator] in
+                    meetingCoordinator?.toggleRecording()
+                }
+            )
+            // The recording flow tells the calendar coordinator when an
+            // auto-start attempt actually failed (state was non-idle, or
+            // the underlying start threw) so the optimistic binding gets
+            // dropped — otherwise the next meeting's auto-stop would be
+            // suppressed by a stale `autoStartedEventId`.
+            meetingCoordinator.onAutoStartFailed = { [weak coordinator] in
+                coordinator?.clearAutoStartBinding()
+            }
+            coordinator.start()
+            calendarCoordinator = coordinator
+        } else {
+            calendarCoordinator = nil
+        }
+
         return Runtime(
             dictationFlowCoordinator: dictationCoordinator,
             meetingRecordingFlowCoordinator: meetingCoordinator,
-            hotkeyCoordinator: hotkeyCoordinator
+            hotkeyCoordinator: hotkeyCoordinator,
+            meetingAutoStartCoordinator: calendarCoordinator
         )
     }
 
@@ -268,5 +328,6 @@ final class AppEnvironmentConfigurer {
         transcriptionViewModel.updateLLMAvailability(hasConfig, llmService: service)
         chatViewModel.updateLLMService(service)
         promptResultsViewModel.updateLLMService(service)
+        liveMeetingCoordinator?.updateLLMService(service)
     }
 }

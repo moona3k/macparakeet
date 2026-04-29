@@ -2,12 +2,12 @@
 
 > Status: IMPLEMENTED
 > Date: 2026-04-05
-> Related: ADR-001 (Parakeet STT), ADR-007 (FluidAudio CoreML), ADR-010 (speaker diarization), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
+> Related: ADR-001 (Parakeet STT), ADR-007 (FluidAudio CoreML), ADR-010 (speaker diarization), ADR-021 (WhisperKit optional STT), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
 > Amended: 2026-04-10 (meeting mic echo mitigation via joined software AEC + observability hardening)
 
 ## Context
 
-MacParakeet has three co-equal modes: system-wide dictation, file transcription, and meeting recording (added by this ADR). Both use Parakeet STT via FluidAudio CoreML for on-device transcription. Users have requested the ability to record live meetings and calls — capturing both system audio (the other participants) and mic audio (the user) simultaneously, then transcribing the result.
+MacParakeet has three co-equal modes: system-wide dictation, file transcription, and meeting recording (added by this ADR). Parakeet STT via FluidAudio CoreML is the default on-device transcription path; ADR-021 adds optional WhisperKit for broader local language coverage. Users have requested the ability to record live meetings and calls — capturing both system audio (the other participants) and mic audio (the user) simultaneously, then transcribing the result.
 
 This came from exploring [GitHub #52](https://github.com/moona3k/macparakeet/issues/52) (hotkey profiles). The core ask was different workflows for different use cases. Meeting recording is the direct answer — a third mode that extends MacParakeet's voice-to-text capability without changing the product's simplicity.
 
@@ -80,13 +80,17 @@ The existing `AudioProcessor` is a single-stream actor wrapping `AudioRecorder` 
 
 If the user denies Screen Recording permission, meeting recording is blocked entirely. No mic-only fallback. This keeps the UX simple — the feature either works fully or doesn't. The permission is requested on first meeting recording attempt, not during onboarding.
 
-### 7. Batch transcription first, real-time later
+### 7. Batch transcription first; live preview implemented later
 
-Parakeet at 155x realtime transcribes 60 minutes of audio in ~23 seconds. Batch transcription (transcribe after recording stops) is simpler and sufficient for MVP. Real-time chunked transcription (5-second chunks during recording) is a Phase 2 enhancement.
+Parakeet at 155x realtime transcribes 60 minutes of audio in ~23 seconds. Batch transcription (transcribe after recording stops) was the MVP. Real-time chunked transcription (5-second chunks during recording) shipped in Phase 2 and is best-effort; final post-stop transcription remains authoritative.
 
-### 8. Free diarization from dual streams (Phase 2)
+### 8. Source-aware meeting finalization
 
-Keeping mic and system audio as separate streams enables "free" speaker attribution without ML diarization: mic audio = "Me", system audio = "Them". This is ported from Oatmeal's approach and provides basic two-speaker diarization at zero computational cost.
+Keeping mic and system audio as separate streams enables source-aware attribution: mic audio = "Me", system audio = remote speakers. Final meeting STT transcribes the per-source files separately and merges fresh results using persisted source-alignment metadata; `meeting.m4a` is the playback/export artifact, not the authoritative STT input.
+
+### 9. Speech engine captured at recording start
+
+The meeting service captures the active `SpeechEngineSelection` at start and persists it in the session metadata/lock file. Live preview, final transcription, retranscription of archived source files, and crash recovery use that captured selection. Settings cannot switch engines while the meeting's speech-engine lease is active.
 
 ### 9. Meeting mic echo mitigation (v0.6 hardening)
 
@@ -141,6 +145,6 @@ Dictation has complex paste/cancel/undo behavior that meeting recording doesn't 
 ## Phased Rollout
 
 1. **Phase 1 (MVP):** Start/stop recording, batch transcription, results in library. Sidebar + menu bar entry points. **Implemented.**
-2. **Phase 2 (Enhancement):** Real-time transcription via AudioChunker, free diarization from dual streams, dual audio level meters in pill, live transcript preview. **Implemented.**
+2. **Phase 2 (Enhancement):** Real-time transcription via AudioChunker, source-aware live preview, dual audio level meters in pill, live transcript preview. **Implemented.**
 3. **Phase 3 (Polish):** Dedicated meeting hotkey, auto-save wiring, meeting title prefix + rename flow, hotkey conflict prevention, settings section. **Implemented.**
 4. **Phase 4 (Concurrency):** Concurrent dictation during meeting recording (ADR-015). Menu bar icon priority aggregator. **Implemented.** STT runtime ownership and scheduling policy are defined separately in ADR-016.

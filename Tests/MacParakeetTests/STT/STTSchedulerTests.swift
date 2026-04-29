@@ -121,6 +121,81 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(counts.shutdown, 1)
     }
 
+    func testSetSpeechEngineForwardsWhenIdle() async throws {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        try await scheduler.setSpeechEngine(.whisper)
+
+        let count = await runtime.setSpeechEngineCallCount
+        XCTAssertEqual(count, 1)
+    }
+
+    func testSetSpeechEngineFailsWhileJobIsRunning() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.block(path: "active")
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let activeTask = Task {
+            try await scheduler.transcribe(audioPath: "active", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        do {
+            try await scheduler.setSpeechEngine(.whisper)
+            XCTFail("Expected engine switch to fail while STT job is running")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await runtime.release(path: "active")
+        _ = try await activeTask.value
+    }
+
+    func testSetSpeechEngineFailsWhileSessionLeaseIsActive() async throws {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let lease = await scheduler.beginSpeechEngineSession()
+        do {
+            try await scheduler.setSpeechEngine(.whisper)
+            XCTFail("Expected engine switch to fail while a speech engine session is active")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
+        }
+
+        await scheduler.endSpeechEngineSession(lease)
+        try await scheduler.setSpeechEngine(.whisper)
+        let count = await runtime.setSpeechEngineCallCount
+        XCTAssertEqual(count, 1)
+    }
+
+    func testSpeechEngineSessionLeaseUsesRuntimeSelection() async {
+        let runtime = MockSTTRuntime()
+        await runtime.setCurrentSelection(SpeechEngineSelection(engine: .whisper, language: "KO"))
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let lease = await scheduler.beginSpeechEngineSession()
+
+        XCTAssertEqual(lease.selection, SpeechEngineSelection(engine: .whisper, language: "ko"))
+    }
+
+    func testRoutedTranscribeForwardsSpeechEngineSelection() async throws {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+        let selection = SpeechEngineSelection(engine: .whisper, language: "KO")
+
+        _ = try await scheduler.transcribe(
+            audioPath: "meeting-final",
+            job: .meetingFinalize,
+            speechEngine: selection,
+            onProgress: nil
+        )
+
+        let routedSelection = await runtime.routedSelection(for: "meeting-final")
+        XCTAssertEqual(routedSelection, SpeechEngineSelection(engine: .whisper, language: "ko"))
+    }
+
     func testProgressIsScopedPerJobAcrossSlots() async throws {
         let runtime = MockSTTRuntime()
         await runtime.setProgressScript([10, 50], for: "file")
@@ -165,6 +240,8 @@ final class STTSchedulerTests: XCTestCase {
         try await waitForStartedPaths(runtime: runtime, count: 1)
 
         let droppedTask = Task { try await scheduler.transcribe(audioPath: "live-1", job: .meetingLiveChunk) }
+        // Let the first live chunk settle into the pending queue before the next chunk evicts it.
+        try await Task.sleep(for: .milliseconds(50))
         let survivingTask = Task { try await scheduler.transcribe(audioPath: "live-2", job: .meetingLiveChunk) }
 
         do {
@@ -192,6 +269,8 @@ final class STTSchedulerTests: XCTestCase {
         try await waitForStartedPaths(runtime: runtime, count: 1)
 
         let droppedTask = Task { try await scheduler.transcribe(audioPath: "live-1", job: .meetingLiveChunk) }
+        // Let the first live chunk settle into the pending queue before the next chunk evicts it.
+        try await Task.sleep(for: .milliseconds(50))
         let survivingTask = Task { try await scheduler.transcribe(audioPath: "live-2", job: .meetingLiveChunk) }
 
         do {
@@ -347,11 +426,14 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private var waitingContinuations: [String: CheckedContinuation<Void, any Error>] = [:]
     private var progressScripts: [String: [Int]] = [:]
     private var started: [String] = []
+    private var routedSelections: [String: SpeechEngineSelection] = [:]
 
     private(set) var warmUpCallCount = 0
     private(set) var isReadyCallCount = 0
     private(set) var clearModelCacheCallCount = 0
     private(set) var shutdownCallCount = 0
+    private(set) var setSpeechEngineCallCount = 0
+    private var selection = SpeechEngineSelection(engine: .parakeet)
     private var ready = false
 
     func transcribe(
@@ -379,6 +461,16 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
 
         try Task.checkCancellation()
         return STTResult(text: "\(job):\(audioPath)", words: [])
+    }
+
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        routedSelections[audioPath] = speechEngine
+        return try await transcribe(audioPath: audioPath, job: job, onProgress: onProgress)
     }
 
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {
@@ -413,6 +505,20 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         ready = false
     }
 
+    func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
+        setSpeechEngineCallCount += 1
+        selection = SpeechEngineSelection(engine: preference)
+        ready = false
+    }
+
+    func currentSpeechEngineSelection() async -> SpeechEngineSelection {
+        selection
+    }
+
+    func setCurrentSelection(_ selection: SpeechEngineSelection) {
+        self.selection = selection
+    }
+
     func block(path: String) {
         blockedPaths.insert(path)
     }
@@ -432,6 +538,10 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
 
     func startedPaths() -> [String] {
         started
+    }
+
+    func routedSelection(for path: String) -> SpeechEngineSelection? {
+        routedSelections[path]
     }
 
     func lifecycleCounts() -> (warmUp: Int, isReady: Int, clearModelCache: Int, shutdown: Int) {

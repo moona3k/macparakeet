@@ -4,6 +4,7 @@
 > Date: 2026-04-03
 > Related: ADR-011 (LLM providers), spec/12-processing-layer.md
 > Implementation Note (2026-04-04): The current branch seeds built-in/community prompts from `Prompt.builtInPrompts()` in Swift. `community-prompts.json` exists as a contribution/reference artifact, but runtime JSON loading has not shipped.
+> Naming Note (2026-04-28): The database table remains `summaries`, but the Swift model/repository/view-model names are now `PromptResult`, `PromptResultRepository`, and `PromptResultsViewModel`.
 
 ## Context
 
@@ -67,7 +68,7 @@ True parallel streaming would require multiple live LLM tasks, multiple temporar
 
 ### Why snapshots (not foreign keys)?
 
-A prompt is a living document — users edit and refine their custom prompts over time. A summary should always accurately reflect what produced it. If the "Meeting Notes" prompt is edited next week, existing summaries generated with the old version should still show the original prompt. This is the same reason git stores snapshots, not diffs.
+A prompt is a living document — users edit and refine their custom prompts over time. A summary should always accurately reflect what produced it. If a prompt is edited next week, existing summaries generated with the old version should still show the original prompt. This is the same reason git stores snapshots, not diffs.
 
 ### Why not build the full workflow engine now?
 
@@ -89,7 +90,7 @@ The three-layer architecture (Prompts → Actions → Workflows) is the long-ter
 - **More storage:** Multiple summaries per transcript uses more database space than a single column. Minimal impact — summary text is small compared to transcript text.
 - **UI complexity:** The summary tab gains a generation popover, tab navigation, and queued states. Mitigated by keeping execution single-worker and the controls compact.
 - **Migration required:** Existing `transcriptions.summary` data must migrate to the new `summaries` table. One-time, follows the proven v0.5 migration pattern.
-- **SummaryViewModel extraction:** Summary logic moves out of TranscriptionViewModel into a dedicated SummaryViewModel. More files, but cleaner separation (follows TranscriptChatViewModel precedent).
+- **PromptResultsViewModel extraction:** Summary logic moves out of TranscriptionViewModel into a dedicated PromptResultsViewModel. More files, but cleaner separation (follows TranscriptChatViewModel precedent).
 
 ## Architecture
 
@@ -98,13 +99,13 @@ The three-layer architecture (Prompts → Actions → Workflows) is the long-ter
 │  TranscriptResultView (summary pane)            │
 │    ├─ Summary popover (chips + model + extras)  │
 │    ├─ Pending generation tabs                   │
-│    └─ Summary tabs (reads from SummaryRepo)     │
+│    └─ Summary tabs (reads from PromptResultRepo)│
 │         │                                       │
 │         ▼                                       │
-│  SummaryViewModel                               │
+│  PromptResultsViewModel                         │
 │    ├─ Prompt selection + assembly               │
 │    ├─ Single-worker generation queue            │
-│    └─ Persistence via SummaryRepository         │
+│    └─ Persistence via PromptResultRepository    │
 └─────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────┐

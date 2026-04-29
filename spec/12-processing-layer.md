@@ -4,7 +4,7 @@
 > Related: [spec/11-llm-integration.md](11-llm-integration.md) (LLM providers), [spec/13-agent-workflows.md](13-agent-workflows.md) (future workflows, agents, voice control), [ADR-011](adr/011-llm-cloud-and-local-providers.md) (cloud + local providers), [ADR-013](adr/013-prompt-library-multi-summary.md) (prompt library + multi-summary)
 > Triggered by: [GitHub issue #51](https://github.com/moona3k/macparakeet/issues/51), [VoiceInk PR #600](https://github.com/Beingpax/VoiceInk/pull/600) by @mitsuhiko
 
-This spec defines MacParakeet's current processing layer (shipped in v0.5): the Prompt Library and multi-summary system. It is intentionally limited to the data model, UX, and service/view-model behavior needed for prompt-driven summary generation today.
+This spec defines MacParakeet's current processing layer: the Prompt Library and multi-summary system. It is intentionally limited to the data model, UX, and service/view-model behavior needed for prompt-driven summary generation today. The persisted table is still named `summaries`; the Swift model is now `PromptResult`.
 
 ---
 
@@ -30,18 +30,18 @@ This spec defines MacParakeet's current processing layer (shipped in v0.5): the 
 
 ### Current Scope
 
-The processing layer currently consists of a reusable Prompt Library and immutable Summary records.
+The processing layer currently consists of a reusable Prompt Library and immutable prompt-result records.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
-│  Prompt Library ← IMPLEMENTED (v0.5)                      │
+│  Prompt Library ← IMPLEMENTED                             │
 │  Prompt { id, name, content, category, visibility, ... }  │
 └──────────────────────────────┬─────────────────────────────┘
                                │ snapshot
                                ▼
 ┌────────────────────────────────────────────────────────────┐
-│  Summaries                                                │
-│  Summary { id, transcriptionId, promptName,               │
+│  summaries table / PromptResult model                     │
+│  PromptResult { id, transcriptionId, promptName,          │
 │            promptContent, extraInstructions, content, ... }│
 └────────────────────────────────────────────────────────────┘
 ```
@@ -69,7 +69,7 @@ Additional categories are future schema decisions and are not part of this spec.
 
 ---
 
-## Prompt Library + Multi-Summary (v0.5)
+## Prompt Library + Multi-Summary
 
 ### Concept
 
@@ -82,9 +82,9 @@ A **Summary** is a generated output tied to a specific transcript. Each transcri
 ```swift
 public struct Prompt: Codable, Identifiable, Sendable {
     public var id: UUID
-    public var name: String          // "Meeting Notes", "Action Items"
+    public var name: String          // "Summary", "Action Items & Decisions"
     public var content: String       // The actual instruction text
-    public var category: Category    // .summary (extensible)
+    public var category: Category    // .result stored as "summary" (extensible)
     public var isBuiltIn: Bool       // community prompt — hide only, no edit/delete
     public var isVisible: Bool       // false = hidden from picker
     public var isAutoRun: Bool       // true = auto-generate for new transcriptions
@@ -93,7 +93,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
     public var updatedAt: Date
 
     public enum Category: String, Codable, Sendable {
-        case summary
+        case result = "summary"
         case transform   // future
     }
 }
@@ -116,16 +116,17 @@ CREATE TABLE prompts (
 CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
 ```
 
-### Data Model: Summary
+### Data Model: PromptResult
 
 ```swift
-public struct Summary: Codable, Identifiable, Sendable {
+public struct PromptResult: Codable, Identifiable, Sendable {
     public var id: UUID
     public var transcriptionId: UUID
-    public var promptName: String         // snapshot: "Meeting Notes"
+    public var promptName: String         // snapshot: "Summary"
     public var promptContent: String      // snapshot: the full prompt used
     public var extraInstructions: String?  // user's extra instructions (if any)
     public var content: String            // the generated summary text
+    public var userNotesSnapshot: String?  // notes value used at generation time
     public var createdAt: Date
     public var updatedAt: Date
 }
@@ -139,6 +140,7 @@ CREATE TABLE summaries (
     promptContent     TEXT NOT NULL,
     extraInstructions TEXT,
     content           TEXT NOT NULL,
+    userNotesSnapshot TEXT,
     createdAt         TEXT NOT NULL,
     updatedAt         TEXT NOT NULL
 );
@@ -146,25 +148,27 @@ CREATE TABLE summaries (
 CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 ```
 
-**Why snapshot instead of reference:** Prompts can be edited or deleted after a summary is generated. The summary should always know exactly what instructions produced it. `promptName` is for display; `promptContent` is for reproducibility.
+**Why snapshot instead of reference:** Prompts can be edited or deleted after a result is generated. The result should always know exactly what instructions produced it. `promptName` is for display; `promptContent` and `userNotesSnapshot` are for reproducibility.
 
-**Migration from existing data:** Existing `transcriptions.summary` values migrate into the `summaries` table with `promptName = "General Summary"` and `promptContent` set to the current default summary prompt text. The legacy `transcriptions.summary` column is preserved and mirrors the newest completed summary for backward compatibility.
+**Migration from existing data:** Existing `transcriptions.summary` values migrate into the `summaries` table with classic `Summary` prompt metadata. The legacy `transcriptions.summary` column is dropped by `v0.7.6-drop-legacy-transcription-summary`.
 
 ### Community Prompts
 
-The current branch seeds seven built-in/community prompts from `Prompt.builtInPrompts()` in Swift. `Sources/MacParakeetCore/Resources/community-prompts.json` exists as a contribution/reference file, but it is not yet the runtime source of truth for prompt seeding.
+The current branch seeds built-in/community prompts from `Prompt.builtInPrompts()` in Swift. `Sources/MacParakeetCore/Resources/community-prompts.json` exists as a contribution/reference file, but it is not yet the runtime source of truth for prompt seeding.
 
-`General Summary` is seeded as the initial built-in auto-run prompt and remains the default fallback when prompt data is unavailable. The shipped built-in list is: `General Summary`, `Meeting Notes`, `Action Items`, `Key Quotes`, `Study Notes`, `Bullet Points`, and `Executive Brief`.
+`Summary` is the classic built-in fallback. `Memo-Steered Notes` is also built in and uses `{{userNotes}}` for meeting recordings. The shipped built-in list is defined in code and currently includes `Memo-Steered Notes`, `Summary`, `Action Items & Decisions`, `Chapter Breakdown`, `Study Guide`, `Blog Post`, and `What Stood Out`.
 
 ### System Prompt Assembly
 
-When generating a summary, the system prompt is assembled from the selected prompt + optional extra instructions:
+When generating a summary, the system prompt is assembled from the selected prompt + optional extra instructions. `PromptTemplateRenderer` substitutes `{{transcript}}` and `{{userNotes}}` in one pass before the LLM call:
 
 ```
 {prompt.content}
 
 {extraInstructions}       ← only if user provided extra instructions
 ```
+
+For meeting recordings, `Transcription.userNotes` is capped only for prompt input (8,000-word soft cap); the stored notes are not truncated. The `PromptResult` row snapshots the notes value used for generation.
 
 Edge cases:
 
@@ -190,7 +194,7 @@ Prompt cards may be marked `isAutoRun = true` in the prompt library.
 - Multiple auto-run prompt cards are allowed.
 - Zero auto-run prompt cards is a valid configuration. In that state, transcription and chat still work, and users generate prompt tabs manually from the summary UI.
 - Auto-run prompt cards are forced visible while auto-run is enabled.
-- If prompt data cannot be loaded at all, the runtime falls back to `General Summary`.
+- If prompt data cannot be loaded at all, the runtime falls back to `Summary`.
 
 ---
 
@@ -307,17 +311,17 @@ Provider architecture is unchanged. The Prompt Library changes what goes into th
 
 ## Boundaries & Sequencing
 
-| Implemented (v0.5) | Explore Later |
+| Implemented | Explore Later |
 |------------------|---------------|
 | `prompts` table + community prompt seeds | Action types beyond prompt-driven summarization |
-| `summaries` table (one-to-many) | Workflow engine / step chaining |
+| `summaries` table / `PromptResult` model (one-to-many) | Workflow engine / step chaining |
 | Prompt model + repository | Triggered automation |
-| Summary model + repository | Agent profiles / agent handoff |
+| PromptResult model + repository | Agent profiles / agent handoff |
 | Prompt chips + generation popover | Desktop-context collection |
 | Extra instructions field | Apple Shortcuts / App Intents integration |
 | Multi-summary tab navigation + queued pipeline | |
 | Management sheet (hide community, CRUD custom) | |
-| SummaryViewModel (extracted from TranscriptionVM) | |
+| PromptResultsViewModel (extracted from TranscriptionVM) | |
 | LLMService accepts custom system prompt | |
 | Migration from `transcriptions.summary` → `summaries` | |
 
@@ -330,10 +334,10 @@ The future design space for actions, workflows, agents, and voice control is doc
 ### Unit Tests
 
 1. **PromptRepository:** CRUD operations, community prompt seeding verification, visibility toggle, name uniqueness constraint, `restoreDefaults`, `fetchVisible` filtering by category.
-2. **SummaryRepository:** CRUD operations, `fetchAll` ordering (newest first), cascade delete when transcription deleted, `hasSummaries` check.
+2. **PromptResultRepository:** CRUD operations, `fetchAll` ordering (newest first), cascade delete when transcription deleted, `hasSummaries` check.
 3. **LLMService:** Custom system prompt flows through to message array; default prompt used when nil.
 4. **PromptsViewModel:** CRUD operations, visibility toggle, validation (empty fields, duplicate names), restore defaults.
-5. **SummaryViewModel:** Generation flow (prompt assembly → stream → persist), multi-summary state, delete, auto-run with selected prompt cards, and zero-auto-run behavior.
+5. **PromptResultsViewModel:** Generation flow (prompt assembly → stream → persist), multi-summary state, delete, auto-run with selected prompt cards, and zero-auto-run behavior.
 
 ### What We Skip
 

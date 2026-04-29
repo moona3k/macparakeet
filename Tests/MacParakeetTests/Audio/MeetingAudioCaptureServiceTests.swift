@@ -80,7 +80,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTAssertGreaterThan(buffer.rmsLevel, 0)
     }
 
-    func testEventsStreamRetainsFiveSecondsOfBurstSystemAudioBuffers() async throws {
+    func testEventsStreamRetainsBurstSystemAudioBuffersWithoutDropping() async throws {
         let microphone = MockMeetingMicrophoneCapture()
         let systemTap = MockMeetingSystemAudioTap()
         let service = MeetingAudioCaptureService(
@@ -91,15 +91,12 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         let events = await service.events
         _ = try await service.start()
 
-        // 500 callbacks * 480 frames @ 48kHz = 5 seconds of source audio.
-        // After 48kHz -> 16kHz resampling, that is exactly 80,000 samples,
-        // enough for the first live-transcription chunk if no events are dropped.
         let burstBuffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(
             sampleRate: 48_000,
-            samples: [Float](repeating: 0.25, count: 960)
+            samples: [Float](repeating: 0.25, count: 96)
         ))
 
-        for _ in 0..<500 {
+        for _ in 0..<2_100 {
             systemTap.emit(buffer: burstBuffer, time: AVAudioTime(hostTime: 1))
         }
 
@@ -113,7 +110,73 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
             }
         }
 
-        XCTAssertEqual(systemBufferCount, 500)
+        XCTAssertEqual(systemBufferCount, 2_100)
+    }
+
+    func testSystemOnlyModeStartsSystemTapWithoutMicrophone() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemTap = MockMeetingSystemAudioTap()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioTapFactory: { systemTap },
+            sourceModeProvider: { .systemOnly }
+        )
+
+        let capturedEvents = CapturedMeetingCaptureEvents()
+        let report = try await service.start { event in
+            Task {
+                await capturedEvents.append(event)
+            }
+        }
+        defer { Task { await service.stop() } }
+
+        XCTAssertEqual(report.sourceMode, .systemOnly)
+        XCTAssertFalse(report.microphoneStarted)
+        XCTAssertTrue(microphone.requestedModes.isEmpty)
+        XCTAssertEqual(systemTap.startCallCount, 1)
+
+        let buffer = try XCTUnwrap(makeInterleavedFloatStereoBuffer(
+            sampleRate: 48_000,
+            samples: [0.25, 0.25, 0.25, 0.25]
+        ))
+        microphone.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
+        systemTap.emit(buffer: buffer, time: AVAudioTime(hostTime: 1))
+
+        for _ in 0..<20 {
+            let events = await capturedEvents.values()
+            if events.systemBufferCount == 1 {
+                XCTAssertEqual(events.microphoneBufferCount, 0)
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        XCTFail("Timed out waiting for system-only capture events")
+    }
+
+    func testEmitsRuntimeErrorEventWhenMicrophoneStalls() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioTapFactory: { MockMeetingSystemAudioTap() }
+        )
+
+        let events = await service.events
+        _ = try await service.start()
+        defer { Task { await service.stop() } }
+
+        microphone.emitStall(.captureRuntimeFailure("microphone capture started but delivered no buffers within 2 seconds"))
+
+        var iterator = events.makeAsyncIterator()
+        let emitted = await iterator.next()
+        guard case let .error(error)? = emitted else {
+            XCTFail("Expected .error event, got \(String(describing: emitted))")
+            return
+        }
+        guard case .captureRuntimeFailure(let message) = error else {
+            XCTFail("Expected captureRuntimeFailure, got \(error)")
+            return
+        }
+        XCTAssertTrue(message.contains("microphone capture started"))
     }
 
     func testStartReturnsVPIOSuccessReportWhenAvailable() async throws {
@@ -220,6 +283,33 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         }
     }
 
+    func testEmitsRuntimeErrorEventWhenSystemTapStallsMidSession() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemTap = MockMeetingSystemAudioTap()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioTapFactory: { systemTap }
+        )
+
+        let events = await service.events
+        _ = try await service.start()
+        defer { Task { await service.stop() } }
+
+        systemTap.emitStall(.captureRuntimeFailure("system audio tap stopped delivering buffers (gap 6.0s)"))
+
+        var iterator = events.makeAsyncIterator()
+        let emitted = await iterator.next()
+        guard case let .error(error)? = emitted else {
+            XCTFail("Expected .error event, got \(String(describing: emitted))")
+            return
+        }
+        guard case .captureRuntimeFailure(let message) = error else {
+            XCTFail("Expected captureRuntimeFailure, got \(error)")
+            return
+        }
+        XCTAssertTrue(message.contains("stopped delivering buffers"))
+    }
+
     private func makeInterleavedFloatStereoBuffer(
         sampleRate: Double = 16_000,
         samples: [Float]
@@ -274,6 +364,7 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
 
 private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @unchecked Sendable {
     private var handler: AudioBufferHandler?
+    private var stallObserver: StallObserver?
     private let startHandler: (MeetingMicProcessingMode) throws -> MeetingMicrophoneCaptureStartReport
     private(set) var requestedModes: [MeetingMicProcessingMode] = []
 
@@ -290,35 +381,51 @@ private final class MockMeetingMicrophoneCapture: MeetingMicrophoneCapturing, @u
 
     func start(
         processingMode: MeetingMicProcessingMode,
-        handler: @escaping AudioBufferHandler
+        handler: @escaping AudioBufferHandler,
+        onStall: StallObserver?
     ) throws -> MeetingMicrophoneCaptureStartReport {
         self.handler = handler
+        self.stallObserver = onStall
         requestedModes.append(processingMode)
         return try startHandler(processingMode)
     }
 
     func stop() {
         handler = nil
+        stallObserver = nil
     }
 
     func emit(buffer: AVAudioPCMBuffer, time: AVAudioTime) {
         handler?(buffer, time)
+    }
+
+    func emitStall(_ error: MeetingAudioError) {
+        stallObserver?(error)
     }
 }
 
 private final class MockMeetingSystemAudioTap: MeetingSystemAudioTapping, @unchecked Sendable {
     private var handler: AudioBufferHandler?
+    private var stallObserver: StallObserver?
+    private(set) var startCallCount = 0
 
-    func start(handler: @escaping AudioBufferHandler) throws {
+    func start(handler: @escaping AudioBufferHandler, onStall: StallObserver?) throws {
+        startCallCount += 1
         self.handler = handler
+        self.stallObserver = onStall
     }
 
     func stop() {
         handler = nil
+        stallObserver = nil
     }
 
     func emit(buffer: AVAudioPCMBuffer, time: AVAudioTime) {
         handler?(buffer, time)
+    }
+
+    func emitStall(_ error: MeetingAudioError) {
+        stallObserver?(error)
     }
 }
 
@@ -331,5 +438,25 @@ private actor CapturedPCMBuffer {
 
     func value() -> AVAudioPCMBuffer? {
         buffer
+    }
+}
+
+private actor CapturedMeetingCaptureEvents {
+    private var microphoneBufferCount = 0
+    private var systemBufferCount = 0
+
+    func append(_ event: MeetingAudioCaptureEvent) {
+        switch event {
+        case .microphoneBuffer:
+            microphoneBufferCount += 1
+        case .systemBuffer:
+            systemBufferCount += 1
+        case .error:
+            break
+        }
+    }
+
+    func values() -> (microphoneBufferCount: Int, systemBufferCount: Int) {
+        (microphoneBufferCount, systemBufferCount)
     }
 }

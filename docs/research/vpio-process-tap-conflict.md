@@ -340,26 +340,23 @@ Rationale:
 
 ---
 
-## Implementation plan (minimum fix)
+## Implementation status
 
-1. `Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift` lines 59, 73, 83 — change `micProcessingMode: MeetingMicProcessingMode = .vpioPreferred` to `.raw` in all three init signatures.
-2. `Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift` — revert the tap-before-mic reorder introduced during investigation (put `microphoneCapture.start(...)` back before `tap.start(...)`). Without VPIO, start order is immaterial, but the original ordering is cleaner.
-3. `Sources/MacParakeetCore/Audio/MicrophoneCapture.swift:46` — change method default `processingMode: MeetingMicProcessingMode = .vpioPreferred` to `.raw`.
-4. Leave the `MeetingMicProcessingMode` enum, the `vpioPreferred` / `vpioRequired` cases, and all the fallback plumbing in place. They become dead code for now but removing them expands the diff for no benefit, and we may want to revisit if we ever pursue option (e).
-5. Update 8 test references:
-   - `Tests/MacParakeetTests/Audio/MeetingAudioCaptureServiceTests.swift` — 7 references to `.vpioPreferred` → `.raw`.
-   - `Tests/MacParakeetTests/Services/MeetingRecordingServiceTests.swift:480` — 1 reference.
-6. Update `spec/05-audio-pipeline.md:158-159` to document `.raw` + software conditioning + transcript-layer suppression as the meeting default, with a note about why VPIO is not used.
-7. Audit `MeetingRecordingService.shouldSuppressMicrophoneChunkTranscription` and `shouldTranscribeChunk` to verify the VPIO refactor did not inadvertently bypass them. If they are bypassed, wire them back in.
-8. Add lightweight diagnostic logging to `SystemAudioTap.start` and `MicrophoneCapture.start`: at start time, log selected device ID, device UID, sample rate, channel count, aggregate device ID (for the tap). At first-buffer-callback time (or N-second timeout), log whether the callback actually fired. This addresses Codex's "557-byte-file class bugs must be diagnosable in the field" concern and is cheap to add.
-9. Rebuild via `scripts/dev/run_app.sh` and run `swift test`.
-10. Manual verification (with Safari playing a video):
-    - Dictation alone → transcript contains user's voice.
-    - Meeting alone → both `microphone.wav` and `system.wav` contain real audio; final meeting transcript shows both sides.
-    - Dictation → meeting → dictation → all three captures produce real audio.
-    - Meeting → dictation → meeting → all three captures produce real audio.
-    - **Concurrent: start meeting, wait 30s, trigger dictation via hotkey without stopping meeting, speak a dictation command, return to meeting for another 30s, stop meeting.** Verify the meeting recording has unbroken system audio for the full duration AND the dictation captured separately. This is the critical test.
-11. Update traceability: `spec/kernel/traceability.md` if any requirement IDs are touched.
+The minimum fix shipped. Current defaults:
+
+1. `MeetingAudioCaptureService` defaults `micProcessingMode` to `.raw` in all init signatures.
+2. `MicrophoneCapture.start(...)` defaults `processingMode` to `.raw`.
+3. `MeetingRecordingService` defaults `micProcessingMode` to `.raw`.
+4. `MeetingMicProcessingMode.vpioPreferred` / `.vpioRequired` and fallback plumbing remain for explicit tests and future experiments, but they are not the shipped default path.
+5. `spec/05-audio-pipeline.md` documents raw mic capture + software conditioning + transcript-layer suppression as the meeting default.
+
+Manual verification checklist (with Safari playing a video):
+
+- Dictation alone → transcript contains user's voice.
+- Meeting alone → both `microphone.m4a` and `system.m4a` contain real audio; final meeting transcript shows both sides.
+- Dictation → meeting → dictation → all three captures produce real audio.
+- Meeting → dictation → meeting → all three captures produce real audio.
+- **Concurrent: start meeting, wait 30s, trigger dictation via hotkey without stopping meeting, speak a dictation command, return to meeting for another 30s, stop meeting.** Verify the meeting recording has unbroken system audio for the full duration AND the dictation captured separately. This is the critical test.
 
 ### Not in scope for the minimum fix
 
@@ -513,9 +510,9 @@ Tracked here for future PRs. None of these block the minimum fix or the concurre
 
 ### Related MacParakeet files (verified by direct read)
 
-- `Sources/MacParakeetCore/Audio/MicrophoneCapture.swift` — the only VPIO caller (line 226).
-- `Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift` — VPIO default set in 3 init sites (lines 59, 73, 83).
-- `Sources/MacParakeetCore/Audio/AudioRecorder.swift` — dictation path, no VPIO (confirmed raw tap at line 266).
+- `Sources/MacParakeetCore/Audio/MicrophoneCapture.swift` — the only VPIO caller, but default processing mode is `.raw`.
+- `Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift` — meeting capture defaults to `.raw` mic processing.
+- `Sources/MacParakeetCore/Audio/AudioRecorder.swift` — dictation path, no VPIO.
 - `Sources/MacParakeetCore/Audio/SystemAudioTap.swift` — Core Audio process tap implementation.
 - `Sources/MacParakeetCore/Services/MeetingRecordingService.swift` — hosts `shouldSuppressMicrophoneChunkTranscription` (around line 487) and `shouldTranscribeChunk` (around line 544).
 - `Sources/MacParakeetCore/Services/MicConditioner.swift` — `VPIOConditioner` (pass-through) and `SoftwareAECConditioner` (software AEC path).

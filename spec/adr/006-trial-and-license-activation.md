@@ -1,8 +1,8 @@
 # ADR-006: Trial + License Key Activation
 
-> Status: **HISTORICAL** — Superseded by open-source release (GPL-3.0) in v0.5.
-> MacParakeet is now free with unlimited features. Trial and license activation removed.
-> LemonSqueezy kept as $0 product for download tracking only.
+> Status: **DORMANT** — Not enforced in current free/GPL-3.0 public builds.
+> MacParakeet is currently free with unlimited features. Trial and license gates are disabled, but the activation/entitlement plumbing remains in the codebase as future-option support for GPL-compatible official paid distribution, support, or hosted services.
+> LemonSqueezy is currently kept as a $0 product for download tracking. Do not remove this ADR or entitlement code as dead code without explicit owner direction and an ADR/spec update.
 > Date: 2026-02-12
 
 ## Context
@@ -38,4 +38,3 @@ The implementation uses:
 
 - Requires a licensing backend for activation/validation.
 - Users without network access may be unable to activate Pro (trial still works until it expires).
-

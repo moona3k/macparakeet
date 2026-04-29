@@ -945,6 +945,19 @@ final class DictationFlowStateMachineTests: XCTestCase {
         XCTAssertTrue(effects.contains(.showIdlePill))
     }
 
+    func testStartRequestedWhileProcessingShowsBusyHintWithoutCancellingTranscription() {
+        var m = machineInRecording()
+        _ = m.handle(.stopRequested)
+        let generation = m.generation
+
+        let effects = m.handle(.startRequested(mode: .persistent))
+
+        XCTAssertEqual(m.state, .processing)
+        XCTAssertEqual(m.generation, generation)
+        XCTAssertEqual(effects, [.showBusyProcessingHint])
+        XCTAssertFalse(effects.contains(.cancelActionTask))
+    }
+
     func testRapidRestartFromCancelCountdown() {
         var m = machineInCancelCountdown()
         let oldGen = m.generation

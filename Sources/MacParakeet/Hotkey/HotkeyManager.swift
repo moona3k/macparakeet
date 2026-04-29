@@ -1,13 +1,17 @@
 import Cocoa
+import CoreGraphics
 import Foundation
 import IOKit.hidsystem
 import MacParakeetCore
+import OSLog
 
 /// Manages system-wide hotkey detection via CGEvent tap.
 /// Supports any single key as trigger: modifier keys (Fn, Control, Option, Shift, Command)
 /// or regular key codes (F13, End, Home, etc.). See ADR-009.
 /// Requires Accessibility permission.
 public final class HotkeyManager {
+    private static let logger = Logger(subsystem: "com.macparakeet.app", category: "HotkeyManager")
+
     public var onStartRecording: ((FnKeyStateMachine.RecordingMode) -> Void)?
     public var onStopRecording: (() -> Void)?
     public var onCancelRecording: (() -> Void)?
@@ -39,6 +43,7 @@ public final class HotkeyManager {
     /// For chord triggers: true after a required modifier was released while the key was still held.
     /// Prevents double fnUp when the key is subsequently released.
     private var chordModifierReleased = false
+    private var activeRecordingMode: FnKeyStateMachine.RecordingMode?
 
     /// Bare-tap filtering: true until a non-Escape key is pressed while modifier is held.
     private var bareTap = true
@@ -130,6 +135,13 @@ public final class HotkeyManager {
             // Without this, deinit can never fire (the +1 prevents deallocation).
             retainedSelf?.release()
             retainedSelf = nil
+            // Log the trust state so logs distinguish "permission not granted"
+            // from a generic system error. AXIsProcessTrusted is read-only and
+            // doesn't trigger a permission prompt (we pass `nil` options).
+            let isTrusted = AXIsProcessTrusted()
+            Self.logger.error(
+                "hotkey_tap_create_failed accessibility_trusted=\(isTrusted, privacy: .public)"
+            )
             return false
         }
 
@@ -139,7 +151,7 @@ public final class HotkeyManager {
         installedRunLoop = runLoop
         CFRunLoopAddSource(runLoop, runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
-        syncModifierPressedState()
+        recoverFromDisabledTap()
 
         return true
     }
@@ -165,6 +177,7 @@ public final class HotkeyManager {
         targetModifierGestureIsActive = false
         triggerKeyIsPressed = false
         chordModifierReleased = false
+        activeRecordingMode = nil
         bareTap = true
         gestureController.reset()
     }
@@ -176,7 +189,7 @@ public final class HotkeyManager {
         // Re-enable it to prevent the hotkey from silently dying.
         if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
             if let tap = eventTap { CGEvent.tapEnable(tap: tap, enable: true) }
-            syncModifierPressedState()
+            recoverFromDisabledTap()
             return Unmanaged.passUnretained(event)
         }
 
@@ -285,6 +298,7 @@ public final class HotkeyManager {
                 return gestureController.triggerPressed(timestampMs: timestampMs)
             }
 
+            guard targetModifierGestureIsActive else { return [] }
             targetModifierGestureIsActive = false
             let outputs: [HotkeyGestureController.Output]
             if bareTap {
@@ -337,6 +351,7 @@ public final class HotkeyManager {
         timestampMs: UInt64
     ) -> [HotkeyGestureController.Output] {
         let outputs = modifierFlagsChangedOutputs(flags: flags, timestampMs: timestampMs)
+        rememberRecordingState(for: outputs)
         previousModifierFlags = flags
         return outputs
     }
@@ -345,19 +360,46 @@ public final class HotkeyManager {
         keyCode: Int64,
         timestampMs: UInt64
     ) -> [HotkeyGestureController.Output] {
-        modifierKeyDownOutputs(keyCode: keyCode, timestampMs: timestampMs)
+        let outputs = modifierKeyDownOutputs(keyCode: keyCode, timestampMs: timestampMs)
+        rememberRecordingState(for: outputs)
+        return outputs
     }
 
     func startupDebounceElapsedForTesting() -> [HotkeyGestureController.Output] {
-        gestureController.startupDebounceElapsed()
+        let outputs = gestureController.startupDebounceElapsed()
+        rememberRecordingState(for: outputs)
+        return outputs
     }
 
     func holdWindowElapsedForTesting() -> [HotkeyGestureController.Output] {
-        gestureController.holdWindowElapsed()
+        let outputs = gestureController.holdWindowElapsed()
+        rememberRecordingState(for: outputs)
+        return outputs
     }
 
     func syncModifierPressedStateForTesting(flags: CGEventFlags) {
         syncModifierPressedState(flags: flags)
+    }
+
+    @discardableResult
+    func recoverFromDisabledTapForTesting(
+        flags: CGEventFlags? = nil,
+        triggerKeyPressed: Bool = false,
+        timestampMs: UInt64 = HotkeyManager.currentTimestampMs()
+    ) -> [HotkeyGestureController.Output] {
+        recoverFromDisabledTap(
+            flags: flags,
+            triggerKeyPressed: triggerKeyPressed,
+            timestampMs: timestampMs
+        )
+    }
+
+    func chordTriggerKeyUpOutputsForTesting(
+        timestampMs: UInt64
+    ) -> [HotkeyGestureController.Output] {
+        let outputs = chordTriggerKeyUpOutputs(timestampMs: timestampMs)
+        rememberRecordingState(for: outputs)
+        return outputs
     }
 
     // MARK: - KeyCode Trigger Path
@@ -440,14 +482,7 @@ public final class HotkeyManager {
             }
         } else if type == .keyUp {
             if keyCode == triggerCode {
-                if triggerKeyIsPressed {
-                    triggerKeyIsPressed = false
-                    if !chordModifierReleased {
-                        // Normal key release — end dictation
-                        handleOutputs(gestureController.triggerReleased(timestampMs: timestampMs))
-                    }
-                    chordModifierReleased = false
-                }
+                handleOutputs(chordTriggerKeyUpOutputs(timestampMs: timestampMs))
                 // Always swallow the trigger key's keyUp
                 return nil
             }
@@ -470,23 +505,157 @@ public final class HotkeyManager {
     /// Blocks hotkey during the cancel countdown window.
     public func notifyCancelledByUI() {
         gestureController.notifyCancelledByUI()
+        activeRecordingMode = nil
     }
 
     /// Resume recording mode after undo, so hotkey stops the recording correctly.
     public func resumeRecording(mode: FnKeyStateMachine.RecordingMode) {
         gestureController.resumeRecording(mode: mode)
+        activeRecordingMode = mode
     }
 
     /// Reset state machine to idle (e.g., after cancel countdown expires).
     public func resetToIdle(flags: CGEventFlags? = nil) {
+        resetGestureState(flags: flags, triggerKeyPressed: false)
+    }
+
+    @discardableResult
+    private func recoverFromDisabledTap(
+        flags: CGEventFlags? = nil,
+        timestampMs: UInt64 = HotkeyManager.currentTimestampMs()
+    ) -> [HotkeyGestureController.Output] {
+        recoverFromDisabledTap(
+            flags: flags,
+            triggerKeyPressed: currentPhysicalTriggerKeyIsPressed(),
+            timestampMs: timestampMs
+        )
+    }
+
+    @discardableResult
+    private func recoverFromDisabledTap(
+        flags: CGEventFlags? = nil,
+        triggerKeyPressed: Bool,
+        timestampMs: UInt64
+    ) -> [HotkeyGestureController.Output] {
+        let triggerPressed = currentPhysicalTriggerIsPressed(
+            flags: flags,
+            triggerKeyPressed: triggerKeyPressed
+        )
+
+        switch activeRecordingMode {
+        case .holdToTalk:
+            cancelStartupTimer()
+            cancelHoldTimer()
+            syncRecoveredTriggerState(
+                flags: flags,
+                triggerKeyPressed: triggerKeyPressed,
+                triggerPressed: triggerPressed
+            )
+            guard !triggerPressed else { return [] }
+
+            let outputs = gestureController.triggerReleased(timestampMs: timestampMs)
+            handleOutputs(outputs)
+            return outputs
+
+        case .persistent:
+            cancelStartupTimer()
+            cancelHoldTimer()
+            syncRecoveredTriggerState(
+                flags: flags,
+                triggerKeyPressed: triggerKeyPressed,
+                triggerPressed: triggerPressed
+            )
+            return []
+
+        case nil:
+            resetGestureState(flags: flags, triggerKeyPressed: triggerKeyPressed)
+            return []
+        }
+    }
+
+    private func resetGestureState(flags: CGEventFlags? = nil, triggerKeyPressed: Bool) {
         cancelStartupTimer()
         cancelHoldTimer()
-        triggerKeyIsPressed = false
+        triggerKeyIsPressed = triggerKeyPressed
         chordModifierReleased = false
         targetModifierGestureIsActive = false
+        activeRecordingMode = nil
         bareTap = true
         gestureController.reset()
         syncModifierPressedState(flags: flags)
+    }
+
+    private static func currentTimestampMs() -> UInt64 {
+        DispatchTime.now().uptimeNanoseconds / 1_000_000
+    }
+
+    private func currentPhysicalTriggerIsPressed(
+        flags: CGEventFlags? = nil,
+        triggerKeyPressed: Bool
+    ) -> Bool {
+        switch trigger.kind {
+        case .modifier:
+            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            if let targetKeyCode = trigger.modifierKeyCode {
+                return Self.sideSpecificModifierIsPressed(flags: currentFlags, keyCode: targetKeyCode)
+            }
+            if let mask = targetMask {
+                return currentFlags.contains(mask)
+            }
+            return false
+        case .keyCode:
+            return triggerKeyPressed
+        case .chord:
+            guard triggerKeyPressed else { return false }
+            let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            return currentFlags.rawValue & requiredChordFlags == requiredChordFlags
+        case .disabled:
+            return false
+        }
+    }
+
+    private func syncRecoveredTriggerState(
+        flags: CGEventFlags? = nil,
+        triggerKeyPressed: Bool,
+        triggerPressed: Bool
+    ) {
+        triggerKeyIsPressed = triggerKeyPressed
+        syncModifierPressedState(flags: flags)
+
+        switch trigger.kind {
+        case .modifier:
+            targetModifierGestureIsActive = triggerPressed
+            if !triggerPressed {
+                bareTap = true
+            }
+        case .chord:
+            if triggerPressed {
+                chordModifierReleased = false
+            } else if triggerKeyPressed {
+                chordModifierReleased = true
+            }
+        default:
+            break
+        }
+    }
+
+    private func chordTriggerKeyUpOutputs(
+        timestampMs: UInt64
+    ) -> [HotkeyGestureController.Output] {
+        guard triggerKeyIsPressed else { return [] }
+
+        triggerKeyIsPressed = false
+        let outputs = chordModifierReleased ? [] : gestureController.triggerReleased(timestampMs: timestampMs)
+        chordModifierReleased = false
+        return outputs
+    }
+
+    private func currentPhysicalTriggerKeyIsPressed() -> Bool {
+        guard trigger.kind == .keyCode || trigger.kind == .chord,
+              let keyCode = trigger.keyCode else {
+            return false
+        }
+        return CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keyCode))
     }
 
     private func syncModifierPressedState(flags: CGEventFlags? = nil) {
@@ -540,6 +709,8 @@ public final class HotkeyManager {
     }
 
     private func handleOutputs(_ outputs: [HotkeyGestureController.Output]) {
+        rememberRecordingState(for: outputs)
+
         for output in outputs {
             switch output {
             case .startRecording(let mode):
@@ -562,6 +733,19 @@ public final class HotkeyManager {
                 cancelStartupTimer()
             case .cancelHoldWindow:
                 cancelHoldTimer()
+            }
+        }
+    }
+
+    private func rememberRecordingState(for outputs: [HotkeyGestureController.Output]) {
+        for output in outputs {
+            switch output {
+            case .startRecording(let mode):
+                activeRecordingMode = mode
+            case .stopRecording, .cancelRecording, .discardRecording:
+                activeRecordingMode = nil
+            default:
+                break
             }
         }
     }

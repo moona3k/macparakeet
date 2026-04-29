@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import MacParakeetCore
 import OSLog
@@ -14,6 +15,34 @@ public final class SettingsViewModel {
         case repairing
         case failed
     }
+
+    public enum MicrophoneTestState: Equatable {
+        case idle
+        case testing
+        case succeeded
+        case failed(String)
+    }
+
+    public struct MicrophoneDeviceOption: Identifiable, Equatable, Sendable {
+        public let id: String
+        public let uid: String
+        public let name: String
+        public let transportLabel: String
+        public let isDefault: Bool
+        public let isAvailable: Bool
+
+        public var displayName: String {
+            if !isAvailable { return "\(name) (unavailable)" }
+            return isDefault ? "\(name) (System Default)" : name
+        }
+
+        public var detail: String {
+            isAvailable ? transportLabel : "Reconnect this microphone or choose another input."
+        }
+    }
+
+    public static let systemDefaultMicrophoneSelection = "__system_default__"
+    private static let microphoneTestSilenceThreshold: Float = 0.01
 
     // General
     public var launchAtLogin: Bool {
@@ -95,6 +124,60 @@ public final class SettingsViewModel {
     public var silenceDelay: Double {
         didSet { defaults.set(silenceDelay, forKey: UserDefaultsAppRuntimePreferences.silenceDelayKey) }
     }
+    public var selectedMicrophoneDeviceUID: String {
+        didSet {
+            let normalized = Self.normalizedMicrophoneSelection(selectedMicrophoneDeviceUID)
+            if selectedMicrophoneDeviceUID != normalized {
+                selectedMicrophoneDeviceUID = normalized
+            }
+            if normalized == Self.systemDefaultMicrophoneSelection {
+                defaults.removeObject(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
+            } else {
+                defaults.set(normalized, forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
+            }
+            microphoneTestTask?.cancel()
+            microphoneTestTask = nil
+            microphoneTestState = .idle
+            microphoneTestLevel = 0
+            Telemetry.send(.settingChanged(setting: .microphoneSelection))
+        }
+    }
+    public var meetingAudioSourceMode: MeetingAudioSourceMode {
+        didSet {
+            defaults.set(
+                meetingAudioSourceMode.rawValue,
+                forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
+            )
+            Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode))
+        }
+    }
+    public var microphoneDeviceOptions: [MicrophoneDeviceOption] = []
+    public var microphoneTestState: MicrophoneTestState = .idle
+    public var microphoneTestLevel: Float = 0
+    public var selectedMicrophoneStatusText: String {
+        if selectedMicrophoneDeviceUID == Self.systemDefaultMicrophoneSelection {
+            if meetingAudioSourceMode == .systemOnly {
+                if let currentDefault = microphoneDeviceOptions.first(where: \.isDefault) {
+                    return "Using macOS System Default for dictation: \(currentDefault.name). Meeting recording is set to System Audio Only."
+                }
+                return "Using macOS System Default for dictation. Meeting recording is set to System Audio Only."
+            }
+            if let currentDefault = microphoneDeviceOptions.first(where: \.isDefault) {
+                return "Using macOS System Default: \(currentDefault.name)."
+            }
+            return "Using macOS System Default."
+        }
+        guard let selected = microphoneDeviceOptions.first(where: { $0.uid == selectedMicrophoneDeviceUID }) else {
+            return "Selected microphone is unavailable. MacParakeet will use System Default until it returns."
+        }
+        guard selected.isAvailable else {
+            return "Selected microphone is unavailable. MacParakeet will use System Default until it returns."
+        }
+        if meetingAudioSourceMode == .systemOnly {
+            return "Using \(selected.name) for dictation. Meeting recording is set to System Audio Only."
+        }
+        return "Using \(selected.name) for dictation and meeting microphone capture."
+    }
 
     // Voice Return
     public var voiceReturnEnabled: Bool {
@@ -152,6 +235,27 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .speakerDiarization))
         }
     }
+    public var speechEnginePreference: SpeechEnginePreference {
+        didSet {
+            guard !isApplyingSpeechEngineState else { return }
+            applySpeechEngineChange(speechEnginePreference)
+        }
+    }
+    public var whisperDefaultLanguage: String {
+        didSet {
+            SpeechEnginePreference.saveWhisperDefaultLanguage(whisperDefaultLanguage, defaults: defaults)
+        }
+    }
+    public var speechEngineSwitching = false
+    public var speechEngineError: String?
+    public var whisperModelStatus: LocalModelStatus = .unknown
+    public var whisperModelStatusDetail: String = "Not checked yet."
+    public var whisperDownloading = false
+    public var isWhisperModelDownloaded: Bool {
+        whisperModelStatus == .ready || whisperModelStatus == .notLoaded
+    }
+    public private(set) var pendingMeetingRecoveryCount = 0
+    public var onRecoverPendingMeetingRecordings: (() -> Void)?
 
     // Auto-save (transcription)
     public var autoSaveTranscripts: Bool {
@@ -180,6 +284,81 @@ public final class SettingsViewModel {
         }
     }
     public var meetingAutoSaveFolderPath: String?
+
+    // Calendar auto-start (ADR-017)
+    //
+    // Each `didSet` writes the value through to `UserDefaults`, fires the
+    // shared `macParakeetCalendarSettingsDidChange` notification (so the
+    // coordinator re-reads its config without waiting for the next poll
+    // tick), and emits a typed telemetry event. Excluded calendar IDs flow
+    // through the same notification — the coordinator's filter changes the
+    // moment a checkbox is toggled.
+    public var calendarAutoStartMode: CalendarAutoStartMode {
+        didSet {
+            defaults.set(calendarAutoStartMode.rawValue, forKey: CalendarAutoStartPreferences.modeKey)
+            // Guard ALL side effects (not just the auth prompt). Onboarding
+            // posts the cross-VM notification itself; if we re-post here
+            // during the resulting reload, the observer cycles indefinitely
+            // (the .common-mode Task hop drops the re-entrancy guard before
+            // the observer fires again). The originator already emitted
+            // telemetry — don't double-emit on sync.
+            guard !isResolvingCalendarSettings else { return }
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarAutoStartMode))
+            // Enabling reminders requires notification authorization. The
+            // onboarding-grant flow asks for this in tandem with Calendar
+            // access, but a user who granted Calendar earlier (or via
+            // System Settings) and *now* flips the mode picker to non-`.off`
+            // would otherwise hit the silent-drop path: coordinator marks
+            // the event reminded, finds notifications unauthorized, returns
+            // without delivering.
+            if calendarAutoStartMode != .off {
+                Task { await CalendarNotificationAuthorization.requestIfNeeded() }
+            }
+        }
+    }
+    public var calendarReminderMinutes: Int {
+        didSet {
+            defaults.set(calendarReminderMinutes, forKey: CalendarAutoStartPreferences.reminderMinutesKey)
+            guard !isResolvingCalendarSettings else { return }
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarReminderMinutes))
+        }
+    }
+    public var meetingTriggerFilter: MeetingTriggerFilter {
+        didSet {
+            defaults.set(meetingTriggerFilter.rawValue, forKey: CalendarAutoStartPreferences.triggerFilterKey)
+            guard !isResolvingCalendarSettings else { return }
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarTriggerFilter))
+        }
+    }
+    public var calendarAutoStopEnabled: Bool {
+        didSet {
+            defaults.set(calendarAutoStopEnabled, forKey: CalendarAutoStartPreferences.autoStopEnabledKey)
+            guard !isResolvingCalendarSettings else { return }
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarAutoStopEnabled))
+        }
+    }
+    public var calendarExcludedIdentifiers: Set<String> {
+        didSet {
+            defaults.set(Array(calendarExcludedIdentifiers), forKey: CalendarAutoStartPreferences.excludedCalendarIdsKey)
+            guard !isResolvingCalendarSettings else { return }
+            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .calendarIncludedCalendars))
+        }
+    }
+    /// Three-state Calendar permission. Settings UI needs to distinguish
+    /// `.denied` from `.notDetermined` because macOS only shows the
+    /// EventKit prompt once — after denial, the only recovery path is
+    /// System Settings, so the Settings button label has to change too.
+    public var calendarPermissionStatus: CalendarService.PermissionStatus = .notDetermined
+    /// Convenience derived from `calendarPermissionStatus` for callers that
+    /// only care about the granted-or-not boolean (onboarding gating, etc.).
+    public var calendarPermissionGranted: Bool {
+        calendarPermissionStatus == .granted
+    }
 
     // Permission status
     public var microphoneGranted = false
@@ -220,24 +399,46 @@ public final class SettingsViewModel {
     private var entitlementsService: EntitlementsService?
     private var launchAtLoginService: LaunchAtLoginControlling?
     private var sttClient: STTClientProtocol?
+    private var speechEngineSwitcher: SpeechEngineSwitching?
+    private var meetingRecoveryService: MeetingRecordingRecoveryServicing?
     private let defaults: UserDefaults
     private let youtubeDownloadsDirPath: @Sendable () -> String
     private let isSpeechModelCached: @Sendable () -> Bool
+    private let inputDevicesProvider: @Sendable () -> [AudioDeviceManager.InputDevice]
+    private let defaultInputDeviceUIDProvider: @Sendable () -> String?
     private let permissionPollingInterval: Duration
     private var isApplyingLaunchAtLoginState = false
-    private var permissionPollingTask: Task<Void, Never>?
+    private var isApplyingSpeechEngineState = false
+    private var modelStatusRefreshGeneration = 0
+    // `deinit` is nonisolated even though this type is `@MainActor`.
+    // These handles are only mutated on the main actor during the view
+    // model lifetime; unsafe access lets deinit cancel/unregister.
+    @ObservationIgnored nonisolated(unsafe) private var permissionPollingTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var microphoneTestTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var calendarSettingsObserver: NSObjectProtocol?
+    /// Re-entrancy guard so `observeCalendarSettings()` doesn't fire `didSet`
+    /// → notification → re-resolve → `didSet` → … on every user toggle.
+    private var isResolvingCalendarSettings = false
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "SettingsViewModel")
 
     public init(
         defaults: UserDefaults = .standard,
         youtubeDownloadsDirPath: @escaping @Sendable () -> String = { AppPaths.youtubeDownloadsDir },
         isSpeechModelCached: @escaping @Sendable () -> Bool = { STTRuntime.isModelCached() },
+        inputDevicesProvider: @escaping @Sendable () -> [AudioDeviceManager.InputDevice] = {
+            AudioDeviceManager.inputDevices()
+        },
+        defaultInputDeviceUIDProvider: @escaping @Sendable () -> String? = {
+            AudioDeviceManager.defaultInputDeviceInfo()?.uid
+        },
         permissionPollingInterval: Duration = .seconds(2)
     ) {
         AutoSaveService.migrateLegacyMeetingSettingsIfNeeded(defaults: defaults)
         self.defaults = defaults
         self.youtubeDownloadsDirPath = youtubeDownloadsDirPath
         self.isSpeechModelCached = isSpeechModelCached
+        self.inputDevicesProvider = inputDevicesProvider
+        self.defaultInputDeviceUIDProvider = defaultInputDeviceUIDProvider
         self.permissionPollingInterval = permissionPollingInterval
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
         menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
@@ -256,6 +457,10 @@ public final class SettingsViewModel {
         silenceAutoStop = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.silenceAutoStopKey)
         let delay = defaults.double(forKey: UserDefaultsAppRuntimePreferences.silenceDelayKey)
         silenceDelay = delay == 0 ? 2.0 : delay
+        selectedMicrophoneDeviceUID = Self.normalizedMicrophoneSelection(
+            defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
+        )
+        meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
@@ -263,18 +468,134 @@ public final class SettingsViewModel {
         saveAudioRecordings = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey) as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
         speakerDiarization = defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? true
+        speechEnginePreference = SpeechEnginePreference.current(defaults: defaults)
+        whisperDefaultLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto"
+        // Ensure auto-save folders are configured before reading paths.
+        // Idempotent: existing user-chosen folders are preserved; only
+        // unset bookmarks get the default. This guarantees the read
+        // below sees a non-nil path in the common case so the toggle
+        // can never sit in the bad "ON · no folder" combination.
+        AutoSaveService.ensureFolderConfigured(scope: .transcription, defaults: defaults)
+        AutoSaveService.ensureFolderConfigured(scope: .meeting, defaults: defaults)
+
         autoSaveTranscripts = defaults.bool(forKey: AutoSaveService.enabledKey)
         autoSaveFormat = AutoSaveFormat(rawValue: defaults.string(forKey: AutoSaveService.formatKey) ?? "md") ?? .md
         autoSaveFolderPath = Self.resolveAutoSaveFolderPath(defaults: defaults, scope: .transcription)
         meetingAutoSave = defaults.bool(forKey: AutoSaveScope.meeting.enabledKey)
         meetingAutoSaveFormat = AutoSaveFormat(rawValue: defaults.string(forKey: AutoSaveScope.meeting.formatKey) ?? "md") ?? .md
         meetingAutoSaveFolderPath = Self.resolveAutoSaveFolderPath(defaults: defaults, scope: .meeting)
+        calendarAutoStartMode = Self.resolveCalendarAutoStartMode(defaults: defaults)
+        calendarReminderMinutes = Self.resolveCalendarReminderMinutes(defaults: defaults)
+        meetingTriggerFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
+        calendarAutoStopEnabled = defaults.object(forKey: CalendarAutoStartPreferences.autoStopEnabledKey) as? Bool ?? true
+        calendarExcludedIdentifiers = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
+
+        // Defense-in-depth self-heal: in the rare case that
+        // `ensureFolderConfigured` couldn't create the default folder
+        // (disk full, `~/Documents` not writable, stale bookmark
+        // unresolvable), folder may still be nil. Toggling ON in that
+        // state silently no-ops every save, so reset the toggle to
+        // match reality. Writes through to defaults because didSet
+        // doesn't fire during init.
+        if autoSaveTranscripts && autoSaveFolderPath == nil {
+            autoSaveTranscripts = false
+            defaults.set(false, forKey: AutoSaveService.enabledKey)
+        }
+        if meetingAutoSave && meetingAutoSaveFolderPath == nil {
+            meetingAutoSave = false
+            defaults.set(false, forKey: AutoSaveScope.meeting.enabledKey)
+        }
+
+        refreshMicrophoneDevices()
+        observeCalendarSettings()
+    }
+
+    deinit {
+        permissionPollingTask?.cancel()
+        microphoneTestTask?.cancel()
+        if let calendarSettingsObserver {
+            NotificationCenter.default.removeObserver(calendarSettingsObserver)
+        }
+    }
+
+    /// Onboarding writes calendar settings directly to UserDefaults (it
+    /// doesn't own a `SettingsViewModel`). Without this observer, an open
+    /// Settings window would show stale mode/lead/filter until Settings was
+    /// closed and re-opened. Re-resolving from defaults keeps every UI
+    /// surface that holds a `SettingsViewModel` in sync.
+    private func observeCalendarSettings() {
+        let center = NotificationCenter.default
+        calendarSettingsObserver = center.addObserver(
+            forName: .macParakeetCalendarSettingsDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.reloadCalendarSettings() }
+        }
+    }
+
+    private func reloadCalendarSettings() {
+        // Avoid the `didSet` → post-notification → reload → `didSet` loop:
+        // re-resolving has to skip the `didSet` write-through. The flag
+        // guards the entire batch so partial updates can't fire telemetry
+        // for a value the user didn't actually change.
+        guard !isResolvingCalendarSettings else { return }
+        isResolvingCalendarSettings = true
+        defer { isResolvingCalendarSettings = false }
+
+        let resolvedMode = Self.resolveCalendarAutoStartMode(defaults: defaults)
+        if calendarAutoStartMode != resolvedMode { calendarAutoStartMode = resolvedMode }
+
+        let resolvedMinutes = Self.resolveCalendarReminderMinutes(defaults: defaults)
+        if calendarReminderMinutes != resolvedMinutes { calendarReminderMinutes = resolvedMinutes }
+
+        let resolvedFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
+        if meetingTriggerFilter != resolvedFilter { meetingTriggerFilter = resolvedFilter }
+
+        let resolvedAutoStop = defaults.object(forKey: CalendarAutoStartPreferences.autoStopEnabledKey) as? Bool ?? true
+        if calendarAutoStopEnabled != resolvedAutoStop { calendarAutoStopEnabled = resolvedAutoStop }
+
+        let resolvedExcluded = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
+        if calendarExcludedIdentifiers != resolvedExcluded { calendarExcludedIdentifiers = resolvedExcluded }
+    }
+
+    private static func resolveCalendarAutoStartMode(defaults: UserDefaults) -> CalendarAutoStartMode {
+        guard let raw = defaults.string(forKey: CalendarAutoStartPreferences.modeKey),
+              let mode = CalendarAutoStartMode(rawValue: raw) else {
+            return .off  // Off by default — opt-in only via onboarding or Settings.
+        }
+        return mode
+    }
+
+    private static func resolveCalendarReminderMinutes(defaults: UserDefaults) -> Int {
+        guard defaults.object(forKey: CalendarAutoStartPreferences.reminderMinutesKey) != nil else {
+            return CalendarAutoStartPreferences.defaultReminderMinutes
+        }
+        return defaults.integer(forKey: CalendarAutoStartPreferences.reminderMinutesKey)
+    }
+
+    private static func resolveMeetingTriggerFilter(defaults: UserDefaults) -> MeetingTriggerFilter {
+        guard let raw = defaults.string(forKey: CalendarAutoStartPreferences.triggerFilterKey),
+              let filter = MeetingTriggerFilter(rawValue: raw) else {
+            return .withLink
+        }
+        return filter
+    }
+
+    private static func resolveCalendarExcludedIdentifiers(defaults: UserDefaults) -> Set<String> {
+        guard let raw = defaults.array(forKey: CalendarAutoStartPreferences.excludedCalendarIdsKey) as? [String] else {
+            return []
+        }
+        return Set(raw)
+    }
+
+    private static func normalizedMicrophoneSelection(_ uid: String?) -> String {
+        AudioDeviceManager.normalizedUID(uid) ?? systemDefaultMicrophoneSelection
     }
 
     /// Resolve the stored bookmark to a display path.
     private static func resolveAutoSaveFolderPath(defaults: UserDefaults, scope: AutoSaveScope = .transcription) -> String? {
-        let service = AutoSaveService(defaults: defaults)
-        return service.resolveFolder(scope: scope)?.path
+        AutoSaveService.resolveFolder(scope: scope, defaults: defaults)?.path
     }
 
     public func chooseAutoSaveFolder(url: URL) {
@@ -283,9 +604,16 @@ public final class SettingsViewModel {
         }
     }
 
-    public func clearAutoSaveFolder() {
-        AutoSaveService.clearFolder(scope: .transcription, defaults: defaults)
-        autoSaveFolderPath = nil
+    /// Reset the auto-save destination to the default location
+    /// (`~/Documents/MacParakeet/Transcriptions`). The toggle is left in
+    /// whatever state the user had it — folder is *always* set, so the
+    /// toggle is a pure on/off feature flag. This replaces the older
+    /// "Clear" semantic (which was a footgun: ON + no folder silently
+    /// no-op'd every save).
+    public func resetAutoSaveFolder() {
+        if let url = AutoSaveService.resetFolderToDefault(scope: .transcription, defaults: defaults) {
+            autoSaveFolderPath = url.path
+        }
     }
 
     public func chooseMeetingAutoSaveFolder(url: URL) {
@@ -294,9 +622,10 @@ public final class SettingsViewModel {
         }
     }
 
-    public func clearMeetingAutoSaveFolder() {
-        AutoSaveService.clearFolder(scope: .meeting, defaults: defaults)
-        meetingAutoSaveFolderPath = nil
+    public func resetMeetingAutoSaveFolder() {
+        if let url = AutoSaveService.resetFolderToDefault(scope: .meeting, defaults: defaults) {
+            meetingAutoSaveFolderPath = url.path
+        }
     }
 
     private static func resolveMeetingHotkeyTrigger(defaults: UserDefaults) -> HotkeyTrigger {
@@ -328,7 +657,9 @@ public final class SettingsViewModel {
         checkoutURL: URL?,
         customWordRepo: CustomWordRepositoryProtocol? = nil,
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
-        sttClient: STTClientProtocol? = nil
+        sttClient: STTClientProtocol? = nil,
+        speechEngineSwitcher: SpeechEngineSwitching? = nil,
+        meetingRecoveryService: MeetingRecordingRecoveryServicing? = nil
     ) {
         self.permissionService = permissionService
         self.dictationRepo = dictationRepo
@@ -339,11 +670,35 @@ public final class SettingsViewModel {
         self.customWordRepo = customWordRepo
         self.snippetRepo = snippetRepo
         self.sttClient = sttClient
+        self.speechEngineSwitcher = speechEngineSwitcher
+        self.meetingRecoveryService = meetingRecoveryService
         refreshLaunchAtLoginStatus()
         refreshPermissions()
         refreshStats()
         refreshEntitlements()
         refreshModelStatus()
+        refreshPendingMeetingRecoveries()
+    }
+
+    public func refreshPendingMeetingRecoveries() {
+        guard let meetingRecoveryService else {
+            pendingMeetingRecoveryCount = 0
+            return
+        }
+
+        Task {
+            do {
+                let recoveries = try await meetingRecoveryService.discoverPendingRecoveries()
+                pendingMeetingRecoveryCount = recoveries.count
+            } catch {
+                logger.error("Failed to load pending meeting recoveries: \(error.localizedDescription)")
+                pendingMeetingRecoveryCount = 0
+            }
+        }
+    }
+
+    public func requestPendingMeetingRecovery() {
+        onRecoverPendingMeetingRecordings?()
     }
 
     public func refreshLaunchAtLoginStatus() {
@@ -358,6 +713,7 @@ public final class SettingsViewModel {
     }
 
     public func refreshPermissions() {
+        refreshMicrophoneDevices()
         Task {
             if let service = permissionService {
                 let micStatus = await service.checkMicrophonePermission()
@@ -367,7 +723,81 @@ public final class SettingsViewModel {
                 accessibilityGranted = accStatus
                 screenRecordingGranted = screenRecordingStatus
             }
+            refreshCalendarPermission()
         }
+    }
+
+    public func refreshMicrophoneDevices() {
+        let defaultUID = defaultInputDeviceUIDProvider()
+        microphoneDeviceOptions = inputDevicesProvider().map { device in
+            MicrophoneDeviceOption(
+                id: device.uid,
+                uid: device.uid,
+                name: device.name,
+                transportLabel: device.transportLabel,
+                isDefault: device.uid == defaultUID,
+                isAvailable: true
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.isDefault != rhs.isDefault { return lhs.isDefault && !rhs.isDefault }
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        }
+        if selectedMicrophoneDeviceUID != Self.systemDefaultMicrophoneSelection,
+           !microphoneDeviceOptions.contains(where: { $0.uid == selectedMicrophoneDeviceUID }) {
+            microphoneDeviceOptions.append(
+                MicrophoneDeviceOption(
+                    id: selectedMicrophoneDeviceUID,
+                    uid: selectedMicrophoneDeviceUID,
+                    name: "Selected microphone",
+                    transportLabel: "unavailable",
+                    isDefault: false,
+                    isAvailable: false
+                )
+            )
+        }
+    }
+
+    public func testSelectedMicrophone() {
+        microphoneTestTask?.cancel()
+        microphoneTestLevel = 0
+        microphoneTestState = .testing
+
+        let selectedUID = selectedMicrophoneDeviceUID == Self.systemDefaultMicrophoneSelection
+            ? nil
+            : selectedMicrophoneDeviceUID
+        let levelBox = MicrophoneLevelBox()
+
+        microphoneTestTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let capture = MicrophoneCapture(selectedInputDeviceUIDProvider: { selectedUID })
+            do {
+                _ = try capture.start(processingMode: .raw) { buffer, _ in
+                    levelBox.record(buffer.rmsLevel)
+                }
+                for _ in 0..<40 {
+                    try await Task.sleep(for: .milliseconds(50))
+                    microphoneTestLevel = levelBox.latestLevel
+                }
+                capture.stop()
+                guard !Task.isCancelled else { return }
+                microphoneTestState = levelBox.maxLevel > Self.microphoneTestSilenceThreshold
+                    ? .succeeded
+                    : .failed("No input detected. Check the selected microphone and try again.")
+            } catch {
+                capture.stop()
+                guard !Task.isCancelled else { return }
+                microphoneTestState = .failed(error.localizedDescription)
+            }
+            microphoneTestTask = nil
+        }
+    }
+
+    public func cancelMicrophoneTest() {
+        microphoneTestTask?.cancel()
+        microphoneTestTask = nil
+        microphoneTestLevel = 0
+        microphoneTestState = .idle
     }
 
     public func requestScreenRecordingAccess() {
@@ -379,6 +809,37 @@ public final class SettingsViewModel {
 
     public func openScreenRecordingSystemSettings() {
         permissionService?.openScreenRecordingSettings()
+    }
+
+    /// Refresh calendar permission via the shared service. Cheap — no
+    /// network or disk; just reads `EKEventStore.authorizationStatus` (which
+    /// is `nonisolated` on the actor, so no await needed).
+    public func refreshCalendarPermission() {
+        calendarPermissionStatus = CalendarService.shared.permissionStatus
+    }
+
+    /// Trigger the EventKit permission prompt if not yet decided. Returns the
+    /// granted state. On grant, also requests notification authorization so
+    /// the eventual reminder isn't silently dropped by macOS — this single
+    /// async hop pairs the two permissions the feature actually needs.
+    @discardableResult
+    public func requestCalendarPermission() async -> Bool {
+        Telemetry.send(.permissionPrompted(permission: .calendar))
+        let granted = await CalendarService.shared.requestPermission()
+        // Re-read the status (rather than just assigning .granted/.denied
+        // from the bool) so `.restricted` from MDM-managed Macs is reflected
+        // accurately — the service maps it to `.denied` so callers don't
+        // need a fourth case, but a fresh read is the source of truth.
+        calendarPermissionStatus = CalendarService.shared.permissionStatus
+        Telemetry.send(granted ? .permissionGranted(permission: .calendar) : .permissionDenied(permission: .calendar))
+        if granted {
+            await CalendarNotificationAuthorization.requestIfNeeded()
+        }
+        return granted
+    }
+
+    public func openCalendarSystemSettings() {
+        if NSWorkspace.shared.open(CalendarService.settingsURL) { return }
     }
 
     public func startPermissionPolling() {
@@ -425,31 +886,178 @@ public final class SettingsViewModel {
     }
 
     public func refreshModelStatus() {
+        modelStatusRefreshGeneration += 1
+        let refreshGeneration = modelStatusRefreshGeneration
+        let whisperModelVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+
         guard let sttClient else {
             parakeetStatus = .unknown
             parakeetStatusDetail = "Unavailable in this runtime."
+            whisperModelStatus = .checking
+            whisperModelStatusDetail = "Checking model state..."
+            Task { @MainActor [weak self] in
+                let whisperDownloaded = await Task.detached(priority: .userInitiated) {
+                    WhisperEngine.isModelDownloaded(model: whisperModelVariant)
+                }.value
+                guard let self, self.modelStatusRefreshGeneration == refreshGeneration else {
+                    return
+                }
+                self.applyWhisperDownloadedStatus(whisperDownloaded)
+            }
             return
         }
 
         parakeetStatus = .checking
         parakeetStatusDetail = "Checking model state..."
+        whisperModelStatus = .checking
+        whisperModelStatusDetail = "Checking model state..."
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            // `sttClient.isReady()` returns the *active* engine's loaded state
+            // (see STTRuntime.isReady), so we apply it to whichever engine is
+            // currently selected and keep the inactive engine on its disk-cache
+            // status. Without this branch, switching to Whisper left the
+            // Whisper badge stuck at "Not Loaded" forever.
+            //
+            // Snapshot the engine before the await so a mid-suspension toggle
+            // can't pair the new preference with the old engine's readiness.
+            let activeEngine = self.speechEnginePreference
+            let isSpeechModelCached = self.isSpeechModelCached
+
+            async let activeEngineLoaded = sttClient.isReady()
+            async let diskState = Task.detached(priority: .userInitiated) {
+                (
+                    parakeetCached: isSpeechModelCached(),
+                    whisperDownloaded: WhisperEngine.isModelDownloaded(model: whisperModelVariant)
+                )
+            }.value
+
+            let (activeEngineIsLoaded, modelDiskState) = await (activeEngineLoaded, diskState)
+            guard self.modelStatusRefreshGeneration == refreshGeneration,
+                  self.speechEnginePreference == activeEngine else {
+                return
+            }
+
+            if activeEngine == .parakeet, activeEngineIsLoaded {
+                self.parakeetStatus = .ready
+                self.parakeetStatusDetail = "Loaded in memory and ready."
+            } else if modelDiskState.parakeetCached {
+                self.parakeetStatus = .notLoaded
+                self.parakeetStatusDetail = "Downloaded. Loads automatically when needed."
+            } else {
+                self.parakeetStatus = .notDownloaded
+                self.parakeetStatusDetail = "Not downloaded yet."
+            }
+
+            if activeEngine == .whisper, activeEngineIsLoaded {
+                self.whisperModelStatus = .ready
+                self.whisperModelStatusDetail = "Whisper \(self.whisperVariantFriendlyName) · Loaded in memory and ready."
+            } else {
+                self.applyWhisperDownloadedStatus(modelDiskState.whisperDownloaded)
+            }
+        }
+    }
+
+    public func refreshWhisperModelStatus() {
+        applyWhisperDownloadedStatus(
+            WhisperEngine.isModelDownloaded(model: SpeechEnginePreference.whisperModelVariant(defaults: defaults))
+        )
+    }
+
+    private func applyWhisperDownloadedStatus(_ isDownloaded: Bool) {
+        let friendly = whisperVariantFriendlyName
+        if isDownloaded {
+            // Optimistic file-based check; `refreshModelStatus()` will upgrade
+            // to `.ready` after asking the runtime if Whisper is the active
+            // engine and currently loaded.
+            whisperModelStatus = .notLoaded
+            whisperModelStatusDetail = "Whisper \(friendly) · Downloaded. Loads automatically when selected."
+        } else {
+            whisperModelStatus = .notDownloaded
+            whisperModelStatusDetail = "Whisper \(friendly) · Not downloaded yet."
+        }
+    }
+
+    private var whisperVariantFriendlyName: String {
+        SpeechEnginePreference.friendlyVariantName(
+            SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+        )
+    }
+
+    public func downloadWhisperModel() {
+        guard !whisperDownloading else { return }
+        // The user has taken the action that resolves any pending
+        // "Whisper isn't ready" error, so clear it. Otherwise the red
+        // banner persists through a successful download (the engine
+        // preference setter — the only other place that clears it —
+        // never fires for the same-state assignment).
+        speechEngineError = nil
+        whisperDownloading = true
+        whisperModelStatus = .repairing
+        let modelVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+        let friendly = SpeechEnginePreference.friendlyVariantName(modelVariant)
+        whisperModelStatusDetail = "Downloading Whisper \(friendly)..."
 
         Task {
-            let parakeetReady = await sttClient.isReady()
-            let parakeetCached = isSpeechModelCached()
-
-            await MainActor.run {
-                if parakeetReady {
-                    self.parakeetStatus = .ready
-                    self.parakeetStatusDetail = "Loaded in memory and ready."
-                } else if parakeetCached {
-                    self.parakeetStatus = .notLoaded
-                    self.parakeetStatusDetail = "Downloaded. Loads automatically when needed."
-                } else {
-                    self.parakeetStatus = .notDownloaded
-                    self.parakeetStatusDetail = "Not downloaded yet."
+            do {
+                _ = try await WhisperEngine.downloadModel(
+                    model: modelVariant
+                ) { completed, total in
+                    let percent = total > 0 ? Int((Double(completed) / Double(total) * 100).rounded()) : 0
+                    Task { @MainActor [weak self] in
+                        guard let self else { return }
+                        self.whisperModelStatusDetail = "Downloading Whisper \(friendly)... \(min(max(percent, 0), 100))%"
+                    }
                 }
+                await MainActor.run {
+                    self.whisperDownloading = false
+                    self.refreshWhisperModelStatus()
+                }
+            } catch {
+                await MainActor.run {
+                    self.whisperDownloading = false
+                    self.whisperModelStatus = .failed
+                    self.whisperModelStatusDetail = error.localizedDescription
+                }
+            }
+        }
+    }
 
+    private func applySpeechEngineChange(_ preference: SpeechEnginePreference) {
+        speechEngineError = nil
+
+        if preference == .whisper && !isWhisperModelDownloaded {
+            speechEngineError = "Download the Whisper model before switching engines."
+            isApplyingSpeechEngineState = true
+            speechEnginePreference = .parakeet
+            isApplyingSpeechEngineState = false
+            return
+        }
+
+        guard let speechEngineSwitcher else {
+            preference.save(to: defaults)
+            return
+        }
+
+        speechEngineSwitching = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            // `defer` fires even on cancellation or unexpected early exit, so
+            // the segmented Picker can never get pinned in the disabled
+            // "Switching..." state.
+            defer {
+                self.speechEngineSwitching = false
+                self.refreshModelStatus()
+            }
+            do {
+                try await speechEngineSwitcher.setSpeechEngine(preference)
+                preference.save(to: self.defaults)
+            } catch {
+                self.speechEngineError = error.localizedDescription
+                self.isApplyingSpeechEngineState = true
+                self.speechEnginePreference = SpeechEnginePreference.current(defaults: self.defaults)
+                self.isApplyingSpeechEngineState = false
             }
         }
     }
@@ -457,6 +1065,7 @@ public final class SettingsViewModel {
     public func repairParakeetModel() {
         guard let sttClient else { return }
         guard !parakeetRepairing else { return }
+        speechEngineError = nil
         parakeetRepairing = true
         parakeetStatus = .repairing
         parakeetStatusDetail = "Preparing speech model..."
@@ -559,15 +1168,22 @@ public final class SettingsViewModel {
         }
     }
 
-    /// Called after dictations are cleared so other VMs (e.g. history) can reload.
-    public var onDictationsCleared: (() -> Void)?
+    /// Fired after a dictation-state change (rows deleted or lifetime counters reset)
+    /// so other VMs (e.g. the history view) can reload their derived data.
+    public var onDictationStateChanged: (() -> Void)?
 
     public func clearAllDictations() {
         guard let repo = dictationRepo else { return }
+        // `deleteAll()` only removes visible (hidden = 0) rows; `deleteHidden()`
+        // covers the metric-only entries created when "Save dictation history" was
+        // off. Together they truly clear all dictation rows. Each runs in its own
+        // GRDB write transaction; partial failure is logged but never silently
+        // corrupts state because the row counts are independent.
         do {
             try repo.deleteAll()
+            try repo.deleteHidden()
         } catch {
-            logger.error("Failed to delete all dictations error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to clear dictations error=\(error.localizedDescription, privacy: .public)")
         }
         // Also remove any saved audio files (best effort).
         let dir = AppPaths.dictationsDir
@@ -576,18 +1192,21 @@ public final class SettingsViewModel {
             try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
         }
         refreshStats()
-        onDictationsCleared?()
+        onDictationStateChanged?()
     }
 
-    public func resetPrivateStatistics() {
+    /// Zero the lifetime stats counters. Symmetric to `clearAllDictations()` —
+    /// dictation rows are preserved; only the lifetime totals (total words,
+    /// total time, total count, longest dictation) are reset.
+    public func resetLifetimeStats() {
         guard let repo = dictationRepo else { return }
         do {
-            try repo.deleteHidden()
+            try repo.resetLifetimeStats()
         } catch {
-            logger.error("Failed to delete hidden dictations error=\(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to reset lifetime stats error=\(error.localizedDescription, privacy: .public)")
         }
         refreshStats()
-        onDictationsCleared?()
+        onDictationStateChanged?()
     }
 
     public func clearDownloadedYouTubeAudio() {
@@ -689,5 +1308,26 @@ public final class SettingsViewModel {
         }
 
         throw lastError ?? STTError.engineStartFailed("Model setup failed.")
+    }
+}
+
+private final class MicrophoneLevelBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var latestValue: Float = 0
+    private var peakValue: Float = 0
+
+    var latestLevel: Float {
+        lock.withLock { latestValue }
+    }
+
+    var maxLevel: Float {
+        lock.withLock { peakValue }
+    }
+
+    func record(_ level: Float) {
+        lock.withLock {
+            latestValue = level
+            peakValue = max(peakValue, level)
+        }
     }
 }

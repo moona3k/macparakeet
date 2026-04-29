@@ -1,6 +1,6 @@
 # 11 - LLM Integration
 
-> Status: **IMPLEMENTED** - Done, still accurate (CLI command signatures updated 2026-04-02)
+> Status: **IMPLEMENTED** - Done, still accurate (CLI command signatures updated 2026-04-26)
 > Supersedes: Previous HISTORICAL version (local Qwen3-8B via mlx-swift-lm, removed 2026-02-23)
 > ADR: ADR-011 (Cloud API keys + optional local providers)
 > Note: §1 (Transcript Summary) and §3 (Custom Transforms) are superseded by [spec/12-processing-layer.md](12-processing-layer.md) — Prompt Library + multi-summary architecture. Provider protocol, chat, and CLI sections remain current.
@@ -64,6 +64,7 @@ The service boundary stays stable even though the transport is mixed.
 |----------|------|-----------------|------|
 | Anthropic | Cloud | `https://api.anthropic.com/v1/` | `Authorization: Bearer` |
 | OpenAI | Cloud | `https://api.openai.com/v1` | `Authorization: Bearer` |
+| OpenAI-Compatible | Custom | User-supplied | Optional API key; local loopback endpoints are treated as local |
 | Google Gemini | Cloud | `https://generativelanguage.googleapis.com/v1beta/openai` | `Authorization: Bearer` |
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
 | LM Studio | Local | `http://localhost:1234/v1` | `apiKey: nil` in config |
@@ -83,16 +84,18 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
     public let id: LLMProviderID
     public let baseURL: URL
     public let apiKey: String?         // nil for local providers; client injects Bearer ollama for Ollama
-    public let modelName: String       // e.g. "claude-sonnet-4-20250514", "llama3.2"
-    public let isLocal: Bool           // true for Ollama on the current branch
+    public let modelName: String       // e.g. "claude-sonnet-4-6", "gpt-4.1", "qwen3.5:4b"
+    public let isLocal: Bool           // true for Ollama, LM Studio, and loopback OpenAI-compatible endpoints
 }
 
 public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case anthropic
     case openai
+    case openaiCompatible
     case gemini
     case openrouter
     case ollama
+    case lmstudio
     case localCLI    // CLI tools (claude -p, codex exec) — no HTTP, no API key
 }
 ```
@@ -140,6 +143,8 @@ public struct ChatCompletionOptions: Sendable {
 
 public struct ChatCompletionResponse: Sendable {
     public let content: String
+    public let reasoningContent: String?
+    public let finishReason: String?
     public let model: String
     public let usage: TokenUsage?
 }
@@ -147,6 +152,21 @@ public struct ChatCompletionResponse: Sendable {
 public struct TokenUsage: Sendable {
     public let promptTokens: Int
     public let completionTokens: Int
+}
+
+public struct LLMResult: Sendable, Codable {
+    public let output: String
+    public let provider: String
+    public let model: String
+    public let usage: LLMUsage?
+    public let stopReason: String?
+    public let latencyMs: Int
+}
+
+public struct LLMUsage: Sendable, Codable {
+    public let promptTokens: Int?
+    public let completionTokens: Int?
+    public let totalTokens: Int?
 }
 ```
 
@@ -166,6 +186,11 @@ public protocol LLMServiceProtocol: Sendable {
 
     /// Apply a custom transform to text
     func transform(text: String, prompt: String) async throws -> String
+
+    /// Envelope variants used by CLI JSON output
+    func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult
+    func chatDetailed(question: String, transcript: String, history: [ChatMessage]) async throws -> LLMResult
+    func transformDetailed(text: String, prompt: String) async throws -> LLMResult
 
     /// Streaming variants
     func summarizeStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
@@ -350,30 +375,26 @@ Respond with only the transformed text. Do not add explanations or preamble.
 
 > Historical note: this section predates the Prompt Library in [spec/12-processing-layer.md](12-processing-layer.md). The `summary` column shipped, but prompt persistence now lives in the prompt/summary model described in spec/12 rather than a standalone custom-transform store.
 
-### Transcription table (existing, add column)
+The original implementation added `transcriptions.summary`. The current branch
+migrated that legacy column into the `summaries` table, whose Swift model is
+`PromptResult`. Prompt templates live in `prompts`, generated outputs live in
+`summaries`, and transcript chat lives in `chat_conversations`. See
+[spec/01-data-model.md](01-data-model.md) and
+[spec/12-processing-layer.md](12-processing-layer.md) for the authoritative
+schema.
 
-```sql
-ALTER TABLE transcriptions ADD COLUMN summary TEXT;
-```
-
-### Custom transforms (new, UserDefaults — not DB)
-
-```swift
-struct CustomTransform: Codable, Identifiable {
-    let id: UUID
-    var name: String        // "Make formal"
-    var prompt: String      // "Rewrite the following text in a formal tone: {text}"
-    var isBuiltIn: Bool     // true for shipped transforms, false for user-created
-}
-```
-
-Custom transforms were the original plan. The current branch instead routes summary/transform prompting through the Prompt Library architecture in [spec/12-processing-layer.md](12-processing-layer.md).
+Custom transforms were the original plan for this spec. The current branch
+routes summary/transform prompting through the Prompt Library architecture in
+[spec/12-processing-layer.md](12-processing-layer.md).
 
 ---
 
 ## CLI Support
 
-All CLI LLM commands require `--provider` and `--api-key` (except Ollama, LM Studio, and Local CLI). Supported providers: `anthropic`, `openai`, `gemini`, `openrouter`, `ollama`, `lmstudio`, `cli`.
+All CLI LLM commands require `--provider`; `--api-key` is required only for
+cloud providers that need one. Supported providers: `anthropic`, `openai`,
+`openaiCompatible`/`openai-compatible`, `gemini`, `openrouter`, `ollama`,
+`lmstudio`, and `cli`.
 
 ```bash
 # Test provider connectivity
@@ -399,7 +420,7 @@ macparakeet-cli llm test-connection --provider cli --command "claude -p --model 
 macparakeet-cli llm summarize transcript.txt --provider cli --command "claude -p --model haiku"
 ```
 
-Additional options: `--model`, `--base-url`, `--stream`, `--command` (Local CLI only). Use `-` as input to read from stdin.
+Additional options: `--model`, `--base-url`, `--stream`, `--json`, `--command` (Local CLI only). Use `-` as input to read from stdin. `--json` emits a structured envelope with `output`, `provider`, `model`, optional `usage`, optional `stopReason`, and `latencyMs`. `llm test-connection --json` emits `{ok, provider, model, latencyMs}` on success. `--json --stream` is rejected until NDJSON streaming lands.
 
 CLI LLM commands use ephemeral inline config (not shared with GUI UserDefaults/Keychain).
 

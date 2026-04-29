@@ -37,9 +37,22 @@ public enum AppPaths {
         "\(appSupportDir)/bin"
     }
 
+    /// WhisperKit CoreML model cache base.
+    public static var whisperModelsDir: String {
+        "\(appSupportDir)/models/stt/whisper"
+    }
+
     /// Managed yt-dlp binary path.
     public static var ytDlpBinaryPath: String {
         "\(binDir)/yt-dlp"
+    }
+
+    /// Resolve bundled yt-dlp seed binary from app resources.
+    /// Returns nil when running outside an app bundle or when yt-dlp is not present.
+    public static func bundledYtDlpPath() -> String? {
+        guard let resourcePath = Bundle.main.resourcePath else { return nil }
+        let ytDlpPath = (resourcePath as NSString).appendingPathComponent("yt-dlp")
+        return FileManager.default.isExecutableFile(atPath: ytDlpPath) ? ytDlpPath : nil
     }
 
     /// Cached discover feed
@@ -60,7 +73,7 @@ public enum AppPaths {
     /// Ensure all required directories exist
     public static func ensureDirectories() throws {
         let fm = FileManager.default
-        for dir in [appSupportDir, dictationsDir, youtubeDownloadsDir, meetingRecordingsDir, binDir, thumbnailsDir, tempDir] {
+        for dir in [appSupportDir, dictationsDir, youtubeDownloadsDir, meetingRecordingsDir, binDir, whisperModelsDir, thumbnailsDir, tempDir] {
             if !fm.fileExists(atPath: dir) {
                 try fm.createDirectory(atPath: dir, withIntermediateDirectories: true)
             }

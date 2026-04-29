@@ -17,6 +17,58 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertNil(try repo.fetch(id: d.id))
     }
 
+    func testDeleteDictationCommandRemovesAudioFile() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = DictationRepository(dbQueue: db.dbQueue)
+
+        try AppPaths.ensureDirectories()
+        let audioURL = URL(fileURLWithPath: AppPaths.dictationsDir, isDirectory: true)
+            .appendingPathComponent("macparakeet-cli-dictation-\(UUID().uuidString).m4a")
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+        _ = FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8))
+
+        let dictation = Dictation(durationMs: 2000, rawTranscript: "Delete me", audioPath: audioURL.path)
+        try repo.save(dictation)
+
+        let command = try DeleteDictationSubcommand.parse([
+            dictation.id.uuidString,
+            "--database", dbURL.path,
+        ])
+        _ = try captureStandardOutput {
+            try command.run()
+        }
+
+        XCTAssertNil(try repo.fetch(id: dictation.id))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+    }
+
+    func testDeleteDictationCommandLeavesExternalAudioFile() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = DictationRepository(dbQueue: db.dbQueue)
+
+        let audioURL = temporaryAssetURL(pathExtension: "m4a")
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+        _ = FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8))
+
+        let dictation = Dictation(durationMs: 2000, rawTranscript: "Delete me", audioPath: audioURL.path)
+        try repo.save(dictation)
+
+        let command = try DeleteDictationSubcommand.parse([
+            dictation.id.uuidString,
+            "--database", dbURL.path,
+        ])
+        _ = try captureStandardOutput {
+            try command.run()
+        }
+
+        XCTAssertNil(try repo.fetch(id: dictation.id))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+    }
+
     // MARK: - Delete Transcription
 
     func testDeleteTranscriptionRemovesRecord() throws {
@@ -28,6 +80,39 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertNotNil(try repo.fetch(id: t.id))
         _ = try repo.delete(id: t.id)
         XCTAssertNil(try repo.fetch(id: t.id))
+    }
+
+    func testDeleteTranscriptionCommandRemovesOwnedYouTubeAudio() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+
+        try AppPaths.ensureDirectories()
+        let audioURL = URL(fileURLWithPath: AppPaths.youtubeDownloadsDir, isDirectory: true)
+            .appendingPathComponent("macparakeet-cli-asset-\(UUID().uuidString).m4a")
+        defer { try? FileManager.default.removeItem(at: audioURL) }
+        _ = FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8))
+
+        let transcription = Transcription(
+            fileName: "delete-me.m4a",
+            filePath: audioURL.path,
+            rawTranscript: "Goodbye",
+            status: .completed,
+            sourceType: .youtube
+        )
+        try repo.save(transcription)
+
+        let command = try DeleteTranscriptionSubcommand.parse([
+            transcription.id.uuidString,
+            "--database", dbURL.path,
+        ])
+        _ = try captureStandardOutput {
+            try command.run()
+        }
+
+        XCTAssertNil(try repo.fetch(id: transcription.id))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
     // MARK: - Favorites
@@ -118,4 +203,15 @@ final class HistoryCommandTests: XCTestCase {
         let results = try repo.search(query: "common", limit: 3)
         XCTAssertEqual(results.count, 3)
     }
+
+    private func temporaryDatabaseURL() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-\(UUID().uuidString).db")
+    }
+
+    private func temporaryAssetURL(pathExtension: String) -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-cli-asset-\(UUID().uuidString).\(pathExtension)")
+    }
+
 }

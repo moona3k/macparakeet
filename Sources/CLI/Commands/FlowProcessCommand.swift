@@ -15,9 +15,12 @@ struct FlowProcessCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Copy result to clipboard.")
     var copy: Bool = false
 
+    @Option(help: "Path to SQLite database file (defaults to the app database).")
+    var database: String?
+
     func run() async throws {
         try AppPaths.ensureDirectories()
-        let dbManager = try DatabaseManager(path: AppPaths.databasePath)
+        let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
         let wordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
         let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
 

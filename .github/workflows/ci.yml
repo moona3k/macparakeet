@@ -31,15 +31,61 @@ jobs:
           xcode-version: "16.1"
 
       - name: Toolchain Versions
+        timeout-minutes: 2
         run: |
           xcodebuild -version
           swift --version
 
+      - name: Cache SwiftPM Dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .build/checkouts
+            .build/repositories
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ hashFiles('Package.swift', 'Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-
+
       - name: Swift Build (Release)
-        run: swift build -c release
+        timeout-minutes: 15
+        run: |
+          mkdir -p .ci-logs
+          set -o pipefail
+          swift build -c release 2>&1 | tee .ci-logs/swift-build-release.log
 
       - name: Swift Concurrency Safety
-        run: swift build -Xswiftc -warn-concurrency
+        timeout-minutes: 15
+        run: |
+          mkdir -p .ci-logs
+          set -o pipefail
+          swift build -Xswiftc -warn-concurrency 2>&1 | tee .ci-logs/swift-concurrency-safety.log
+
+      - name: Swift 6 Language Mode
+        timeout-minutes: 15
+        env:
+          # Argmax/WhisperKit v0.18.0 is required for real builds but is not
+          # Swift 6 language-mode clean yet. Keep this step focused on
+          # first-party MacParakeet sources while release/test builds compile
+          # the full WhisperKit dependency graph.
+          MACPARAKEET_SKIP_WHISPERKIT: "1"
+        run: |
+          mkdir -p .ci-logs
+          set -o pipefail
+          swift build --build-path .build-swift6-no-whisper -Xswiftc -swift-version -Xswiftc 6 2>&1 | tee .ci-logs/swift-6-language-mode.log
 
       - name: Swift Test
-        run: swift test --parallel
+        timeout-minutes: 20
+        run: |
+          mkdir -p .ci-logs
+          set -o pipefail
+          swift test --parallel 2>&1 | tee .ci-logs/swift-test.log
+
+      - name: Upload CI Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: swift-ci-logs
+          path: .ci-logs/
+          if-no-files-found: ignore
+          retention-days: 7

@@ -209,6 +209,12 @@ struct MeetingRecordingPillView: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Recording meeting, \(viewModel.formattedElapsed) elapsed")
+        .accessibilityAction {
+            onTap?()
+        }
+        .accessibilityAction(named: Text("End and transcribe")) {
+            viewModel.onStop?()
+        }
     }
 
     private var pillBackground: some View {

@@ -10,6 +10,23 @@ public final class MeetingRecordingPanelViewModel {
         case error(String)
     }
 
+    /// Tab order chosen so the user lands in Notes by default — note-taking is
+    /// the primary "active" surface in a live meeting (ADR-020 §1, §2). Transcript
+    /// is the rolling reference, Ask is the on-demand thinking-partner.
+    public enum LivePanelTab: String, Equatable, CaseIterable, Sendable {
+        case notes
+        case transcript
+        case ask
+
+        public var title: String {
+            switch self {
+            case .notes: return "Notes"
+            case .transcript: return "Transcript"
+            case .ask: return "Ask"
+            }
+        }
+    }
+
     public var state: PanelState = .hidden
     public var elapsedSeconds: Int = 0
     public var micLevel: Float = 0
@@ -17,6 +34,11 @@ public final class MeetingRecordingPanelViewModel {
     public var previewLines: [MeetingRecordingPreviewLine] = []
     public var isTranscriptionLagging: Bool = false
     public var showCopiedConfirmation: Bool = false
+    /// Default to `.notes` per ADR-020 §2 — opening the panel should put the
+    /// cursor in the notepad, not stare the user down with raw transcript.
+    public var selectedTab: LivePanelTab = .notes
+    public let chatViewModel: TranscriptChatViewModel = TranscriptChatViewModel()
+    public let notesViewModel: MeetingNotesViewModel = MeetingNotesViewModel()
     public var onStop: (() -> Void)?
     public var onClose: (() -> Void)?
 
@@ -54,12 +76,20 @@ public final class MeetingRecordingPanelViewModel {
             wordCount += addedWordCounts.reduce(0, +) - removedWordCount
             previewLineWordCounts = Array(previewLineWordCounts.prefix(firstChangedIndex)) + addedWordCounts
             previewLines = lines
+            // Keep the live Ask tab fed with the latest transcript without disturbing
+            // chat history. Bracketed timestamps stripped — LLMs do better without them.
+            chatViewModel.updateTranscriptText(chatTranscript)
         }
         self.isTranscriptionLagging = isTranscriptionLagging
     }
 
     public var transcriptText: String {
         previewLines.map { "[\($0.timestamp)] \($0.speakerLabel): \($0.text)" }.joined(separator: "\n")
+    }
+
+    /// Cleaner transcript shape for LLM consumption: speaker label + text, no timestamps.
+    public var chatTranscript: String {
+        previewLines.map { "\($0.speakerLabel): \($0.text)" }.joined(separator: "\n")
     }
 
     public var canCopy: Bool {
@@ -79,6 +109,8 @@ public final class MeetingRecordingPanelViewModel {
         isTranscriptionLagging = false
         copiedResetTask?.cancel()
         showCopiedConfirmation = false
+        selectedTab = .notes
+        notesViewModel.reset()
     }
 
     public var formattedElapsed: String {
@@ -101,7 +133,7 @@ public final class MeetingRecordingPanelViewModel {
         case .transcribing:
             return "Transcribing"
         case .error:
-            return "Recording Error"
+            return "Meeting interrupted"
         }
     }
 
@@ -115,8 +147,24 @@ public final class MeetingRecordingPanelViewModel {
         case .transcribing:
             return "Meeting audio is being transcribed and saved to your library."
         case .error(let message):
-            return message
+            // ADR-020 §"degradation copy refinement". The state machine fires
+            // `.showError(message)` from both `startFailed` (recording never
+            // started — permissions, audio engine, etc.) and
+            // `transcriptionFailed` (audio captured fine; STT failed). We
+            // can't reliably distinguish those paths from the message
+            // string alone, so the wrapper hedges with "if any audio was
+            // captured" rather than promising the recording is safe.
+            // Action guidance points the user at the Library — that's the
+            // single recoverable surface for either failure mode.
+            let trimmed = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            let detail = trimmed.isEmpty ? "An unexpected error occurred." : trimmed
+            return "\(detail)\n\nIf any audio was captured it's in your Library, where you can retry transcription or export the audio."
         }
+    }
+
+    public var compactErrorRecoveryMessage: String? {
+        guard case .error = state else { return nil }
+        return "Meeting interrupted. Open Library to retry transcription or export captured audio."
     }
 
     public var showsLaggingIndicator: Bool {
@@ -150,5 +198,47 @@ public final class MeetingRecordingPanelViewModel {
 
     private static func wordCount(for text: String) -> Int {
         text.split(whereSeparator: \.isWhitespace).count
+    }
+
+    // MARK: - Tab badges (ADR-020 §1)
+
+    /// Live state hint for the Notes tab. `nil` while the editor is empty so
+    /// the tab reads as plain "Notes" until the user has actually written
+    /// something — avoids "Notes · 0w" noise in the empty state.
+    public var notesBadge: String? {
+        let count = notesViewModel.wordCount
+        guard count > 0 else { return nil }
+        return "\(count)w"
+    }
+
+    /// Live state hint for the Transcript tab. "LIVE" while we're actively
+    /// recording (audio is flowing); `nil` in the transcribing/error/hidden
+    /// states where no new text is arriving.
+    public var transcriptBadge: String? {
+        switch state {
+        case .recording:
+            return "LIVE"
+        case .hidden, .transcribing, .error:
+            return nil
+        }
+    }
+
+    /// Live state hint for the Ask tab. Number of messages in the live
+    /// thread; `nil` when the thread is empty so it doesn't shout for
+    /// attention before the user has actually started a conversation.
+    public var askBadge: String? {
+        let count = chatViewModel.messages.count
+        guard count > 0 else { return nil }
+        return "\(count)"
+    }
+
+    /// Stable badge accessor for any tab — used by the view layer's
+    /// per-tab label rendering.
+    public func badge(for tab: LivePanelTab) -> String? {
+        switch tab {
+        case .notes: return notesBadge
+        case .transcript: return transcriptBadge
+        case .ask: return askBadge
+        }
     }
 }

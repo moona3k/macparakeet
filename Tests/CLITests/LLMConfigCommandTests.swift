@@ -71,6 +71,56 @@ final class LLMConfigCommandTests: XCTestCase {
         XCTAssertNil(config.apiKey)
     }
 
+    func testInlineOptionsReadStandardProviderEnvironment() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "anthropic",
+            "--model", "claude-sonnet-4-6",
+        ])
+
+        let config = try options.buildConfig(environment: ["ANTHROPIC_API_KEY": "sk-env"])
+        XCTAssertEqual(config.id, .anthropic)
+        XCTAssertEqual(config.apiKey, "sk-env")
+    }
+
+    func testInlineOptionsReadExplicitAPIKeyEnvironment() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "openai-compatible",
+            "--api-key-env", "VENDOR_API_KEY",
+            "--base-url", "https://api.example.com/v1",
+            "--model", "vendor/model",
+        ])
+
+        let config = try options.buildConfig(environment: ["VENDOR_API_KEY": "sk-vendor"])
+        XCTAssertEqual(config.id, .openaiCompatible)
+        XCTAssertEqual(config.apiKey, "sk-vendor")
+    }
+
+    func testInlineOptionsRejectMissingExplicitAPIKeyEnvironment() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "openai",
+            "--api-key-env", "MISSING_API_KEY",
+            "--model", "gpt-4.1",
+        ])
+
+        XCTAssertThrowsError(try options.buildConfig(environment: [:])) { error in
+            XCTAssertTrue(error is ValidationError)
+            XCTAssertTrue(String(describing: error).contains("MISSING_API_KEY"))
+        }
+    }
+
+    func testInlineOptionsRejectWhitespaceOnlyAPIKey() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "openai",
+            "--api-key", "   \n  ",
+            "--model", "gpt-4.1",
+        ])
+
+        XCTAssertThrowsError(try options.buildConfig(environment: ["OPENAI_API_KEY": "sk-env"])) { error in
+            XCTAssertTrue(error is ValidationError)
+            XCTAssertTrue(String(describing: error).contains("--api-key must not be empty"))
+        }
+    }
+
     func testInlineOptionsBuildOpenAICompatibleLocalConfig() throws {
         let options = try LLMInlineOptions.parse([
             "--provider", "openai-compatible",

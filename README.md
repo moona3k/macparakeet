@@ -21,6 +21,7 @@
 </p>
 
 <p align="center">
+  <a href="https://deepwiki.com/moona3k/macparakeet"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0-blue.svg" alt="GPL-3.0 License"></a>
   <img src="https://img.shields.io/badge/macOS-14.2%2B-000000.svg" alt="macOS 14.2+">
   <img src="https://img.shields.io/badge/Swift-6.0-F05138.svg" alt="Swift 6">
@@ -42,13 +43,24 @@
 
 ---
 
-MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. It handles system-wide dictation and file/URL transcription. All speech recognition happens on your Mac.
+MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The current release handles system-wide dictation, file/URL transcription, meeting recording, and optional local WhisperKit recognition for languages Parakeet does not cover. All speech recognition happens on your Mac.
+
+## Release status
+
+The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the stable release channel.
+
+| Channel | Status | Includes |
+|---------|--------|----------|
+| Stable DMG | Recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, local WhisperKit fallback, exports, vocabulary, AI features |
+| `main` branch | Development | Next fixes and features before they ship to the stable DMG |
 
 ## What it does
 
 **Dictation** — Press a hotkey in any app, speak, text gets pasted. Hold for push-to-talk, double-tap for persistent recording. Works system-wide.
 
 **File transcription** — Drag audio or video files, or paste a YouTube URL. Full transcript with word-level timestamps, speaker labels, and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON). Assign global hotkeys to trigger File or YouTube transcription from anywhere.
+
+**Meeting recording** — Record system audio and microphone together, see a live local transcript preview, take notes during the call, then save the finalized transcript to the library with export, prompts, and chat.
 
 **Text cleanup** — Filler word removal, custom word replacements, text snippets with triggers. Deterministic pipeline, no LLM needed.
 
@@ -59,19 +71,22 @@ MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio]
 - ~155x realtime — 60 min of audio in ~23 seconds
 - ~2.5% word error rate (Parakeet TDT 0.6B-v3)
 - ~66 MB working memory per active Parakeet inference slot
-- 25 European languages with auto-detection
+- 25 European languages with Parakeet auto-detection
+- Optional local WhisperKit engine for Korean, Japanese, Chinese, and many other languages
 
 ### Limitations
 
 - Apple Silicon only (M1/M2/M3/M4)
-- Best with English — supports 25 European languages but accuracy varies
-- No CJK language support (Korean, Japanese, Chinese, etc.)
+- Parakeet is best for English and supported European languages
+- WhisperKit multilingual support requires a separate local model download before first use
 
 ## Get it
 
 **Download:** Grab the [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) or visit [macparakeet.com](https://macparakeet.com). Drag to Applications, done.
 
 First launch downloads the speech model (~6 GB) plus speaker-detection assets (~130 MB). Everything works fully offline after that.
+
+The DMG is the stable release.
 
 **Build from source:**
 
@@ -88,16 +103,20 @@ The dev script creates a signed `.app` bundle so macOS grants mic and accessibil
 
 ```bash
 swift run macparakeet-cli transcribe /path/to/audio.mp3
+swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
+swift run macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --format json
 swift run macparakeet-cli models status
 swift run macparakeet-cli history
 ```
+
+The Whisper CLI commands above require a downloaded local WhisperKit model.
 
 ## Tech stack
 
 | Layer | Choice |
 |-------|--------|
-| STT | Parakeet TDT 0.6B-v3 via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML (Neural Engine) |
-| STT orchestration | Shared runtime + explicit scheduler with a reserved dictation slot and a shared batch slot for transcription |
+| STT | Parakeet TDT 0.6B-v3 via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML (default) + optional local WhisperKit engine |
+| STT orchestration | Shared runtime + explicit scheduler with a reserved dictation slot and a shared meeting/file slot; speech-engine routing and meeting-session pinning |
 | Language | Swift 6.0 + SwiftUI |
 | Database | SQLite via GRDB |
 | Auto-updates | Sparkle 2 |
@@ -129,7 +148,7 @@ AI features are entirely **opt-in** and separate from speech recognition — tra
 
 **What it does:**
 
-- **Summarize** — After a transcription finishes, click Summarize and pick a prompt ("Meeting Notes", "Action Items", "Key Quotes", etc.) or write your own. The LLM processes the transcript and streams back a summary. You can generate multiple summaries per transcript, each in its own tab. Prompts marked as auto-run generate summaries automatically for new transcriptions.
+- **Summarize** — After a transcription finishes, click Summarize and pick a prompt ("Memo-Steered Notes", "Summary", "Action Items & Decisions", etc.) or write your own. The LLM processes the transcript and streams back a summary. You can generate multiple summaries per transcript, each in its own tab. Prompts marked as auto-run generate summaries automatically for new transcriptions.
 - **Chat** — Ask questions about a transcript in a multi-turn chat interface. The LLM answers based on the transcript content.
 - **AI formatter** — Optionally run your dictation and file transcripts through your AI provider to clean up grammar, punctuation, and paragraphing. Toggle on/off, customize the prompt, or reset to default.
 
@@ -140,20 +159,20 @@ AI features are entirely **opt-in** and separate from speech recognition — tra
 | Cloud | Anthropic (Claude), OpenAI, Google Gemini, OpenRouter |
 | Local | Ollama, LM Studio |
 | Custom | OpenAI-Compatible (any API-shaped endpoint — vLLM, LocalAI, LiteLLM, llama.cpp server, third-party hosts) |
-| CLI | Claude Code, Codex (runs as subprocess) |
+| CLI subprocess | Claude Code, Codex, or another configured command |
 
-**Setup:** In Settings → AI Provider, pick a provider, enter an API key (cloud) or confirm the local server is running, select a model, and hit Test Connection. Cloud providers store keys in the macOS Keychain. Local providers (Ollama, LM Studio, CLI) keep everything on-device.
+**Setup:** In Settings → AI Provider, pick a provider, enter an API key (cloud) or confirm the local server/CLI command is available, select a model, and hit Test Connection. Cloud providers store keys in the macOS Keychain. Ollama and LM Studio can keep LLM inference on-device. CLI subprocess providers run the configured command locally, but that command may contact its own cloud service.
 
 ## Privacy
 
-All speech recognition runs on the Neural Engine. Your audio never leaves your Mac.
+All speech recognition runs locally. Parakeet uses the Neural Engine; the optional WhisperKit engine also runs on-device. Your audio never leaves your Mac.
 
 - **No cloud STT.** The model runs on-device. No audio is transmitted.
 - **No accounts.** No login, no email, no registration.
 - **Opt-out telemetry.** Non-identifying usage analytics and crash reporting go to a self-hosted endpoint only when telemetry is enabled. No persistent IDs, no IP storage, and no transcript/audio content is transmitted. [Source code is right here](Sources/MacParakeetCore/Services/TelemetryService.swift) — verify it yourself.
 - **Temp files cleaned up.** Audio deleted after transcription unless you save it.
 
-**What does use the network:** AI summaries and chat connect to configured LLM providers or CLI tools when you choose them. Sparkle checks for app updates. YouTube transcription downloads video via yt-dlp. Telemetry and crash reports go to our self-hosted server unless you opt out. Core dictation and transcription stay fully offline.
+**What does use the network:** AI summaries and chat connect to configured LLM providers, or to whatever service a configured CLI tool chooses to use, when you choose them. Sparkle checks for app updates. YouTube transcription downloads video via yt-dlp. Telemetry and crash reports go to our self-hosted server unless you opt out. Core dictation and transcription stay fully offline.
 
 **Note:** Builds from source also send telemetry by default. Opt out in Settings or set `MACPARAKEET_TELEMETRY_URL` to override.
 

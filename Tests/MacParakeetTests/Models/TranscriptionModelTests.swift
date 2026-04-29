@@ -156,6 +156,7 @@ final class TranscriptionModelTests: XCTestCase {
             "createdAt": "2026-03-01T00:00:00Z",
             "fileName": "test.mp3",
             "status": "completed",
+            "speakers": null,
             "updatedAt": "2026-03-01T00:00:00Z"
         }
         """
@@ -190,6 +191,7 @@ final class TranscriptionModelTests: XCTestCase {
         XCTAssertNil(t.videoDescription)
         XCTAssertEqual(t.isFavorite, false)
         XCTAssertEqual(t.sourceType, .file)
+        XCTAssertEqual(t.recoveredFromCrash, false)
     }
 
     func testVideoMetadataFieldsPopulate() {
@@ -200,12 +202,14 @@ final class TranscriptionModelTests: XCTestCase {
             channelName: "Test Channel",
             videoDescription: "Great video",
             isFavorite: true,
-            sourceType: .youtube
+            sourceType: .youtube,
+            recoveredFromCrash: true
         )
         XCTAssertEqual(t.thumbnailURL, "https://i.ytimg.com/vi/abc/maxresdefault.jpg")
         XCTAssertEqual(t.channelName, "Test Channel")
         XCTAssertEqual(t.videoDescription, "Great video")
         XCTAssertEqual(t.isFavorite, true)
+        XCTAssertEqual(t.recoveredFromCrash, true)
     }
 
     func testVideoMetadataCodableRoundTrip() throws {
@@ -216,7 +220,8 @@ final class TranscriptionModelTests: XCTestCase {
             thumbnailURL: "https://example.com/thumb.jpg",
             channelName: "My Channel",
             videoDescription: "Description here",
-            isFavorite: true
+            isFavorite: true,
+            recoveredFromCrash: true
         )
 
         let encoder = JSONEncoder()
@@ -231,6 +236,7 @@ final class TranscriptionModelTests: XCTestCase {
         XCTAssertEqual(decoded.channelName, "My Channel")
         XCTAssertEqual(decoded.videoDescription, "Description here")
         XCTAssertEqual(decoded.isFavorite, true)
+        XCTAssertEqual(decoded.recoveredFromCrash, true)
     }
 
     func testDecodingWithoutSourceTypeInfersYouTubeFromSourceURL() throws {

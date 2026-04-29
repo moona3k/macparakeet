@@ -16,28 +16,41 @@ struct LLMSummarizeCommand: AsyncParsableCommand {
     @Flag(name: .long, help: "Stream the response token by token.")
     var stream: Bool = false
 
-    func run() async throws {
-        let text = try readInput(input)
+    @Flag(name: .long, help: "Emit a structured JSON envelope (output, provider, model, usage, stopReason, latencyMs) instead of plain text.")
+    var json: Bool = false
 
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            print("Input is empty.")
-            throw ExitCode.failure
+    func validate() throws {
+        if json && stream {
+            throw ValidationError("--json with --stream is not yet supported. Run without --stream for the envelope, or omit --json for token streaming.")
         }
+    }
 
-        let execution = try llm.buildExecutionContext()
-        let service = LLMService(
-            client: execution.client,
-            contextResolver: StaticLLMExecutionContextResolver(context: execution.context)
-        )
+    func run() async throws {
+        try await emitJSONOrRethrow(json: json) {
+            let text = try readInput(input)
 
-        if stream {
-            let tokenStream = service.summarizeStream(transcript: text)
-            for try await token in tokenStream {
-                print(token, terminator: "")
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw CLIInputError.empty
             }
-            print()
-        } else {
-            print(try await service.summarize(transcript: text))
+
+            let execution = try llm.buildExecutionContext()
+            let service = LLMService(
+                client: execution.client,
+                contextResolver: StaticLLMExecutionContextResolver(context: execution.context)
+            )
+
+            if json {
+                let result = try await service.summarizeDetailed(transcript: text)
+                try printJSON(result)
+            } else if stream {
+                let tokenStream = service.summarizeStream(transcript: text)
+                for try await token in tokenStream {
+                    print(token, terminator: "")
+                }
+                print()
+            } else {
+                print(try await service.summarize(transcript: text))
+            }
         }
     }
 }

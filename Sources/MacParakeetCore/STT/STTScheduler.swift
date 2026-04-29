@@ -19,11 +19,12 @@ public enum STTSchedulerError: Error, LocalizedError, Equatable {
 ///
 /// Jobs execute independently per slot so dictation can remain responsive while
 /// meeting and file work share an explicitly prioritized background path.
-public actor STTScheduler: STTManaging {
+public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSessionManaging {
     private struct ScheduledJob: Sendable {
         let id: UUID
         let audioPath: String
         let job: STTJobKind
+        let speechEngine: SpeechEngineSelection?
         let enqueueOrder: UInt64
         let onProgress: (@Sendable (Int, Int) -> Void)?
 
@@ -50,6 +51,7 @@ public actor STTScheduler: STTManaging {
     )
     private var cancelledJobIDs: Set<UUID> = []
     private var acceptsNewJobs = true
+    private var activeSpeechEngineSessionIDs: Set<UUID> = []
 
     /// - Parameter meetingLiveChunkBacklogLimit: Maximum pending live-preview chunks before the
     ///   oldest is dropped. 120 ≈ 4 minutes of dual-source 5-second chunks emitted every ~4
@@ -84,6 +86,36 @@ public actor STTScheduler: STTManaging {
                         id: id,
                         audioPath: audioPath,
                         job: job,
+                        speechEngine: nil,
+                        enqueueOrder: nextEnqueueOrder(),
+                        onProgress: onProgress
+                    ),
+                    continuation: continuation
+                )
+            }
+        } onCancel: {
+            Task { [weak self] in
+                await self?.cancel(jobID: id)
+            }
+        }
+    }
+
+    public func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async throws -> STTResult {
+        let id = UUID()
+        try Task.checkCancellation()
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                enqueue(
+                    ScheduledJob(
+                        id: id,
+                        audioPath: audioPath,
+                        job: job,
+                        speechEngine: speechEngine,
                         enqueueOrder: nextEnqueueOrder(),
                         onProgress: onProgress
                     ),
@@ -125,6 +157,31 @@ public actor STTScheduler: STTManaging {
     public func shutdown() async {
         await quiesce(restoreAcceptsNewJobs: false)
         await runtime.shutdown()
+    }
+
+    public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
+        guard acceptsNewJobs, activeSpeechEngineSessionIDs.isEmpty, !hasQueuedOrRunningJobs else {
+            throw STTError.engineBusy
+        }
+
+        acceptsNewJobs = false
+        do {
+            try await runtime.setSpeechEngine(preference)
+            acceptsNewJobs = true
+        } catch {
+            acceptsNewJobs = true
+            throw error
+        }
+    }
+
+    public func beginSpeechEngineSession() async -> SpeechEngineLease {
+        let lease = SpeechEngineLease(selection: await runtime.currentSpeechEngineSelection())
+        activeSpeechEngineSessionIDs.insert(lease.id)
+        return lease
+    }
+
+    public func endSpeechEngineSession(_ lease: SpeechEngineLease) async {
+        activeSpeechEngineSessionIDs.remove(lease.id)
     }
 
     private func enqueue(
@@ -173,6 +230,12 @@ public actor STTScheduler: STTManaging {
         slotStates[slot] = slotState
     }
 
+    private var hasQueuedOrRunningJobs: Bool {
+        slotStates.values.contains { state in
+            state.currentJob != nil || !state.pendingJobs.isEmpty
+        }
+    }
+
     private func pendingMeetingLiveJobCount(in slotState: SlotState) -> Int {
         slotState.pendingJobs.reduce(into: 0) { count, job in
             if job.job == .meetingLiveChunk {
@@ -201,7 +264,16 @@ public actor STTScheduler: STTManaging {
 
         currentSlotState.currentJob = next
         currentSlotState.currentExecutionTask = Task {
-            try await runtime.transcribe(audioPath: next.audioPath, job: next.job, onProgress: next.onProgress)
+            if let speechEngine = next.speechEngine {
+                try await runtime.transcribe(
+                    audioPath: next.audioPath,
+                    job: next.job,
+                    speechEngine: speechEngine,
+                    onProgress: next.onProgress
+                )
+            } else {
+                try await runtime.transcribe(audioPath: next.audioPath, job: next.job, onProgress: next.onProgress)
+            }
         }
         currentSlotState.currentWaitTask = Task { [weak self] in
             await self?.awaitCurrentJobCompletion(jobID: next.id, in: slot)

@@ -12,6 +12,11 @@ private final class OnboardingTelemetrySpy: TelemetryServiceProtocol, @unchecked
         lock.unlock()
     }
 
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
     func flush() async {}
 
     func flushForTermination() {}
@@ -124,7 +129,7 @@ final class OnboardingViewModelTests: XCTestCase {
     func testMeetingRecordingStepOrdering() {
         XCTAssertEqual(
             OnboardingViewModel.Step.allCases,
-            [.welcome, .microphone, .accessibility, .meetingRecording, .hotkey, .engine, .done]
+            [.welcome, .microphone, .accessibility, .meetingRecording, .calendar, .hotkey, .engine, .done]
         )
     }
 
@@ -154,7 +159,9 @@ final class OnboardingViewModelTests: XCTestCase {
 
         XCTAssertTrue(vm.meetingRecordingSkipped)
         XCTAssertTrue(defaults.bool(forKey: OnboardingViewModel.meetingRecordingSkippedKey))
-        XCTAssertEqual(vm.step, .hotkey)
+        // Skip advances to the next visible step — `.calendar` (only present
+        // when meeting recording is enabled, which it is in tests).
+        XCTAssertEqual(vm.step, .calendar)
     }
 
     func testResetOnboardingClearsMeetingRecordingSkippedFlag() {

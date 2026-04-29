@@ -217,7 +217,7 @@ Rejected. Unnecessary complexity. MacParakeet doesn't need streaming diarization
 
 ### WhisperX (combined ASR + diarization)
 
-Rejected. Python-based, no CoreML/ANE support. We already have Parakeet TDT for ASR (better accuracy, faster). WhisperX bundles Whisper + pyannote in Python — we'd gain nothing and lose our native Swift architecture.
+Rejected. Python-based, no CoreML/ANE support. We already have Parakeet TDT for default ASR (better accuracy, faster). WhisperX bundles Whisper + pyannote in Python — we'd gain nothing and lose our native Swift architecture. ADR-021's later optional WhisperKit support uses a native local Swift path and does not change this diarization decision.
 
 ### pyannote Python directly
 

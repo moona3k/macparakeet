@@ -11,12 +11,118 @@ struct MeetingRecordingPanelView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            transcriptContent
+            tabBar
             Divider()
-            footer
+            paneContent
+            // Notes and Ask own their own bottom UI (Notes shows a soft-cap
+            // footer when relevant; Ask owns its composer + follow-up pills).
+            // The footer stays transcript-specific (Copy, auto-scroll toggle);
+            // the stop control is in the always-visible header.
+            if viewModel.selectedTab == .transcript {
+                Divider()
+                footer
+            }
         }
-        .frame(minWidth: 360, idealWidth: 420, minHeight: 320, idealHeight: 460)
+        .frame(minWidth: 360, idealWidth: 420, minHeight: 320, idealHeight: 520)
         .background(DesignSystem.Colors.surface)
+    }
+
+    @ViewBuilder
+    private var paneContent: some View {
+        switch viewModel.selectedTab {
+        case .notes:
+            LiveNotesPaneView(
+                viewModel: viewModel.notesViewModel,
+                elapsedSeconds: viewModel.elapsedSeconds
+            )
+        case .transcript:
+            transcriptContent
+        case .ask:
+            LiveAskPaneView(viewModel: viewModel.chatViewModel)
+        }
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 0) {
+            ForEach(MeetingRecordingPanelViewModel.LivePanelTab.allCases, id: \.self) { tab in
+                tabButton(tab)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, DesignSystem.Spacing.sm)
+        .padding(.vertical, 4)
+    }
+
+    private func tabButton(_ tab: MeetingRecordingPanelViewModel.LivePanelTab) -> some View {
+        let isActive = viewModel.selectedTab == tab
+        let shortcut: KeyEquivalent = {
+            switch tab {
+            case .notes: return "1"
+            case .transcript: return "2"
+            case .ask: return "3"
+            }
+        }()
+        let badge = viewModel.badge(for: tab)
+        return Button {
+            withAnimation(.easeOut(duration: 0.18)) {
+                viewModel.selectedTab = tab
+            }
+        } label: {
+            VStack(spacing: 5) {
+                tabLabel(title: tab.title, badge: badge, isActive: isActive)
+                Capsule()
+                    .fill(isActive ? DesignSystem.Colors.accent : Color.clear)
+                    .frame(height: 1)
+                    .frame(maxWidth: .infinity)
+            }
+            .padding(.horizontal, DesignSystem.Spacing.sm)
+            .padding(.top, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .keyboardShortcut(shortcut, modifiers: .command)
+        .help(badge.map { "\(tab.title) · \($0)" } ?? tab.title)
+    }
+
+    /// State-bearing tab label per ADR-020 §1. `ViewThatFits` picks the
+    /// richest variant the cell width allows: rich (noun · badge) at
+    /// default panel widths, plain noun at the 360px floor. Tooltip carries
+    /// the full label so the badge never disappears entirely — see
+    /// `.help(...)` on the parent button.
+    @ViewBuilder
+    private func tabLabel(title: String, badge: String?, isActive: Bool) -> some View {
+        let weight: Font.Weight = isActive ? .medium : .regular
+        let foreground: Color = isActive
+            ? DesignSystem.Colors.textPrimary
+            : DesignSystem.Colors.textTertiary
+
+        if let badge {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 5) {
+                    Text(title)
+                        .font(.system(size: 12, weight: weight))
+                        .foregroundStyle(foreground)
+                    Text("·")
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.6))
+                    Text(badge)
+                        .font(.system(size: 11, weight: .regular).monospacedDigit())
+                        .foregroundStyle(isActive
+                            ? DesignSystem.Colors.accent
+                            : DesignSystem.Colors.textTertiary)
+                        .lineLimit(1)
+                }
+                .fixedSize()
+
+                Text(title)
+                    .font(.system(size: 12, weight: weight))
+                    .foregroundStyle(foreground)
+            }
+        } else {
+            Text(title)
+                .font(.system(size: 12, weight: weight))
+                .foregroundStyle(foreground)
+        }
     }
 
     private var header: some View {
@@ -47,6 +153,12 @@ struct MeetingRecordingPanelView: View {
                     Text("\(viewModel.wordCount) words")
                         .font(.system(size: 10, weight: .regular).monospacedDigit())
                         .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.8))
+                }
+
+                if viewModel.canStop {
+                    StopRecordingButton {
+                        viewModel.onStop?()
+                    }
                 }
             }
 
@@ -99,6 +211,8 @@ struct MeetingRecordingPanelView: View {
         .background(DesignSystem.Colors.background)
     }
 
+    /// Only rendered when `selectedTab == .transcript` (parent body guards), so
+    /// no inner conditional needed here.
     private var footer: some View {
         HStack(spacing: DesignSystem.Spacing.md) {
             FooterButton(
@@ -202,98 +316,6 @@ struct BreathingSeedOfLifeView: View {
     }
 }
 
-/// Stop button with inline "End?" confirmation.
-/// First click shows "End?" label. Second click within 3s confirms.
-/// Auto-reverts to icon if not confirmed.
-private struct StopRecordingButton: View {
-    var onStop: () -> Void
-
-    @State private var isHovered = false
-    @State private var confirming = false
-    @State private var countdownProgress: CGFloat = 1.0
-    @State private var revertTask: Task<Void, Never>?
-
-    var body: some View {
-        Group {
-            if confirming {
-                // Confirmation state — "End?" text button
-                Button {
-                    revertTask?.cancel()
-                    confirming = false
-                    onStop()
-                } label: {
-                    Text("Click to end")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(DesignSystem.Colors.errorRed)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 5)
-                        .background(
-                            Capsule()
-                                .fill(DesignSystem.Colors.surfaceElevated)
-                                .overlay(
-                                    GeometryReader { geo in
-                                        Capsule()
-                                            .fill(DesignSystem.Colors.errorRed.opacity(0.2))
-                                            .frame(width: geo.size.width * countdownProgress)
-                                    }
-                                    .clipShape(Capsule())
-                                )
-                                .overlay(
-                                    Capsule()
-                                        .stroke(DesignSystem.Colors.errorRed.opacity(0.3), lineWidth: 0.5)
-                                )
-                        )
-                }
-                .buttonStyle(.plain)
-                .transition(.scale(scale: 0.8).combined(with: .opacity))
-            } else {
-                // Default state — stop square icon
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(isHovered ? DesignSystem.Colors.errorRed : DesignSystem.Colors.textTertiary.opacity(0.6))
-                    .frame(width: 13, height: 13)
-                    .padding(9)
-                    .background(
-                        Circle()
-                            .fill(isHovered
-                                ? DesignSystem.Colors.errorRed.opacity(0.15)
-                                : DesignSystem.Colors.surfaceElevated
-                            )
-                            .overlay(
-                                Circle()
-                                    .stroke(isHovered ? DesignSystem.Colors.errorRed.opacity(0.3) : .clear, lineWidth: 0.5)
-                            )
-                    )
-                    .shadow(color: isHovered ? DesignSystem.Colors.errorRed.opacity(0.25) : .clear, radius: 6)
-                    .scaleEffect(isHovered ? 1.08 : 1.0)
-                    .animation(.easeOut(duration: 0.15), value: isHovered)
-                    .onHover { hovering in
-                        isHovered = hovering
-                    }
-                    .onTapGesture {
-                        countdownProgress = 1.0
-                        withAnimation(.spring(response: 0.25, dampingFraction: 0.8)) {
-                            confirming = true
-                        }
-                        withAnimation(.linear(duration: 3)) {
-                            countdownProgress = 0
-                        }
-                        revertTask?.cancel()
-                        revertTask = Task { @MainActor in
-                            try? await Task.sleep(for: .seconds(3))
-                            guard !Task.isCancelled else { return }
-                            withAnimation(.easeOut(duration: 0.2)) {
-                                confirming = false
-                            }
-                        }
-                    }
-                    .transition(.scale(scale: 0.8).combined(with: .opacity))
-            }
-        }
-        .help(confirming ? "Click to confirm" : "End recording")
-        .onDisappear { revertTask?.cancel() }
-    }
-}
-
 /// Polished footer button with hover background and press feedback.
 private struct FooterButton: View {
     let label: String
@@ -390,4 +412,3 @@ private struct FooterIconButton: View {
         }
     }
 }
-

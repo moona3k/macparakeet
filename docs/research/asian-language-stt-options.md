@@ -1,7 +1,8 @@
 # Asian Language STT Options for MacParakeet
 
-> Status: **ACTIVE** — Research findings, April 2026
+> Status: **HISTORICAL** — Research findings from before the WhisperKit implementation
 > Last verified: 2026-04-02
+> Implementation update: ADR-021 added optional local WhisperKit support on main for broad multilingual coverage. Parakeet remains the default engine.
 
 ## Summary
 

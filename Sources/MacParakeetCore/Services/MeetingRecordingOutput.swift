@@ -9,6 +9,13 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
     public let systemAudioURL: URL
     public let durationSeconds: TimeInterval
     public let sourceAlignment: MeetingSourceAlignment
+    public let speechEngine: SpeechEngineSelection
+    public let speechEngineWasCaptured: Bool
+    /// Free-form notes the user typed during the meeting, captured at finalize
+    /// time. Threaded through to `Transcription.userNotes` by the caller so
+    /// post-meeting summary generation can steer on what the user emphasized
+    /// (ADR-020). `nil` when the user took no notes.
+    public let userNotes: String?
 
     public init(
         sessionID: UUID,
@@ -18,7 +25,10 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         microphoneAudioURL: URL,
         systemAudioURL: URL,
         durationSeconds: TimeInterval,
-        sourceAlignment: MeetingSourceAlignment
+        sourceAlignment: MeetingSourceAlignment,
+        speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet),
+        speechEngineWasCaptured: Bool = true,
+        userNotes: String? = nil
     ) {
         self.sessionID = sessionID
         self.displayName = displayName
@@ -28,6 +38,9 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
         self.systemAudioURL = systemAudioURL
         self.durationSeconds = durationSeconds
         self.sourceAlignment = sourceAlignment
+        self.speechEngine = speechEngine
+        self.speechEngineWasCaptured = speechEngineWasCaptured
+        self.userNotes = userNotes
     }
 
     public static func loadArchived(
@@ -58,7 +71,9 @@ public struct MeetingRecordingOutput: Sendable, Equatable {
             microphoneAudioURL: microphoneAudioURL,
             systemAudioURL: systemAudioURL,
             durationSeconds: durationSeconds,
-            sourceAlignment: metadata.sourceAlignment
+            sourceAlignment: metadata.sourceAlignment,
+            speechEngine: metadata.speechEngine,
+            speechEngineWasCaptured: metadata.speechEngineWasCaptured
         )
     }
 }

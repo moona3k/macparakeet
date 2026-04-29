@@ -8,10 +8,12 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case dictationCancelled = "dictation_cancelled"
     case dictationEmpty = "dictation_empty"
     case dictationFailed = "dictation_failed"
+    case dictationOperation = "dictation_operation"
     case transcriptionStarted = "transcription_started"
     case transcriptionCompleted = "transcription_completed"
     case transcriptionCancelled = "transcription_cancelled"
     case transcriptionFailed = "transcription_failed"
+    case transcriptionOperation = "transcription_operation"
     case diarizationStarted = "diarization_started"
     case diarizationCompleted = "diarization_completed"
     case diarizationFailed = "diarization_failed"
@@ -20,8 +22,11 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case llmPromptResultFailed = "llm_prompt_result_failed"
     case llmChatUsed = "llm_chat_used"
     case llmChatFailed = "llm_chat_failed"
+    case llmTransformUsed = "llm_transform_used"
+    case llmTransformFailed = "llm_transform_failed"
     case llmFormatterUsed = "llm_formatter_used"
     case llmFormatterFailed = "llm_formatter_failed"
+    case llmOperation = "llm_operation"
     case historySearched = "history_searched"
     case historyReplayed = "history_replayed"
     case copyToClipboard = "copy_to_clipboard"
@@ -33,6 +38,7 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case snippetDeleted = "snippet_deleted"
     case keystrokeSnippetFired = "keystroke_snippet_fired"
     case feedbackSubmitted = "feedback_submitted"
+    case feedbackOperation = "feedback_operation"
     case transcriptionDeleted = "transcription_deleted"
     case dictationDeleted = "dictation_deleted"
     case transcriptionFavorited = "transcription_favorited"
@@ -68,10 +74,27 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case meetingRecordingCompleted = "meeting_recording_completed"
     case meetingRecordingCancelled = "meeting_recording_cancelled"
     case meetingRecordingFailed = "meeting_recording_failed"
+    case meetingOperation = "meeting_operation"
+    case meetingRecoveryDiscovered = "meeting_recovery_discovered"
+    case meetingRecoveryStarted = "meeting_recovery_started"
+    case meetingRecoveryCompleted = "meeting_recovery_completed"
+    case meetingRecoveryDiscarded = "meeting_recovery_discarded"
+    case meetingRecoveryFailed = "meeting_recovery_failed"
+    // Calendar auto-start (ADR-017)
+    case calendarReminderShown = "calendar_reminder_shown"
+    case calendarAutoStartTriggered = "calendar_auto_start_triggered"
+    case calendarAutoStartCancelled = "calendar_auto_start_cancelled"
+    case calendarAutoStartFailed = "calendar_auto_start_failed"
+    case calendarAutoStopShown = "calendar_auto_stop_shown"
+    case calendarAutoStopCancelled = "calendar_auto_stop_cancelled"
     // Errors
     case errorOccurred = "error_occurred"
     // Crashes
     case crashOccurred = "crash_occurred"
+    // CLI
+    case cliOperation = "cli_operation"
+    // Local file automation
+    case autoSaveOperation = "auto_save_operation"
 }
 
 public enum TelemetryDictationTrigger: String, Sendable, Equatable {
@@ -99,11 +122,13 @@ public enum TelemetryTranscriptionSource: String, Sendable, Equatable {
 }
 
 public enum TelemetryTranscriptionStage: String, Sendable, Equatable {
+    case preflight
     case download
     case audioConversion = "audio_conversion"
     case stt
     case diarization
     case postProcessing = "post_processing"
+    case persistence
 }
 
 public enum TelemetryCopySource: String, Sendable, Equatable {
@@ -119,10 +144,34 @@ public enum TelemetryFormatterSource: String, Sendable, Equatable {
     case transcription
 }
 
+/// Why a meeting recording started. Lets us distinguish manual user action
+/// from calendar-driven auto-start in adoption metrics.
+public enum TelemetryMeetingRecordingTrigger: String, Sendable, Equatable {
+    case manual
+    case hotkey
+    case calendarAutoStart = "calendar_auto_start"
+}
+
+public enum TelemetryMeetingOperationStage: String, Sendable, Equatable {
+    case permissions
+    case startRecording = "start_recording"
+    case recording
+    case stopRecording = "stop_recording"
+    case transcription
+    case completeTranscription = "complete_transcription"
+    case cancel
+}
+
+public enum TelemetryMeetingRecoverySource: String, Sendable, Equatable {
+    case launch
+    case settings
+}
+
 public enum TelemetryPermission: String, Sendable, Equatable {
     case microphone
     case accessibility
     case screenRecording = "screen_recording"
+    case calendar
 }
 
 public enum TelemetrySettingName: String, Sendable, Equatable {
@@ -137,10 +186,19 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case meetingHotkey = "meeting_hotkey"
     case fileTranscriptionHotkey = "file_transcription_hotkey"
     case youtubeTranscriptionHotkey = "youtube_transcription_hotkey"
+    case microphoneSelection = "microphone_selection"
+    case meetingAudioSourceMode = "meeting_audio_source_mode"
 
     case launchAtLogin = "launch_at_login"
     case silenceAutoStop = "silence_auto_stop"
     case voiceReturn = "voice_return"
+
+    // Calendar auto-start (ADR-017)
+    case calendarAutoStartMode = "calendar_auto_start_mode"
+    case calendarReminderMinutes = "calendar_reminder_minutes"
+    case calendarTriggerFilter = "calendar_trigger_filter"
+    case calendarAutoStopEnabled = "calendar_auto_stop_enabled"
+    case calendarIncludedCalendars = "calendar_included_calendars"
 }
 
 public enum TelemetryEventSpec: Sendable {
@@ -151,6 +209,17 @@ public enum TelemetryEventSpec: Sendable {
     case dictationCancelled(durationSeconds: Double?, reason: TelemetryDictationCancelReason?, device: RecordingDeviceInfo? = nil)
     case dictationEmpty(durationSeconds: Double?, device: RecordingDeviceInfo? = nil)
     case dictationFailed(errorType: String, errorDetail: String? = nil, device: RecordingDeviceInfo? = nil)
+    case dictationOperation(
+        operationID: String,
+        operationContext: ObservabilityOperationContext? = nil,
+        outcome: ObservabilityOutcome,
+        trigger: TelemetryDictationTrigger?,
+        mode: TelemetryDictationMode?,
+        durationSeconds: Double?,
+        wordCount: Int?,
+        errorType: String?,
+        device: RecordingDeviceInfo? = nil
+    )
     case transcriptionStarted(source: TelemetryTranscriptionSource, audioDurationSeconds: Double?)
     case transcriptionCompleted(
         source: TelemetryTranscriptionSource,
@@ -172,6 +241,24 @@ public enum TelemetryEventSpec: Sendable {
         errorType: String,
         errorDetail: String? = nil
     )
+    case transcriptionOperation(
+        operationID: String,
+        operationContext: ObservabilityOperationContext? = nil,
+        outcome: ObservabilityOutcome,
+        source: TelemetryTranscriptionSource,
+        stage: TelemetryTranscriptionStage?,
+        durationSeconds: Double,
+        audioDurationSeconds: Double?,
+        processingSeconds: Double?,
+        wordCount: Int?,
+        speakerCount: Int?,
+        diarizationRequested: Bool,
+        diarizationApplied: Bool,
+        inputKind: ObservabilityInputKind?,
+        mediaExtension: String?,
+        fileSizeBucket: String?,
+        errorType: String?
+    )
     case diarizationStarted(source: TelemetryTranscriptionSource)
     case diarizationCompleted(source: TelemetryTranscriptionSource, speakerCount: Int, durationSeconds: Double)
     case diarizationFailed(source: TelemetryTranscriptionSource, errorType: String, errorDetail: String? = nil)
@@ -180,6 +267,8 @@ public enum TelemetryEventSpec: Sendable {
     case llmPromptResultFailed(provider: String, errorType: String, errorDetail: String? = nil)
     case llmChatUsed(provider: String, messageCount: Int)
     case llmChatFailed(provider: String, errorType: String, errorDetail: String? = nil)
+    case llmTransformUsed(provider: String)
+    case llmTransformFailed(provider: String, errorType: String, errorDetail: String? = nil)
     case llmFormatterUsed(
         provider: String,
         source: TelemetryFormatterSource,
@@ -196,6 +285,21 @@ public enum TelemetryEventSpec: Sendable {
         errorType: String,
         defaultPromptUsed: Bool,
         inputTruncated: Bool
+    )
+    case llmOperation(
+        operationID: String,
+        operationContext: ObservabilityOperationContext? = nil,
+        feature: String,
+        provider: String,
+        streaming: Bool,
+        outcome: ObservabilityOutcome,
+        durationSeconds: Double,
+        inputChars: Int?,
+        outputChars: Int?,
+        inputTruncated: Bool?,
+        promptDefaultUsed: Bool?,
+        messageCount: Int?,
+        errorType: String?
     )
     case historySearched
     case historyReplayed
@@ -229,6 +333,16 @@ public enum TelemetryEventSpec: Sendable {
     case modelDownloadFailed(errorType: String, errorDetail: String? = nil)
     // Lifecycle actions
     case feedbackSubmitted(category: String)
+    case feedbackOperation(
+        operationID: String,
+        operationContext: ObservabilityOperationContext? = nil,
+        category: String,
+        outcome: ObservabilityOutcome,
+        durationSeconds: Double,
+        screenshotAttached: Bool,
+        systemInfoIncluded: Bool,
+        errorType: String?
+    )
     case transcriptionDeleted
     case dictationDeleted
     case transcriptionFavorited(isFavorite: Bool)
@@ -241,10 +355,60 @@ public enum TelemetryEventSpec: Sendable {
     // Keystroke actions
     case keystrokeSnippetFired(action: String)
     // Meeting recording
-    case meetingRecordingStarted
+    case meetingRecordingStarted(trigger: TelemetryMeetingRecordingTrigger? = nil)
     case meetingRecordingCompleted(durationSeconds: Double, liveWordCount: Int, liveTranscriptLagged: Bool)
     case meetingRecordingCancelled(durationSeconds: Double)
     case meetingRecordingFailed(errorType: String, errorDetail: String? = nil)
+    case meetingOperation(
+        operationID: String,
+        operationContext: ObservabilityOperationContext? = nil,
+        outcome: ObservabilityOutcome,
+        trigger: TelemetryMeetingRecordingTrigger?,
+        stage: TelemetryMeetingOperationStage? = nil,
+        durationSeconds: Double?,
+        liveWordCount: Int?,
+        liveTranscriptLagged: Bool?,
+        microphoneTrackPresent: Bool?,
+        systemTrackPresent: Bool?,
+        notesUsed: Bool?,
+        notesLengthBucket: String?,
+        errorType: String?
+    )
+    case meetingRecoveryDiscovered(count: Int, source: TelemetryMeetingRecoverySource)
+    case meetingRecoveryStarted(count: Int, source: TelemetryMeetingRecoverySource)
+    case meetingRecoveryCompleted(count: Int, durationSeconds: Double, source: TelemetryMeetingRecoverySource)
+    case meetingRecoveryDiscarded(count: Int, source: TelemetryMeetingRecoverySource)
+    case meetingRecoveryFailed(
+        count: Int,
+        source: TelemetryMeetingRecoverySource,
+        errorType: String,
+        errorDetail: String? = nil
+    )
+    // Calendar auto-start (ADR-017). Mode is "notify" / "auto_start" — `.off`
+    // never produces an event because the coordinator short-circuits.
+    case calendarReminderShown(mode: String, leadMinutes: Int, hasMeetUrl: Bool)
+    /// Auto-start countdown shown to the user. Fires when `.autoStartDue`
+    /// emits and `MeetingAutoStartCoordinator` actually presents the toast
+    /// (after permission + active-recording checks).
+    case calendarAutoStartTriggered(leadSeconds: Int, hasMeetUrl: Bool)
+    /// User actively cancelled the countdown before recording started.
+    /// Currently only fires `reason: "user_cancel"`. System-side
+    /// failures (permission denial, service throw, state-busy) go
+    /// through `calendarAutoStartFailed` instead so the analyst can
+    /// tell "user said no" from "system couldn't" cleanly.
+    case calendarAutoStartCancelled(reason: String)
+    /// Auto-start countdown completed but the recording flow couldn't
+    /// actually start. Distinguishes user opt-out from system failure
+    /// — see ADR-017 §10. Reasons:
+    /// - `permission_denied` — user denied mic/screen during the prompt
+    /// - `state_busy` — recording flow was non-idle (back-to-back meeting)
+    /// - `service_threw` — `MeetingRecordingService.startRecording` errored
+    case calendarAutoStartFailed(reason: String)
+    /// Auto-stop countdown shown for an event currently being recorded.
+    case calendarAutoStopShown(eventDurationSeconds: Double)
+    /// User extended past the calendar event's end time (suppressed
+    /// auto-stop). Tells us how often the 30s lead is wrong.
+    case calendarAutoStopCancelled
     // Errors
     case errorOccurred(domain: String, code: String, description: String)
     // Crashes
@@ -253,6 +417,28 @@ public enum TelemetryEventSpec: Sendable {
         crashTimestamp: String, crashAppVer: String,
         crashOsVer: String, uuid: String,
         slide: String, reason: String?, stackTrace: String
+    )
+    case cliOperation(
+        operationID: String,
+        operationContext: ObservabilityOperationContext? = nil,
+        command: String,
+        subcommand: String?,
+        outcome: ObservabilityOutcome,
+        durationSeconds: Double,
+        inputKind: ObservabilityInputKind?,
+        outputFormat: String?,
+        json: Bool?,
+        exitCode: Int?,
+        errorType: String?
+    )
+    case autoSaveOperation(
+        operationID: String,
+        operationContext: ObservabilityOperationContext? = nil,
+        scope: AutoSaveScope,
+        format: AutoSaveFormat,
+        outcome: ObservabilityOutcome,
+        durationSeconds: Double,
+        errorType: String?
     )
 }
 
@@ -266,10 +452,12 @@ extension TelemetryEventSpec {
         case .dictationCancelled: return .dictationCancelled
         case .dictationEmpty: return .dictationEmpty
         case .dictationFailed: return .dictationFailed
+        case .dictationOperation: return .dictationOperation
         case .transcriptionStarted: return .transcriptionStarted
         case .transcriptionCompleted: return .transcriptionCompleted
         case .transcriptionCancelled: return .transcriptionCancelled
         case .transcriptionFailed: return .transcriptionFailed
+        case .transcriptionOperation: return .transcriptionOperation
         case .diarizationStarted: return .diarizationStarted
         case .diarizationCompleted: return .diarizationCompleted
         case .diarizationFailed: return .diarizationFailed
@@ -278,8 +466,11 @@ extension TelemetryEventSpec {
         case .llmPromptResultFailed: return .llmPromptResultFailed
         case .llmChatUsed: return .llmChatUsed
         case .llmChatFailed: return .llmChatFailed
+        case .llmTransformUsed: return .llmTransformUsed
+        case .llmTransformFailed: return .llmTransformFailed
         case .llmFormatterUsed: return .llmFormatterUsed
         case .llmFormatterFailed: return .llmFormatterFailed
+        case .llmOperation: return .llmOperation
         case .historySearched: return .historySearched
         case .historyReplayed: return .historyReplayed
         case .copyToClipboard: return .copyToClipboard
@@ -309,6 +500,7 @@ extension TelemetryEventSpec {
         case .modelDownloadCompleted: return .modelDownloadCompleted
         case .modelDownloadFailed: return .modelDownloadFailed
         case .feedbackSubmitted: return .feedbackSubmitted
+        case .feedbackOperation: return .feedbackOperation
         case .transcriptionDeleted: return .transcriptionDeleted
         case .dictationDeleted: return .dictationDeleted
         case .transcriptionFavorited: return .transcriptionFavorited
@@ -322,8 +514,22 @@ extension TelemetryEventSpec {
         case .meetingRecordingCompleted: return .meetingRecordingCompleted
         case .meetingRecordingCancelled: return .meetingRecordingCancelled
         case .meetingRecordingFailed: return .meetingRecordingFailed
+        case .meetingOperation: return .meetingOperation
+        case .meetingRecoveryDiscovered: return .meetingRecoveryDiscovered
+        case .meetingRecoveryStarted: return .meetingRecoveryStarted
+        case .meetingRecoveryCompleted: return .meetingRecoveryCompleted
+        case .meetingRecoveryDiscarded: return .meetingRecoveryDiscarded
+        case .meetingRecoveryFailed: return .meetingRecoveryFailed
+        case .calendarReminderShown: return .calendarReminderShown
+        case .calendarAutoStartTriggered: return .calendarAutoStartTriggered
+        case .calendarAutoStartCancelled: return .calendarAutoStartCancelled
+        case .calendarAutoStartFailed: return .calendarAutoStartFailed
+        case .calendarAutoStopShown: return .calendarAutoStopShown
+        case .calendarAutoStopCancelled: return .calendarAutoStopCancelled
         case .errorOccurred: return .errorOccurred
         case .crashOccurred: return .crashOccurred
+        case .cliOperation: return .cliOperation
+        case .autoSaveOperation: return .autoSaveOperation
         }
     }
 
@@ -376,8 +582,30 @@ extension TelemetryEventSpec {
             ), device)
         case .dictationFailed(let errorType, let errorDetail, let device):
             var props = ["error_type": errorType]
-            if let errorDetail { props["error_detail"] = errorDetail }
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return Self.mergeDevice(props, device)
+        case .dictationOperation(
+            let operationID,
+            let operationContext,
+            let outcome,
+            let trigger,
+            let mode,
+            let durationSeconds,
+            let wordCount,
+            let errorType,
+            let device
+        ):
+            return Self.mergeDevice(Self.compactProps(
+                ("operation_id", operationID),
+                ("workflow_id", operationContext?.workflowID),
+                ("parent_operation_id", operationContext?.parentOperationID),
+                ("outcome", outcome.rawValue),
+                ("trigger", trigger?.rawValue),
+                ("mode", mode?.rawValue),
+                ("duration_seconds", durationSeconds.map(Self.format)),
+                ("word_count", wordCount.map(String.init)),
+                ("error_type", errorType)
+            ), device)
         case .transcriptionStarted(let source, let audioDurationSeconds):
             return Self.compactProps(
                 ("source", source.rawValue),
@@ -413,8 +641,45 @@ extension TelemetryEventSpec {
                 "stage": stage.rawValue,
                 "error_type": errorType,
             ]
-            if let errorDetail { props["error_detail"] = errorDetail }
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
+        case .transcriptionOperation(
+            let operationID,
+            let operationContext,
+            let outcome,
+            let source,
+            let stage,
+            let durationSeconds,
+            let audioDurationSeconds,
+            let processingSeconds,
+            let wordCount,
+            let speakerCount,
+            let diarizationRequested,
+            let diarizationApplied,
+            let inputKind,
+            let mediaExtension,
+            let fileSizeBucket,
+            let errorType
+        ):
+            return Self.compactProps(
+                ("operation_id", operationID),
+                ("workflow_id", operationContext?.workflowID),
+                ("parent_operation_id", operationContext?.parentOperationID),
+                ("outcome", outcome.rawValue),
+                ("source", source.rawValue),
+                ("stage", stage?.rawValue),
+                ("duration_seconds", Self.format(durationSeconds)),
+                ("audio_duration_seconds", audioDurationSeconds.map(Self.format)),
+                ("processing_seconds", processingSeconds.map(Self.format)),
+                ("word_count", wordCount.map(String.init)),
+                ("speaker_count", speakerCount.map(String.init)),
+                ("diarization_requested", Self.boolString(diarizationRequested)),
+                ("diarization_applied", Self.boolString(diarizationApplied)),
+                ("input_kind", inputKind?.rawValue),
+                ("media_extension", mediaExtension),
+                ("file_size_bucket", fileSizeBucket),
+                ("error_type", errorType)
+            )
         case .diarizationStarted(let source):
             return ["source": source.rawValue]
         case .diarizationCompleted(let source, let speakerCount, let durationSeconds):
@@ -425,7 +690,7 @@ extension TelemetryEventSpec {
             ]
         case .diarizationFailed(let source, let errorType, let errorDetail):
             var props = ["source": source.rawValue, "error_type": errorType]
-            if let errorDetail { props["error_detail"] = errorDetail }
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .exportUsed(let format):
             return ["format": format]
@@ -433,13 +698,19 @@ extension TelemetryEventSpec {
             return ["provider": provider]
         case .llmPromptResultFailed(let provider, let errorType, let errorDetail):
             var props = ["provider": provider, "error_type": errorType]
-            if let errorDetail { props["error_detail"] = errorDetail }
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .llmChatUsed(let provider, let messageCount):
             return ["provider": provider, "message_count": "\(messageCount)"]
         case .llmChatFailed(let provider, let errorType, let errorDetail):
             var props = ["provider": provider, "error_type": errorType]
-            if let errorDetail { props["error_detail"] = errorDetail }
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+            return props
+        case .llmTransformUsed(let provider):
+            return ["provider": provider]
+        case .llmTransformFailed(let provider, let errorType, let errorDetail):
+            var props = ["provider": provider, "error_type": errorType]
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .llmFormatterUsed(
             let provider,
@@ -475,6 +746,37 @@ extension TelemetryEventSpec {
                 "default_prompt_used": Self.boolString(defaultPromptUsed),
                 "input_truncated": Self.boolString(inputTruncated),
             ]
+        case .llmOperation(
+            let operationID,
+            let operationContext,
+            let feature,
+            let provider,
+            let streaming,
+            let outcome,
+            let durationSeconds,
+            let inputChars,
+            let outputChars,
+            let inputTruncated,
+            let promptDefaultUsed,
+            let messageCount,
+            let errorType
+        ):
+            return Self.compactProps(
+                ("operation_id", operationID),
+                ("workflow_id", operationContext?.workflowID),
+                ("parent_operation_id", operationContext?.parentOperationID),
+                ("feature", feature),
+                ("provider", provider),
+                ("streaming", Self.boolString(streaming)),
+                ("outcome", outcome.rawValue),
+                ("duration_seconds", Self.format(durationSeconds)),
+                ("input_chars", inputChars.map(String.init)),
+                ("output_chars", outputChars.map(String.init)),
+                ("input_truncated", inputTruncated.map(Self.boolString)),
+                ("prompt_default_used", promptDefaultUsed.map(Self.boolString)),
+                ("message_count", messageCount.map(String.init)),
+                ("error_type", errorType)
+            )
         case .copyToClipboard(let source):
             return ["source": source.rawValue]
         case .processingModeChanged(let mode):
@@ -489,10 +791,10 @@ extension TelemetryEventSpec {
             return ["step": step]
         case .licenseActivationFailed(let errorType, let errorDetail):
             var props = ["error_type": errorType]
-            if let errorDetail { props["error_detail"] = errorDetail }
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .restoreFailed(let errorType, let errorDetail):
-            return Self.compactProps(("error_type", errorType), ("error_detail", errorDetail))
+            return Self.compactProps(("error_type", errorType), ("error_detail", Self.sanitizedErrorDetail(errorDetail)))
         case .permissionPrompted(let permission):
             return ["permission": permission.rawValue]
         case .permissionGranted(let permission):
@@ -507,16 +809,37 @@ extension TelemetryEventSpec {
             return ["duration_seconds": Self.format(durationSeconds)]
         case .modelDownloadFailed(let errorType, let errorDetail):
             var props = ["error_type": errorType]
-            if let errorDetail { props["error_detail"] = errorDetail }
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .feedbackSubmitted(let category):
             return ["category": category]
+        case .feedbackOperation(
+            let operationID,
+            let operationContext,
+            let category,
+            let outcome,
+            let durationSeconds,
+            let screenshotAttached,
+            let systemInfoIncluded,
+            let errorType
+        ):
+            return Self.compactProps(
+                ("operation_id", operationID),
+                ("workflow_id", operationContext?.workflowID),
+                ("parent_operation_id", operationContext?.parentOperationID),
+                ("category", category),
+                ("outcome", outcome.rawValue),
+                ("duration_seconds", Self.format(durationSeconds)),
+                ("screenshot_attached", Self.boolString(screenshotAttached)),
+                ("system_info_included", Self.boolString(systemInfoIncluded)),
+                ("error_type", errorType)
+            )
         case .transcriptionFavorited(let isFavorite):
             return ["is_favorite": isFavorite ? "true" : "false"]
         case .keystrokeSnippetFired(let action):
             return ["action": action]
-        case .meetingRecordingStarted:
-            return nil
+        case .meetingRecordingStarted(let trigger):
+            return Self.compactProps(("trigger", trigger?.rawValue))
         case .meetingRecordingCompleted(let durationSeconds, let liveWordCount, let liveTranscriptLagged):
             return [
                 "duration_seconds": Self.format(durationSeconds),
@@ -527,10 +850,98 @@ extension TelemetryEventSpec {
             return ["duration_seconds": Self.format(durationSeconds)]
         case .meetingRecordingFailed(let errorType, let errorDetail):
             var props = ["error_type": errorType]
-            if let errorDetail { props["error_detail"] = errorDetail }
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
+        case .meetingOperation(
+            let operationID,
+            let operationContext,
+            let outcome,
+            let trigger,
+            let stage,
+            let durationSeconds,
+            let liveWordCount,
+            let liveTranscriptLagged,
+            let microphoneTrackPresent,
+            let systemTrackPresent,
+            let notesUsed,
+            let notesLengthBucket,
+            let errorType
+        ):
+            return Self.compactProps(
+                ("operation_id", operationID),
+                ("workflow_id", operationContext?.workflowID),
+                ("parent_operation_id", operationContext?.parentOperationID),
+                ("outcome", outcome.rawValue),
+                ("trigger", trigger?.rawValue),
+                ("stage", stage?.rawValue),
+                ("duration_seconds", durationSeconds.map(Self.format)),
+                ("live_word_count", liveWordCount.map(String.init)),
+                ("live_transcript_lagged", liveTranscriptLagged.map(Self.boolString)),
+                ("microphone_track_present", microphoneTrackPresent.map(Self.boolString)),
+                ("system_track_present", systemTrackPresent.map(Self.boolString)),
+                ("notes_used", notesUsed.map(Self.boolString)),
+                ("notes_length_bucket", notesLengthBucket),
+                ("error_type", errorType)
+            )
+        case .meetingRecoveryDiscovered(let count, let source):
+            return [
+                "count": "\(count)",
+                "source": source.rawValue,
+            ]
+        case .meetingRecoveryStarted(let count, let source):
+            return [
+                "count": "\(count)",
+                "source": source.rawValue,
+            ]
+        case .meetingRecoveryCompleted(let count, let durationSeconds, let source):
+            return [
+                "count": "\(count)",
+                "duration_seconds": Self.format(durationSeconds),
+                "source": source.rawValue,
+            ]
+        case .meetingRecoveryDiscarded(let count, let source):
+            return [
+                "count": "\(count)",
+                "source": source.rawValue,
+            ]
+        case .meetingRecoveryFailed(let count, let source, let errorType, let errorDetail):
+            var props = [
+                "count": "\(count)",
+                "source": source.rawValue,
+                "error_type": errorType,
+            ]
+            if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
+            return props
+        case .calendarReminderShown(let mode, let leadMinutes, let hasMeetUrl):
+            return [
+                "mode": mode,
+                "lead_minutes": "\(leadMinutes)",
+                "has_meet_url": Self.boolString(hasMeetUrl),
+            ]
+        case .calendarAutoStartTriggered(let leadSeconds, let hasMeetUrl):
+            return [
+                "lead_seconds": "\(leadSeconds)",
+                "has_meet_url": Self.boolString(hasMeetUrl),
+            ]
+        case .calendarAutoStartCancelled(let reason):
+            return ["reason": reason]
+        case .calendarAutoStartFailed(let reason):
+            return ["reason": reason]
+        case .calendarAutoStopShown(let eventDurationSeconds):
+            return ["event_duration_seconds": Self.format(eventDurationSeconds)]
+        case .calendarAutoStopCancelled:
+            return nil
         case .errorOccurred(let domain, let code, let description):
-            return ["domain": domain, "code": code, "description": String(description.prefix(512))]
+            // Defense in depth: sanitize() at the boundary so any caller route
+            // (including future call sites that forget to run
+            // `TelemetryErrorClassifier.errorDetail` first) cannot leak file
+            // paths or URLs into telemetry. `sanitize` is idempotent, so
+            // double-sanitizing existing well-behaved callers costs nothing.
+            return [
+                "domain": domain,
+                "code": code,
+                "description": String(TelemetryErrorClassifier.sanitize(description).prefix(512)),
+            ]
         case .crashOccurred(let crashType, let signal, let name, let crashTimestamp,
                             let crashAppVer, let crashOsVer, let uuid, let slide,
                             let reason, let stackTrace):
@@ -545,6 +956,44 @@ extension TelemetryEventSpec {
                 ("slide", slide),
                 ("reason", reason.map { String($0.prefix(512)) }),
                 ("stack_trace", String(stackTrace.prefix(2048)))
+            )
+        case .cliOperation(
+            let operationID,
+            let operationContext,
+            let command,
+            let subcommand,
+            let outcome,
+            let durationSeconds,
+            let inputKind,
+            let outputFormat,
+            let json,
+            let exitCode,
+            let errorType
+        ):
+            return Self.compactProps(
+                ("operation_id", operationID),
+                ("workflow_id", operationContext?.workflowID),
+                ("parent_operation_id", operationContext?.parentOperationID),
+                ("command", command),
+                ("subcommand", subcommand),
+                ("outcome", outcome.rawValue),
+                ("duration_seconds", Self.format(durationSeconds)),
+                ("input_kind", inputKind?.rawValue),
+                ("output_format", outputFormat),
+                ("json", json.map(Self.boolString)),
+                ("exit_code", exitCode.map(String.init)),
+                ("error_type", errorType)
+            )
+        case .autoSaveOperation(let operationID, let operationContext, let scope, let format, let outcome, let durationSeconds, let errorType):
+            return Self.compactProps(
+                ("operation_id", operationID),
+                ("workflow_id", operationContext?.workflowID),
+                ("parent_operation_id", operationContext?.parentOperationID),
+                ("scope", scope.rawValue),
+                ("format", format.rawValue),
+                ("outcome", outcome.rawValue),
+                ("duration_seconds", Self.format(durationSeconds)),
+                ("error_type", errorType)
             )
         }
     }
@@ -566,15 +1015,20 @@ extension TelemetryEventSpec {
         value ? "true" : "false"
     }
 
+    private static func sanitizedErrorDetail(_ detail: String?) -> String? {
+        guard let detail, !detail.isEmpty else { return nil }
+        return String(TelemetryErrorClassifier.sanitize(detail).prefix(512))
+    }
+
     private static func mergeDevice(_ base: [String: String]?, _ device: RecordingDeviceInfo?) -> [String: String]? {
         guard let device else { return base }
         var merged = base ?? [:]
-        merged["device_name"] = device.deviceName
         merged["device_transport"] = device.transport
         if let sub = device.subTransport { merged["device_sub_transport"] = sub }
         merged["device_sample_rate"] = "\(Int(device.sampleRate))"
         merged["device_channels"] = "\(device.channels)"
         if device.fallbackUsed { merged["device_fallback"] = "true" }
+        if device.requestedDeviceUID != nil { merged["device_selected"] = "true" }
         return merged
     }
 }
@@ -588,10 +1042,12 @@ public enum TelemetryImplementedContract {
         .dictationCancelled: [],
         .dictationEmpty: [],
         .dictationFailed: ["error_type"],
+        .dictationOperation: ["operation_id", "outcome"],
         .transcriptionStarted: ["source"],
         .transcriptionCompleted: ["source", "word_count", "diarization_requested", "diarization_applied"],
         .transcriptionCancelled: ["source", "stage"],
         .transcriptionFailed: ["source", "stage", "error_type"],
+        .transcriptionOperation: ["operation_id", "outcome", "source", "duration_seconds", "diarization_requested", "diarization_applied"],
         .diarizationStarted: ["source"],
         .diarizationCompleted: ["source", "speaker_count"],
         .diarizationFailed: ["source", "error_type"],
@@ -600,8 +1056,11 @@ public enum TelemetryImplementedContract {
         .llmPromptResultFailed: ["provider", "error_type"],
         .llmChatUsed: ["provider", "message_count"],
         .llmChatFailed: ["provider", "error_type"],
+        .llmTransformUsed: ["provider"],
+        .llmTransformFailed: ["provider", "error_type"],
         .llmFormatterUsed: ["provider", "source", "duration_seconds", "input_chars", "output_chars", "default_prompt_used", "input_truncated"],
         .llmFormatterFailed: ["provider", "source", "duration_seconds", "error_type", "default_prompt_used", "input_truncated"],
+        .llmOperation: ["operation_id", "feature", "provider", "streaming", "outcome", "duration_seconds"],
         .historySearched: [],
         .historyReplayed: [],
         .copyToClipboard: ["source"],
@@ -631,6 +1090,7 @@ public enum TelemetryImplementedContract {
         .modelDownloadCompleted: ["duration_seconds"],
         .modelDownloadFailed: ["error_type"],
         .feedbackSubmitted: ["category"],
+        .feedbackOperation: ["operation_id", "category", "outcome", "duration_seconds", "screenshot_attached", "system_info_included"],
         .transcriptionDeleted: [],
         .dictationDeleted: [],
         .transcriptionFavorited: ["is_favorite"],
@@ -644,8 +1104,22 @@ public enum TelemetryImplementedContract {
         .meetingRecordingCompleted: ["duration_seconds", "live_word_count", "live_transcript_lagged"],
         .meetingRecordingCancelled: ["duration_seconds"],
         .meetingRecordingFailed: ["error_type"],
+        .meetingOperation: ["operation_id", "outcome"],
+        .meetingRecoveryDiscovered: ["count", "source"],
+        .meetingRecoveryStarted: ["count", "source"],
+        .meetingRecoveryCompleted: ["count", "duration_seconds", "source"],
+        .meetingRecoveryDiscarded: ["count", "source"],
+        .meetingRecoveryFailed: ["count", "source", "error_type"],
+        .calendarReminderShown: ["mode", "lead_minutes", "has_meet_url"],
+        .calendarAutoStartTriggered: ["lead_seconds", "has_meet_url"],
+        .calendarAutoStartCancelled: ["reason"],
+        .calendarAutoStartFailed: ["reason"],
+        .calendarAutoStopShown: ["event_duration_seconds"],
+        .calendarAutoStopCancelled: [],
         .errorOccurred: ["domain", "code", "description"],
         .crashOccurred: ["crash_type", "signal", "name", "crash_ts", "crash_app_ver"],
+        .cliOperation: ["operation_id", "command", "outcome", "duration_seconds"],
+        .autoSaveOperation: ["operation_id", "scope", "format", "outcome", "duration_seconds"],
     ]
 
     public static var implementedEventNames: Set<TelemetryEventName> {

@@ -159,7 +159,9 @@ Rejected. GPU contention with Qwen3-8B is the immediate problem with no solution
 
 ### whisper.cpp (C++ via Swift bridge)
 
-Rejected. Whisper is slower (~15-30x realtime vs ~155x) and less accurate (~7-12% WER vs ~2.5%) for English. Would require maintaining a C++ bridge. Parakeet TDT remains the better model — ADR-001's rationale is unchanged.
+Rejected as a replacement for Parakeet and as a C++ runtime bridge. Whisper is slower (~15-30x realtime vs ~155x) and less accurate (~7-12% WER vs ~2.5%) for English, and a C++ bridge would add maintenance cost. Parakeet TDT remains the better default model.
+
+Amendment 2026-04-28: ADR-021 later adds WhisperKit as an optional local secondary engine for languages Parakeet does not cover. That does not overturn this ADR's decision to migrate the default Parakeet path to FluidAudio CoreML/ANE.
 
 ### MLX-Swift for Parakeet (keep GPU, eliminate Python)
 

@@ -172,6 +172,25 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(service.pendingEventCount, 0)
     }
 
+    func testSendAndFlushReturnsTrueWhenDeliverySucceeds() async {
+        let service = makeService()
+
+        let delivered = await service.sendAndFlush(.appLaunched)
+
+        XCTAssertTrue(delivered)
+        XCTAssertEqual(service.pendingEventCount, 0)
+    }
+
+    func testSendAndFlushReturnsFalseAndRequeuesWhenDeliveryFails() async {
+        TelemetryMockURLProtocol.statusCode = 500
+        let service = makeService()
+
+        let delivered = await service.sendAndFlush(.appLaunched)
+
+        XCTAssertFalse(delivered)
+        XCTAssertEqual(service.pendingEventCount, 1)
+    }
+
     func testFlushSplitsRequestsIntoBatchesOf100() async throws {
         let eventCount = 150
         let service = makeService()
@@ -269,6 +288,79 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertTrue(json["props"] is NSNull || json["props"] == nil)
     }
 
+    func testErrorOccurredDescriptionIsSanitizedAndTruncated() throws {
+        let event = TelemetryEvent(
+            spec: .errorOccurred(
+                domain: "Test",
+                code: "42",
+                description: "Failed /Users/alice/secret.wav via https://example.com/token?\(String(repeating: "x", count: 600))"
+            ),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+        let description = try XCTUnwrap(props["description"])
+
+        XCTAssertEqual(props["domain"], "Test")
+        XCTAssertEqual(props["code"], "42")
+        XCTAssertFalse(description.contains("/Users/alice"))
+        XCTAssertFalse(description.contains("example.com"))
+        XCTAssertTrue(description.contains("<path>"))
+        XCTAssertTrue(description.contains("<url>"))
+        XCTAssertLessThanOrEqual(description.count, 512)
+    }
+
+    func testErrorDetailPropsAreSanitizedAtSerializationBoundary() throws {
+        let rawDetail = "Failed /Users/alice/private-meeting.m4a via https://example.com/token?secret=abc"
+        let specs: [TelemetryEventSpec] = [
+            .dictationFailed(errorType: "runtime", errorDetail: rawDetail),
+            .transcriptionFailed(source: .file, stage: .stt, errorType: "runtime", errorDetail: rawDetail),
+            .diarizationFailed(source: .meeting, errorType: "runtime", errorDetail: rawDetail),
+            .llmPromptResultFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
+            .llmChatFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
+            .llmTransformFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
+            .licenseActivationFailed(errorType: "network", errorDetail: rawDetail),
+            .restoreFailed(errorType: "network", errorDetail: rawDetail),
+            .modelDownloadFailed(errorType: "network", errorDetail: rawDetail),
+            .meetingRecordingFailed(errorType: "runtime", errorDetail: rawDetail),
+            .meetingRecoveryFailed(count: 1, source: .settings, errorType: "runtime", errorDetail: rawDetail),
+        ]
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+
+        for spec in specs {
+            let event = TelemetryEvent(
+                spec: spec,
+                appVer: "0.4.2",
+                osVer: "15.3",
+                locale: "en-US",
+                chip: "Apple M1",
+                session: "test-session"
+            )
+            let data = try encoder.encode(event)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let props = try XCTUnwrap(json["props"] as? [String: String])
+            let eventName = spec.name.rawValue
+            let detail = try XCTUnwrap(props["error_detail"], "Missing error_detail for \(eventName)")
+
+            XCTAssertFalse(detail.contains("/Users/alice"), eventName)
+            XCTAssertFalse(detail.contains("private-meeting"), eventName)
+            XCTAssertFalse(detail.contains("example.com"), eventName)
+            XCTAssertTrue(detail.contains("<path>"), eventName)
+            XCTAssertTrue(detail.contains("<url>"), eventName)
+            XCTAssertLessThanOrEqual(detail.count, 512, eventName)
+        }
+    }
+
     func testTranscriptionCompletedSerializesDiarizationContext() throws {
         let event = TelemetryEvent(
             spec: .transcriptionCompleted(
@@ -325,6 +417,161 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["source"], "youtube")
         XCTAssertEqual(props["stage"], "download")
         XCTAssertEqual(props["error_type"], "download_failed")
+    }
+
+    func testMeetingRecoveryCompletedSerializesSafeProps() throws {
+        let event = TelemetryEvent(
+            spec: .meetingRecoveryCompleted(count: 2, durationSeconds: 4.25, source: .settings),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(json["event"] as? String, "meeting_recovery_completed")
+        XCTAssertEqual(props["count"], "2")
+        XCTAssertEqual(props["duration_seconds"], "4.2")
+        XCTAssertEqual(props["source"], "settings")
+        XCTAssertNil(props["session_id"])
+        XCTAssertNil(props["file_path"])
+    }
+
+    func testCanonicalOperationSerializesSafeDimensionsOnly() throws {
+        let event = TelemetryEvent(
+            spec: .transcriptionOperation(
+                operationID: "op-123",
+                outcome: .success,
+                source: .file,
+                stage: .postProcessing,
+                durationSeconds: 15.8,
+                audioDurationSeconds: 90,
+                processingSeconds: 12.4,
+                wordCount: 240,
+                speakerCount: 2,
+                diarizationRequested: true,
+                diarizationApplied: true,
+                inputKind: .audio,
+                mediaExtension: "m4a",
+                fileSizeBucket: "10_100mb",
+                errorType: nil
+            ),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(json["event"] as? String, "transcription_operation")
+        XCTAssertEqual(props["operation_id"], "op-123")
+        XCTAssertEqual(props["outcome"], "success")
+        XCTAssertEqual(props["source"], "file")
+        XCTAssertEqual(props["duration_seconds"], "15.8")
+        XCTAssertEqual(props["input_kind"], "audio")
+        XCTAssertEqual(props["media_extension"], "m4a")
+        XCTAssertEqual(props["file_size_bucket"], "10_100mb")
+        XCTAssertNil(props["file_path"])
+        XCTAssertNil(props["file_name"])
+        XCTAssertNil(props["source_url"])
+    }
+
+    func testOperationContextSerializesWorkflowParentAndStage() throws {
+        let context = ObservabilityOperationContext(
+            operationID: "op-meeting",
+            workflowID: "workflow-123",
+            parentOperationID: "op-cli",
+            startedAt: Date(timeIntervalSince1970: 0)
+        )
+        let event = TelemetryEvent(
+            spec: .meetingOperation(
+                operationID: context.operationID,
+                operationContext: context,
+                outcome: .failure,
+                trigger: .calendarAutoStart,
+                stage: .permissions,
+                durationSeconds: nil,
+                liveWordCount: nil,
+                liveTranscriptLagged: nil,
+                microphoneTrackPresent: nil,
+                systemTrackPresent: nil,
+                notesUsed: nil,
+                notesLengthBucket: nil,
+                errorType: "permission_denied"
+            ),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(json["event"] as? String, "meeting_operation")
+        XCTAssertEqual(props["operation_id"], "op-meeting")
+        XCTAssertEqual(props["workflow_id"], "workflow-123")
+        XCTAssertEqual(props["parent_operation_id"], "op-cli")
+        XCTAssertEqual(props["stage"], "permissions")
+        XCTAssertEqual(props["error_type"], "permission_denied")
+    }
+
+    func testDictationOperationDoesNotSerializeDeviceNameOrUID() throws {
+        let device = RecordingDeviceInfo(
+            deviceName: "Alice's Custom Microphone",
+            transport: "bluetooth",
+            subTransport: nil,
+            sampleRate: 48_000,
+            channels: 1,
+            fallbackUsed: false,
+            deviceUID: "secret-device-uid",
+            requestedDeviceUID: "secret-requested-uid"
+        )
+        let event = TelemetryEvent(
+            spec: .dictationOperation(
+                operationID: "op-dict",
+                outcome: .success,
+                trigger: .hotkey,
+                mode: .persistent,
+                durationSeconds: 2.4,
+                wordCount: 10,
+                errorType: nil,
+                device: device
+            ),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(props["device_transport"], "bluetooth")
+        XCTAssertEqual(props["device_selected"], "true")
+        XCTAssertNil(props["device_name"])
+        XCTAssertNil(props["device_uid"])
+        XCTAssertNil(props["requested_device_uid"])
     }
 
     func testImplementedContractCoversEveryTypedEventName() {
@@ -400,6 +647,8 @@ final class TelemetryServiceTests: XCTestCase {
         let service = NoOpTelemetryService()
         service.send(.appLaunched)
         service.send(.dictationStarted(trigger: .hotkey, mode: .hold))
+        let handled = await service.sendAndFlush(.appLaunched)
+        XCTAssertTrue(handled)
         await service.flush()
     }
 
@@ -439,6 +688,15 @@ final class TelemetryServiceTests: XCTestCase {
             .dictationCancelled(durationSeconds: 1.5, reason: .escape),
             .dictationEmpty(durationSeconds: 1.5),
             .dictationFailed(errorType: "network"),
+            .dictationOperation(
+                operationID: "op-dict",
+                outcome: .success,
+                trigger: .hotkey,
+                mode: .persistent,
+                durationSeconds: 12.5,
+                wordCount: 84,
+                errorType: nil
+            ),
             .transcriptionStarted(source: .file, audioDurationSeconds: 30.0),
             .transcriptionCompleted(
                 source: .dragDrop,
@@ -451,11 +709,30 @@ final class TelemetryServiceTests: XCTestCase {
             ),
             .transcriptionCancelled(source: .youtube, audioDurationSeconds: 45.0, stage: .stt),
             .transcriptionFailed(source: .file, stage: .audioConversion, errorType: "transcribe"),
+            .transcriptionOperation(
+                operationID: "op-transcription",
+                outcome: .success,
+                source: .dragDrop,
+                stage: .postProcessing,
+                durationSeconds: 2.9,
+                audioDurationSeconds: 30.0,
+                processingSeconds: 2.4,
+                wordCount: 120,
+                speakerCount: 2,
+                diarizationRequested: true,
+                diarizationApplied: true,
+                inputKind: .audio,
+                mediaExtension: "mp3",
+                fileSizeBucket: "1_10mb",
+                errorType: nil
+            ),
             .exportUsed(format: "txt"),
             .llmPromptResultUsed(provider: "openai"),
             .llmPromptResultFailed(provider: "openai", errorType: "auth"),
             .llmChatUsed(provider: "openai", messageCount: 3),
             .llmChatFailed(provider: "openai", errorType: "network"),
+            .llmTransformUsed(provider: "openai"),
+            .llmTransformFailed(provider: "openai", errorType: "network"),
             .llmFormatterUsed(
                 provider: "lmstudio",
                 source: .dictation,
@@ -472,6 +749,20 @@ final class TelemetryServiceTests: XCTestCase {
                 errorType: "network",
                 defaultPromptUsed: false,
                 inputTruncated: true
+            ),
+            .llmOperation(
+                operationID: "op-llm",
+                feature: "chat",
+                provider: "openai",
+                streaming: false,
+                outcome: .success,
+                durationSeconds: 1.2,
+                inputChars: 480,
+                outputChars: 512,
+                inputTruncated: false,
+                promptDefaultUsed: nil,
+                messageCount: 3,
+                errorType: nil
             ),
             .historySearched,
             .historyReplayed,
@@ -502,19 +793,66 @@ final class TelemetryServiceTests: XCTestCase {
             .modelDownloadStarted,
             .modelDownloadCompleted(durationSeconds: 30.0),
             .modelDownloadFailed(errorType: "network"),
+            .feedbackOperation(
+                operationID: "op-feedback",
+                category: "bug",
+                outcome: .success,
+                durationSeconds: 0.6,
+                screenshotAttached: false,
+                systemInfoIncluded: true,
+                errorType: nil
+            ),
             .onboardingStep(step: "microphone"),
             .licenseActivationFailed(errorType: "invalid_key"),
             .keystrokeSnippetFired(action: "return"),
-            .meetingRecordingStarted,
+            .meetingRecordingStarted(),
             .meetingRecordingCompleted(durationSeconds: 1800.0, liveWordCount: 4200, liveTranscriptLagged: false),
             .meetingRecordingCancelled(durationSeconds: 30.0),
             .meetingRecordingFailed(errorType: "tap_creation_failed"),
+            .meetingOperation(
+                operationID: "op-meeting",
+                outcome: .success,
+                trigger: .manual,
+                durationSeconds: 1800.0,
+                liveWordCount: 4200,
+                liveTranscriptLagged: false,
+                microphoneTrackPresent: true,
+                systemTrackPresent: true,
+                notesUsed: true,
+                notesLengthBucket: "1_200",
+                errorType: nil
+            ),
+            .meetingRecoveryDiscovered(count: 1, source: .launch),
+            .meetingRecoveryStarted(count: 1, source: .launch),
+            .meetingRecoveryCompleted(count: 1, durationSeconds: 4.2, source: .launch),
+            .meetingRecoveryDiscarded(count: 1, source: .settings),
+            .meetingRecoveryFailed(count: 1, source: .settings, errorType: "no_audio"),
             .errorOccurred(domain: "STTError", code: "engineFailed", description: "test"),
             .crashOccurred(
                 crashType: "signal", signal: "11", name: "SIGSEGV",
                 crashTimestamp: "1711900000", crashAppVer: "0.5.1",
                 crashOsVer: "15.3.1", uuid: "A1B2C3D4", slide: "0x100000",
                 reason: nil, stackTrace: "0x1234\n0x5678"
+            ),
+            .cliOperation(
+                operationID: "op-cli",
+                command: "transcribe",
+                subcommand: nil,
+                outcome: .success,
+                durationSeconds: 4.2,
+                inputKind: .audio,
+                outputFormat: "json",
+                json: true,
+                exitCode: 0,
+                errorType: nil
+            ),
+            .autoSaveOperation(
+                operationID: "op-auto-save",
+                scope: .transcription,
+                format: .md,
+                outcome: .success,
+                durationSeconds: 0.2,
+                errorType: nil
             ),
         ]
     }

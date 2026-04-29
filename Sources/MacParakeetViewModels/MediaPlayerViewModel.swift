@@ -116,7 +116,7 @@ public final class MediaPlayerViewModel {
         playerState = .loading
         loadingElapsed = 0
         startLoadingTimer()
-        logger.info("Loading media: mode=\(String(describing: mode)), source=\(transcription.sourceURL ?? transcription.filePath ?? "none")")
+        logger.info("Loading media: mode=\(String(describing: mode), privacy: .public), source=\(transcription.sourceURL ?? transcription.filePath ?? "none", privacy: .private)")
 
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
@@ -209,7 +209,7 @@ public final class MediaPlayerViewModel {
 
         let start = ContinuousClock.now
         do {
-            logger.info("Extracting stream URL via yt-dlp for \(sourceURL)")
+            logger.info("Extracting stream URL via yt-dlp for source=\(sourceURL, privacy: .private)")
             let streamURL = try await videoStreamService.streamURL(for: sourceURL)
             let extractionTime = ContinuousClock.now - start
             logger.info("Stream URL extracted in \(extractionTime)")
@@ -228,8 +228,9 @@ public final class MediaPlayerViewModel {
             logger.info("YouTube video player ready")
         } catch {
             guard !Task.isCancelled else { return }
-            logger.error("YouTube stream load failed after \(ContinuousClock.now - start): \(error.localizedDescription)")
-            playerState = .error(error.localizedDescription)
+            let detail = TelemetryErrorClassifier.errorDetail(error)
+            logger.error("YouTube stream load failed after \(String(describing: ContinuousClock.now - start), privacy: .public): \(detail, privacy: .private)")
+            playerState = .error(detail)
         }
     }
 

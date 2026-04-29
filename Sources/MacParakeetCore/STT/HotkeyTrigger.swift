@@ -276,6 +276,11 @@ public struct HotkeyTrigger: Sendable {
             46,  // M
         ]
         if hasCommand && destructiveCmdKeys.contains(code) {
+            // Only bare Cmd+M maps to the system Minimize command; multi-modifier
+            // variants such as Cmd+Shift+M remain valid app-owned defaults.
+            if code == 46 && Set(modifiers ?? []) != ["command"] {
+                return .allowed
+            }
             return .warned("Conflicts with a common system shortcut.")
         }
 

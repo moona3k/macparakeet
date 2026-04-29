@@ -1,6 +1,31 @@
 import XCTest
 @testable import MacParakeetCore
 
+private final class DictationTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [TelemetryEventSpec] = []
+
+    func send(_ event: TelemetryEventSpec) {
+        lock.lock()
+        events.append(event)
+        lock.unlock()
+    }
+
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
+    func flush() async {}
+    func flushForTermination() {}
+
+    func snapshot() -> [TelemetryEventSpec] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events
+    }
+}
+
 final class DictationServiceTests: XCTestCase {
     var service: DictationService!
     var mockAudio: MockAudioProcessor!
@@ -20,6 +45,15 @@ final class DictationServiceTests: XCTestCase {
         )
     }
 
+    override func tearDown() {
+        Telemetry.configure(NoOpTelemetryService())
+        service = nil
+        mockAudio = nil
+        mockSTT = nil
+        dictationRepo = nil
+        super.tearDown()
+    }
+
     func testInitialStateIsIdle() async {
         let state = await service.state
         if case .idle = state {} else {
@@ -33,6 +67,53 @@ final class DictationServiceTests: XCTestCase {
         if case .recording = state {} else {
             XCTFail("Expected recording state, got \(state)")
         }
+    }
+
+    func testStartFailureUsesRequestedTelemetryContextForOperation() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        try await service.startRecording(context: DictationTelemetryContext(trigger: .menuBar, mode: .persistent))
+        await service.confirmCancel()
+
+        await mockAudio.configureCaptureError(AudioProcessorError.microphoneNotAvailable)
+        do {
+            try await service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+            XCTFail("Expected startRecording to throw")
+        } catch let error as AudioProcessorError {
+            if case .microphoneNotAvailable = error {} else {
+                XCTFail("Expected microphoneNotAvailable, got \(error)")
+            }
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let operation = try XCTUnwrap(dictationOperationProps(in: telemetry.snapshot()).last)
+        XCTAssertEqual(operation["outcome"], "failure")
+        XCTAssertEqual(operation["trigger"], "hotkey")
+        XCTAssertEqual(operation["mode"], "hold")
+    }
+
+    func testCancelDuringStartCaptureStillEmitsCancelledOperation() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+        await mockAudio.configureStartCaptureDelay(milliseconds: 100)
+
+        let startTask = Task {
+            try await self.service.startRecording(context: DictationTelemetryContext(trigger: .hotkey, mode: .hold))
+        }
+
+        try await Task.sleep(for: .milliseconds(20))
+        await service.cancelRecording(reason: .hotkey)
+        try await startTask.value
+        await service.confirmCancel()
+
+        let operations = dictationOperationProps(in: telemetry.snapshot())
+        XCTAssertTrue(operations.contains { operation in
+            operation["outcome"] == "cancelled"
+                && operation["trigger"] == "hotkey"
+                && operation["mode"] == "hold"
+        })
     }
 
     func testStopRecordingTranscribesAndSaves() async throws {
@@ -158,4 +239,11 @@ final class DictationServiceTests: XCTestCase {
 
     // Note: Cancel flow tests, stop-when-not-recording, and STT error propagation
     // are covered in CancelFlowTests.swift to avoid duplication.
+
+    private func dictationOperationProps(in events: [TelemetryEventSpec]) -> [[String: String]] {
+        events.compactMap { event in
+            guard case .dictationOperation = event else { return nil }
+            return event.props ?? [:]
+        }
+    }
 }

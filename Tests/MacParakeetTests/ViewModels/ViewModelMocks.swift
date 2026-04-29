@@ -71,6 +71,11 @@ final class MockDictationRepository: DictationRepositoryProtocol, @unchecked Sen
         dictations.removeAll { $0.hidden }
     }
 
+    var resetLifetimeStatsCalled = false
+    func resetLifetimeStats() throws {
+        resetLifetimeStatsCalled = true
+    }
+
     func stats() throws -> DictationStats {
         statsCallCount += 1
         let completed = dictations.filter { $0.status == .completed }
@@ -105,11 +110,14 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     var deleteResult = true
     var deleteError: Error?
     var updateFileNameCalls: [(id: UUID, fileName: String)] = []
-    var updateSummaryCalls: [(id: UUID, summary: String?)] = []
     var updateChatMessagesCalls: [(id: UUID, chatMessages: [ChatMessage]?)] = []
     var updateSpeakersCalls: [(id: UUID, speakers: [SpeakerInfo]?)] = []
+    var saveError: Error?
 
     func save(_ transcription: Transcription) throws {
+        if let saveError {
+            throw saveError
+        }
         if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
             transcriptions[idx] = transcription
         } else {
@@ -162,14 +170,6 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
         updateFileNameCalls.append((id: id, fileName: fileName))
         if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
             transcriptions[idx].fileName = fileName
-            transcriptions[idx].updatedAt = Date()
-        }
-    }
-
-    func updateSummary(id: UUID, summary: String?) throws {
-        updateSummaryCalls.append((id: id, summary: summary))
-        if let idx = transcriptions.firstIndex(where: { $0.id == id }) {
-            transcriptions[idx].summary = summary
             transcriptions[idx].updatedAt = Date()
         }
     }
@@ -238,13 +238,14 @@ final class MockLaunchAtLoginService: LaunchAtLoginControlling {
 
 // MARK: - MockTranscriptionService
 
-actor MockTranscriptionService: TranscriptionServiceProtocol {
+actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
     var transcribeResult: Transcription?
     var transcribeError: Error?
     var transcribeCallCount = 0
     var lastFileURL: URL?
     var lastSource: TelemetryTranscriptionSource?
     var lastMeetingRecording: MeetingRecordingOutput?
+    var lastSpeechEngineOverride: SpeechEngineSelection?
     var transcribeProgressPhases: [TranscriptionProgress] = []
     var transcribeDelayMs: UInt64 = 0
     var transcribeURLCallCount = 0
@@ -333,6 +334,27 @@ actor MockTranscriptionService: TranscriptionServiceProtocol {
             status: .completed,
             sourceType: .meeting
         )
+    }
+
+    func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection?,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        lastSpeechEngineOverride = speechEngineOverride
+        return try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+    }
+
+    func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection?,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        lastSpeechEngineOverride = speechEngineOverride
+        return try await transcribeMeeting(recording: recording, onProgress: onProgress)
     }
 
     func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws -> Transcription {
@@ -482,6 +504,21 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         return "Mock transform"
     }
 
+    func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult {
+        let output = try await generatePromptResult(transcript: transcript, systemPrompt: systemPrompt)
+        return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
+    }
+
+    func chatDetailed(question: String, transcript: String, history: [ChatMessage]) async throws -> LLMResult {
+        let output = try await chat(question: question, transcript: transcript, history: history)
+        return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
+    }
+
+    func transformDetailed(text: String, prompt: String) async throws -> LLMResult {
+        let output = try await transform(text: text, prompt: prompt)
+        return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
+    }
+
     func formatTranscript(
         transcript: String,
         promptTemplate: String,
@@ -570,6 +607,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
 
 final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable {
     var prompts: [Prompt] = []
+    var fetchAutoRunPromptsError: Error?
 
     func save(_ prompt: Prompt) throws {
         if let index = prompts.firstIndex(where: { $0.id == prompt.id }) {
@@ -599,7 +637,10 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
     }
 
     func fetchAutoRunPrompts() throws -> [Prompt] {
-        prompts.filter(\.isAutoRun)
+        if let fetchAutoRunPromptsError {
+            throw fetchAutoRunPromptsError
+        }
+        return try fetchAll().filter(\.isAutoRun)
     }
 
     func delete(id: UUID) throws -> Bool {

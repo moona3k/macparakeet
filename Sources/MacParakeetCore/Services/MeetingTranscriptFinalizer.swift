@@ -43,7 +43,11 @@ struct MeetingTranscriptFinalizer {
         })
 
         let systemWords = shiftedWordsBySource[.system] ?? []
-        let microphoneWords = shiftedWordsBySource[.microphone] ?? []
+        let microphoneCleanup = MeetingTranscriptNoiseFilter.cleanFinalMicrophoneWords(
+            microphoneWords: shiftedWordsBySource[.microphone] ?? [],
+            systemWords: systemWords
+        )
+        let microphoneWords = microphoneCleanup.microphoneWords
         let finalizedSystemWords: [WordTimestamp]
         if let systemDiarization {
             finalizedSystemWords = SpeakerMerger.mergeWordTimestampsWithSpeakers(
@@ -65,7 +69,11 @@ struct MeetingTranscriptFinalizer {
 
         let speakers = activeSpeakers(from: mergedWords, systemDiarization: systemDiarization)
         let diarizationSegments = buildDiarizationSegments(from: mergedWords)
-        let rawTranscript = finalTranscriptText(from: normalized, mergedWords: mergedWords)
+        let rawTranscript = finalTranscriptText(
+            from: normalized,
+            mergedWords: mergedWords,
+            forceMergedWordText: microphoneCleanup.removedMicrophoneWordCount > 0
+        )
 
         return FinalizedTranscript(
             rawTranscript: rawTranscript,
@@ -153,8 +161,13 @@ struct MeetingTranscriptFinalizer {
 
     private static func finalTranscriptText(
         from sourceTranscripts: [SourceTranscript],
-        mergedWords: [WordTimestamp]
+        mergedWords: [WordTimestamp],
+        forceMergedWordText: Bool = false
     ) -> String {
+        if forceMergedWordText {
+            return transcriptText(from: mergedWords)
+        }
+
         let textualSourceTranscripts = sourceTranscripts.compactMap { sourceTranscript -> (source: AudioSource, text: String, hasWords: Bool)? in
             let text = sourceTranscript.result.text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !text.isEmpty else { return nil }

@@ -128,9 +128,11 @@ final class DictationStatsQueryTests: XCTestCase {
     }
 
     func testWeeklyStreakCurrentWeekOnly() {
-        let now = Date()
+        let calendar = gregorianUTCCalendar()
+        let now = calendar.date(from: DateComponents(year: 2026, month: 4, day: 22, hour: 12))!
         let (streak, thisWeek) = DictationRepository.computeWeeklyStreak(
             from: [now, now.addingTimeInterval(-3600)],
+            calendar: calendar,
             now: now
         )
         XCTAssertEqual(streak, 1)
@@ -183,5 +185,11 @@ final class DictationStatsQueryTests: XCTestCase {
         )
         XCTAssertEqual(streak, 1)
         XCTAssertEqual(thisWeek, 1, "Future-dated row should not count in this week")
+    }
+
+    private func gregorianUTCCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
     }
 }

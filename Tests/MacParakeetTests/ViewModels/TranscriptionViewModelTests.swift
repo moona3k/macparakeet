@@ -112,6 +112,29 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.progress, "Preparing...", "Initial progress should be 'Preparing...'")
     }
 
+    func testTranscribeFileProgressSublineUsesSelectedEngineSnapshot() async throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.whisper.save(to: defaults)
+        SpeechEnginePreference.saveWhisperModelVariant(SpeechEnginePreference.defaultWhisperModelVariant, defaults: defaults)
+        viewModel = TranscriptionViewModel(defaults: defaults)
+        let expectedSubline = "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Neural Engine"
+        await mockService.configureProgress(phases: [.transcribing(percent: 42)])
+        await mockService.configureDelay(milliseconds: 250)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.transcribeFile(url: URL(fileURLWithPath: "/tmp/myfile.wav"))
+
+        try await waitUntil {
+            self.viewModel.progressSubline == expectedSubline
+        }
+        XCTAssertEqual(viewModel.progressHeadline, "Running speech recognition")
+
+        viewModel.cancelTranscription()
+        try await waitUntil { !self.viewModel.isTranscribing }
+    }
+
     func testTranscribeFileClearsErrorMessage() async throws {
         await mockService.configure(error: NSError(domain: "test", code: 1, userInfo: [
             NSLocalizedDescriptionKey: "First error"
@@ -407,8 +430,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(mockRepo.deleteCalledWith.contains(t.id))
     }
 
-    func testDeleteYouTubeTranscriptionRemovesStoredAudioFile() async throws {
-        let audioURL = URL(fileURLWithPath: NSTemporaryDirectory())
+    func testDeleteYouTubeTranscriptionRemovesStoredAudioFile() throws {
+        try AppPaths.ensureDirectories()
+        let audioURL = URL(fileURLWithPath: AppPaths.youtubeDownloadsDir, isDirectory: true)
             .appendingPathComponent("yt-audio-\(UUID().uuidString).m4a")
         let created = FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8))
         XCTAssertTrue(created)
@@ -427,12 +451,12 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         viewModel.deleteTranscription(t)
 
-        try await waitForFileAbsence(at: audioURL)
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
-    func testDeleteYouTubeTranscriptionKeepsStoredAudioWhenRepoDeleteFails() throws {
-        let audioURL = URL(fileURLWithPath: NSTemporaryDirectory())
+    func testDeleteYouTubeTranscriptionRemovesStoredAudioBeforeRepoDelete() throws {
+        try AppPaths.ensureDirectories()
+        let audioURL = URL(fileURLWithPath: AppPaths.youtubeDownloadsDir, isDirectory: true)
             .appendingPathComponent("yt-audio-\(UUID().uuidString).m4a")
         let created = FileManager.default.createFile(atPath: audioURL.path, contents: Data("audio".utf8))
         XCTAssertTrue(created)
@@ -452,8 +476,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         viewModel.deleteTranscription(t)
 
-        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
         XCTAssertEqual(viewModel.transcriptions.count, 1)
+        XCTAssertNotNil(viewModel.errorMessage)
     }
 
     func testDeleteFailureKeepsCurrentSelection() {
@@ -468,17 +493,6 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.currentTranscription?.id, t.id)
         XCTAssertEqual(viewModel.transcriptions.count, 1)
-    }
-
-    private func waitForFileAbsence(at url: URL, timeout: Duration = .seconds(1)) async throws {
-        let deadline = ContinuousClock.now + timeout
-        while FileManager.default.fileExists(atPath: url.path) {
-            guard ContinuousClock.now < deadline else {
-                XCTFail("Timed out waiting for file removal at \(url.path)")
-                return
-            }
-            try await Task.sleep(for: .milliseconds(20))
-        }
     }
 
     func testDeleteCurrentTranscriptionClearsSelection() {
@@ -636,6 +650,127 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.llmAvailable)
     }
 
+    // MARK: - Transcript Editing
+
+    func testUpdateCurrentTranscriptTextStoresEditedTextAsCleanTranscript() throws {
+        let t = Transcription(fileName: "test.mp3", rawTranscript: "Original transcript", status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let saved = viewModel.updateCurrentTranscriptText(to: " Corrected transcript ")
+
+        XCTAssertTrue(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Original transcript")
+        XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Corrected transcript")
+        XCTAssertEqual(viewModel.currentTranscription?.isTranscriptEdited, true)
+        let persisted = try XCTUnwrap(mockRepo.fetch(id: t.id))
+        XCTAssertEqual(persisted.rawTranscript, "Original transcript")
+        XCTAssertEqual(persisted.cleanTranscript, "Corrected transcript")
+        XCTAssertTrue(persisted.isTranscriptEdited)
+    }
+
+    func testUpdateCurrentTranscriptTextRejectsEmptyText() {
+        let t = Transcription(fileName: "test.mp3", rawTranscript: "Original transcript", status: .completed)
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let saved = viewModel.updateCurrentTranscriptText(to: "   ")
+
+        XCTAssertFalse(saved)
+        XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
+    }
+
+    func testUpdateCurrentTranscriptTextKeepsStateWhenSaveFails() {
+        let t = Transcription(fileName: "test.mp3", rawTranscript: "Original transcript", status: .completed)
+        mockRepo.transcriptions = [t]
+        mockRepo.saveError = NSError(domain: "repo", code: 1)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let saved = viewModel.updateCurrentTranscriptText(to: "Corrected transcript")
+
+        XCTAssertFalse(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Original transcript")
+        XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
+    }
+
+    func testUpdateCurrentTranscriptTextFailsWithoutConfiguredRepository() {
+        let t = Transcription(fileName: "test.mp3", rawTranscript: "Original transcript", status: .completed)
+        viewModel.currentTranscription = t
+
+        let saved = viewModel.updateCurrentTranscriptText(to: "Corrected transcript")
+
+        XCTAssertFalse(saved)
+        XCTAssertEqual(viewModel.currentTranscription?.rawTranscript, "Original transcript")
+        XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
+    }
+
+    func testRevertCurrentTranscriptToOriginalClearsCleanTranscript() throws {
+        let t = Transcription(
+            fileName: "test.mp3",
+            rawTranscript: "Original transcript",
+            cleanTranscript: "Corrected transcript",
+            status: .completed,
+            isTranscriptEdited: true
+        )
+        mockRepo.transcriptions = [t]
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let reverted = viewModel.revertCurrentTranscriptToOriginal()
+
+        XCTAssertTrue(reverted)
+        XCTAssertNil(viewModel.currentTranscription?.cleanTranscript)
+        XCTAssertEqual(viewModel.currentTranscription?.isTranscriptEdited, false)
+        let persisted = try XCTUnwrap(mockRepo.fetch(id: t.id))
+        XCTAssertNil(persisted.cleanTranscript)
+        XCTAssertFalse(persisted.isTranscriptEdited)
+    }
+
+    func testRevertCurrentTranscriptToOriginalKeepsStateWhenSaveFails() {
+        let t = Transcription(
+            fileName: "test.mp3",
+            rawTranscript: "Original transcript",
+            cleanTranscript: "Corrected transcript",
+            status: .completed,
+            isTranscriptEdited: true
+        )
+        mockRepo.transcriptions = [t]
+        mockRepo.saveError = NSError(domain: "repo", code: 1)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+        viewModel.currentTranscription = t
+
+        let reverted = viewModel.revertCurrentTranscriptToOriginal()
+
+        XCTAssertFalse(reverted)
+        XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Corrected transcript")
+        XCTAssertEqual(viewModel.currentTranscription?.isTranscriptEdited, true)
+    }
+
+    func testRevertCurrentTranscriptToOriginalFailsWithoutConfiguredRepository() {
+        let t = Transcription(
+            fileName: "test.mp3",
+            rawTranscript: "Original transcript",
+            cleanTranscript: "Corrected transcript",
+            status: .completed,
+            isTranscriptEdited: true
+        )
+        viewModel.currentTranscription = t
+
+        let reverted = viewModel.revertCurrentTranscriptToOriginal()
+
+        XCTAssertFalse(reverted)
+        XCTAssertEqual(viewModel.currentTranscription?.cleanTranscript, "Corrected transcript")
+        XCTAssertEqual(viewModel.currentTranscription?.isTranscriptEdited, true)
+    }
+
     // MARK: - Speaker Rename
 
     func testRenameSpeakerUpdatesInMemoryState() {
@@ -745,7 +880,12 @@ final class TranscriptionViewModelTests: XCTestCase {
     }
 
     func testRenameCurrentTranscriptionUpdatesStateAndRepo() {
-        let t = Transcription(fileName: "Meeting Apr 5", status: .completed, sourceType: .meeting)
+        let t = Transcription(
+            fileName: "Meeting Apr 5",
+            status: .completed,
+            sourceType: .meeting,
+            derivedTitle: "Auto Derived Title"
+        )
         mockRepo.transcriptions = [t]
 
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
@@ -754,6 +894,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.renameCurrentTranscription(to: "Design Review")
 
         XCTAssertEqual(viewModel.currentTranscription?.fileName, "Design Review")
+        XCTAssertEqual(viewModel.currentTranscription?.derivedTitle, "Design Review")
+        XCTAssertEqual(viewModel.transcriptions.first?.fileName, "Design Review")
+        XCTAssertEqual(viewModel.transcriptions.first?.derivedTitle, "Design Review")
         XCTAssertEqual(mockRepo.updateFileNameCalls.count, 1)
         XCTAssertEqual(mockRepo.updateFileNameCalls[0].fileName, "Design Review")
     }
@@ -859,7 +1002,6 @@ final class TranscriptionViewModelTests: XCTestCase {
         )
         viewModel.currentTranscription = t
 
-        mockRepo.transcriptions[0].summary = "DB summary"
         mockPromptResultRepo.promptResults = [
             PromptResult(
                 transcriptionId: t.id,
@@ -871,7 +1013,6 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         viewModel.loadPersistedContent()
 
-        XCTAssertEqual(viewModel.currentTranscription?.summary, "DB summary")
         XCTAssertTrue(viewModel.hasPromptResultTabs)
     }
 
@@ -945,7 +1086,9 @@ final class TranscriptionViewModelTests: XCTestCase {
             durationMs: 2_000,
             rawTranscript: "Old meeting transcript",
             status: .completed,
-            sourceType: .meeting
+            sourceType: .meeting,
+            recoveredFromCrash: true,
+            userNotes: "Original decision notes"
         )
         mockRepo.transcriptions = [original]
 
@@ -964,6 +1107,8 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         XCTAssertEqual(mockRepo.transcriptions.count, 1)
         XCTAssertEqual(mockRepo.transcriptions.first?.sourceType, .meeting)
+        XCTAssertEqual(mockRepo.transcriptions.first?.userNotes, "Original decision notes")
+        XCTAssertEqual(mockRepo.transcriptions.first?.recoveredFromCrash, true)
 
         let lastSource = await mockService.lastSource
         XCTAssertEqual(lastSource, .meeting)
@@ -974,6 +1119,160 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(lastMeetingRecording?.sourceAlignment.system?.startOffsetMs, 150)
         let lastFileURL = await mockService.lastFileURL
         XCTAssertNil(lastFileURL, "Meeting retranscribe should use transcribeMeeting, not generic file transcription")
+    }
+
+    func testRetranscribeMeetingPassesSpeechEngineOverride() async throws {
+        let archivedMeeting = try makeArchivedMeetingRecording(
+            speechEngine: SpeechEngineSelection(engine: .whisper, language: "ko")
+        )
+        defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
+
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Meeting Apr 5",
+            filePath: archivedMeeting.mixedURL.path,
+            durationMs: 2_000,
+            rawTranscript: "Old meeting transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+        mockRepo.transcriptions = [original]
+
+        let newResult = Transcription(
+            fileName: archivedMeeting.mixedURL.lastPathComponent,
+            rawTranscript: "Updated meeting transcript",
+            status: .completed
+        )
+        await mockService.configure(result: newResult)
+
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.retranscribe(
+            original,
+            speechEngineOverride: SpeechEngineSelection(engine: .parakeet)
+        )
+
+        try await waitUntil { !self.viewModel.isTranscribing }
+
+        let override = await mockService.lastSpeechEngineOverride
+        XCTAssertEqual(override, SpeechEngineSelection(engine: .parakeet))
+        let lastMeetingRecording = await mockService.lastMeetingRecording
+        XCTAssertEqual(lastMeetingRecording?.speechEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
+    }
+
+    func testRetranscribeProgressSublineUsesSpeechEngineOverride() async throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.parakeet.save(to: defaults)
+        SpeechEnginePreference.saveWhisperModelVariant(SpeechEnginePreference.defaultWhisperModelVariant, defaults: defaults)
+        viewModel = TranscriptionViewModel(defaults: defaults)
+        let expectedSubline = "Whisper \(SpeechEnginePreference.friendlyVariantName(SpeechEnginePreference.defaultWhisperModelVariant)) · Neural Engine"
+
+        let tmpFile = FileManager.default.temporaryDirectory.appendingPathComponent("retranscribe-progress-\(UUID().uuidString).mp3")
+        FileManager.default.createFile(atPath: tmpFile.path, contents: Data([0]))
+        defer { try? FileManager.default.removeItem(at: tmpFile) }
+
+        let original = Transcription(
+            fileName: "lecture.mp3",
+            filePath: tmpFile.path,
+            rawTranscript: "Old transcript",
+            status: .completed
+        )
+        await mockService.configureProgress(phases: [.transcribing(percent: 25)])
+        await mockService.configureDelay(milliseconds: 250)
+        viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
+
+        viewModel.retranscribe(
+            original,
+            speechEngineOverride: SpeechEngineSelection(engine: .whisper, language: "ko")
+        )
+
+        try await waitUntil {
+            self.viewModel.progressSubline == expectedSubline
+        }
+        let override = await mockService.lastSpeechEngineOverride
+        XCTAssertEqual(override, SpeechEngineSelection(engine: .whisper, language: "ko"))
+
+        viewModel.cancelTranscription()
+        try await waitUntil { !self.viewModel.isTranscribing }
+    }
+
+    func testRetranscriptionEngineOptionUsesCapturedMeetingEngine() throws {
+        let archivedMeeting = try makeArchivedMeetingRecording(
+            speechEngine: SpeechEngineSelection(engine: .whisper, language: "KO")
+        )
+        defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
+
+        viewModel = TranscriptionViewModel(isWhisperModelDownloaded: { true })
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Korean Meeting",
+            filePath: archivedMeeting.mixedURL.path,
+            durationMs: 2_000,
+            rawTranscript: "Old meeting transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
+        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
+        XCTAssertTrue(option.isAlternativeAvailable)
+        XCTAssertNil(option.unavailableReason)
+        XCTAssertEqual(option.title, "Try with Parakeet")
+    }
+
+    func testRetranscriptionEngineOptionUsesCurrentSettingsForLegacyMeetingMetadata() throws {
+        let suiteName = "TranscriptionViewModelTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.whisper.save(to: defaults)
+        SpeechEnginePreference.saveWhisperDefaultLanguage("ja", defaults: defaults)
+        viewModel = TranscriptionViewModel(defaults: defaults, isWhisperModelDownloaded: { true })
+
+        let archivedMeeting = try makeArchivedMeetingRecording(speechEngine: nil)
+        defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
+
+        let original = Transcription(
+            id: UUID(),
+            fileName: "Legacy Meeting",
+            filePath: archivedMeeting.mixedURL.path,
+            durationMs: 2_000,
+            rawTranscript: "Old meeting transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .whisper, language: "ja"))
+        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
+    }
+
+    func testRetranscriptionEngineOptionDisablesMissingWhisperModel() throws {
+        let archivedMeeting = try makeArchivedMeetingRecording(
+            speechEngine: SpeechEngineSelection(engine: .parakeet)
+        )
+        defer { try? FileManager.default.removeItem(at: archivedMeeting.folderURL) }
+
+        viewModel = TranscriptionViewModel(isWhisperModelDownloaded: { false })
+        let original = Transcription(
+            id: UUID(),
+            fileName: "English Meeting",
+            filePath: archivedMeeting.mixedURL.path,
+            durationMs: 2_000,
+            rawTranscript: "Old meeting transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
+
+        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
+        XCTAssertFalse(option.isAlternativeAvailable)
+        XCTAssertEqual(option.unavailableReason, "Download the Whisper model in Settings before trying Whisper.")
     }
 
     func testRetranscribeMeetingFallsBackToMixedAudioWhenArchivedMetadataIsMissing() async throws {
@@ -1129,7 +1428,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertEqual(mockRepo.transcriptions.first?.id, original.id)
     }
 
-    private func makeArchivedMeetingRecording() throws -> (folderURL: URL, mixedURL: URL) {
+    private func makeArchivedMeetingRecording(
+        speechEngine: SpeechEngineSelection? = SpeechEngineSelection(engine: .parakeet)
+    ) throws -> (folderURL: URL, mixedURL: URL) {
         let folderURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("meeting-archive-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
@@ -1141,26 +1442,37 @@ final class TranscriptionViewModelTests: XCTestCase {
         FileManager.default.createFile(atPath: microphoneURL.path, contents: Data([1]))
         FileManager.default.createFile(atPath: systemURL.path, contents: Data([2]))
 
-        let metadata = MeetingRecordingMetadata(
-            sourceAlignment: MeetingSourceAlignment(
-                meetingOriginHostTime: nil,
-                microphone: .init(
-                    firstHostTime: nil,
-                    lastHostTime: nil,
-                    startOffsetMs: 0,
-                    writtenFrameCount: 24_000,
-                    sampleRate: 48_000
-                ),
-                system: .init(
-                    firstHostTime: nil,
-                    lastHostTime: nil,
-                    startOffsetMs: 150,
-                    writtenFrameCount: 24_000,
-                    sampleRate: 48_000
-                )
+        let sourceAlignment = MeetingSourceAlignment(
+            meetingOriginHostTime: nil,
+            microphone: .init(
+                firstHostTime: nil,
+                lastHostTime: nil,
+                startOffsetMs: 0,
+                writtenFrameCount: 24_000,
+                sampleRate: 48_000
+            ),
+            system: .init(
+                firstHostTime: nil,
+                lastHostTime: nil,
+                startOffsetMs: 150,
+                writtenFrameCount: 24_000,
+                sampleRate: 48_000
             )
         )
-        try MeetingRecordingMetadataStore.save(metadata, folderURL: folderURL)
+
+        if let speechEngine {
+            let metadata = MeetingRecordingMetadata(
+                sourceAlignment: sourceAlignment,
+                speechEngine: speechEngine
+            )
+            try MeetingRecordingMetadataStore.save(metadata, folderURL: folderURL)
+        } else {
+            let legacyMetadata = try JSONEncoder().encode(["sourceAlignment": sourceAlignment])
+            try legacyMetadata.write(
+                to: folderURL.appendingPathComponent(MeetingRecordingMetadata.fileName),
+                options: .atomic
+            )
+        }
 
         return (folderURL: folderURL, mixedURL: mixedURL)
     }

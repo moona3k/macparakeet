@@ -76,12 +76,20 @@ public final class AutoSaveService {
     /// Failures are logged but never surfaced to the user.
     public func saveIfEnabled(_ transcription: Transcription, scope: AutoSaveScope = .transcription) {
         guard defaults.bool(forKey: scope.enabledKey) else { return }
+        let format = AutoSaveFormat(rawValue: defaults.string(forKey: scope.formatKey) ?? "md") ?? .md
+        let operationContext = Observability.childOperationContext()
         guard let folderURL = resolveFolder(scope: scope) else {
             logger.warning("Auto-save enabled but no valid folder configured for \(scope.rawValue).")
+            sendAutoSaveOperation(
+                operationContext: operationContext,
+                scope: scope,
+                format: format,
+                outcome: .unavailable,
+                errorType: "folder_unavailable"
+            )
             return
         }
 
-        let format = AutoSaveFormat(rawValue: defaults.string(forKey: scope.formatKey) ?? "md") ?? .md
         let fileURL = buildFileURL(for: transcription, format: format, in: folderURL)
 
         do {
@@ -97,8 +105,21 @@ public final class AutoSaveService {
             }
 
             logger.info("Auto-saved \(scope.rawValue) transcript to \(fileURL.lastPathComponent)")
+            sendAutoSaveOperation(
+                operationContext: operationContext,
+                scope: scope,
+                format: format,
+                outcome: .success
+            )
         } catch {
             logger.error("Auto-save failed for \(scope.rawValue): \(error.localizedDescription)")
+            sendAutoSaveOperation(
+                operationContext: operationContext,
+                scope: scope,
+                format: format,
+                outcome: .failure,
+                errorType: Observability.errorType(for: error)
+            )
         }
     }
 
@@ -107,6 +128,12 @@ public final class AutoSaveService {
     /// Resolve the stored bookmark data back to a URL for the given scope.
     /// Re-creates the bookmark if it has gone stale.
     public func resolveFolder(scope: AutoSaveScope = .transcription) -> URL? {
+        Self.resolveFolder(scope: scope, defaults: defaults)
+    }
+
+    /// Resolve the stored bookmark data back to a URL for the given scope.
+    /// Re-creates the bookmark if it has gone stale.
+    public static func resolveFolder(scope: AutoSaveScope = .transcription, defaults: UserDefaults = .standard) -> URL? {
         guard let bookmarkData = defaults.data(forKey: scope.folderBookmarkKey) else { return nil }
         var isStale = false
         guard let url = try? URL(
@@ -138,6 +165,24 @@ public final class AutoSaveService {
         defaults.set(value, forKey: destinationKey)
     }
 
+    private func sendAutoSaveOperation(
+        operationContext: ObservabilityOperationContext,
+        scope: AutoSaveScope,
+        format: AutoSaveFormat,
+        outcome: ObservabilityOutcome,
+        errorType: String? = nil
+    ) {
+        Telemetry.send(.autoSaveOperation(
+            operationID: operationContext.operationID,
+            operationContext: operationContext,
+            scope: scope,
+            format: format,
+            outcome: outcome,
+            durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+            errorType: errorType
+        ))
+    }
+
     /// Store a folder URL as bookmark data. Returns the display path on success.
     @discardableResult
     public static func storeFolder(_ url: URL, scope: AutoSaveScope = .transcription, defaults: UserDefaults = .standard) -> String? {
@@ -151,19 +196,88 @@ public final class AutoSaveService {
         defaults.removeObject(forKey: scope.folderBookmarkKey)
     }
 
+    /// The default destination for auto-saved files when the user hasn't
+    /// chosen one. Lives under `~/Documents/MacParakeet/{Transcriptions|Meetings}`
+    /// so the user can find their output via Finder / Spotlight without
+    /// digging into `~/Library`.
+    public static func defaultFolder(for scope: AutoSaveScope) -> URL {
+        let docs = FileManager.default
+            .urls(for: .documentDirectory, in: .userDomainMask)
+            .first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Documents")
+        let parent = docs.appendingPathComponent("MacParakeet", isDirectory: true)
+        switch scope {
+        case .transcription: return parent.appendingPathComponent("Transcriptions", isDirectory: true)
+        case .meeting: return parent.appendingPathComponent("Meetings", isDirectory: true)
+        }
+    }
+
+    /// Ensure the auto-save folder is configured for `scope`. Idempotent:
+    ///
+    /// - If a bookmark is already stored (even one that fails to resolve right
+    ///   now, e.g. a disconnected external drive) it is left untouched —
+    ///   never overwrite a user-chosen destination.
+    /// - If no bookmark exists, create the default folder on disk and store
+    ///   its bookmark.
+    ///
+    /// Returns the resolved folder URL on success, or `nil` if no bookmark
+    /// was stored and the default folder couldn't be created or bookmarked (extremely
+    /// rare — disk full, `~/Documents` read-only, etc.).
+    @discardableResult
+    public static func ensureFolderConfigured(scope: AutoSaveScope, defaults: UserDefaults = .standard) -> URL? {
+        if defaults.data(forKey: scope.folderBookmarkKey) != nil {
+            // Bookmark exists — preserve it even if stale / currently
+            // unresolvable. The user's previously-chosen destination is
+            // sacred; don't stomp it with a default.
+            return resolveFolder(scope: scope, defaults: defaults)
+        }
+        let defaultURL = defaultFolder(for: scope)
+        do {
+            try FileManager.default.createDirectory(at: defaultURL, withIntermediateDirectories: true)
+            guard storeFolder(defaultURL, scope: scope, defaults: defaults) != nil else {
+                return nil
+            }
+            return defaultURL
+        } catch {
+            return nil
+        }
+    }
+
+    /// Explicit reset to the default folder. Unlike `ensureFolderConfigured`,
+    /// this overwrites any existing bookmark — used by the "Reset" button so
+    /// the user can deliberately revert to default after picking a custom
+    /// destination.
+    @discardableResult
+    public static func resetFolderToDefault(scope: AutoSaveScope = .transcription, defaults: UserDefaults = .standard) -> URL? {
+        let defaultURL = defaultFolder(for: scope)
+        do {
+            try FileManager.default.createDirectory(at: defaultURL, withIntermediateDirectories: true)
+            guard storeFolder(defaultURL, scope: scope, defaults: defaults) != nil else {
+                return nil
+            }
+            return defaultURL
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: - Filename
 
     /// Build a deduplicated file URL for the given transcription.
     /// Format: `YYYY-MM-DD-HHmmss-<sanitized-name>.<ext>`
+    ///
+    /// Uses `transcription.fileName` for both transcriptions and meetings —
+    /// the auto-saved filename should match what the user sees in the
+    /// in-app library card. Calendar-driven meeting recordings (post-#135)
+    /// carry the calendar event title (e.g. "Roadmap Sync") rather than
+    /// the date-based default, so a hardcoded "Meeting" stem would diverge
+    /// from the library and confuse users hunting for a specific meeting.
+    /// For uncalendared meetings the displayName is "Meeting <date>" and
+    /// the filename ends up with the date twice (once from the date prefix,
+    /// once from the stem) — slightly redundant, but matches the library
+    /// label exactly, which is what users expect to grep for.
     func buildFileURL(for transcription: Transcription, format: AutoSaveFormat, in folder: URL) -> URL {
-        let stem: String
-        if transcription.sourceType == .meeting {
-            // Meeting display names already contain the date (e.g. "Meeting Apr 6, 2026 at 10:02 PM"),
-            // so use just the title prefix to avoid date duplication in the filename.
-            stem = "Meeting"
-        } else {
-            stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
-        }
+        let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
         let dateStr = Self.dateFormatter.string(from: transcription.createdAt)
         let baseName = "\(dateStr)-\(stem)"
 

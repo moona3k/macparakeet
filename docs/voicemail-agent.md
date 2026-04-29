@@ -229,7 +229,7 @@ voicemail_responses
 - [ ] Is this v0.5?
 - [ ] MVP: capture + fast tier only?
 - [ ] Does this change the tagline? "Fast private voice app" → "Voice input for your AI agent"?
-- [ ] Pricing implications? Still $49 one-time with agent features?
+- [ ] Pricing implications? Current public build is free/GPL; official paid distribution/support remains possible.
 
 ## Competitive Landscape
 

@@ -49,11 +49,11 @@
 │  │  ┌──────────────┐  ┌────────▼──────────────────────────────────────────┐ │  │
 │  │  │ExportService │  │               Data Layer                          │ │  │
 │  │  │(TXT)         │  │  Models: Dictation, Transcription, Prompt,       │ │  │
-│  │  └──────────────┘  │          Summary, ChatConversation,              │ │  │
+│  │  └──────────────┘  │          PromptResult, ChatConversation,         │ │  │
 │  │                     │          CustomWord, TextSnippet                 │ │  │
 │  │                     │  Repos:  DictationRepository,                    │ │  │
 │  │                     │          TranscriptionRepository,                │ │  │
-│  │                     │          PromptRepository, SummaryRepository,    │ │  │
+│  │                     │          PromptRepository, PromptResultRepository,│ │  │
 │  │                     │          ChatConversationRepository,             │ │  │
 │  │                     │          CustomWordRepository,                   │ │  │
 │  │                     │          TextSnippetRepository                   │ │  │
@@ -62,13 +62,18 @@
 │  └────────────────────────────────────────────────────────────────────────────┘  │
 │                                                                                  │
 ├──────────────────────────────────────────────────────────────────────────────────┤
-│                          EXTERNAL PROCESSES                                      │
+│                          LOCAL SPEECH ENGINES                                    │
 │                                                                                  │
 │  ┌──────────────────────────────┐                                                │
-│  │   Parakeet STT (In-Process)  │                                                │
+│  │   Parakeet STT (default)     │                                                │
 │  │   FluidAudio CoreML on ANE   │                                                │
 │  │   ~66 MB working RAM         │                                                │
 │  │   ~2.5% WER, 155x realtime   │                                                │
+│  └──────────────────────────────┘                                                │
+│  ┌──────────────────────────────┐                                                │
+│  │   WhisperKit STT (optional)  │                                                │
+│  │   Local multilingual engine  │                                                │
+│  │   Explicit model download    │                                                │
 │  └──────────────────────────────┘                                                │
 │                                                                                  │
 ├──────────────────────────────────────────────────────────────────────────────────┤
@@ -80,7 +85,8 @@
 │  │(Mic)     │  │ Hotkey)  │  │ Paste)      │  │ Control)     │  │Taps     ││
 │  └──────────┘  └──────────┘  └─────────────┘  └──────────────┘  └─────────┘│
 │                                                                                  │
-│  Parakeet working RAM: ~66 MB per active inference slot on ANE                │
+│  Parakeet working RAM: ~66 MB per active inference slot on ANE                  │
+│  Whisper cache: ~/Library/Application Support/MacParakeet/models/stt/whisper/   │
 │  Recommended: 8 GB RAM (Apple Silicon only).                                    │
 └──────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -115,14 +121,15 @@ The diagram below shows the ADR-016 architecture. Dictation and meeting recordin
       └── Background slot   → meeting + file transcription
                 │
                 ▼
-     STT Runtime (slot-scoped AsrManagers on CoreML / ANE)
+     STT Runtime (Parakeet AsrManagers + optional WhisperEngine)
 ```
 
 - **No shared audio engine** — dictation and meeting capture remain independent. macOS HAL multiplexes mic access.
 - **Meeting-only software AEC stage** — meeting mic capture remains raw, then `MeetingRecordingService` runs software AEC against paired system-reference frames; dictation capture remains raw on its own engine.
 - **No mutual exclusion** — dictation and meeting recording can both be active.
-- **Centralized STT ownership** — one runtime owner manages lifecycle, warm-up, and shutdown.
+- **Centralized STT ownership** — one runtime owner manages lifecycle, warm-up, shutdown, and Parakeet/Whisper dispatch.
 - **Explicit scheduling** — the STT stack uses a reserved dictation slot plus a shared background slot; within the background slot, finalize beats live preview, and file transcription waits.
+- **Meeting engine lease** — a recording pins the active speech engine/language at start and blocks engine switching until stop/cancel.
 - **Menu bar icon priority** — meeting > dictation > file-transcription > idle.
 
 ---
@@ -191,7 +198,7 @@ File dropped → MainWindowView → TranscriptionService.transcribe(fileURL:)
 
 **Key Types:**
 - `SettingsView` — Card-based scrollable container
-- `SettingsViewModel` — Manages all settings state, permissions, model status, licensing
+- `SettingsViewModel` — Manages settings state, permissions, model status, speech-engine selection, calendar preferences, and legacy entitlement state
 
 **Dependencies:** `UserDefaults`, `CustomWordRepository`, `TextSnippetRepository`
 
@@ -352,7 +359,7 @@ protocol TextProcessingPipelineProtocol {
 
 #### 2.4 AudioProcessor
 
-**Responsibility:** Audio format conversion and resampling. Converts any supported input format to 16kHz mono WAV for Parakeet. Also handles microphone audio buffer management for dictation.
+**Responsibility:** Audio format conversion and resampling. Converts supported input formats to 16kHz mono WAV for the selected local STT engine. Also handles microphone audio buffer management for dictation.
 
 **Key Types/Protocols:**
 ```swift
@@ -371,12 +378,12 @@ protocol AudioProcessorProtocol: Sendable {
 - FFmpeg invoked as a subprocess (`Process`), not linked as a library
 - Temp files written to app-scoped temp directory, cleaned after use
 - Microphone capture uses `AVAudioEngine` with a tap on the input node
-- Audio buffer stored in memory during recording, flushed to disk on stop
+- Dictation capture writes temp WAV output and validates minimum samples before STT
 - Supports: MP3, WAV, M4A, FLAC, OGG, OPUS, MP4, MOV, MKV, WebM, AVI
 
 #### 2.5 STT Runtime + Scheduler
 
-**Responsibility:** The shared STT stack owns one process-wide Parakeet runtime actor plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle and the slot-scoped `AsrManager` set used by the interactive and background execution slots. `STTScheduler` owns admission, slot assignment, in-slot priority, backpressure, cancellation, and request-scoped progress. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
+**Responsibility:** The shared STT stack owns one process-wide runtime actor plus one explicit scheduler. `STTRuntime` owns FluidAudio model lifecycle, the slot-scoped Parakeet `AsrManager` set, optional `WhisperEngine` lifecycle, and engine dispatch. `STTScheduler` owns admission, slot assignment, in-slot priority, backpressure, cancellation, request-scoped progress, and speech-engine leases. `STTClient` remains as a compatibility facade, not as an app-owned second runtime.
 
 **Key Types/Protocols:**
 ```swift
@@ -402,6 +409,15 @@ public protocol STTTranscribing: Sendable {
     ) async throws -> STTResult
 }
 
+public protocol SpeechEngineRoutedTranscribing: STTTranscribing {
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult
+}
+
 public protocol STTRuntimeManaging: Sendable {
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
     func backgroundWarmUp() async
@@ -415,9 +431,34 @@ public protocol STTRuntimeManaging: Sendable {
 public typealias STTManaging = STTTranscribing & STTRuntimeManaging
 public typealias STTClientProtocol = STTManaging
 
+public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
+    case parakeet
+    case whisper
+}
+
+public struct SpeechEngineSelection: Codable, Equatable, Sendable {
+    let engine: SpeechEnginePreference
+    let language: String?
+}
+
+public struct SpeechEngineLease: Equatable, Sendable {
+    let id: UUID
+    let selection: SpeechEngineSelection
+}
+
+public protocol SpeechEngineSwitching: Sendable {
+    func setSpeechEngine(_ preference: SpeechEnginePreference) async throws
+}
+
+public protocol SpeechEngineSessionManaging: Sendable {
+    func beginSpeechEngineSession() async -> SpeechEngineLease
+    func endSpeechEngineSession(_ lease: SpeechEngineLease) async
+}
+
 struct STTResult: Sendable {
     let text: String
     let words: [TimestampedWord]
+    let language: String?
 }
 
 struct TimestampedWord: Sendable {
@@ -428,12 +469,13 @@ struct TimestampedWord: Sendable {
 }
 ```
 
-**Dependencies:** FluidAudio SDK (CoreML, runs on ANE)
+**Dependencies:** FluidAudio SDK (CoreML, runs on ANE) and optional WhisperKit.
 
 **Architecture:**
 ```
 CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
 ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML accelerator
+CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
 ```
 
 **API:**
@@ -459,8 +501,9 @@ STTScheduler
     │
     ▼
 STTRuntime
-    ├── interactive slot → AsrManager
-    └── background slot  → AsrManager
+    ├── interactive slot → Parakeet AsrManager
+    ├── background slot  → Parakeet AsrManager
+    └── optional WhisperEngine selected by routed jobs/preferences
 ```
 
 **Model Lifecycle:**
@@ -470,7 +513,7 @@ App Launch
     ▼
 STTRuntime.warmUp() called (lazy, on first use or from onboarding)
     │
-    ├── Check: Are CoreML models downloaded?
+    ├── Check: Are Parakeet CoreML models downloaded?
     │     │
     │     ├── Yes → initialize slot managers → Runtime ready (~162ms warm load)
     │     │
@@ -480,6 +523,8 @@ STTRuntime.warmUp() called (lazy, on first use or from onboarding)
     │
     ▼
 Slot managers ready — scheduler admits transcription jobs
+
+Whisper is downloaded explicitly and does not block Parakeet readiness. Switching engines is refused while STT jobs are queued/running or a meeting speech-engine lease is active.
 ```
 
 Product-level readiness can coordinate additional services beyond the two STT slots. In particular, speaker diarization remains outside the speech scheduler, but onboarding should still account for its required assets before declaring default-on file-transcription features fully ready.
@@ -613,11 +658,11 @@ protocol TranscriptionRepositoryProtocol: Sendable {
 
 ---
 
-### 3. Parakeet STT (In-Process via FluidAudio)
+### 3. Local STT Engines
 
-Native Swift, runs in the app process via FluidAudio CoreML on the Neural Engine (ANE).
+Speech recognition runs in the app process. Parakeet via FluidAudio CoreML on the Neural Engine is the default engine; WhisperKit is an optional local engine for broader language coverage.
 
-**Responsibility:** Speech-to-text transcription using Parakeet TDT 0.6B-v3.
+**Responsibility:** Speech-to-text transcription using the user's selected local engine.
 
 **Key Details:**
 
@@ -632,16 +677,27 @@ Native Swift, runs in the app process via FluidAudio CoreML on the Neural Engine
 | Output | Text + word-level timestamps + confidence |
 | Model download | ~6 GB CoreML bundle (one-time) |
 
+| Optional Engine | Value |
+|-----------------|-------|
+| Model | Whisper large-v3 turbo CoreML variant by default |
+| Runtime | WhisperKit |
+| Languages | Broad multilingual coverage including languages Parakeet does not cover |
+| Model cache | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
+| Selection | Settings speech-engine picker or CLI `--engine whisper --language <code>` |
+
 **Why In-Process (Not Daemon)?**
 - FluidAudio provides native Swift async/await API — no IPC overhead
 - CoreML models run on the ANE, leaving GPU free for the rest of macOS
 - Simpler lifecycle: download models once, initialize, call transcribe()
-- No Python, no subprocess, no JSON-RPC — pure Swift
+- No Python, no subprocess, no JSON-RPC for STT — pure Swift local engines
 
 ```
 ~/Library/Application Support/MacParakeet/
     └── models/
-        └── stt/                # CoreML model cache (~6 GB)
+        └── stt/
+            └── whisper/        # WhisperKit model cache
+
+Parakeet's FluidAudio cache is managed by FluidAudio. `models/stt/whisper/` is the MacParakeet-owned cache for WhisperKit downloads.
 ```
 
 ---
@@ -681,7 +737,7 @@ Native Swift, runs in the app process via FluidAudio CoreML on the Neural Engine
      │                     │           │                     │
      │                     │             │    ┌──────────────▼──────┐
      │                     │             │    │ STTRuntime +        │
-     │                     │             │    │ Parakeet (ANE)      │
+     │                     │             │    │ selected engine     │
      │                     │             │    └─────────────────────┘
      │                     │           │                     │
      │                     │             │  raw transcript     │
@@ -723,7 +779,7 @@ Native Swift, runs in the app process via FluidAudio CoreML on the Neural Engine
        │                       │ <───────────────────── │
        │                       │
        │                       │     ┌──────────────┐
-       │                       │ ──> │STTScheduler  │ ──> STTRuntime + Parakeet (ANE)
+       │                       │ ──> │STTScheduler  │ ──> STTRuntime + selected engine
        │                       │     └─────┬────────┘
        │                       │           │
        │                       │  STTResult (text + timestamps)
@@ -819,8 +875,11 @@ CREATE TABLE transcriptions (
     diarizationSegments TEXT,               -- JSON speaker segments (v0.4+)
     language        TEXT DEFAULT 'en',      -- detected language
     speakerCount    INTEGER,               -- number of speakers (v0.4+)
-    speakers        TEXT,                   -- JSON: ["Speaker 1", ...] (v0.4+)
+    speakers        TEXT,                   -- JSON: [{"id":"S1","label":"Speaker 1"}, ...] (v0.4+)
     sourceType      TEXT NOT NULL DEFAULT 'file', -- file | youtube | meeting (v0.6)
+    recoveredFromCrash BOOLEAN NOT NULL DEFAULT 0, -- recovered interrupted meeting (v0.7.5)
+    isTranscriptEdited BOOLEAN NOT NULL DEFAULT 0, -- user-edited transcript flag (v0.7.7)
+    userNotes       TEXT,                   -- meeting notes (v0.8)
     status          TEXT NOT NULL DEFAULT 'processing', -- 'processing' | 'completed' | 'error' | 'cancelled'
     errorMessage    TEXT,                   -- non-null if status == 'error'
     exportPath      TEXT,                   -- path to exported file
@@ -830,7 +889,7 @@ CREATE TABLE transcriptions (
 CREATE INDEX idx_transcriptions_created_at ON transcriptions(createdAt);
 
 -- Additional active tables omitted here for brevity:
--- custom_words, text_snippets, chat_conversations, prompts, summaries
+-- custom_words, text_snippets, chat_conversations, prompts, summaries (PromptResult)
 ```
 
 ### Migrations
@@ -943,7 +1002,8 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 | Database | `~/Library/Application Support/MacParakeet/macparakeet.db` |
 | Dictation audio | `~/Library/Application Support/MacParakeet/dictations/` |
 | Transcription exports | `~/Library/Application Support/MacParakeet/transcriptions/` |
-| STT models | `~/Library/Application Support/MacParakeet/models/stt/` (CoreML, ~6 GB) |
+| Parakeet STT models | FluidAudio-managed CoreML cache (~6 GB) |
+| Whisper STT models | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
 | yt-dlp binary | `~/Library/Application Support/MacParakeet/bin/yt-dlp` |
 | FFmpeg binary | `~/Library/Application Support/MacParakeet/bin/ffmpeg` |
 | Logs | `~/Library/Logs/MacParakeet/` |
@@ -958,8 +1018,9 @@ All four tables are independent. No foreign key relationships. This keeps the sc
     ├── dictations/                 # Saved dictation audio files
     │   ├── {uuid}.wav              # Flat storage, no date subdirectories
     │   └── ...
-    ├── models/                     # Downloaded ML models
-    │   └── stt/                    # CoreML Parakeet models (~6 GB)
+    ├── models/                     # MacParakeet-owned downloaded ML models
+    │   └── stt/
+    │       └── whisper/            # WhisperKit models
     └── bin/                        # Standalone binaries
         ├── yt-dlp                  # YouTube downloader (~35 MB, self-updating)
         └── ffmpeg                  # Video demuxing (~80 MB)
@@ -973,7 +1034,8 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 
 | Package | SPM ID | Purpose | Notes |
 |---------|--------|---------|-------|
-| FluidAudio | `FluidAudio` | STT engine (Parakeet TDT via CoreML/ANE) | Apache 2.0. Use `FluidAudio` product only — NOT `FluidAudioEspeak` (GPL-3.0, would require open-sourcing). |
+| FluidAudio | `FluidAudio` | Default STT engine (Parakeet TDT via CoreML/ANE) + diarization | Apache 2.0. Use `FluidAudio` product only — NOT `FluidAudioEspeak` (GPL-3.0, would require open-sourcing). |
+| WhisperKit | `argmax-oss-swift` | Optional local multilingual STT engine | Exact 0.18.0 when enabled; `MACPARAKEET_SKIP_WHISPERKIT=1` skips the package for compatibility checks. |
 | GRDB.swift | `GRDB` | SQLite database | v6.29.0+, single-file storage, migrations, Codable records |
 | swift-argument-parser | `ArgumentParser` | CLI (implemented) | `macparakeet-cli transcribe`, `history`, `health`, `models`, `flow` |
 
@@ -1031,7 +1093,7 @@ Dictation ready
 
 ### Privacy Guarantees
 
-1. **No cloud STT** — Speech recognition stays local. Network is used only for explicit surfaces such as model downloads, update checks, optional LLM providers, optional telemetry/crash reporting, licensing, and user-initiated YouTube downloads.
+1. **No cloud STT** — Speech recognition stays local. Network is used only for explicit surfaces such as model downloads, update checks, optional LLM providers, optional telemetry/crash reporting, retained purchase activation endpoints if explicitly invoked, and user-initiated YouTube downloads.
 2. **Temp files cleaned** — Audio files in `$TMPDIR` deleted immediately after transcription
 3. **No accounts** — No login, no email, no user tracking
 4. **Telemetry is opt-out** — Self-hosted usage analytics and crash reporting run only while telemetry is enabled
@@ -1074,11 +1136,12 @@ For App Store distribution, the app needs:
 ┌────────────────────────────────────────────────────────────┐
 │                    Memory at Peak                           │
 ├────────────────────────────────────────────────────────────┤
-│  Parakeet STT (CoreML/ANE)       ~66 MB working RAM        │
+│  Parakeet STT (CoreML/ANE)       ~66 MB per active slot    │
+│  Optional WhisperKit engine      model-dependent           │
 │  App process (UI + services)     ~100 MB                   │
 │  Audio buffers                   ~50 MB                    │
 │  ──────────────────────────────────────                    │
-│  Total peak                      ~300 MB                   │
+│  Total peak                      depends on active engines │
 │                                                            │
 │  Minimum system RAM: 8 GB (Apple Silicon)                  │
 └────────────────────────────────────────────────────────────┘
@@ -1090,7 +1153,7 @@ For App Store distribution, the app needs:
 |-------|--------|----------|
 | App window visible | <1 second | SwiftUI, no heavy init |
 | Dictation ready | <2 seconds | Post-onboarding (models pre-warmed) |
-| First STT result | <3 seconds | CoreML model warm-up on first transcribe call |
+| First STT result | <3 seconds | Default Parakeet model warm-up on first transcribe call |
 
 **Model Readiness Strategy:**
 ```
@@ -1121,7 +1184,8 @@ Parakeet TDT 0.6B-v3 throughput varies by device class: approximately 155x realt
 ### Memory Management
 
 - **Parakeet model:** One shared runtime owner keeps its managers initialized after first use. Budget ~66 MB working RAM per active inference slot on the ANE path. Real total memory depends on how many managers are loaded/active in the current implementation, whether the background capacity stays lazy in the final design, and whether diarization models are also resident.
-- **Audio buffers:** Ring buffer during recording, flushed to temp file on stop. No recording duration limit — local processing means no artificial caps.
+- **Whisper model:** Loaded only when selected; model size and runtime memory are variant-dependent. Default cache is `models/stt/whisper/`.
+- **Audio buffers:** Dictation writes temp WAV on stop; meeting recording writes fragmented source M4A files and lock files during capture. No recording duration limit beyond disk space and practical UI constraints.
 - **Database:** GRDB uses WAL mode by default. No connection pooling needed (single-user app).
 
 ### Background Model Pre-warming
@@ -1265,7 +1329,7 @@ open Package.swift
 
 2. **Protocol-first services.** Every service has a protocol. Tests inject mocks. No singletons.
 
-3. **Local-only for user data.** No cloud inference and no API-key dependency. Network is only for model artifacts, optional license activation/validation, and user-initiated media downloads.
+3. **Local-only for user data.** Core speech inference has no cloud or API-key dependency. Network is only for model artifacts, optional LLM providers, update/telemetry surfaces, retained purchase activation/validation if explicitly invoked, and user-initiated media downloads.
 
 4. **Fast launch + onboarding pre-warm.** App launch stays lightweight; first-run onboarding prepares STT model so core features feel ready immediately afterward.
 

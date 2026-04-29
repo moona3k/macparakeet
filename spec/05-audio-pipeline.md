@@ -11,14 +11,13 @@ The audio pipeline handles all audio input for MacParakeet: microphone recording
 ### Capture Chain
 
 ```
-Mic Input → AVAudioEngine tap → Sample Rate Conversion → Ring Buffer → WAV
+Mic Input → AVAudioEngine tap → temp WAV → selected local STT engine
 ```
 
 - **AVAudioEngine** with tap on input node
-- **Sample rate conversion**: arbitrary input sample rate → 16kHz mono Float32 (required by Parakeet)
-- **Ring buffer** for crash recovery — if the app crashes mid-recording, the ring buffer preserves audio data that can be recovered on next launch
-- **Output format**: saved as WAV (16kHz mono, same format Parakeet expects)
-- **Minimum sample threshold**: 81 samples required before sending to STT. Parakeet's Metal allocator crashes on header-only WAVs (files with valid headers but near-zero audio data). This guard prevents that failure mode.
+- **Output format**: temporary WAV, 16kHz mono Float32
+- **Minimum sample threshold**: 16,000 samples required before sending to STT. Header-only and near-empty recordings are rejected before they reach the speech engine.
+- Dictation does not use the meeting crash-recovery lock-file pipeline. The current implementation writes a temp WAV and either moves it into retained storage or deletes it after processing.
 
 ### Storage
 
@@ -37,11 +36,10 @@ User triggers dictation
     → Start AVAudioEngine
     → Install tap on input node
     → Convert samples to 16kHz mono Float32
-    → Write to ring buffer
+    → Write to temp WAV
     → User stops dictation (or release-to-stop)
-    → Flush ring buffer to temp WAV
-    → Validate sample count >= 81
-    → Send to FluidAudio STT (CoreML/ANE)
+    → Validate sample count >= 16,000
+    → Send to selected local STT engine through STTScheduler
     → Move WAV to dictations/ for storage (if enabled)
     → Clean up temp WAV (if storage disabled)
 ```
@@ -53,7 +51,7 @@ User triggers dictation
 ### Conversion Pipeline
 
 ```
-Input File → FFmpeg → 16kHz mono WAV → FluidAudio STT (CoreML/ANE) → Transcript
+Input File → FFmpeg → 16kHz mono WAV → selected local STT engine → Transcript
 ```
 
 - **FFmpeg** (bundled with the app) handles format conversion to 16kHz mono WAV
@@ -71,6 +69,7 @@ Input File → FFmpeg → 16kHz mono WAV → FluidAudio STT (CoreML/ANE) → Tra
 - **Max file size**: 4 hours of audio (configurable)
 - **Temp file management**: intermediate WAV files are automatically cleaned up after transcription completes (success or failure)
 - FFmpeg runs as a subprocess; phase updates are reported to the UI (download/transcribe progress where available)
+- The selected speech engine is Parakeet by default. WhisperKit can be selected globally in Settings or per CLI invocation for broader language coverage.
 
 ### Conversion Flow
 
@@ -79,7 +78,7 @@ User selects file
     → Validate format (check extension + probe with FFmpeg)
     → Validate duration <= max (4 hours default)
     → Convert to 16kHz mono WAV via FFmpeg
-    → Send to FluidAudio STT (CoreML/ANE)
+    → Send to selected local STT engine through STTScheduler
     → Return transcript
     → Clean up temp WAV
 ```
@@ -91,7 +90,7 @@ User selects file
 ### Download + Conversion Pipeline
 
 ```
-YouTube URL → yt-dlp (audio only) → downloaded audio file → FFmpeg → 16kHz mono WAV → FluidAudio STT (CoreML/ANE) → Transcript
+YouTube URL → yt-dlp (audio only) → downloaded audio file → FFmpeg → 16kHz mono WAV → selected local STT engine → Transcript
 ```
 
 - `yt-dlp` is used with `--no-playlist` for single-video processing
@@ -115,7 +114,7 @@ User pastes YouTube URL
     → Validate URL format (single video)
     → Download audio via yt-dlp (emit "Downloading audio... X%")
     → Convert to 16kHz mono WAV via FFmpeg
-    → Send to FluidAudio STT (CoreML/ANE) (emit "Transcribing... X%")
+    → Send to selected local STT engine (emit "Transcribing... X%")
     → Save transcription (sourceURL set, filePath set only if retention enabled)
     → Clean up temp WAV (always)
 ```
@@ -160,8 +159,9 @@ Mic Input    → AVAudioEngine (raw tap) → Input Node Tap ──────�
 - Both streams are captured within the same meeting session and aligned by host time. `CaptureOrchestrator` owns join + offset + chunk boundaries via `MeetingAudioPairJoiner` + `AudioChunker`.
 - Mic conditioning is policy-driven: `SoftwareAECConditioner` (NLMS) is the shipped default for meeting capture, while `VPIOConditioner` remains as an explicit opt-in pass-through for the dormant VPIO path.
 - Audio is stored as separate M4A files (AAC 64kbps, 48kHz mono) per source
+- Source audio is written as fragmented M4A with 1-second movie fragments so kill-9 recovery can keep playable audio through the last committed fragment.
 - After recording stops, microphone + system M4As are merged into `meeting.m4a`. Dual-input sessions preserve source separation as stereo (`L=mic`, `R=system`), while single-input sessions remain mono.
-- Final meeting STT does **not** transcribe `meeting.m4a`. It transcribes `microphone.m4a` and `system.m4a` separately, then merges those fresh results by persisted `MeetingSourceAlignment`. `meeting.m4a` is kept as the playback/export artifact. See `docs/research/meeting-dual-stream-transcription-pipeline.md` for the full pipeline and tradeoffs.
+- Final meeting STT does **not** transcribe `meeting.m4a`. It transcribes `microphone.m4a` and `system.m4a` separately with the engine captured at recording start, then merges those fresh results by persisted `MeetingSourceAlignment`. `meeting.m4a` is kept as the playback/export artifact. See `docs/research/meeting-dual-stream-transcription-pipeline.md` for the full pipeline and tradeoffs.
 - Live chunk enqueue keeps a conservative guard: when recent system energy strongly dominates processed mic energy for a short freshness window, mic chunks are skipped for live transcription only. Mic audio is still written to disk and included in final mix/output.
 - Joiner queue overflow, long-session sync lag, and runtime capture failures are emitted as diagnostics for observability (`MeetingAudioCaptureEvent.error` where available).
 
@@ -177,25 +177,28 @@ Mic Input    → AVAudioEngine (raw tap) → Input Node Tap ──────�
 | `LiveChunkTranscriber` | Owns live chunk queueing, cancellation, ordering, STT invocation |
 | `MeetingAudioStorageWriter` | Writes separate M4A files per source (mic + system) |
 | `MeetingRecordingMetadataStore` | Persists `MeetingSourceAlignment` for post-stop merge correctness |
+| `MeetingRecordingLockFileStore` | Persists in-progress session state, notes, and captured speech engine for crash recovery |
 | `MeetingTranscriptFinalizer` | Merges fresh per-source STT results into the final meeting transcript |
 
 ### Meeting Recording Flow
 
-```
+```text
 User clicks "Start Meeting Recording"
     → Check Screen Recording permission (CGPreflightScreenCaptureAccess)
     → If denied: show error + "Open System Settings" button, block recording
+    → Acquire speech-engine lease from STTScheduler and capture current engine/language
     → Start MeetingAudioCaptureService (both streams)
     → Show recording pill (red dot + elapsed timer + stop button)
     → Consume AsyncStream<MeetingAudioCaptureEvent>, write buffers to M4A files
+      and keep `recording.lock` current with session state/notes/speech engine
     → User clicks Stop
     → Stop capture, finalize `microphone.m4a` + `system.m4a`
-    → Persist `meeting-recording-metadata.json` with per-source alignment
+    → Persist `meeting-recording-metadata.json` with source alignment and speech engine
     → Merge streams into `meeting.m4a` (stereo for dual input; mono for single input)
     → Convert `microphone.m4a` → 16kHz mono WAV via FFmpeg
-    → Send mic WAV to FluidAudio STT (CoreML/ANE)
+    → Send mic WAV to captured local STT engine
     → Convert `system.m4a` → 16kHz mono WAV via FFmpeg
-    → Send system WAV to FluidAudio STT (CoreML/ANE)
+    → Send system WAV to captured local STT engine
     → Merge fresh per-source STT using persisted source offsets
     → Optionally refine the isolated system side with diarization
     → Save as Transcription with sourceType = .meeting
@@ -204,12 +207,14 @@ User clicks "Start Meeting Recording"
 
 ### Storage
 
-```
+```text
 ~/Library/Application Support/MacParakeet/meeting-recordings/{uuid}/
     ├── microphone.m4a    # Mic audio (AAC, 48kHz mono)
     ├── system.m4a        # System audio (AAC, 48kHz mono)
     ├── meeting.m4a       # Final playback/export artifact (stereo dual-source when both tracks exist; legacy fallback for downstream tools)
-    └── meeting-recording-metadata.json  # Persisted source timing/alignment for post-stop merge
+    ├── meeting-recording-metadata.json  # Persisted source timing/alignment + speech engine for post-stop merge
+    ├── recording.lock     # In-progress recovery state, including notes and speech engine
+    └── chunks/            # Live-preview scratch chunks
 ```
 
 Audio files are kept by default. Users can delete manually from the transcription detail view.
@@ -225,20 +230,21 @@ Meeting recording and dictation run concurrently as fully independent pipelines.
 
 macOS Core Audio's HAL natively multiplexes microphone access — multiple engines tapping the same physical mic is a supported pattern. There is no shared audio engine or audio broker.
 
-All STT work routes through a process-wide scheduler and a single shared Parakeet runtime owner (ADR-016). That keeps:
+All STT work routes through a process-wide scheduler and shared runtime owner (ADR-016, ADR-021). Parakeet is the default engine; WhisperKit can be selected explicitly. That keeps:
 
 - dictation on its own reserved interactive slot
 - meeting live preview best-effort under backlog, with immediate post-stop finalization prioritized on the shared background slot
 - file / YouTube transcription, plus legacy saved-meeting fallbacks without archived metadata, queued behind meeting work on that same background slot
 - saved meetings with archived source metadata reuse the same `meetingFinalize` path as immediate post-stop finalization
+- active meeting recordings pinned to one speech engine/language for live preview, finalization, and crash recovery
 
 The primary concurrency use case remains meeting recording + dictation. File transcription may coexist architecturally, but it should never degrade dictation responsiveness.
 
-### Phase 2: Real-time Transcription
+### Live Preview
 
-In Phase 2, an `AudioChunker` (ported from Oatmeal) buffers audio into 5-second chunks with 1-second overlap and sends them to Parakeet during recording. This provides:
+`AudioChunker` buffers audio into chunks with overlap and sends them through the scheduler using the meeting's captured speech engine during recording. This provides:
 - Live transcript preview in the recording pill
-- Free speaker diarization: mic chunks → "Me", system chunks → "Them"
+- Source-aware labels: mic chunks → "Me", system chunks → "Them"
 - Software AEC conditioning plus a residual safeguard that suppresses clearly system-dominant mic chunks in live preview windows
 - Immediate transcript availability when recording stops
 

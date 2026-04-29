@@ -63,8 +63,8 @@ struct TranscribeView: View {
                         onStartNew: {
                             viewModel.showInputPortal()
                         },
-                        onRetranscribe: { original in
-                            viewModel.retranscribe(original)
+                        onRetranscribe: { original, speechEngineOverride in
+                            viewModel.retranscribe(original, speechEngineOverride: speechEngineOverride)
                         }
                     )
                 } else if viewModel.isTranscribing {

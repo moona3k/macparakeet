@@ -1,6 +1,7 @@
 import ArgumentParser
 import Foundation
 import MacParakeetCore
+import os
 
 struct ModelsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
@@ -8,6 +9,7 @@ struct ModelsCommand: AsyncParsableCommand {
         abstract: "Inspect and manage the local speech and speaker models.",
         subcommands: [
             Status.self,
+            Download.self,
             WarmUp.self,
             Repair.self,
             Clear.self,
@@ -22,15 +24,60 @@ extension ModelsCommand {
             abstract: "Show speech-stack status without forcing downloads."
         )
 
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
         func run() async throws {
-            let sttClient = STTClient()
-            let diarizationService = DiarizationService()
-            let status = await loadSpeechStackStatus(
-                sttClient: sttClient,
-                diarizationService: diarizationService
-            )
-            printSpeechStackStatus(status)
-            await sttClient.shutdown()
+            try await emitJSONOrRethrow(json: json) {
+                let sttClient = STTClient()
+                var sttClientNeedsShutdown = true
+                defer {
+                    if sttClientNeedsShutdown {
+                        Task { await sttClient.shutdown() }
+                    }
+                }
+                let diarizationService = DiarizationService()
+                let status = await loadSpeechStackStatus(
+                    sttClient: sttClient,
+                    diarizationService: diarizationService
+                )
+                await sttClient.shutdown()
+                sttClientNeedsShutdown = false
+                if json {
+                    try printJSON(SpeechStackPayload(status: status))
+                } else {
+                    printSpeechStackStatus(status)
+                }
+            }
+        }
+    }
+
+    struct Download: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "download",
+            abstract: "Download a local speech model without starting a transcription."
+        )
+
+        @Argument(help: "Model identifier. Use whisper-large-v3-v20240930-turbo-632MB for Whisper.")
+        var variant: String
+
+        func run() async throws {
+            let model = try resolveWhisperDownloadModel(variant)
+            print("Whisper: downloading \(model)...")
+            let lastPercent = OSAllocatedUnfairLock(initialState: -1)
+            let modelURL = try await WhisperEngine.downloadModel(model: model) { completed, total in
+                let percent = total > 0 ? Int((Double(completed) / Double(total) * 100).rounded()) : 0
+                let clamped = min(max(percent, 0), 100)
+                let shouldPrint = lastPercent.withLock { last in
+                    guard last != clamped else { return false }
+                    last = clamped
+                    return true
+                }
+                if shouldPrint {
+                    print("Whisper: downloading \(clamped)%")
+                }
+            }
+            print("Whisper: ready at \(modelURL.path)")
         }
     }
 
@@ -46,6 +93,12 @@ extension ModelsCommand {
         func run() async throws {
             let attempts = try validatedAttempts(attempts)
             let sttClient = STTClient()
+            var sttClientNeedsShutdown = true
+            defer {
+                if sttClientNeedsShutdown {
+                    Task { await sttClient.shutdown() }
+                }
+            }
             let diarizationService = DiarizationService()
             try await prepareSpeechStack(
                 attempts: attempts,
@@ -54,6 +107,7 @@ extension ModelsCommand {
                 log: { print($0) }
             )
             await sttClient.shutdown()
+            sttClientNeedsShutdown = false
         }
     }
 
@@ -69,6 +123,12 @@ extension ModelsCommand {
         func run() async throws {
             let attempts = try validatedAttempts(attempts)
             let sttClient = STTClient()
+            var sttClientNeedsShutdown = true
+            defer {
+                if sttClientNeedsShutdown {
+                    Task { await sttClient.shutdown() }
+                }
+            }
             let diarizationService = DiarizationService()
             try await prepareSpeechStack(
                 attempts: attempts,
@@ -77,6 +137,7 @@ extension ModelsCommand {
                 log: { print($0) }
             )
             await sttClient.shutdown()
+            sttClientNeedsShutdown = false
         }
     }
 
@@ -90,8 +151,40 @@ extension ModelsCommand {
             let sttClient = STTClient()
             await sttClient.clearModelCache()
             DiarizationService.clearModelCache()
+            try? FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)
             print("Local speech and speaker model caches cleared")
         }
+    }
+}
+
+func resolveWhisperDownloadModel(_ variant: String) throws -> String {
+    let normalizedInput = variant.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !normalizedInput.isEmpty else {
+        throw ValidationError("Model variant cannot be empty.")
+    }
+    guard normalizedInput.hasPrefix("whisper-") else {
+        throw ValidationError("Only whisper-* model identifiers are supported by models download.")
+    }
+    return WhisperEngine.normalizeModelVariant(normalizedInput)
+}
+
+struct SpeechStackPayload: Encodable {
+    let speechModelCached: Bool
+    let speechRuntimeReady: Bool
+    let speakerModelsCached: Bool
+    let speakerModelsPrepared: Bool
+    let whisperModelVariant: String
+    let whisperModelDownloaded: Bool
+    let summary: String
+
+    init(status: SpeechStackStatus) {
+        self.speechModelCached = status.speechModelCached
+        self.speechRuntimeReady = status.speechRuntimeReady
+        self.speakerModelsCached = status.speakerModelsCached
+        self.speakerModelsPrepared = status.speakerModelsPrepared
+        self.whisperModelVariant = status.whisperModelVariant
+        self.whisperModelDownloaded = status.whisperModelDownloaded
+        self.summary = status.summary
     }
 }
 
@@ -100,6 +193,8 @@ struct SpeechStackStatus: Sendable, Equatable {
     let speechRuntimeReady: Bool
     let speakerModelsCached: Bool
     let speakerModelsPrepared: Bool
+    let whisperModelVariant: String
+    let whisperModelDownloaded: Bool
 
     var summary: String {
         if speechRuntimeReady && speakerModelsPrepared {
@@ -128,7 +223,9 @@ func validatedAttempts(_ attempts: Int) throws -> Int {
 func loadSpeechStackStatus(
     sttClient: STTClientProtocol,
     diarizationService: DiarizationServiceProtocol,
-    isSpeechModelCached: @escaping @Sendable () -> Bool = { STTClient.isModelCached() }
+    isSpeechModelCached: @escaping @Sendable () -> Bool = { STTClient.isModelCached() },
+    whisperModelVariant: String = SpeechEnginePreference.whisperModelVariant(defaults: macParakeetAppDefaults()),
+    isWhisperModelDownloaded: @escaping @Sendable (String) -> Bool = { WhisperEngine.isModelDownloaded(model: $0) }
 ) async -> SpeechStackStatus {
     async let speechRuntimeReady = sttClient.isReady()
     async let speakerModelsCached = diarizationService.hasCachedModels()
@@ -138,7 +235,9 @@ func loadSpeechStackStatus(
         speechModelCached: isSpeechModelCached(),
         speechRuntimeReady: speechRuntimeReady,
         speakerModelsCached: speakerModelsCached,
-        speakerModelsPrepared: speakerModelsPrepared
+        speakerModelsPrepared: speakerModelsPrepared,
+        whisperModelVariant: whisperModelVariant,
+        whisperModelDownloaded: isWhisperModelDownloaded(whisperModelVariant)
     )
 }
 
@@ -150,6 +249,8 @@ func printSpeechStackStatus(_ status: SpeechStackStatus, includeHeader: Bool = t
     print("  Speech runtime loaded: \(status.speechRuntimeReady ? "Yes" : "No")")
     print("  Speaker models cached: \(status.speakerModelsCached ? "Yes" : "No")")
     print("  Speaker models prepared: \(status.speakerModelsPrepared ? "Yes" : "No")")
+    print("  Whisper model variant: \(status.whisperModelVariant)")
+    print("  Whisper model downloaded: \(status.whisperModelDownloaded ? "Yes" : "No")")
     print("  Status: \(status.summary)")
 }
 

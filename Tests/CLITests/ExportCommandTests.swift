@@ -23,6 +23,35 @@ final class ExportCommandTests: XCTestCase {
         XCTAssertNil(ExportFormat(rawValue: "docx"))
     }
 
+    func testResolveOutputURLExpandsTilde() throws {
+        let command = try ExportCommand.parse([
+            "abcd",
+            "--output", "~/Desktop/transcript.txt",
+        ])
+        let transcription = Transcription(fileName: "source.mp3", status: .completed)
+
+        let url = command.resolveOutputURL(transcription: transcription)
+
+        XCTAssertEqual(
+            url.path,
+            FileManager.default.homeDirectoryForCurrentUser
+                .appendingPathComponent("Desktop/transcript.txt")
+                .path
+        )
+    }
+
+    func testDefaultOutputURLSanitizesFileName() throws {
+        let command = try ExportCommand.parse([
+            "abcd",
+            "--format", "markdown",
+        ])
+        let transcription = Transcription(fileName: "folder:Meeting/notes.mp3", status: .completed)
+
+        let url = command.resolveOutputURL(transcription: transcription)
+
+        XCTAssertEqual(url.lastPathComponent, "folder Meeting notes.md")
+    }
+
     @MainActor func testExportToTxtWritesFile() throws {
         let t = Transcription(
             fileName: "export-test.mp3",

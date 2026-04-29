@@ -11,6 +11,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var responseReasoningContent: String?
     var responseFinishReason: String?
     var responseModel = "mock-model"
+    var responseUsage: TokenUsage?
     var streamTokens: [String]?
     var testConnectionError: Error?
     var testConnectionDelayNs: UInt64 = 0
@@ -27,7 +28,8 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
             content: responseContent,
             reasoningContent: responseReasoningContent,
             finishReason: responseFinishReason,
-            model: responseModel
+            model: responseModel,
+            usage: responseUsage
         )
     }
 
@@ -69,6 +71,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
 final class MockLLMExecutionContextResolver: LLMExecutionContextResolving, @unchecked Sendable {
     let configStore: MockLLMConfigStore
     var localCLIConfig: LocalCLIConfig?
+    var resolveError: Error?
 
     init(configStore: MockLLMConfigStore, localCLIConfig: LocalCLIConfig? = nil) {
         self.configStore = configStore
@@ -76,6 +79,9 @@ final class MockLLMExecutionContextResolver: LLMExecutionContextResolving, @unch
     }
 
     func resolveContext() throws -> LLMExecutionContext? {
+        if let resolveError {
+            throw resolveError
+        }
         guard let config = try configStore.loadConfig() else { return nil }
         let resolvedLocalCLIConfig = config.id == .localCLI ? localCLIConfig : nil
         return LLMExecutionContext(
@@ -138,6 +144,31 @@ final class MockLLMConfigStore: LLMConfigStoreProtocol, @unchecked Sendable {
     }
 }
 
+private final class LLMTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [TelemetryEventSpec] = []
+
+    func send(_ event: TelemetryEventSpec) {
+        lock.lock()
+        events.append(event)
+        lock.unlock()
+    }
+
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
+    func flush() async {}
+    func flushForTermination() {}
+
+    func snapshot() -> [TelemetryEventSpec] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events
+    }
+}
+
 final class LLMServiceTests: XCTestCase {
     var mockClient: MockLLMClient!
     var mockConfigStore: MockLLMConfigStore!
@@ -150,6 +181,15 @@ final class LLMServiceTests: XCTestCase {
         mockConfigStore.config = .openai(apiKey: "sk-test")
         mockContextResolver = MockLLMExecutionContextResolver(configStore: mockConfigStore)
         service = LLMService(client: mockClient, contextResolver: mockContextResolver)
+    }
+
+    override func tearDown() {
+        Telemetry.configure(NoOpTelemetryService())
+        service = nil
+        mockContextResolver = nil
+        mockConfigStore = nil
+        mockClient = nil
+        super.tearDown()
     }
 
     // MARK: - Not Configured
@@ -219,6 +259,28 @@ final class LLMServiceTests: XCTestCase {
         }
     }
 
+    func testSetupCancellationEmitsCancelledLLMOperationWithoutErrorType() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockContextResolver.resolveError = CancellationError()
+
+        do {
+            _ = try await service.summarize(transcript: "Test")
+            XCTFail("Expected CancellationError")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let operations = llmOperationProps(in: telemetry.snapshot())
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["feature"], "prompt_result")
+        XCTAssertEqual(operations.first?["provider"], "unknown")
+        XCTAssertEqual(operations.first?["streaming"], "false")
+        XCTAssertEqual(operations.first?["outcome"], "cancelled")
+        XCTAssertNil(operations.first?["error_type"])
+    }
+
     // MARK: - Summarize
 
     func testSummarizeAssemblesCorrectPrompt() async throws {
@@ -266,6 +328,67 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(mockClient.capturedMessages[2].role, .assistant)
         XCTAssertEqual(mockClient.capturedMessages[3].role, .user)
         XCTAssertEqual(mockClient.capturedMessages[3].content, "What did Alice say?")
+    }
+
+    // MARK: - Detailed (Envelope) Variants
+
+    func testSummarizeDetailedReturnsEnvelopeWithUsageAndModel() async throws {
+        mockClient.responseContent = "summary"
+        mockClient.responseModel = "gpt-4.1"
+        mockClient.responseFinishReason = "stop"
+        mockClient.responseUsage = TokenUsage(promptTokens: 50, completionTokens: 75)
+
+        let result = try await service.summarizeDetailed(transcript: "hello world")
+
+        XCTAssertEqual(result.output, "summary")
+        XCTAssertEqual(result.model, "gpt-4.1")
+        XCTAssertEqual(result.provider, "openai")
+        XCTAssertEqual(result.usage?.promptTokens, 50)
+        XCTAssertEqual(result.usage?.completionTokens, 75)
+        XCTAssertEqual(result.usage?.totalTokens, 125)
+        XCTAssertEqual(result.stopReason, "stop")
+        XCTAssertGreaterThanOrEqual(result.latencyMs, 0)
+    }
+
+    func testSummarizeStringDelegatesToDetailed() async throws {
+        // The string variant must end up in the same network call site as
+        // detailed — proven by the call only landing once on the mock and
+        // the captured user message matching what summarize() would assemble.
+        mockClient.responseContent = "delegated"
+
+        let output = try await service.summarize(transcript: "input text")
+
+        XCTAssertEqual(output, "delegated")
+        XCTAssertEqual(mockClient.capturedMessages.count, 2)
+        XCTAssertEqual(mockClient.capturedMessages[1].content, "input text")
+    }
+
+    func testChatDetailedReturnsEnvelope() async throws {
+        mockClient.responseContent = "answer"
+        mockClient.responseModel = "claude-sonnet-4-6"
+        mockClient.responseUsage = TokenUsage(promptTokens: 200, completionTokens: 30)
+
+        let result = try await service.chatDetailed(
+            question: "Who?",
+            transcript: "Alice and Bob spoke.",
+            history: []
+        )
+
+        XCTAssertEqual(result.output, "answer")
+        XCTAssertEqual(result.model, "claude-sonnet-4-6")
+        XCTAssertEqual(result.usage?.totalTokens, 230)
+    }
+
+    func testTransformDetailedReturnsEnvelopeWithoutUsageWhenAbsent() async throws {
+        mockClient.responseContent = "TRANSFORMED"
+        mockClient.responseModel = "qwen-4b"
+        mockClient.responseUsage = nil
+
+        let result = try await service.transformDetailed(text: "hello", prompt: "uppercase")
+
+        XCTAssertEqual(result.output, "TRANSFORMED")
+        XCTAssertEqual(result.model, "qwen-4b")
+        XCTAssertNil(result.usage)
     }
 
     // MARK: - Transform
@@ -630,6 +753,36 @@ final class LLMServiceTests: XCTestCase {
         }
     }
 
+    func testSummarizeStreamSetupCancellationEmitsOneCancelledLLMOperationWithoutErrorType() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockContextResolver.resolveError = CancellationError()
+        let stream = service.summarizeStream(transcript: "Test")
+
+        do {
+            for try await _ in stream {
+                XCTFail("Expected stream to throw")
+            }
+            XCTFail("Expected CancellationError")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        let events = telemetry.snapshot()
+        let operations = llmOperationProps(in: events)
+        XCTAssertEqual(operations.count, 1)
+        XCTAssertEqual(operations.first?["feature"], "prompt_result")
+        XCTAssertEqual(operations.first?["provider"], "unknown")
+        XCTAssertEqual(operations.first?["streaming"], "true")
+        XCTAssertEqual(operations.first?["outcome"], "cancelled")
+        XCTAssertNil(operations.first?["error_type"])
+        XCTAssertFalse(events.contains { event in
+            if case .llmPromptResultFailed = event { return true }
+            return false
+        })
+    }
+
     func testChatStreamThrowsWhenNotConfigured() async {
         mockConfigStore.config = nil
         let stream = service.chatStream(question: "Q", transcript: "T", history: [])
@@ -684,5 +837,12 @@ final class LLMServiceTests: XCTestCase {
         mockConfigStore.config = nil
         try mockConfigStore.updateModelName("gpt-5-mini")
         XCTAssertNil(try mockConfigStore.loadConfig())
+    }
+
+    private func llmOperationProps(in events: [TelemetryEventSpec]) -> [[String: String]] {
+        events.compactMap { event in
+            guard case .llmOperation = event else { return nil }
+            return event.props ?? [:]
+        }
     }
 }

@@ -74,7 +74,7 @@ run_case() {
       fi
       ;;
     refine_no_chatter)
-      if grep -Eqi 'Certainly|Here.s|Let me know|---|As requested|Subject:|Dear Team|Best regards' <<<"$cleaned"; then
+      if grep -Eqi "Certainly|Here's|(^|[^[:alnum:]_])Heres([^[:alnum:]_]|$)|Let me know|---|As requested|Subject:|Dear Team|Best regards" <<<"$cleaned"; then
         detail="has_wrapper_chatter"
       else
         pass="1"; detail="clean_output_no_wrapper"
@@ -110,8 +110,10 @@ run_case() {
       fi
       ;;
     terse_answer)
-      if grep -Eq '^.{1,80}$' <<<"$(echo "$cleaned" | tr -d '\n')" && ! grep -Eqi 'because|however|additionally' <<<"$cleaned"; then
-        pass="1"; detail="terse_response_ok"
+      local compact
+      compact="$(printf '%s' "$cleaned" | tr -d '\n')"
+      if [[ "${#compact}" -ge 1 && "${#compact}" -le 80 ]] && ! grep -Eqi 'because|however|additionally' <<<"$cleaned"; then
+        pass="1"; detail="total_chars_le_80"
       else
         detail="too_verbose"
       fi

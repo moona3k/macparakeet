@@ -15,7 +15,23 @@ private class PillContentView: NSView {
 
     override func draw(_ dirtyRect: NSRect) {}
 
+    private var activePillRect: NSRect {
+        let height = min(bounds.height, 86)
+        return NSRect(
+            x: bounds.minX,
+            y: bounds.midY - height / 2,
+            width: bounds.width,
+            height: height
+        )
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        activePillRect.contains(point) ? super.hitTest(point) : nil
+    }
+
     override func rightMouseDown(with event: NSEvent) {
+        let point = convert(event.locationInWindow, from: nil)
+        guard activePillRect.contains(point) else { return }
         onRightClick?(event)
     }
 }

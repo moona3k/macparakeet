@@ -9,7 +9,7 @@ authors: Codex/GPT, Daniel Moon
 
 > Status: **ACTIVE** - current implementation and design notes
 > Related spec: `spec/05-audio-pipeline.md`, `spec/06-stt-engine.md`
-> Related ADRs: `spec/adr/014-meeting-recording.md`, `spec/adr/015-concurrent-dictation-meeting.md`, `spec/adr/016-centralized-stt-runtime-scheduler.md`
+> Related ADRs: `spec/adr/014-meeting-recording.md`, `spec/adr/015-concurrent-dictation-meeting.md`, `spec/adr/016-centralized-stt-runtime-scheduler.md`, `spec/adr/021-whisperkit-multilingual-stt.md`
 
 ## TL;DR
 
@@ -21,6 +21,7 @@ MacParakeet meeting recording is a **dual-stream capture pipeline**:
 - both streams are written to disk as separate files
 - after stop, the two source files are mixed into `meeting.m4a` for playback/export
 - final post-stop STT does **not** transcribe `meeting.m4a`
+- the speech engine/language is captured at meeting start and reused for live preview, crash recovery, and finalization
 - instead, it runs fresh batch STT separately on:
   - `microphone.m4a`
   - `system.m4a`
@@ -29,7 +30,7 @@ MacParakeet meeting recording is a **dual-stream capture pipeline**:
 The important constraints:
 
 - `meeting.m4a` is usually **stereo** (`L=mic`, `R=system`)
-- Parakeet / FluidAudio are still **mono** in this app pipeline
+- STT input is still **mono** in this app pipeline, regardless of whether the selected engine is Parakeet or WhisperKit
 - the live transcript is now **live/UI-only**
 - `preparedTranscript` is no longer part of the final correctness path
 
@@ -58,6 +59,9 @@ This note documents the current architecture after:
 ```text
 Meeting starts
     │
+    ├── capture SpeechEngineLease
+    │     └── Parakeet default or WhisperKit + optional language
+    │
     ├── MicrophoneCapture
     │     └── raw mic buffers
     │
@@ -74,8 +78,8 @@ Meeting starts
                     │     ├── microphone.m4a
                     │     └── system.m4a
                     │
-                    ├── persist source timing/alignment metadata
-                    │     └── meeting-recording-metadata.json
+                    ├── persist in-progress recovery state
+                    │     └── recording.lock
                     │
                     ├── resample + join + chunk
                     │     └── CaptureOrchestrator
@@ -94,9 +98,9 @@ Meeting stops
     ├── mix microphone.m4a + system.m4a -> meeting.m4a
     └── TranscriptionService.transcribeMeeting(recording:)
           ├── convert microphone.m4a -> 16 kHz mono WAV
-          ├── batch STT on mic WAV
+          ├── batch STT on mic WAV using captured engine
           ├── convert system.m4a -> 16 kHz mono WAV
-          ├── batch STT on system WAV
+          ├── batch STT on system WAV using captured engine
           ├── align words using persisted source offsets
           ├── merge source-aware words into final transcript
           └── optionally diarize the isolated system track additively
@@ -132,7 +136,8 @@ meeting-recordings/<uuid>/
 ├── microphone.m4a
 ├── system.m4a
 ├── meeting.m4a
-└── meeting-recording-metadata.json
+├── meeting-recording-metadata.json
+└── recording.lock              # present only while recording/recovery is in progress
 ```
 
 Semantics:
@@ -140,13 +145,15 @@ Semantics:
 - `microphone.m4a`: mic-only source recording
 - `system.m4a`: system-only source recording
 - `meeting.m4a`: final mixed playback/export artifact
-- `meeting-recording-metadata.json`: persisted source alignment metadata for post-stop merge
+- `meeting-recording-metadata.json`: persisted source alignment metadata and captured speech engine for post-stop merge
+- `recording.lock`: in-progress recovery state, notes, and speech engine; removed after successful stop/finalize
 
 `MeetingRecordingOutput` carries:
 
 - all three audio URLs
 - meeting duration
 - `MeetingSourceAlignment`
+- captured `SpeechEngineSelection`
 
 Relevant code:
 
@@ -247,6 +254,7 @@ This metadata is:
 
 - returned in `MeetingRecordingOutput`
 - written to `meeting-recording-metadata.json`
+- included in lock-file recovery state while the meeting is active
 
 Why it exists:
 

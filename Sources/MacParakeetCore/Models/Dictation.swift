@@ -15,6 +15,12 @@ public struct Dictation: Codable, Identifiable, Sendable {
     public var updatedAt: Date
     public var hidden: Bool
     public var wordCount: Int
+    /// STT engine that produced this dictation (`"parakeet"` / `"whisper"`).
+    /// `nil` for rows created before the v0.8 engine-attribution migration.
+    public var engine: String?
+    /// Engine-specific model variant id (e.g. the Whisper model id).
+    /// `nil` for engines without variants and for legacy rows.
+    public var engineVariant: String?
 
     public enum ProcessingMode: String, Codable, Sendable {
         case raw
@@ -57,7 +63,9 @@ public struct Dictation: Codable, Identifiable, Sendable {
         errorMessage: String? = nil,
         updatedAt: Date = Date(),
         hidden: Bool = false,
-        wordCount: Int = 0
+        wordCount: Int = 0,
+        engine: String? = nil,
+        engineVariant: String? = nil
     ) {
         self.id = id
         self.createdAt = createdAt
@@ -72,6 +80,8 @@ public struct Dictation: Codable, Identifiable, Sendable {
         self.updatedAt = updatedAt
         self.hidden = hidden
         self.wordCount = wordCount
+        self.engine = engine
+        self.engineVariant = engineVariant
     }
 }
 
@@ -97,6 +107,6 @@ extension Dictation: FetchableRecord, PersistableRecord {
     public enum Columns: String, ColumnExpression {
         case id, createdAt, durationMs, rawTranscript, cleanTranscript
         case audioPath, pastedToApp, processingMode, status, errorMessage, updatedAt
-        case hidden, wordCount
+        case hidden, wordCount, engine, engineVariant
     }
 }

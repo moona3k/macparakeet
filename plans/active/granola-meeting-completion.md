@@ -1,8 +1,8 @@
 # Granola-style Meeting Recording Completion
 
-**Status:** Active
-**Date:** 2026-04-19
-**ADRs:** ADR-017 (calendar auto-start), ADR-018 (live insights + ask)
+**Status:** Active (Ask half shipped 2026-04-24; Calendar half remaining)
+**Date:** 2026-04-19 · Updated 2026-04-24
+**ADRs:** ADR-017 (calendar auto-start), ADR-018 (live Ask tab — Insights dropped per amendment)
 **Blocks:** GitHub #57 "meeting recording v0.6" final closeout
 
 ## What this plan closes out
@@ -10,9 +10,9 @@
 ADR-014 shipped the bones of meeting recording. ADR-015 let it run alongside dictation. ADR-016 centralized STT ownership. What's left before we call this feature *done*:
 
 1. **Calendar-driven auto-start** (ADR-017) — users forget to press record; the calendar already knows their meetings
-2. **Live Insights tab** (ADR-018) — Granola's "glance view" of a meeting in progress
-3. **Live Ask tab** (ADR-018) — mid-meeting "what did I miss?" without typing the transcript into a chatbot later
-4. **Onboarding + settings surface** for all of the above
+2. ~~**Live Insights tab** (ADR-018)~~ — **dropped** in the ADR-018 amendment of 2026-04-24. Pull-on-demand Ask pills replace the "glance view" use case at zero idle LLM cost. See `spec/adr/018-live-meeting-insights-and-ask.md` § Amendment.
+3. **Live Ask tab** (ADR-018) — ✅ shipped 2026-04-24. Mid-meeting chat against the rolling transcript with thinking-partner pills.
+4. **Onboarding + settings surface** for the calendar half.
 
 This plan is the file-by-file breakdown. It is sequenced in phases so each phase is an independently shippable slice; nothing is a big-bang.
 
@@ -21,9 +21,9 @@ This plan is the file-by-file breakdown. It is sequenced in phases so each phase
 ### In scope
 - Calendar EventKit integration, polling coordinator, reminder + auto-start + auto-stop
 - Port `CalendarService` / `MeetingMonitor` / `MeetingLinkParser` from `oatmeal` repo
-- Add tabs to `MeetingRecordingPanelView`: Transcript / Insights / Ask
-- New `MeetingLiveInsightsService` actor + viewmodel + pane
-- Reuse `TranscriptChatViewModel` in the panel; add live-→-persisted promotion helper
+- ~~Add tabs to `MeetingRecordingPanelView`: Transcript / Insights / Ask~~ → shipped as **Transcript / Ask** (two tabs)
+- ~~New `MeetingLiveInsightsService` actor + viewmodel + pane~~ → dropped per ADR-018 amendment
+- Reuse `TranscriptChatViewModel` in the panel; add live-→-persisted promotion helper — ✅ shipped
 - Settings UI (Calendar section) + onboarding step
 - Telemetry cases + website allowlist mirror
 
@@ -32,7 +32,10 @@ This plan is the file-by-file breakdown. It is sequenced in phases so each phase
 - Custom live prompts (lives on the post-meeting Results tab via ADR-013)
 - ScreenCaptureKit / per-app audio isolation (ADR-014 locked Core Audio Taps)
 - Late-join UI for meetings already in progress (enum case exists, UI deferred)
-- Non-English starter pills and prompt copy
+- Non-English starter / follow-up pill copy
+- Auto-refreshing Insights pane (dropped per ADR-018 amendment 2026-04-24)
+- LLM-generated follow-up suggestions per response (curated static set won — see ADR-018 Rationale)
+- Transcription-failure chat recovery via JSON sidecar (Future Work in ADR-018 — defer until telemetry justifies)
 
 ### Invariants
 - Dictation continues to work unchanged, concurrently (ADR-015)
@@ -43,21 +46,23 @@ This plan is the file-by-file breakdown. It is sequenced in phases so each phase
 
 ## Phased rollout
 
-### Phase A — Tab shell in the live panel (visual-only, no new services)
+### Phase A — Tab shell in the live panel ✅ shipped 2026-04-24 (commit `e574135a`)
 
-Pure refactor. The existing single-pane panel becomes a three-tab panel where only Transcript has content; Insights and Ask show disabled empty states.
+Tab bar inserted between header and pane content (`Transcript` default, `Ask`). Per the ADR-018 amendment the panel is **two-tab**, not three. Implementation diverged from the original plan in two ways:
+- Tab bar built inline in `MeetingRecordingPanelView.swift` rather than as a separate `LivePanelTabBar.swift` file (inline was 30 lines; extracting would have been overengineering).
+- The transcript body was kept inline in `MeetingRecordingPanelView.swift` rather than extracted into `LiveTranscriptPaneView.swift` for the same reason.
 
-| File | Change |
-|------|--------|
-| `Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift` | Add `selectedTab: LivePanelTab` enum property (`.transcript` default, `.insights`, `.ask`). |
-| `Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift` | Between `header` and `transcriptContent`, insert `tabBar`. Wrap existing transcript body as `LiveTranscriptPaneView`. Switch on `selectedTab` to render pane; Insights/Ask render a "Coming soon" stub. |
-| `Sources/MacParakeet/Views/MeetingRecording/LiveTranscriptPaneView.swift` *(new)* | Extract the existing `transcriptContent` view body verbatim. No behavior change. |
-| `Sources/MacParakeet/Views/MeetingRecording/LivePanelTabBar.swift` *(new)* | Capsule-style tab row matching `TranscriptResultView`'s pattern. |
-| `Tests/MacParakeetTests/ViewModels/MeetingRecordingPanelViewModelTests.swift` | Default tab is `.transcript`; tab selection persists across `updatePreview` calls. |
+Files actually touched:
+- `Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift` — added `LivePanelTab` enum, `selectedTab`, composed `chatViewModel`, `chatTranscript` projection.
+- `Sources/MacParakeet/Views/MeetingRecording/MeetingRecordingPanelView.swift` — inline tab bar + `paneContent` switch.
 
-**Ship criteria:** panel looks like today when on Transcript tab. Clicking Insights or Ask shows a styled stub. `swift test` green.
+### Phase B — Live Insights service + pane ❌ dropped 2026-04-24
 
-### Phase B — Live Insights service + pane
+Removed per the ADR-018 amendment of 2026-04-24. Auto-refreshing four-section insights with debounce policy and section-parsing was out of step with the "thinking partner, not stenographer" framing the design landed on. Pull-on-demand pills in the Ask tab cover the same use cases (Summarize / What did I miss? / Action items) at zero idle LLM cost. See `spec/adr/018-live-meeting-insights-and-ask.md` § Amendment for full rationale.
+
+The original Phase B plan content is preserved in git history (this plan, pre-2026-04-24).
+
+### ~~Phase B-old — Live Insights service + pane~~ (DROPPED, see above)
 
 Introduces the `MeetingLiveInsightsService` actor, the viewmodel, and the rendered pane. Finalization wiring included.
 
@@ -68,34 +73,32 @@ Introduces the `MeetingLiveInsightsService` actor, the viewmodel, and the render
 | `Sources/MacParakeetCore/MeetingRecording/MeetingInsightsPrompt.swift` *(new)* | Static built-in system prompt (returns fixed markdown sections). |
 | `Sources/MacParakeetViewModels/MeetingInsightsViewModel.swift` *(new)* | `@MainActor @Observable`. Subscribes to service. Exposes `snapshot`, `isRefreshing`, `hasLLM`, `providerDisplayName`, `refresh()`. |
 | `Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift` | Compose `insightsViewModel`. Expose to panel view. |
-| `Sources/MacParakeet/Views/MeetingRecording/LiveInsightsPaneView.swift` *(new)* | Renders four sections with staleness dot + Refresh button + provider footer. Empty state routes to Settings → AI Providers. |
-| `Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift` | Instantiate `MeetingLiveInsightsService` on start. Feed `transcriptUpdates` into `service.update(...)`. On stop, call `service.finalize()`, persist as `PromptResult` via `PromptResultRepository` using the built-in "Meeting Insights" prompt snapshot, *then* fire `onTranscriptionReady`. |
-| `Sources/MacParakeetCore/Services/TelemetryEvent.swift` | Add `.meetingLiveInsightsRun(...)`, `.meetingLiveInsightsFailed(...)`. |
-| `../macparakeet-website/functions/api/telemetry.ts` | Add both new event names to `ALLOWED_EVENTS`. **Two-repo change — see `MEMORY.md`.** |
-| `Tests/MacParakeetTests/MeetingRecording/MeetingLiveInsightsServiceTests.swift` *(new)* | Debounce under delta gate. Cancellation on new update. First-run floor. Finalize uses full transcript. Parser handles missing sections. |
+(See above — original Phase B content lives in git history.)
 
-**Ship criteria:** Insights pane renders with a provider configured. Four sections appear after ≥45s of content. Refresh respects 25s floor. Stopping the meeting persists one `PromptResult` row bound to the finalized transcription; it appears on `TranscriptResultView`'s tabs automatically. No-LLM state shows empty-state CTA; recording still works.
+### Phase C — Live Ask ✅ shipped 2026-04-24 (commit `e574135a` + polish `80317e70`)
 
-### Phase C — Live Ask
+What landed:
 
-Reuses `TranscriptChatViewModel`. The work is (1) wire it into the panel, (2) implement the in-memory → persisted handoff, (3) build the starter pill row.
+- `TranscriptChatViewModel` extended with in-memory live mode in `sendMessage(richPrompt:)` (skip ChatConversation creation when both `transcriptionId` and `conversationRepo` are nil), `updateTranscriptText(_:)` (set transcript without clearing history), `bindPersistedConversation(transcriptionId:transcriptionRepo:conversationRepo:)` (promote in-memory thread at finalize). Optional `richPrompt` parameter so pills can ship a comprehensive instruction while the bubble shows the short label.
+- `MeetingRecordingPanelViewModel` composes `chatViewModel: TranscriptChatViewModel`, exposes a clean `chatTranscript` projection (no bracketed timestamps), pushes it to the chat VM on every `updatePreviewLines(...)` tick.
+- `LiveAskPaneView` (new) — scrollable thread, vertical "Quick prompts" stack of 6 starter pills in the empty state, horizontal-scroll row of 8 follow-up pills above the input once messages exist, polished input bar (14pt corners, hairline border), `TypingIndicator` (three accent dots, 1.4s wave), no-LLM empty state with Settings CTA. `LiveAskPrompt(label:prompt:)` model carries both the bubble label and the LLM-side prompt for every pill.
+- Pills (English-first, hardcoded):
+  - **Starters** (6): Summarize so far · What did I miss? · What question is worth asking? · What's worth pushing back on? · Where are we going in circles? · What's unresolved?
+  - **Follow-ups** (8): Tell me more · Summarize so far · What did I miss? · Why? · Give an example · Counter-argument? · Action items? · TL;DR
+- `MeetingRecordingFlowCoordinator` — accepts `transcriptionRepo`, `conversationRepo`, `configStore`, `cliConfigStore`, `llmService?` at init. Configures the panel's chatViewModel for in-memory live mode at `.showRecordingPill`. Calls `bindPersistedConversation(...)` at `.navigateToTranscription` so the live thread carries onto `TranscriptResultView`'s Chat tab. New `updateLLMService(_:)` forwards provider changes from `AppEnvironmentConfigurer.refreshLLMAvailability(in:)`.
+- Convenience polish: auto-focus on Ask tab appearance (~100ms delay), `.onKeyPress(.escape)` cancels in-flight responses, `Cmd+1` / `Cmd+2` switch tabs, footer (Copy/Auto-scroll/Stop) hidden on Ask tab, input field stays enabled while streaming so focus survives Enter.
 
-| File | Change |
-|------|--------|
-| `Sources/MacParakeetViewModels/TranscriptChatViewModel.swift` | Add `public func bindPersistedConversation(transcriptionId: UUID, transcriptionRepo: TranscriptionRepositoryProtocol, conversationRepo: ChatConversationRepositoryProtocol) async`. Promotes existing in-memory `messages` to a newly saved `ChatConversation`. Also: add `public func updateTranscriptText(_ newValue: String)` so the VM can be fed the rolling live transcript on each send. |
-| `Sources/MacParakeetViewModels/MeetingRecordingPanelViewModel.swift` | Compose `chatViewModel: TranscriptChatViewModel`. On each preview update, call `chatViewModel.updateTranscriptText(rollingTranscript)`. |
-| `Sources/MacParakeet/Views/MeetingRecording/LiveAskPaneView.swift` *(new)* | Chat UI with starter pills ("Summarize so far", "What did I miss?", "What are the action items?", "Was anything left unresolved?"), message list, input bar. No reuse of `TranscriptResultView`'s chat view body — the layout constraints differ — but visually consistent. |
-| `Sources/MacParakeet/Views/MeetingRecording/StarterPromptPillRow.swift` *(new)* | Horizontal row of pills; tapping fills input + sends. Hidden after first user message. |
-| `Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift` | After Phase B's `onTranscriptionReady`: call `chatViewModel.bindPersistedConversation(...)` with the new transcription id so live messages are preserved on the finalized detail view. |
-| `Sources/MacParakeetCore/Services/TelemetryEvent.swift` | Add `.meetingLiveAskUsed(provider:messageCount:)`. |
-| `../macparakeet-website/functions/api/telemetry.ts` | Mirror the new event name. |
-| `Tests/MacParakeetTests/ViewModels/TranscriptChatViewModelLivePersistenceTests.swift` *(new)* | `bindPersistedConversation` creates one conversation, inserts N existing messages in order, sets `transcriptionId`, does not double-write. `updateTranscriptText` is picked up on next send. |
+What was deferred:
 
-**Ship criteria:** Meeting panel's Ask tab accepts messages and streams responses mid-recording. After Stop, the conversation appears on the finalized transcription's Chat tab with the full history intact. Starter pills fire the right prompts. No-LLM empty state mirrors Insights.
+- **Telemetry events** (`.meetingLiveAskUsed(provider:messageCount:)` and the website allowlist mirror) — not shipped in this pass; add later if usage data is needed.
+- **Dedicated `TranscriptChatViewModelLivePersistenceTests.swift`** — not added; the existing 40-test `TranscriptChatViewModelTests` suite still passes and exercises the shared chat-VM surface. Add focused live-mode tests when we touch this surface again.
+- **Transcription-failure chat recovery** (JSON sidecar) — Future Work in ADR-018 § Future Work.
 
-### Phase D — Calendar auto-start: notify-only (ADR-017 phase 1)
+### Phase D — Calendar auto-start: notify-only (ADR-017 phase 1) ✅ shipped 2026-04-25
 
-Port the three core files from Oatmeal, add settings + onboarding, wire a coordinator that only does `.notify` (no auto-start yet). Safe to ship without Phase E.
+Ported the four core files from Oatmeal (`MeetingMonitor`, `MeetingLinkParser`, `CalendarService`, `CalendarEvent` — GRDB stripped per ADR-017 §6), wired a notify-only `MeetingAutoStartCoordinator` with adaptive 60s/15s/5s polling + `.EKEventStoreChanged` observer + daily stale-id cleanup. Settings card (mode/lead/filter/per-calendar checkboxes/permission CTA) and skippable onboarding step both shipped. CLI surface (`macparakeet-cli calendar upcoming` + `health` extension) shipped alongside for headless verification by AI agents and CI. **Amendment:** the per-calendar include list (originally Phase 3) landed in Phase D — only ~30 lines and made onboarding feel finished.
+
+**Original plan (kept for reference):**
 
 | File | Change |
 |------|--------|
@@ -119,7 +122,11 @@ Port the three core files from Oatmeal, add settings + onboarding, wire a coordi
 
 **Ship criteria:** User grants Calendar permission through onboarding or Settings. At T-5min of a calendar event with a video link, a macOS notification appears. `.autoStart` mode is exposed in the UI but is a no-op (shows a "Coming soon" hint if selected, or clamp the picker to not expose it yet — plan says clamp).
 
-### Phase E — Calendar auto-start: countdown + auto-stop (ADR-017 phase 2)
+### Phase E — Calendar auto-start: countdown + auto-stop (ADR-017 phase 2) ✅ shipped 2026-04-25
+
+Built `MeetingCountdownToastController` (5s pre-meeting + 30s end-of-meeting countdowns, `KeylessPanel` non-activating top-center floating panel with progress bar + Cancel/Start Now actions). Coordinator wires `.autoStartDue` → countdown → `MeetingRecordingFlowCoordinator.startFromCalendar()` and `.autoStopDue` (only for auto-started recordings) → countdown → `toggleRecording()`. Tracks `autoStartedEventId` binding; manual-stop detection via next-poll `isRecordingActive() == false` with binding still held. Settings Picker unclamped to all three modes; auto-stop toggle visible when mode == `.autoStart`. `CalendarServicing` protocol + `MockCalendarService` extracted; 8 new `MeetingAutoStartCoordinatorTests` cover routing, lifecycle, and the binding state machine. Four new telemetry events allowlisted on the website worker (`calendar_auto_start_triggered`, `calendar_auto_start_cancelled`, `calendar_auto_stop_shown`, `calendar_auto_stop_cancelled`); `meeting_recording_started` gained optional `trigger` prop.
+
+**Original plan (kept for reference):**
 
 Add the countdown toast and the actual recording triggers.
 
@@ -151,33 +158,30 @@ Low-value-per-unit cleanup that's better done in one pass.
 
 - `swift test` baseline before each phase; all green after.
 - Manual smoke per phase in the ship criteria above.
-- Long-meeting smoke (60-minute test recording) for Phase B to confirm debounce and memory behavior.
 - Calendar smoke requires a test calendar with a Zoom-link event 5 minutes out; confirm notification, then confirm auto-start with countdown.
-- No-LLM-key smoke: verify Insights and Ask tabs show empty state and recording still works.
+- No-LLM-key smoke: verify the Ask tab shows the empty-state CTA and recording still works.
 
 ## Risk register
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| LLM cost spikes mid-meeting | Medium (for cloud users) | Medium | Debounce per ADR-018; surface per-meeting cost in a follow-up if telemetry justifies |
-| Insights hallucinate on thin context | Medium | Low | 45s first-run floor; "Points to Clarify" section framed to invite skepticism |
 | Calendar poll fires during sleep | Low | Low | EventKit reads on wake are cheap; `.EKEventStoreChanged` catches missed changes |
 | Oatmeal ports drift | Low | Low | No shared packaging; local copies can evolve |
 | User denies Calendar permission mid-onboarding then can't find it | Low | Medium | Permission CTA in `CalendarSettingsView` handles denied state with deep-link to System Settings |
 | Auto-start fires for a declined event | Medium | Low | Trigger filter defaults to `.withLink`; countdown toast is a 5-second safety valve |
-| Live Ask chat VM persistence handoff loses messages | Low | High | Phase C test `TranscriptChatViewModelLivePersistenceTests` covers exactly this; promotion is atomic |
+| Live Ask chat lost on transcription failure | Low | Medium | Future Work in ADR-018 § Future Work — JSON sidecar persistence sketched, deferred until telemetry justifies |
 
-## Timeline estimate (optimistic, uninterrupted)
+## Timeline estimate (revised)
 
-- Phase A: 0.5 day (pure refactor)
-- Phase B: 2 days (service + parsing + wiring + finalize)
-- Phase C: 1.5 days (VM helper + live pane + handoff test)
-- Phase D: 2 days (ports + settings + onboarding + notifications)
-- Phase E: 1 day (countdown toast + flow wiring)
-- Phase F: 0.5 day
+- Phase A (tab shell) — ✅ shipped 2026-04-24
+- ~~Phase B (Insights)~~ — dropped per ADR-018 amendment
+- Phase C (Live Ask) — ✅ shipped 2026-04-24
+- Phase D (Calendar notify-only) — ✅ shipped 2026-04-25
+- Phase E (Calendar countdown + auto-stop) — ✅ shipped 2026-04-25
+- Phase F (Polish, naming, changelog) — 0.5 day remaining
 
-Total: ~7.5 engineering days. Shippable per phase; nothing requires all six to land before releasing v0.6.x.
+Total remaining: ~0.5 engineering days for Phase F polish.
 
 ## Changelog line (when all phases land)
 
-> **Meeting Recording (completed):** Meetings now open with live Transcript, Insights, and Ask tabs so you can glance at a rolling AI summary or ask "what did I miss?" without leaving the panel. Calendar-driven auto-start can remind you before a meeting begins and (optionally) start recording for you. Works with Zoom, Google Meet, Microsoft Teams, and Webex links on your macOS calendar.
+> **Meeting Recording (completed):** Meetings now open with live Transcript and Ask tabs so you can chat with the rolling transcript and use one-tap thinking-partner pills ("What did I miss?", "What's worth pushing back on?", "Action items?") without leaving the panel. Calendar-driven auto-start can remind you before a meeting begins and (optionally) start recording for you. Works with Zoom, Google Meet, Microsoft Teams, and Webex links on your macOS calendar.

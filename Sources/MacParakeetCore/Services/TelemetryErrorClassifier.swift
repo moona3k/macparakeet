@@ -35,7 +35,17 @@ public enum TelemetryErrorClassifier {
 
     /// Returns a privacy-safe error detail string: paths and URLs stripped, truncated to 512 chars.
     public static func errorDetail(_ error: Error) -> String {
-        var sanitized = error.localizedDescription
+        return String(sanitize(error.localizedDescription).prefix(512))
+    }
+
+    /// Strips file paths and URLs from an arbitrary string. Idempotent — running
+    /// twice produces the same result. Used both by `errorDetail(_:)` for Error
+    /// values and by `TelemetryEvent.errorOccurred` for raw description strings,
+    /// so any caller route into telemetry is automatically privacy-clean even
+    /// if the caller forgot to invoke `errorDetail` themselves. No truncation
+    /// here — callers truncate to whatever budget they're enforcing.
+    public static func sanitize(_ string: String) -> String {
+        var sanitized = string
         // Strip file:// URLs (must run before path stripping to catch file:///Users/...)
         sanitized = sanitized.replacingOccurrences(
             of: #"file://[^\s\"',)\]]+"#,
@@ -54,7 +64,7 @@ public enum TelemetryErrorClassifier {
             with: "<url>",
             options: .regularExpression
         )
-        return String(sanitized.prefix(512))
+        return sanitized
     }
 
     private static func urlErrorCodeName(_ code: URLError.Code) -> String {

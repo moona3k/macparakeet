@@ -167,13 +167,17 @@ public final class LLMClient: LLMClientProtocol, Sendable {
                     // Process each line individually. Some providers (Gemini)
                     // don't send blank line separators between SSE events,
                     // so we parse each `data:` line as it arrives.
+                    var sawDone = false
+                    var yieldedAnyContent = false
                     for try await line in bytes.lines {
                         try Task.checkCancellation()
 
                         switch parseSSELine(line) {
                         case .content(let text):
+                            yieldedAnyContent = true
                             continuation.yield(text)
                         case .done:
+                            sawDone = true
                             continuation.finish()
                             return
                         case .error(let message):
@@ -183,6 +187,18 @@ public final class LLMClient: LLMClientProtocol, Sendable {
                         }
                     }
 
+                    // Stream ended without `[DONE]`. For strict providers
+                    // (OpenAI, OpenRouter — both contractually emit `[DONE]`),
+                    // a missing sentinel means the connection dropped mid-
+                    // response and the user is looking at truncated output.
+                    // Lenient providers (Gemini, OpenAI-Compatible aggregators
+                    // like Together/Fireworks, LM Studio) frequently omit it,
+                    // so we accept a clean end-of-stream there.
+                    try validateStreamCompletion(
+                        providerID: config.id,
+                        sawSentinel: sawDone,
+                        yieldedAnyContent: yieldedAnyContent
+                    )
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -226,13 +242,23 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             throw LLMError.invalidResponse
         }
 
-        let usage = TokenUsage(
-            promptTokens: ollamaResponse.prompt_eval_count ?? 0,
-            completionTokens: ollamaResponse.eval_count ?? 0
-        )
+        // Emit usage only when both halves are present. Defaulting missing
+        // counts to 0 (the previous `?? 0` behavior) is misleading for any
+        // downstream consumer that has to distinguish "really 0 tokens"
+        // from "Ollama didn't report it" — most acutely the public
+        // `--json` envelope shape, which would otherwise show a
+        // fabricated `totalTokens` for partial reports.
+        let usage: TokenUsage?
+        if let prompt = ollamaResponse.prompt_eval_count,
+           let completion = ollamaResponse.eval_count {
+            usage = TokenUsage(promptTokens: prompt, completionTokens: completion)
+        } else {
+            usage = nil
+        }
 
         return ChatCompletionResponse(
             content: ollamaResponse.message.content,
+            finishReason: ollamaResponse.done_reason,
             model: ollamaResponse.model,
             usage: usage
         )
@@ -380,7 +406,12 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             completionTokens: anthropicResponse.usage.output_tokens
         )
 
-        return ChatCompletionResponse(content: content, model: anthropicResponse.model, usage: usage)
+        return ChatCompletionResponse(
+            content: content,
+            finishReason: anthropicResponse.stop_reason,
+            model: anthropicResponse.model,
+            usage: usage
+        )
     }
 
     private func anthropicChatCompletionStream(
@@ -412,6 +443,8 @@ public final class LLMClient: LLMClientProtocol, Sendable {
                         throw mapError(statusCode: http.statusCode, data: errorData)
                     }
 
+                    var sawMessageStop = false
+                    var yieldedAnyContent = false
                     for try await line in bytes.lines {
                         try Task.checkCancellation()
 
@@ -432,8 +465,10 @@ public final class LLMClient: LLMClientProtocol, Sendable {
                         if eventType == "content_block_delta",
                            let delta = json["delta"] as? [String: Any],
                            let text = delta["text"] as? String {
+                            yieldedAnyContent = true
                             continuation.yield(text)
                         } else if eventType == "message_stop" {
+                            sawMessageStop = true
                             continuation.finish()
                             return
                         } else if eventType == "error",
@@ -443,6 +478,14 @@ public final class LLMClient: LLMClientProtocol, Sendable {
                         }
                     }
 
+                    // Anthropic always emits `message_stop` to terminate a
+                    // successful stream. Reaching EOF without it means the
+                    // HTTP connection dropped mid-response — treat as truncated.
+                    try validateStreamCompletion(
+                        providerID: config.id,
+                        sawSentinel: sawMessageStop,
+                        yieldedAnyContent: yieldedAnyContent
+                    )
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -466,7 +509,10 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         var request = URLRequest(url: url, timeoutInterval: stream ? 120 : 30)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        // Anthropic versions are pinned date strings. We track a single
+        // constant so chat + listModels stay in sync. Anthropic's public
+        // version history still lists 2023-06-01 as the current latest pin.
+        request.setValue(LLMClient.anthropicAPIVersion, forHTTPHeaderField: "anthropic-version")
 
         if let apiKey = config.apiKey {
             request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
@@ -516,7 +562,9 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             // Anthropic uses x-api-key header and anthropic-version
             if let key = config.apiKey {
                 request.setValue(key, forHTTPHeaderField: "x-api-key")
-                request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+                // Anthropic versions are pinned date strings. We track a single
+                // constant so chat + listModels stay in sync.
+                request.setValue(LLMClient.anthropicAPIVersion, forHTTPHeaderField: "anthropic-version")
             }
         case .gemini:
             // Gemini uses ?key= query parameter on their native endpoint
@@ -721,9 +769,42 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         return parseSSELine("data: \(payload)")
     }
 
-    internal func validateStreamCompletion(sawDone: Bool) throws {
-        // Many OpenAI-compatible providers (Gemini, Ollama) don't send [DONE].
-        // A clean stream end without [DONE] is acceptable.
+    /// Whether the provider contractually emits a stream terminator. Strict
+    /// providers throw `streamingError` on EOF without the sentinel because
+    /// the user is otherwise looking at silently truncated output. Lenient
+    /// providers omit the sentinel commonly enough that enforcing it would
+    /// produce false positives:
+    ///
+    /// - **Strict**: OpenAI (`[DONE]`), OpenRouter (`[DONE]`, OpenAI-compat
+    ///   aggregator), Anthropic (`message_stop` event).
+    /// - **Lenient**: Gemini (no `[DONE]` per spec), OpenAI-Compatible
+    ///   (Together/Fireworks/Groq vary), LM Studio (varies), Ollama (uses
+    ///   `done:true` field detected separately, not the SSE `[DONE]` line),
+    ///   localCLI (subprocess output, not HTTP SSE).
+    internal static func providerEnforcesStreamSentinel(_ id: LLMProviderID) -> Bool {
+        switch id {
+        case .openai, .openrouter, .anthropic:
+            return true
+        case .openaiCompatible, .gemini, .ollama, .lmstudio, .localCLI:
+            return false
+        }
+    }
+
+    internal func validateStreamCompletion(
+        providerID: LLMProviderID,
+        sawSentinel: Bool,
+        yieldedAnyContent: Bool
+    ) throws {
+        guard Self.providerEnforcesStreamSentinel(providerID), !sawSentinel else { return }
+
+        // EOF before the sentinel from a provider that contractually emits one.
+        // Distinguish "no content at all" (likely auth/connection drop after
+        // headers — usually a backend issue) from "some content delivered"
+        // (mid-response truncation — the user-visible failure mode).
+        let detail = yieldedAnyContent
+            ? "stream ended before completion sentinel — response is truncated"
+            : "stream produced no content before EOF"
+        throw LLMError.streamingError(detail)
     }
 
     private func mapError(statusCode: Int, data: Data) -> LLMError {
@@ -731,15 +812,23 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         // Providers use different formats:
         //   OpenAI/Anthropic: {"error": {"message": "..."}}
         //   Gemini:           [{"error": {"code": 404, "message": "...", "status": "NOT_FOUND"}}]
-        let message: String
+        let rawMessage: String
         if let errorBody = try? JSONDecoder().decode(OpenAIErrorResponse.self, from: data) {
-            message = errorBody.error.message
+            rawMessage = errorBody.error.message
         } else if let geminiArray = try? JSONDecoder().decode([GeminiErrorWrapper].self, from: data),
                   let first = geminiArray.first {
-            message = first.error.message
+            rawMessage = first.error.message
         } else {
-            message = String(data: data, encoding: .utf8) ?? "Unknown error"
+            rawMessage = String(data: data, encoding: .utf8) ?? "Unknown error"
         }
+
+        // Sanitize the message before propagating. Some providers echo the
+        // request shape (or fragments of it) in their error responses; if a
+        // misconfigured request leaked an Authorization header, sk-... key,
+        // or `api-key=...` query param, the message would otherwise carry
+        // those tokens into Swift error chains, telemetry, logs, and the
+        // user-visible UI.
+        let message = LLMClient.scrubAPIKeyArtifacts(from: rawMessage)
 
         switch statusCode {
         case 401:
@@ -759,6 +848,45 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         default:
             return .providerError(message)
         }
+    }
+
+    /// Anthropic Messages API version pin. Anthropic dates each API version;
+    /// use the latest date listed in the public version history so chat-stream
+    /// and listModels stay in lockstep.
+    static let anthropicAPIVersion = "2023-06-01"
+
+    /// Strips obvious API-key artifacts from a provider error message before
+    /// it propagates into Swift errors / telemetry / logs / UI. Intended to
+    /// be idempotent and conservative -- false negatives are acceptable;
+    /// false positives that mask the actual error message are not. Patterns:
+    /// - `sk-...` and `sk-proj-...` style OpenAI / Anthropic keys
+    /// - `Bearer <token>`
+    /// - `x-api-key: <token>` and similar header echoes
+    /// - `key=<token>` and `api[_-]?key=<token>` query-param echoes
+    static func scrubAPIKeyArtifacts(from message: String) -> String {
+        let patterns: [(String, String)] = [
+            // OpenAI / Anthropic / OpenRouter style keys with `sk-` or `sk-proj-` prefix.
+            (#"\bsk-[A-Za-z0-9_\-]{8,}"#, "<api-key>"),
+            // Bearer tokens (Authorization header echoes).
+            (#"\bBearer\s+[A-Za-z0-9._\-]{8,}"#, "Bearer <token>"),
+            // x-api-key header echoes (case-insensitive).
+            (#"(?i)\bx-api-key:\s*[A-Za-z0-9._\-]{8,}"#, "x-api-key: <token>"),
+            // Generic api-key / api_key / apikey query params (case-insensitive).
+            (#"(?i)\bapi[_-]?key=[A-Za-z0-9._\-]{8,}"#, "api-key=<token>"),
+            // Generic key= query param (must come last so the more specific
+            // api-key= rule wins).
+            (#"(?i)\bkey=[A-Za-z0-9._\-]{20,}"#, "key=<token>"),
+        ]
+
+        var out = message
+        for (pattern, replacement) in patterns {
+            out = out.replacingOccurrences(
+                of: pattern,
+                with: replacement,
+                options: .regularExpression
+            )
+        }
+        return out
     }
 }
 
@@ -866,6 +994,7 @@ struct AnthropicResponse: Decodable {
     let model: String
     let content: [ContentBlock]
     let usage: AnthropicUsage
+    let stop_reason: String?
 
     enum ContentBlock: Decodable {
         case text(String)
@@ -911,6 +1040,7 @@ struct OllamaChatResponse: Decodable {
     let model: String
     let message: OllamaResponseMessage
     let done: Bool?
+    let done_reason: String?
     let error: String?
     let prompt_eval_count: Int?
     let eval_count: Int?

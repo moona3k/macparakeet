@@ -22,12 +22,17 @@ actor CaptureOrchestrator {
     private var pairJoiner = MeetingAudioPairJoiner()
     private var microphoneChunker = AudioChunker()
     private var systemChunker = AudioChunker()
+    /// First valid hostTime (in ms) seen from any source, kept as the shared
+    /// recording-relative origin so per-source offsets stay in the recording
+    /// duration's range instead of leaking absolute mach uptime.
+    private var sharedOriginMs: Int?
     private var sourceTimelineOffsetsMs: [AudioSource: Int] = [:]
 
     func reset() async {
         pairJoiner.reset()
         await microphoneChunker.reset()
         await systemChunker.reset()
+        sharedOriginMs = nil
         sourceTimelineOffsetsMs = [:]
     }
 
@@ -76,29 +81,39 @@ actor CaptureOrchestrator {
     ) async -> CaptureOrchestratorOutput {
         var output = CaptureOrchestratorOutput()
         for pair in pairs {
+            // Feed both chunkers on every pair so their sample-position
+            // counters stay aligned with wallclock. The pair joiner already
+            // pads the absent source with silence on solo drains; without
+            // pushing those zeros through to the absent chunker, its
+            // `totalSamplesProcessed` freezes while the active source's
+            // tracks wallclock — producing future-dated chunks (e.g.
+            // "Me 17:24" inside a 9:20 recording).
             var processedMicrophoneRms: Float?
-
+            let micSamples: [Float]
             if pair.hasMicrophoneSignal {
                 let processedMic = micConditioner.condition(
                     microphone: pair.microphoneSamples,
                     speaker: pair.systemSamples
                 )
                 processedMicrophoneRms = chunkRms(for: processedMic)
-                if let micChunk = offsetChunk(
-                    await microphoneChunker.addSamples(processedMic),
-                    source: .microphone,
-                    hostTime: pair.microphoneHostTime
-                ) {
-                    output.chunks.append(CaptureOrchestratorChunk(source: .microphone, chunk: micChunk))
-                }
+                micSamples = processedMic
+            } else {
+                micSamples = pair.microphoneSamples
             }
 
-            if pair.hasSystemSignal,
-               let systemChunk = offsetChunk(
-                   await systemChunker.addSamples(pair.systemSamples),
-                   source: .system,
-                   hostTime: pair.systemHostTime
-               ) {
+            if let micChunk = offsetChunk(
+                await microphoneChunker.addSamples(micSamples),
+                source: .microphone,
+                hostTime: pair.microphoneHostTime
+            ) {
+                output.chunks.append(CaptureOrchestratorChunk(source: .microphone, chunk: micChunk))
+            }
+
+            if let systemChunk = offsetChunk(
+                await systemChunker.addSamples(pair.systemSamples),
+                source: .system,
+                hostTime: pair.systemHostTime
+            ) {
                 output.chunks.append(CaptureOrchestratorChunk(source: .system, chunk: systemChunk))
             }
 
@@ -133,10 +148,15 @@ actor CaptureOrchestrator {
             return existing
         }
         guard let hostTime else {
+            // Don't cache: a later buffer from this source may carry a valid
+            // hostTime, and we want that one to define the cross-stream delta.
             return 0
         }
 
-        let offsetMs = Int((AVAudioTime.seconds(forHostTime: hostTime) * 1000).rounded())
+        let absoluteMs = Int((AVAudioTime.seconds(forHostTime: hostTime) * 1000).rounded())
+        let origin = sharedOriginMs ?? absoluteMs
+        sharedOriginMs = origin
+        let offsetMs = absoluteMs - origin
         sourceTimelineOffsetsMs[source] = offsetMs
         return offsetMs
     }

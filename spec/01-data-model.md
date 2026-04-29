@@ -11,13 +11,14 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 ## Relationship Diagram
 
 ```
-┌──────────────────┐
-│    dictations    │   v0.1 — Voice dictation history
-└──────────────────┘
+┌──────────────────┐       ┌──────────────────────────────┐
+│    dictations    │ ╌╌╌▶  │ lifetime_dictation_stats     │  v0.7.4 — Singleton counter
+└──────────────────┘       └──────────────────────────────┘    (survives row deletion)
+   v0.1 — Voice dictation history    (logical write-path, no FK)
 
 ┌──────────────────┐       ┌─────────────────────────┐
 │  transcriptions  │◄──FK──│   chat_conversations    │  v0.5 — Multi-conversation chat
-│                  │◄──FK──│      summaries          │  v0.5 — Multi-summary per transcript
+│                  │◄──FK──│      summaries          │  v0.7 — Prompt results per transcript
 └──────────────────┘       └─────────────────────────┘
    v0.1 — File transcription records
 
@@ -30,11 +31,11 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 └──────────────────┘
 
 ┌──────────────────┐
-│     prompts      │   v0.5 — Reusable prompt templates
+│     prompts      │   v0.7 — Reusable prompt templates
 └──────────────────┘
 ```
 
-Tables are self-contained domains with two exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete.
+Tables are self-contained domains with two exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete. The Swift model for `summaries` is `PromptResult`; the table name is retained for migration compatibility.
 
 ---
 
@@ -94,7 +95,6 @@ CREATE TABLE transcriptions (
     speakerCount INTEGER,                              -- Number of detected speakers (v0.4 diarization)
     speakers TEXT,                                      -- JSON: [{"id":"S1","label":"Speaker 1"},{"id":"S2","label":"Sarah"}] (v0.4 diarization)
     diarizationSegments TEXT,                           -- JSON: [{"speakerId":"S1","startMs":0,"endMs":5000},...] (v0.4 diarization)
-    summary TEXT,                                       -- v0.4: LLM-generated transcript summary
     chatMessages TEXT,                                  -- v0.4: JSON array of LLM chat messages
     status TEXT NOT NULL DEFAULT 'processing',          -- 'processing', 'completed', 'error', 'cancelled'
     errorMessage TEXT,                                  -- Error details if status='error'
@@ -105,6 +105,9 @@ CREATE TABLE transcriptions (
     videoDescription TEXT,                              -- v0.5: YouTube video description
     isFavorite INTEGER NOT NULL DEFAULT 0,              -- v0.5: User favorite marker
     sourceType TEXT NOT NULL DEFAULT 'file',            -- v0.6: 'file', 'youtube', or 'meeting'
+    recoveredFromCrash INTEGER NOT NULL DEFAULT 0,       -- v0.7.5: recovered interrupted meeting flag
+    isTranscriptEdited INTEGER NOT NULL DEFAULT 0,       -- v0.7.7: user-edited transcript flag
+    userNotes TEXT,                                      -- v0.8: meeting notes used to steer prompt results
     updatedAt TEXT NOT NULL                             -- ISO 8601 timestamp
 );
 
@@ -121,6 +124,10 @@ CREATE INDEX idx_transcriptions_created_at ON transcriptions(createdAt DESC);
 - `thumbnailURL`, `channelName`, `videoDescription` store YouTube metadata fetched during download. Added in v0.5.
 - `isFavorite` enables user-marked favorites with filtered library view. Added in v0.5.
 - `sourceType` distinguishes the origin of a transcription: `'file'` (drag-drop), `'youtube'` (URL), or `'meeting'` (meeting recording). Added in v0.6. Default `'file'` for backward compatibility. Existing rows with `sourceURL IS NOT NULL` are backfilled to `'youtube'`.
+- `recoveredFromCrash` marks meeting recordings recovered from an interrupted session. Added in v0.7.5.
+- `isTranscriptEdited` marks transcript text changed by the user after automatic processing. Added in v0.7.7.
+- `userNotes` stores free-form meeting notes typed during recording; prompt generation snapshots this value on `summaries.userNotesSnapshot`. Added in v0.8.
+- The legacy `summary` column was migrated into `summaries` in v0.7 and dropped in v0.7.6.
 - No FTS on transcriptions in v0.1. Search by filename or scroll the list. Revisit if the list grows large.
 
 **Diarization data (v0.4):**
@@ -207,14 +214,14 @@ CREATE INDEX idx_chat_conversations_transcription_id ON chat_conversations(trans
 
 ---
 
-### `prompts` (v0.5)
+### `prompts` (v0.7)
 
 Reusable prompt templates for LLM-powered transcript processing. Community prompts are seeded during migration; custom prompts support full CRUD. Community prompts can be hidden but not edited or deleted.
 
 ```sql
 CREATE TABLE prompts (
     id        TEXT PRIMARY KEY,                          -- UUID string
-    name      TEXT NOT NULL,                              -- Display name ("General Summary", "Action Items")
+    name      TEXT NOT NULL,                              -- Display name ("Summary", "Action Items & Decisions")
     content   TEXT NOT NULL,                              -- The actual instruction text
     category  TEXT NOT NULL DEFAULT 'summary',            -- .summary (extensible to .transform)
     isBuiltIn INTEGER NOT NULL DEFAULT 0,                 -- Community prompt — hide only, no edit/delete
@@ -232,13 +239,14 @@ CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
 - `name` has a case-insensitive unique index — no duplicate names across community and custom prompts.
 - `isBuiltIn` prompts are seeded from `Prompt.builtInPrompts()` during migration. The repository layer enforces the hide-only invariant (delete returns `false` for built-in prompts).
 - `isAutoRun` is independent of `isVisible`, but repository/UI behavior forces auto-run prompts visible while auto-run is enabled.
-- `category` scopes prompts to their use case (`.summary` today, `.transform` reserved for future).
+- `category` currently stores the raw value `"summary"` for compatibility, while the Swift enum case is `Prompt.Category.result`.
+- Built-ins currently come from `Prompt.builtInPrompts()` in Swift. The list includes "Memo-Steered Notes" and "Summary" as auto-run prompts for users who have not disabled every auto-run prompt.
 
 ---
 
-### `summaries` (v0.5)
+### `summaries` (v0.7, Swift model: `PromptResult`)
 
-Stores generated summaries per transcription. Each transcript can have multiple summaries from different prompts. Summaries snapshot the prompt content used at generation time for reproducibility.
+Stores generated prompt results per transcription. Each transcript can have multiple results from different prompts. Results snapshot the prompt content and meeting notes used at generation time for reproducibility.
 
 ```sql
 CREATE TABLE summaries (
@@ -249,6 +257,7 @@ CREATE TABLE summaries (
     promptContent     TEXT NOT NULL,                       -- Snapshot: full prompt text used
     extraInstructions TEXT,                                -- User's per-run extra instructions (if any)
     content           TEXT NOT NULL,                       -- The generated summary text
+    userNotesSnapshot TEXT,                                -- v0.8: notes used when generating this result
     createdAt         TEXT NOT NULL,                       -- ISO 8601 timestamp
     updatedAt         TEXT NOT NULL                        -- ISO 8601 timestamp
 );
@@ -257,10 +266,36 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 ```
 
 **Notes:**
-- `transcriptionId` has a cascading delete — deleting a transcription removes all its summaries.
-- `promptName` and `promptContent` are snapshots, not references to the `prompts` table. Editing or deleting a prompt after generation doesn't change the summary's metadata.
-- Legacy `transcriptions.summary` column is preserved and mirrors the newest completed summary for backward compatibility with existing export paths.
-- Migration from existing data: `transcriptions.summary` values migrate into `summaries` with `General Summary` prompt metadata.
+- `transcriptionId` has a cascading delete — deleting a transcription removes all its prompt results.
+- `promptName` and `promptContent` are snapshots, not references to the `prompts` table. Editing or deleting a prompt after generation doesn't change the result's metadata.
+- `userNotesSnapshot` captures `Transcription.userNotes` at generation time so later note edits do not rewrite historical prompt results.
+- Migration from existing data: legacy `transcriptions.summary` values migrate into `summaries` with classic "Summary" prompt metadata, then the legacy column is dropped by `v0.7.6-drop-legacy-transcription-summary`.
+
+---
+
+### `lifetime_dictation_stats` (v0.7.4)
+
+Single-row counter table. Headline voice stats (total words, total duration, total count, longest dictation) survive deletion of the underlying `dictations` rows. Fixes [#124](https://github.com/moona3k/macparakeet/issues/124) — clearing dictation history used to wipe stats too because they were SQL aggregates.
+
+```sql
+CREATE TABLE lifetime_dictation_stats (
+    id                INTEGER PRIMARY KEY CHECK (id = 1),    -- singleton row
+    totalCount        INTEGER NOT NULL DEFAULT 0,
+    totalDurationMs   INTEGER NOT NULL DEFAULT 0,
+    totalWords        INTEGER NOT NULL DEFAULT 0,
+    longestDurationMs INTEGER NOT NULL DEFAULT 0,            -- high-water mark
+    updatedAt         TEXT NOT NULL
+);
+```
+
+**Notes:**
+- Singleton enforced by `CHECK (id = 1)`. Migration immediately seeds the row from existing `dictations` so subsequent updates are guaranteed plain `UPDATE`s.
+- Hot-path increments live in `DictationRepository.save()` inside the same write transaction as the row insert. Status transition guard ensures only `→ .completed` increments fire.
+- `applyLifetimeDelta` handles the `(.completed, .completed)` re-save case (e.g. a future "edit transcript" feature) without double-counting.
+- `recomputeLifetimeStats(db:)` (recovery / migration helper) uses `INSERT OR REPLACE` so it self-heals if the singleton row is missing. Increment helpers `UPDATE … WHERE id=1` and throw `LifetimeStatsError.singletonMissing` if `db.changesCount != 1`.
+- Hidden (private) dictations contribute to lifetime totals — privacy is "no transcript stored," not "no metric counted."
+- Weekly streak / "this week" intentionally remain derived from current rows, not lifetime.
+- User-initiated reset: `DictationRepository.resetLifetimeStats()` zeros the singleton row without touching dictation rows. Symmetric counterpart to `deleteAll()` (rows deleted, stats preserved). Exposed as a "Reset Lifetime Stats..." button in Settings → Storage.
 
 ---
 
@@ -333,7 +368,6 @@ struct Transcription: Codable, Identifiable {
     var speakerCount: Int?
     var speakers: [SpeakerInfo]?
     var diarizationSegments: [DiarizationSegmentRecord]?
-    var summary: String?                    // v0.4 — LLM-generated transcript summary
     var chatMessages: [ChatMessage]?        // v0.4 — Legacy (migrated to chat_conversations in v0.5)
     var status: TranscriptionStatus
     var errorMessage: String?
@@ -344,6 +378,9 @@ struct Transcription: Codable, Identifiable {
     var channelName: String?            // v0.5 — YouTube channel name
     var videoDescription: String?       // v0.5 — YouTube video description
     var isFavorite: Bool                // v0.5 — User favorite marker
+    var recoveredFromCrash: Bool        // v0.7.5 — Recovered interrupted meeting
+    var isTranscriptEdited: Bool        // v0.7.7 — User edited transcript text
+    var userNotes: String?              // v0.8 — Free-form meeting notes
     var updatedAt: Date
 
     struct WordTimestamp: Codable {
@@ -464,12 +501,13 @@ struct Prompt: Codable, Identifiable, Sendable {
     var category: Category
     var isBuiltIn: Bool
     var isVisible: Bool
+    var isAutoRun: Bool
     var sortOrder: Int
     var createdAt: Date
     var updatedAt: Date
 
     enum Category: String, Codable, Sendable {
-        case summary
+        case result = "summary"
         case transform
     }
 }
@@ -479,24 +517,25 @@ extension Prompt: FetchableRecord, PersistableRecord {
 }
 ```
 
-### Summary
+### PromptResult
 
 ```swift
 import Foundation
 import GRDB
 
-struct Summary: Codable, Identifiable, Sendable {
+struct PromptResult: Codable, Identifiable, Sendable {
     var id: UUID
     var transcriptionId: UUID
     var promptName: String
     var promptContent: String
     var extraInstructions: String?
     var content: String
+    var userNotesSnapshot: String?
     var createdAt: Date
     var updatedAt: Date
 }
 
-extension Summary: FetchableRecord, PersistableRecord {
+extension PromptResult: FetchableRecord, PersistableRecord {
     static let databaseTableName = "summaries"
 }
 ```
@@ -670,6 +709,40 @@ migrator.registerMigration("v0.6-transcription-source-type") { db in
         WHERE sourceURL IS NOT NULL
     """)
 }
+
+// v0.7 — Prompt library + prompt results
+migrator.registerMigration("v0.7-prompts-and-summaries") { db in
+    try db.create(table: "prompts") { t in
+        t.column("id", .text).primaryKey()
+        t.column("name", .text).notNull()
+        t.column("content", .text).notNull()
+        t.column("category", .text).notNull().defaults(to: "summary")
+        t.column("isBuiltIn", .boolean).notNull().defaults(to: false)
+        t.column("isVisible", .boolean).notNull().defaults(to: true)
+        t.column("isAutoRun", .boolean).notNull().defaults(to: false)
+        t.column("sortOrder", .integer).notNull().defaults(to: 0)
+        t.column("createdAt", .text).notNull()
+        t.column("updatedAt", .text).notNull()
+    }
+    try db.create(table: "summaries") { t in
+        t.column("id", .text).primaryKey()
+        t.column("transcriptionId", .text).notNull().references("transcriptions", onDelete: .cascade)
+        t.column("promptName", .text).notNull()
+        t.column("promptContent", .text).notNull()
+        t.column("extraInstructions", .text)
+        t.column("content", .text).notNull()
+        t.column("createdAt", .text).notNull()
+        t.column("updatedAt", .text).notNull()
+    }
+    // Existing transcriptions.summary values are copied into summaries here.
+}
+
+// Later additive migrations:
+// v0.7.4 — lifetime_dictation_stats
+// v0.7.5 — transcriptions.recoveredFromCrash
+// v0.7.6 — drop legacy transcriptions.summary
+// v0.7.7 — transcriptions.isTranscriptEdited
+// v0.8 — transcriptions.userNotes and summaries.userNotesSnapshot
 ```
 
 ### Migration Rules
@@ -692,8 +765,8 @@ migrator.registerMigration("v0.6-transcription-source-type") { db in
 | `custom_words` | v0.2 | Vocabulary anchors and corrections |
 | `text_snippets` | v0.2 | Trigger-based text expansion |
 | `transcriptions.diarizationSegments` | v0.4 | Speaker diarization segments (JSON) |
-| `transcriptions.summary` | v0.4 | LLM-generated transcript summary |
-| `transcriptions.chatMessages` | v0.4 | Legacy — migrated to `chat_conversations` in v0.5 |
+| ~~`transcriptions.summary`~~ | ~~v0.4~~ | ~~Legacy single summary~~ (migrated to `summaries` in v0.7, dropped in v0.7.6) |
+| `transcriptions.chatMessages` | v0.4 | Legacy — migrated to `chat_conversations` in v0.5; retained as nullable backward-compatible column |
 | `dictations.hidden` | v0.5 | Private dictation mode flag |
 | `dictations.wordCount` | v0.5 | Cached word count for voice stats |
 | `chat_conversations` | v0.5 | Multi-conversation chat per transcription (FK → transcriptions) |
@@ -702,9 +775,14 @@ migrator.registerMigration("v0.6-transcription-source-type") { db in
 | `transcriptions.videoDescription` | v0.5 | YouTube video description |
 | `transcriptions.isFavorite` | v0.5 | User favorite marker |
 | `transcriptions.sourceType` | v0.6 | Origin of transcription: `file`, `youtube`, or `meeting` |
-| `text_snippets.action` | v0.5 | Keystroke action type for snippet |
-| `prompts` | v0.5 | Reusable prompt templates (community + custom) |
-| `summaries` | v0.5 | Multi-summary per transcription (FK → transcriptions, cascade delete) |
+| `text_snippets.action` | v0.7 | Keystroke action type for snippet |
+| `prompts` | v0.7 | Reusable prompt templates (built-in + custom) |
+| `summaries` | v0.7 | Prompt results per transcription (FK → transcriptions, cascade delete; Swift model `PromptResult`) |
+| `lifetime_dictation_stats` | v0.7.4 | Singleton lifetime voice-stat counters |
+| `transcriptions.recoveredFromCrash` | v0.7.5 | Interrupted meeting recovery marker |
+| `transcriptions.isTranscriptEdited` | v0.7.7 | User-edited transcript marker |
+| `transcriptions.userNotes` | v0.8 | Free-form notes captured during meeting recording |
+| `summaries.userNotesSnapshot` | v0.8 | Snapshot of notes used for prompt generation |
 
 ### Tables NOT Planned (YAGNI)
 

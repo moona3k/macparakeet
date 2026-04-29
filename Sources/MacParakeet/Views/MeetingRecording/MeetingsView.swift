@@ -57,28 +57,9 @@ struct MeetingsView: View {
     // MARK: - Record Meeting Button
 
     private var recordMeetingButton: some View {
-        Button(action: onStartMeeting) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(DesignSystem.Colors.errorRed)
-                    .frame(width: 8, height: 8)
-
-                Text("Record Meeting")
-                    .font(.system(size: 13, weight: .semibold))
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(
-                Capsule()
-                    .fill(DesignSystem.Colors.errorRed.opacity(0.12))
-                    .overlay(
-                        Capsule()
-                            .strokeBorder(DesignSystem.Colors.errorRed.opacity(0.25), lineWidth: 0.5)
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .foregroundStyle(DesignSystem.Colors.errorRed)
+        RecordMeetingButton(action: onStartMeeting)
+            .keyboardShortcut("r", modifiers: .command)
+            .help("Record Meeting (⌘R)")
     }
 
     // MARK: - Meeting List
@@ -89,17 +70,22 @@ struct MeetingsView: View {
             emptyState
         } else {
             ScrollView {
-                LazyVStack(spacing: 2) {
-                    ForEach(viewModel.filteredTranscriptions) { transcription in
-                        MeetingRowCard(
-                            transcription: transcription,
-                            searchText: viewModel.searchText,
-                            onTap: { onSelectTranscription(transcription) },
-                            menuContent: { menuItems(for: transcription) }
-                        )
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(viewModel.groupedTranscriptions, id: \.group) { section in
+                        MeetingDateGroupHeader(group: section.group)
+                        ForEach(Array(section.items.enumerated()), id: \.element.id) { idx, transcription in
+                            MeetingRowCard(
+                                transcription: transcription,
+                                searchText: viewModel.searchText,
+                                onTap: { onSelectTranscription(transcription) },
+                                menuContent: { menuItems(for: transcription) }
+                            )
+                            if idx < section.items.count - 1 {
+                                MeetingRowHairline()
+                            }
+                        }
                     }
                 }
-                .padding(.horizontal, DesignSystem.Spacing.md)
                 .padding(.bottom, DesignSystem.Spacing.lg)
             }
         }

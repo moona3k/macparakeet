@@ -1,4 +1,5 @@
 import XCTest
+import CoreAudio
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
@@ -10,8 +11,27 @@ final class SettingsViewModelTests: XCTestCase {
     var mockPermissions: MockPermissionService!
     var mockLaunchAtLogin: MockLaunchAtLoginService!
     var testDefaults: UserDefaults!
+    var testDefaultsSuiteName: String!
     var entitlements: EntitlementsService!
     var youtubeDownloadsTestDir: URL!
+
+    private func waitUntil(
+        timeout: Duration = .seconds(1),
+        pollInterval: Duration = .milliseconds(10),
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        _ condition: () -> Bool
+    ) async throws {
+        let clock = ContinuousClock()
+        let deadline = clock.now + timeout
+        while !condition() {
+            if clock.now >= deadline {
+                XCTFail("Timed out waiting for condition", file: file, line: line)
+                return
+            }
+            try await Task.sleep(for: pollInterval)
+        }
+    }
 
     override func setUp() {
         mockRepo = MockDictationRepository()
@@ -23,8 +43,8 @@ final class SettingsViewModelTests: XCTestCase {
         try? FileManager.default.createDirectory(at: youtubeDownloadsTestDir, withIntermediateDirectories: true)
 
         // Use a unique suite name for isolated UserDefaults per test
-        let suiteName = "com.macparakeet.tests.\(UUID().uuidString)"
-        testDefaults = UserDefaults(suiteName: suiteName)!
+        testDefaultsSuiteName = "com.macparakeet.tests.\(UUID().uuidString)"
+        testDefaults = UserDefaults(suiteName: testDefaultsSuiteName)!
 
         viewModel = SettingsViewModel(
             defaults: testDefaults,
@@ -42,13 +62,14 @@ final class SettingsViewModelTests: XCTestCase {
 
     override func tearDown() {
         // Clean up the test UserDefaults suite
-        if let suiteName = testDefaults.volatileDomainNames.first {
-            testDefaults.removePersistentDomain(forName: suiteName)
+        if let testDefaultsSuiteName {
+            testDefaults.removePersistentDomain(forName: testDefaultsSuiteName)
         }
         if let youtubeDownloadsTestDir {
             try? FileManager.default.removeItem(at: youtubeDownloadsTestDir)
         }
         testDefaults = nil
+        testDefaultsSuiteName = nil
     }
 
     // MARK: - Initial Values
@@ -62,6 +83,12 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
         XCTAssertEqual(viewModel.meetingHotkeyTrigger, .chord(modifiers: ["command", "shift"], keyCode: 46))
+        XCTAssertEqual(viewModel.meetingAudioSourceMode, .microphoneAndSystem)
+        XCTAssertEqual(
+            viewModel.selectedMicrophoneDeviceUID,
+            SettingsViewModel.systemDefaultMicrophoneSelection,
+            "microphone selection should default to macOS System Default"
+        )
     }
 
     func testInitLoadsFromUserDefaults() {
@@ -73,6 +100,11 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(3.0, forKey: "silenceDelay")
         testDefaults.set(false, forKey: "saveAudioRecordings")
         testDefaults.set(false, forKey: "saveTranscriptionAudio")
+        testDefaults.set("usb-mic-uid", forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
+        testDefaults.set(
+            MeetingAudioSourceMode.systemOnly.rawValue,
+            forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
+        )
         HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 46)
             .save(to: testDefaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
 
@@ -85,15 +117,106 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.silenceDelay, 3.0)
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
+        XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "usb-mic-uid")
+        XCTAssertEqual(vm.meetingAudioSourceMode, .systemOnly)
         XCTAssertEqual(vm.meetingHotkeyTrigger, .chord(modifiers: ["control", "option"], keyCode: 46))
     }
 
-    func testMeetingAutoSaveMigratesLegacyTranscriptionSettings() {
-        testDefaults.set(true, forKey: AutoSaveService.enabledKey)
-        testDefaults.set(AutoSaveFormat.json.rawValue, forKey: AutoSaveService.formatKey)
-        AutoSaveService.storeFolder(youtubeDownloadsTestDir, defaults: testDefaults)
+    func testSelectedMicrophonePersistsUIDAndClearsForSystemDefault() {
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
 
-        let vm = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey),
+            "usb-mic-uid"
+        )
+
+        viewModel.selectedMicrophoneDeviceUID = SettingsViewModel.systemDefaultMicrophoneSelection
+
+        XCTAssertNil(testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey))
+    }
+
+    func testSelectedMicrophoneNormalizesBlankSelectionToSystemDefault() {
+        viewModel.selectedMicrophoneDeviceUID = "usb-mic-uid"
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey),
+            "usb-mic-uid"
+        )
+
+        viewModel.selectedMicrophoneDeviceUID = "   "
+
+        XCTAssertEqual(viewModel.selectedMicrophoneDeviceUID, SettingsViewModel.systemDefaultMicrophoneSelection)
+        XCTAssertNil(testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey))
+    }
+
+    func testRefreshMicrophoneDevicesUsesInjectedDevicesAndMarksDefaultFirst() {
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            inputDevicesProvider: {
+                [
+                    AudioDeviceManager.InputDevice(
+                        id: 20,
+                        uid: "usb-alpha",
+                        name: "Alpha USB Mic",
+                        transportType: kAudioDeviceTransportTypeUSB
+                    ),
+                    AudioDeviceManager.InputDevice(
+                        id: 10,
+                        uid: "builtin-zed",
+                        name: "Zed Built-In Mic",
+                        transportType: kAudioDeviceTransportTypeBuiltIn
+                    )
+                ]
+            },
+            defaultInputDeviceUIDProvider: { "builtin-zed" }
+        )
+
+        XCTAssertEqual(vm.microphoneDeviceOptions.map(\.uid), ["builtin-zed", "usb-alpha"])
+        XCTAssertEqual(vm.microphoneDeviceOptions.first?.displayName, "Zed Built-In Mic (System Default)")
+        XCTAssertEqual(vm.microphoneDeviceOptions.last?.displayName, "Alpha USB Mic")
+        XCTAssertEqual(vm.microphoneDeviceOptions.last?.detail, "usb")
+    }
+
+    func testRefreshMicrophoneDevicesPreservesUnavailableStoredSelection() {
+        testDefaults.set("missing-usb-mic", forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
+
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            inputDevicesProvider: {
+                [
+                    AudioDeviceManager.InputDevice(
+                        id: 10,
+                        uid: "builtin-zed",
+                        name: "Zed Built-In Mic",
+                        transportType: kAudioDeviceTransportTypeBuiltIn
+                    )
+                ]
+            },
+            defaultInputDeviceUIDProvider: { "builtin-zed" }
+        )
+
+        XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "missing-usb-mic")
+        XCTAssertEqual(vm.microphoneDeviceOptions.map(\.uid), ["builtin-zed", "missing-usb-mic"])
+        XCTAssertEqual(vm.microphoneDeviceOptions.last?.displayName, "Selected microphone (unavailable)")
+        XCTAssertEqual(
+            vm.selectedMicrophoneStatusText,
+            "Selected microphone is unavailable. MacParakeet will use System Default until it returns."
+        )
+    }
+
+    func testMeetingAutoSaveMigratesLegacyTranscriptionSettings() {
+        // setUp's vm already populated `testDefaults` for both scopes.
+        // To exercise the legacy upgrade path (transcription configured,
+        // meeting empty) we need a separate suite that hasn't been
+        // touched by ensureFolderConfigured yet.
+        let suite = "com.macparakeet.tests.legacy.\(UUID().uuidString)"
+        let fresh = UserDefaults(suiteName: suite)!
+        defer { fresh.removePersistentDomain(forName: suite) }
+
+        fresh.set(true, forKey: AutoSaveService.enabledKey)
+        fresh.set(AutoSaveFormat.json.rawValue, forKey: AutoSaveService.formatKey)
+        AutoSaveService.storeFolder(youtubeDownloadsTestDir, defaults: fresh)
+
+        let vm = SettingsViewModel(defaults: fresh)
 
         XCTAssertTrue(vm.meetingAutoSave)
         XCTAssertEqual(vm.meetingAutoSaveFormat, .json)
@@ -101,9 +224,89 @@ final class SettingsViewModelTests: XCTestCase {
             vm.meetingAutoSaveFolderPath.map { URL(fileURLWithPath: $0).standardizedFileURL.path },
             youtubeDownloadsTestDir.standardizedFileURL.path
         )
-        XCTAssertEqual(testDefaults.object(forKey: AutoSaveScope.meeting.enabledKey) as? Bool, true)
-        XCTAssertEqual(testDefaults.string(forKey: AutoSaveScope.meeting.formatKey), AutoSaveFormat.json.rawValue)
-        XCTAssertNotNil(testDefaults.data(forKey: AutoSaveScope.meeting.folderBookmarkKey))
+        XCTAssertEqual(fresh.object(forKey: AutoSaveScope.meeting.enabledKey) as? Bool, true)
+        XCTAssertEqual(fresh.string(forKey: AutoSaveScope.meeting.formatKey), AutoSaveFormat.json.rawValue)
+        XCTAssertNotNil(fresh.data(forKey: AutoSaveScope.meeting.folderBookmarkKey))
+    }
+
+    // MARK: - Auto-save folder configuration
+    //
+    // The folder is always set after init — to the user's chosen folder if
+    // they have one, or to the default `~/Documents/MacParakeet/...`
+    // otherwise. This collapses the entire bug class around "toggle ON ·
+    // no folder" because the no-folder state is unreachable in practice.
+
+    func testInitConfiguresDefaultFoldersWhenNoneStored() {
+        // setUp's `viewModel` already populated `testDefaults` via
+        // ensureFolderConfigured, so use a separate suite to observe
+        // the fresh-defaults case.
+        let suite = "com.macparakeet.tests.fresh.\(UUID().uuidString)"
+        let fresh = UserDefaults(suiteName: suite)!
+        defer { fresh.removePersistentDomain(forName: suite) }
+
+        XCTAssertNil(fresh.data(forKey: AutoSaveService.folderBookmarkKey))
+        XCTAssertNil(fresh.data(forKey: AutoSaveScope.meeting.folderBookmarkKey))
+
+        let vm = SettingsViewModel(defaults: fresh)
+
+        XCTAssertNotNil(vm.autoSaveFolderPath)
+        XCTAssertNotNil(vm.meetingAutoSaveFolderPath)
+        XCTAssertTrue(vm.autoSaveFolderPath?.contains("MacParakeet/Transcriptions") ?? false)
+        XCTAssertTrue(vm.meetingAutoSaveFolderPath?.contains("MacParakeet/Meetings") ?? false)
+    }
+
+    func testInitPreservesUserChosenFolder() {
+        // The user previously picked a custom folder. ensureFolderConfigured
+        // must not stomp it with the default.
+        AutoSaveService.storeFolder(youtubeDownloadsTestDir, defaults: testDefaults)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(
+            vm.autoSaveFolderPath.map { URL(fileURLWithPath: $0).standardizedFileURL.path },
+            youtubeDownloadsTestDir.standardizedFileURL.path,
+            "User-chosen folders must survive init untouched."
+        )
+    }
+
+    func testResetAutoSaveFolderRestoresDefault() {
+        AutoSaveService.storeFolder(youtubeDownloadsTestDir, defaults: testDefaults)
+        viewModel.autoSaveTranscripts = true
+        viewModel.autoSaveFolderPath = youtubeDownloadsTestDir.path
+
+        viewModel.resetAutoSaveFolder()
+
+        XCTAssertNotNil(viewModel.autoSaveFolderPath)
+        XCTAssertTrue(viewModel.autoSaveFolderPath?.contains("MacParakeet/Transcriptions") ?? false)
+        XCTAssertTrue(viewModel.autoSaveTranscripts, "Reset must not silently disable the toggle.")
+    }
+
+    func testResetMeetingAutoSaveFolderRestoresDefault() {
+        AutoSaveService.storeFolder(youtubeDownloadsTestDir, scope: .meeting, defaults: testDefaults)
+        viewModel.meetingAutoSave = true
+        viewModel.meetingAutoSaveFolderPath = youtubeDownloadsTestDir.path
+
+        viewModel.resetMeetingAutoSaveFolder()
+
+        XCTAssertNotNil(viewModel.meetingAutoSaveFolderPath)
+        XCTAssertTrue(viewModel.meetingAutoSaveFolderPath?.contains("MacParakeet/Meetings") ?? false)
+        XCTAssertTrue(viewModel.meetingAutoSave)
+    }
+
+    func testEnsureFolderConfiguredIsIdempotent() {
+        // Running ensureFolderConfigured twice on fresh defaults must
+        // produce the same path — the second call should see the first
+        // call's bookmark and not re-create or move the folder.
+        let suite = "com.macparakeet.tests.idempotent.\(UUID().uuidString)"
+        let fresh = UserDefaults(suiteName: suite)!
+        defer { fresh.removePersistentDomain(forName: suite) }
+
+        let first = AutoSaveService.ensureFolderConfigured(scope: .transcription, defaults: fresh)
+        let second = AutoSaveService.ensureFolderConfigured(scope: .transcription, defaults: fresh)
+
+        XCTAssertNotNil(first)
+        XCTAssertNotNil(second)
+        XCTAssertEqual(first?.standardizedFileURL.path, second?.standardizedFileURL.path)
     }
 
     func testSilenceDelayDefaultsTo2WhenZero() {
@@ -207,6 +410,15 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(
             HotkeyTrigger.current(defaults: testDefaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey),
             trigger
+        )
+    }
+
+    func testMeetingAudioSourceModePersists() {
+        viewModel.meetingAudioSourceMode = .systemOnly
+
+        XCTAssertEqual(
+            testDefaults.string(forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey),
+            MeetingAudioSourceMode.systemOnly.rawValue
         )
     }
 
@@ -441,6 +653,57 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.dictationCount, 0)
     }
 
+    func testClearAllDictationsAlsoDeletesPrivateRows() {
+        // "Clear All" must wipe both visible and hidden (metric-only) rows.
+        var hidden = Dictation(durationMs: 4000, rawTranscript: "")
+        hidden.hidden = true
+        mockRepo.dictations = [
+            Dictation(durationMs: 1000, rawTranscript: "Visible"),
+            hidden,
+        ]
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        viewModel.clearAllDictations()
+
+        XCTAssertTrue(mockRepo.deleteAllCalled, "deleteAll() must run")
+        XCTAssertTrue(mockRepo.deleteHiddenCalled, "deleteHidden() must run too — 'All' means all")
+        XCTAssertTrue(mockRepo.dictations.isEmpty, "no dictation rows survive Clear All")
+    }
+
+    // MARK: - Reset Lifetime Stats (#124)
+
+    func testResetLifetimeStatsCallsRepo() {
+        mockRepo.dictations = [
+            Dictation(durationMs: 1000, rawTranscript: "One"),
+        ]
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        var stateChangedFireCount = 0
+        viewModel.onDictationStateChanged = { stateChangedFireCount += 1 }
+
+        viewModel.resetLifetimeStats()
+
+        XCTAssertTrue(mockRepo.resetLifetimeStatsCalled)
+        XCTAssertFalse(mockRepo.deleteAllCalled, "Reset should not delete dictation rows")
+        XCTAssertEqual(viewModel.dictationCount, 1, "Dictation count must survive lifetime reset")
+        XCTAssertEqual(
+            stateChangedFireCount, 1,
+            "onDictationStateChanged must fire once so dependent views (e.g. history) reload derived stats"
+        )
+    }
+
     // MARK: - Unconfigured
 
     func testRefreshStatsBeforeConfigureIsNoOp() {
@@ -451,6 +714,12 @@ final class SettingsViewModelTests: XCTestCase {
     func testClearAllBeforeConfigureIsNoOp() {
         // Should not crash
         viewModel.clearAllDictations()
+        XCTAssertEqual(viewModel.dictationCount, 0)
+    }
+
+    func testResetLifetimeStatsBeforeConfigureIsNoOp() {
+        // Should not crash
+        viewModel.resetLifetimeStats()
         XCTAssertEqual(viewModel.dictationCount, 0)
     }
 
@@ -526,6 +795,32 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.parakeetStatus, .notDownloaded)
     }
 
+    func testRefreshModelStatusMarksActiveWhisperReady() async throws {
+        SpeechEnginePreference.whisper.save(to: testDefaults)
+        let vm = SettingsViewModel(
+            defaults: testDefaults,
+            youtubeDownloadsDirPath: { [youtubeDownloadsTestDir] in
+                youtubeDownloadsTestDir?.path ?? AppPaths.youtubeDownloadsDir
+            },
+            isSpeechModelCached: { true }
+        )
+        let stt = MockSTTClient()
+        await stt.setReady(true)
+
+        vm.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sttClient: stt
+        )
+
+        try await waitUntil { vm.whisperModelStatus == .ready }
+        XCTAssertEqual(vm.whisperModelStatusDetail, "Whisper Large v3 Turbo · Loaded in memory and ready.")
+        XCTAssertEqual(vm.parakeetStatus, .notLoaded)
+        XCTAssertEqual(vm.parakeetStatusDetail, "Downloaded. Loads automatically when needed.")
+    }
+
     func testRepairParakeetModelUsesRetryAndEndsReady() async throws {
         let vm = SettingsViewModel(
             defaults: testDefaults,
@@ -553,6 +848,71 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(warmUpCallCount, 3)
         XCTAssertFalse(vm.parakeetRepairing)
         XCTAssertEqual(vm.parakeetStatus, .ready)
+    }
+
+    func testWhisperDefaultLanguagePersistsNormalizedValue() {
+        viewModel.whisperDefaultLanguage = "KO_kr"
+        XCTAssertEqual(SpeechEnginePreference.whisperDefaultLanguage(defaults: testDefaults), "ko")
+
+        viewModel.whisperDefaultLanguage = "auto"
+        XCTAssertNil(SpeechEnginePreference.whisperDefaultLanguage(defaults: testDefaults))
+    }
+
+    func testSpeechEngineChangeCallsSwitcherAndPersistsOnSuccess() async throws {
+        let switcher = MockSpeechEngineSwitcher()
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.speechEnginePreference = .whisper
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        let preferences = await switcher.preferences
+        XCTAssertEqual(preferences, [.whisper])
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .whisper)
+        XCTAssertFalse(viewModel.speechEngineSwitching)
+        XCTAssertNil(viewModel.speechEngineError)
+    }
+
+    func testSpeechEngineChangeRevertsWhenSwitcherFails() async throws {
+        let switcher = MockSpeechEngineSwitcher(error: STTError.engineBusy)
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.speechEnginePreference = .whisper
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
+        XCTAssertEqual(viewModel.speechEngineError, STTError.engineBusy.localizedDescription)
+    }
+
+    private func waitForSpeechEngineSwitchingToFinish(
+        timeout: Duration = .seconds(2),
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) async throws {
+        let start = ContinuousClock.now
+        while viewModel.speechEngineSwitching {
+            if start.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for speech engine switch to finish", file: file, line: line)
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
     }
 
     // MARK: - Hotkey Trigger
@@ -608,5 +968,21 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm2.silenceDelay, 5.0)
         XCTAssertFalse(vm2.saveAudioRecordings)
         XCTAssertFalse(vm2.saveTranscriptionAudio)
+    }
+}
+
+private actor MockSpeechEngineSwitcher: SpeechEngineSwitching {
+    private let error: Error?
+    private(set) var preferences: [SpeechEnginePreference] = []
+
+    init(error: Error? = nil) {
+        self.error = error
+    }
+
+    func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
+        preferences.append(preference)
+        if let error {
+            throw error
+        }
     }
 }

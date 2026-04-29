@@ -92,6 +92,63 @@ final class BinaryBootstrapTests: XCTestCase {
         XCTAssertEqual(tempBinaryArtifactCount(), 0)
     }
 
+    func testEnsureYtDlpAvailableSeedsManagedCopyFromBundledBinaryWithoutNetwork() async throws {
+        let bundledPath = rootDir
+            .appendingPathComponent("bundle", isDirectory: true)
+            .appendingPathComponent("yt-dlp")
+        try FileManager.default.createDirectory(at: bundledPath.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let bundledData = Data("bundled-yt-dlp".utf8)
+        try bundledData.write(to: bundledPath)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: bundledPath.path)
+
+        let bootstrap = makeBootstrap(
+            bundledYtDlpPath: { bundledPath.path },
+            handler: { _ in
+                XCTFail("Bundled yt-dlp seed should avoid network install")
+                throw BinaryBootstrapError.downloadFailed("unexpected request")
+            }
+        )
+
+        let installedPath = try await bootstrap.ensureYtDlpAvailable()
+        XCTAssertEqual(installedPath, ytDlpPath.path)
+        XCTAssertTrue(FileManager.default.isExecutableFile(atPath: installedPath))
+        XCTAssertEqual(try Data(contentsOf: ytDlpPath), bundledData)
+        XCTAssertEqual(tempBinaryArtifactCount(), 0)
+    }
+
+    func testEnsureYtDlpAvailableExplicitNetworkUpdateReplacesExistingManagedCopy() async throws {
+        try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+        try Data("old-yt-dlp".utf8).write(to: ytDlpPath)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: ytDlpPath.path)
+
+        let binaryData = Data("new-yt-dlp".utf8)
+        let checksum = sha256Hex(binaryData)
+        let bootstrap = makeBootstrap { request in
+            guard let url = request.url else {
+                throw BinaryBootstrapError.downloadFailed("Missing URL")
+            }
+
+            switch url.lastPathComponent {
+            case "yt-dlp_macos":
+                return (Self.httpResponse(url: url, statusCode: 200), binaryData)
+            case "SHA2-256SUMS":
+                return (Self.httpResponse(url: url, statusCode: 200), Data("\(checksum) yt-dlp_macos\n".utf8))
+            default:
+                return (Self.httpResponse(url: url, statusCode: 404), Data())
+            }
+        }
+
+        let installedPath = try await bootstrap.ensureYtDlpAvailable(allowNetworkUpdate: true)
+        XCTAssertEqual(installedPath, ytDlpPath.path)
+        XCTAssertEqual(try Data(contentsOf: ytDlpPath), binaryData)
+
+        let defaults = UserDefaults(suiteName: suiteName)!
+        XCTAssertEqual(
+            defaults.object(forKey: "ytDlp.lastUpdateCheckAt") as? Date,
+            Date(timeIntervalSince1970: 1_700_000_000)
+        )
+    }
+
     func testEnsureYtDlpAvailableChecksumMismatchRemovesTempBinary() async throws {
         let binaryData = Data("yt-dlp-test-binary".utf8)
 
@@ -252,6 +309,38 @@ final class BinaryBootstrapTests: XCTestCase {
         XCTAssertNil(resolved)
     }
 
+    func testResolveYtDlpPathPrefersManagedCopyOverBundledSeed() throws {
+        let bundledPath = rootDir
+            .appendingPathComponent("bundle", isDirectory: true)
+            .appendingPathComponent("yt-dlp")
+        try FileManager.default.createDirectory(at: bundledPath.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try createExecutable(at: bundledPath)
+        try FileManager.default.createDirectory(at: binDir, withIntermediateDirectories: true)
+        try createExecutable(at: ytDlpPath)
+
+        let resolved = BinaryBootstrap.resolveYtDlpPath(
+            managedPath: ytDlpPath.path,
+            bundledPath: bundledPath.path
+        )
+
+        XCTAssertEqual(resolved, ytDlpPath.path)
+    }
+
+    func testResolveYtDlpPathFallsBackToBundledSeed() throws {
+        let bundledPath = rootDir
+            .appendingPathComponent("bundle", isDirectory: true)
+            .appendingPathComponent("yt-dlp")
+        try FileManager.default.createDirectory(at: bundledPath.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try createExecutable(at: bundledPath)
+
+        let resolved = BinaryBootstrap.resolveYtDlpPath(
+            managedPath: ytDlpPath.path,
+            bundledPath: bundledPath.path
+        )
+
+        XCTAssertEqual(resolved, bundledPath.path)
+    }
+
     // MARK: - Helpers
 
     private var binDir: URL {
@@ -267,6 +356,7 @@ final class BinaryBootstrapTests: XCTestCase {
     }
 
     private func makeBootstrap(
+        bundledYtDlpPath: @escaping @Sendable () -> String? = { nil },
         handler: @escaping (URLRequest) throws -> (HTTPURLResponse, Data)
     ) -> BinaryBootstrap {
         let configuration = URLSessionConfiguration.ephemeral
@@ -290,6 +380,7 @@ final class BinaryBootstrapTests: XCTestCase {
                 try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
             },
             ytDlpBinaryPath: { ytDlpPath.path },
+            bundledYtDlpPath: bundledYtDlpPath,
             tempDirPath: { tempDir.path }
         )
     }
@@ -308,7 +399,7 @@ final class BinaryBootstrapTests: XCTestCase {
     }
 
     private func createExecutable(at url: URL) throws {
-        try Data("fake-ffmpeg".utf8).write(to: url)
+        try Data("fake-executable".utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: url.path)
     }
 

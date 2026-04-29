@@ -26,4 +26,19 @@ final class HotkeyRecorderViewTests: XCTestCase {
             HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
         )
     }
+
+    func testResetLabelUsesReadableFnName() {
+        XCTAssertEqual(HotkeyRecorderView.resetLabel(for: .fn), "🌐 Fn")
+    }
+
+    func testResetLabelUsesReadableModifierName() {
+        XCTAssertEqual(HotkeyRecorderView.resetLabel(for: .control), "Control")
+    }
+
+    func testResetLabelUsesChordSymbol() {
+        XCTAssertEqual(
+            HotkeyRecorderView.resetLabel(for: .defaultMeetingRecording),
+            "⇧⌘M"
+        )
+    }
 }

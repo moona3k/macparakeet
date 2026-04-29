@@ -2,7 +2,8 @@
 
 > Status: ACCEPTED
 > Date: 2026-04-06
-> Related: ADR-001 (Parakeet STT), ADR-007 (FluidAudio CoreML migration), ADR-014 (meeting recording), ADR-015 (concurrent dictation and meeting recording)
+> Related: ADR-001 (Parakeet STT), ADR-007 (FluidAudio CoreML migration), ADR-014 (meeting recording), ADR-015 (concurrent dictation and meeting recording), ADR-021 (WhisperKit multilingual STT)
+> Amendment 2026-04-28: The scheduler is now engine-routed. Parakeet remains default; WhisperKit can be selected globally or per routed job. Meeting sessions hold a speech-engine lease so engine changes cannot split a meeting across engines.
 
 ## Context
 
@@ -14,7 +15,7 @@ MacParakeet has three co-equal transcription producers:
 
 ADR-015 established that dictation and meeting recording must run concurrently at the audio and UI layers. That decision intentionally kept the audio pipelines independent, but it did not fully specify how STT ownership and scheduling should work as the app grows into a multi-producer system.
 
-Parakeet via FluidAudio/CoreML is a scarce, process-wide resource in practice:
+Local STT is a scarce, process-wide resource in practice:
 
 - The expensive part is ANE/CoreML inference, not microphone capture
 - Interactive dictation latency matters far more than batch throughput
@@ -28,7 +29,7 @@ Per-flow STT ownership leads to duplicated runtime lifecycle, unclear shutdown/w
 
 ### 1. One process-wide STT control plane
 
-MacParakeet owns exactly one app-level STT control plane for Parakeet inference in the process.
+MacParakeet owns exactly one app-level STT control plane for local speech inference in the process.
 
 That control plane is responsible for:
 
@@ -44,11 +45,12 @@ Feature services submit jobs to the control plane; they do not own their own STT
 
 ### 2. One shared STT runtime owner
 
-The control plane coordinates one shared STT runtime owner for Parakeet model lifecycle.
+The control plane coordinates one shared STT runtime owner for speech model lifecycle. Parakeet's FluidAudio managers and the optional WhisperKit engine live behind this owner; callers do not own model lifecycles directly.
 
 That runtime is the sole owner of:
 
 - slot-scoped `AsrManager` instances
+- the optional `WhisperEngine` instance
 - model download / initialization / readiness
 - warm-up progress
 - shutdown / cleanup
@@ -185,6 +187,18 @@ This avoids crosstalk between:
 - file transcription progress
 - onboarding warm-up progress
 
+### 10. Speech-engine routing and session leases
+
+The control plane supports both unrouted and routed transcription calls:
+
+- Unrouted jobs use the runtime's current `SpeechEnginePreference`.
+- Routed jobs pass a `SpeechEngineSelection` (`parakeet` or `whisper` plus optional Whisper language).
+- `setSpeechEngine(_:)` is rejected while jobs are queued/running.
+- `beginSpeechEngineSession()` returns a lease containing the current selection; `endSpeechEngineSession(_:)` releases it.
+- Engine switching is rejected while any lease is active.
+
+Meeting recording uses this lease at start. This prevents a long recording from starting with Parakeet live preview and finishing with Whisper, or vice versa. The captured engine/language is also persisted to meeting metadata and recovery lock files so interrupted sessions recover through the same engine.
+
 ## Consequences
 
 ### Positive
@@ -195,6 +209,7 @@ This avoids crosstalk between:
 - Meeting live preview degrades gracefully under pressure
 - File transcription is intentionally simple and low-risk in v1
 - The architecture leaves room for chunked batch work or a third slot later without returning to per-feature STT ownership
+- Whisper support fits the same control plane instead of creating a parallel scheduler
 
 ### Negative
 
@@ -202,13 +217,14 @@ This avoids crosstalk between:
 - Requires explicit queue, priority, and cancellation tests
 - A running long file transcription can delay meeting STT on the shared background slot
 - The control plane must clearly document that batch latency can rise during interactive work
+- Engine switching needs visible busy-state UX because changes can be refused while speech work or a meeting lease is active
 
 ## Implementation Direction
 
 ### Core types
 
-- `STTRuntime` — owns slot-scoped `AsrManager` instances plus model lifecycle
-- `STTScheduler` — owns admission, slot assignment, in-slot priority, progress fan-out, and job execution against the runtime
+- `STTRuntime` — owns slot-scoped Parakeet `AsrManager` instances, optional `WhisperEngine`, engine dispatch, and model lifecycle
+- `STTScheduler` — owns admission, slot assignment, in-slot priority, progress fan-out, speech-engine sessions, and job execution against the runtime
 
 ### Service boundaries
 

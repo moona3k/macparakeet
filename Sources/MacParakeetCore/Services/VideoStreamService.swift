@@ -1,3 +1,4 @@
+import Darwin
 import Foundation
 import os
 
@@ -27,17 +28,17 @@ public final class VideoStreamService: Sendable {
         // Check cache
         if let cached = Self.cache.withLock({ $0[videoID] }),
            cached.expiresAt > Date() {
-            logger.notice("🎯 Cache HIT for \(videoID) (expires in \(Int(cached.expiresAt.timeIntervalSinceNow))s)")
+            logger.notice("video_stream_cache_hit video_id=\(videoID, privacy: .private) expires_in_seconds=\(Int(cached.expiresAt.timeIntervalSinceNow), privacy: .public)")
             return cached.url
         }
-        logger.notice("❌ Cache MISS for \(videoID), extracting via yt-dlp")
+        logger.notice("video_stream_cache_miss video_id=\(videoID, privacy: .private)")
 
         let url = try await extractStreamURL(youtubeURL: youtubeURL)
 
         Self.cache.withLock {
             $0[videoID] = CachedURL(url: url, expiresAt: Date().addingTimeInterval(Self.cacheTTL))
         }
-        logger.notice("✅ Cached stream URL for \(videoID) (TTL: \(Int(Self.cacheTTL))s)")
+        logger.notice("video_stream_cached video_id=\(videoID, privacy: .private) ttl_seconds=\(Int(Self.cacheTTL), privacy: .public)")
 
         return url
     }
@@ -46,15 +47,16 @@ public final class VideoStreamService: Sendable {
     public func invalidateCache(for youtubeURL: String) {
         let videoID = YouTubeURLValidator.extractVideoID(youtubeURL) ?? youtubeURL
         _ = Self.cache.withLock { $0.removeValue(forKey: videoID) }
-        logger.notice("🗑 Invalidated cache for \(videoID)")
+        logger.notice("video_stream_cache_invalidated video_id=\(videoID, privacy: .private)")
     }
 
     // MARK: - Private
 
     private func extractStreamURL(youtubeURL: String) async throws -> URL {
         let ytDlpPath = try resolveYtDlpPath()
-        logger.notice("▶️ Starting yt-dlp extraction for \(youtubeURL)")
-        logger.notice("  yt-dlp path: \(ytDlpPath)")
+        let videoID = YouTubeURLValidator.extractVideoID(youtubeURL) ?? "unknown"
+        logger.notice("video_stream_extraction_started video_id=\(videoID, privacy: .private)")
+        logger.notice("video_stream_yt_dlp_path path=\(ytDlpPath, privacy: .private)")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ytDlpPath)
@@ -81,58 +83,45 @@ public final class VideoStreamService: Sendable {
         let startTime = ContinuousClock.now
 
         try process.run()
-        logger.notice("  yt-dlp process launched (PID: \(process.processIdentifier))")
+        logger.notice("video_stream_yt_dlp_launched pid=\(process.processIdentifier, privacy: .public)")
 
-        // Wrap EVERYTHING in a single timeout — pipe reads + termination.
-        // If yt-dlp hangs and never closes stdout, the pipe read blocks forever
-        // without this outer timeout.
-        let result: (stdout: Data, stderr: Data) = try await withThrowingTaskGroup(of: (stdout: Data, stderr: Data).self) { group in
-            // Always clean up the loser path, even when `group.next()` throws.
-            // This keeps timeout as a hard upper bound and prevents orphaned yt-dlp processes.
+        // Wrap EVERYTHING in a single timeout — process termination + pipe drain.
+        // The pipes are read AFTER the process terminates (or is killed) rather
+        // than concurrently on a DispatchQueue. That avoids the previous bug
+        // where the dispatched `readDataToEndOfFile` blocked on a global queue
+        // thread that TaskGroup cancellation could not interrupt; if yt-dlp
+        // hung, the read leaked the thread and never resumed.
+        //
+        // For `yt-dlp --get-url` the output is one URL line (well under the 64K
+        // pipe buffer), so reading after termination cannot deadlock. If we ever
+        // wrap a yt-dlp invocation that produces large output, switch to
+        // incremental drain via `FileHandle.bytes`.
+        let result: (stdout: Data, stderr: Data) = try await withThrowingTaskGroup(of: ProcessOutcome.self) { group in
             defer {
                 group.cancelAll()
                 if process.isRunning {
                     process.terminate()
+                    // SIGKILL fallback if SIGTERM doesn't take. Holding `process`
+                    // strongly via the closure keeps it alive until the dispatch
+                    // fires, even if every other reference has been released.
+                    let stuckProcess = process
+                    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
+                        guard stuckProcess.isRunning else { return }
+                        kill(stuckProcess.processIdentifier, SIGKILL)
+                    }
                 }
             }
 
             group.addTask {
-                // Read pipes on background threads (don't block cooperative pool)
-                let stdoutData: Data = await withCheckedContinuation { continuation in
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        continuation.resume(returning: stdoutPipe.fileHandleForReading.readDataToEndOfFile())
-                    }
-                }
-                let stderrData: Data = await withCheckedContinuation { continuation in
-                    DispatchQueue.global(qos: .userInitiated).async {
-                        continuation.resume(returning: stderrPipe.fileHandleForReading.readDataToEndOfFile())
-                    }
-                }
-
-                // Wait for process termination
-                let resumed = OSAllocatedUnfairLock(initialState: false)
-                await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                    process.terminationHandler = { _ in
-                        let alreadyResumed = resumed.withLock { flag -> Bool in
-                            let was = flag; flag = true; return was
-                        }
-                        if !alreadyResumed { continuation.resume() }
-                    }
-                    if !process.isRunning {
-                        let alreadyResumed = resumed.withLock { flag -> Bool in
-                            let was = flag; flag = true; return was
-                        }
-                        if !alreadyResumed {
-                            continuation.resume()
-                            process.terminationHandler = nil
-                        }
-                    }
-                }
-
-                return (stdout: stdoutData, stderr: stderrData)
+                // Wait for process to exit (terminationHandler fires when SIGTERM
+                // or natural exit completes), then drain pipes synchronously —
+                // they're at EOF, so the reads return immediately.
+                await Self.awaitProcessTermination(process)
+                let stdoutData = (try? stdoutPipe.fileHandleForReading.readToEnd()) ?? Data()
+                let stderrData = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
+                return .completed(stdout: stdoutData, stderr: stderrData)
             }
 
-            // Timeout task
             group.addTask {
                 try await Task.sleep(for: .seconds(Self.extractionTimeout))
                 throw VideoStreamError.extractionFailed(
@@ -140,42 +129,82 @@ public final class VideoStreamService: Sendable {
                 )
             }
 
-            // First task to complete wins — either extraction finishes or timeout fires
-            return try await group.next()!
+            // First task to complete wins — either extraction finishes or timeout fires.
+            // The timeout task throws; the completion task returns `.completed`.
+            let outcome = try await group.next()!
+            guard case .completed(let stdout, let stderr) = outcome else {
+                // Unreachable — only the completion task returns a value, and it
+                // always returns `.completed`. The timeout task throws.
+                throw VideoStreamError.extractionFailed("Internal error: unexpected outcome")
+            }
+            return (stdout: stdout, stderr: stderr)
         }
 
         let elapsed = ContinuousClock.now - startTime
-        logger.notice("  yt-dlp finished in \(elapsed) (exit: \(process.terminationStatus))")
+        logger.notice("video_stream_yt_dlp_finished elapsed=\(String(describing: elapsed), privacy: .public) exit=\(process.terminationStatus, privacy: .public)")
 
         let stdout = String(data: result.stdout, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let stderr = String(data: result.stderr, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
 
         if !stderr.isEmpty {
-            logger.notice("  yt-dlp stderr: \(stderr)")
+            logger.notice("video_stream_yt_dlp_stderr detail=\(Self.sanitizedYtDlpMessage(stderr), privacy: .private)")
         }
 
         guard process.terminationStatus == 0, !stdout.isEmpty else {
-            logger.error("❌ yt-dlp extraction failed: \(stderr)")
-            throw VideoStreamError.extractionFailed(stderr.isEmpty ? "No output from yt-dlp" : stderr)
+            let reason = stderr.isEmpty ? "No output from yt-dlp" : Self.sanitizedYtDlpMessage(stderr)
+            logger.error("video_stream_extraction_failed reason=\(reason, privacy: .private)")
+            throw VideoStreamError.extractionFailed(reason)
         }
 
         // yt-dlp may return multiple URLs (video + audio); take the first
         let urlString = stdout.components(separatedBy: .newlines).first ?? stdout
         guard let url = URL(string: urlString) else {
-            logger.error("❌ Invalid stream URL: \(urlString.prefix(100))")
+            logger.error("video_stream_invalid_url")
             throw VideoStreamError.invalidStreamURL
         }
 
-        logger.notice("✅ Extracted stream URL for \(youtubeURL) in \(elapsed)")
+        logger.notice("video_stream_extraction_succeeded video_id=\(videoID, privacy: .private) elapsed=\(String(describing: elapsed), privacy: .public)")
         return url
+    }
+
+    private static func sanitizedYtDlpMessage(_ raw: String) -> String {
+        String(TelemetryErrorClassifier.sanitize(raw).prefix(512))
+    }
+
+    private enum ProcessOutcome: Sendable {
+        case completed(stdout: Data, stderr: Data)
+    }
+
+    /// Resume-once wrapper around `Process.terminationHandler`. Resumes
+    /// immediately if the process has already exited by the time the handler
+    /// is wired, and never double-resumes if the handler fires concurrently.
+    private static func awaitProcessTermination(_ process: Process) async {
+        let resumed = OSAllocatedUnfairLock(initialState: false)
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            process.terminationHandler = { _ in
+                let already = resumed.withLock { flag -> Bool in
+                    let was = flag; flag = true; return was
+                }
+                if !already { continuation.resume() }
+            }
+            if !process.isRunning {
+                let already = resumed.withLock { flag -> Bool in
+                    let was = flag; flag = true; return was
+                }
+                if !already {
+                    process.terminationHandler = nil
+                    continuation.resume()
+                }
+            }
+        }
     }
 
     private func resolveYtDlpPath() throws -> String {
         let candidates = [
-            AppPaths.ytDlpBinaryPath,
+            BinaryBootstrap.resolveYtDlpPath(),
             "/opt/homebrew/bin/yt-dlp",
             "/usr/local/bin/yt-dlp",
-        ]
+        ].compactMap { $0 }
         for path in candidates {
             if FileManager.default.isExecutableFile(atPath: path) {
                 return path

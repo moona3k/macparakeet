@@ -57,6 +57,7 @@ struct MainWindowView: View {
     let promptsViewModel: PromptsViewModel
     let customWordsViewModel: CustomWordsViewModel
     let textSnippetsViewModel: TextSnippetsViewModel
+    let vocabularyBackupViewModel: VocabularyBackupViewModel
     let feedbackViewModel: FeedbackViewModel
     let discoverViewModel: DiscoverViewModel
     let libraryViewModel: TranscriptionLibraryViewModel
@@ -130,7 +131,8 @@ struct MainWindowView: View {
                         VocabularyView(
                             settingsViewModel: settingsViewModel,
                             customWordsViewModel: customWordsViewModel,
-                            textSnippetsViewModel: textSnippetsViewModel
+                            textSnippetsViewModel: textSnippetsViewModel,
+                            backupViewModel: vocabularyBackupViewModel
                         )
                     case .feedback:
                         FeedbackView(viewModel: feedbackViewModel)

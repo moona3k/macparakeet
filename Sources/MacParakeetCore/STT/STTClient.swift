@@ -7,7 +7,7 @@ import Foundation
 ///   bypassing the process-wide singleton that ADR-016 requires.
 ///   **App code must never instantiate this type directly.**
 ///   Use the shared ``STTScheduler`` from `AppEnvironment` instead.
-public actor STTClient: STTManaging {
+public actor STTClient: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSessionManaging {
     private let scheduler: STTScheduler
 
     public init(modelVersion: AsrModelVersion = .v3) {
@@ -21,6 +21,20 @@ public actor STTClient: STTManaging {
         onProgress: (@Sendable (Int, Int) -> Void)?
     ) async throws -> STTResult {
         try await scheduler.transcribe(audioPath: audioPath, job: job, onProgress: onProgress)
+    }
+
+    public func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        try await scheduler.transcribe(
+            audioPath: audioPath,
+            job: job,
+            speechEngine: speechEngine,
+            onProgress: onProgress
+        )
     }
 
     public func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {
@@ -49,6 +63,18 @@ public actor STTClient: STTManaging {
 
     public func shutdown() async {
         await scheduler.shutdown()
+    }
+
+    public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
+        try await scheduler.setSpeechEngine(preference)
+    }
+
+    public func beginSpeechEngineSession() async -> SpeechEngineLease {
+        await scheduler.beginSpeechEngineSession()
+    }
+
+    public func endSpeechEngineSession(_ lease: SpeechEngineLease) async {
+        await scheduler.endSpeechEngineSession(lease)
     }
 
     public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {

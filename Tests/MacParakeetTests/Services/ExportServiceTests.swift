@@ -83,6 +83,161 @@ final class ExportServiceTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempURL)
     }
 
+    func testFormatPlainTextDefaultIncludesMetadataTimestampsAndSpeakers() {
+        let transcription = makeExportOptionsTranscription()
+
+        let text = exportService.formatPlainText(transcription: transcription)
+
+        XCTAssertTrue(text.contains("interview.mp3"))
+        XCTAssertTrue(text.contains("Duration: 0:05"))
+        XCTAssertTrue(text.contains("Alice:"))
+        XCTAssertTrue(text.contains("Bob:"))
+        XCTAssertTrue(text.contains("[0:00] Hello."))
+        XCTAssertTrue(text.contains("[0:02] Goodbye."))
+    }
+
+    func testFormatPlainTextDefaultUsesEditedTranscriptWhenTimestampsExist() {
+        let transcription = makeExportOptionsTranscription(
+            cleanTranscript: "Edited transcript without timing.",
+            isTranscriptEdited: true
+        )
+
+        let text = exportService.formatPlainText(transcription: transcription)
+
+        XCTAssertTrue(text.contains("interview.mp3"))
+        XCTAssertTrue(text.contains("Edited transcript without timing."))
+        XCTAssertFalse(text.contains("[0:00] Hello."))
+        XCTAssertFalse(text.contains("[0:02] Goodbye."))
+        XCTAssertFalse(text.contains("Alice:"))
+        XCTAssertFalse(text.contains("Bob:"))
+    }
+
+    func testFormatPlainTextDefaultKeepsTimestampsForAutomaticCleanTranscript() {
+        let transcription = makeExportOptionsTranscription(cleanTranscript: "Automatically cleaned transcript.")
+
+        let text = exportService.formatPlainText(transcription: transcription)
+
+        XCTAssertTrue(text.contains("[0:00] Hello."))
+        XCTAssertTrue(text.contains("[0:02] Goodbye."))
+        XCTAssertTrue(text.contains("Alice:"))
+        XCTAssertTrue(text.contains("Bob:"))
+        XCTAssertFalse(text.contains("Automatically cleaned transcript."))
+    }
+
+    func testFormatPlainTextCanOmitMetadataTimestampsAndSpeakers() {
+        let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: false,
+            includeMetadata: false
+        )
+
+        let text = exportService.formatPlainText(transcription: transcription, options: options)
+
+        XCTAssertEqual(text, "Edited transcript without timing.")
+        XCTAssertFalse(text.contains("interview.mp3"))
+        XCTAssertFalse(text.contains("Duration:"))
+        XCTAssertFalse(text.contains("Alice:"))
+        XCTAssertFalse(text.contains("[0:00]"))
+    }
+
+    func testFormatPlainTextCanKeepSpeakersWithoutTimestamps() {
+        let transcription = makeExportOptionsTranscription()
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: true,
+            includeMetadata: false
+        )
+
+        let text = exportService.formatPlainText(transcription: transcription, options: options)
+
+        XCTAssertTrue(text.contains("Alice:"))
+        XCTAssertTrue(text.contains("Bob:"))
+        XCTAssertTrue(text.contains("Hello."))
+        XCTAssertFalse(text.contains("[0:00]"))
+    }
+
+    func testFormatPlainTextWithoutTimestampsJoinsSameSpeakerCues() {
+        let transcription = makeMultiCueSpeakerTranscription()
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: true,
+            includeMetadata: false
+        )
+
+        let text = exportService.formatPlainText(transcription: transcription, options: options)
+
+        XCTAssertTrue(text.contains("Alice:\nFirst cue. Second cue."))
+        XCTAssertFalse(text.contains("First cue.\nSecond cue."))
+        XCTAssertFalse(text.contains("[0:00]"))
+    }
+
+    func testFormatMarkdownCanOmitMetadataTimestampsAndSpeakers() {
+        let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: false,
+            includeMetadata: false
+        )
+
+        let markdown = exportService.formatMarkdown(transcription: transcription, options: options)
+
+        XCTAssertEqual(markdown.trimmingCharacters(in: .whitespacesAndNewlines), "Edited transcript without timing.")
+        XCTAssertFalse(markdown.contains("# interview.mp3"))
+        XCTAssertFalse(markdown.contains("**Duration:**"))
+        XCTAssertFalse(markdown.contains("**Alice**"))
+        XCTAssertFalse(markdown.contains("**[0:00]**"))
+    }
+
+    func testFormatMarkdownDefaultUsesEditedTranscriptWhenTimestampsExist() {
+        let transcription = makeExportOptionsTranscription(
+            cleanTranscript: "Edited transcript without timing.",
+            isTranscriptEdited: true
+        )
+
+        let markdown = exportService.formatMarkdown(transcription: transcription)
+
+        XCTAssertTrue(markdown.contains("# interview.mp3"))
+        XCTAssertTrue(markdown.contains("Edited transcript without timing."))
+        XCTAssertFalse(markdown.contains("**[0:00]** Hello."))
+        XCTAssertFalse(markdown.contains("**[0:02]** Goodbye."))
+        XCTAssertFalse(markdown.contains("**Alice**"))
+        XCTAssertFalse(markdown.contains("**Bob**"))
+    }
+
+    func testFormatMarkdownWithoutTimestampsJoinsSameSpeakerCues() {
+        let transcription = makeMultiCueSpeakerTranscription()
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: true,
+            includeMetadata: false
+        )
+
+        let markdown = exportService.formatMarkdown(transcription: transcription, options: options)
+
+        XCTAssertTrue(markdown.contains("**Alice**\n\nFirst cue. Second cue."))
+        XCTAssertFalse(markdown.contains("First cue.\n\nSecond cue."))
+        XCTAssertFalse(markdown.contains("**[0:00]**"))
+    }
+
+    func testExportToMarkdownUsesOptions() throws {
+        let transcription = makeExportOptionsTranscription(cleanTranscript: "Edited transcript without timing.")
+        let options = TranscriptExportOptions(
+            includeTimestamps: false,
+            includeSpeakerLabels: false,
+            includeMetadata: false
+        )
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_options_\(UUID().uuidString).md")
+
+        try exportService.exportToMarkdown(transcription: transcription, url: tempURL, options: options)
+        let content = try String(contentsOf: tempURL, encoding: .utf8)
+
+        XCTAssertEqual(content.trimmingCharacters(in: .whitespacesAndNewlines), "Edited transcript without timing.")
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
     // MARK: - SRT Timestamp Formatting
 
     func testSRTTimestampFormatting() {
@@ -196,6 +351,34 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertTrue(vtt.contains("00:00:02.000 --> 00:00:03.000\nGoodbye world."))
     }
 
+    func testFormatSRTTranscriptionWithoutTimestampsUsesSingleCue() {
+        let transcription = Transcription(
+            fileName: "meeting.m4a",
+            durationMs: 2500,
+            rawTranscript: " Hello\n\nworld. ",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let srt = exportService.formatSRT(transcription: transcription)
+
+        XCTAssertEqual(srt, "1\n00:00:00,000 --> 00:00:02,500\nHello world.\n")
+    }
+
+    func testFormatVTTTranscriptionWithoutTimestampsUsesSingleCue() {
+        let transcription = Transcription(
+            fileName: "meeting.m4a",
+            durationMs: 2500,
+            rawTranscript: " Hello\n\nworld. ",
+            status: .completed,
+            sourceType: .meeting
+        )
+
+        let vtt = exportService.formatVTT(transcription: transcription)
+
+        XCTAssertEqual(vtt, "WEBVTT\n\n00:00:00.000 --> 00:00:02.500\nHello world.\n")
+    }
+
     // MARK: - File Export
 
     func testExportToSRT() throws {
@@ -237,6 +420,77 @@ final class ExportServiceTests: XCTestCase {
         let content = try String(contentsOf: tempURL, encoding: .utf8)
         XCTAssertTrue(content.hasPrefix("WEBVTT\n"))
         XCTAssertTrue(content.contains("00:00:00.000 --> 00:00:01.000\nHello world."))
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    func testExportToSRTUsesEditedTranscriptWhenTimestampsExist() throws {
+        let transcription = makeExportOptionsTranscription(
+            cleanTranscript: "Edited transcript without timing.",
+            isTranscriptEdited: true
+        )
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_\(UUID().uuidString).srt")
+
+        try exportService.exportToSRT(transcription: transcription, url: tempURL)
+
+        let content = try String(contentsOf: tempURL, encoding: .utf8)
+        XCTAssertTrue(content.contains("1\n00:00:00,000 --> 00:00:05,000\nEdited transcript without timing."))
+        XCTAssertFalse(content.contains("Hello."))
+        XCTAssertFalse(content.contains("Goodbye."))
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    func testExportToSRTCollapsesEditedTranscriptWhitespaceForSingleCue() throws {
+        let transcription = makeExportOptionsTranscription(
+            cleanTranscript: "Edited first line.\n\nEdited second line.\n  Edited third line.",
+            isTranscriptEdited: true
+        )
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_\(UUID().uuidString).srt")
+
+        try exportService.exportToSRT(transcription: transcription, url: tempURL)
+
+        let content = try String(contentsOf: tempURL, encoding: .utf8)
+        XCTAssertTrue(content.contains("Edited first line. Edited second line. Edited third line."))
+        XCTAssertFalse(content.contains("Edited first line.\n\nEdited second line."))
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    func testExportToVTTUsesEditedTranscriptWhenTimestampsExist() throws {
+        let transcription = makeExportOptionsTranscription(
+            cleanTranscript: "Edited transcript without timing.",
+            isTranscriptEdited: true
+        )
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_\(UUID().uuidString).vtt")
+
+        try exportService.exportToVTT(transcription: transcription, url: tempURL)
+
+        let content = try String(contentsOf: tempURL, encoding: .utf8)
+        XCTAssertTrue(content.hasPrefix("WEBVTT\n"))
+        XCTAssertTrue(content.contains("00:00:00.000 --> 00:00:05.000\nEdited transcript without timing."))
+        XCTAssertFalse(content.contains("Hello."))
+        XCTAssertFalse(content.contains("Goodbye."))
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    func testExportToVTTCollapsesEditedTranscriptWhitespaceForSingleCue() throws {
+        let transcription = makeExportOptionsTranscription(
+            cleanTranscript: "Edited first line.\n\nEdited second line.\n  Edited third line.",
+            isTranscriptEdited: true
+        )
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_\(UUID().uuidString).vtt")
+
+        try exportService.exportToVTT(transcription: transcription, url: tempURL)
+
+        let content = try String(contentsOf: tempURL, encoding: .utf8)
+        XCTAssertTrue(content.contains("Edited first line. Edited second line. Edited third line."))
+        XCTAssertFalse(content.contains("Edited first line.\n\nEdited second line."))
 
         try? FileManager.default.removeItem(at: tempURL)
     }
@@ -509,6 +763,46 @@ final class ExportServiceTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempURL)
     }
 
+    func testExportToSRTWithoutTimestampsCollapsesWhitespace() throws {
+        let transcription = Transcription(
+            fileName: "audio.mp3",
+            durationMs: 5000,
+            rawTranscript: "Hello world.\n\nSecond paragraph.\n  Third line.",
+            status: .completed
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_\(UUID().uuidString).srt")
+
+        try exportService.exportToSRT(transcription: transcription, url: tempURL)
+
+        let content = try String(contentsOf: tempURL, encoding: .utf8)
+        XCTAssertTrue(content.contains("Hello world. Second paragraph. Third line."))
+        XCTAssertFalse(content.contains("Hello world.\n\nSecond paragraph."))
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
+    func testExportToVTTWithoutTimestampsCollapsesWhitespace() throws {
+        let transcription = Transcription(
+            fileName: "audio.mp3",
+            durationMs: 5000,
+            rawTranscript: "Hello world.\n\nSecond paragraph.\n  Third line.",
+            status: .completed
+        )
+
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test_export_\(UUID().uuidString).vtt")
+
+        try exportService.exportToVTT(transcription: transcription, url: tempURL)
+
+        let content = try String(contentsOf: tempURL, encoding: .utf8)
+        XCTAssertTrue(content.contains("Hello world. Second paragraph. Third line."))
+        XCTAssertFalse(content.contains("Hello world.\n\nSecond paragraph."))
+
+        try? FileManager.default.removeItem(at: tempURL)
+    }
+
     // MARK: - Speaker Labels
 
     func testFormatSRTWithSpeakers() {
@@ -640,5 +934,48 @@ final class ExportServiceTests: XCTestCase {
         // Should still use word timestamps path (no speaker labels)
         XCTAssertTrue(content.contains("Hello world."))
         XCTAssertFalse(content.contains("Speaker"))
+    }
+
+    private func makeExportOptionsTranscription(
+        cleanTranscript: String? = nil,
+        isTranscriptEdited: Bool = false
+    ) -> Transcription {
+        Transcription(
+            fileName: "interview.mp3",
+            durationMs: 5000,
+            rawTranscript: "Hello. Goodbye.",
+            cleanTranscript: cleanTranscript,
+            wordTimestamps: [
+                WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Goodbye.", startMs: 2000, endMs: 2500, confidence: 0.97, speakerId: "S2"),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed,
+            isTranscriptEdited: isTranscriptEdited
+        )
+    }
+
+    private func makeMultiCueSpeakerTranscription() -> Transcription {
+        Transcription(
+            fileName: "interview.mp3",
+            durationMs: 8000,
+            rawTranscript: "First cue. Second cue. Bob answers.",
+            wordTimestamps: [
+                WordTimestamp(word: "First", startMs: 0, endMs: 300, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "cue.", startMs: 350, endMs: 700, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Second", startMs: 3000, endMs: 3300, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "cue.", startMs: 3350, endMs: 3700, confidence: 0.99, speakerId: "S1"),
+                WordTimestamp(word: "Bob", startMs: 6000, endMs: 6300, confidence: 0.99, speakerId: "S2"),
+                WordTimestamp(word: "answers.", startMs: 6350, endMs: 6800, confidence: 0.99, speakerId: "S2"),
+            ],
+            speakers: [
+                SpeakerInfo(id: "S1", label: "Alice"),
+                SpeakerInfo(id: "S2", label: "Bob"),
+            ],
+            status: .completed
+        )
     }
 }

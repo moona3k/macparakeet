@@ -2,11 +2,13 @@
 
 > Status: **ACTIVE** - Authoritative, current
 
-MacParakeet uses Parakeet TDT 0.6B-v3 via FluidAudio CoreML, running on Apple's Neural Engine (ANE) — fully local, native Swift.
+MacParakeet's default speech engine is Parakeet TDT 0.6B-v3 via FluidAudio CoreML on Apple's Neural Engine (ANE). WhisperKit is available as an optional local secondary engine for languages Parakeet does not cover. Both engines run on-device; there is no cloud STT path.
 
 ---
 
-## Model
+## Speech Engines
+
+### Parakeet Default
 
 | Property | Value |
 |----------|-------|
@@ -21,6 +23,19 @@ MacParakeet uses Parakeet TDT 0.6B-v3 via FluidAudio CoreML, running on Apple's 
 | Languages | v3: 25 European languages; v2: English only |
 | Decoding | Optimized CTC/TDT decoding (FluidAudio implementation) |
 
+### WhisperKit Optional Engine
+
+| Property | Value |
+|----------|-------|
+| Model | Whisper large-v3 turbo CoreML variant by default (`large-v3-v20240930_turbo_632MB`) |
+| Runtime | WhisperKit (`argmaxinc/argmax-oss-swift`, exact 0.18.0 when enabled) |
+| Model cache | `~/Library/Application Support/MacParakeet/models/stt/whisper/` |
+| Output | Text, word timestamps when available, detected language when reported |
+| Languages | Broad Whisper language coverage, including Korean, Japanese, Chinese, Hindi, Arabic, and others outside Parakeet v3 coverage |
+| Selection | Explicit in Settings or CLI (`--engine whisper --language <code>`); no automatic fallback |
+
+Parakeet remains the default because it is faster, lower-latency, and lower-memory for supported languages. WhisperKit solves language coverage while preserving the local-first speech boundary.
+
 ### Three-Chip Architecture
 
 Each ML workload runs on the chip it was designed for:
@@ -28,9 +43,10 @@ Each ML workload runs on the chip it was designed for:
 ```
 CPU:  MacParakeet app (UI, hotkeys, clipboard, history)
 ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML accelerator
+CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
 ```
 
-STT runs on dedicated silicon, leaving CPU and GPU free for the app and macOS.
+The default Parakeet path runs on dedicated silicon, leaving CPU and GPU free for the app and macOS. WhisperKit uses the compute path selected by WhisperKit/CoreML for the downloaded model variant.
 
 ---
 
@@ -141,6 +157,15 @@ public protocol STTTranscribing: Sendable {
     ) async throws -> STTResult
 }
 
+public protocol SpeechEngineRoutedTranscribing: STTTranscribing {
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult
+}
+
 public protocol STTRuntimeManaging: Sendable {
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
     func backgroundWarmUp() async
@@ -154,9 +179,34 @@ public protocol STTRuntimeManaging: Sendable {
 public typealias STTManaging = STTTranscribing & STTRuntimeManaging
 public typealias STTClientProtocol = STTManaging
 
+public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
+    case parakeet
+    case whisper
+}
+
+public struct SpeechEngineSelection: Codable, Equatable, Sendable {
+    let engine: SpeechEnginePreference
+    let language: String?  // only used for Whisper; nil means auto-detect
+}
+
+public struct SpeechEngineLease: Equatable, Sendable {
+    let id: UUID
+    let selection: SpeechEngineSelection
+}
+
+public protocol SpeechEngineSwitching: Sendable {
+    func setSpeechEngine(_ preference: SpeechEnginePreference) async throws
+}
+
+public protocol SpeechEngineSessionManaging: Sendable {
+    func beginSpeechEngineSession() async -> SpeechEngineLease
+    func endSpeechEngineSession(_ lease: SpeechEngineLease) async
+}
+
 struct STTResult: Sendable {
     let text: String
     let words: [TimestampedWord]
+    let language: String?
 }
 
 struct TimestampedWord: Sendable {
@@ -171,28 +221,31 @@ struct TimestampedWord: Sendable {
 
 ADR-016 defines MacParakeet's STT architecture as:
 
-- **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown
+- **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown across Parakeet and optional WhisperKit
 - **Two STT execution slots by default**
   - an **interactive slot** reserved for `dictation`
   - a **background slot** shared by `meetingFinalize`, `meetingLiveChunk`, and `fileTranscription`
 - **One STT scheduler / control plane** owning admission, slot assignment, priority, backpressure, cancellation, and job-scoped progress
 - **Many producers** (`DictationService`, `MeetingRecordingService`, `TranscriptionService`) submitting jobs into the scheduler
+- **Explicit speech-engine routing** through `SpeechEngineSelection` when a caller needs a pinned engine/language
 
 The app does not treat "one service = one STT runtime" as a valid long-term architecture.
 `STTClient` remains only as a standalone compatibility facade for the CLI and tests; app code uses the shared `STTRuntime` + `STTScheduler` from `AppEnvironment`.
+The GUI uses the persisted `speechRecognitionEngine` preference; the CLI can override per invocation.
 
 ### Lifecycle
 
 - **Lazy init**: The shared runtime owner is not loaded at app launch; loaded on first STT request or warm-up
 - **Keep loaded**: Once initialized, the runtime keeps its currently loaded managers ready for subsequent requests
-- **Warm-up during onboarding**: Download models (~6 GB) + CoreML compilation (~3.4s first time)
+- **Warm-up during onboarding**: Prepare Parakeet models (~6 GB) + CoreML compilation (~3.4s first time); Whisper is downloaded explicitly only when the user opts into that engine
 - **Graceful shutdown**: The shared runtime is released when the app quits
 - **Single owner**: Warm-up, readiness, shutdown, and cache clear happen once at the runtime layer
 - **Cancellation-safe init**: Shutdown/cache clear cancel in-flight initialization and wait for loaded managers to clean themselves up before returning
+- **Meeting engine lease**: Meeting recording captures the current `SpeechEngineSelection` at start and holds a scheduler lease until stop/cancel; engine changes are rejected while the lease is active
 
 ### Scheduling Policy
 
-The scheduler exists because STT is a scarce interactive resource even when audio capture is concurrent.
+The scheduler exists because local STT is a scarce interactive resource even when audio capture is concurrent.
 
 Default policy:
 
@@ -217,20 +270,21 @@ Backpressure and queueing rules:
 - Progress reporting must be fanned out per job, not broadcast globally from the raw runtime stream
 - Cancellation is checked before scheduler admission so fast user cancels do not race into successful transcriptions
 - Speaker diarization remains a separate service and is not part of the two-slot speech scheduler
+- Switching Parakeet/Whisper is rejected while jobs are queued/running or a meeting speech-engine lease is active
 
 ### Data Flow
 
 ```
 Dictation:
-  AudioRecorder → AVAudioPCMBuffer → AudioConverter.resampleBuffer() → STTScheduler.transcribe(audioPath:, job: .dictation, onProgress:) → STTRuntime.transcribe() → STTResult
+  AudioRecorder → temp WAV → STTScheduler.transcribe(audioPath:, job: .dictation, onProgress:) → selected local engine → STTResult
 
 File transcription (v0.4+):
-  FFmpeg (video demux) → .wav → AudioConverter.resampleAudioFile() → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STTResult
+  FFmpeg (video demux) → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot selected-engine STTResult
                                                                                                              → OfflineDiarizerManager.process() → DiarizationResult
                                                                                                              → Merge word timestamps + speaker segments
 
 YouTube (v0.4+):
-  yt-dlp → .m4a → FFmpeg → AudioConverter.resampleAudioFile() → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STTResult
+  yt-dlp → .m4a → FFmpeg → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot selected-engine STTResult
                                                                                                         → OfflineDiarizerManager.process() → DiarizationResult
                                                                                                         → Merge word timestamps + speaker segments
 
@@ -240,31 +294,31 @@ Meeting live preview (v0.6):
     → MicConditioner (SoftwareAECConditioner default; VPIOConditioner opt-in pass-through)
     → dominant-system live guard (skip clearly system-dominant mic chunks for live preview only)
     → LiveChunkTranscriber (queueing + ordering + cancellation)
-    → STTScheduler.transcribe(audioPath:, job: .meetingLiveChunk, onProgress:)
-    → background-slot STT
+    → STTScheduler.transcribe(audioPath:, job: .meetingLiveChunk, speechEngine: meetingLease.selection, onProgress:)
+    → background-slot selected-engine STT
     → live transcript update
 
 Meeting stop / finalization:
   microphone.m4a + system.m4a + MeetingSourceAlignment
     → convert each source to mono WAV
-    → STTScheduler.transcribe(audioPath:, job: .meetingFinalize, onProgress:) per source
+    → STTScheduler.transcribe(audioPath:, job: .meetingFinalize, speechEngine: capturedSelection, onProgress:) per source
     → aligned merge
     → final saved meeting transcript
 
 Saved meeting retranscription from the library:
   meeting.m4a + archived meeting-recording-metadata.json + source files
     → reconstruct MeetingRecordingOutput
-    → same dual-source meetingFinalize path as immediate post-stop finalization
+    → same dual-source meetingFinalize path and captured engine as immediate post-stop finalization
     → updated meeting transcript
   Legacy fallback:
-    existing meeting.m4a only → AudioConverter.resampleAudioFile() → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STT → updated meeting transcript
+    existing meeting.m4a only → .wav → STTScheduler.transcribe(audioPath:, job: .fileTranscription, onProgress:) → queued background-slot STT → updated meeting transcript
 ```
 
 ---
 
 ## Model Distribution
 
-### CoreML Model Bundle
+### Parakeet CoreML Model Bundle
 
 The CoreML model for `parakeet-tdt-0.6b-v3-coreml` is **~6 GB** on HuggingFace. Larger than the MLX weights (~2.5 GB) because CoreML stores pre-compiled, hardware-optimized model graphs for the ANE:
 
@@ -278,23 +332,34 @@ The CoreML model for `parakeet-tdt-0.6b-v3-coreml` is **~6 GB** on HuggingFace. 
 | MelEncoder | `.mlmodelc` |
 | Vocab files | `.json` |
 
-### Download Mechanism
+### Parakeet Download Mechanism
 
 - `AsrModels.downloadAndLoad(version:)` checks local cache first
 - If not cached, downloads from HuggingFace (configurable via `ModelRegistry.baseURL`)
 - CoreML compilation: ~3.4s cold (first load), ~162ms warm (subsequent loads)
 - After first run, models load from local cache
 
+### Whisper Model Download
+
+Whisper models are not silently downloaded during onboarding. The user explicitly downloads the default Whisper model from Settings or by running:
+
+```bash
+swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
+```
+
+The normalized Whisper variant is stored without the leading `whisper-` prefix in preferences; model files live under `AppPaths.whisperModelsDir`.
+
 ### First-Run Experience
 
 During onboarding:
 
-1. Download CoreML models (~6 GB) with progress indication
+1. Download Parakeet CoreML models (~6 GB) with progress indication
 2. If speaker detection is enabled, prepare diarization assets (~130 MB) on the separate diarization service path
 3. One-time CoreML compilation (~3.4s)
 4. Short warm-up transcription to verify everything works
 
 Onboarding should not report the speech stack as ready until the runtime owner is ready **and** any required default-on speaker-detection assets are available.
+Whisper readiness is separate and only blocks switching to Whisper, not first-run Parakeet readiness.
 
 This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 
@@ -307,7 +372,8 @@ This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 - Show download progress bar in the UI
 - Support retry on network failure
 - Resume partial downloads where possible (HuggingFace supports range requests)
-- Verify model integrity after download (checksum)
+- Verify model integrity after download where the provider exposes enough metadata
+- If the Whisper model is missing, keep Parakeet usable and direct the user to the explicit Whisper download action
 
 ### CoreML Errors
 
@@ -315,6 +381,12 @@ This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 - Wrap transcription calls in error handling
 - On CoreML failure, log the error, report to user, allow retry
 - Memory pressure: CoreML uses ~66 MB working RAM per active Parakeet inference slot, far less likely to trigger OOM than the previous ~2 GB MLX path
+
+### Engine Switching Errors
+
+- Engine changes are refused while scheduler jobs are queued or running.
+- Engine changes are refused while a meeting recording holds a speech-engine lease.
+- The UI should surface this as an actionable busy state rather than silently changing preferences.
 
 ### Timeout Handling
 
@@ -333,6 +405,8 @@ This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 | Model warm load (cached) | ~162 ms |
 | Short dictation (5-10 seconds audio) | <100ms transcription |
 | Long file transcription | ~23 seconds per hour of audio |
+
+These figures are Parakeet/FluidAudio targets. WhisperKit exists for language coverage and should not be described as matching Parakeet latency.
 
 ### Speed Comparison
 
@@ -370,7 +444,7 @@ For dictation (the primary use case), transcription time is imperceptible. For l
 
 > See [ADR-010](adr/010-speaker-diarization.md) for the full decision record.
 
-Speaker diarization ("who spoke when") uses FluidAudio's **offline diarization pipeline**, which is entirely separate from the Parakeet ASR pipeline. It applies to file transcription and YouTube transcription only — not dictation.
+Speaker diarization ("who spoke when") uses FluidAudio's **offline diarization pipeline**, which is entirely separate from ASR. It applies to file and YouTube transcription, and may refine the isolated system side of a finalized meeting. It does not apply to dictation.
 
 ### Pipeline
 
@@ -401,7 +475,7 @@ ASR and diarization run on the same audio, then results are merged:
 
 ```
 Audio file
-  ├─→ AsrManager.transcribe()                → word timestamps + text
+  ├─→ selected ASR engine                    → word timestamps + text
   └─→ OfflineDiarizerManager.process()        → speaker segments + IDs
                     ↓
          Merge by time overlap

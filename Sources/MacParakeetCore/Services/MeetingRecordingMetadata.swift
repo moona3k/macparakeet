@@ -52,9 +52,29 @@ public struct MeetingRecordingMetadata: Sendable, Codable, Equatable {
     public static let fileName = "meeting-recording-metadata.json"
 
     public let sourceAlignment: MeetingSourceAlignment
+    public let speechEngine: SpeechEngineSelection
+    public let speechEngineWasCaptured: Bool
 
-    public init(sourceAlignment: MeetingSourceAlignment) {
+    public init(
+        sourceAlignment: MeetingSourceAlignment,
+        speechEngine: SpeechEngineSelection = SpeechEngineSelection(engine: .parakeet)
+    ) {
         self.sourceAlignment = sourceAlignment
+        self.speechEngine = speechEngine
+        self.speechEngineWasCaptured = true
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case sourceAlignment
+        case speechEngine
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        sourceAlignment = try container.decode(MeetingSourceAlignment.self, forKey: .sourceAlignment)
+        let decodedSpeechEngine = try container.decodeIfPresent(SpeechEngineSelection.self, forKey: .speechEngine)
+        speechEngine = decodedSpeechEngine ?? SpeechEngineSelection(engine: .parakeet)
+        speechEngineWasCaptured = decodedSpeechEngine != nil
     }
 }
 

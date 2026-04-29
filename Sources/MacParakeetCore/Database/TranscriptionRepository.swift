@@ -5,6 +5,7 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func save(_ transcription: Transcription) throws
     func fetch(id: UUID) throws -> Transcription?
     func fetchAll(limit: Int?) throws -> [Transcription]
+    func fetchByFilePath(_ filePath: String, sourceType: Transcription.SourceType?) throws -> [Transcription]
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription?
     func count() throws -> Int
     func search(query: String, limit: Int?) throws -> [Transcription]
@@ -12,7 +13,6 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func deleteAll() throws
     func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws
     func updateFileName(id: UUID, fileName: String) throws
-    func updateSummary(id: UUID, summary: String?) throws
     func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws
     func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws
     func clearStoredAudioPathsForURLTranscriptions() throws
@@ -21,12 +21,21 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
 }
 
 extension TranscriptionRepositoryProtocol {
+    public func fetchByFilePath(
+        _ filePath: String,
+        sourceType: Transcription.SourceType? = nil
+    ) throws -> [Transcription] {
+        try fetchAll(limit: nil).filter {
+            $0.filePath == filePath
+                && (sourceType == nil || $0.sourceType == sourceType)
+        }
+    }
+
     public func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription? { nil }
     public func count() throws -> Int { try fetchAll(limit: nil).count }
     public func search(query: String, limit: Int?) throws -> [Transcription] { [] }
     public func clearStoredAudioPathsForURLTranscriptions() throws {}
     public func updateFileName(id: UUID, fileName: String) throws {}
-    public func updateSummary(id: UUID, summary: String?) throws {}
     public func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
     public func updateSpeakers(id: UUID, speakers: [SpeakerInfo]?) throws {}
     public func updateFavorite(id: UUID, isFavorite: Bool) throws {}
@@ -58,6 +67,97 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol {
                 .order(Transcription.Columns.createdAt.desc)
             if let limit {
                 request = request.limit(limit)
+            }
+            return try request.fetchAll(db)
+        }
+    }
+
+    public func fetchBySourceType(_ sourceType: Transcription.SourceType, limit: Int? = nil) throws -> [Transcription] {
+        try dbQueue.read { db in
+            var request = Transcription
+                .filter(Transcription.Columns.sourceType == sourceType.rawValue)
+                .order(Transcription.Columns.createdAt.desc)
+            if let limit {
+                request = request.limit(limit)
+            }
+            return try request.fetchAll(db)
+        }
+    }
+
+    public func fetchByIDPrefix(_ idPrefix: String) throws -> [Transcription] {
+        try fetchByIDPrefix(idPrefix, sourceType: nil)
+    }
+
+    public func fetchBySourceType(
+        _ sourceType: Transcription.SourceType,
+        idPrefix: String
+    ) throws -> [Transcription] {
+        try fetchByIDPrefix(idPrefix, sourceType: sourceType)
+    }
+
+    private func fetchByIDPrefix(
+        _ idPrefix: String,
+        sourceType: Transcription.SourceType?
+    ) throws -> [Transcription] {
+        let trimmed = idPrefix.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        let textPattern = escapedLikePattern(trimmed.lowercased()) + "%"
+        let compactPattern = escapedLikePattern(trimmed.lowercased().replacingOccurrences(of: "-", with: "")) + "%"
+        var sql = "(lower(id) LIKE ? ESCAPE '\\' OR lower(hex(id)) LIKE ? ESCAPE '\\')"
+        var arguments: [String] = [textPattern, compactPattern]
+        if let sourceType {
+            sql = "sourceType = ? AND \(sql)"
+            arguments.insert(sourceType.rawValue, at: 0)
+        }
+        return try dbQueue.read { db in
+            try Transcription
+                .filter(sql: sql, arguments: StatementArguments(arguments))
+                .order(Transcription.Columns.createdAt.desc)
+                .fetchAll(db)
+        }
+    }
+
+    public func fetchByFileName(_ fileName: String) throws -> [Transcription] {
+        try fetchByFileName(fileName, sourceType: nil)
+    }
+
+    public func fetchBySourceType(
+        _ sourceType: Transcription.SourceType,
+        fileName: String
+    ) throws -> [Transcription] {
+        try fetchByFileName(fileName, sourceType: sourceType)
+    }
+
+    private func fetchByFileName(
+        _ fileName: String,
+        sourceType: Transcription.SourceType?
+    ) throws -> [Transcription] {
+        let trimmed = fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return [] }
+        var sql = "lower(fileName) = lower(?)"
+        var arguments: [String] = [trimmed]
+        if let sourceType {
+            sql = "sourceType = ? AND \(sql)"
+            arguments.insert(sourceType.rawValue, at: 0)
+        }
+        return try dbQueue.read { db in
+            try Transcription
+                .filter(sql: sql, arguments: StatementArguments(arguments))
+                .order(Transcription.Columns.createdAt.desc)
+                .fetchAll(db)
+        }
+    }
+
+    public func fetchByFilePath(
+        _ filePath: String,
+        sourceType: Transcription.SourceType? = nil
+    ) throws -> [Transcription] {
+        try dbQueue.read { db in
+            var request = Transcription
+                .filter(Transcription.Columns.filePath == filePath)
+                .order(Transcription.Columns.createdAt.desc)
+            if let sourceType {
+                request = request.filter(Transcription.Columns.sourceType == sourceType.rawValue)
             }
             return try request.fetchAll(db)
         }
@@ -144,15 +244,12 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol {
         try dbQueue.write { db in
             guard var transcription = try Transcription.fetchOne(db, key: id) else { return }
             transcription.fileName = fileName
-            transcription.updatedAt = Date()
-            try transcription.update(db)
-        }
-    }
-
-    public func updateSummary(id: UUID, summary: String?) throws {
-        try dbQueue.write { db in
-            guard var transcription = try Transcription.fetchOne(db, key: id) else { return }
-            transcription.summary = summary
+            // A user-driven rename is the source of truth for the display
+            // title. Mirror it into `derivedTitle` so the Meetings list
+            // doesn't keep showing the auto-derived title from the
+            // transcript content. Without this the rename is silently
+            // masked by the smart-title path.
+            transcription.derivedTitle = fileName
             transcription.updatedAt = Date()
             try transcription.update(db)
         }
@@ -171,6 +268,15 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol {
         try dbQueue.write { db in
             guard var transcription = try Transcription.fetchOne(db, key: id) else { return }
             transcription.speakers = speakers
+            transcription.updatedAt = Date()
+            try transcription.update(db)
+        }
+    }
+
+    public func updateUserNotes(id: UUID, userNotes: String?) throws {
+        try dbQueue.write { db in
+            guard var transcription = try Transcription.fetchOne(db, key: id) else { return }
+            transcription.userNotes = userNotes
             transcription.updatedAt = Date()
             try transcription.update(db)
         }
@@ -201,4 +307,11 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol {
                 .fetchAll(db)
         }
     }
+}
+
+private func escapedLikePattern(_ value: String) -> String {
+    value
+        .replacingOccurrences(of: "\\", with: "\\\\")
+        .replacingOccurrences(of: "%", with: "\\%")
+        .replacingOccurrences(of: "_", with: "\\_")
 }

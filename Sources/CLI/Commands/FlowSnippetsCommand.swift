@@ -20,27 +20,40 @@ struct FlowSnippetsCommand: AsyncParsableCommand {
             abstract: "List all text snippets."
         )
 
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
         func run() async throws {
-            try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: AppPaths.databasePath)
-            let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
-            let snippets = try repo.fetchAll()
+            try emitJSONOrRethrow(json: json) {
+                try AppPaths.ensureDirectories()
+                let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
+                let snippets = try repo.fetchAll()
 
-            if snippets.isEmpty {
-                print("No text snippets configured.")
-                return
-            }
-
-            for snippet in snippets {
-                let status = snippet.isEnabled ? "+" : "-"
-                var line = "[\(status)] Say: \"\(snippet.trigger)\" -> \(snippet.expansion)"
-                if snippet.useCount > 0 {
-                    line += "  (used \(snippet.useCount)x)"
+                if json {
+                    try printJSON(snippets)
+                    return
                 }
-                line += "  (\(snippet.id.uuidString.prefix(8)))"
-                print(line)
+
+                if snippets.isEmpty {
+                    print("No text snippets configured.")
+                    return
+                }
+
+                for snippet in snippets {
+                    let status = snippet.isEnabled ? "+" : "-"
+                    var line = "[\(status)] Say: \"\(snippet.trigger)\" -> \(snippet.expansion)"
+                    if snippet.useCount > 0 {
+                        line += "  (used \(snippet.useCount)x)"
+                    }
+                    line += "  (\(snippet.id.uuidString.prefix(8)))"
+                    print(line)
+                }
+                print("\n\(snippets.count) snippet(s)")
             }
-            print("\n\(snippets.count) snippet(s)")
         }
     }
 
@@ -56,9 +69,12 @@ struct FlowSnippetsCommand: AsyncParsableCommand {
         @Argument(help: "The expansion text.")
         var expansion: String
 
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
         func run() async throws {
             try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: AppPaths.databasePath)
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
 
             let snippet = TextSnippet(trigger: trigger, expansion: expansion)
@@ -77,9 +93,12 @@ struct FlowSnippetsCommand: AsyncParsableCommand {
         @Argument(help: "The UUID (or prefix) of the snippet to delete.")
         var id: String
 
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
         func run() async throws {
             try AppPaths.ensureDirectories()
-            let dbManager = try DatabaseManager(path: AppPaths.databasePath)
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
 
             // Support UUID prefix matching

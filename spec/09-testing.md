@@ -146,20 +146,18 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 ## Running Tests
 
 ```bash
-# Fast feedback (unit + database tests, ~10s)
+# Full suite (deterministic; usually ~1-2 minutes depending on cache state)
 swift test
 
-# Full suite in parallel
+# Parallel run when chasing wall-clock time
 swift test --parallel
 
 # Single test file
 swift test --filter TextProcessingPipelineTests
 
-# With MLX integration (requires model download, slow)
-MLX_TESTS=1 swift test --filter MLXIntegrationTests
-
-# E2E smoke tests (opt-in, requires built CLI)
-E2E_TESTS=1 swift test --filter E2ETests
+# Speech-engine focused tests
+swift test --filter STTClientTests
+swift test --filter WhisperLanguageCatalogTests
 ```
 
 **Note:** `swift test` works for all tests because tests don't need Metal shaders. The app itself requires `xcodebuild` (see CLAUDE.md).
@@ -195,7 +193,7 @@ swift test  # Verify no regressions
 
 ### Fast
 - Individual test: < 1 second
-- Full suite: < 30 seconds
+- Full suite: usually ~1-2 minutes on a warm Apple Silicon checkout; investigate large regressions
 - Database tests use in-memory SQLite (no disk I/O)
 - No network calls (mock everything external)
 

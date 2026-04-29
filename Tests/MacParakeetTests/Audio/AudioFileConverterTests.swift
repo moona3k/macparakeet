@@ -60,12 +60,44 @@ final class AudioFileConverterTests: XCTestCase {
 
         XCTAssertTrue(args.contains("-filter_complex"))
         XCTAssertTrue(args.contains(
-            "[0:a]pan=stereo|c0=c0|c1=0*c0[a0];[1:a]pan=stereo|c0=0*c0|c1=c0[a1];[a0][a1]amix=inputs=2:duration=longest:normalize=0[a]"
+            "[0:a]pan=stereo|c0=c0|c1=0*c0,adelay=0|0[a0];[1:a]pan=stereo|c0=0*c0|c1=c0,adelay=0|0[a1];[a0][a1]amix=inputs=2:duration=longest:normalize=0[a]"
         ))
         XCTAssertTrue(args.contains("-map"))
         XCTAssertTrue(args.contains("[a]"))
         XCTAssertTrue(args.contains("-ac"))
         XCTAssertTrue(args.contains("2"))
+    }
+
+    func testFFmpegMixArgumentsApplySourceAlignmentDelays() {
+        let converter = AudioFileConverter()
+        let alignment = MeetingSourceAlignment(
+            meetingOriginHostTime: nil,
+            microphone: .init(
+                firstHostTime: nil,
+                lastHostTime: nil,
+                startOffsetMs: 0,
+                writtenFrameCount: 48_000,
+                sampleRate: 48_000
+            ),
+            system: .init(
+                firstHostTime: nil,
+                lastHostTime: nil,
+                startOffsetMs: 150,
+                writtenFrameCount: 48_000,
+                sampleRate: 48_000
+            )
+        )
+
+        let args = converter.ffmpegMixArguments(
+            inputPaths: ["/tmp/mic.m4a", "/tmp/system.m4a"],
+            outputPath: "/tmp/meeting.m4a",
+            sourceAlignment: alignment
+        )
+
+        XCTAssertTrue(args.contains("-filter_complex"))
+        XCTAssertTrue(args.contains(
+            "[0:a]pan=stereo|c0=c0|c1=0*c0,adelay=0|0[a0];[1:a]pan=stereo|c0=0*c0|c1=c0,adelay=150|150[a1];[a0][a1]amix=inputs=2:duration=longest:normalize=0[a]"
+        ))
     }
 
     func testFFmpegMixArgumentsKeepLongestDualSourceDuration() {

@@ -1,7 +1,7 @@
 # MacParakeet Spec Index
 
 > Status: **ACTIVE** - Authoritative, current
-> Runtime Note: FluidAudio CoreML is the active architecture. Core STT is local; optional LLM and telemetry features are opt-in; a fully local setup is supported when only local features/providers are used.
+> Runtime Note: FluidAudio CoreML is the active architecture. Core STT is local; LLM provider use is opt-in, telemetry/crash reporting is opt-out, and a fully local setup is supported by disabling telemetry and using only local features/providers.
 
 **MacParakeet** is a voice toolkit for macOS with on-device STT, optional AI and telemetry features, and support for a fully local setup.
 
@@ -15,7 +15,7 @@
 | 03 | [Architecture](03-architecture.md) | System architecture, component diagram | Active |
 | 04 | [UI Patterns](04-ui-patterns.md) | UI components, overlay, settings | Active |
 | 05 | [Audio Pipeline](05-audio-pipeline.md) | Audio capture, processing, storage | Active |
-| 06 | [STT Engine](06-stt-engine.md) | Parakeet integration via FluidAudio CoreML/ANE | Active |
+| 06 | [STT Engine](06-stt-engine.md) | Parakeet default engine, WhisperKit secondary engine, scheduler | Active |
 | 07 | [Text Processing](07-text-processing.md) | Clean pipeline, custom words, snippets | Active |
 | 08 | [Error Handling](08-error-handling.md) | Error philosophy, categories, recovery | Active |
 | 09 | [Testing](09-testing.md) | Testing strategy, patterns, guidelines | Active |
@@ -30,10 +30,10 @@ These decisions are final. Do not second-guess them.
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Local STT | Parakeet TDT 0.6B-v3 via FluidAudio CoreML/ANE | 155x realtime, ~2.5% WER, fully local, ~66 MB working RAM |
+| Local STT | Parakeet TDT 0.6B-v3 via FluidAudio CoreML/ANE by default; WhisperKit optional | Parakeet gives 155x realtime and low RAM for supported languages; Whisper adds broad multilingual coverage locally |
 | Database | SQLite via GRDB | Single file, embedded, zero config |
 | Platform | macOS 14.2+ (Apple Silicon only) | FluidAudio requires Apple Silicon; Swift 6.0 |
-| Business model | Free and open-source (GPL-3.0) | Originally $49 one-time (ADR-003), went free with open-source release in v0.5 |
+| Business model | Current public build free/GPL/unlocked; official paid distribution/support remains possible | Originally $49 one-time (ADR-003), went free with open-source release in v0.5; retained purchase activation plumbing is future-option code |
 
 ## Architecture Decision Records (ADRs)
 
@@ -43,10 +43,10 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 |-----|----------|
 | [ADR-001](adr/001-parakeet-stt.md) | Parakeet TDT 0.6B-v3 as primary STT engine |
 | [ADR-002](adr/002-local-only.md) | Local processing with optional external AI/telemetry surfaces |
-| [ADR-003](adr/003-one-time-purchase.md) | One-time purchase pricing ($49) |
+| [ADR-003](adr/003-one-time-purchase.md) | Historical one-time purchase pricing; paid official distribution reference |
 | [ADR-004](adr/004-deterministic-pipeline.md) | Deterministic text processing pipeline |
 | [ADR-005](adr/005-onboarding-first-run.md) | First-run onboarding flow |
-| [ADR-006](adr/006-trial-and-license-activation.md) | Trial + license key activation |
+| [ADR-006](adr/006-trial-and-license-activation.md) | Dormant trial + license key activation plumbing retained |
 | [ADR-007](adr/007-fluidaudio-coreml-migration.md) | FluidAudio CoreML migration (Python elimination) |
 | [ADR-008](adr/008-local-llm-runtime-and-model.md) | Local LLM runtime baseline (historical — removed) |
 | [ADR-009](adr/009-custom-hotkey.md) | Custom hotkey support (any single key + chord combos) |
@@ -57,8 +57,11 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-014](adr/014-meeting-recording.md) | Meeting recording via Core Audio Taps |
 | [ADR-015](adr/015-concurrent-dictation-meeting.md) | Concurrent dictation and meeting recording |
 | [ADR-016](adr/016-centralized-stt-runtime-scheduler.md) | Centralized STT runtime and two-slot scheduler |
-| [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (proposed) |
-| [ADR-018](adr/018-live-meeting-insights-and-ask.md) | Live meeting Insights and Ask tabs (proposed) |
+| [ADR-017](adr/017-calendar-meeting-auto-start.md) | Calendar-driven meeting auto-start (Phases 1 + 2 implemented; Phase 3 proposed) |
+| [ADR-018](adr/018-live-meeting-insights-and-ask.md) | Live meeting Ask tab (Insights dropped per amendment; Ask shipped 2026-04-24) |
+| [ADR-019](adr/019-crash-resilient-meeting-recording.md) | Crash-resilient meeting recording via fragmented MP4 + session lock files (implemented 2026-04-25) |
+| [ADR-020](adr/020-live-meeting-notepad-and-memo-summaries.md) | Live meeting notepad + memo-steered summaries (implemented 2026-04-25) |
+| [ADR-021](adr/021-whisperkit-multilingual-stt.md) | WhisperKit as optional multilingual STT engine |
 
 ## Version Roadmap
 
@@ -69,7 +72,8 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.3 | YouTube & Export | YouTube transcription, export formats | **Implemented** |
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
-| v0.6 | Meeting Recording | System audio + mic capture, concurrent with dictation, local transcription, library integration | **In Progress** |
+| v0.6 | Meeting Recording | System audio + mic capture, concurrent with dictation, local transcription, library integration | **Implemented on main; unreleased** |
+| v0.7 | Multilingual STT | Optional WhisperKit engine, language picker, CLI engine selection, meeting engine pinning | **Implemented on main; unreleased** |
 
 ## Version Progress
 
@@ -117,7 +121,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Voice stats dashboard
 - [x] UI polish (toggles, sidebar sections, copy improvements)
 - [x] Non-blocking transcription progress (bottom bar UX)
-- [x] Distribution: Notarized DMG via macparakeet.com + LemonSqueezy, Sparkle auto-updates
+- [x] Distribution: Notarized DMG via macparakeet.com/R2, Sparkle auto-updates
 
 ### v0.5 Data, UI & Prompts (Implemented)
 
@@ -152,8 +156,8 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] `prompts` table + built-in/community prompt seeds
 - [x] `summaries` table (one-to-many per transcription, cascade delete)
 - [x] Prompt model + repository (CRUD, visibility toggle, built-in guard)
-- [x] Summary model + repository (CRUD, replace for regeneration)
-- [x] SummaryViewModel (extracted from TranscriptionViewModel)
+- [x] PromptResult model + repository (stored in the historic `summaries` table; CRUD, replace for regeneration)
+- [x] PromptResultsViewModel (extracted from TranscriptionViewModel)
 - [x] PromptsViewModel (CRUD, validation, restore defaults)
 - [x] Prompt picker + generation bar with model selector
 - [x] Extra instructions field
@@ -163,7 +167,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Migration from `transcriptions.summary` → `summaries`
 - [x] Auto-run uses selected prompt cards; zero auto-run cards is supported
 
-### v0.6 Meeting Recording (In Progress)
+### v0.6 Meeting Recording (Implemented on main; unreleased)
 
 - [x] System audio capture via Core Audio Taps (macOS 14.2+), ported from Oatmeal
 - [x] Mic + system audio dual-stream recording (`MeetingAudioCaptureService`)
@@ -187,12 +191,30 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Hotkey conflict prevention (dictation vs meeting)
 - [x] Concurrent dictation during meeting recording (ADR-015)
 - [x] Centralized STT runtime + two-slot scheduler (ADR-016)
-- [ ] Live panel tabs: Transcript / Insights / Ask (ADR-018)
-- [ ] Live meeting insights service (debounced LLM-generated sections)
-- [ ] Live Ask chat with starter pills + persist-on-finalize handoff
-- [ ] Calendar-driven auto-start (ADR-017): EventKit integration + onboarding + settings
-- [ ] Pre-meeting notifications + 5s countdown toast for auto-start
-- [ ] Auto-stop toast at calendar event end
+- [x] Live panel tabs: Transcript / Ask (ADR-018; Insights dropped per amendment 2026-04-24)
+- [x] Live Ask chat with thinking-partner starter pills + persistent follow-up pills + persist-on-finalize handoff
+- [x] Calendar-driven reminders (ADR-017 Phase 1): EventKit integration + onboarding + settings + per-calendar include list
+- [x] Pre-meeting macOS notifications at configurable lead time (off / 1 / 5 / 10 min)
+- [x] Auto-start countdown toast (ADR-017 Phase 2): 5s cancellable, top-center, non-activating
+- [x] Auto-stop toast at calendar event end (ADR-017 Phase 2): 30s, "Keep Recording" cancels
+- [x] Calendar event title applied to auto-started recordings (instead of date-based default)
+- [x] Crash-resilient meeting recovery (ADR-019): session lock files, launch/settings recovery affordance, recovered badge
+- [x] Fragmented MP4 meeting writer (ADR-019): 1s fragments, playable source audio after kill-9 up to the last fragment
+- [x] Live meeting notepad (ADR-020): Notes/Transcript/Ask three-tab layout with Notes default (⌘1/⌘2/⌘3), debounced auto-save through `MeetingRecordingService.updateNotes`, lock-file extension carries notes through crash recovery, soft-cap warning at 7,500 words
+- [x] Memo-steered summaries (ADR-020): `{{userNotes}}` + `{{transcript}}` template variables via `PromptTemplateRenderer` (single-pass, simultaneous), new "Memo-Steered Notes" built-in prompt seeded auto-run with the existing-auto-run guard, `userNotesSnapshot` captured on the `PromptResult` row at generation time
+- [x] Slash commands in Notes pane (ADR-020): `/action`, `/decision`, `/now` with in-view ZStack overlay (NSPanel-safe — never SwiftUI `.popover`), arrow-key + Return + Esc nav via `.onKeyPress`
+- [x] State-bearing tab labels (ADR-020): `Notes · Nw`, `Transcript · LIVE`, `Ask · N` with `ViewThatFits` collapse to plain noun + tooltip at the 360px floor
+- [x] Rich pre-meeting countdown toast for calendar starts (ADR-020): attendees + service icon row + steering hint pointing the user at the Notes tab. Manual-trigger toasts unchanged
+- [x] STT failure copy refinement (ADR-020): "Recording Error" → "Meeting interrupted" + Library-recovery hint wrapper around the technical detail
+
+### v0.7 Multilingual STT (Implemented on main; unreleased)
+
+- [x] WhisperKit dependency and `WhisperEngine` wrapper with local model cache at `~/Library/Application Support/MacParakeet/models/stt/whisper/`
+- [x] `SpeechEnginePreference` and `SpeechEngineSelection` persisted through `UserDefaults`
+- [x] Settings → Speech Recognition segmented engine picker plus Whisper language picker
+- [x] Engine switching blocked while jobs are queued/running or a meeting speech-engine lease is active
+- [x] CLI `transcribe --engine parakeet|whisper --language <code>` and `models download whisper-large-v3-v20240930-turbo-632MB`
+- [x] Meeting recordings capture the active engine/language at start and preserve it through metadata, lock files, crash recovery, and final transcription
 
 ## For AI Coding Assistants
 

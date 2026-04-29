@@ -1,266 +1,244 @@
-# ADR-018: Live Meeting Insights and Ask Tabs
+# ADR-018: Live Meeting Ask Tab
 
-> Status: PROPOSED
-> Date: 2026-04-19
+> Status: IMPLEMENTED (Ask half — Insights dropped per design pivot, see "Amendment" below)
+> Date: 2026-04-19 (proposed) · Amended 2026-04-24 · Implemented 2026-04-24
 > Related: ADR-011 (LLM providers), ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-016 (centralized STT runtime), ADR-017 (calendar auto-start)
+
+## Amendment (2026-04-24)
+
+The original draft of this ADR proposed three live tabs in the meeting panel — **Transcript / Insights / Ask** — with Insights as a debounced, auto-refreshing four-section LLM view of the in-flight meeting. After a design review during implementation, the Insights tab was dropped and the live experience reduced to two tabs: **Transcript / Ask**. This file documents what actually shipped.
+
+**Why the pivot.** Insights would have:
+- Auto-fired LLM calls every ~30s for the duration of every recorded meeting (real cost for cloud users, even if the panel was never opened),
+- Required a debounce policy, in-flight cancellation, section parsing of free-form LLM output, and a staleness indicator,
+- Doubled the live panel's UI surface area for a passive read that the user can pull on demand from Ask anyway.
+
+The framing that won was **"thinking partner, not stenographer."** A curated set of one-tap pills on the Ask tab gives the user the same outputs (summary, what-did-I-miss, action items) on demand — once they actually want them. The cost surface, the parsing brittleness, and the always-on shimmer go away. What remains is one well-designed surface that does one thing well.
+
+The trade-off accepted: the user loses passive-glance value (look up at the panel and see "they just decided to ship Friday" without asking). For long meetings this is real, but the cost of an Insights pane to reclaim it isn't justified by v1 user demand. Re-open if telemetry says otherwise.
 
 ## Context
 
 ADR-014 ships live meeting recording with a single-pane panel: a rolling speaker-attributed transcript with Copy/Auto-scroll/Stop in the footer. After the meeting finalizes, the user is routed to `TranscriptResultView`, which already has Transcript / Result / Chat / Speakers tabs (ADR-013).
 
-The user's ask is to bring a subset of that rich experience *into the live panel*, Granola.ai-style: while the meeting is running, the user can switch between watching the live transcript, glancing at an LLM-maintained interim summary / highlights / open questions, and asking "what did I miss?" mid-call. When the meeting ends, these live artifacts carry over to the post-finalize detail view so nothing is thrown away.
+The user's ask was to bring a subset of that rich experience into the live panel: while the meeting is running, the user can switch between watching the live transcript and asking "what did I miss?" mid-call. When the meeting ends, the live conversation carries over to the post-finalize detail view so nothing is thrown away.
 
-The underlying primitives already exist:
+The underlying primitives already existed:
 
-- `LLMService.generatePromptResultStream(transcript:systemPrompt:)` — AsyncThrowingStream of tokens against any system prompt
-- `LLMService.chatStream(question:transcript:history:)` — same, with history
-- `TranscriptChatViewModel` — already accepts a `transcriptText` parameter at configure time; the rolling live transcript can be fed through the same path
-- `PromptResultsViewModel` — single-worker queued generation with snapshot persistence
+- `LLMService.chatStream(question:transcript:history:)` — AsyncThrowingStream of tokens against a chat-style prompt, with history
+- `TranscriptChatViewModel` — already accepts a `transcriptText` parameter and streams responses against it
 - Live transcript itself is already yielded continuously via `MeetingRecordingService.transcriptUpdates`
 
-What we don't have: a place for any of this in the *live* panel, and a service that periodically runs LLM work against an in-flight transcript with sensible debouncing and cancellation. This ADR fills both gaps.
+What was missing: a place for chat in the *live* panel, an in-memory mode for the chat VM (no transcriptionId yet), and a clean handoff so the live conversation persists when the meeting finalizes.
 
 ## Decision
 
-### 1. Three tabs in the live panel: Transcript / Insights / Ask
+### 1. Two tabs in the live panel: Transcript / Ask
 
-`MeetingRecordingPanelView` gains a tab bar between the header and the content area:
+`MeetingRecordingPanelView` gains a thin tab bar between the header and the content area:
 
 ```
 ┌─────────────────────────────────────┐
-│ Header (status · elapsed · words)   │
+│ ● Recording 6:03 · 672 words        │
 ├─────────────────────────────────────┤
-│ [Transcript] [ Insights ] [  Ask  ] │  ← new
+│  Transcript    Ask                  │  ← thin row, accent-capsule underline on active
 ├─────────────────────────────────────┤
 │                                     │
 │ content for selected tab            │
 │                                     │
-├─────────────────────────────────────┤
-│ Copy · Auto-scroll · ... · Stop     │
 └─────────────────────────────────────┘
 ```
 
-- **Transcript** — unchanged from today; rolling speaker-attributed live transcript
-- **Insights** — LLM-generated sections that refresh periodically as the meeting progresses
-- **Ask** — chat UI; user asks questions against the live transcript; supports streaming
+- **Transcript** — unchanged from today; rolling speaker-attributed live transcript with Copy/Auto-scroll/Stop in the footer
+- **Ask** — chat UI; user asks questions against the live transcript; supports streaming. Footer (Copy/Auto-scroll/Stop) is hidden entirely on Ask so the chat owns the bottom; the floating recording pill is the canonical Stop control
 
-The tab bar mimics `TranscriptResultView`'s capsule style so the visual transition from live → finalized feels continuous. Default selected tab is `Transcript`.
+Default selected tab is `.transcript`. `Cmd+1` / `Cmd+2` switch tabs from the keyboard.
 
-### 2. Insights has four fixed sections
+### 2. Thinking-partner pills in two surfaces
 
-The Insights pane is **not** a free-form user-configurable prompt surface during the live meeting. It renders a fixed, structured LLM response with four sections:
+Pills are the dominant entry point. They serve two roles, with two distinct visual treatments:
 
-1. **Interim Summary** — 2–3 sentence synopsis of the meeting so far
-2. **Key Highlights** — bulleted important moments or decisions
-3. **Open Questions** — questions raised but not yet answered
-4. **Points to Clarify** — statements that were ambiguous or may need follow-up
+**Empty-state starter pills** (vertical, sparkle icon, called out under a "Quick prompts" label):
 
-The LLM is asked for all four sections in one structured call. The system prompt instructs the model to return sections in a fixed machine-parseable format (headers + bullets). The parser is defensive — if a section is missing or malformed, that section renders empty; it does not break the others.
+| Label | Purpose |
+|-------|---------|
+| Summarize so far | Re-orient |
+| What did I miss? | Catch up |
+| What question is worth asking? | Sharpen the user's next move |
+| What's worth pushing back on? | Invite scrutiny |
+| Where are we going in circles? | Surface drift |
+| What's unresolved? | Pull open threads |
 
-**Why fixed?** User-configurable live prompts would be a distraction mid-meeting, mirror confusingly with post-meeting prompts (ADR-013), and explode the surface we have to maintain. The post-meeting Results tab (ADR-013) is where custom prompts live.
+**Persistent follow-up pills** (compact horizontal-scroll row above the input, visible whenever a conversation exists):
 
-### 3. Insights refresh is debounced; one job at a time
+| Tell me more · Summarize so far · What did I miss? · Why? · Give an example · Counter-argument? · Action items? · TL;DR |
+|---|
 
-A new `MeetingLiveInsightsService` actor runs the insight generation on demand. Its refresh policy:
+The follow-up row reuses Summarize and Missed because both stay useful as the transcript grows. The other follow-ups are framed as "drill deeper" actions.
 
-- **Minimum interval**: do not start a new run less than 25 seconds after the previous run began
-- **Delta gate**: do not start a new run unless ≥ 50 new words have been transcribed since the last run
-- **First run**: the first run is allowed at 45 seconds of elapsed recording time (too early produces content-free hallucinations on 5 seconds of "Okay. Okay. Alright.")
-- **In-flight cancellation**: if a refresh is requested while one is already running, the request is coalesced; we do not queue multiple insights
-- **User-initiated refresh**: a "Refresh" button in the Insights pane bypasses the delta gate (but still respects the minimum interval)
+### 3. Pills carry a label and a comprehensive prompt
 
-When the meeting stops, the service is asked for one final refresh using the full transcript, and the result is persisted as a `PromptResult` with the built-in "Meeting Insights" prompt snapshot.
+Each pill is a `LiveAskPrompt(label: String, prompt: String)`. The label is what renders on the chip and in the user's bubble. The `prompt` is sent to the LLM in place of the label so the model gets enough scaffolding to answer well, while the thread reads conversational.
 
-### 4. Insights are ephemeral during recording; persisted on stop
+`TranscriptChatViewModel.sendMessage(richPrompt:)` accepts the prompt as an optional override — when supplied (non-empty after trimming), it replaces `inputText` as the `question` to `LLMService.chatStream`. The visible bubble and persisted `chatHistory` continue to record `inputText` (the label).
 
-During the live session, generated insights live in-memory only (on the `MeetingLiveInsightsService` and its view model). We do not write them to disk every 30 seconds.
+Example: tapping "Tell me more" sends *"Expand on your previous response. Go deeper with concrete details and any nuances worth knowing."* to the LLM; the bubble and the persisted message both show "Tell me more".
 
-On stop:
-- The final post-finalize run produces the authoritative insights
-- That result is saved as one `PromptResult` row linked to the finalized `Transcription` via the existing `PromptResultRepository`
-- The prompt snapshot (name = "Meeting Insights", content = the built-in template) makes the result self-contained per ADR-013
+### 4. Live in-memory mode in TranscriptChatViewModel
 
-**Why not persist intermediate runs?** They'd inflate the `prompt_results` table without user value — nobody wants to browse ten variants of the same insights. Only the final one matters, and we already have the finalization hook to save it.
+For Ask to work mid-recording — before any `Transcription` row exists — `TranscriptChatViewModel.sendMessage(...)` skips the lazy `ChatConversation` creation when both `transcriptionId` and `conversationRepo` are `nil`. Messages still accumulate in `messages` and `chatHistory` normally; nothing is persisted until promotion.
 
-### 5. Ask reuses TranscriptChatViewModel with rolling transcript
+The transcript text is fed continuously via a new `updateTranscriptText(_:)` (does not clear history; distinct from the existing `updateTranscript(_:)` which does). `MeetingRecordingPanelViewModel` calls this on every transcript-preview tick with a clean speaker-labeled join (no bracketed timestamps — LLMs do better without them).
 
-`TranscriptChatViewModel` already takes `transcriptText: String` at `configure(...)` time. For the live Ask tab:
+### 5. Live → persisted handoff at finalize
 
-- On panel show: configure the chat VM with the current live transcript text; leave `transcriptionRepo` and `conversationRepo` as `nil` so messages stay in-memory
-- On each user send: re-inject the latest rolling transcript (rebuild the VM's internal `transcriptText`) before calling `sendMessage()`
-- On meeting stop + finalize: call `configure(...)` again with the finalized transcript + the real `transcriptionId` and `conversationRepo`, then bulk-insert the in-memory messages into the new `ChatConversation`
+When the meeting stops and transcription completes, `MeetingRecordingFlowCoordinator` calls a new `TranscriptChatViewModel.bindPersistedConversation(transcriptionId:transcriptionRepo:conversationRepo:)`. This creates one `ChatConversation` linked to the finalized transcription, writes the entire in-memory `chatHistory` in a single repo call, and pushes it to the front of `conversations`.
 
-Design note for implementation: the cleanest path is a new internal helper on `TranscriptChatViewModel` like `bindPersistedConversation(transcriptionId:, transcriptionRepo:, conversationRepo:)` that takes the existing in-memory messages and promotes them to a persisted conversation. This avoids duplicating send/stream logic and keeps the live/finalized boundary a single function call.
+The post-finalize `TranscriptResultView` (ADR-013) is unchanged — its existing Chat tab discovers the new conversation through `ChatConversationRepository.fetchAll(transcriptionId:)` and renders it like any other chat thread. No data loss, no duplication, no UI changes to the post-meeting surface.
 
-### 6. Starter prompt pills for Ask
+### 6. Convenience touches
 
-The live Ask tab shows a horizontal row of four starter prompts when the conversation is empty (or dismissed after the first send):
+Polish that matters for the daily-driver feel:
 
-- "Summarize so far"
-- "What did I miss?"
-- "What are the action items?"
-- "Was anything left unresolved?"
+- **Auto-focus** the input ~100ms after the Ask pane appears so typing works on tab switch without a click.
+- **Field stays enabled while streaming.** SwiftUI strips focus from a field the moment it becomes disabled, and re-focusing inside an `NSPanel` after an enable toggle is unreliable. The input is only disabled when no LLM provider is configured. The `send()` guard prevents double-sends; the user can also queue text mid-stream.
+- **Escape** cancels an in-flight assistant response (no button click needed).
+- **Cmd+1 / Cmd+2** switch tabs.
+- **TypingIndicator** — three accent dots wave gracefully (~1.4s cycle) while the assistant is composing, replacing the placeholder "…".
 
-Tapping a pill fills the input and sends. The pill copy is hardcoded in v1 (English-first). Additional languages and user customization are deferred — TranscriptChatViewModel already has a `suggestedPrompts` array that can be broadened later.
+### 7. No-LLM state is non-blocking
 
-### 7. No-LLM-key empty state is non-blocking
+If no LLM provider is configured, the Ask tab renders an empty state:
 
-If no LLM provider is configured, both Insights and Ask tabs render an empty state:
+> *"Ask needs an AI provider. Add one in Settings → AI Providers. Recording works without it."*
 
-> *"Insights and Ask need an AI provider. This is optional — recording still works and you can add a provider anytime in Settings → AI Providers."*
+with an "Open Settings" button. The recording itself continues uninterrupted; the Transcript tab is unaffected; finalize still works. Users who never configure LLM use MacParakeet's meeting recording exactly as it works today.
 
-With an "Open Settings" button. The recording itself continues uninterrupted; the Transcript tab is unaffected; finalize still works. Users who never configure LLM can use MacParakeet's meeting recording exactly as it works today.
-
-### 8. Live tabs do not compete with STT for the scheduler
+### 8. Live Ask does not contend with STT for the scheduler
 
 The `LLMService` calls run against cloud or local LLM providers over HTTP. They do **not** go through `STTScheduler` (ADR-016). There is no contention with dictation or meeting live-chunk transcription: LLM and STT are separate compute paths (LLM = network or local Ollama process; STT = ANE/CoreML).
-
-That said: local LLM (Ollama / LM Studio) on the same machine is CPU/GPU-bound. The debouncing in §3 and the single-worker queue are what keep local-LLM insight runs from slowing down the machine mid-meeting. The existing `LLMService` context budget (24k chars for local, 100k for cloud) already handles long meetings via middle-truncation.
-
-### 9. Post-finalize view still owns the rich experience
-
-The post-finalize `TranscriptResultView` (ADR-013) is unchanged. What's new:
-
-- The final insights run is already saved as a `PromptResult` and appears as a tab automatically
-- The live Ask conversation is already persisted as a `ChatConversation` on the finalized transcription; the Chat tab shows those messages continuously
-
-The user experience across the transition should feel like "the panel grew into a window." No data is lost, no duplication, no re-asking.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                   MeetingRecordingPanelView                      │
-│   ┌────────────┐ ┌──────────┐ ┌─────────┐                       │
-│   │ Transcript │ │ Insights │ │   Ask   │   ← tab bar            │
-│   └────────────┘ └──────────┘ └─────────┘                       │
-│                                                                  │
-│   ┌──────────────────────────────────────────────────────────┐  │
-│   │ MeetingRecordingPanelViewModel                           │  │
-│   │   ├── previewLines (existing)                            │  │
-│   │   ├── insightsViewModel : MeetingInsightsViewModel (new) │  │
-│   │   └── chatViewModel    : TranscriptChatViewModel (exists)│  │
-│   └──────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-                               │
-                 ┌─────────────┴──────────────┐
-                 ▼                            ▼
-┌─────────────────────────────┐    ┌──────────────────────────┐
-│ MeetingLiveInsightsService  │    │ TranscriptChatViewModel  │
-│   ├── actor                 │    │   (existing)             │
-│   ├── debounce policy       │    │                          │
-│   ├── cancellation          │    │                          │
-│   └── uses LLMService       │    │                          │
-│        .generatePromptResult│    │   uses LLMService        │
-│        Stream(systemPrompt:)│    │        .chatStream       │
-└─────────────────────────────┘    └──────────────────────────┘
-                 │                            │
-                 └─────────────┬──────────────┘
-                               ▼
-                      ┌──────────────────┐
-                      │   LLMService     │
-                      │   (existing)     │
-                      └──────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│              MeetingRecordingPanelView                   │
+│   ┌────────────┐ ┌─────────┐                             │
+│   │ Transcript │ │   Ask   │   ← tab bar (Cmd+1/Cmd+2)   │
+│   └────────────┘ └─────────┘                             │
+│                                                          │
+│   ┌──────────────────────────────────────────────────┐   │
+│   │ MeetingRecordingPanelViewModel                   │   │
+│   │   ├── previewLines            (existing)         │   │
+│   │   ├── chatTranscript: String  (computed,         │   │
+│   │   │   pushed to chatViewModel each preview tick) │   │
+│   │   ├── selectedTab: LivePanelTab                  │   │
+│   │   └── chatViewModel: TranscriptChatViewModel     │   │
+│   └──────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+                    ┌──────────────────────────┐
+                    │ TranscriptChatViewModel  │
+                    │   (existing, extended)   │
+                    │                          │
+                    │   uses LLMService        │
+                    │        .chatStream       │
+                    └──────────────────────────┘
+                                │
+                                ▼
+                    ┌──────────────────────────┐
+                    │   LLMService             │
+                    │   (existing)             │
+                    └──────────────────────────┘
 ```
 
 ## Rationale
 
-### Why four fixed sections instead of a chat-only live experience?
+### Why drop Insights (the headline change in this amendment)
 
-Granola's single biggest differentiator is that you can *glance* at an LLM-maintained view of the meeting without asking anything. Requiring a chat question means the user has to type during a call. Fixed sections that refresh in the background are the point.
+Insights would have made meeting recording reach feature parity with Granola-class tools that show a standing AI view of the call. The cost: an actor with debounce policy + delta gates + cancellation, periodic LLM calls firing whether or not the user looks, free-form section-parsing, a staleness indicator, an extra final-finalize round to persist results, and meaningfully more UI surface.
 
-### Why not stream the insights live (token-by-token) on the Insights tab?
+Pull-on-demand pills in Ask cover the same use cases (summary, what-did-I-miss, action items) at zero idle cost and with deterministic UX. The product stance shifts from "we maintain a view of your meeting" to "we help you think during your meeting." The latter feels more like MacParakeet — a small tool with one clear edge — and less like a feature checklist.
 
-We considered it. The problem: insights refresh every ~30 seconds, and each run takes 5–10 seconds to stream. If the user is watching the Insights tab, they'd see shimmering text constantly. We decided on a cleaner UX: show the previous run steady on screen; when the new run completes, swap with a brief crossfade. Streaming happens under the hood for cancellation/backpressure reasons, not for UI animation.
+### Why label-vs-prompt instead of bare strings
 
-### Why reuse `TranscriptChatViewModel` instead of writing a live-specific chat VM?
+Sending "Tell me more" to the LLM gives the model essentially no instruction. Sending "Expand on your previous response with concrete details and any nuances worth knowing" gives it scaffolding. But putting that whole sentence in the user's chat bubble breaks the conversational read. The split lets each side win.
 
-The chat VM is already built for streaming messages against a transcript with history. The only thing it doesn't know is that the transcript is growing. That's a one-line update — re-setting `transcriptText` before each send. Writing a parallel `LiveChatViewModel` is duplication.
+### Why "thinking-partner" framing for the pills
 
-### Why save final insights but not live chat messages as a separate artifact?
+Generic chat pills ("Summarize", "Translate", "Bullet points") are useful but interchangeable with every other LLM product. "What question is worth asking?" / "Where are we going in circles?" / "What's worth pushing back on?" are designed to make the *user* sharper in the meeting, not just produce summaries. This is the differentiation lever — pills become product opinion, not chrome.
 
-Live chat messages are already a first-class artifact (`ChatConversation`). Live insights aren't — they'd have to be modeled as a special kind of prompt result. We picked the simpler mapping: treat final insights as a `PromptResult` with the built-in "Meeting Insights" prompt, save the live chat as a normal `ChatConversation`. Both drop into their respective tabs on the finalized view.
+### Why reuse `TranscriptChatViewModel` instead of writing a live-specific chat VM
 
-### Why 25-second minimum interval and 50-word delta?
+The chat VM was already built for streaming messages against a transcript with history. The only thing it didn't know is that the transcript is growing and that there might not be a transcription row to bind to yet. Both gaps are small extensions (`updateTranscriptText`, in-memory mode in `sendMessage`, `bindPersistedConversation`) and keep the live and post-meeting surfaces operating on the same primitive — so a feature added to chat is added to both at once.
 
-Heuristics, tuned for a voice call pace of ~150 wpm (average English conversation). 50 words is ~20 seconds of talk; adding the 25-second minimum gives a natural one-run-per-half-minute cadence under active speech and drops to "no refresh" during long silences. Both numbers are constants in v1; make them settings only if telemetry shows users want control.
+### Why ship without follow-ups suggested by the LLM itself
 
-### Why not auto-expand meeting panel on auto-start (ADR-017) so Insights/Ask are visible?
-
-The panel's default collapse behavior is a separate UX question. v1 keeps it as-is: pill on, panel opens when the user clicks. If the user never opens the panel, insights and chat still run invisibly — but cheaply, because an unopened panel means no UI work is happening. The only overhead is the LLM calls themselves, governed by §3.
+Two ways the follow-up row could be smarter: (a) embed "suggested follow-ups" in the LLM's response and parse them out, (b) fire a separate LLM call after each response. (a) adds parsing brittleness and is visible when it breaks. (b) doubles per-turn cost. Neither earns its keep against a curated static set that's right ~80% of the time and never fails.
 
 ## Consequences
 
 ### Positive
 
-- Meeting recording reaches feature parity with the "observable AI view of your meeting" use case that Granola-class tools provide
-- No new data model on top of existing `PromptResult` + `ChatConversation`
-- Live and finalized experiences share state — no data loss on the transition
-- No-LLM-key users get the same recording they have today; feature is pure addition
-- Post-finalize `TranscriptResultView` gets richer with zero view-layer changes
-- `LLMService` and `TranscriptChatViewModel` are both reused, not cloned
+- Live meeting recording now has a useful chat affordance with one-tap depth.
+- Thinking-partner framing differentiates from every other "chat with your meeting" tool on the market.
+- Zero idle LLM cost — nothing fires unless the user taps a pill or sends a message.
+- No new tables, no schema migrations: `ChatConversation` is reused for the live thread post-finalize.
+- Live and finalized surfaces share state — no data loss on the meeting → transcription transition.
+- No-LLM-key users get the same recording they had before; this is pure addition.
 
 ### Negative
 
-- **LLM cost**: every active meeting makes periodic LLM calls. For cloud providers this costs real money per minute of meeting. Mitigate: the default `llm` setup after onboarding is still unset (nothing fires until the user configures a provider). Surface meeting-level cost estimates in settings later if this becomes an issue.
-- **Privacy shift**: LLM features are local-first by default (ADR-002 amendment), but cloud LLM users are now streaming meeting content to a third party every 30 seconds — a more aggressive privacy posture than single post-meeting summaries. Mitigate: clearly documented; remains opt-in at the provider layer.
-- **UI complexity in the panel**: the panel was a single pane; it's now three panes plus a tab bar. More layout surface, more places for regressions.
-- **Delta-gate heuristic is not language-aware**: 50 words in English ≠ 50 words in Korean for the same duration. Acceptable for v1; re-tune if multilingual use cases surface.
-- **Live insights can be wrong**: the LLM may hallucinate on thin context or disagree with itself across runs. Prompt engineering and the "Points to Clarify" section are deliberate framings to keep the model humble, but we must set user expectations that live insights are directional.
+- **No passive glance value.** A user who tunes out can no longer look up at the panel and see "they just decided X." They have to tap a pill. For long meetings this is real, but the v1 cost-benefit of an Insights pane to reclaim it doesn't justify it.
+- **In-memory chat is lost if transcription fails.** If the user has a substantive Ask conversation and then transcription errors out (rare), the chat is lost along with the transcription. A JSON sidecar persistence layer is sketched as "Future Work" below.
+- **English-first pills.** Both starter and follow-up pill labels are hardcoded English. Localization deferred until multilingual demand surfaces.
 
-## Implementation Direction
+### Neutral
+
+- LLM cost from Ask is bounded by user action — a quiet meeting is free.
+- Privacy posture matches the existing post-meeting chat (ADR-011): if a cloud LLM is configured, transcripts are sent on each user-initiated request.
+
+## Implementation
 
 ### Core (MacParakeetCore)
 
-- `MeetingLiveInsightsService` (actor) — exposes:
-  - `start()` / `stop()`
-  - `update(transcript: String, wordCount: Int, elapsedSeconds: Int)` — called from `MeetingRecordingFlowCoordinator` on every `transcriptUpdates` tick; internal debounce logic
-  - `refreshNow()` — user-initiated, honors minimum interval
-  - `insights: AsyncStream<MeetingInsightsSnapshot>` — emits `(sections, generatedAt, isStale)` snapshots
-  - `finalize() async -> MeetingInsights` — one synchronous run on the full transcript post-stop
-- `MeetingInsights` value type with four optional `Section` fields
-- `MeetingInsightsPrompt` — static system-prompt template (built-in)
+Unchanged. No new actors, services, or schema.
 
 ### ViewModels (MacParakeetViewModels)
 
-- `MeetingInsightsViewModel` (@MainActor @Observable) — subscribes to `MeetingLiveInsightsService.insights`; exposes current snapshot + `isRefreshing` + `hasLLM` + `refresh()` action
-- Extend `MeetingRecordingPanelViewModel` with:
-  - `selectedTab: LivePanelTab`
-  - `insightsViewModel: MeetingInsightsViewModel`
-  - `chatViewModel: TranscriptChatViewModel`
-  - `rollingTranscript: String` computed from `previewLines`
-- Extend `TranscriptChatViewModel` with `bindPersistedConversation(transcriptionId:, transcriptionRepo:, conversationRepo:)` for the live→persisted promotion
+- `MeetingRecordingPanelViewModel` (extended): `LivePanelTab` enum, `selectedTab`, composed `chatViewModel: TranscriptChatViewModel`, `chatTranscript` computed plain-text projection of `previewLines`, push to chat VM on every `updatePreviewLines(...)`.
+- `TranscriptChatViewModel` (extended):
+  - In-memory mode in `sendMessage(richPrompt:)` when both `transcriptionId` and `conversationRepo` are nil.
+  - `updateTranscriptText(_:)` — set transcript text without clearing history.
+  - `bindPersistedConversation(transcriptionId:transcriptionRepo:conversationRepo:)` — promote in-memory thread to a `ChatConversation` in one repo write at finalize time.
+  - Optional `richPrompt` parameter on `sendMessage(...)` so pills can ship a comprehensive prompt while the bubble shows the short label.
 
 ### View layer (MacParakeet)
 
-- Update `MeetingRecordingPanelView` with the tab bar; introduce three pane views:
-  - `LiveTranscriptPaneView` — the existing content, extracted
-  - `LiveInsightsPaneView` — renders four sections with staleness indicator + Refresh button
-  - `LiveAskPaneView` — chat UI + starter pill row, input at bottom
-- Keep the footer (Copy/Auto-scroll/Stop) context-aware per tab (Copy copies the visible pane's content)
+- `MeetingRecordingPanelView` — tab bar (text + 1pt accent capsule underline, `Cmd+1/2`); `paneContent` switches between Transcript and Ask; footer hidden on Ask.
+- `LiveAskPaneView` *(new)* — scrollable message thread, vertical "Quick prompts" stack of starter pills in the empty state, horizontal-scroll follow-up row above the input once messages exist, polished input bar (14pt corners, hairline border), `TypingIndicator` (three accent dots, 1.4s wave), no-LLM empty state with Settings CTA.
 
 ### Wiring (MacParakeet App)
 
-- `MeetingRecordingFlowCoordinator` instantiates `MeetingLiveInsightsService` on recording start, feeds it transcript updates, calls `finalize()` on stop
-- The finalized `PromptResult` is persisted right before `onTranscriptionReady` fires
-- The in-memory live chat conversation is promoted via the new `bindPersistedConversation` helper at the same point
+- `MeetingRecordingFlowCoordinator` — accepts `transcriptionRepo`, `conversationRepo`, `configStore`, `cliConfigStore`, `llmService?` at init. Configures the panel's chatViewModel for in-memory live mode at `.showRecordingPill`. Calls `bindPersistedConversation(...)` at `.navigateToTranscription` so the live thread carries onto `TranscriptResultView`'s Chat tab. New `updateLLMService(_:)` forwards provider changes.
+- `AppEnvironmentConfigurer` — passes the new deps; weak-holds the meeting coordinator so `refreshLLMAvailability(in:)` forwards LLM provider changes to the live chat VM alongside the existing singleton chat VM.
 
-### Telemetry (new cases, must mirror to website allowlist)
+### Pill copy (English-first; hardcoded)
 
-- `.meetingLiveInsightsRun(provider: String, durationSeconds: Double, transcriptChars: Int, sections: Int)`
-- `.meetingLiveInsightsFailed(provider: String, errorType: String)`
-- `.meetingLiveAskUsed(provider: String, messageCount: Int)`
+See decision §2 for the full lists.
 
-## Phased Rollout
+## Phased Rollout (actual)
 
-1. **Phase 1 — Tab shell + Transcript extraction:** Panel grows tabs, Transcript pane is the old content moved wholesale. No new services. Ship as a visual-only change.
-2. **Phase 2 — Insights service + pane:** Implement `MeetingLiveInsightsService`, wire up the Insights pane. Ship behind its own telemetry; default empty state when no LLM.
-3. **Phase 3 — Live Ask:** Wire `TranscriptChatViewModel` into the panel, starter pills, live→persisted promotion. Ship.
-4. **Phase 4 — Copy polish:** Per-tab Copy, per-tab Share, consistency with `TranscriptResultView` affordances.
+1. **Phase A — Tab shell + Transcript extraction** ✅ shipped 2026-04-24 (commit `e574135a`)
+2. **Phase B — Live Insights service + pane** — **dropped** per the amendment above
+3. **Phase C — Live Ask** ✅ shipped 2026-04-24 (commit `e574135a` + polish in `80317e70`)
+4. **Phase D — Convenience polish** — not originally scoped; rolled in as part of Phase C polish: auto-focus on tab switch, ESC cancel, Cmd+1/Cmd+2, label/prompt split for pills, focus-stays-on-Enter fix.
 
-## Open Questions
+## Future Work
 
-- **Panel size**: current `idealWidth: 420, idealHeight: 460` is sized for a single transcript pane. Insights with four sections and Ask with chat bubbles both want more vertical space. Either raise defaults or ensure each pane handles the current size gracefully.
-- **Voice of the built-in insights prompt**: tone (terse vs friendly), format (plain markdown vs a fixed schema), and instruction strength all affect quality. This is prompt engineering, not architecture — owned by whoever implements Phase 2.
-- **Handling speaker labels in the LLM prompt**: the live transcript already carries `Me` / `Others` labels. Including them in the prompt helps the LLM produce attributed highlights ("Alice asked about X"), but the labels are generic — worth testing if it helps or confuses the model.
-- **Should the Insights pane expose which LLM produced the current snapshot?** Probably yes — one small text line at the bottom. Cheap to implement, useful for debugging and user trust.
+- **Transcription-failure chat recovery.** If transcription fails after stop, the in-memory Ask thread is lost. Sketch: write `chatHistory` to `~/Library/Application Support/MacParakeet/pending-chat-{recordingId}.json` on every send; delete the sidecar on successful finalize; on next launch, surface a "Recover chat" entry if a sidecar is found. ~50 lines, no schema migration. Defer until telemetry or a user complaint says it matters.
+- **Localization** of starter and follow-up pill copy.
+- **Markdown rendering** in assistant bubbles (bold, lists, code blocks). Currently plain text; would lift the visual quality of long responses without changing the data model.
+- **Per-message actions** (copy, regenerate) on hover in the live thread. The post-finalize Chat tab does not have these either; could be added in both surfaces together.
+- **Reopen Insights** if telemetry indicates users want passive-glance value enough to justify the LLM cost surface.

@@ -1,5 +1,11 @@
 import Foundation
 import GRDB
+import OSLog
+
+private let transcriptionDecodeLogger = Logger(
+    subsystem: "com.macparakeet.core",
+    category: "Transcription.decode"
+)
 
 public struct Transcription: Codable, Identifiable, Sendable {
     public enum SourceType: String, Codable, Sendable {
@@ -21,7 +27,6 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var speakerCount: Int?
     public var speakers: [SpeakerInfo]?
     public var diarizationSegments: [DiarizationSegmentRecord]?
-    public var summary: String?
     public var chatMessages: [ChatMessage]?
     public var status: TranscriptionStatus
     public var errorMessage: String?
@@ -32,6 +37,27 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var videoDescription: String?
     public var isFavorite: Bool
     public var sourceType: SourceType
+    public var recoveredFromCrash: Bool
+    public var isTranscriptEdited: Bool
+    /// Free-form notes the user typed during a meeting recording.
+    /// Persisted alongside the transcript so they can steer post-meeting
+    /// summary generation (ADR-020 §3). `nil` for non-meeting transcripts
+    /// and for meetings where the user took no notes.
+    public var userNotes: String?
+    /// STT engine that produced this transcript (`"parakeet"` / `"whisper"`).
+    /// `nil` for rows created before the v0.8 engine-attribution migration.
+    public var engine: String?
+    /// Engine-specific model variant id (e.g. the Whisper model id).
+    /// `nil` for engines without variants and for legacy rows.
+    public var engineVariant: String?
+    /// Display-ready title derived from the transcript content at completion
+    /// (substantive first sentence, filler-stripped). `nil` when the transcript
+    /// is empty or when the row predates v0.9 backfill.
+    public var derivedTitle: String?
+    /// Display-ready preview snippet derived from the transcript content at
+    /// completion (substantive sentence in [40, 140] chars, filler-stripped).
+    /// `nil` when the transcript is empty or predates v0.9 backfill.
+    public var derivedSnippet: String?
     public var updatedAt: Date
 
     public enum TranscriptionStatus: String, Codable, Sendable {
@@ -55,7 +81,6 @@ public struct Transcription: Codable, Identifiable, Sendable {
         speakerCount: Int? = nil,
         speakers: [SpeakerInfo]? = nil,
         diarizationSegments: [DiarizationSegmentRecord]? = nil,
-        summary: String? = nil,
         chatMessages: [ChatMessage]? = nil,
         status: TranscriptionStatus = .processing,
         errorMessage: String? = nil,
@@ -66,6 +91,13 @@ public struct Transcription: Codable, Identifiable, Sendable {
         videoDescription: String? = nil,
         isFavorite: Bool = false,
         sourceType: SourceType = .file,
+        recoveredFromCrash: Bool = false,
+        isTranscriptEdited: Bool = false,
+        userNotes: String? = nil,
+        engine: String? = nil,
+        engineVariant: String? = nil,
+        derivedTitle: String? = nil,
+        derivedSnippet: String? = nil,
         updatedAt: Date = Date()
     ) {
         self.id = id
@@ -81,7 +113,6 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.speakerCount = speakerCount
         self.speakers = speakers
         self.diarizationSegments = diarizationSegments
-        self.summary = summary
         self.chatMessages = chatMessages
         self.status = status
         self.errorMessage = errorMessage
@@ -92,6 +123,13 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.videoDescription = videoDescription
         self.isFavorite = isFavorite
         self.sourceType = sourceType
+        self.recoveredFromCrash = recoveredFromCrash
+        self.isTranscriptEdited = isTranscriptEdited
+        self.userNotes = userNotes
+        self.engine = engine
+        self.engineVariant = engineVariant
+        self.derivedTitle = derivedTitle
+        self.derivedSnippet = derivedSnippet
         self.updatedAt = updatedAt
     }
 }
@@ -140,9 +178,9 @@ extension Transcription: FetchableRecord, PersistableRecord {
     public enum Columns: String, ColumnExpression {
         case id, createdAt, fileName, filePath, fileSizeBytes, durationMs
         case rawTranscript, cleanTranscript, wordTimestamps, language
-        case speakerCount, speakers, diarizationSegments, summary, chatMessages
+        case speakerCount, speakers, diarizationSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
-        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, updatedAt
+        case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, engine, engineVariant, derivedTitle, derivedSnippet, updatedAt
     }
 
     /// Backward-compatible decoding: `speakers` column may contain old `[String]` JSON
@@ -161,7 +199,11 @@ extension Transcription: FetchableRecord, PersistableRecord {
         language = try container.decodeIfPresent(String.self, forKey: .language)
         speakerCount = try container.decodeIfPresent(Int.self, forKey: .speakerCount)
 
-        // Try new [SpeakerInfo] format first, fall back to old [String] format
+        // Try new [SpeakerInfo] format first, fall back to old [String] format.
+        // If both shapes fail to decode but the key is present, the data is
+        // genuinely malformed (a string array would round-trip via the
+        // fallback). Log so the corruption is observable in Console.app
+        // rather than silently dropping speaker info on read.
         if let speakerInfos = try? container.decodeIfPresent([SpeakerInfo].self, forKey: .speakers) {
             speakers = speakerInfos
         } else if let oldStrings = try? container.decodeIfPresent([String].self, forKey: .speakers) {
@@ -170,10 +212,16 @@ extension Transcription: FetchableRecord, PersistableRecord {
             }
         } else {
             speakers = nil
+            let speakersIsExplicitNull = (try? container.decodeNil(forKey: .speakers)) == true
+            if container.contains(.speakers), !speakersIsExplicitNull {
+                let recordIDString = id.uuidString
+                transcriptionDecodeLogger.warning(
+                    "transcription_speakers_decode_failed id=\(recordIDString, privacy: .public)"
+                )
+            }
         }
 
         diarizationSegments = try container.decodeIfPresent([DiarizationSegmentRecord].self, forKey: .diarizationSegments)
-        summary = try container.decodeIfPresent(String.self, forKey: .summary)
         chatMessages = try container.decodeIfPresent([ChatMessage].self, forKey: .chatMessages)
         status = try container.decode(TranscriptionStatus.self, forKey: .status)
         errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
@@ -190,6 +238,13 @@ extension Transcription: FetchableRecord, PersistableRecord {
         } else {
             sourceType = .file
         }
+        recoveredFromCrash = try container.decodeIfPresent(Bool.self, forKey: .recoveredFromCrash) ?? false
+        isTranscriptEdited = try container.decodeIfPresent(Bool.self, forKey: .isTranscriptEdited) ?? false
+        userNotes = try container.decodeIfPresent(String.self, forKey: .userNotes)
+        engine = try container.decodeIfPresent(String.self, forKey: .engine)
+        engineVariant = try container.decodeIfPresent(String.self, forKey: .engineVariant)
+        derivedTitle = try container.decodeIfPresent(String.self, forKey: .derivedTitle)
+        derivedSnippet = try container.decodeIfPresent(String.self, forKey: .derivedSnippet)
         updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }

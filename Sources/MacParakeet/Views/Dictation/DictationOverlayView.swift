@@ -281,7 +281,8 @@ struct DictationOverlayView: View {
             // reads cleanly on a full dark background after the expansion.
             let isIconOnly: Bool = {
                 switch viewModel.state {
-                case .processing: return viewModel.sessionKind != .command
+                case .processing:
+                    return viewModel.sessionKind != .command && viewModel.visibleProcessingMessage == nil
                 case .formatting: return viewModel.sessionKind != .command
                 case .success: return true
                 case .noSpeech: return !noSpeechExpanded
@@ -544,6 +545,16 @@ struct DictationOverlayView: View {
                 HStack(spacing: 8) {
                     SpinnerRingView()
                     Text("Applying command...")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.75))
+                }
+            )
+        }
+        if let message = viewModel.visibleProcessingMessage {
+            return AnyView(
+                HStack(spacing: 8) {
+                    SpinnerRingView()
+                    Text(message)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundStyle(.white.opacity(0.75))
                 }

@@ -25,35 +25,68 @@ This script builds the latest debug binary, stops stale `/Applications`/`dist` a
 ```
 macparakeet-cli
 ├── transcribe <input> [options]         Transcribe a file or YouTube URL
+│   └── --engine parakeet|whisper [--language <code>]
 ├── history                              View and manage history
-│   ├── dictations [--limit]             List recent dictations (default)
-│   ├── transcriptions [--limit]         List recent transcriptions
-│   ├── search <query> [--limit]         Search dictation history
-│   ├── search-transcriptions <query> [--limit]  Search transcriptions by keyword
+│   ├── dictations [--limit] [--json]    List recent dictations (default)
+│   ├── transcriptions [--limit] [--json]  List recent transcriptions
+│   ├── search <query> [--limit] [--json]  Search dictation history
+│   ├── search-transcriptions <query> [--limit] [--json]  Search transcriptions
 │   ├── delete-dictation <id>            Delete a dictation by ID
 │   ├── delete-transcription <id>        Delete a transcription by ID
-│   ├── favorites                        List favorite transcriptions
+│   ├── favorites [--json]               List favorite transcriptions
 │   ├── favorite <id>                    Mark a transcription as favorite
 │   └── unfavorite <id>                  Remove from favorites
 ├── export <id> [options]                Export a transcription to file
-├── stats                                Show voice stats dashboard
-├── health [--repair-models]             System health and model status
+├── stats [--json]                       Show voice stats dashboard
+├── health [--repair-models] [--repair-binaries] [--json]
+│                                         System health and model/helper status
 ├── models                               Speech model lifecycle
-│   ├── status                           Show model status
+│   ├── status [--json]                  Show model status
+│   ├── download <model-id>              Download explicit model (Whisper)
 │   ├── warm-up [--attempts]             Warm up speech model
 │   ├── repair [--attempts]              Best-effort model repair
 │   └── clear                            Delete cached models
 ├── flow                                 Text processing pipeline
 │   ├── process <text> [--copy]          Run clean text processing
 │   ├── words {list,add,delete}          Manage custom words
+│   │   └── list [--source manual|learned|all] [--json]
 │   └── snippets {list,add,delete}       Manage text snippets
+│       └── list [--json]
 ├── llm                                  LLM provider commands
 │   ├── test-connection                  Test provider connectivity
 │   ├── summarize <input>                Summarize text via LLM
 │   ├── chat <input> --question          Ask about a transcript
 │   └── transform <input> --prompt       Apply custom LLM transform
+├── prompts                              Manage prompt library
+│   ├── list [--filter all|visible|auto-run] [--json]
+│   ├── show <id-or-name> [--json]
+│   ├── add --name X (--content Y | --from-file path) [--auto-run]
+│   ├── set <id-or-name> [--visible|--hidden] [--auto-run|--no-auto-run]
+│   ├── delete <id-or-name>              Delete custom prompt (built-ins protected)
+│   ├── restore-defaults                 Re-show all built-in prompts
+│   └── run <id-or-name> --transcription <id> [--no-store] [--stream] [--extra ...]
+├── meetings                             Inspect and manage local meeting recordings
+│   ├── list [--limit] [--json]
+│   ├── show <meeting> [--json]
+│   ├── transcript <meeting> [--format text|json|srt|vtt]
+│   ├── notes {get,set,append,clear} <meeting>
+│   └── export <meeting> [--format md|json] [--stdout]
+├── calendar
+│   └── upcoming [--days N] [--filter link|participants|all] [--json]
 └── feedback <message> [options]         Submit feedback
 ```
+
+> **JSON output convention**: any query command marked `[--json]` emits a single
+> JSON document on stdout (ISO-8601 dates, sorted keys, pretty-printed). Pipe to
+> `jq` or any JSON tool. Side-effect commands generally print a confirmation line;
+> a few newer meeting-note commands also accept `--json` for agent workflows.
+
+> **Telemetry convention**: CLI telemetry uses the same opt-out preference as
+> the GUI and does not change stdout/stderr contracts. `transcribe` emits a
+> privacy-safe `cli_operation` event with command, outcome, duration, output
+> format, coarse input kind, exit code, and low-cardinality error type. Disable
+> with `MACPARAKEET_TELEMETRY=0`, `DO_NOT_TRACK=1`, or
+> `macparakeet-cli config set telemetry off`.
 
 ## Core Modes
 
@@ -85,6 +118,20 @@ swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
   --downloaded-audio keep
 ```
 
+### Speech Engine Selection
+
+Parakeet is the default and ignores `--language`. Use Whisper for languages outside Parakeet coverage after downloading the local Whisper model:
+
+```bash
+swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
+
+swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
+  --engine whisper \
+  --language ko
+```
+
+`--language auto` or omitting `--language` lets Whisper detect the language.
+
 ### Speaker Diarization
 
 Diarization runs by default when transcribing. Disable with:
@@ -103,7 +150,7 @@ swift run macparakeet-cli transcribe "<FILE>"
 swift run macparakeet-cli transcribe "<FILE>" --format json
 ```
 
-## Legacy Entitlements Parity
+## Retained Entitlements Parity
 
 Use this only when exercising the same entitlement check path the GUI uses:
 
@@ -112,11 +159,13 @@ swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
   --enforce-entitlements
 ```
 
-On the current branch, the app is effectively unlocked, so `--enforce-entitlements` should still pass unless you are explicitly validating legacy licensing code.
+On the current branch, the app is effectively unlocked, so
+`--enforce-entitlements` should still pass unless you are explicitly validating
+retained purchase activation code.
 
 ## Export
 
-Export a transcription by its UUID (or UUID prefix). Supported formats: txt, markdown, srt, vtt, json.
+Export a transcription by its UUID or UUID prefix of at least 4 characters. Supported formats: txt, markdown, srt, vtt, json.
 
 ```bash
 # List transcriptions to find the ID
@@ -163,7 +212,7 @@ swift run macparakeet-cli history delete-dictation <ID>
 swift run macparakeet-cli history delete-transcription <ID>
 ```
 
-IDs support UUID prefix matching (e.g., `3a7b` matches `3a7b1234-...`).
+IDs support UUID prefix matching with at least 4 characters (e.g., `3a7b` matches `3a7b1234-...`).
 
 ### Favorites
 
@@ -178,6 +227,38 @@ swift run macparakeet-cli history unfavorite <ID>
 ```bash
 swift run macparakeet-cli health
 swift run macparakeet-cli health --repair-models --repair-attempts 3
+swift run macparakeet-cli health --repair-binaries
+```
+
+`health --json` is a non-mutating readiness probe: it can report an existing
+managed or app-bundled `yt-dlp`, but it does not install or update helper
+binaries. `health --repair-binaries` explicitly fetches the latest managed
+`yt-dlp` copy. App-bundled CLI installs include a signed `yt-dlp` seed so
+YouTube URL transcription works without a first-use helper download.
+
+## Meetings
+
+Meeting commands operate on `sourceType = meeting` transcriptions. `<meeting>` accepts a UUID, UUID prefix, or exact title.
+
+```bash
+swift run macparakeet-cli meetings list --limit 10
+swift run macparakeet-cli meetings show <meeting> --json
+swift run macparakeet-cli meetings transcript <meeting> --format srt
+
+swift run macparakeet-cli meetings notes get <meeting>
+swift run macparakeet-cli meetings notes append <meeting> --text "**Action:** follow up"
+cat notes.md | swift run macparakeet-cli meetings notes set <meeting> --stdin --json
+
+swift run macparakeet-cli meetings export <meeting> --format md --stdout
+```
+
+## Calendar
+
+Calendar commands inspect the same EventKit pipeline used by meeting auto-start. Calendar permission must already be granted through the GUI.
+
+```bash
+swift run macparakeet-cli calendar upcoming --days 1 --filter link
+swift run macparakeet-cli calendar upcoming --days 7 --filter all --json
 ```
 
 ## Speech Model Lifecycle
@@ -185,6 +266,9 @@ swift run macparakeet-cli health --repair-models --repair-attempts 3
 ```bash
 # Non-invasive status (does not force downloads)
 swift run macparakeet-cli models status
+
+# Explicit Whisper download
+swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 
 # Warm-up (single attempt by default)
 swift run macparakeet-cli models warm-up
@@ -196,6 +280,8 @@ swift run macparakeet-cli models repair --attempts 5
 # Delete cached models
 swift run macparakeet-cli models clear
 ```
+
+`models warm-up` and `models repair` prepare the Parakeet + diarization speech stack. Whisper is downloaded explicitly with `models download`.
 
 ## Text Pipeline
 
@@ -215,7 +301,9 @@ swift run macparakeet-cli flow snippets delete <ID>
 
 ## LLM Commands
 
-All LLM commands require `--provider` and `--api-key` (except Ollama, LM Studio, and Local CLI).
+All LLM commands require `--provider`; `--api-key` is required only for providers
+that need one. Ollama, LM Studio, OpenAI-compatible local endpoints, and Local
+CLI can run without an API key.
 
 ### Supported Providers
 
@@ -223,6 +311,7 @@ All LLM commands require `--provider` and `--api-key` (except Ollama, LM Studio,
 |----------|--------------|-----------------|
 | `anthropic` | claude-sonnet-4-6 | Yes |
 | `openai` | gpt-4.1 | Yes |
+| `openai-compatible` | user-selected endpoint/model | Optional |
 | `gemini` | gemini-2.5-flash | Yes |
 | `openrouter` | anthropic/claude-sonnet-4 | Yes |
 | `ollama` | qwen3.5:4b | No (local) |
@@ -301,6 +390,80 @@ swift run macparakeet-cli llm summarize transcript.txt --provider cli --command 
 # Custom command
 swift run macparakeet-cli llm chat transcript.txt --provider cli --command "my-tool --stdin" --question "Key points?"
 ```
+
+## Prompt Library
+
+The prompt library powers multi-summary results in the GUI. The CLI lets you
+seed test prompts, audit migration state, and exercise the summary write path
+without launching the app.
+
+### List, show, add
+
+```bash
+# Lists default to "all"; --filter narrows to visible-only or auto-run-only.
+swift run macparakeet-cli prompts list
+swift run macparakeet-cli prompts list --filter auto-run --json | jq '.[].name'
+
+# Show full content. <id-or-name> accepts UUID, UUID prefix of at least 4 characters, or exact name.
+swift run macparakeet-cli prompts show "Summary"
+swift run macparakeet-cli prompts show A4882688
+
+# Add a custom prompt. Body precedence: --content > --from-file > stdin.
+swift run macparakeet-cli prompts add --name "Daily Notes" \
+  --content "Extract action items grouped by person."
+swift run macparakeet-cli prompts add --name "From File" --from-file ./prompt.md
+
+# Pipe via stdin when both --content and --from-file are omitted.
+cat ./prompt.md | swift run macparakeet-cli prompts add --name "Piped"
+```
+
+### Visibility / auto-run toggles
+
+`set` accepts mutually exclusive flag pairs. Hidden implies not auto-run; auto-run
+implies visible — these invariants are enforced.
+
+```bash
+swift run macparakeet-cli prompts set "Daily Notes" --auto-run
+swift run macparakeet-cli prompts set "Daily Notes" --hidden
+swift run macparakeet-cli prompts set "Summary" --no-auto-run
+```
+
+### Delete and restore
+
+```bash
+swift run macparakeet-cli prompts delete "Daily Notes"
+swift run macparakeet-cli prompts restore-defaults   # re-shows hidden built-ins
+```
+
+Built-in prompts cannot be deleted; the CLI surfaces a clear error and suggests
+`prompts set <name> --hidden` instead.
+
+### Run a prompt against a transcription
+
+`prompts run` calls the configured LLM provider with the prompt as system message
+and the transcription text as input. By default it persists the result to the
+`summaries` table so the GUI sees it on the next reload.
+
+```bash
+swift run macparakeet-cli prompts run "Summary" \
+  --transcription <transcription-id> \
+  --provider anthropic --api-key sk-ant-...
+
+# Stream output and skip persistence (preview-only)
+swift run macparakeet-cli prompts run "Action Items & Decisions" \
+  --transcription a3f7 \
+  --provider openai --api-key sk-... \
+  --stream --no-store
+
+# Add per-run instructions (mirrors the GUI's regenerate-with-extra flow)
+swift run macparakeet-cli prompts run "Blog Post" \
+  --transcription a3f7 \
+  --provider anthropic --api-key sk-ant-... \
+  --extra "Tone: warm and direct. Audience: engineers."
+```
+
+`prompts run` writes the model output to **stdout** and the "Saved PromptResult X"
+confirmation to **stderr**, so `> result.txt` captures only the prompt output.
 
 ## Feedback
 

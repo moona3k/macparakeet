@@ -70,8 +70,10 @@ struct ParticleField: View {
     private func startAnimation() {
         animationTimer?.invalidate()
         let timer = Timer(timeInterval: 1.0 / 30.0, repeats: true) { _ in
-            guard isAnimating else { return }
-            updateParticles()
+            Task { @MainActor in
+                guard isAnimating else { return }
+                updateParticles()
+            }
         }
         RunLoop.main.add(timer, forMode: .common)
         animationTimer = timer

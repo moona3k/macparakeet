@@ -70,6 +70,7 @@ public final class GlobalShortcutManager {
         installedRunLoop = runLoop
         CFRunLoopAddSource(runLoop, runLoopSource, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
+        recoverFromDisabledTap()
         return true
     }
 
@@ -94,6 +95,7 @@ public final class GlobalShortcutManager {
             if let tap = eventTap {
                 CGEvent.tapEnable(tap: tap, enable: true)
             }
+            recoverFromDisabledTap()
             return Unmanaged.passUnretained(event)
         }
 
@@ -114,15 +116,18 @@ public final class GlobalShortcutManager {
             return Unmanaged.passUnretained(event)
         }
 
-        let isPressed = event.flags.contains(mask)
+        handleModifierFlagsChanged(flags: event.flags, mask: mask)
+        return Unmanaged.passUnretained(event)
+    }
+
+    private func handleModifierFlagsChanged(flags: CGEventFlags, mask: CGEventFlags) {
+        let isPressed = flags.contains(mask)
         if isPressed != targetModifierWasPressed {
             targetModifierWasPressed = isPressed
             if isPressed {
                 onTrigger?()
             }
         }
-
-        return Unmanaged.passUnretained(event)
     }
 
     private func handleKeyCodeEvent(type: CGEventType, event: CGEvent) -> Unmanaged<CGEvent>? {
@@ -160,6 +165,33 @@ public final class GlobalShortcutManager {
             flags: event.flags.rawValue & HotkeyTrigger.relevantModifierBits
         )
         return shouldSwallow ? nil : Unmanaged.passUnretained(event)
+    }
+
+    private func recoverFromDisabledTap(flags: CGEventFlags? = nil) {
+        recoverFromDisabledTap(flags: flags, triggerKeyPressed: currentPhysicalTriggerKeyIsPressed())
+    }
+
+    private func recoverFromDisabledTap(flags: CGEventFlags? = nil, triggerKeyPressed: Bool) {
+        triggerKeyIsPressed = triggerKeyPressed
+        syncModifierPressedState(flags: flags)
+    }
+
+    private func currentPhysicalTriggerKeyIsPressed() -> Bool {
+        guard trigger.kind == .keyCode || trigger.kind == .chord,
+              let keyCode = trigger.keyCode else {
+            return false
+        }
+        return CGEventSource.keyState(.combinedSessionState, key: CGKeyCode(keyCode))
+    }
+
+    private func syncModifierPressedState(flags: CGEventFlags? = nil) {
+        guard trigger.kind == .modifier, let mask = targetMask else {
+            targetModifierWasPressed = false
+            return
+        }
+
+        let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+        targetModifierWasPressed = currentFlags.contains(mask)
     }
 
     @discardableResult
@@ -200,6 +232,18 @@ public final class GlobalShortcutManager {
             keyCode: keyCode,
             flags: flags & HotkeyTrigger.relevantModifierBits
         )
+    }
+
+    func modifierFlagsChangedForTesting(flags: CGEventFlags) {
+        guard let mask = targetMask else { return }
+        handleModifierFlagsChanged(flags: flags, mask: mask)
+    }
+
+    func recoverFromDisabledTapForTesting(
+        flags: CGEventFlags? = nil,
+        triggerKeyPressed: Bool = false
+    ) {
+        recoverFromDisabledTap(flags: flags, triggerKeyPressed: triggerKeyPressed)
     }
 
     private static func mask(for trigger: HotkeyTrigger) -> CGEventFlags? {

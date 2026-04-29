@@ -16,6 +16,7 @@
 #   PLAY  - Video/audio playback
 #   LIB   - Transcription library
 #   MEET  - Meeting recording
+#   CLI   - Public command-line surface
 
 # --- v0.1 Core MVP ---
 
@@ -115,6 +116,11 @@ REQ-LLM-001:
   version: v0.4
   status: implemented
 
+REQ-LLM-002:
+  description: CLI LLM commands support structured JSON envelope output with provider, model, usage, stop reason, and latency metadata
+  version: cli-1.2.0
+  status: implemented
+
 # --- v0.5 Data & Reliability ---
 
 REQ-DICT-005:
@@ -189,4 +195,43 @@ REQ-MEET-003:
 REQ-MEET-004:
   description: Meeting final artifact preserves dual-source separation as stereo when both mic and system tracks exist
   version: v0.6
+  status: implemented
+
+REQ-MEET-005:
+  description: Interrupted or not-yet-transcribed meeting recordings are detected by lock file and recoverable on launch or later from Settings
+  version: v0.6
+  status: implemented
+
+REQ-MEET-006:
+  description: Meeting source audio is written as fragmented MP4 so crash-interrupted recordings remain playable up to the last fragment
+  version: v0.6
+  status: implemented
+
+# --- v0.7 Multilingual Speech Recognition ---
+
+REQ-STT-002:
+  description: WhisperKit is available as a second speech recognition engine while Parakeet remains the default
+  version: v0.7
+  status: implemented
+
+REQ-STT-003:
+  description: GUI speech recognition settings persist the selected engine and Whisper default language, and refuse unsafe switches while speech work or a meeting session is active
+  version: v0.7
+  status: implemented
+
+REQ-TRANS-002:
+  description: CLI file and URL transcription support per-invocation Parakeet or Whisper engine selection, optional Whisper language hints, and additive detected-language output
+  version: cli-1.3.0
+  status: implemented
+
+REQ-MEET-007:
+  description: Meeting recordings capture the active speech engine and Whisper language at recording start for live preview, metadata, crash recovery, and final transcription
+  version: v0.7
+  status: implemented
+
+# --- CLI Public Surface ---
+
+REQ-CLI-001:
+  description: CLI transcription telemetry emits a privacy-safe cli_operation event, honors explicit env/CI/UserDefaults opt-out controls, and exposes config get/set/list for the persisted telemetry preference
+  version: cli-1.3.0
   status: implemented

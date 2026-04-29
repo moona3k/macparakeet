@@ -16,6 +16,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
     private let promptsViewModel: PromptsViewModel
     private let customWordsViewModel: CustomWordsViewModel
     private let textSnippetsViewModel: TextSnippetsViewModel
+    private let vocabularyBackupViewModel: VocabularyBackupViewModel
     private let feedbackViewModel: FeedbackViewModel
     private let discoverViewModel: DiscoverViewModel
     private let libraryViewModel: TranscriptionLibraryViewModel
@@ -38,6 +39,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         promptsViewModel: PromptsViewModel,
         customWordsViewModel: CustomWordsViewModel,
         textSnippetsViewModel: TextSnippetsViewModel,
+        vocabularyBackupViewModel: VocabularyBackupViewModel,
         feedbackViewModel: FeedbackViewModel,
         discoverViewModel: DiscoverViewModel,
         libraryViewModel: TranscriptionLibraryViewModel,
@@ -57,6 +59,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         self.promptsViewModel = promptsViewModel
         self.customWordsViewModel = customWordsViewModel
         self.textSnippetsViewModel = textSnippetsViewModel
+        self.vocabularyBackupViewModel = vocabularyBackupViewModel
         self.feedbackViewModel = feedbackViewModel
         self.discoverViewModel = discoverViewModel
         self.libraryViewModel = libraryViewModel
@@ -163,6 +166,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
             promptsViewModel: promptsViewModel,
             customWordsViewModel: customWordsViewModel,
             textSnippetsViewModel: textSnippetsViewModel,
+            vocabularyBackupViewModel: vocabularyBackupViewModel,
             feedbackViewModel: feedbackViewModel,
             discoverViewModel: discoverViewModel,
             libraryViewModel: libraryViewModel,

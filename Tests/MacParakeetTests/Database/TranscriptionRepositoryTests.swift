@@ -32,6 +32,28 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertNil(fetched)
     }
 
+    func testEngineAttributionRoundTrips() throws {
+        let transcription = Transcription(
+            fileName: "engine.mp3",
+            engine: SpeechEnginePreference.whisper.rawValue,
+            engineVariant: SpeechEnginePreference.defaultWhisperModelVariant
+        )
+        try repo.save(transcription)
+
+        let fetched = try repo.fetch(id: transcription.id)
+        XCTAssertEqual(fetched?.engine, "whisper")
+        XCTAssertEqual(fetched?.engineVariant, SpeechEnginePreference.defaultWhisperModelVariant)
+    }
+
+    func testLegacyTranscriptionDecodesWithNilEngineFields() throws {
+        let transcription = Transcription(fileName: "legacy.mp3")
+        try repo.save(transcription)
+
+        let fetched = try repo.fetch(id: transcription.id)
+        XCTAssertNil(fetched?.engine)
+        XCTAssertNil(fetched?.engineVariant)
+    }
+
     func testFetchAll() throws {
         let t1 = Transcription(
             createdAt: Date(timeIntervalSinceNow: -100),
@@ -64,6 +86,144 @@ final class TranscriptionRepositoryTests: XCTestCase {
 
         let limited = try repo.fetchAll(limit: 2)
         XCTAssertEqual(limited.count, 2)
+    }
+
+    func testFetchByFilePathFiltersBySourceTypeAndOrdersNewestFirst() throws {
+        let path = "/tmp/meeting.m4a"
+        let olderMeeting = Transcription(
+            createdAt: Date(timeIntervalSinceNow: -100),
+            fileName: "older meeting",
+            filePath: path,
+            sourceType: .meeting,
+            updatedAt: Date(timeIntervalSinceNow: -100)
+        )
+        let newerMeeting = Transcription(
+            createdAt: Date(timeIntervalSinceNow: -10),
+            fileName: "newer meeting",
+            filePath: path,
+            sourceType: .meeting,
+            updatedAt: Date(timeIntervalSinceNow: -10)
+        )
+        let fileTranscription = Transcription(
+            fileName: "regular file",
+            filePath: path,
+            sourceType: .file
+        )
+        let otherMeeting = Transcription(
+            fileName: "other meeting",
+            filePath: "/tmp/other.m4a",
+            sourceType: .meeting
+        )
+
+        try repo.save(olderMeeting)
+        try repo.save(newerMeeting)
+        try repo.save(fileTranscription)
+        try repo.save(otherMeeting)
+
+        let results = try repo.fetchByFilePath(path, sourceType: .meeting)
+
+        XCTAssertEqual(results.map(\.id), [newerMeeting.id, olderMeeting.id])
+    }
+
+    func testFetchBySourceTypeFiltersAndOrdersNewestFirst() throws {
+        let olderMeeting = Transcription(
+            createdAt: Date(timeIntervalSinceNow: -100),
+            fileName: "older meeting",
+            sourceType: .meeting,
+            updatedAt: Date(timeIntervalSinceNow: -100)
+        )
+        let newerMeeting = Transcription(
+            createdAt: Date(timeIntervalSinceNow: -10),
+            fileName: "newer meeting",
+            sourceType: .meeting,
+            updatedAt: Date(timeIntervalSinceNow: -10)
+        )
+        let fileTranscription = Transcription(fileName: "regular file", sourceType: .file)
+
+        try repo.save(olderMeeting)
+        try repo.save(newerMeeting)
+        try repo.save(fileTranscription)
+
+        let results = try repo.fetchBySourceType(.meeting)
+
+        XCTAssertEqual(results.map(\.id), [newerMeeting.id, olderMeeting.id])
+    }
+
+    func testFetchBySourceTypeAndIDPrefixFiltersInDatabase() throws {
+        let meetingID = UUID(uuidString: "AABBCCDD-1111-1111-1111-111111111111")!
+        let otherMeetingID = UUID(uuidString: "CCDDEEFF-1111-1111-1111-111111111111")!
+        let meeting = Transcription(id: meetingID, fileName: "Planning", sourceType: .meeting)
+        let otherMeeting = Transcription(id: otherMeetingID, fileName: "Other", sourceType: .meeting)
+        let file = Transcription(
+            id: UUID(uuidString: "AABBCCDD-2222-2222-2222-222222222222")!,
+            fileName: "File",
+            sourceType: .file
+        )
+        try repo.save(meeting)
+        try repo.save(otherMeeting)
+        try repo.save(file)
+
+        let results = try repo.fetchBySourceType(.meeting, idPrefix: "aabbccdd")
+
+        XCTAssertEqual(results.map(\.id), [meetingID])
+        XCTAssertEqual(try repo.fetchBySourceType(.meeting, idPrefix: "AABBCCDD-1111").map(\.id), [meetingID])
+    }
+
+    func testFetchByIDPrefixFiltersInDatabaseAcrossSourceTypes() throws {
+        let olderID = UUID(uuidString: "AABBCCDD-1111-1111-1111-111111111111")!
+        let newerID = UUID(uuidString: "AABBCCDD-2222-2222-2222-222222222222")!
+        let otherID = UUID(uuidString: "CCDDEEFF-1111-1111-1111-111111111111")!
+        let older = Transcription(
+            id: olderID,
+            createdAt: Date(timeIntervalSinceNow: -100),
+            fileName: "Older",
+            sourceType: .file,
+            updatedAt: Date(timeIntervalSinceNow: -100)
+        )
+        let newer = Transcription(
+            id: newerID,
+            createdAt: Date(timeIntervalSinceNow: -10),
+            fileName: "Newer",
+            sourceType: .meeting,
+            updatedAt: Date(timeIntervalSinceNow: -10)
+        )
+        let other = Transcription(id: otherID, fileName: "Other", sourceType: .file)
+        try repo.save(older)
+        try repo.save(newer)
+        try repo.save(other)
+
+        let results = try repo.fetchByIDPrefix("aabbccdd")
+
+        XCTAssertEqual(results.map(\.id), [newerID, olderID])
+        XCTAssertEqual(try repo.fetchByIDPrefix("AABBCCDD-1111").map(\.id), [olderID])
+    }
+
+    func testFetchBySourceTypeAndFileNameIsCaseInsensitive() throws {
+        let meeting = Transcription(fileName: "Design Review", sourceType: .meeting)
+        let file = Transcription(fileName: "Design Review", sourceType: .file)
+        try repo.save(meeting)
+        try repo.save(file)
+
+        let results = try repo.fetchBySourceType(.meeting, fileName: "design review")
+
+        XCTAssertEqual(results.map(\.id), [meeting.id])
+    }
+
+    func testUpdateUserNotesPreservesOtherFields() throws {
+        let transcription = Transcription(
+            fileName: "Meeting Apr 5",
+            rawTranscript: "Transcript",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(transcription)
+
+        try repo.updateUserNotes(id: transcription.id, userNotes: "Decision: ship it")
+
+        let fetched = try XCTUnwrap(repo.fetch(id: transcription.id))
+        XCTAssertEqual(fetched.userNotes, "Decision: ship it")
+        XCTAssertEqual(fetched.rawTranscript, "Transcript")
+        XCTAssertEqual(fetched.sourceType, .meeting)
     }
 
     func testDelete() throws {
@@ -141,34 +301,19 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: transcription.id)?.status, .cancelled)
     }
 
-    // MARK: - Summary Persistence
-
-    func testUpdateSummary() throws {
-        let transcription = Transcription(fileName: "test.mp3", status: .completed)
-        try repo.save(transcription)
-
-        try repo.updateSummary(id: transcription.id, summary: "This is a summary.")
-        let fetched = try repo.fetch(id: transcription.id)
-        XCTAssertEqual(fetched?.summary, "This is a summary.")
-    }
-
-    func testUpdateSummaryToNil() throws {
-        let transcription = Transcription(fileName: "test.mp3", summary: "Old summary", status: .completed)
-        try repo.save(transcription)
-
-        try repo.updateSummary(id: transcription.id, summary: nil)
-        let fetched = try repo.fetch(id: transcription.id)
-        XCTAssertNil(fetched?.summary)
-    }
-
     func testUpdateFileName() throws {
-        let transcription = Transcription(fileName: "Meeting Apr 5", status: .completed)
+        let transcription = Transcription(
+            fileName: "Meeting Apr 5",
+            status: .completed,
+            derivedTitle: "Auto Derived Title"
+        )
         try repo.save(transcription)
 
         try repo.updateFileName(id: transcription.id, fileName: "Design Review")
 
         let fetched = try repo.fetch(id: transcription.id)
         XCTAssertEqual(fetched?.fileName, "Design Review")
+        XCTAssertEqual(fetched?.derivedTitle, "Design Review")
     }
 
     // MARK: - Chat Messages Persistence

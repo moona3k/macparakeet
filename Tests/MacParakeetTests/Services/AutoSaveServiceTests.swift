@@ -1,6 +1,31 @@
 import XCTest
 @testable import MacParakeetCore
 
+private final class AutoSaveTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [TelemetryEventSpec] = []
+
+    func send(_ event: TelemetryEventSpec) {
+        lock.lock()
+        events.append(event)
+        lock.unlock()
+    }
+
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
+    func flush() async {}
+    func flushForTermination() {}
+
+    func snapshot() -> [TelemetryEventSpec] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events
+    }
+}
+
 @MainActor
 final class AutoSaveServiceTests: XCTestCase {
 
@@ -17,6 +42,7 @@ final class AutoSaveServiceTests: XCTestCase {
     }
 
     override func tearDown() {
+        Telemetry.configure(NoOpTelemetryService())
         try? FileManager.default.removeItem(at: tempDir)
         if let name = defaults.volatileDomainNames.first {
             defaults.removeVolatileDomain(forName: name)
@@ -252,6 +278,29 @@ final class AutoSaveServiceTests: XCTestCase {
         service.saveIfEnabled(makeTranscription())
     }
 
+    func testDeletedFolderEmitsUnavailableOperation() {
+        let telemetry = AutoSaveTelemetrySpy()
+        Telemetry.configure(telemetry)
+        configureAutoSave(enabled: true, format: .txt)
+        try! FileManager.default.removeItem(at: tempDir)
+
+        let service = makeService()
+        service.saveIfEnabled(makeTranscription())
+
+        let operation = telemetry.snapshot().reversed().first {
+            if case .autoSaveOperation = $0 { return true }
+            return false
+        }
+        guard let operation,
+              case .autoSaveOperation(_, _, let scope, let format, let outcome, _, let errorType) = operation else {
+            return XCTFail("Expected auto_save_operation telemetry")
+        }
+        XCTAssertEqual(scope, .transcription)
+        XCTAssertEqual(format, .txt)
+        XCTAssertEqual(outcome, .unavailable)
+        XCTAssertEqual(errorType, "folder_unavailable")
+    }
+
     func testFallsBackToMarkdownForInvalidStoredFormat() {
         configureAutoSave(enabled: true, format: .md)
         // Corrupt the format key
@@ -296,9 +345,34 @@ final class AutoSaveServiceTests: XCTestCase {
         XCTAssertTrue(files[0].hasSuffix(".md"))
     }
 
-    func testMeetingFileNameUsesJustPrefixNotDisplayName() {
+    func testMeetingFileNameUsesCalendarEventTitle() {
+        // Post-#135: calendar-driven meetings carry the event title as
+        // the displayName. The auto-saved filename must reflect that —
+        // otherwise a user with auto-save enabled sees "Roadmap Sync" in
+        // the in-app library but a generic "Meeting" file on disk.
         configureMeetingAutoSave(enabled: true, format: .md)
-        // Meeting display names contain the date, e.g. "Meeting Apr 6, 2026 at 10:02 PM"
+        let transcription = makeTranscription(
+            fileName: "Roadmap Sync",
+            sourceType: .meeting
+        )
+        let service = makeService()
+
+        let url = service.buildFileURL(for: transcription, format: .md, in: tempDir)
+        let name = url.lastPathComponent
+        XCTAssertTrue(name.contains("Roadmap Sync"),
+                      "Filename should contain the calendar event title, got \(name)")
+        XCTAssertTrue(name.hasSuffix(".md"))
+    }
+
+    func testMeetingFileNameUsesDisplayNameForUncalendaredRecordings() {
+        // Manual meeting recordings (no calendar link) keep the
+        // date-based default displayName, e.g. "Meeting Apr 6, 2026 at
+        // 10:02 PM". The filename mirrors the library label exactly —
+        // there's a date duplication with the YYYY-MM-DD prefix, but
+        // that's an acceptable trade for "what you see is what's on
+        // disk" so users can grep their export folder for the same
+        // string they see in the app.
+        configureMeetingAutoSave(enabled: true, format: .md)
         let transcription = makeTranscription(
             fileName: "Meeting Apr 6, 2026 at 10:02 PM",
             sourceType: .meeting
@@ -307,9 +381,10 @@ final class AutoSaveServiceTests: XCTestCase {
 
         let url = service.buildFileURL(for: transcription, format: .md, in: tempDir)
         let name = url.lastPathComponent
-        // Should use just "Meeting" prefix, not the full display name with redundant date
-        XCTAssertTrue(name.contains("Meeting"), "Filename should contain the prefix")
-        XCTAssertFalse(name.contains("Apr"), "Filename should not contain the display name date")
+        // Sanitizer strips ":" but preserves the rest — the human-readable
+        // bits the user remembers ("Apr 6", "10 02 PM") survive.
+        XCTAssertTrue(name.contains("Meeting"), "Filename should contain the displayName")
+        XCTAssertTrue(name.contains("Apr 6"), "Filename should preserve the date components from the displayName, got \(name)")
         XCTAssertTrue(name.hasSuffix(".md"))
     }
 

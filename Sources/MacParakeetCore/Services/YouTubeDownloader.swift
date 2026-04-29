@@ -450,15 +450,19 @@ public actor YouTubeDownloader {
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
 
+        func sanitized(_ value: String) -> String {
+            String(TelemetryErrorClassifier.sanitize(value).prefix(512))
+        }
+
         if let errorLine = lines.first(where: { $0.localizedCaseInsensitiveContains("error:") }) {
-            return errorLine
+            return sanitized(errorLine)
         }
 
         if let nonWarningLine = lines.first(where: { !$0.localizedCaseInsensitiveContains("warning:") }) {
-            return nonWarningLine
+            return sanitized(nonWarningLine)
         }
 
-        return lines.first ?? trimmed
+        return sanitized(lines.first ?? trimmed)
     }
 
     private func runYtDlp(

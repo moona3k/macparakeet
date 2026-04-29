@@ -4,6 +4,7 @@
 > Date: 2026-02-08
 > Runtime Note (2026-02-13): Runtime/mechanism details in this ADR are historical and superseded by ADR-007. ADR-001 remains authoritative for STT model choice.
 > Note: GPU/LLM references (Qwen3-8B, "three-chip") are historical — the old on-device mlx-swift-lm path was removed 2026-02-23. Current LLM features use external providers or local CLI, while the speech runtime remains a two-chip architecture (CPU + ANE).
+> Amendment (2026-04-28): Parakeet remains the **primary/default** STT engine. It is no longer the only engine. ADR-021 adds WhisperKit as an optional local multilingual engine for languages outside Parakeet's coverage.
 
 ## Context
 
@@ -20,9 +21,9 @@ Whisper has broader ecosystem support and language coverage (100+ languages incl
 
 ## Decision
 
-Use **Parakeet TDT 0.6B-v3** via the `parakeet-mlx` Python daemon as the primary (and only) STT engine.
+Use **Parakeet TDT 0.6B-v3** as the primary/default STT engine.
 
-The model runs as a Python daemon process communicating with the Swift app over JSON-RPC via stdin/stdout. The Python environment is bootstrapped automatically using `uv` on first launch.
+The original runtime described here used a Python daemon. ADR-007 superseded that runtime with FluidAudio CoreML/ANE. ADR-021 later added WhisperKit as an optional secondary engine. The durable decision in this ADR is the Parakeet model's default/primary status.
 
 ## Rationale
 
@@ -63,7 +64,7 @@ At 0.6B parameters (quantized to ~600MB on disk, ~1.5GB downloaded with tokenize
 - **Requires Python daemon**: The parakeet-mlx library is Python-based, requiring a Python runtime managed by `uv`. This adds complexity to the app bundle and first-launch experience.
 - **~1.5GB model download**: Users must download the model on first launch. Must handle this gracefully with progress indication and offline fallback messaging.
 - **Apple Silicon only**: No Intel Mac support. This is acceptable given Apple Silicon's market penetration (all Macs since late 2020) and our target audience.
-- **European languages only**: Parakeet TDT 0.6B-v3 supports 25 European languages natively with auto-detection, but does not cover CJK, Arabic, Hindi, or other non-European languages. Supporting those would require Whisper as a fallback.
+- **European languages only**: Parakeet TDT 0.6B-v3 supports 25 European languages natively with auto-detection, but does not cover CJK, Arabic, Hindi, or other non-European languages. ADR-021 resolves this product gap with optional local WhisperKit, while keeping Parakeet as the default.
 
 ### Implementation Notes
 
@@ -105,9 +106,18 @@ The "Requires Python daemon" negative consequence from the original ADR is resol
 
 See `docs/research/fluidaudio-stt-migration.md` for the full evaluation.
 
+## Addendum: Optional WhisperKit Secondary Engine (April 2026)
+
+> Date: 2026-04-28
+
+Parakeet remains the default engine for dictation, file transcription, and meeting recording. WhisperKit is available as an explicit local secondary engine for broader multilingual coverage. The user can select it in Settings or per CLI invocation. Active meeting recordings capture the engine/language at start so live preview, final transcription, and crash recovery stay deterministic.
+
+See ADR-021 for the full decision.
+
 ## References
 
 - [NVIDIA Parakeet TDT 0.6B-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)
 - [FluidAudio](https://github.com/FluidInference/FluidAudio) -- CoreML/ANE runtime for Apple Silicon
 - [parakeet-mlx](https://github.com/senstella/parakeet-mlx) -- MLX port (original runtime, superseded)
+- [ADR-021: WhisperKit as Optional Multilingual STT Engine](021-whisperkit-multilingual-stt.md)
 - Oatmeal project ADR-011 (prior art for Parakeet selection)

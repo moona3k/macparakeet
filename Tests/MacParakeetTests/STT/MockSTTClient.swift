@@ -1,7 +1,7 @@
 import Foundation
 @testable import MacParakeetCore
 
-public actor MockSTTClient: STTClientProtocol {
+public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing {
     public var transcribeResult: STTResult?
     public var transcribeError: Error?
     public var transcribeCallCount = 0
@@ -9,6 +9,7 @@ public actor MockSTTClient: STTClientProtocol {
     public var lastJob: STTJobKind?
     public var audioPaths: [String] = []
     public var jobs: [STTJobKind] = []
+    public var speechEngineSelections: [SpeechEngineSelection] = []
     public var warmUpCalled = false
     public var warmUpCallCount = 0
     public var warmUpError: Error?
@@ -85,6 +86,16 @@ public actor MockSTTClient: STTClientProtocol {
         }
 
         return transcribeResult ?? STTResult(text: "Mock transcription", words: [])
+    }
+
+    public func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        speechEngineSelections.append(speechEngine)
+        return try await transcribe(audioPath: audioPath, job: job, onProgress: onProgress)
     }
 
     public func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws {

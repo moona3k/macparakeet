@@ -171,7 +171,7 @@ WisprFlow sends all audio to cloud servers for transcription. Context awareness 
 
 WisprFlow Pro costs $12-15/month, every month, forever. For a tool that could run locally on the user's own hardware, this is hard to justify.
 
-**MacParakeet advantage:** $49 one-time purchase. Users own it forever. Break-even in 3-4 months vs WisprFlow.
+**MacParakeet advantage:** current public build is free/GPL and runs locally. Future monetization should sell official convenience, support, hosted services, or team workflows rather than a required cloud STT subscription.
 
 ### 3. Poor Reliability (~60%)
 

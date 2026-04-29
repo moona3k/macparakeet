@@ -2,6 +2,7 @@
 
 > Status: **ACTIVE** — Design document for MacParakeet's privacy-first analytics system.
 > Reviewed by: Codex (2026-03-13). See [Codex Review](#codex-review-2026-03-13) for accepted/rejected feedback.
+> Observability update: Codex (2026-04-26). Added canonical operation events for product health and CLI/agent usage while preserving the existing opt-out and privacy model.
 
 ## Philosophy
 
@@ -14,14 +15,18 @@
 - **Local-first still** — Audio never leaves the device. Only non-identifying usage signals are sent.
 
 **Privacy promise (updated):**
-> "Your audio and transcriptions never leave your device. MacParakeet collects non-identifying usage statistics — like which features are popular and how long transcriptions take — to help us improve. No personal data is ever collected. You can opt out anytime in Settings."
+> "Telemetry never includes your audio, transcripts, notes, prompts, or file names. MacParakeet collects non-identifying usage statistics — like which features are popular and how long transcriptions take — to help us improve. You can opt out anytime in Settings."
 
 ---
 
 ## Architecture
 
 ```
-MacParakeet.app (Swift client)
+MacParakeet.app / macparakeet-cli (Swift clients)
+    │
+    │  Typed TelemetryEventSpec events
+    │  - breadcrumb events for funnels
+    │  - canonical *_operation outcome events for product health
     │
     │  POST /api/telemetry  (batch of events, every 60s / app quit / 50 events)
     │
@@ -87,7 +92,7 @@ CREATE INDEX idx_events_session ON events(session);
 - YouTube URLs
 - LLM prompts or responses
 - IP addresses
-- Device serial numbers or hardware IDs
+- Microphone names, device UIDs, serial numbers, or hardware IDs
 - Persistent user identifiers across sessions
 - Unredacted error descriptions (server-side PII redaction strips paths, URLs, keys before storage)
 - Any data that could identify the user
@@ -95,6 +100,26 @@ CREATE INDEX idx_events_session ON events(session);
 ---
 
 ## Event Catalog
+
+### Canonical Operation Events
+
+MacParakeet uses two event shapes together:
+
+- **Breadcrumb events** such as `dictation_started`, `transcription_failed`, and
+  `llm_formatter_used` preserve existing funnel and feature-adoption analysis.
+- **Operation events** such as `dictation_operation`,
+  `transcription_operation`, `meeting_operation`, `llm_operation`,
+  `feedback_operation`, `auto_save_operation`, and `cli_operation` are wide,
+  outcome-focused events emitted once per operation completion. They carry a
+  short-lived `operation_id`, `workflow_id`, optional `parent_operation_id`,
+  `outcome`, duration, safe dimensions, and `error_type` when relevant.
+
+Operation IDs and workflow IDs are random UUIDs and are not persisted across app
+launches. `workflow_id` lets child work, such as a transcription or LLM call,
+join back to its root operation without string matching. `parent_operation_id`
+links one child operation to the operation that started it. These IDs exist to
+correlate local operation breadcrumbs inside one telemetry session, not to
+identify a user.
 
 ### 1. App Lifecycle — "Who's using this?"
 
@@ -114,8 +139,9 @@ CREATE INDEX idx_events_session ON events(session);
 | `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, silence), `device_*` | Are people cancelling often? Why? |
 | `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
 | `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
+| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `error_type`, `device_*` | One wide outcome event per dictation attempt |
 
-> **Device props** (optional, included when available): `device_name`, `device_transport`, `device_sub_transport`, `device_sample_rate`, `device_channels`, `device_fallback`. These help diagnose audio quality issues tied to specific microphone configurations without identifying the user.
+> **Device props** (optional, included when available): `device_transport`, `device_sub_transport`, `device_sample_rate`, `device_channels`, `device_fallback`, `device_selected`. Raw device names and UIDs are intentionally not serialized.
 
 ### 3. Transcription — "Is file transcription valuable?"
 
@@ -125,8 +151,15 @@ CREATE INDEX idx_events_session ON events(session);
 | `transcription_completed` | `source`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied` | Real-world performance and speaker-label coverage across file, YouTube, and meeting pipelines |
 | `transcription_cancelled` | `source`, `audio_duration_seconds`, `stage` (download, audio_conversion, stt, diarization, post_processing) | Where do users abandon jobs? |
 | `transcription_failed` | `source`, `stage`, `error_type` | What's breaking, and in which pipeline stage? |
+| `transcription_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `source`, `stage`, `duration_seconds`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `input_kind`, `media_extension`, `file_size_bucket`, `error_type` | One wide outcome event per file, YouTube, or meeting transcription |
 
-`transcription_completed` is the canonical outcome event for batch/file/YouTube/meeting transcription. For meetings, the app now always treats the final transcript as fresh batch STT over the recorded source artifacts, not reused live-preview metadata. The separate `diarization_*` events remain useful for diarization-specific timing and failure analysis, but the completion event now carries enough context to answer product questions without joining multiple event streams first.
+`transcription_operation` is the broad product-health outcome event. Its
+`stage` values are `preflight`, `download`, `audio_conversion`, `stt`,
+`diarization`, `post_processing`, and `persistence`. `transcription_completed`
+remains the stable success breadcrumb/performance event. For meetings, the app
+always treats the final transcript as fresh batch STT over the recorded source
+artifacts, not reused live-preview metadata. The separate `diarization_*`
+events remain useful for diarization-specific timing and failure analysis.
 
 ### 3b. Speaker Diarization — "Is speaker detection working?"
 
@@ -147,16 +180,43 @@ CREATE INDEX idx_events_session ON events(session);
 | `llm_chat_failed` | `provider`, `error_type` | Chat failure rates per provider |
 | `llm_formatter_used` | `provider`, `source`, `duration_seconds`, `input_chars`, `output_chars`, `default_prompt_used`, `input_truncated` | Is transcript/dictation formatting useful, and how expensive is it? |
 | `llm_formatter_failed` | `provider`, `source`, `duration_seconds`, `error_type`, `default_prompt_used`, `input_truncated` | Formatter failure rates and prompt-shape correlations |
+| `llm_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `feature`, `provider`, `streaming`, `outcome`, `duration_seconds`, `input_chars`, `output_chars`, `input_truncated`, `prompt_default_used`, `message_count`, `error_type` | One safe outcome event per LLM call, without prompts, responses, or provider error bodies |
 | `history_searched` | — | Is search useful? |
 | `history_replayed` | — | Do people re-listen to audio? |
 | `copy_to_clipboard` | `source` (dictation, transcription, history, meeting, discover) | How do people get text out? |
 | `keystroke_snippet_fired` | — | Are keystroke action snippets being used? |
 | `feedback_submitted` | `category` (bug, featureRequest, other) | Feedback volume and sentiment split |
+| `feedback_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `category`, `outcome`, `duration_seconds`, `screenshot_attached`, `system_info_included`, `error_type` | Feedback delivery health without storing message text or email |
+| `auto_save_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `scope`, `format`, `outcome`, `duration_seconds`, `error_type` | Whether transcript/meeting auto-save succeeds for configured users |
 | `transcription_deleted` | — | Are users cleaning up transcriptions? |
 | `dictation_deleted` | — | History hygiene patterns |
 | `transcription_favorited` | `is_favorite` (true/false) | Which content types get saved? |
 | `dictation_undo_used` | — | Is the 5-second undo window used? |
 | `chat_conversation_created` | — | Multi-conversation adoption |
+
+### 4b. Meeting Recovery — "Does crash resilience work?"
+
+| Event | Props | Question It Answers |
+|---|---|---|
+| `meeting_recovery_discovered` | `count`, `source` (launch, settings) | How often interrupted recordings are found, and where users encounter them |
+| `meeting_recovery_started` | `count`, `source` | How often users choose to recover |
+| `meeting_recovery_completed` | `count`, `duration_seconds`, `source` | Recovery success rate and latency |
+| `meeting_recovery_discarded` | `count`, `source` | How often users intentionally discard interrupted recordings |
+| `meeting_recovery_failed` | `count`, `source`, `error_type`, `error_detail` | What blocks recovery in the field |
+
+### 4c. Meeting Recording — "Is meeting capture healthy?"
+
+| Event | Props | Question It Answers |
+|---|---|---|
+| `meeting_recording_started` | `trigger` (manual, hotkey, calendar_auto_start) | How meetings start |
+| `meeting_recording_completed` | `duration_seconds`, `live_word_count`, `live_transcript_lagged` | Recording duration and live-preview quality |
+| `meeting_recording_cancelled` | `duration_seconds` | How often recordings are intentionally discarded |
+| `meeting_recording_failed` | `error_type` | What blocks recording/finalization |
+| `meeting_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `stage`, `duration_seconds`, `live_word_count`, `live_transcript_lagged`, `microphone_track_present`, `system_track_present`, `notes_used`, `notes_length_bucket`, `error_type` | One wide outcome event for the full meeting capture + transcription flow |
+
+`meeting_operation.stage` values are `permissions`, `start_recording`,
+`recording`, `stop_recording`, `transcription`, `complete_transcription`, and
+`cancel`.
 
 ### 5. Settings & Customization — "How do people configure the app?"
 
@@ -166,38 +226,42 @@ CREATE INDEX idx_events_session ON events(session);
 | `processing_mode_changed` | `mode` (raw, clean) | Is the clean pipeline valued? |
 | `custom_word_added` | — | Are custom words used? (NOT the word itself) |
 | `snippet_added` | — | Are snippets used? |
-| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, speaker_diarization, auto_save, meeting_auto_save, meeting_hotkey, launch_at_login, silence_auto_stop, voice_return) | Which settings get toggled? |
+| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, speaker_diarization, auto_save, meeting_auto_save, meeting_hotkey, file_transcription_hotkey, youtube_transcription_hotkey, microphone_selection, meeting_audio_source_mode, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_auto_stop_enabled, calendar_included_calendars) | Which settings get toggled? |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 6. Licensing — "Is the business working?"
 
-> Note: App is now free/GPL-3.0. The licensing enum cases are kept in `TelemetryEventName` for the historical $0 LemonSqueezy product, but most are dead code — only `license_activated` and `license_activation_failed` are wired today.
+> Note: App is now free/GPL-3.0. The licensing enum cases are intentionally
+> retained for the historical LemonSqueezy/trial entitlement surface and for a
+> possible future paid official distribution. Most are not emitted today; do not
+> remove them as dead code without explicit owner direction and an ADR/spec
+> update.
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `trial_started` | — | When do trials begin? (dead, free app) |
-| `trial_expired` | — | Are people hitting the trial wall? (dead, free app) |
-| `purchase_started` | — | Are people attempting to buy? (dead, free app) |
-| `license_activated` | — | Conversion! |
-| `license_activation_failed` | `error_type` | What blocks purchases? |
-| `restore_attempted` | — | Are people trying to restore? (dead, free app) |
-| `restore_succeeded` | — | Restore success rate (dead, free app) |
-| `restore_failed` | `error_type` | What blocks restores? (dead, free app) |
+| `trial_started` | — | When do trials begin? (currently not emitted in free builds) |
+| `trial_expired` | — | Are people hitting the trial wall? (currently not emitted in free builds) |
+| `purchase_started` | — | Are people attempting to buy? (currently not emitted in free builds) |
+| `license_activated` | — | Official paid distribution/support conversion, if re-enabled |
+| `license_activation_failed` | `error_type` | What blocks purchase activation, if re-enabled? |
+| `restore_attempted` | — | Are people trying to restore? (currently not emitted in free builds) |
+| `restore_succeeded` | — | Restore success rate, if paid activation is re-enabled |
+| `restore_failed` | `error_type` | What blocks restores, if paid activation is re-enabled? |
 
 ### 7. Performance — "Is the app fast?"
 
 | Event | Props | Question It Answers |
 |---|---|---|
 | `model_loaded` | `load_time_seconds` | How long does model warmup take on different chips? |
-| `model_download_started` | — | First-run experience tracking |
-| `model_download_completed` | `duration_seconds` | How long is the 6 GB download? |
+| `model_download_started` | — | First-run model setup funnel |
+| `model_download_completed` | `duration_seconds` | How long do model downloads take? |
 | `model_download_failed` | `error_type` | Are downloads failing? |
 
 ### 8. Permissions — "Is onboarding smooth?"
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `permission_prompted` | `permission` (microphone, accessibility, screen_recording) | How many prompts are shown? |
+| `permission_prompted` | `permission` (microphone, accessibility, screen_recording, calendar) | How many prompts are shown? |
 | `permission_granted` | `permission` | Grant rate |
 | `permission_denied` | `permission` | Denial rate — is something confusing? |
 
@@ -207,6 +271,35 @@ CREATE INDEX idx_events_session ON events(session);
 |---|---|---|
 | `error_occurred` | `domain`, `code`, `description` | What errors are users hitting? |
 | `crash_occurred` | `crash_type`, `signal`, `reason`, `stack_trace`, `crash_app_ver`, `crash_os_ver` | What crashes are happening? |
+
+### 10. CLI — "Are agents and scripts succeeding?"
+
+| Event | Props | Question It Answers |
+|---|---|---|
+| `cli_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `command`, `subcommand`, `outcome`, `duration_seconds`, `input_kind`, `output_format`, `json`, `exit_code`, `error_type` | Which CLI workflows are used by scripts/agents, and where they fail |
+
+CLI telemetry is initialized by `macparakeet-cli transcribe` and uses the same
+app preference as the GUI. Override resolution order (first match wins):
+
+1. `MACPARAKEET_TELEMETRY=0/false/no/off` → force-off for this process
+2. `MACPARAKEET_TELEMETRY=1/true/yes/on` → force-on for this process
+3. `DO_NOT_TRACK=1` → force-off (industry-standard signal, also honored by
+   Homebrew, GitLab, VS Code)
+4. CI auto-disable: any of `CI`, `GITHUB_ACTIONS`, `GITLAB_CI`, `BUILDKITE`,
+   `CIRCLECI`, `TRAVIS`, `JENKINS_URL`, `TF_BUILD`, `TEAMCITY_VERSION` set to
+   a truthy value (avoids 1000-job agent runs flooding the endpoint)
+5. Persisted UserDefaults `telemetryEnabled` (default: true)
+
+CLI-only users (no GUI) can persist their preference via:
+
+```bash
+macparakeet-cli config set telemetry off   # also accepts on, true/false, 1/0
+macparakeet-cli config get telemetry
+macparakeet-cli config list
+```
+
+The CLI writes to the shared UserDefaults suite (`com.macparakeet.MacParakeet`),
+so a later GUI install picks the same preference up automatically.
 
 > **Important:** `error_occurred` includes a `description` field for full error visibility. The **Cloudflare Worker redacts PII server-side** before storage:
 > - File paths (`/Users/...`, `~/...`) → `[PATH]`
@@ -224,22 +317,40 @@ CREATE INDEX idx_events_session ON events(session);
 ### Core API
 
 ```swift
-// Simple fire-and-forget API
-Telemetry.send("dictation_completed", [
-    "duration_seconds": "12.5",
-    "word_count": "84",
-    "mode": "hold"
-])
+// Simple fire-and-forget API. Event names and props are typed in
+// TelemetryEventSpec so schema drift is caught by tests.
+Telemetry.send(.dictationCompleted(
+    durationSeconds: 12.5,
+    wordCount: 84,
+    mode: .hold
+))
 
-// No props needed
-Telemetry.send("app_launched")
+let operationContext = Observability.childOperationContext()
+Telemetry.send(.transcriptionOperation(
+    operationID: operationContext.operationID,
+    operationContext: operationContext,
+    outcome: .success,
+    source: .file,
+    stage: .postProcessing,
+    durationSeconds: 2.9,
+    audioDurationSeconds: 30,
+    processingSeconds: 2.4,
+    wordCount: 120,
+    speakerCount: nil,
+    diarizationRequested: false,
+    diarizationApplied: false,
+    inputKind: .audio,
+    mediaExtension: "m4a",
+    fileSizeBucket: "1_10mb",
+    errorType: nil
+))
 ```
 
 ### Implementation
 
 ```swift
 public protocol TelemetryServiceProtocol: Sendable {
-    func send(_ event: String, props: [String: String]?)
+    func send(_ event: TelemetryEventSpec)
     func flush() async
 }
 
@@ -263,7 +374,7 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
   - When queue hits **50 events**
   - **Immediately** for critical events: `telemetry_opted_out`, `onboarding_completed`, `license_activated`, and all licensing events
 - On flush: POST batch as JSON array to `/api/telemetry`
-- On network failure: events are **dropped** (not persisted to disk — simplicity over completeness)
+- On network failure: failed events are requeued in memory and retried until queue pressure trims them. Events are still not persisted to disk.
 - Max queue size: **200 events** (prevent memory issues if network is down for extended period)
 
 > **Note:** Metrics are best-effort and biased against short sessions and sessions that end in crashes. This is acceptable for product analytics at this scale.
@@ -426,4 +537,6 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 - **A/B testing** — Not needed now, but the event infrastructure supports it
 - **Funnel analysis** — Can be done with SQL (session-based event sequences)
 - **~~Speaker diarization telemetry~~** — ✅ Shipped: `diarization_started`, `diarization_completed`, `diarization_failed`
-- **Clean up dead licensing events** — Remove unfired trial/purchase/restore event names from Swift enum and worker allowlist
+- **Retained licensing telemetry** -- Keep unfired trial/purchase/restore event
+  names unless the project owner explicitly decides to remove the future
+  paid-distribution option and records that decision in an ADR/spec update

@@ -69,6 +69,14 @@ struct TranscriptionLibraryView: View {
                 .padding(.bottom, DesignSystem.Spacing.sm)
             }
 
+            if let errorMessage = viewModel.errorMessage {
+                Text(errorMessage)
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .padding(.horizontal, DesignSystem.Spacing.lg)
+                    .padding(.bottom, DesignSystem.Spacing.sm)
+            }
+
             // Grid
             if viewModel.filteredTranscriptions.isEmpty {
                 emptyState

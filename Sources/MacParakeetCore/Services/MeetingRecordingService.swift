@@ -18,15 +18,37 @@ public enum CaptureMode: Sendable, Equatable {
 }
 
 public protocol MeetingRecordingServiceProtocol: Sendable {
-    func startRecording() async throws
+    /// `title` lets callers (e.g., the calendar auto-start path) pre-name
+    /// the recording. `nil` or whitespace-only falls back to the default
+    /// "Meeting <date>" label.
+    func startRecording(title: String?, sourceMode: MeetingAudioSourceMode?) async throws
     func stopRecording() async throws -> MeetingRecordingOutput
+    func completeTranscription(for recording: MeetingRecordingOutput) async
     func cancelRecording() async
+    /// Persist the user's in-flight notepad text to the recording's lock file
+    /// without changing the recording state. Called by the notes view model on
+    /// every idle-debounce fire (ADR-020 §8). All `recording.lock` writes are
+    /// serialized through this actor — no other component touches the file —
+    /// so notes-saves cannot race with state-transition writes.
+    func updateNotes(_ notes: String) async
     var isRecording: Bool { get async }
     var micLevel: Float { get async }
     var systemLevel: Float { get async }
     var elapsedSeconds: Int { get async }
     var captureMode: CaptureMode { get async }
     var transcriptUpdates: AsyncStream<MeetingTranscriptUpdate> { get async }
+}
+
+public extension MeetingRecordingServiceProtocol {
+    /// Existing manual / hotkey callers use the no-arg form — the calendar
+    /// path is the only caller that has a meaningful title to pass.
+    func startRecording(title: String?) async throws {
+        try await startRecording(title: title, sourceMode: nil)
+    }
+
+    func startRecording() async throws {
+        try await startRecording(title: nil, sourceMode: nil)
+    }
 }
 
 public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
@@ -44,6 +66,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         let microphoneAudioURL: URL
         let systemAudioURL: URL
         let mixedAudioURL: URL
+        let speechEngine: SpeechEngineSelection
     }
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingRecordingService")
@@ -53,8 +76,28 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private let fileManager: FileManager
     private let requestedMicProcessingMode: MeetingMicProcessingMode
     private let liveChunkTranscriber: LiveChunkTranscriber
+    private let lockFileStore: MeetingRecordingLockFileStoring
+    private let speechEngineSessionManager: (any SpeechEngineSessionManaging)?
 
     private var currentSession: Session?
+    /// In-flight notes text for the current session. Mutated by `updateNotes`
+    /// on each VM debounce; read at finalize time and surfaced via
+    /// `MeetingRecordingOutput.userNotes`. `nil` when no notes have been
+    /// typed (which we preserve as `nil` rather than empty so downstream
+    /// `Transcription.userNotes` is `nil` for non-notepad recordings).
+    private var currentNotes: String?
+    /// In-memory mirror of the session's `recording.lock` content. Held so
+    /// `updateNotes` can persist notes by mutating + atomic-writing in one
+    /// step instead of read-modify-write on every keystroke debounce. The
+    /// actor isolation already serializes lock-file writes with state
+    /// transitions; the disk read was redundant. Initialized in
+    /// `startRecording`, mutated by state transitions, cleared in
+    /// `cleanupState` / `cancelRecording`.
+    private var currentLockFile: MeetingRecordingLockFile?
+    private var currentSpeechEngineLease: SpeechEngineLease?
+    /// Keeps replacement starts out while `audioCaptureService.start()` is still
+    /// unwinding after cancellation. `currentSession` may already be nil then.
+    private var startingSessionID: UUID?
     private var writer: MeetingAudioStorageWriter?
     private var processingTask: Task<Void, Never>?
     private var captureOrchestrator = CaptureOrchestrator()
@@ -89,6 +132,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         audioCaptureService: (any MeetingAudioCapturing)? = nil,
         audioConverter: any AudioFileConverting = AudioFileConverter(),
         sttTranscriber: STTTranscribing,
+        lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
         fileManager: FileManager = .default
     ) {
         self.requestedMicProcessingMode = micProcessingMode
@@ -96,11 +140,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             micProcessingMode: micProcessingMode
         )
         self.audioConverter = audioConverter
+        self.lockFileStore = lockFileStore
         self.fileManager = fileManager
-        self.liveChunkTranscriber = LiveChunkTranscriber(
-            sttTranscriber: sttTranscriber,
-            fileManager: fileManager
-        )
+        self.liveChunkTranscriber = LiveChunkTranscriber(sttTranscriber: sttTranscriber)
+        self.speechEngineSessionManager = sttTranscriber as? any SpeechEngineSessionManaging
     }
 
     public var isRecording: Bool {
@@ -138,55 +181,93 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         return stream
     }
 
-    public func startRecording() async throws {
-        guard currentSession == nil else {
+    public func startRecording(
+        title: String? = nil,
+        sourceMode: MeetingAudioSourceMode? = nil
+    ) async throws {
+        guard currentSession == nil, startingSessionID == nil else {
             throw MeetingAudioError.alreadyRunning
         }
 
         let sessionID = UUID()
+        startingSessionID = sessionID
+        defer {
+            if startingSessionID == sessionID {
+                startingSessionID = nil
+            }
+        }
+
         let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent(sessionID.uuidString, isDirectory: true)
         let writer = try MeetingAudioStorageWriter(folderURL: folderURL)
         let chunkFolderURL = folderURL.appendingPathComponent("chunks", isDirectory: true)
         try fileManager.createDirectory(at: chunkFolderURL, withIntermediateDirectories: true)
+        // Single timestamp shared between displayName fallback and
+        // startedAt — back-to-back `Date()` calls would only diverge if
+        // the clock ticked over a minute boundary between them, which is
+        // vanishingly rare but trivially avoidable.
+        let now = Date()
+        let speechEngineLease = await speechEngineSessionManager?.beginSpeechEngineSession()
+        currentSpeechEngineLease = speechEngineLease
+        let speechEngine = speechEngineLease?.selection ?? SpeechEngineSelection(engine: .parakeet)
         let session = Session(
             id: sessionID,
-            displayName: Self.makeDisplayName(for: Date()),
-            startedAt: Date(),
+            displayName: Self.resolveDisplayName(title: title, fallbackDate: now),
+            startedAt: now,
             folderURL: folderURL,
             chunkFolderURL: chunkFolderURL,
             microphoneAudioURL: writer.microphoneAudioURL,
             systemAudioURL: writer.systemAudioURL,
-            mixedAudioURL: writer.mixedAudioURL
+            mixedAudioURL: writer.mixedAudioURL,
+            speechEngine: speechEngine
         )
-
-        let events = await audioCaptureService.events
-        self.latestLevels = MeetingAudioLevels()
         self.writer = writer
         self.currentSession = session
-        await captureOrchestrator.reset()
-        micConditioner = SoftwareAECConditioner()
-        transcriptAssembler.reset()
-        isTranscriptionLagging = false
-        captureFailed = false
-        sourceCaptureMetrics = [:]
-        recentSystemRms = 0
-        recentProcessedMicRms = 0
-        latestSystemSignalAt = nil
-        syncLagEmaMs = nil
-        syncLagWarningActive = false
-        lastLoggedSyncLagBucketMs = nil
-
-        await liveChunkTranscriber.startSession(
-            .init(id: session.id, chunkFolderURL: session.chunkFolderURL),
-            onEvent: { [weak self] event in
-                await self?.handleLiveChunkTranscriberEvent(event, sessionID: session.id)
-            }
-        )
 
         do {
-            let captureStartReport = try await audioCaptureService.start()
-            configureMicConditioner(from: captureStartReport.microphone)
+            let initialLock = MeetingRecordingLockFile(
+                sessionId: session.id,
+                startedAt: session.startedAt,
+                pid: ProcessInfo.processInfo.processIdentifier,
+                displayName: session.displayName,
+                speechEngine: session.speechEngine,
+                folderURL: session.folderURL
+            )
+            try lockFileStore.write(initialLock, folderURL: session.folderURL)
+            currentLockFile = initialLock
+
+            let events = await audioCaptureService.events
+            try await validateStartStillCurrent(session)
+            self.latestLevels = MeetingAudioLevels()
+            await captureOrchestrator.reset()
+            try await validateStartStillCurrent(session)
+            micConditioner = SoftwareAECConditioner()
+            transcriptAssembler.reset()
+            isTranscriptionLagging = false
+            captureFailed = false
+            sourceCaptureMetrics = [:]
+            recentSystemRms = 0
+            recentProcessedMicRms = 0
+            latestSystemSignalAt = nil
+            syncLagEmaMs = nil
+            syncLagWarningActive = false
+            lastLoggedSyncLagBucketMs = nil
+
+            await liveChunkTranscriber.startSession(
+                .init(
+                    id: session.id,
+                    chunkFolderURL: session.chunkFolderURL,
+                    speechEngine: session.speechEngine
+                ),
+                onEvent: { [weak self] event in
+                    await self?.handleLiveChunkTranscriberEvent(event, sessionID: session.id)
+                }
+            )
+            try await validateStartStillCurrent(session)
+
+            let captureStartReport = try await audioCaptureService.start(sourceMode: sourceMode)
+            try await validateStartStillCurrent(session)
+            configureMicConditioner(from: captureStartReport)
             processingTask = Task { [weak self] in
                 guard let self else { return }
                 for await event in events {
@@ -195,13 +276,58 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             }
             logger.info("Meeting recording started: \(sessionID.uuidString, privacy: .public)")
         } catch {
-            processingTask?.cancel()
-            processingTask = nil
-            await liveChunkTranscriber.finishSession()
-            self.writer?.finalize()
-            self.writer = nil
-            cleanupState()
-            try? fileManager.removeItem(at: folderURL)
+            await cleanupFailedStart(folderURL: folderURL)
+            throw error
+        }
+    }
+
+    private func cleanupFailedStart(folderURL: URL) async {
+        processingTask?.cancel()
+        processingTask = nil
+        await liveChunkTranscriber.finishSession()
+        let writer = self.writer
+        self.writer = nil
+        await finalizeWriter(writer)
+        await releaseSpeechEngineLease()
+        cleanupState()
+
+        do {
+            try lockFileStore.delete(folderURL: folderURL)
+        } catch {
+            logFailedStartCleanupError(operation: "delete lock", error: error)
+        }
+
+        do {
+            try fileManager.removeItem(at: folderURL)
+        } catch {
+            if !isMissingFileError(error) {
+                logFailedStartCleanupError(operation: "remove folder", error: error)
+            }
+        }
+    }
+
+    private func logFailedStartCleanupError(operation: String, error: Error) {
+        let nsError = error as NSError
+        logger.warning(
+            "Meeting failed-start cleanup \(operation, privacy: .public) failed: \(nsError.domain, privacy: .public)#\(nsError.code, privacy: .public)"
+        )
+    }
+
+    private func isMissingFileError(_ error: Error) -> Bool {
+        let nsError = error as NSError
+        return nsError.domain == NSCocoaErrorDomain && nsError.code == NSFileNoSuchFileError
+    }
+
+    private func validateStartStillCurrent(_ session: Session) async throws {
+        guard currentSession?.id == session.id else {
+            await audioCaptureService.stop()
+            throw CancellationError()
+        }
+
+        do {
+            try Task.checkCancellation()
+        } catch {
+            await audioCaptureService.stop()
             throw error
         }
     }
@@ -212,20 +338,30 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
 
         await audioCaptureService.stop()
+        // Defensive: `audioCaptureService.stop()` is supposed to finish the
+        // events stream so the `for await` in `processingTask` exits, but if
+        // the capture service had a bug that left the continuation open we
+        // would hang here forever. Cancelling the task lets the for-await
+        // exit even in that pathological case.
+        processingTask?.cancel()
         await processingTask?.value
         processingTask = nil
-        writer?.finalize()
-        let writerMetrics = [
-            AudioSource.microphone: writer?.metrics(for: .microphone),
-            AudioSource.system: writer?.metrics(for: .system),
-        ]
+        let finalizedWriter = writer
         writer = nil
+        await finalizeWriter(finalizedWriter)
+        let writerMetrics = [
+            AudioSource.microphone: finalizedWriter?.metrics(for: .microphone),
+            AudioSource.system: finalizedWriter?.metrics(for: .system),
+        ]
         await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: false)
 
         let inputURLs = try existingSourceURLs(for: session)
         guard !inputURLs.isEmpty else {
             await liveChunkTranscriber.finishSession()
+            try? lockFileStore.delete(folderURL: session.folderURL)
+            await releaseSpeechEngineLease()
             cleanupState()
+            try? fileManager.removeItem(at: session.folderURL)
             throw MeetingAudioError.noAudioCaptured
         }
 
@@ -235,22 +371,44 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         )
         do {
             try MeetingRecordingMetadataStore.save(
-                MeetingRecordingMetadata(sourceAlignment: sourceAlignment),
+                MeetingRecordingMetadata(
+                    sourceAlignment: sourceAlignment,
+                    speechEngine: session.speechEngine
+                ),
                 folderURL: session.folderURL
             )
         } catch {
             await liveChunkTranscriber.finishSession()
+            await releaseSpeechEngineLease()
             cleanupState()
             throw MeetingAudioError.storageFailed(error.localizedDescription)
         }
 
         do {
-            try await audioConverter.mixToM4A(inputURLs: inputURLs, outputURL: session.mixedAudioURL)
+            try await audioConverter.mixToM4A(
+                inputURLs: inputURLs,
+                outputURL: session.mixedAudioURL,
+                sourceAlignment: sourceAlignment
+            )
         } catch {
-            await liveChunkTranscriber.finishSession()
-            cleanupState()
-            throw MeetingAudioError.mixFailed(error.localizedDescription)
+            logger.error(
+                "meeting_mix_failed_nonfatal session=\(session.id.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
         }
+
+        let finalNotes = currentNotes
+        let awaitingLock = (currentLockFile ?? MeetingRecordingLockFile(
+            sessionId: session.id,
+            startedAt: session.startedAt,
+            pid: ProcessInfo.processInfo.processIdentifier,
+            displayName: session.displayName,
+            speechEngine: session.speechEngine,
+            folderURL: session.folderURL
+        ))
+            .withNotes(finalNotes)
+            .withState(.awaitingTranscription)
+        try? lockFileStore.write(awaitingLock, folderURL: session.folderURL)
+        currentLockFile = awaitingLock
 
         let durationSeconds = max(0, Date().timeIntervalSince(session.startedAt))
         let output = MeetingRecordingOutput(
@@ -261,13 +419,61 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             microphoneAudioURL: session.microphoneAudioURL,
             systemAudioURL: session.systemAudioURL,
             durationSeconds: durationSeconds,
-            sourceAlignment: sourceAlignment
+            sourceAlignment: sourceAlignment,
+            speechEngine: session.speechEngine,
+            userNotes: finalNotes
         )
 
         await liveChunkTranscriber.finishSession()
+        await releaseSpeechEngineLease()
         cleanupState()
         logger.info("Meeting recording finalized: \(session.id.uuidString, privacy: .public)")
         return output
+    }
+
+    public func completeTranscription(for recording: MeetingRecordingOutput) async {
+        do {
+            try lockFileStore.delete(folderURL: recording.folderURL)
+        } catch {
+            logger.error("meeting_recording_lock_cleanup_failed session=\(recording.sessionID.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    public func updateNotes(_ notes: String) async {
+        guard let session = currentSession else { return }
+
+        // Normalize empty / whitespace-only input back to `nil` so the
+        // persisted lock-file `notes` field is absent rather than empty,
+        // and so downstream `Transcription.userNotes` is `nil` for
+        // recordings where the user typed nothing meaningful.
+        let trimmed = notes.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalized: String? = trimmed.isEmpty ? nil : notes
+        currentNotes = normalized
+
+        // Mutate the in-memory mirror and atomically rewrite. Actor
+        // isolation already serializes us with state-transition writes
+        // (`stopRecording` / `cancelRecording` / `startRecording`), so
+        // reading the file back from disk on every keystroke debounce
+        // would just be redundant I/O. `currentLockFile` is normally set
+        // by `startRecording`; the fallback handles the vanishingly rare
+        // case where a debounce somehow fires before initialization.
+        let base = currentLockFile ?? MeetingRecordingLockFile(
+            sessionId: session.id,
+            startedAt: session.startedAt,
+            pid: ProcessInfo.processInfo.processIdentifier,
+            displayName: session.displayName,
+            speechEngine: session.speechEngine,
+            folderURL: session.folderURL
+        )
+        let updated = base.withNotes(normalized)
+        do {
+            try lockFileStore.write(updated, folderURL: session.folderURL)
+            currentLockFile = updated
+        } catch {
+            // Notes persistence is best-effort — losing one debounce write to
+            // an I/O error is preferable to surfacing a UI error mid-meeting.
+            logger.error("meeting_recording_notes_persist_failed session=\(session.id.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+        }
     }
 
     public func cancelRecording() async {
@@ -279,11 +485,29 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         processingTask = nil
         await liveChunkTranscriber.cancelPendingTasks(waitForCancellation: true)
         await liveChunkTranscriber.finishSession()
-        writer?.finalize()
+        let finalizedWriter = writer
         writer = nil
+        await finalizeWriter(finalizedWriter)
+        try? lockFileStore.delete(folderURL: session.folderURL)
+        await releaseSpeechEngineLease()
         cleanupState()
         try? fileManager.removeItem(at: session.folderURL)
         logger.info("Meeting recording cancelled: \(session.id.uuidString, privacy: .public)")
+    }
+
+    private func releaseSpeechEngineLease() async {
+        guard let lease = currentSpeechEngineLease else { return }
+        currentSpeechEngineLease = nil
+        await speechEngineSessionManager?.endSpeechEngineSession(lease)
+    }
+
+    private func finalizeWriter(_ writer: MeetingAudioStorageWriter?) async {
+        guard let writer else { return }
+        await withCheckedContinuation { continuation in
+            writer.finalize {
+                continuation.resume()
+            }
+        }
     }
 
     private func handleCaptureEvent(_ event: MeetingAudioCaptureEvent) async {
@@ -302,7 +526,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     )
                 }
             } catch {
-                logger.error("Failed to write microphone audio: \(error.localizedDescription, privacy: .public)")
+                await failCapture(error)
             }
         case .systemBuffer(let buffer, let time):
             guard !captureFailed else { return }
@@ -319,15 +543,19 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                     )
                 }
             } catch {
-                logger.error("Failed to write system audio: \(error.localizedDescription, privacy: .public)")
+                await failCapture(error)
             }
         case .error(let error):
             guard !captureFailed else { return }
-            captureFailed = true
-            latestLevels = MeetingAudioLevels()
-            logger.error("Meeting capture event error: \(error.localizedDescription, privacy: .public)")
-            await audioCaptureService.stop()
+            await failCapture(error)
         }
+    }
+
+    private func failCapture(_ error: Error) async {
+        captureFailed = true
+        latestLevels = MeetingAudioLevels()
+        logger.error("Meeting capture failed: \(error.localizedDescription, privacy: .public)")
+        await audioCaptureService.stop()
     }
 
     private func ingestResampledSamples(
@@ -360,18 +588,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         for chunk in output.chunks {
             switch chunk.source {
             case .microphone:
-                if !shouldTranscribeChunk(chunk.chunk) {
-                    if flushed {
-                        logger.debug("Skipping low-signal flushed microphone chunk")
-                    } else {
-                        logger.debug("Skipping low-signal microphone chunk")
-                    }
+                let micRms = chunkRms(for: chunk.chunk.samples)
+                if micRms <= Self.chunkSignalFloor {
+                    logger.notice(
+                        "mic_chunk_dropped reason=low_signal flushed=\(flushed, privacy: .public) rms=\(micRms, privacy: .public) floor=\(Self.chunkSignalFloor, privacy: .public)"
+                    )
                 } else if shouldSuppressMicrophoneChunkTranscription() {
-                    if flushed {
-                        logger.debug("Suppressing flushed microphone chunk due to dominant recent system audio")
-                    } else {
-                        logger.debug("Suppressing microphone chunk due to dominant recent system audio")
-                    }
+                    let ratio = recentSystemRms / max(recentProcessedMicRms, Self.rmsEpsilon)
+                    logger.notice(
+                        "mic_chunk_dropped reason=system_dominant flushed=\(flushed, privacy: .public) sys_rms=\(self.recentSystemRms, privacy: .public) proc_mic_rms=\(self.recentProcessedMicRms, privacy: .public) ratio=\(ratio, privacy: .public) threshold=\(Self.systemDominanceRatio, privacy: .public)"
+                    )
                 } else {
                     await liveChunkTranscriber.enqueue(chunk: chunk.chunk, source: .microphone)
                 }
@@ -379,11 +605,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 if shouldTranscribeChunk(chunk.chunk) {
                     await liveChunkTranscriber.enqueue(chunk: chunk.chunk, source: .system)
                 } else {
-                    if flushed {
-                        logger.debug("Skipping low-signal flushed system chunk")
-                    } else {
-                        logger.debug("Skipping low-signal system chunk")
-                    }
+                    let sysRms = chunkRms(for: chunk.chunk.samples)
+                    logger.notice(
+                        "system_chunk_dropped reason=low_signal flushed=\(flushed, privacy: .public) rms=\(sysRms, privacy: .public) floor=\(Self.chunkSignalFloor, privacy: .public)"
+                    )
                 }
             }
         }
@@ -412,21 +637,30 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
     }
 
-    private func configureMicConditioner(from report: MeetingMicrophoneCaptureStartReport) {
-        switch report.effectiveMode {
+    private func configureMicConditioner(from report: MeetingAudioCaptureStartReport) {
+        guard report.microphoneStarted else {
+            micConditioner = SoftwareAECConditioner()
+            logger.info(
+                "meeting_mic_conditioner_skipped source_mode=\(report.sourceMode.rawValue, privacy: .public)"
+            )
+            return
+        }
+
+        let microphone = report.microphone
+        switch microphone.effectiveMode {
         case .vpio:
             micConditioner = VPIOConditioner()
         case .raw:
             micConditioner = SoftwareAECConditioner()
         }
 
-        if report.fellBackToRaw {
+        if microphone.fellBackToRaw {
             logger.notice(
-                "meeting_mic_conditioner_fallback requested=\(String(describing: report.requestedMode), privacy: .public) effective=raw requested_policy=\(String(describing: self.requestedMicProcessingMode), privacy: .public)"
+                "meeting_mic_conditioner_fallback requested=\(String(describing: microphone.requestedMode), privacy: .public) effective=raw requested_policy=\(String(describing: self.requestedMicProcessingMode), privacy: .public)"
             )
         } else {
             logger.info(
-                "meeting_mic_conditioner_selected requested=\(String(describing: report.requestedMode), privacy: .public) effective=\(report.effectiveMode.rawValue, privacy: .public)"
+                "meeting_mic_conditioner_selected requested=\(String(describing: microphone.requestedMode), privacy: .public) effective=\(microphone.effectiveMode.rawValue, privacy: .public)"
             )
         }
     }
@@ -624,6 +858,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func cleanupState() {
         currentSession = nil
+        currentNotes = nil
+        currentLockFile = nil
         micConditioner = SoftwareAECConditioner()
         latestLevels = MeetingAudioLevels()
         sourceCaptureMetrics = [:]
@@ -639,6 +875,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         transcriptContinuation?.finish()
         transcriptContinuation = nil
         cachedTranscriptUpdates = nil
+    }
+
+    private static func resolveDisplayName(title: String?, fallbackDate: Date) -> String {
+        if let trimmed = title?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty {
+            return trimmed
+        }
+        return makeDisplayName(for: fallbackDate)
     }
 
     private static func makeDisplayName(for date: Date) -> String {

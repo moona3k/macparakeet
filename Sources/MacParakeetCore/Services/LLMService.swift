@@ -16,6 +16,17 @@ public protocol LLMServiceProtocol: Sendable {
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
     func chatStream(question: String, transcript: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error>
     func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error>
+
+    // MARK: Envelope variants
+    //
+    // The `*Detailed` calls return the same operation result wrapped in
+    // an `LLMResult` envelope (provider, model, usage, stopReason,
+    // latencyMs). The CLI uses these for `--json` output; existing
+    // `String`-returning callers (the GUI) are unaffected.
+
+    func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult
+    func chatDetailed(question: String, transcript: String, history: [ChatMessage]) async throws -> LLMResult
+    func transformDetailed(text: String, prompt: String) async throws -> LLMResult
 }
 
 public extension LLMServiceProtocol {
@@ -42,6 +53,18 @@ public extension LLMServiceProtocol {
     func summarizeStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         generatePromptResultStream(transcript: transcript, systemPrompt: systemPrompt)
     }
+
+    func generatePromptResultDetailed(transcript: String) async throws -> LLMResult {
+        try await generatePromptResultDetailed(transcript: transcript, systemPrompt: nil)
+    }
+
+    func summarizeDetailed(transcript: String) async throws -> LLMResult {
+        try await generatePromptResultDetailed(transcript: transcript, systemPrompt: nil)
+    }
+
+    func summarizeDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult {
+        try await generatePromptResultDetailed(transcript: transcript, systemPrompt: systemPrompt)
+    }
 }
 
 // MARK: - Implementation
@@ -63,7 +86,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     internal static let localContextBudget = 24_000
 
     public init(
-        client: LLMClientProtocol = LLMClient(),
+        client: LLMClientProtocol = RoutingLLMClient(),
         contextResolver: any LLMExecutionContextResolving = StoredLLMExecutionContextResolver()
     ) {
         self.client = client
@@ -71,7 +94,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     }
 
     public convenience init(
-        client: LLMClientProtocol = LLMClient(),
+        client: LLMClientProtocol = RoutingLLMClient(),
         configStore: LLMConfigStoreProtocol = LLMConfigStore(),
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
     ) {
@@ -85,55 +108,233 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     }
 
     // MARK: - Sync Variants
+    //
+    // The `String`-returning entry points delegate to their `*Detailed`
+    // counterparts and project the `output` field. There's exactly one
+    // network-call site per operation; metadata (model, usage, latency)
+    // is captured uniformly even for callers that ultimately discard it.
 
     public func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String {
-        let context = try loadContext()
+        try await generatePromptResultDetailed(transcript: transcript, systemPrompt: systemPrompt).output
+    }
+
+    public func chat(question: String, transcript: String, history: [ChatMessage]) async throws -> String {
+        try await chatDetailed(question: question, transcript: transcript, history: history).output
+    }
+
+    public func transform(text: String, prompt: String) async throws -> String {
+        try await transformDetailed(text: text, prompt: prompt).output
+    }
+
+    // MARK: - Envelope (Detailed) Variants
+
+    public func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult {
+        let operationID = Observability.operationID()
+        let startedAt = Date()
+        let promptDefaultUsed = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
+        let context = try loadContextForLLMOperation(
+            operationID: operationID,
+            feature: "prompt_result",
+            streaming: false,
+            startedAt: startedAt,
+            inputChars: transcript.count,
+            promptDefaultUsed: promptDefaultUsed,
+            messageCount: 2
+        )
         let config = context.providerConfig
-        let truncated = Self.truncateMiddle(transcript, limit: contextBudget(for: config))
+        let budget = contextBudget(for: config)
+        let truncated = Self.truncateMiddle(transcript, limit: budget)
         let messages = [
             ChatMessage(role: .system, content: resolveSummaryPrompt(systemPrompt)),
             ChatMessage(role: .user, content: truncated),
         ]
         do {
             let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
+            let latencyMs = Self.latencyMs(since: startedAt)
             Telemetry.send(.llmPromptResultUsed(provider: config.id.rawValue))
-            return response.content
+            sendLLMOperation(
+                operationID: operationID,
+                feature: "prompt_result",
+                provider: config.id.rawValue,
+                streaming: false,
+                outcome: .success,
+                startedAt: startedAt,
+                inputChars: transcript.count,
+                outputChars: response.content.count,
+                inputTruncated: transcript.count > budget,
+                promptDefaultUsed: promptDefaultUsed,
+                messageCount: messages.count
+            )
+            return LLMResult(response: response, provider: config.id, latencyMs: latencyMs)
         } catch {
-            if !(error is CancellationError) {
+            if error is CancellationError {
+                sendLLMOperation(
+                    operationID: operationID,
+                    feature: "prompt_result",
+                    provider: config.id.rawValue,
+                    streaming: false,
+                    outcome: .cancelled,
+                    startedAt: startedAt,
+                    inputChars: transcript.count,
+                    inputTruncated: transcript.count > budget,
+                    promptDefaultUsed: promptDefaultUsed,
+                    messageCount: messages.count
+                )
+            } else {
                 // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
                 Telemetry.send(.llmPromptResultFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+                sendLLMOperation(
+                    operationID: operationID,
+                    feature: "prompt_result",
+                    provider: config.id.rawValue,
+                    streaming: false,
+                    outcome: .failure,
+                    startedAt: startedAt,
+                    inputChars: transcript.count,
+                    inputTruncated: transcript.count > budget,
+                    promptDefaultUsed: promptDefaultUsed,
+                    messageCount: messages.count,
+                    errorType: Self.errorType(for: error)
+                )
             }
             throw error
         }
     }
 
-    public func chat(question: String, transcript: String, history: [ChatMessage]) async throws -> String {
-        let context = try loadContext()
+    public func chatDetailed(question: String, transcript: String, history: [ChatMessage]) async throws -> LLMResult {
+        let operationID = Observability.operationID()
+        let startedAt = Date()
+        let context = try loadContextForLLMOperation(
+            operationID: operationID,
+            feature: "chat",
+            streaming: false,
+            startedAt: startedAt,
+            inputChars: question.count + transcript.count,
+            messageCount: history.count + 1
+        )
         let config = context.providerConfig
         let messages = buildChatMessages(question: question, transcript: transcript, history: history, config: config)
+        let budget = contextBudget(for: config)
         do {
             let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
+            let latencyMs = Self.latencyMs(since: startedAt)
             Telemetry.send(.llmChatUsed(provider: config.id.rawValue, messageCount: history.count + 1))
-            return response.content
+            sendLLMOperation(
+                operationID: operationID,
+                feature: "chat",
+                provider: config.id.rawValue,
+                streaming: false,
+                outcome: .success,
+                startedAt: startedAt,
+                inputChars: question.count + transcript.count,
+                outputChars: response.content.count,
+                inputTruncated: transcript.count > budget,
+                messageCount: history.count + 1
+            )
+            return LLMResult(response: response, provider: config.id, latencyMs: latencyMs)
         } catch {
-            if !(error is CancellationError) {
+            if error is CancellationError {
+                sendLLMOperation(
+                    operationID: operationID,
+                    feature: "chat",
+                    provider: config.id.rawValue,
+                    streaming: false,
+                    outcome: .cancelled,
+                    startedAt: startedAt,
+                    inputChars: question.count + transcript.count,
+                    inputTruncated: transcript.count > budget,
+                    messageCount: history.count + 1
+                )
+            } else {
                 // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
                 Telemetry.send(.llmChatFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+                sendLLMOperation(
+                    operationID: operationID,
+                    feature: "chat",
+                    provider: config.id.rawValue,
+                    streaming: false,
+                    outcome: .failure,
+                    startedAt: startedAt,
+                    inputChars: question.count + transcript.count,
+                    inputTruncated: transcript.count > budget,
+                    messageCount: history.count + 1,
+                    errorType: Self.errorType(for: error)
+                )
             }
             throw error
         }
     }
 
-    public func transform(text: String, prompt: String) async throws -> String {
-        let context = try loadContext()
+    public func transformDetailed(text: String, prompt: String) async throws -> LLMResult {
+        let operationID = Observability.operationID()
+        let startedAt = Date()
+        let context = try loadContextForLLMOperation(
+            operationID: operationID,
+            feature: "transform",
+            streaming: false,
+            startedAt: startedAt,
+            inputChars: text.count + prompt.count,
+            messageCount: 2
+        )
         let config = context.providerConfig
-        let truncated = Self.truncateMiddle(text, limit: contextBudget(for: config))
+        let budget = contextBudget(for: config)
+        let truncated = Self.truncateMiddle(text, limit: budget)
         let messages = [
             ChatMessage(role: .system, content: Prompts.transform),
             ChatMessage(role: .user, content: "Transform the following text according to this instruction: \(prompt)\n\n---\n\n\(truncated)"),
         ]
-        let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
-        return response.content
+        do {
+            let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
+            let latencyMs = Self.latencyMs(since: startedAt)
+            Telemetry.send(.llmTransformUsed(provider: config.id.rawValue))
+            sendLLMOperation(
+                operationID: operationID,
+                feature: "transform",
+                provider: config.id.rawValue,
+                streaming: false,
+                outcome: .success,
+                startedAt: startedAt,
+                inputChars: text.count + prompt.count,
+                outputChars: response.content.count,
+                inputTruncated: text.count > budget,
+                messageCount: messages.count
+            )
+            return LLMResult(response: response, provider: config.id, latencyMs: latencyMs)
+        } catch {
+            if error is CancellationError {
+                sendLLMOperation(
+                    operationID: operationID,
+                    feature: "transform",
+                    provider: config.id.rawValue,
+                    streaming: false,
+                    outcome: .cancelled,
+                    startedAt: startedAt,
+                    inputChars: text.count + prompt.count,
+                    inputTruncated: text.count > budget,
+                    messageCount: messages.count
+                )
+            } else {
+                // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
+                Telemetry.send(.llmTransformFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+                sendLLMOperation(
+                    operationID: operationID,
+                    feature: "transform",
+                    provider: config.id.rawValue,
+                    streaming: false,
+                    outcome: .failure,
+                    startedAt: startedAt,
+                    inputChars: text.count + prompt.count,
+                    inputTruncated: text.count > budget,
+                    messageCount: messages.count,
+                    errorType: Self.errorType(for: error)
+                )
+            }
+            throw error
+        }
+    }
+
+    private static func latencyMs(since start: Date) -> Int {
+        Int((Date().timeIntervalSince(start) * 1000).rounded())
     }
 
     public func formatTranscript(
@@ -142,7 +343,18 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         source: TelemetryFormatterSource,
         defaultPromptUsed: Bool
     ) async throws -> String {
-        let context = try loadContext()
+        let operationID = Observability.operationID()
+        let startedAt = Date()
+        let inputChars = transcript.count
+        let context = try loadContextForLLMOperation(
+            operationID: operationID,
+            feature: "formatter_\(source.rawValue)",
+            streaming: false,
+            startedAt: startedAt,
+            inputChars: inputChars,
+            promptDefaultUsed: defaultPromptUsed,
+            messageCount: 2
+        )
         let config = context.providerConfig
         let budget = contextBudget(for: config)
         // Compare original transcript length against budget rather than the
@@ -152,8 +364,6 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         // we have to drop content to fit," which this expresses directly.
         let inputTruncated = transcript.count > budget
         let truncated = Self.truncateMiddle(transcript, limit: budget)
-        let inputChars = transcript.count
-        let startedAt = Date()
 
         do {
             let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: truncated)
@@ -205,9 +415,35 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 defaultPromptUsed: defaultPromptUsed,
                 inputTruncated: inputTruncated
             ))
+            sendLLMOperation(
+                operationID: operationID,
+                feature: "formatter_\(source.rawValue)",
+                provider: config.id.rawValue,
+                streaming: false,
+                outcome: .success,
+                startedAt: startedAt,
+                inputChars: inputChars,
+                outputChars: output.count,
+                inputTruncated: inputTruncated,
+                promptDefaultUsed: defaultPromptUsed,
+                messageCount: 2
+            )
             return output
         } catch {
-            if !(error is CancellationError) {
+            if error is CancellationError {
+                sendLLMOperation(
+                    operationID: operationID,
+                    feature: "formatter_\(source.rawValue)",
+                    provider: config.id.rawValue,
+                    streaming: false,
+                    outcome: .cancelled,
+                    startedAt: startedAt,
+                    inputChars: inputChars,
+                    inputTruncated: inputTruncated,
+                    promptDefaultUsed: defaultPromptUsed,
+                    messageCount: 2
+                )
+            } else {
                 // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
                 Telemetry.send(.llmFormatterFailed(
                     provider: config.id.rawValue,
@@ -217,6 +453,19 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     defaultPromptUsed: defaultPromptUsed,
                     inputTruncated: inputTruncated
                 ))
+                sendLLMOperation(
+                    operationID: operationID,
+                    feature: "formatter_\(source.rawValue)",
+                    provider: config.id.rawValue,
+                    streaming: false,
+                    outcome: .failure,
+                    startedAt: startedAt,
+                    inputChars: inputChars,
+                    inputTruncated: inputTruncated,
+                    promptDefaultUsed: defaultPromptUsed,
+                    messageCount: 2,
+                    errorType: Self.errorType(for: error)
+                )
             }
             throw error
         }
@@ -226,22 +475,60 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     public func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
+            let operationID = Observability.operationID()
+            let startedAt = Date()
+            let promptDefaultUsed = systemPrompt?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
             let task = Task {
                 var provider = "unknown"
+                var outputChars = 0
+                var inputTruncated: Bool?
                 do {
-                    let context = try self.loadContext()
+                    let context: LLMExecutionContext
+                    do {
+                        context = try self.loadContext()
+                    } catch {
+                        self.sendLLMOperation(
+                            operationID: operationID,
+                            feature: "prompt_result",
+                            provider: provider,
+                            streaming: true,
+                            outcome: Self.outcomeForLLMSetupError(error),
+                            startedAt: startedAt,
+                            inputChars: transcript.count,
+                            promptDefaultUsed: promptDefaultUsed,
+                            messageCount: 2,
+                            errorType: Self.operationErrorType(for: error)
+                        )
+                        throw error
+                    }
                     let config = context.providerConfig
                     provider = config.id.rawValue
-                    let truncated = Self.truncateMiddle(transcript, limit: self.contextBudget(for: config))
+                    let budget = self.contextBudget(for: config)
+                    inputTruncated = transcript.count > budget
+                    let truncated = Self.truncateMiddle(transcript, limit: budget)
                     let messages = [
                         ChatMessage(role: .system, content: self.resolveSummaryPrompt(systemPrompt)),
                         ChatMessage(role: .user, content: truncated),
                     ]
                     let stream = self.client.chatCompletionStream(messages: messages, context: context, options: .default)
                     for try await token in stream {
+                        outputChars += token.count
                         continuation.yield(token)
                     }
                     Telemetry.send(.llmPromptResultUsed(provider: config.id.rawValue))
+                    self.sendLLMOperation(
+                        operationID: operationID,
+                        feature: "prompt_result",
+                        provider: provider,
+                        streaming: true,
+                        outcome: .success,
+                        startedAt: startedAt,
+                        inputChars: transcript.count,
+                        outputChars: outputChars,
+                        inputTruncated: inputTruncated,
+                        promptDefaultUsed: promptDefaultUsed,
+                        messageCount: messages.count
+                    )
                     continuation.finish()
                 } catch {
                     if !(error is CancellationError) {
@@ -250,6 +537,22 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                             provider: provider,
                             errorType: Self.errorType(for: error)
                         ))
+                    }
+                    if provider != "unknown" {
+                        self.sendLLMOperation(
+                            operationID: operationID,
+                            feature: "prompt_result",
+                            provider: provider,
+                            streaming: true,
+                            outcome: error is CancellationError ? .cancelled : .failure,
+                            startedAt: startedAt,
+                            inputChars: transcript.count,
+                            outputChars: outputChars,
+                            inputTruncated: inputTruncated,
+                            promptDefaultUsed: promptDefaultUsed,
+                            messageCount: 2,
+                            errorType: error is CancellationError ? nil : Self.errorType(for: error)
+                        )
                     }
                     continuation.finish(throwing: error)
                 }
@@ -260,18 +563,53 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     public func chatStream(question: String, transcript: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
+            let operationID = Observability.operationID()
+            let startedAt = Date()
+            let messageCount = history.count + 1
             let task = Task {
                 var provider = "unknown"
+                var outputChars = 0
+                var inputTruncated: Bool?
                 do {
-                    let context = try self.loadContext()
+                    let context: LLMExecutionContext
+                    do {
+                        context = try self.loadContext()
+                    } catch {
+                        self.sendLLMOperation(
+                            operationID: operationID,
+                            feature: "chat",
+                            provider: provider,
+                            streaming: true,
+                            outcome: Self.outcomeForLLMSetupError(error),
+                            startedAt: startedAt,
+                            inputChars: question.count + transcript.count,
+                            messageCount: messageCount,
+                            errorType: Self.operationErrorType(for: error)
+                        )
+                        throw error
+                    }
                     let config = context.providerConfig
                     provider = config.id.rawValue
+                    inputTruncated = transcript.count > self.contextBudget(for: config)
                     let messages = self.buildChatMessages(question: question, transcript: transcript, history: history, config: config)
                     let stream = self.client.chatCompletionStream(messages: messages, context: context, options: .default)
                     for try await token in stream {
+                        outputChars += token.count
                         continuation.yield(token)
                     }
                     Telemetry.send(.llmChatUsed(provider: config.id.rawValue, messageCount: history.count + 1))
+                    self.sendLLMOperation(
+                        operationID: operationID,
+                        feature: "chat",
+                        provider: provider,
+                        streaming: true,
+                        outcome: .success,
+                        startedAt: startedAt,
+                        inputChars: question.count + transcript.count,
+                        outputChars: outputChars,
+                        inputTruncated: inputTruncated,
+                        messageCount: messageCount
+                    )
                     continuation.finish()
                 } catch {
                     if !(error is CancellationError) {
@@ -280,6 +618,21 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                             provider: provider,
                             errorType: Self.errorType(for: error)
                         ))
+                    }
+                    if provider != "unknown" {
+                        self.sendLLMOperation(
+                            operationID: operationID,
+                            feature: "chat",
+                            provider: provider,
+                            streaming: true,
+                            outcome: error is CancellationError ? .cancelled : .failure,
+                            startedAt: startedAt,
+                            inputChars: question.count + transcript.count,
+                            outputChars: outputChars,
+                            inputTruncated: inputTruncated,
+                            messageCount: messageCount,
+                            errorType: error is CancellationError ? nil : Self.errorType(for: error)
+                        )
                     }
                     continuation.finish(throwing: error)
                 }
@@ -290,21 +643,81 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     public func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
+            let operationID = Observability.operationID()
+            let startedAt = Date()
             let task = Task {
+                var provider = "unknown"
+                var outputChars = 0
+                var inputTruncated: Bool?
                 do {
-                    let context = try self.loadContext()
+                    let context: LLMExecutionContext
+                    do {
+                        context = try self.loadContext()
+                    } catch {
+                        self.sendLLMOperation(
+                            operationID: operationID,
+                            feature: "transform",
+                            provider: provider,
+                            streaming: true,
+                            outcome: Self.outcomeForLLMSetupError(error),
+                            startedAt: startedAt,
+                            inputChars: text.count + prompt.count,
+                            messageCount: 2,
+                            errorType: Self.operationErrorType(for: error)
+                        )
+                        throw error
+                    }
                     let config = context.providerConfig
-                    let truncated = Self.truncateMiddle(text, limit: self.contextBudget(for: config))
+                    provider = config.id.rawValue
+                    let budget = self.contextBudget(for: config)
+                    inputTruncated = text.count > budget
+                    let truncated = Self.truncateMiddle(text, limit: budget)
                     let messages = [
                         ChatMessage(role: .system, content: Prompts.transform),
                         ChatMessage(role: .user, content: "Transform the following text according to this instruction: \(prompt)\n\n---\n\n\(truncated)"),
                     ]
                     let stream = self.client.chatCompletionStream(messages: messages, context: context, options: .default)
                     for try await token in stream {
+                        outputChars += token.count
                         continuation.yield(token)
                     }
+                    Telemetry.send(.llmTransformUsed(provider: config.id.rawValue))
+                    self.sendLLMOperation(
+                        operationID: operationID,
+                        feature: "transform",
+                        provider: provider,
+                        streaming: true,
+                        outcome: .success,
+                        startedAt: startedAt,
+                        inputChars: text.count + prompt.count,
+                        outputChars: outputChars,
+                        inputTruncated: inputTruncated,
+                        messageCount: messages.count
+                    )
                     continuation.finish()
                 } catch {
+                    if !(error is CancellationError) {
+                        // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
+                        Telemetry.send(.llmTransformFailed(
+                            provider: provider,
+                            errorType: Self.errorType(for: error)
+                        ))
+                    }
+                    if provider != "unknown" {
+                        self.sendLLMOperation(
+                            operationID: operationID,
+                            feature: "transform",
+                            provider: provider,
+                            streaming: true,
+                            outcome: error is CancellationError ? .cancelled : .failure,
+                            startedAt: startedAt,
+                            inputChars: text.count + prompt.count,
+                            outputChars: outputChars,
+                            inputTruncated: inputTruncated,
+                            messageCount: 2,
+                            errorType: error is CancellationError ? nil : Self.errorType(for: error)
+                        )
+                    }
                     continuation.finish(throwing: error)
                 }
             }
@@ -319,6 +732,34 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             throw LLMError.notConfigured
         }
         return context
+    }
+
+    private func loadContextForLLMOperation(
+        operationID: String,
+        feature: String,
+        streaming: Bool,
+        startedAt: Date,
+        inputChars: Int?,
+        promptDefaultUsed: Bool? = nil,
+        messageCount: Int? = nil
+    ) throws -> LLMExecutionContext {
+        do {
+            return try loadContext()
+        } catch {
+            sendLLMOperation(
+                operationID: operationID,
+                feature: feature,
+                provider: "unknown",
+                streaming: streaming,
+                outcome: Self.outcomeForLLMSetupError(error),
+                startedAt: startedAt,
+                inputChars: inputChars,
+                promptDefaultUsed: promptDefaultUsed,
+                messageCount: messageCount,
+                errorType: Self.operationErrorType(for: error)
+            )
+            throw error
+        }
     }
 
     private func contextBudget(for config: LLMProviderConfig) -> Int {
@@ -356,6 +797,52 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     private static func errorType(for error: Error) -> String {
         TelemetryErrorClassifier.classify(error)
+    }
+
+    private static func operationErrorType(for error: Error) -> String? {
+        error is CancellationError ? nil : errorType(for: error)
+    }
+
+    private static func outcomeForLLMSetupError(_ error: Error) -> ObservabilityOutcome {
+        if error is CancellationError {
+            return .cancelled
+        }
+        if let llmError = error as? LLMError, case .notConfigured = llmError {
+            return .unavailable
+        }
+        return .failure
+    }
+
+    private func sendLLMOperation(
+        operationID: String,
+        feature: String,
+        provider: String,
+        streaming: Bool,
+        outcome: ObservabilityOutcome,
+        startedAt: Date,
+        inputChars: Int?,
+        outputChars: Int? = nil,
+        inputTruncated: Bool? = nil,
+        promptDefaultUsed: Bool? = nil,
+        messageCount: Int? = nil,
+        errorType: String? = nil
+    ) {
+        let operationContext = Observability.operationContext(operationID: operationID, startedAt: startedAt)
+        Telemetry.send(.llmOperation(
+            operationID: operationID,
+            operationContext: operationContext,
+            feature: feature,
+            provider: provider,
+            streaming: streaming,
+            outcome: outcome,
+            durationSeconds: Observability.durationSeconds(since: startedAt),
+            inputChars: inputChars,
+            outputChars: outputChars,
+            inputTruncated: inputTruncated,
+            promptDefaultUsed: promptDefaultUsed,
+            messageCount: messageCount,
+            errorType: errorType
+        ))
     }
 
     private func buildChatMessages(

@@ -65,9 +65,9 @@ Users make an informed choice. The UI makes the tradeoff explicit. Apple Intelli
 
 MacParakeet can still be used in a fully local configuration: no cloud STT, no cloud AI, telemetry disabled, and only local features/providers enabled.
 
-### One-time purchase still works
+### Official paid distribution still works
 
-Cloud LLM costs are paid directly by the user to their provider (Anthropic, OpenAI, etc.). MacParakeet has zero server costs, zero marginal cost per user. The one-time purchase model (ADR-003) is unaffected.
+Cloud LLM costs are paid directly by the user to their provider (Anthropic, OpenAI, etc.). MacParakeet has zero server costs for core speech and zero marginal STT cost per user. The original one-time purchase model (ADR-003) was superseded by the current free/GPL release, but GPL-compatible paid official distribution, support, hosted services, or team features remain possible.
 
 ### Market validation
 
@@ -85,7 +85,7 @@ Cloud LLM costs are paid directly by the user to their provider (Anthropic, Open
 - LLM features use best-available models (Claude, GPT-4) without bundling a runtime
 - Local-only users can use Ollama
 - Zero resource impact from LLM (no GPU memory, no model downloads)
-- One-time purchase pricing preserved
+- Business model remains flexible: current public builds are free/GPL, while official paid distribution/support can be added without changing the local-first architecture
 - App Store compatible
 
 ### Negative

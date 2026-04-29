@@ -11,7 +11,34 @@ public protocol TranscriptionServiceProtocol: Sendable {
         recording: MeetingRecordingOutput,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription
+    func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
+    func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
     func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)?) async throws -> Transcription
+}
+
+public protocol SpeechEngineOverrideTranscriptionService: TranscriptionServiceProtocol {
+    func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection?,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
+    func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection?,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
 }
 
 extension TranscriptionServiceProtocol {
@@ -33,9 +60,103 @@ extension TranscriptionServiceProtocol {
     public func transcribeMeeting(recording: MeetingRecordingOutput) async throws -> Transcription {
         try await transcribeMeeting(recording: recording, onProgress: nil)
     }
+
+    public func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+    }
+
+    public func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await transcribeMeeting(recording: recording, onProgress: onProgress)
+    }
+
+    public func retranscribe(
+        existing transcription: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection?,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        guard let speechEngineOverride else {
+            return try await retranscribe(
+                existing: transcription,
+                fileURL: fileURL,
+                source: source,
+                onProgress: onProgress
+            )
+        }
+        guard let routedService = self as? any SpeechEngineOverrideTranscriptionService else {
+            throw STTError.engineStartFailed(
+                "Pinned \(speechEngineOverride.engine.rawValue) speech engine cannot be honored by this transcription service."
+            )
+        }
+        return try await routedService.retranscribe(
+            existing: transcription,
+            fileURL: fileURL,
+            source: source,
+            speechEngineOverride: speechEngineOverride,
+            onProgress: onProgress
+        )
+    }
+
+    public func retranscribeMeeting(
+        existing transcription: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection?,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        guard let speechEngineOverride else {
+            return try await retranscribeMeeting(
+                existing: transcription,
+                recording: recording,
+                onProgress: onProgress
+            )
+        }
+        guard let routedService = self as? any SpeechEngineOverrideTranscriptionService else {
+            throw STTError.engineStartFailed(
+                "Pinned \(speechEngineOverride.engine.rawValue) speech engine cannot be honored by this transcription service."
+            )
+        }
+        return try await routedService.retranscribeMeeting(
+            existing: transcription,
+            recording: recording,
+            speechEngineOverride: speechEngineOverride,
+            onProgress: onProgress
+        )
+    }
 }
 
-public actor TranscriptionService: TranscriptionServiceProtocol {
+private struct TranscriptionOperationContext: Sendable {
+    let operationContext: ObservabilityOperationContext
+    let source: TelemetryTranscriptionSource
+    let inputKind: ObservabilityInputKind?
+    let mediaExtension: String?
+    let fileSizeBucket: String?
+
+    init(
+        source: TelemetryTranscriptionSource,
+        inputKind: ObservabilityInputKind?,
+        mediaExtension: String?,
+        fileSizeBucket: String?,
+        operationContext: ObservabilityOperationContext = Observability.childOperationContext()
+    ) {
+        self.operationContext = operationContext
+        self.source = source
+        self.inputKind = inputKind
+        self.mediaExtension = mediaExtension
+        self.fileSizeBucket = fileSizeBucket
+    }
+}
+
+public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "TranscriptionService")
     private let audioProcessor: AudioProcessorProtocol
     private let sttTranscriber: STTTranscribing
@@ -114,31 +235,156 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         recording: MeetingRecordingOutput,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        if let entitlements {
-            try await entitlements.assertCanTranscribe(now: Date())
-        }
-
         let fileSize = (try? FileManager.default.attributesOfItem(atPath: recording.mixedAudioURL.path)[.size] as? Int)
             .flatMap { $0 }
-
-        var transcription = Transcription(
-            fileName: recording.displayName,
-            filePath: recording.mixedAudioURL.path,
-            fileSizeBytes: fileSize,
-            status: .processing,
-            sourceType: .meeting
-        )
-        try transcriptionRepo.save(transcription)
-        Telemetry.send(.transcriptionStarted(
+        let operation = TranscriptionOperationContext(
             source: .meeting,
-            audioDurationSeconds: recording.durationSeconds
-        ))
+            inputKind: .meeting,
+            mediaExtension: Observability.mediaExtension(for: recording.mixedAudioURL),
+            fileSizeBucket: Observability.fileSizeBucket(bytes: fileSize)
+        )
 
-        return try await transcribeMeetingAudio(
-            recording: recording,
-            transcription: &transcription,
+        return try await Observability.withOperationContext(operation.operationContext) {
+            try await assertCanTranscribeOrEmitPreflight(
+                operation,
+                audioDurationSeconds: recording.durationSeconds
+            )
+
+            var transcription = Transcription(
+                fileName: recording.displayName,
+                filePath: recording.mixedAudioURL.path,
+                fileSizeBytes: fileSize,
+                status: .processing,
+                sourceType: .meeting,
+                userNotes: recording.userNotes
+            )
+            do {
+                try transcriptionRepo.save(transcription)
+            } catch {
+                sendTranscriptionOperation(
+                    operation,
+                    outcome: .failure,
+                    stage: .persistence,
+                    audioDurationSeconds: recording.durationSeconds,
+                    errorType: Self.errorType(for: error)
+                )
+                throw error
+            }
+            Telemetry.send(.transcriptionStarted(
+                source: .meeting,
+                audioDurationSeconds: recording.durationSeconds
+            ))
+
+            return try await transcribeMeetingAudio(
+                recording: recording,
+                transcription: &transcription,
+                operation: operation,
+                onProgress: onProgress
+            )
+        }
+    }
+
+    public func retranscribe(
+        existing original: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await retranscribe(
+            existing: original,
+            fileURL: fileURL,
+            source: source,
+            speechEngineOverride: nil,
             onProgress: onProgress
         )
+    }
+
+    public func retranscribe(
+        existing original: Transcription,
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        speechEngineOverride: SpeechEngineSelection? = nil,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        var transcription = makeRetranscriptionRecord(from: original)
+        transcription.fileSizeBytes = (try? FileManager.default.attributesOfItem(atPath: fileURL.path)[.size] as? Int)
+            .flatMap { $0 } ?? original.fileSizeBytes
+        let operation = TranscriptionOperationContext(
+            source: source,
+            inputKind: Observability.inputKind(for: fileURL),
+            mediaExtension: Observability.mediaExtension(for: fileURL),
+            fileSizeBucket: Observability.fileSizeBucket(bytes: transcription.fileSizeBytes)
+        )
+
+        return try await Observability.withOperationContext(operation.operationContext) {
+            try await assertCanTranscribeOrEmitPreflight(operation)
+
+            Telemetry.send(.transcriptionStarted(source: source, audioDurationSeconds: nil))
+
+            return try await transcribeAudio(
+                fileURL: fileURL,
+                source: source,
+                sttJob: .fileTranscription,
+                transcription: &transcription,
+                operation: operation,
+                tempFiles: [],
+                persistFailureStatus: false,
+                speechEngine: speechEngineOverride,
+                onProgress: onProgress
+            )
+        }
+    }
+
+    public func retranscribeMeeting(
+        existing original: Transcription,
+        recording: MeetingRecordingOutput,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await retranscribeMeeting(
+            existing: original,
+            recording: recording,
+            speechEngineOverride: nil,
+            onProgress: onProgress
+        )
+    }
+
+    public func retranscribeMeeting(
+        existing original: Transcription,
+        recording: MeetingRecordingOutput,
+        speechEngineOverride: SpeechEngineSelection? = nil,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        var transcription = makeRetranscriptionRecord(from: original)
+        transcription.fileSizeBytes = (try? FileManager.default.attributesOfItem(atPath: recording.mixedAudioURL.path)[.size] as? Int)
+            .flatMap { $0 } ?? original.fileSizeBytes
+        transcription.userNotes = original.userNotes ?? recording.userNotes
+        let operation = TranscriptionOperationContext(
+            source: .meeting,
+            inputKind: .meeting,
+            mediaExtension: Observability.mediaExtension(for: recording.mixedAudioURL),
+            fileSizeBucket: Observability.fileSizeBucket(bytes: transcription.fileSizeBytes)
+        )
+
+        return try await Observability.withOperationContext(operation.operationContext) {
+            try await assertCanTranscribeOrEmitPreflight(
+                operation,
+                audioDurationSeconds: recording.durationSeconds
+            )
+
+            Telemetry.send(.transcriptionStarted(
+                source: .meeting,
+                audioDurationSeconds: recording.durationSeconds
+            ))
+
+            return try await transcribeMeetingAudio(
+                recording: recording,
+                transcription: &transcription,
+                operation: operation,
+                persistFailureStatus: false,
+                speechEngineOverride: speechEngineOverride,
+                onProgress: onProgress
+            )
+        }
     }
 
     private func transcribe(
@@ -150,133 +396,192 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         sourceType: Transcription.SourceType,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
-        if let entitlements {
-            try await entitlements.assertCanTranscribe(now: Date())
-        }
-
         let fileName = displayFileName ?? storedFileURL?.lastPathComponent ?? fileURL.lastPathComponent
         let fileSize = storedFileURL.flatMap {
             (try? FileManager.default.attributesOfItem(atPath: $0.path)[.size] as? Int).flatMap { $0 }
         }
-
-        var transcription = Transcription(
-            fileName: fileName,
-            filePath: storedFileURL?.path,
-            fileSizeBytes: fileSize,
-            status: .processing,
-            sourceType: sourceType
+        let operation = TranscriptionOperationContext(
+            source: source,
+            inputKind: source == .youtube ? .youtube : Observability.inputKind(for: fileURL),
+            mediaExtension: Observability.mediaExtension(for: fileURL),
+            fileSizeBucket: Observability.fileSizeBucket(bytes: fileSize)
         )
-        try transcriptionRepo.save(transcription)
-        Telemetry.send(.transcriptionStarted(source: source, audioDurationSeconds: nil))
 
-        // Extract thumbnail from video files (non-blocking)
-        if Self.isVideoFile(fileURL) {
-            let transcriptionId = transcription.id
-            let path = fileURL.path
-            let logger = self.logger
-            Task.detached(priority: .utility) {
-                do {
-                    _ = try await ThumbnailCacheService.shared.extractVideoFrame(from: path, for: transcriptionId)
-                } catch {
-                    logger.error("Thumbnail extraction failed for \(transcriptionId): \(error.localizedDescription, privacy: .public)")
+        return try await Observability.withOperationContext(operation.operationContext) {
+            try await assertCanTranscribeOrEmitPreflight(operation)
+
+            var transcription = Transcription(
+                fileName: fileName,
+                filePath: storedFileURL?.path,
+                fileSizeBytes: fileSize,
+                status: .processing,
+                sourceType: sourceType
+            )
+            do {
+                try transcriptionRepo.save(transcription)
+            } catch {
+                sendTranscriptionOperation(
+                    operation,
+                    outcome: .failure,
+                    stage: .persistence,
+                    errorType: Self.errorType(for: error)
+                )
+                throw error
+            }
+            Telemetry.send(.transcriptionStarted(source: source, audioDurationSeconds: nil))
+
+            // Extract thumbnail from video files (non-blocking)
+            if Self.isVideoFile(fileURL) {
+                let transcriptionId = transcription.id
+                let path = fileURL.path
+                let logger = self.logger
+                Task.detached(priority: .utility) {
+                    do {
+                        _ = try await ThumbnailCacheService.shared.extractVideoFrame(from: path, for: transcriptionId)
+                    } catch {
+                        logger.error("Thumbnail extraction failed for \(transcriptionId): \(error.localizedDescription, privacy: .public)")
+                    }
                 }
             }
-        }
 
-        return try await transcribeAudio(
-            fileURL: fileURL,
-            source: source,
-            sttJob: sttJob,
-            transcription: &transcription,
-            tempFiles: [],
-            onProgress: onProgress
-        )
+            return try await transcribeAudio(
+                fileURL: fileURL,
+                source: source,
+                sttJob: sttJob,
+                transcription: &transcription,
+                operation: operation,
+                tempFiles: [],
+                onProgress: onProgress
+            )
+        }
     }
 
     public func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws -> Transcription {
-        guard let downloader = youtubeDownloader else {
-            throw YouTubeDownloadError.ytDlpNotFound
-        }
+        let operation = TranscriptionOperationContext(
+            source: .youtube,
+            inputKind: .youtube,
+            mediaExtension: nil,
+            fileSizeBucket: nil
+        )
 
-        if let entitlements {
-            try await entitlements.assertCanTranscribe(now: Date())
-        }
-
-        let downloadResult: YouTubeDownloader.DownloadResult
-        do {
-            onProgress?(.downloading(percent: 0))
-            downloadResult = try await downloader.download(url: urlString) { percent in
-                onProgress?(.downloading(percent: percent))
+        return try await Observability.withOperationContext(operation.operationContext) {
+            guard let downloader = youtubeDownloader else {
+                sendTranscriptionOperation(
+                    operation,
+                    outcome: .unavailable,
+                    stage: .download,
+                    errorType: Self.errorType(for: YouTubeDownloadError.ytDlpNotFound)
+                )
+                throw YouTubeDownloadError.ytDlpNotFound
             }
-        } catch {
-            if error is CancellationError {
+
+            try await assertCanTranscribeOrEmitPreflight(operation)
+
+            let downloadResult: YouTubeDownloader.DownloadResult
+            do {
+                onProgress?(.downloading(percent: 0))
+                downloadResult = try await downloader.download(url: urlString) { percent in
+                    onProgress?(.downloading(percent: percent))
+                }
+            } catch {
+                if error is CancellationError {
+                    Telemetry.send(.transcriptionCancelled(
+                        source: .youtube,
+                        audioDurationSeconds: nil,
+                        stage: .download
+                    ))
+                    sendTranscriptionOperation(
+                        operation,
+                        outcome: .cancelled,
+                        stage: .download
+                    )
+                } else {
+                    Telemetry.send(.transcriptionFailed(
+                        source: .youtube,
+                        stage: .download,
+                        errorType: Self.errorType(for: error),
+                        errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                    ))
+                    sendTranscriptionOperation(
+                        operation,
+                        outcome: .failure,
+                        stage: .download,
+                        errorType: Self.errorType(for: error)
+                    )
+                }
+                throw error
+            }
+            onProgress?(.downloading(percent: 100))
+            do {
+                try Task.checkCancellation()
+            } catch {
                 Telemetry.send(.transcriptionCancelled(
                     source: .youtube,
-                    audioDurationSeconds: nil,
+                    audioDurationSeconds: downloadResult.durationSeconds.map(Double.init),
                     stage: .download
                 ))
-            } else {
-                Telemetry.send(.transcriptionFailed(
-                    source: .youtube,
+                sendTranscriptionOperation(
+                    operation,
+                    outcome: .cancelled,
                     stage: .download,
-                    errorType: Self.errorType(for: error),
-                    errorDetail: TelemetryErrorClassifier.errorDetail(error)
-                ))
+                    audioDurationSeconds: downloadResult.durationSeconds.map(Double.init)
+                )
+                throw error
             }
-            throw error
-        }
-        onProgress?(.downloading(percent: 100))
-        do {
-            try Task.checkCancellation()
-        } catch {
-            Telemetry.send(.transcriptionCancelled(
+            let keepDownloadedAudio = shouldKeepDownloadedAudio()
+
+            var transcription = Transcription(
+                fileName: downloadResult.title,
+                filePath: keepDownloadedAudio ? downloadResult.audioFileURL.path : nil,
+                status: .processing,
+                sourceURL: urlString,
+                thumbnailURL: downloadResult.thumbnailURL,
+                channelName: downloadResult.channelName,
+                videoDescription: downloadResult.videoDescription,
+                sourceType: .youtube
+            )
+            do {
+                try transcriptionRepo.save(transcription)
+            } catch {
+                sendTranscriptionOperation(
+                    operation,
+                    outcome: .failure,
+                    stage: .persistence,
+                    audioDurationSeconds: downloadResult.durationSeconds.map(Double.init),
+                    errorType: Self.errorType(for: error)
+                )
+                throw error
+            }
+            Telemetry.send(.transcriptionStarted(
                 source: .youtube,
-                audioDurationSeconds: downloadResult.durationSeconds.map(Double.init),
-                stage: .download
+                audioDurationSeconds: downloadResult.durationSeconds.map(Double.init)
             ))
-            throw error
-        }
-        let keepDownloadedAudio = shouldKeepDownloadedAudio()
 
-        var transcription = Transcription(
-            fileName: downloadResult.title,
-            filePath: keepDownloadedAudio ? downloadResult.audioFileURL.path : nil,
-            status: .processing,
-            sourceURL: urlString,
-            thumbnailURL: downloadResult.thumbnailURL,
-            channelName: downloadResult.channelName,
-            videoDescription: downloadResult.videoDescription,
-            sourceType: .youtube
-        )
-        try transcriptionRepo.save(transcription)
-        Telemetry.send(.transcriptionStarted(
-            source: .youtube,
-            audioDurationSeconds: downloadResult.durationSeconds.map(Double.init)
-        ))
-
-        // Cache YouTube thumbnail locally (non-blocking)
-        if let thumbURL = downloadResult.thumbnailURL {
-            let transcriptionId = transcription.id
-            let logger = self.logger
-            Task.detached(priority: .utility) {
-                do {
-                    _ = try await ThumbnailCacheService.shared.downloadThumbnail(from: thumbURL, for: transcriptionId)
-                } catch {
-                    logger.error("Thumbnail download failed for \(transcriptionId): \(error.localizedDescription, privacy: .public)")
+            // Cache YouTube thumbnail locally (non-blocking)
+            if let thumbURL = downloadResult.thumbnailURL {
+                let transcriptionId = transcription.id
+                let logger = self.logger
+                Task.detached(priority: .utility) {
+                    do {
+                        _ = try await ThumbnailCacheService.shared.downloadThumbnail(from: thumbURL, for: transcriptionId)
+                    } catch {
+                        logger.error("Thumbnail download failed for \(transcriptionId): \(error.localizedDescription, privacy: .public)")
+                    }
                 }
             }
-        }
 
-        onProgress?(.transcribing(percent: 0))
-        return try await transcribeAudio(
-            fileURL: downloadResult.audioFileURL,
-            source: .youtube,
-            sttJob: .fileTranscription,
-            transcription: &transcription,
-            tempFiles: [downloadResult.audioFileURL],
-            cleanUpDownloadedFiles: !keepDownloadedAudio,
-            onProgress: onProgress
-        )
+            onProgress?(.transcribing(percent: 0))
+            return try await transcribeAudio(
+                fileURL: downloadResult.audioFileURL,
+                source: .youtube,
+                sttJob: .fileTranscription,
+                transcription: &transcription,
+                operation: operation,
+                tempFiles: [downloadResult.audioFileURL],
+                cleanUpDownloadedFiles: !keepDownloadedAudio,
+                onProgress: onProgress
+            )
+        }
     }
 
     // MARK: - Private
@@ -284,6 +589,9 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
     private func transcribeMeetingAudio(
         recording: MeetingRecordingOutput,
         transcription: inout Transcription,
+        operation: TranscriptionOperationContext,
+        persistFailureStatus: Bool = true,
+        speechEngineOverride: SpeechEngineSelection? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         let processingStartedAt = Date()
@@ -303,6 +611,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                 lifecycleStage: &lifecycleStage,
                 temporaryWavURLs: &temporaryWavURLs,
                 sourceWavURLs: &sourceWavURLs,
+                speechEngineOverride: speechEngineOverride,
                 onProgress: onProgress
             )
 
@@ -321,6 +630,14 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
             transcription.rawTranscript = finalized.rawTranscript
             transcription.wordTimestamps = finalized.words
+            transcription.language = Self.commonDetectedLanguage(from: sourceResults) ?? transcription.language
+            // Both meeting source transcripts (mic + system) run through the
+            // same `SpeechEngineSelection`, so taking the first source's
+            // engine attribution is authoritative for the merged transcript.
+            if let engineSource = sourceResults.first {
+                transcription.engine = engineSource.result.engine.rawValue
+                transcription.engineVariant = engineSource.result.engineVariant
+            }
             transcription.durationMs = max(
                 Int((recording.durationSeconds * 1000).rounded()),
                 finalized.durationMs ?? 0
@@ -333,6 +650,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             let completed = try await completeTranscription(
                 source: .meeting,
                 transcription: &transcription,
+                operation: operation,
                 rawText: finalized.rawTranscript,
                 processingStartedAt: processingStartedAt,
                 diarizationRequested: diarizationRequested,
@@ -348,6 +666,13 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                     audioDurationSeconds: audioDurationSeconds,
                     stage: lifecycleStage
                 ))
+                sendTranscriptionOperation(
+                    operation,
+                    outcome: .cancelled,
+                    stage: lifecycleStage,
+                    audioDurationSeconds: audioDurationSeconds,
+                    diarizationRequested: diarizationRequested
+                )
             } else {
                 Telemetry.send(.transcriptionFailed(
                     source: .meeting,
@@ -355,28 +680,38 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                     errorType: Self.errorType(for: error),
                     errorDetail: TelemetryErrorClassifier.errorDetail(error)
                 ))
+                sendTranscriptionOperation(
+                    operation,
+                    outcome: .failure,
+                    stage: lifecycleStage,
+                    audioDurationSeconds: audioDurationSeconds,
+                    diarizationRequested: diarizationRequested,
+                    errorType: Self.errorType(for: error)
+                )
             }
 
-            let txID = transcription.id
-            if error is CancellationError {
-                do {
-                    try transcriptionRepo.updateStatus(
-                        id: txID,
-                        status: .cancelled,
-                        errorMessage: nil
-                    )
-                } catch let dbError {
-                    logger.error("failed_to_update_cancelled_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
-                }
-            } else {
-                do {
-                    try transcriptionRepo.updateStatus(
-                        id: txID,
-                        status: .error,
-                        errorMessage: error.localizedDescription
-                    )
-                } catch let dbError {
-                    logger.error("failed_to_update_error_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+            if persistFailureStatus {
+                let txID = transcription.id
+                if error is CancellationError {
+                    do {
+                        try transcriptionRepo.updateStatus(
+                            id: txID,
+                            status: .cancelled,
+                            errorMessage: nil
+                        )
+                    } catch let dbError {
+                        logger.error("failed_to_update_cancelled_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+                    }
+                } else {
+                    do {
+                        try transcriptionRepo.updateStatus(
+                            id: txID,
+                            status: .error,
+                            errorMessage: error.localizedDescription
+                        )
+                    } catch let dbError {
+                        logger.error("failed_to_update_error_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+                    }
                 }
             }
             throw error
@@ -388,10 +723,12 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         lifecycleStage: inout TelemetryTranscriptionStage,
         temporaryWavURLs: inout [URL],
         sourceWavURLs: inout [AudioSource: URL],
+        speechEngineOverride: SpeechEngineSelection?,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> [MeetingTranscriptFinalizer.SourceTranscript] {
         var outputs: [MeetingTranscriptFinalizer.SourceTranscript] = []
         let activeSources = [AudioSource.microphone, .system].filter { recording.sourceAlignment.track(for: $0) != nil }
+        let speechEngine = speechEngineOverride ?? (recording.speechEngineWasCaptured ? recording.speechEngine : nil)
 
         for (index, source) in activeSources.enumerated() {
             let fileURL = meetingAudioURL(for: source, recording: recording)
@@ -403,9 +740,10 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
             lifecycleStage = .stt
             onProgress?(.transcribing(percent: Int((Double(index) / Double(max(activeSources.count, 1))) * 100)))
-            let result = try await sttTranscriber.transcribe(
+            let result = try await transcribeSpeech(
                 audioPath: wavURL.path,
                 job: .meetingFinalize,
+                speechEngine: speechEngine,
                 onProgress: meetingSourceProgressMapper(
                     sourceIndex: index,
                     sourceCount: activeSources.count,
@@ -510,13 +848,43 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
         }
     }
 
+    private func transcribeSpeech(
+        audioPath: String,
+        job: STTJobKind,
+        speechEngine: SpeechEngineSelection?,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        if let speechEngine {
+            guard let routed = sttTranscriber as? any SpeechEngineRoutedTranscribing else {
+                throw STTError.engineStartFailed(
+                    "Pinned \(speechEngine.engine.rawValue) speech engine cannot be honored by this transcriber."
+                )
+            }
+            return try await routed.transcribe(
+                audioPath: audioPath,
+                job: job,
+                speechEngine: speechEngine,
+                onProgress: onProgress
+            )
+        }
+
+        return try await sttTranscriber.transcribe(
+            audioPath: audioPath,
+            job: job,
+            onProgress: onProgress
+        )
+    }
+
     private func transcribeAudio(
         fileURL: URL,
         source: TelemetryTranscriptionSource,
         sttJob: STTJobKind,
         transcription: inout Transcription,
+        operation: TranscriptionOperationContext,
         tempFiles: [URL],
         cleanUpDownloadedFiles: Bool = true,
+        persistFailureStatus: Bool = true,
+        speechEngine: SpeechEngineSelection? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         var wavURL: URL?
@@ -539,9 +907,10 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                     callback(.transcribing(percent: min(pct, 99)))
                 }
             }
-            let result = try await sttTranscriber.transcribe(
+            let result = try await transcribeSpeech(
                 audioPath: wavURL.path,
                 job: sttJob,
+                speechEngine: speechEngine,
                 onProgress: sttProgress
             )
 
@@ -556,7 +925,10 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
             transcription.rawTranscript = result.text
             transcription.wordTimestamps = words
-            transcription.durationMs = result.words.last?.endMs
+            transcription.language = result.language ?? transcription.language
+            transcription.engine = result.engine.rawValue
+            transcription.engineVariant = result.engineVariant
+            transcription.durationMs = words.map(\.endMs).max()
 
             let diarizationApplied: Bool
             if let diarizationService, shouldDiarize() {
@@ -604,6 +976,7 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             let completed = try await completeTranscription(
                 source: source,
                 transcription: &transcription,
+                operation: operation,
                 rawText: result.text,
                 processingStartedAt: processingStartedAt,
                 diarizationRequested: diarizationRequested,
@@ -633,6 +1006,13 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                     audioDurationSeconds: audioDurationSeconds,
                     stage: lifecycleStage
                 ))
+                sendTranscriptionOperation(
+                    operation,
+                    outcome: .cancelled,
+                    stage: lifecycleStage,
+                    audioDurationSeconds: audioDurationSeconds,
+                    diarizationRequested: diarizationRequested
+                )
             } else {
                 Telemetry.send(.transcriptionFailed(
                     source: source,
@@ -640,37 +1020,77 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
                     errorType: Self.errorType(for: error),
                     errorDetail: TelemetryErrorClassifier.errorDetail(error)
                 ))
+                sendTranscriptionOperation(
+                    operation,
+                    outcome: .failure,
+                    stage: lifecycleStage,
+                    audioDurationSeconds: audioDurationSeconds,
+                    diarizationRequested: diarizationRequested,
+                    errorType: Self.errorType(for: error)
+                )
             }
 
-            let txID = transcription.id
-            if error is CancellationError {
-                do {
-                    try transcriptionRepo.updateStatus(
-                        id: txID,
-                        status: .cancelled,
-                        errorMessage: nil
-                    )
-                } catch let dbError {
-                    logger.error("failed_to_update_cancelled_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
-                }
-            } else {
-                do {
-                    try transcriptionRepo.updateStatus(
-                        id: txID,
-                        status: .error,
-                        errorMessage: error.localizedDescription
-                    )
-                } catch let dbError {
-                    logger.error("failed_to_update_error_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+            if persistFailureStatus {
+                let txID = transcription.id
+                if error is CancellationError {
+                    do {
+                        try transcriptionRepo.updateStatus(
+                            id: txID,
+                            status: .cancelled,
+                            errorMessage: nil
+                        )
+                    } catch let dbError {
+                        logger.error("failed_to_update_cancelled_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+                    }
+                } else {
+                    do {
+                        try transcriptionRepo.updateStatus(
+                            id: txID,
+                            status: .error,
+                            errorMessage: error.localizedDescription
+                        )
+                    } catch let dbError {
+                        logger.error("failed_to_update_error_status id=\(txID) dbError=\(dbError.localizedDescription, privacy: .public)")
+                    }
                 }
             }
             throw error
         }
     }
 
+    private func makeRetranscriptionRecord(from original: Transcription) -> Transcription {
+        var transcription = original
+        transcription.durationMs = nil
+        transcription.rawTranscript = nil
+        transcription.cleanTranscript = nil
+        transcription.wordTimestamps = nil
+        transcription.language = nil
+        transcription.speakerCount = nil
+        transcription.speakers = nil
+        transcription.diarizationSegments = nil
+        transcription.status = .processing
+        transcription.errorMessage = nil
+        transcription.exportPath = nil
+        transcription.engine = nil
+        transcription.engineVariant = nil
+        transcription.isTranscriptEdited = false
+        transcription.updatedAt = Date()
+        return transcription
+    }
+
+    private static func commonDetectedLanguage(
+        from sourceResults: [MeetingTranscriptFinalizer.SourceTranscript]
+    ) -> String? {
+        let languages = Set(sourceResults.compactMap { source in
+            source.result.language?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        }.filter { !$0.isEmpty })
+        return languages.count == 1 ? languages.first : nil
+    }
+
     private func completeTranscription(
         source: TelemetryTranscriptionSource,
         transcription: inout Transcription,
+        operation: TranscriptionOperationContext,
         rawText: String,
         processingStartedAt: Date,
         diarizationRequested: Bool,
@@ -700,6 +1120,13 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             try? snippetRepo?.incrementUseCount(ids: refinement.expandedSnippetIDs)
         }
 
+        let derivationSource = transcription.cleanTranscript ?? transcription.rawTranscript
+        transcription.derivedTitle = TitleDeriver.derive(from: derivationSource) ?? ""
+        transcription.derivedSnippet = SnippetDeriver.derive(
+            from: derivationSource,
+            excluding: transcription.derivedTitle
+        ) ?? ""
+
         transcription.status = .completed
         transcription.updatedAt = Date()
         try transcriptionRepo.save(transcription)
@@ -717,6 +1144,17 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
             diarizationRequested: diarizationRequested,
             diarizationApplied: diarizationApplied
         ))
+        sendTranscriptionOperation(
+            operation,
+            outcome: .success,
+            stage: .postProcessing,
+            audioDurationSeconds: audioDurationSeconds,
+            processingSeconds: processingSeconds,
+            wordCount: wordCount,
+            speakerCount: transcription.speakerCount,
+            diarizationRequested: diarizationRequested,
+            diarizationApplied: diarizationApplied
+        )
 
         return transcription
     }
@@ -763,6 +1201,58 @@ public actor TranscriptionService: TranscriptionServiceProtocol {
 
     private static func errorType(for error: Error) -> String {
         TelemetryErrorClassifier.classify(error)
+    }
+
+    private func assertCanTranscribeOrEmitPreflight(
+        _ operation: TranscriptionOperationContext,
+        audioDurationSeconds: Double? = nil
+    ) async throws {
+        do {
+            if let entitlements {
+                try await entitlements.assertCanTranscribe(now: Date())
+            }
+        } catch {
+            sendTranscriptionOperation(
+                operation,
+                outcome: .unavailable,
+                stage: .preflight,
+                audioDurationSeconds: audioDurationSeconds,
+                errorType: Self.errorType(for: error)
+            )
+            throw error
+        }
+    }
+
+    private func sendTranscriptionOperation(
+        _ operation: TranscriptionOperationContext,
+        outcome: ObservabilityOutcome,
+        stage: TelemetryTranscriptionStage?,
+        audioDurationSeconds: Double? = nil,
+        processingSeconds: Double? = nil,
+        wordCount: Int? = nil,
+        speakerCount: Int? = nil,
+        diarizationRequested: Bool = false,
+        diarizationApplied: Bool = false,
+        errorType: String? = nil
+    ) {
+        Telemetry.send(.transcriptionOperation(
+            operationID: operation.operationContext.operationID,
+            operationContext: operation.operationContext,
+            outcome: outcome,
+            source: operation.source,
+            stage: stage,
+            durationSeconds: Observability.durationSeconds(since: operation.operationContext.startedAt),
+            audioDurationSeconds: audioDurationSeconds,
+            processingSeconds: processingSeconds,
+            wordCount: wordCount,
+            speakerCount: speakerCount,
+            diarizationRequested: diarizationRequested,
+            diarizationApplied: diarizationApplied,
+            inputKind: operation.inputKind,
+            mediaExtension: operation.mediaExtension,
+            fileSizeBucket: operation.fileSizeBucket,
+            errorType: errorType
+        ))
     }
 
     private static let videoExtensions: Set<String> = ["mp4", "mov", "mkv", "avi", "webm", "m4v", "flv", "wmv"]

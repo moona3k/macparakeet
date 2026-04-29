@@ -27,6 +27,38 @@ final class CLIHelpersTests: XCTestCase {
         XCTAssertEqual(found.id, t.id)
     }
 
+    func testFindTranscriptionRejectsShortUUIDPrefixUnlessItIsName() throws {
+        let db = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let uuid = UUID(uuidString: "AABBCCDD-1111-1111-1111-111111111111")!
+        let t = Transcription(id: uuid, fileName: "ab", rawTranscript: "Hello", status: .completed)
+        try repo.save(t)
+
+        XCTAssertThrowsError(try findTranscription(id: "aab", repo: repo)) { error in
+            guard let lookupError = error as? CLILookupError else {
+                return XCTFail("Expected CLILookupError, got \(error)")
+            }
+            if case .shortUUIDPrefix(let minimumLength) = lookupError {
+                XCTAssertEqual(minimumLength, 4)
+            } else {
+                XCTFail("Expected .shortUUIDPrefix, got \(lookupError)")
+            }
+        }
+
+        let foundByName = try findTranscription(id: "ab", repo: repo)
+        XCTAssertEqual(foundByName.id, t.id)
+    }
+
+    func testFindTranscriptionByExactName() throws {
+        let db = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let t = Transcription(fileName: "Design Review", rawTranscript: "Hello", status: .completed)
+        try repo.save(t)
+
+        let found = try findTranscription(id: "design review", repo: repo)
+        XCTAssertEqual(found.id, t.id)
+    }
+
     func testFindTranscriptionThrowsNotFoundForBogusID() throws {
         let db = try DatabaseManager()
         let repo = TranscriptionRepository(dbQueue: db.dbQueue)
@@ -90,6 +122,24 @@ final class CLIHelpersTests: XCTestCase {
         let prefix = String(d.id.uuidString.prefix(8))
         let found = try findDictation(id: prefix, repo: repo)
         XCTAssertEqual(found.id, d.id)
+    }
+
+    func testFindDictationRejectsShortUUIDPrefix() throws {
+        let db = try DatabaseManager()
+        let repo = DictationRepository(dbQueue: db.dbQueue)
+        let uuid = UUID(uuidString: "BBCCDDEE-1111-1111-1111-111111111111")!
+        try repo.save(Dictation(id: uuid, durationMs: 1000, rawTranscript: "Test dictation"))
+
+        XCTAssertThrowsError(try findDictation(id: "bbc", repo: repo)) { error in
+            guard let lookupError = error as? CLILookupError else {
+                return XCTFail("Expected CLILookupError, got \(error)")
+            }
+            if case .shortUUIDPrefix(let minimumLength) = lookupError {
+                XCTAssertEqual(minimumLength, 4)
+            } else {
+                XCTFail("Expected .shortUUIDPrefix, got \(lookupError)")
+            }
+        }
     }
 
     func testFindDictationThrowsNotFoundForBogusID() throws {
@@ -159,6 +209,61 @@ final class CLIHelpersTests: XCTestCase {
         }
     }
 
+    // MARK: - findMeeting
+
+    func testFindMeetingFiltersToMeetingSourceType() throws {
+        let db = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+
+        let meeting = Transcription(fileName: "Planning", status: .completed, sourceType: .meeting)
+        let file = Transcription(fileName: "Planning", status: .completed, sourceType: .file)
+        try repo.save(file)
+        try repo.save(meeting)
+
+        let found = try findMeeting(idOrName: "planning", repo: repo)
+        XCTAssertEqual(found.id, meeting.id)
+    }
+
+    func testFindMeetingRejectsNonMeetingExactUUID() throws {
+        let db = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+
+        let file = Transcription(fileName: "clip.mp3", status: .completed, sourceType: .file)
+        try repo.save(file)
+
+        XCTAssertThrowsError(try findMeeting(idOrName: file.id.uuidString, repo: repo)) { error in
+            guard let lookupError = error as? CLILookupError else {
+                return XCTFail("Expected CLILookupError")
+            }
+            if case .notFound = lookupError {} else {
+                XCTFail("Expected .notFound, got \(lookupError)")
+            }
+        }
+    }
+
+    func testFindMeetingRejectsShortUUIDPrefixUnlessItIsName() throws {
+        let db = try DatabaseManager()
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+
+        let uuid = UUID(uuidString: "CCDDEEFF-1111-1111-1111-111111111111")!
+        let meeting = Transcription(id: uuid, fileName: "cc", status: .completed, sourceType: .meeting)
+        try repo.save(meeting)
+
+        XCTAssertThrowsError(try findMeeting(idOrName: "ccd", repo: repo)) { error in
+            guard let lookupError = error as? CLILookupError else {
+                return XCTFail("Expected CLILookupError")
+            }
+            if case .shortUUIDPrefix(let minimumLength) = lookupError {
+                XCTAssertEqual(minimumLength, 4)
+            } else {
+                XCTFail("Expected .shortUUIDPrefix, got \(lookupError)")
+            }
+        }
+
+        let foundByName = try findMeeting(idOrName: "cc", repo: repo)
+        XCTAssertEqual(foundByName.id, meeting.id)
+    }
+
     func testFindDictationThrowsAmbiguousForSharedPrefix() throws {
         let db = try DatabaseManager()
         let repo = DictationRepository(dbQueue: db.dbQueue)
@@ -202,5 +307,11 @@ final class CLIHelpersTests: XCTestCase {
         let custom = "/tmp/macparakeet-test-\(UUID().uuidString).db"
         let path = resolvedDatabasePath(custom)
         XCTAssertEqual(path, custom)
+    }
+
+    func testResolvedDatabasePathExpandsTilde() {
+        let path = resolvedDatabasePath("~/macparakeet-test.db")
+        XCTAssertFalse(path.hasPrefix("~"))
+        XCTAssertTrue(path.hasSuffix("/macparakeet-test.db"))
     }
 }

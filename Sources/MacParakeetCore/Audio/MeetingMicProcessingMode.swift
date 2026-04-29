@@ -29,9 +29,25 @@ public struct MeetingMicrophoneCaptureStartReport: Sendable, Equatable {
 }
 
 public struct MeetingAudioCaptureStartReport: Sendable, Equatable {
+    public let sourceMode: MeetingAudioSourceMode
     public let microphone: MeetingMicrophoneCaptureStartReport
+    public let microphoneStarted: Bool
 
     public init(microphone: MeetingMicrophoneCaptureStartReport) {
+        self.sourceMode = .microphoneAndSystem
         self.microphone = microphone
+        self.microphoneStarted = true
+    }
+
+    public init(
+        sourceMode: MeetingAudioSourceMode,
+        microphone: MeetingMicrophoneCaptureStartReport? = nil
+    ) {
+        self.sourceMode = sourceMode
+        self.microphone = microphone ?? MeetingMicrophoneCaptureStartReport(
+            requestedMode: .raw,
+            effectiveMode: .raw
+        )
+        self.microphoneStarted = microphone != nil
     }
 }

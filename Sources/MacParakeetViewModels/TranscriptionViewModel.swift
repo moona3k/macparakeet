@@ -6,6 +6,17 @@ import SwiftUI
 @MainActor
 @Observable
 public final class TranscriptionViewModel {
+    public struct RetranscriptionEngineOption: Equatable, Sendable {
+        public let primaryEngine: SpeechEngineSelection
+        public let alternativeEngine: SpeechEngineSelection
+        public let isAlternativeAvailable: Bool
+        public let unavailableReason: String?
+
+        public var title: String {
+            "Try with \(alternativeEngine.engine.displayName)"
+        }
+    }
+
     public enum SourceKind: Sendable {
         case localFile
         case youtubeURL
@@ -91,14 +102,28 @@ public final class TranscriptionViewModel {
     private var promptResultRepo: PromptResultRepositoryProtocol?
     private var transcriptionTask: Task<Void, Never>?
     private var activeTranscriptionTaskID: UUID?
+    private var activeProgressSpeechEngine: SpeechEngineSelection?
+    private var activeProgressWhisperVariant: String?
     private var activeDropRequestID: UUID?
     private var dropPendingCount = 0
     private var dropAccepted = false
     private static let configurationError = "Transcription services are unavailable. Please try again."
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionViewModel")
+    private let defaults: UserDefaults
+    private let isWhisperModelDownloaded: () -> Bool
     public var promptResultsViewModel: PromptResultsViewModel?
 
-    public init() {}
+    public init(
+        defaults: UserDefaults = .standard,
+        isWhisperModelDownloaded: (() -> Bool)? = nil
+    ) {
+        self.defaults = defaults
+        self.isWhisperModelDownloaded = isWhisperModelDownloaded ?? {
+            WhisperEngine.isModelDownloaded(
+                model: SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+            )
+        }
+    }
 
     public func configure(
         transcriptionService: TranscriptionServiceProtocol,
@@ -192,7 +217,7 @@ public final class TranscriptionViewModel {
 
     public func handleFileDrop(
         providers: [NSItemProvider],
-        onAccepted: (() -> Void)? = nil
+        onAccepted: (@MainActor @Sendable () -> Void)? = nil
     ) -> Bool {
         guard !isTranscribing else { return false }
         let fileProviders = providers.filter { $0.hasItemConformingToTypeIdentifier("public.file-url") }
@@ -247,7 +272,49 @@ public final class TranscriptionViewModel {
         return "Unsupported file type. Supported formats: \(formats)."
     }
 
-    public func retranscribe(_ original: Transcription) {
+    public func retranscriptionEngineOption(for original: Transcription) -> RetranscriptionEngineOption? {
+        guard original.sourceType == .meeting,
+              let filePath = original.filePath,
+              FileManager.default.fileExists(atPath: filePath) else {
+            return nil
+        }
+
+        let mixedAudioURL = URL(fileURLWithPath: filePath)
+        let primaryEngine: SpeechEngineSelection
+        if let archivedRecording = archivedMeetingRecording(
+            for: original,
+            mixedAudioURL: mixedAudioURL,
+            logFailure: false
+        ),
+           archivedRecording.speechEngineWasCaptured {
+            primaryEngine = archivedRecording.speechEngine
+        } else {
+            primaryEngine = SpeechEngineSelection.current(defaults: defaults)
+        }
+
+        let alternativePreference = primaryEngine.engine.alternative
+        let alternativeEngine = SpeechEngineSelection(
+            engine: alternativePreference,
+            language: alternativePreference == .whisper
+                ? SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+                : nil
+        )
+        let unavailableReason: String?
+        if alternativePreference == .whisper && !isWhisperModelDownloaded() {
+            unavailableReason = "Download the Whisper model in Settings before trying Whisper."
+        } else {
+            unavailableReason = nil
+        }
+
+        return RetranscriptionEngineOption(
+            primaryEngine: primaryEngine,
+            alternativeEngine: alternativeEngine,
+            isAlternativeAvailable: unavailableReason == nil,
+            unavailableReason: unavailableReason
+        )
+    }
+
+    public func retranscribe(_ original: Transcription, speechEngineOverride: SpeechEngineSelection? = nil) {
         guard let service = transcriptionService else {
             reportMissingConfiguration("transcriptionService", action: "retranscribe")
             return
@@ -256,7 +323,12 @@ public final class TranscriptionViewModel {
               FileManager.default.fileExists(atPath: filePath) else { return }
 
         let url = URL(fileURLWithPath: filePath)
-        let taskID = beginNewTranscription(source: .localFile, fileName: original.fileName, clearCurrent: true)
+        let taskID = beginNewTranscription(
+            source: .localFile,
+            fileName: original.fileName,
+            clearCurrent: true,
+            speechEngine: speechEngineOverride
+        )
         let retranscriptionSource: TelemetryTranscriptionSource = switch original.sourceType {
         case .file:
             .file
@@ -277,14 +349,18 @@ public final class TranscriptionViewModel {
                 let result: Transcription
                 if original.sourceType == .meeting,
                    let meetingRecording = archivedMeetingRecording(for: original, mixedAudioURL: url) {
-                    result = try await service.transcribeMeeting(
+                    result = try await service.retranscribeMeeting(
+                        existing: original,
                         recording: meetingRecording,
+                        speechEngineOverride: speechEngineOverride,
                         onProgress: progressHandler
                     )
                 } else {
-                    result = try await service.transcribe(
+                    result = try await service.retranscribe(
+                        existing: original,
                         fileURL: url,
                         source: retranscriptionSource,
+                        speechEngineOverride: speechEngineOverride,
                         onProgress: progressHandler
                     )
                 }
@@ -301,6 +377,8 @@ public final class TranscriptionViewModel {
                 updatedResult.channelName = original.channelName
                 updatedResult.videoDescription = original.videoDescription
                 updatedResult.sourceType = original.sourceType
+                updatedResult.recoveredFromCrash = original.recoveredFromCrash
+                updatedResult.userNotes = original.userNotes
                 updatedResult.updatedAt = Date()
                 do {
                     try transcriptionRepo?.save(updatedResult)
@@ -319,7 +397,8 @@ public final class TranscriptionViewModel {
 
     private func archivedMeetingRecording(
         for original: Transcription,
-        mixedAudioURL: URL
+        mixedAudioURL: URL,
+        logFailure: Bool = true
     ) -> MeetingRecordingOutput? {
         let durationSeconds = Double(original.durationMs ?? 0) / 1000.0
         do {
@@ -329,9 +408,11 @@ public final class TranscriptionViewModel {
                 durationSeconds: durationSeconds
             )
         } catch {
-            logger.notice(
-                "Meeting retranscribe falling back to mixed audio path file=\(original.fileName, privacy: .private) error=\(error.localizedDescription, privacy: .private)"
-            )
+            if logFailure {
+                logger.notice(
+                    "Meeting retranscribe falling back to mixed audio path file=\(original.fileName, privacy: .private) error=\(error.localizedDescription, privacy: .private)"
+                )
+            }
             return nil
         }
     }
@@ -353,16 +434,17 @@ public final class TranscriptionViewModel {
         }
 
         do {
+            try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
             let deleted = try repo.delete(id: transcription.id)
             guard deleted else { return }
-            TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
             Telemetry.send(.transcriptionDeleted)
             if currentTranscription?.id == transcription.id {
                 currentTranscription = nil
             }
             loadTranscriptions()
         } catch {
-            logger.error("Failed to delete transcription: \(error.localizedDescription, privacy: .public)")
+            logger.error("Failed to delete transcription: \(error.localizedDescription, privacy: .private)")
+            errorMessage = "Failed to delete transcription: \(error.localizedDescription)"
         }
     }
 
@@ -371,12 +453,18 @@ public final class TranscriptionViewModel {
     private func beginNewTranscription(
         source: SourceKind,
         fileName: String,
-        clearCurrent: Bool = false
+        clearCurrent: Bool = false,
+        speechEngine: SpeechEngineSelection? = nil
     ) -> UUID {
         transcriptionTask?.cancel()
 
         let taskID = UUID()
         activeTranscriptionTaskID = taskID
+        let progressSpeechEngine = speechEngine ?? SpeechEngineSelection.current(defaults: defaults)
+        activeProgressSpeechEngine = progressSpeechEngine
+        activeProgressWhisperVariant = progressSpeechEngine.engine == .whisper
+            ? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+            : nil
         transcribingFileName = fileName
         beginTranscription(source: source)
 
@@ -468,6 +556,8 @@ public final class TranscriptionViewModel {
         progress = ""
         transcriptionProgress = nil
         transcribingFileName = ""
+        activeProgressSpeechEngine = nil
+        activeProgressWhisperVariant = nil
         progressPhase = .preparing
         progressHeadline = Self.headline(for: .preparing)
         progressSubline = nil
@@ -482,7 +572,15 @@ public final class TranscriptionViewModel {
         self.transcriptionProgress = progress.fraction
         self.progressPhase = phase
         self.progressHeadline = Self.headline(for: phase)
-        self.progressSubline = Self.subline(for: phase, sourceKind: sourceKind)
+        let speechEngine = activeProgressSpeechEngine ?? SpeechEngineSelection.current(defaults: defaults)
+        let whisperVariant = activeProgressWhisperVariant
+            ?? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+        self.progressSubline = Self.subline(
+            for: phase,
+            sourceKind: sourceKind,
+            engine: speechEngine.engine,
+            whisperVariant: whisperVariant
+        )
     }
 
     private static func mapPhase(from progress: TranscriptionProgress) -> ProgressPhase {
@@ -527,14 +625,25 @@ public final class TranscriptionViewModel {
         }
     }
 
-    private static func subline(for phase: ProgressPhase, sourceKind: SourceKind) -> String? {
+    private static func subline(
+        for phase: ProgressPhase,
+        sourceKind: SourceKind,
+        engine: SpeechEnginePreference,
+        whisperVariant: String
+    ) -> String? {
         switch phase {
         case .downloading:
             return sourceKind == .youtubeURL
                 ? "Longer videos take more time to fetch"
                 : nil
         case .transcribing:
-            return "Runs entirely on-device using the Neural Engine"
+            switch engine {
+            case .parakeet:
+                return "Parakeet TDT \u{00B7} Neural Engine"
+            case .whisper:
+                let friendly = SpeechEnginePreference.friendlyVariantName(whisperVariant)
+                return "Whisper \(friendly) \u{00B7} Neural Engine"
+            }
         case .identifyingSpeakers:
             return "May take several minutes per hour of audio. Speaker labels are approximate \u{2014} click to rename."
         default:
@@ -555,13 +664,67 @@ public final class TranscriptionViewModel {
         self.hasConversations = hasConversations
     }
 
-    public func updateLegacySummary(id: UUID, summary: String?) {
-        guard currentTranscription?.id == id else { return }
-        currentTranscription?.summary = summary
-    }
-
     public func updateLLMAvailability(_ available: Bool, llmService: LLMServiceProtocol? = nil) {
         self.llmAvailable = available
+    }
+
+    // MARK: - Transcript Editing
+
+    @discardableResult
+    public func updateCurrentTranscriptText(to newText: String) -> Bool {
+        guard var transcription = currentTranscription else { return false }
+        guard let repo = transcriptionRepo else {
+            reportMissingConfiguration("transcriptionRepo", action: "updateCurrentTranscriptText")
+            return false
+        }
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+
+        let currentText = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
+        guard trimmed != currentText else { return false }
+
+        transcription.cleanTranscript = trimmed == transcription.rawTranscript ? nil : trimmed
+        transcription.isTranscriptEdited = transcription.cleanTranscript != nil
+        transcription.updatedAt = Date()
+
+        do {
+            try repo.save(transcription)
+            currentTranscription = transcription
+            if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[index] = transcription
+            }
+            return true
+        } catch {
+            logger.error("Failed to persist transcript edit error=\(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
+    @discardableResult
+    public func revertCurrentTranscriptToOriginal() -> Bool {
+        guard var transcription = currentTranscription,
+              transcription.cleanTranscript != nil
+        else { return false }
+        guard let repo = transcriptionRepo else {
+            reportMissingConfiguration("transcriptionRepo", action: "revertCurrentTranscriptToOriginal")
+            return false
+        }
+
+        transcription.cleanTranscript = nil
+        transcription.isTranscriptEdited = false
+        transcription.updatedAt = Date()
+
+        do {
+            try repo.save(transcription)
+            currentTranscription = transcription
+            if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
+                transcriptions[index] = transcription
+            }
+            return true
+        } catch {
+            logger.error("Failed to persist transcript revert error=\(error.localizedDescription, privacy: .public)")
+            return false
+        }
     }
 
     // MARK: - Speaker Rename
@@ -588,11 +751,13 @@ public final class TranscriptionViewModel {
         guard !trimmed.isEmpty, trimmed != transcription.fileName else { return }
 
         transcription.fileName = trimmed
+        transcription.derivedTitle = trimmed
         currentTranscription = transcription
         do {
             try transcriptionRepo?.updateFileName(id: transcription.id, fileName: trimmed)
             if let index = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
                 transcriptions[index].fileName = trimmed
+                transcriptions[index].derivedTitle = trimmed
             }
         } catch {
             logger.error("Failed to persist transcription rename error=\(error.localizedDescription, privacy: .public)")

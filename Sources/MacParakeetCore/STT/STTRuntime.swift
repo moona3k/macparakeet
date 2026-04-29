@@ -8,6 +8,12 @@ protocol STTRuntimeProtocol: Sendable {
         job: STTJobKind,
         onProgress: (@Sendable (Int, Int) -> Void)?
     ) async throws -> STTResult
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        speechEngine: SpeechEngineSelection,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult
     func warmUp(onProgress: (@Sendable (String) -> Void)?) async throws
     func backgroundWarmUp() async
     func observeWarmUpProgress() async -> (id: UUID, stream: AsyncStream<STTWarmUpState>)
@@ -15,6 +21,8 @@ protocol STTRuntimeProtocol: Sendable {
     func isReady() async -> Bool
     func shutdown() async
     func clearModelCache() async
+    func setSpeechEngine(_ preference: SpeechEnginePreference) async throws
+    func currentSpeechEngineSelection() async -> SpeechEngineSelection
 }
 
 /// Sole owner of the shared Parakeet STT lifecycle.
@@ -26,18 +34,29 @@ public actor STTRuntime: STTRuntimeProtocol {
     private var interactiveManager: AsrManager?
     private var backgroundManager: AsrManager?
     private var models: AsrModels?
+    private var decoderLayerCount: Int?
     private var initializationTask: Task<Void, Error>?
     private var initializationGeneration: UInt64 = 0
     private var warmUpProgressHandler: (@Sendable (String) -> Void)?
     private let modelVersion: AsrModelVersion
+    private var speechEngine: SpeechEnginePreference
+    private var whisperEngine: WhisperEngine?
+    private let whisperModelVariant: String
+    private var activeTranscriptionCount = 0
 
     private var backgroundWarmUpState: STTWarmUpState = .idle
     private var backgroundWarmUpTask: Task<Void, Never>?
     private var warmUpObservers: [UUID: AsyncStream<STTWarmUpState>.Continuation] = [:]
     private var backgroundWarmUpGeneration: UInt64 = 0
 
-    public init(modelVersion: AsrModelVersion = .v3) {
+    public init(
+        modelVersion: AsrModelVersion = .v3,
+        speechEngine: SpeechEnginePreference = .parakeet,
+        whisperModelVariant: String = SpeechEnginePreference.defaultWhisperModelVariant
+    ) {
         self.modelVersion = modelVersion
+        self.speechEngine = speechEngine
+        self.whisperModelVariant = WhisperEngine.normalizeModelVariant(whisperModelVariant)
     }
 
     func transcribe(
@@ -45,10 +64,60 @@ public actor STTRuntime: STTRuntimeProtocol {
         job: STTJobKind,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
+        try await transcribe(
+            audioPath: audioPath,
+            job: job,
+            speechEngine: SpeechEngineSelection(
+                engine: speechEngine,
+                language: speechEngine == .whisper ? SpeechEnginePreference.whisperDefaultLanguage() : nil
+            ),
+            onProgress: onProgress
+        )
+    }
+
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        speechEngine selection: SpeechEngineSelection,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async throws -> STTResult {
+        activeTranscriptionCount += 1
+        defer { activeTranscriptionCount -= 1 }
+
+        switch selection.engine {
+        case .parakeet:
+            return try await transcribeWithParakeet(audioPath: audioPath, job: job, onProgress: onProgress)
+        case .whisper:
+            return try await transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
+        }
+    }
+
+    private func transcribeWithWhisper(
+        audioPath: String,
+        language: String?,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        let engine = whisperEngine ?? WhisperEngine(model: whisperModelVariant)
+        whisperEngine = engine
+        return try await engine.transcribe(
+            audioURL: URL(fileURLWithPath: audioPath),
+            language: language,
+            onProgress: onProgress
+        )
+    }
+
+    private func transcribeWithParakeet(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
         try await ensureInitialized()
 
         let slot = route(for: job)
         guard let manager = manager(for: slot) else {
+            throw STTError.modelNotLoaded
+        }
+        guard let decoderLayers = decoderLayerCount else {
             throw STTError.modelNotLoaded
         }
 
@@ -79,10 +148,12 @@ public actor STTRuntime: STTRuntimeProtocol {
 
         do {
             try Task.checkCancellation()
-            let result = try await manager.transcribe(audioURL)
+            var decoderState = TdtDecoderState.make(decoderLayers: decoderLayers)
+            try Task.checkCancellation()
+            let result = try await manager.transcribe(audioURL, decoderState: &decoderState)
             let words = Self.mergeTokenTimingsIntoWords(result.tokenTimings)
             onProgress?(100, 100)
-            return STTResult(text: result.text, words: words)
+            return STTResult(text: result.text, words: words, engine: .parakeet, engineVariant: nil)
         } catch {
             throw try Self.mapTranscriptionError(error)
         }
@@ -103,7 +174,14 @@ public actor STTRuntime: STTRuntimeProtocol {
 
         let start = ContinuousClock.now
         do {
-            try await ensureInitialized()
+            switch speechEngine {
+            case .parakeet:
+                try await ensureInitialized()
+            case .whisper:
+                let engine = whisperEngine ?? WhisperEngine(model: whisperModelVariant)
+                whisperEngine = engine
+                try await engine.prepare(onProgress: onProgress)
+            }
             let elapsed = start.duration(to: .now)
             let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
             Telemetry.send(.modelLoaded(loadTimeSeconds: seconds))
@@ -175,6 +253,10 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public func isReady() async -> Bool {
+        if speechEngine == .whisper {
+            return await whisperEngine?.isReady() ?? false
+        }
+
         guard let interactiveManager, let backgroundManager else { return false }
         let interactiveReady = await interactiveManager.isAvailable
         let backgroundReady = await backgroundManager.isAvailable
@@ -183,6 +265,76 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     public func shutdown() async {
         invalidateBackgroundWarmUp()
+        await unloadWhisper()
+        await unloadParakeet()
+        warmUpProgressHandler = nil
+        setBackgroundWarmUpState(.idle)
+    }
+
+    public func clearModelCache() async {
+        await shutdown()
+        DownloadUtils.clearAllModelCaches()
+        try? FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)
+        setBackgroundWarmUpState(.idle)
+    }
+
+    public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
+        guard preference != speechEngine else {
+            preference.save()
+            return
+        }
+
+        guard initializationTask == nil, activeTranscriptionCount == 0 else {
+            throw STTError.engineBusy
+        }
+
+        invalidateBackgroundWarmUp()
+        setBackgroundWarmUpState(.idle)
+
+        let previous = speechEngine
+        var preparedWhisper: WhisperEngine?
+
+        switch preference {
+        case .parakeet:
+            try await ensureInitialized()
+        case .whisper:
+            let engine = whisperEngine ?? WhisperEngine(
+                model: whisperModelVariant,
+                language: SpeechEnginePreference.whisperDefaultLanguage()
+            )
+            try await engine.prepare()
+            preparedWhisper = engine
+        }
+
+        if let preparedWhisper {
+            whisperEngine = preparedWhisper
+        }
+        speechEngine = preference
+        preference.save()
+
+        switch previous {
+        case .parakeet where preference != .parakeet:
+            await unloadParakeet()
+        case .whisper where preference != .whisper:
+            await unloadWhisper()
+        default:
+            break
+        }
+    }
+
+    public func currentSpeechEngineSelection() async -> SpeechEngineSelection {
+        SpeechEngineSelection(
+            engine: speechEngine,
+            language: speechEngine == .whisper ? SpeechEnginePreference.whisperDefaultLanguage() : nil
+        )
+    }
+
+    public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {
+        let cacheDir = AsrModels.defaultCacheDirectory(for: version)
+        return AsrModels.modelsExist(at: cacheDir, version: version)
+    }
+
+    private func unloadParakeet() async {
         let inFlightInitialization = cancelInitialization()
         inFlightInitialization?.cancel()
         _ = try? await inFlightInitialization?.value
@@ -192,23 +344,17 @@ public actor STTRuntime: STTRuntimeProtocol {
         self.interactiveManager = nil
         self.backgroundManager = nil
         self.models = nil
+        self.decoderLayerCount = nil
         await Self.cleanupManagers(
             interactiveManager: interactiveManager,
             backgroundManager: backgroundManager
         )
-        warmUpProgressHandler = nil
-        setBackgroundWarmUpState(.idle)
     }
 
-    public func clearModelCache() async {
-        await shutdown()
-        DownloadUtils.clearAllModelCaches()
-        setBackgroundWarmUpState(.idle)
-    }
-
-    public nonisolated static func isModelCached(version: AsrModelVersion = .v3) -> Bool {
-        let cacheDir = AsrModels.defaultCacheDirectory(for: version)
-        return AsrModels.modelsExist(at: cacheDir, version: version)
+    private func unloadWhisper() async {
+        let engine = whisperEngine
+        whisperEngine = nil
+        await engine?.unload()
     }
 
     private func beginBackgroundWarmUp() -> UInt64 {
@@ -265,7 +411,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         let version = modelVersion
         let warmUpProgressHandler = self.warmUpProgressHandler
         let task = Task {
-            let lastProgressUpdate = OSAllocatedUnfairLock(initialState: Date.distantPast)
+            let clock = ContinuousClock()
+            let lastProgressUpdate = OSAllocatedUnfairLock(initialState: clock.now - .seconds(1))
             let lastProgressMessage = OSAllocatedUnfairLock(initialState: "")
             var interactiveManager: AsrManager?
             var backgroundManager: AsrManager?
@@ -274,9 +421,9 @@ public actor STTRuntime: STTRuntimeProtocol {
                 let progressCallback: @Sendable (String) -> Void = warmUpProgressHandler
                 progressHandler = { progress in
                     guard let message = Self.warmUpProgressMessage(from: progress) else { return }
-                    let now = Date()
+                    let now = clock.now
                     let shouldEmit = lastProgressUpdate.withLock { lastUpdate in
-                        guard now.timeIntervalSince(lastUpdate) >= 0.25 else {
+                        guard lastUpdate.duration(to: now) >= .milliseconds(250) else {
                             return false
                         }
                         lastUpdate = now
@@ -310,10 +457,12 @@ public actor STTRuntime: STTRuntimeProtocol {
                 backgroundManager = loadedBackgroundManager
                 try await loadedInteractiveManager.loadModels(downloadedModels)
                 try await loadedBackgroundManager.loadModels(downloadedModels)
+                let loadedDecoderLayerCount = await loadedInteractiveManager.decoderLayerCount
                 try Task.checkCancellation()
                 try await self.completeInitialization(
                     generation: generation,
                     models: downloadedModels,
+                    decoderLayerCount: loadedDecoderLayerCount,
                     interactiveManager: loadedInteractiveManager,
                     backgroundManager: loadedBackgroundManager
                 )
@@ -346,6 +495,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     private func completeInitialization(
         generation: UInt64,
         models: AsrModels,
+        decoderLayerCount: Int,
         interactiveManager: AsrManager,
         backgroundManager: AsrManager
     ) async throws {
@@ -354,6 +504,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         }
         try Task.checkCancellation()
         self.models = models
+        self.decoderLayerCount = decoderLayerCount
         self.interactiveManager = interactiveManager
         self.backgroundManager = backgroundManager
     }
