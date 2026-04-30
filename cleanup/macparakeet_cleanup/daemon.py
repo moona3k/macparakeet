@@ -21,6 +21,7 @@ import argparse
 import os
 import socket
 import signal
+import stat
 import sys
 import threading
 import time
@@ -32,6 +33,21 @@ from .protocol import read_request, send_response
 
 
 DEFAULT_IDLE_EXIT_SECONDS = 30 * 60  # 30 minutes
+
+
+def _unlink_if_socket(path: Path) -> None:
+    """Remove `path` only if it's a Unix socket. Refuses to delete regular
+    files or directories — protects the user from a misconfigured
+    --socket pointing at real data."""
+    try:
+        st = os.lstat(path)
+    except FileNotFoundError:
+        return
+    if not stat.S_ISSOCK(st.st_mode):
+        raise RuntimeError(
+            f"refusing to unlink non-socket path at {path!r} (mode={st.st_mode:o})"
+        )
+    path.unlink()
 
 
 def _log(msg: str, *, debug: bool) -> None:
@@ -114,8 +130,7 @@ def serve(
 ) -> None:
     sock_path = Path(socket_path)
     sock_path.parent.mkdir(parents=True, exist_ok=True)
-    if sock_path.exists():
-        sock_path.unlink()
+    _unlink_if_socket(sock_path)
 
     engine = MLXEngine(model_id)
     mode = "eager" if eager_load else "lazy-load"
@@ -199,8 +214,8 @@ def serve(
                 conn.close()
     finally:
         try:
-            sock_path.unlink()
-        except FileNotFoundError:
+            _unlink_if_socket(sock_path)
+        except (FileNotFoundError, RuntimeError):
             pass
 
 

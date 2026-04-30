@@ -31,6 +31,11 @@ public struct LocalFormattingModelConfig: Codable, Sendable, Equatable {
     /// path.
     public static let defaultCLIPath = ""
 
+    /// Legacy sentinel from earlier builds that wrote the bare command name
+    /// into `cliPath` instead of leaving it empty. Kept for migration; treated
+    /// the same as `defaultCLIPath`.
+    public static let legacyDefaultCLIPathSentinel = "macparakeet-cleanup"
+
     /// Resolve the CLI path that should actually be invoked. Precedence:
     /// 1. Explicit user override in `cliPath` (non-empty, not the legacy sentinel).
     /// 2. `MACPARAKEET_CLEANUP_CLI_PATH` env override (dev workflow).
@@ -42,7 +47,7 @@ public struct LocalFormattingModelConfig: Codable, Sendable, Equatable {
         fileManager: FileManager = .default
     ) -> String {
         let trimmed = cliPath.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmed.isEmpty, trimmed != "macparakeet-cleanup" {
+        if !trimmed.isEmpty, trimmed != Self.legacyDefaultCLIPathSentinel {
             return trimmed
         }
         if let override = environment["MACPARAKEET_CLEANUP_CLI_PATH"]?
@@ -212,9 +217,14 @@ public final class LocalFormattingModelExecutor: Sendable {
         }
         process.environment = env
 
-        // Discard stdout/stderr — warm-up output is debug-only.
-        process.standardOutput = Pipe()
-        process.standardError = Pipe()
+        // We *do* want to capture stderr — a fast non-zero exit (CLI not on
+        // PATH, missing Python deps, broken launcher) is the most common
+        // warm-up failure mode and silently ignoring it would mask real
+        // configuration problems.
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
 
         let semaphore = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in semaphore.signal() }
@@ -235,6 +245,18 @@ public final class LocalFormattingModelExecutor: Sendable {
                 }
             }
             throw LocalFormattingModelError.timeout(seconds: warmupTimeoutSeconds)
+        }
+
+        let exitCode = process.terminationStatus
+        if exitCode != 0 {
+            let stderrData = (try? errPipe.fileHandleForReading.readToEnd()) ?? Data()
+            let stderr = (String(data: stderrData, encoding: .utf8) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = stderr.lowercased()
+            if exitCode == 127 || lower.contains("command not found") || lower.contains("no such file") {
+                throw LocalFormattingModelError.cliNotFound(resolvedCLIPath)
+            }
+            throw LocalFormattingModelError.nonZeroExit(code: exitCode, stderr: stderr)
         }
     }
 

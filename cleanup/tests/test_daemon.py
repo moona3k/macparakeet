@@ -14,7 +14,11 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON = ROOT / ".venv" / "bin" / "python"
+# Prefer the project venv when present, otherwise fall back to the interpreter
+# pytest is running under. Hard-coding `.venv/bin/python` made the suite fail
+# on contributor machines that don't bootstrap a venv.
+_VENV_PY = ROOT / ".venv" / "bin" / "python"
+PYTHON = _VENV_PY if _VENV_PY.exists() else Path(sys.executable)
 sys.path.insert(0, str(ROOT))
 
 
@@ -363,11 +367,11 @@ def test_omitted_prompt_passes_none_to_engine():
             _shutdown(sock, thread)
 
 
-def test_cli_warmup_returns_nonzero_when_daemon_missing_no_spawn():
+def test_cli_warmup_returns_nonzero_when_daemon_missing_no_spawn(tmp_path):
     r = subprocess.run(
         [str(PYTHON), "-m", "macparakeet_cleanup.cli",
          "--warmup", "--no-spawn",
-         "--socket", "/tmp/macparakeet-cleanup-nope.sock", "--debug"],
+         "--socket", str(tmp_path / "nope.sock"), "--debug"],
         capture_output=True, text=True, timeout=5, cwd=ROOT,
     )
     assert r.returncode != 0

@@ -702,8 +702,12 @@ public final class LLMSettingsViewModel {
             return
         }
         let cliConfig = config.id == .localCLI ? cliConfigStore?.load() : nil
+        // Don't synthesize a default `LocalFormattingModelConfig()` when the
+        // sidecar is missing — `fromStoredConfig` falls back to
+        // `config.modelName` (the persisted provider modelID) when this is
+        // nil. Forcing a default here silently overwrote saved selections.
         let formattingConfig = config.id == .localFormattingModel
-            ? (formattingModelConfigStore?.load() ?? LocalFormattingModelConfig())
+            ? formattingModelConfigStore?.load()
             : nil
         draft = .fromStoredConfig(
             config,

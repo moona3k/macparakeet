@@ -43,8 +43,11 @@ python3 -m venv .venv
 `httpx[socks]` is only needed if you have `ALL_PROXY=socks5h://…` set in your
 environment (the model download goes through HuggingFace).
 
-The first daemon launch will download the model (~1 GB for 1.5B, ~1.8 GB for 3B)
-into `~/.cache/huggingface/`.
+The first daemon launch will download the model (~1 GB for 1.5B, ~1.8 GB for 3B).
+When MacParakeet manages the runtime, weights live under
+`~/Library/Application Support/MacParakeet/models/llm/` (the app sets `HF_HOME`
+to keep them on the user's data drive); standalone `cleanup/` development uses
+the default `~/.cache/huggingface/`.
 
 ## Run the daemon (optional — CLI auto-spawns it)
 
@@ -167,7 +170,7 @@ Otherwise it stays in rules and never touches the daemon.
 
 ## Benchmark results (this Mac, 18 messy dictation samples, 2 warmup each)
 
-```
+```text
 == rules ==
   rules       p50=    0.1ms  p95=    0.1ms  mean=    0.1ms   <1s p95: ✓
 
@@ -209,7 +212,7 @@ and CLI auto-spawn (stale-socket cleanup, detached launch, no-op when alive).
 
 ## Files
 
-```
+```text
 cleanup/
 ├── bin/
 │   ├── macparakeet-cleanup       # CLI client

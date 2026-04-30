@@ -75,8 +75,7 @@ class MLXEngine:
         this call (treated as the chat system message). Lets callers reuse the
         daemon as a generic local LLM endpoint instead of a cleanup-only one.
         """
-        if self._model is None:
-            self.load()
+        self.load()
         self.last_used = time.monotonic()
 
         system_prompt = prompt if prompt else LLM_PROMPT

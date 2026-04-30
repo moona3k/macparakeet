@@ -5,7 +5,11 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON = ROOT / ".venv" / "bin" / "python"
+# Prefer the project venv when present, otherwise fall back to the interpreter
+# pytest is running under. Hard-coding `.venv/bin/python` made the suite fail
+# on contributor machines that don't bootstrap a venv.
+_VENV_PY = ROOT / ".venv" / "bin" / "python"
+PYTHON = _VENV_PY if _VENV_PY.exists() else Path(sys.executable)
 
 
 def _run(args: list[str], *, stdin: str | None = None) -> subprocess.CompletedProcess:
@@ -47,13 +51,13 @@ def test_cli_empty_input_yields_empty():
     assert r.stdout == ""
 
 
-def test_cli_llm_falls_back_to_rules_when_daemon_missing_no_spawn():
+def test_cli_llm_falls_back_to_rules_when_daemon_missing_no_spawn(tmp_path):
     # With --no-spawn, the CLI must not auto-spawn the daemon; LLM fails;
     # the output should be the rules-cleaned version.
     r = _run([
         "--mode", "llm",
         "--no-spawn",
-        "--socket", "/tmp/macparakeet-cleanup-nonexistent-xyz.sock",
+        "--socket", str(tmp_path / "missing.sock"),
         "--debug",
         "um hello world",
     ])
@@ -62,11 +66,11 @@ def test_cli_llm_falls_back_to_rules_when_daemon_missing_no_spawn():
     assert "rules-fallback" in r.stderr
 
 
-def test_cli_auto_uses_rules_for_short_input_no_spawn():
+def test_cli_auto_uses_rules_for_short_input_no_spawn(tmp_path):
     r = _run([
         "--mode", "auto",
         "--no-spawn",
-        "--socket", "/tmp/macparakeet-cleanup-nonexistent-xyz.sock",
+        "--socket", str(tmp_path / "missing.sock"),
         "--debug",
         "hello world",
     ])

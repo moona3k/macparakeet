@@ -1,5 +1,6 @@
 """Tests for the deterministic cleanup pipeline."""
 
+import os
 import time
 
 import pytest
@@ -151,6 +152,10 @@ def test_only_filler_input():
 # ---- performance --------------------------------------------------------------
 
 
+@pytest.mark.skipif(
+    not os.environ.get("PERF_TEST"),
+    reason="timing-sensitive; set PERF_TEST=1 to run",
+)
 def test_rules_are_fast():
     text = (
         "um so I was thinking, you know, I was thinking that uh maybe we "

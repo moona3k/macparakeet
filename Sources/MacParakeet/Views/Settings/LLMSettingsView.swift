@@ -544,7 +544,8 @@ struct LLMSettingsView: View {
         let bundledPath = viewModel.bundledFormattingModelCLIPath
         let trimmedOverride = viewModel.formattingModelCLIPath
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let hasOverride = !trimmedOverride.isEmpty && trimmedOverride != "macparakeet-cleanup"
+        let hasOverride = !trimmedOverride.isEmpty
+            && trimmedOverride != LocalFormattingModelConfig.legacyDefaultCLIPathSentinel
 
         HStack(alignment: .top) {
             VStack(alignment: .leading, spacing: 2) {

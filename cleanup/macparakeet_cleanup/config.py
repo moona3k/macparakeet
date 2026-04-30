@@ -3,10 +3,20 @@
 import os
 from pathlib import Path
 
-DEFAULT_SOCKET_PATH = os.environ.get(
-    "MACPARAKEET_CLEANUP_SOCKET",
-    str(Path.home() / "Library" / "Application Support" / "MacParakeet" / "cleanup.sock"),
-)
+
+def _default_socket_path() -> str:
+    """Resolve the default socket path lazily so $HOME changes (notably in
+    tests that monkeypatch the env) are picked up at call time rather than
+    frozen at import time."""
+    return os.environ.get(
+        "MACPARAKEET_CLEANUP_SOCKET",
+        str(Path.home() / "Library" / "Application Support" / "MacParakeet" / "cleanup.sock"),
+    )
+
+
+# Eager value retained for callers that read the constant directly. Prefer
+# `_default_socket_path()` from code paths that need late binding.
+DEFAULT_SOCKET_PATH = _default_socket_path()
 
 DEFAULT_MODEL = "mlx-community/Qwen2.5-3B-Instruct-4bit"
 ALT_MODEL = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"

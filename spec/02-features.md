@@ -711,7 +711,7 @@ Parakeet TDT already outputs good punctuation and capitalization natively, and W
 
 **Pipeline steps (in order):**
 
-```
+```text
 Audio → local STT → raw transcript → clean pipeline → paste
                                     1. Filler removal (word list)
                                     2. Custom word replacements (user-defined)

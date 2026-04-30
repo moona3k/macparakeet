@@ -36,7 +36,7 @@ func readInput(_ path: String) throws -> String {
 
 /// Shared options for CLI commands that call an LLM provider directly (no Keychain).
 struct LLMInlineOptions: ParsableArguments {
-    @Option(name: .long, help: "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, cli.")
+    @Option(name: .long, help: "Provider: anthropic, openai, openaiCompatible, gemini, openrouter, ollama, lmstudio, cli, local-formatting.")
     var provider: String
 
     @Option(name: .long, help: "API key literal. Prefer --api-key-env or provider env vars to avoid exposing secrets in process arguments.")

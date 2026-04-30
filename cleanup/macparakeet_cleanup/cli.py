@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import json
+import socket
 import sys
 import time
+
+# Exceptions the LLM call (send_request → socket + json) is allowed to raise.
+# Anything else bubbles up as a real bug.
+LLM_TRANSPORT_ERRORS = (OSError, socket.timeout, RuntimeError, json.JSONDecodeError, KeyError)
 
 from .config import (
     DEFAULT_MODEL,
@@ -37,8 +43,13 @@ def _resolve_prompt(args: argparse.Namespace) -> str | None:
     set, in which case the daemon's built-in cleanup prompt is used.
     """
     if args.prompt_file:
-        with open(args.prompt_file, "r", encoding="utf-8") as f:
-            return f.read()
+        try:
+            with open(args.prompt_file, "r", encoding="utf-8") as f:
+                return f.read()
+        except OSError as e:
+            raise SystemExit(
+                f"macparakeet-cleanup: unable to read --prompt-file {args.prompt_file!r}: {e}"
+            )
     if args.prompt is not None:
         return args.prompt
     return None
@@ -150,8 +161,9 @@ def main(argv: list[str] | None = None) -> int:
                 sys.stderr.write("[cleanup] daemon spawned; warming up\n")
             try:
                 send_warmup(args.socket, timeout=2.0)
-            except Exception:
-                pass
+            except Exception as e:
+                if args.debug:
+                    sys.stderr.write(f"[cleanup] warmup after spawn failed: {e}\n")
             # The daemon is up but the model is still loading. The first
             # cleanup call after a spawn pays the full load latency, so
             # widen the timeout for this run.
@@ -196,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             out = run_llm()
             chosen = "llm"
-        except Exception as e:
+        except LLM_TRANSPORT_ERRORS as e:
             if args.debug:
                 sys.stderr.write(f"[cleanup] llm failed: {e}; falling back to rules\n")
             out = clean_rules(text)
@@ -207,7 +219,7 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 out = run_llm()
                 chosen = "llm"
-            except Exception as e:
+            except LLM_TRANSPORT_ERRORS as e:
                 if args.debug:
                     sys.stderr.write(f"[cleanup] llm failed: {e}; falling back to rules\n")
                 out = clean_rules(text)

@@ -113,12 +113,22 @@ def test_ensure_daemon_is_noop_when_already_running():
             s.close()
 
 
-def test_ensure_daemon_cleans_stale_socket(monkeypatch, tmp_path):
-    """A stale socket file (no listener) should be removed before spawn."""
+def test_ensure_daemon_cleans_stale_socket(monkeypatch):
+    """A stale Unix socket (bound but no listener that responds) should be
+    removed before spawn so the new daemon can bind the same path."""
     from macparakeet_cleanup import spawn as spawn_mod
 
-    sock_path = tmp_path / "stale.sock"
-    sock_path.write_text("")  # not actually a socket; just a stale file
+    # AF_UNIX paths are length-limited (~104 chars on macOS), so tmp_path
+    # under pytest's default root is too long. Use a short tempdir.
+    short_dir = Path(tempfile.mkdtemp(prefix="mp-stale-"))
+    sock_path = short_dir / "s.sock"
+    # Create a *real* dead socket file: bind, then close without listening.
+    # connect() will fail (ConnectionRefusedError), so _socket_alive returns
+    # False — same shape as a daemon that crashed mid-shutdown.
+    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    s.bind(str(sock_path))
+    s.close()
+    assert sock_path.is_socket()
 
     spawn_called = {"count": 0, "args": None}
 
@@ -133,4 +143,22 @@ def test_ensure_daemon_cleans_stale_socket(monkeypatch, tmp_path):
     assert spawn_called["count"] == 1
     assert alive is True
     assert spawned is True
-    assert not sock_path.exists() or sock_path.is_socket()
+    # Stale socket cleared so spawn_daemon's bind() can succeed.
+    assert not sock_path.exists()
+
+
+def test_ensure_daemon_refuses_to_unlink_non_socket(monkeypatch, tmp_path):
+    """If --socket points at a regular file (user misconfiguration),
+    ensure_daemon must NOT delete it. Spawn still runs (it'll fail to bind,
+    but that's the daemon's problem and surfaces as a clear error)."""
+    from macparakeet_cleanup import spawn as spawn_mod
+
+    sock_path = tmp_path / "important-data.txt"
+    sock_path.write_text("user data, do not delete")
+
+    monkeypatch.setattr(spawn_mod, "spawn_daemon", lambda **_: True)
+    spawn_mod.ensure_daemon(str(sock_path))
+
+    # Critical: the regular file is still there.
+    assert sock_path.exists()
+    assert sock_path.read_text() == "user data, do not delete"

@@ -109,9 +109,10 @@ def send_warmup(socket_path: str, *, timeout: float = 0.5) -> None:
             if b"\n" in chunk:
                 break
         raw = b"".join(chunks).decode("utf-8").strip()
-        if raw:
-            resp = json.loads(raw)
-            if not resp.get("ok"):
-                raise RuntimeError(resp.get("error", "warmup failed"))
+        if not raw:
+            raise RuntimeError("daemon returned no warmup ack")
+        resp = json.loads(raw)
+        if not resp.get("ok"):
+            raise RuntimeError(resp.get("error", "warmup failed"))
     finally:
         sock.close()

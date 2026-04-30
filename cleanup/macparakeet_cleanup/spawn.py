@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -110,12 +111,18 @@ def ensure_daemon(
     """
     if _socket_alive(socket_path):
         return True, False
-    # Stale socket file (daemon crashed)? Clean it up so bind() can succeed.
+    # Stale socket file (daemon crashed)? Clean it up so bind() can succeed —
+    # but only if the path actually points at a Unix socket. Refuse to delete
+    # regular files / directories so a misconfigured --socket can't trash data.
+    path = Path(socket_path)
     try:
-        Path(socket_path).unlink()
+        st = os.lstat(path)
+        if stat.S_ISSOCK(st.st_mode):
+            try:
+                path.unlink()
+            except OSError:
+                pass
     except FileNotFoundError:
-        pass
-    except OSError:
         pass
     ok = spawn_daemon(socket_path=socket_path, model=model, debug=debug)
     return ok, ok
