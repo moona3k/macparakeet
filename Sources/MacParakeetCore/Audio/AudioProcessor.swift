@@ -6,10 +6,12 @@ public actor AudioProcessor: AudioProcessorProtocol {
     private let converter: AudioFileConverter
 
     public init(
-        selectedInputDeviceUIDProvider: @escaping @Sendable () -> String? = { nil }
+        selectedInputDeviceUIDProvider: @escaping @Sendable () -> String? = { nil },
+        sharedMicStream: SharedMicrophoneStream? = nil
     ) {
         self.recorder = AudioRecorder(
-            selectedInputDeviceUIDProvider: selectedInputDeviceUIDProvider
+            selectedInputDeviceUIDProvider: selectedInputDeviceUIDProvider,
+            sharedStream: sharedMicStream
         )
         self.converter = AudioFileConverter()
     }

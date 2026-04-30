@@ -62,9 +62,6 @@ final class AppEnvironment {
             whisperModelVariant: SpeechEnginePreference.whisperModelVariant()
         )
         sttScheduler = STTScheduler(runtime: sttRuntime)
-        audioProcessor = AudioProcessor(
-            selectedInputDeviceUIDProvider: selectedInputDeviceUIDProvider
-        )
         // Mic capture is routed through Apple's Voice Processing I/O
         // (built-in AEC + NS + AGC). If VPIO can't engage on a given device,
         // capture falls back to raw mic with no AEC — `configureMicConditioner`
@@ -94,6 +91,10 @@ final class AppEnvironment {
         } else {
             sharedMicStream = nil
         }
+        audioProcessor = AudioProcessor(
+            selectedInputDeviceUIDProvider: selectedInputDeviceUIDProvider,
+            sharedMicStream: sharedMicStream
+        )
         meetingRecordingService = MeetingRecordingService(
             micProcessingMode: meetingMicProcessingMode,
             audioCaptureService: MeetingAudioCaptureService(
