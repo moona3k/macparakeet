@@ -16,15 +16,18 @@ import os
 /// 1. **One mic engine per process.** Enforced by living in `AppEnvironment`
 ///    as a singleton. Multiple instances reproduce the original bug shape.
 ///
-/// 2. **Lock-protected state, lock-free fan-out.** State changes
-///    (subscribe/unsubscribe/engine-start) are serialized by an
-///    `OSAllocatedUnfairLock`. Tap callbacks read a handler snapshot under
-///    the same lock then release before invoking handlers. The audio render
-///    thread never calls into actor-isolated code.
+/// 2. **One serialization point for state + engine ops.** Subscribe and
+///    unsubscribe dispatch onto a private serial `engineQueue`. State
+///    mutation, engine action, and rollback all run within a single queue
+///    task — there is no window where a second subscribe can observe an
+///    optimistic state mid-failure. The state lock remains for cross-thread
+///    reads (render thread, accessor methods) but never gates serialization.
 ///
-/// 3. **Engine ops serialized off-lock.** Engine start/stop runs on a
-///    dedicated serial queue via continuation, so `subscribe` doesn't hold
-///    the state lock across Core Audio I/O.
+/// 3. **Lock-free fan-out via cached snapshot.** Every state change
+///    refreshes a precomputed `[BufferHandler]` snapshot. The render thread
+///    reads it under `OSAllocatedUnfairLock` and releases before invoking
+///    handlers. Reading the snapshot is a refcount-inc on Array's COW
+///    buffer — bounded, no heap allocation, render-thread-safe.
 ///
 /// 4. **VPIO is sticky once engaged.** Once any subscriber requests VPIO,
 ///    it stays on for the engine's lifetime. Disengaging mid-session would
@@ -38,6 +41,13 @@ import os
 ///    synchronous handler call. Retention or mutation requires copying
 ///    first; the engine may reuse the underlying memory immediately after
 ///    return.
+///
+/// 7. **Engine death is observable.** When a deferred-VPIO promotion's
+///    `tearDown → setVoiceProcessingEnabled → start` sequence fails, the
+///    engine is left stopped. `diagnostics.engineRunning` reflects this so
+///    subscribers can detect the dead-engine state and recover (typically
+///    by unsubscribing and re-subscribing). Step 2 will add an explicit
+///    subscriber-side death callback.
 public final class SharedMicrophoneStream: @unchecked Sendable {
     public typealias BufferHandler = @Sendable (AVAudioPCMBuffer, AVAudioTime) -> Void
 
@@ -67,6 +77,10 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
 
     private struct State {
         var subscribers: [SubscriberToken: Subscriber] = [:]
+        /// Precomputed handler array, refreshed on every subscriber change.
+        /// Read by the render thread under the lock — having this cached
+        /// keeps `deliverBuffer` allocation-free.
+        var handlersSnapshot: [BufferHandler] = []
         var engineRunning: Bool = false
         var vpioEngaged: Bool = false
         /// True when at least one subscriber wants VPIO but a non-VPIO
@@ -123,35 +137,55 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
 
     /// Add a subscriber. Engine starts on first subscriber; VPIO engages
     /// (or defers) per the rules in the type docs.
+    ///
+    /// Operations are fully serialized through `engineQueue`: state
+    /// mutation, engine action, and rollback all run in a single task,
+    /// so concurrent `subscribe`/`unsubscribe` callers never observe
+    /// each other's optimistic state mid-failure.
     public func subscribe(
         wantsVPIO: Bool,
         handler: @escaping BufferHandler
     ) async throws -> SubscriberToken {
-        let token = SubscriberToken()
-        let action: EngineAction = lock.withLock { state in
-            decideSubscribeAction(state: &state, token: token, wantsVPIO: wantsVPIO, handler: handler)
-        }
+        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<SubscriberToken, Error>) in
+            engineQueue.async { [weak self] in
+                guard let self else {
+                    cont.resume(throwing: SubscribeError.engineStartFailed("stream deallocated"))
+                    return
+                }
+                let token = SubscriberToken()
+                let action: EngineAction = self.lock.withLock { state in
+                    let act = self.decideSubscribeAction(
+                        state: &state,
+                        token: token,
+                        wantsVPIO: wantsVPIO,
+                        handler: handler
+                    )
+                    Self.refreshHandlersSnapshot(&state)
+                    return act
+                }
 
-        if action == .none {
-            return token
-        }
+                if action == .none {
+                    cont.resume(returning: token)
+                    return
+                }
 
-        do {
-            try await runEngineAction(action)
-        } catch {
-            // Roll back the optimistic state mutation. If this was the
-            // first subscriber, also clear engineRunning/vpioEngaged.
-            lock.withLock { state in
-                state.subscribers.removeValue(forKey: token)
-                if state.subscribers.isEmpty {
-                    state.engineRunning = false
-                    state.vpioEngaged = false
-                    state.vpioDeferred = false
+                do {
+                    try self.executeEngineAction(action)
+                    cont.resume(returning: token)
+                } catch {
+                    self.lock.withLock { state in
+                        state.subscribers.removeValue(forKey: token)
+                        if state.subscribers.isEmpty {
+                            state.engineRunning = false
+                            state.vpioEngaged = false
+                            state.vpioDeferred = false
+                        }
+                        Self.refreshHandlersSnapshot(&state)
+                    }
+                    cont.resume(throwing: SubscribeError.engineStartFailed(error.localizedDescription))
                 }
             }
-            throw SubscribeError.engineStartFailed(error.localizedDescription)
         }
-        return token
     }
 
     /// Remove a subscriber. Engine stops when the last subscriber leaves.
@@ -159,40 +193,62 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
     ///
     /// If unsubscribe triggers a deferred-VPIO promotion (last non-VPIO
     /// subscriber leaving while VPIO subs remain) and the platform's
-    /// reconfigure fails, we log and roll back the VPIO state so the
-    /// engine continues serving the remaining subscribers raw audio.
-    /// Subscribers can detect this via `diagnostics.vpioEngaged`.
+    /// reconfigure fails, the engine is **dead** — `configureAndStart`
+    /// tears down the running engine before attempting VPIO start, and
+    /// a thrown `setVoiceProcessingEnabled` leaves the engine stopped.
+    /// We mark `engineRunning=false` so subscribers can observe the
+    /// state via diagnostics and recover.
     public func unsubscribe(_ token: SubscriberToken) async {
-        let action: EngineAction = lock.withLock { state in
-            decideUnsubscribeAction(state: &state, token: token)
-        }
-
-        if action == .none { return }
-
-        do {
-            try await runEngineAction(action)
-        } catch {
-            // Roll back the optimistic VPIO promotion. The engine is still
-            // running raw; remaining subscribers continue receiving raw
-            // audio. A stop-engine action that fails is logged but not
-            // recoverable — engine is already in an indeterminate state.
-            switch action {
-            case .reconfigureToVPIO:
-                lock.withLock { state in
-                    state.vpioEngaged = false
-                    state.vpioDeferred = !state.subscribers.isEmpty
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            engineQueue.async { [weak self] in
+                guard let self else {
+                    cont.resume()
+                    return
                 }
-                logger.error(
-                    "shared_mic_engine_reconfigure_failed reason=\(error.localizedDescription, privacy: .public)"
-                )
-            case .stopEngine:
-                logger.error(
-                    "shared_mic_engine_stop_failed reason=\(error.localizedDescription, privacy: .public)"
-                )
-            case .startEngine, .none:
-                break
+                let action: EngineAction = self.lock.withLock { state in
+                    let act = self.decideUnsubscribeAction(state: &state, token: token)
+                    Self.refreshHandlersSnapshot(&state)
+                    return act
+                }
+
+                if action == .none {
+                    cont.resume()
+                    return
+                }
+
+                do {
+                    try self.executeEngineAction(action)
+                } catch {
+                    switch action {
+                    case .reconfigureToVPIO:
+                        self.lock.withLock { state in
+                            state.vpioEngaged = false
+                            // Engine was torn down inside configureAndStart
+                            // before the VPIO start failed — it's stopped,
+                            // not running raw.
+                            state.engineRunning = false
+                            state.vpioDeferred = !state.subscribers.isEmpty
+                        }
+                        self.logger.error(
+                            "shared_mic_engine_reconfigure_failed engine_dead=true reason=\(error.localizedDescription, privacy: .public)"
+                        )
+                    case .stopEngine:
+                        self.logger.error(
+                            "shared_mic_engine_stop_failed reason=\(error.localizedDescription, privacy: .public)"
+                        )
+                    case .startEngine, .none:
+                        break
+                    }
+                }
+                cont.resume()
             }
         }
+    }
+
+    // MARK: - Snapshot maintenance
+
+    private static func refreshHandlersSnapshot(_ state: inout State) {
+        state.handlersSnapshot = state.subscribers.values.map(\.handler)
     }
 
     // MARK: - State machine (pure, lock-held)
@@ -272,25 +328,10 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
         return .none
     }
 
-    // MARK: - Engine ops (serialized, off-lock)
+    // MARK: - Engine ops (called from engineQueue, off-lock)
 
-    private func runEngineAction(_ action: EngineAction) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            engineQueue.async { [weak self] in
-                guard let self else {
-                    continuation.resume()
-                    return
-                }
-                do {
-                    try self.executeEngineAction(action)
-                    continuation.resume()
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
-        }
-    }
-
+    /// Must be invoked from `engineQueue`. Performs the platform call
+    /// synchronously; serialization is provided by `engineQueue` itself.
     private func executeEngineAction(_ action: EngineAction) throws {
         switch action {
         case .startEngine(let vpio):
@@ -322,18 +363,16 @@ public final class SharedMicrophoneStream: @unchecked Sendable {
         }
     }
 
-    /// Audio-thread entry point. Snapshots the handler set under the lock,
-    /// releases, then invokes each handler. Lock hold time is bounded
-    /// (small array build) and the unfair lock is render-thread-safe.
+    /// Audio-thread entry point. Reads the precomputed handler snapshot
+    /// under the lock (refcount-inc on Array's COW buffer — no heap
+    /// allocation), releases, then invokes handlers off-lock.
     ///
     /// **Buffer contract:** the buffer passed in is valid only for the
     /// synchronous duration of this call. Handlers that need to retain it
     /// past return must copy. The lock is **not** held while handlers run,
     /// so a slow handler does not block subscribe/unsubscribe.
     private func deliverBuffer(_ buffer: AVAudioPCMBuffer, time: AVAudioTime) {
-        let handlers: [BufferHandler] = lock.withLock { state in
-            state.subscribers.values.map(\.handler)
-        }
+        let handlers: [BufferHandler] = lock.withLock { state in state.handlersSnapshot }
         for handler in handlers {
             handler(buffer, time)
         }

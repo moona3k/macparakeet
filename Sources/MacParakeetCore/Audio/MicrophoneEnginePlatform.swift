@@ -60,10 +60,15 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     public init() {}
 
     public var isEngineRunning: Bool {
-        queue.sync { running }
+        // Must not be called from the platform's own queue — `queue.sync`
+        // would deadlock. Caller is expected to be on a different queue
+        // (typically `SharedMicrophoneStream.engineQueue` or a UI thread).
+        dispatchPrecondition(condition: .notOnQueue(queue))
+        return queue.sync { running }
     }
 
     public var inputFormat: AVAudioFormat? {
+        dispatchPrecondition(condition: .notOnQueue(queue))
         let snapshot: AVAudioEngine? = queue.sync {
             running ? audioEngine : nil
         }
@@ -86,7 +91,15 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
             }
 
             let inputNode = audioEngine.inputNode
-            try inputNode.setVoiceProcessingEnabled(vpioEnabled)
+            do {
+                try inputNode.setVoiceProcessingEnabled(vpioEnabled)
+            } catch {
+                // VPIO toggle failed before tap install / engine start.
+                // Recreate the engine so the next attempt isn't on a
+                // half-configured one.
+                audioEngine = AVAudioEngine()
+                throw error
+            }
             if vpioEnabled, #available(macOS 14.0, *) {
                 inputNode.voiceProcessingOtherAudioDuckingConfiguration = .init(
                     enableAdvancedDucking: false,

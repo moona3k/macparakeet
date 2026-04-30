@@ -225,12 +225,14 @@ final class SharedMicrophoneStreamTests: XCTestCase {
         await stream.unsubscribe(t2)
     }
 
-    func testDeferredVPIOPromotionFailureLeavesEngineRaw() async throws {
+    func testDeferredVPIOPromotionFailureMarksEngineDead() async throws {
         // The reconfigure-to-VPIO action is reachable only via the
         // unsubscribe path: a deferred VPIO subscriber gets promoted when
         // the last non-VPIO subscriber leaves. If the platform's
-        // reconfigure fails, the stream should roll back vpioEngaged so
-        // diagnostics reflect reality (engine is still running raw).
+        // reconfigure fails, the engine has already been torn down inside
+        // `configureAndStart` before the VPIO start failed — so it's
+        // *stopped*, not running. State must reflect that so subscribers
+        // can detect the dead-engine condition via diagnostics.
         let t1 = try await stream.subscribe(wantsVPIO: false) { _, _ in }
         let t2 = try await stream.subscribe(wantsVPIO: true) { _, _ in }
         XCTAssertTrue(stream.diagnostics.vpioDeferred)
@@ -243,11 +245,84 @@ final class SharedMicrophoneStreamTests: XCTestCase {
 
         let diag = stream.diagnostics
         XCTAssertFalse(diag.vpioEngaged, "vpioEngaged must roll back when reconfigure fails")
-        XCTAssertTrue(diag.engineRunning, "Engine remains running for the remaining VPIO subscriber")
-        XCTAssertEqual(diag.subscriberCount, 1)
+        XCTAssertFalse(diag.engineRunning, "Engine is stopped after configureAndStart tore it down before throwing")
+        XCTAssertEqual(diag.subscriberCount, 1, "Remaining VPIO subscriber is still tracked")
         XCTAssertTrue(diag.vpioDeferred, "Deferral persists since the VPIO sub still wants engagement")
 
         await stream.unsubscribe(t2)
+    }
+
+    func testRecoveryAfterFirstSubscribeFailure() async throws {
+        // Validates that a failed subscribe leaves clean state for the
+        // next subscribe attempt — the foundation property that the
+        // BLOCKER fix preserves under serialization.
+        platform.configureAndStartError = MockError.simulatedFailure
+        do {
+            _ = try await stream.subscribe(wantsVPIO: false) { _, _ in }
+            XCTFail("Expected first subscribe to throw")
+        } catch SharedMicrophoneStream.SubscribeError.engineStartFailed {
+            // expected
+        }
+
+        // Clear the failure and re-subscribe.
+        platform.configureAndStartError = nil
+        let token = try await stream.subscribe(wantsVPIO: false) { _, _ in }
+
+        let diag = stream.diagnostics
+        XCTAssertEqual(diag.subscriberCount, 1)
+        XCTAssertTrue(diag.engineRunning)
+        XCTAssertEqual(platform.configureAndStartCalls.count, 2, "Each retry attempts the platform call")
+
+        await stream.unsubscribe(token)
+    }
+
+    func testConcurrentSubscribesSerializeCleanly() async throws {
+        // With operations fully serialized through engineQueue, two
+        // concurrent subscribes should never see each other's optimistic
+        // mid-failure state. Both succeed, only one engine starts.
+        async let r1: SharedMicrophoneStream.SubscriberToken = stream.subscribe(wantsVPIO: false) { _, _ in }
+        async let r2: SharedMicrophoneStream.SubscriberToken = stream.subscribe(wantsVPIO: false) { _, _ in }
+
+        let t1 = try await r1
+        let t2 = try await r2
+
+        XCTAssertNotEqual(t1, t2)
+        XCTAssertEqual(stream.diagnostics.subscriberCount, 2)
+        XCTAssertEqual(platform.configureAndStartCalls.count, 1, "Only the first subscriber starts the engine")
+
+        await stream.unsubscribe(t1)
+        await stream.unsubscribe(t2)
+        XCTAssertEqual(platform.stopEngineCallCount, 1)
+    }
+
+    func testConcurrentSubscribeFailuresLeaveCleanState() async {
+        // Every attempt tries the platform fresh because each rollback
+        // reverts to "no subscribers, engine off." Both should fail, but
+        // state must be consistent — no orphaned tokens, no leaked
+        // engineRunning=true.
+        platform.configureAndStartError = MockError.simulatedFailure
+
+        async let r1 = subscribeResult(wantsVPIO: false)
+        async let r2 = subscribeResult(wantsVPIO: false)
+
+        let results = await [r1, r2]
+        XCTAssertTrue(results.allSatisfy {
+            if case .failure = $0 { return true } else { return false }
+        }, "Both concurrent subscribes should fail when platform is broken")
+
+        let diag = stream.diagnostics
+        XCTAssertEqual(diag.subscriberCount, 0, "No orphaned subscribers")
+        XCTAssertFalse(diag.engineRunning, "engineRunning must not leak true")
+        XCTAssertFalse(diag.vpioDeferred)
+    }
+
+    private func subscribeResult(wantsVPIO: Bool) async -> Result<SharedMicrophoneStream.SubscriberToken, Error> {
+        do {
+            let token = try await stream.subscribe(wantsVPIO: wantsVPIO) { _, _ in }
+            return .success(token)
+        } catch {
+            return .failure(error)
+        }
     }
 
     // MARK: - Fan-out
