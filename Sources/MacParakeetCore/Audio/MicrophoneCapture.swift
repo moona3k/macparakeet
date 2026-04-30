@@ -185,11 +185,16 @@ public final class MicrophoneCapture: @unchecked Sendable {
         }
         if didStart {
             let activeFormat = inputFormat
+            // Extract Sendable primitives so the diagnostics autoclosure
+            // doesn't capture the non-Sendable `AVAudioFormat`.
+            let activeSampleRate = activeFormat?.sampleRate ?? 0
+            let activeChannelCount = activeFormat?.channelCount ?? 0
+            let activeInterleaved = activeFormat?.isInterleaved ?? false
             logger.info(
-                "microphone_capture_started requested_mode=\(String(describing: processingMode), privacy: .public) effective_mode=\(startReport.effectiveMode.rawValue, privacy: .public) sample_rate=\(activeFormat?.sampleRate ?? 0, privacy: .public) channels=\(activeFormat?.channelCount ?? 0, privacy: .public) interleaved=\(activeFormat?.isInterleaved ?? false, privacy: .public)"
+                "microphone_capture_started requested_mode=\(String(describing: processingMode), privacy: .public) effective_mode=\(startReport.effectiveMode.rawValue, privacy: .public) sample_rate=\(activeSampleRate, privacy: .public) channels=\(activeChannelCount, privacy: .public) interleaved=\(activeInterleaved, privacy: .public)"
             )
             AudioCaptureDiagnostics.append(
-                "meeting_mic_capture_started requested_mode=\(String(describing: processingMode)) effective_mode=\(startReport.effectiveMode.rawValue) sr=\(activeFormat?.sampleRate ?? 0) ch=\(activeFormat?.channelCount ?? 0) default_input=\(AudioCaptureDiagnostics.defaultInputDeviceLabel())"
+                "meeting_mic_capture_started requested_mode=\(String(describing: processingMode)) effective_mode=\(startReport.effectiveMode.rawValue) sr=\(activeSampleRate) ch=\(activeChannelCount) default_input=\(AudioCaptureDiagnostics.defaultInputDeviceLabel())"
             )
         }
         return startReport
@@ -525,9 +530,14 @@ public final class MicrophoneCapture: @unchecked Sendable {
         }
         if shouldLog {
             logger.info("microphone_capture_first_buffer_received")
+            // Extract Sendable primitives so the diagnostics autoclosure
+            // doesn't capture the non-Sendable `AVAudioFormat`.
             let format = inputFormat
+            let firstBufferSampleRate = format?.sampleRate ?? 0
+            let firstBufferChannelCount = format?.channelCount ?? 0
+            let firstBufferInterleaved = format?.isInterleaved ?? false
             AudioCaptureDiagnostics.append(
-                "meeting_mic_first_buffer sr=\(format?.sampleRate ?? 0) ch=\(format?.channelCount ?? 0) interleaved=\(format?.isInterleaved ?? false)"
+                "meeting_mic_first_buffer sr=\(firstBufferSampleRate) ch=\(firstBufferChannelCount) interleaved=\(firstBufferInterleaved)"
             )
         }
     }

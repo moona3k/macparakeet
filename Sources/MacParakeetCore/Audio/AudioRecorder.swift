@@ -294,17 +294,24 @@ public actor AudioRecorder {
                 requestedDeviceUID: requestedDeviceUID
             )
         }
+        // Extract Sendable primitives so the diagnostics autoclosures don't
+        // capture the non-Sendable `AVAudioFormat` (Swift 6 strict concurrency
+        // flags `inputFormat` capture as a data-race risk when crossing the
+        // actor → static-function isolation boundary).
+        let inputSampleRate = inputFormat.sampleRate
+        let inputChannelCount = inputFormat.channelCount
+
         AudioCaptureDiagnostics.append(
-            "dictation_capture_configured device=\"\(_deviceInfo?.deviceName ?? "unknown")\" transport=\(_deviceInfo?.transport ?? "unknown") fallback=\(fallbackUsed) sr=\(inputFormat.sampleRate) ch=\(inputFormat.channelCount) requested=\(requestedDeviceUID == nil ? "system-default" : "custom")"
+            "dictation_capture_configured device=\"\(_deviceInfo?.deviceName ?? "unknown")\" transport=\(_deviceInfo?.transport ?? "unknown") fallback=\(fallbackUsed) sr=\(inputSampleRate) ch=\(inputChannelCount) requested=\(requestedDeviceUID == nil ? "system-default" : "custom")"
         )
 
         // Validate format — Bluetooth HFP can report 0 Hz or 0 channels
-        guard inputFormat.sampleRate > 0, inputFormat.channelCount > 0 else {
+        guard inputSampleRate > 0, inputChannelCount > 0 else {
             AudioCaptureDiagnostics.append(
-                "dictation_capture_invalid_format sr=\(inputFormat.sampleRate) ch=\(inputFormat.channelCount)"
+                "dictation_capture_invalid_format sr=\(inputSampleRate) ch=\(inputChannelCount)"
             )
             throw AudioProcessorError.recordingFailed(
-                "Invalid input format: sampleRate=\(inputFormat.sampleRate) channels=\(inputFormat.channelCount)"
+                "Invalid input format: sampleRate=\(inputSampleRate) channels=\(inputChannelCount)"
             )
         }
 
@@ -333,10 +340,10 @@ public actor AudioRecorder {
         guard let initialConverter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
             try? FileManager.default.removeItem(at: url)
             logger.error(
-                "failed_to_create_audio_converter from sr=\(inputFormat.sampleRate) ch=\(inputFormat.channelCount) to 16kHz 1ch"
+                "failed_to_create_audio_converter from sr=\(inputSampleRate) ch=\(inputChannelCount) to 16kHz 1ch"
             )
             throw AudioProcessorError.recordingFailed(
-                "Failed to create audio converter (input: \(inputFormat.sampleRate)Hz \(inputFormat.channelCount)ch)"
+                "Failed to create audio converter (input: \(inputSampleRate)Hz \(inputChannelCount)ch)"
             )
         }
 
