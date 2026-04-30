@@ -1,35 +1,19 @@
 import Foundation
 
 protocol MicConditioning: AnyObject, Sendable {
-    var mode: MeetingMicProcessingEffectiveMode { get }
     func condition(microphone: [Float], speaker: [Float]) -> [Float]
     func reset()
 }
 
-final class VPIOConditioner: MicConditioning {
-    var mode: MeetingMicProcessingEffectiveMode { .vpio }
-
+/// No-op pass-through. The mic stream is cleaned upstream by macOS
+/// Voice Processing I/O (engaged via `MeetingMicProcessingMode.vpioPreferred`).
+/// Used both when VPIO engages (mic is already AEC'd) and as the fallback
+/// when VPIO fails to engage (mic is raw — speaker bleed will be present
+/// and logged loudly so we know it happened).
+final class PassthroughMicConditioner: MicConditioning {
     func condition(microphone: [Float], speaker: [Float]) -> [Float] {
         microphone
     }
 
     func reset() {}
-}
-
-final class SoftwareAECConditioner: MicConditioning {
-    var mode: MeetingMicProcessingEffectiveMode { .raw }
-
-    private let aec: MeetingSoftwareAEC
-
-    init(aec: MeetingSoftwareAEC = MeetingSoftwareAEC()) {
-        self.aec = aec
-    }
-
-    func condition(microphone: [Float], speaker: [Float]) -> [Float] {
-        aec.process(microphone: microphone, speaker: speaker)
-    }
-
-    func reset() {
-        aec.reset()
-    }
 }

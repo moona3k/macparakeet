@@ -245,11 +245,3 @@ final class CaptureOrchestratorTests: XCTestCase {
     }
 }
 
-/// Test-only conditioner: forwards mic samples untouched so chunk math stays
-/// predictable. Mirrors `VPIOConditioner` but without dragging audio-engine
-/// types into the test fixture.
-private final class PassthroughMicConditioner: MicConditioning {
-    var mode: MeetingMicProcessingEffectiveMode { .raw }
-    func condition(microphone: [Float], speaker: [Float]) -> [Float] { microphone }
-    func reset() {}
-}
