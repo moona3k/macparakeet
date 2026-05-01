@@ -4,7 +4,9 @@ import Foundation
 import os
 import OSLog
 
-/// Snapshot of the audio input device used for a recording.
+/// Snapshot of the audio input device used for a recording. Currently always
+/// `nil` in the shared-mic-stream architecture — device info now lives on the
+/// platform behind the stream and is not yet plumbed through to the recorder.
 public struct RecordingDeviceInfo: Sendable, Equatable {
     public let deviceName: String
     public let transport: String
@@ -28,23 +30,16 @@ private struct RecordingRuntimeMetrics: Sendable {
     var invalidFormatBufferCount: Int = 0
 }
 
-/// Manages microphone recording via AVAudioEngine.
-/// Captures audio, converts to 16kHz mono, and writes to a temporary WAV file.
-///
-/// When the system default input device has an invalid format (e.g., Bluetooth headphones
-/// in HFP mode reporting 0 Hz sample rate), automatically falls back to the built-in microphone.
-///
-/// When `sharedStream` is provided (`AppFeatures.useSharedMicEngine = true`),
-/// the recorder subscribes to the shared `SharedMicrophoneStream` instead of
-/// owning a private `AVAudioEngine`. In that mode the buffer handler always
-/// extracts channel 0 as mono — VPIO duplex layouts (ch=9) deliver post-AEC
-/// processed audio on ch[0], and mixing channels would dilute the AEC.
+/// Records dictation audio by subscribing to the process-wide
+/// `SharedMicrophoneStream` and writing converted 16 kHz mono Float32 buffers
+/// to a temporary WAV file. The buffer handler always extracts channel 0 —
+/// when VPIO is engaged anywhere in the process, every subscriber sees a
+/// duplex layout (typically ch=9) where channel 0 is the post-AEC processed
+/// mono and the rest are reference channels.
 public actor AudioRecorder {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "AudioRecorder")
-    private let selectedInputDeviceUIDProvider: @Sendable () -> String?
     private let permissionProvider: @Sendable () -> Bool
-    private let sharedStream: SharedMicrophoneStream?
-    private var audioEngine: AVAudioEngine?
+    private let sharedStream: SharedMicrophoneStream
     private var audioFile: AVAudioFile?
     private var sharedSubscriberToken: SharedMicrophoneStream.SubscriberToken?
     /// Thread-safe sample counter updated synchronously from the audio tap callback.
@@ -72,20 +67,17 @@ public actor AudioRecorder {
     private var outputURL: URL?
     private var recording = false
     private var starting = false
-    private var _deviceInfo: RecordingDeviceInfo?
 
     /// Minimum samples before sending to STT.
     /// FluidAudio requires at least 1 second of 16kHz audio (16,000 samples).
     private static let minimumSamples = 16_000
 
     public init(
-        selectedInputDeviceUIDProvider: @escaping @Sendable () -> String? = { nil },
-        sharedStream: SharedMicrophoneStream? = nil,
+        sharedStream: SharedMicrophoneStream,
         permissionProvider: @escaping @Sendable () -> Bool = {
             AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
         }
     ) {
-        self.selectedInputDeviceUIDProvider = selectedInputDeviceUIDProvider
         self.sharedStream = sharedStream
         self.permissionProvider = permissionProvider
     }
@@ -99,577 +91,27 @@ public actor AudioRecorder {
         recording
     }
 
-    /// Device info from the most recent recording (including fallback status).
+    /// Device info from the most recent recording. Always `nil` today —
+    /// surfacing platform device info through the shared stream is tracked as
+    /// follow-up work; dictation telemetry treats `nil` as "device unknown".
     public var deviceInfo: RecordingDeviceInfo? {
-        _deviceInfo
+        nil
     }
 
-    /// Start recording from the microphone.
-    ///
-    /// Attempts the system default input device first. If the device reports an invalid
-    /// audio format (sampleRate ≤ 0 or channelCount ≤ 0) or the engine fails to start,
-    /// retries with the built-in microphone.
+    /// Subscribe to the shared microphone stream and start writing converted
+    /// buffers to a temp WAV file. Returns once the subscription is owned and
+    /// the watchdog is armed.
     public func start() async throws {
         guard !recording, !starting else { return }
         starting = true
         defer { starting = false }
 
-        if sharedStream != nil {
-            try await startSharedMode()
-            return
-        }
-
-        // Hard-gate on microphone permission. Today AVFAudio will still attempt
-        // to start without authorization and fail deep in the audio stack with
-        // an opaque NSException. The UI layer requests mic access during
-        // onboarding, so anything other than `.authorized` here means either a
-        // first-run race or the user revoked access in System Settings.
-        let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
-        logger.debug("mic_permission_status=\(authStatus.rawValue, privacy: .public)")
         AudioCaptureDiagnostics.append(
-            "dictation_capture_start permission_status=\(authStatus.rawValue)"
-        )
-        guard authStatus == .authorized else {
-            logger.error(
-                "mic_permission_not_granted status=\(authStatus.rawValue, privacy: .public)"
-            )
-            AudioCaptureDiagnostics.append(
-                "dictation_capture_start_denied permission_status=\(authStatus.rawValue)"
-            )
-            throw AudioProcessorError.microphonePermissionDenied
-        }
-
-        logAvailableDevices()
-
-        let selectedDeviceUID = AudioDeviceManager.normalizedUID(selectedInputDeviceUIDProvider())
-        AudioCaptureDiagnostics.append(
-            "dictation_capture_input_selection requested=\(selectedDeviceUID == nil ? "system-default" : "custom")"
-        )
-        if let selectedDeviceUID {
-            if let selectedDeviceID = AudioDeviceManager.inputDeviceID(forUID: selectedDeviceUID) {
-                do {
-                    try configureAndStart(
-                        overrideDeviceID: selectedDeviceID,
-                        fallbackUsed: false,
-                        requestedDeviceUID: selectedDeviceUID
-                    )
-                    return
-                } catch {
-                    logger.warning(
-                        "selected_input_device_failed uid=\(selectedDeviceUID, privacy: .private) error=\(error.localizedDescription, privacy: .public) — retrying with system default"
-                    )
-                }
-            } else {
-                logger.warning(
-                    "selected_input_device_missing uid=\(selectedDeviceUID, privacy: .private) — retrying with system default"
-                )
-            }
-        }
-
-        // Try with the system default device next.
-        do {
-            try configureAndStart(
-                overrideDeviceID: nil,
-                fallbackUsed: selectedDeviceUID != nil,
-                requestedDeviceUID: selectedDeviceUID
-            )
-        } catch {
-            logger.warning(
-                "default_device_failed error=\(error.localizedDescription, privacy: .public) — retrying with built-in mic"
-            )
-
-            guard let builtInID = AudioDeviceManager.builtInMicrophone() else {
-                logger.error("no_built_in_mic_available — propagating original error")
-                throw error
-            }
-
-            let name = AudioDeviceManager.deviceName(builtInID) ?? "unknown"
-            logger.info(
-                "retrying_with_built_in_mic id=\(builtInID, privacy: .public) name=\(name, privacy: .public)"
-            )
-            try configureAndStart(
-                overrideDeviceID: builtInID,
-                fallbackUsed: true,
-                requestedDeviceUID: selectedDeviceUID
-            )
-        }
-    }
-
-    /// Stop recording and return the path to the recorded WAV file.
-    /// Throws `insufficientSamples` if the recording is shorter than 1 second.
-    public func stop() throws -> URL {
-        if starting, !recording {
-            // Shared-stream start awaits the stream subscription. A stop/cancel
-            // during that await must invalidate the pending tap generation so
-            // the in-flight start cannot claim a recording after cancellation.
-            sessionGeneration.withLock { $0 += 1 }
-            starting = false
-            throw AudioProcessorError.recordingFailed("Not recording")
-        }
-        guard recording else {
-            throw AudioProcessorError.recordingFailed("Not recording")
-        }
-
-        if let token = sharedSubscriberToken, let stream = sharedStream {
-            // Fire-and-forget so stop() stays synchronous (matches legacy
-            // signature). The stream's engine queue serializes the
-            // unsubscribe behind any pending operations.
-            Task { await stream.unsubscribe(token) }
-            sharedSubscriberToken = nil
-            // Shared-mode conversion and file writes run on this serial queue
-            // instead of the shared audio tap. Drain already-enqueued work so
-            // stop() reports a sample count that includes buffers accepted
-            // before the user stopped recording.
-            sharedProcessingQueue.sync {}
-            sessionGeneration.withLock { $0 += 1 }
-        } else {
-            // Bump generation so any in-flight tap callbacks from this
-            // session bail out. This prevents both the stop() race and the
-            // cross-session race.
-            sessionGeneration.withLock { $0 += 1 }
-            audioEngine?.inputNode.removeTap(onBus: 0)
-            audioEngine?.stop()
-            audioEngine = nil
-        }
-        audioFile = nil
-        recording = false
-        atomicAudioLevel.withLock { $0 = 0.0 }
-
-        let url = outputURL
-        outputURL = nil
-
-        guard let url else {
-            throw AudioProcessorError.recordingFailed("No output file")
-        }
-
-        let sampleCount = sampleCounter.withLock { $0 }
-        let metrics = runtimeMetrics.withLock { $0 }
-        let fileBytes = Self.fileSizeBytes(at: url)
-        let duration = Double(sampleCount) / 16_000.0
-        logger.debug("stop sampleCount=\(sampleCount, privacy: .public)")
-        AudioCaptureDiagnostics.append(
-            "dictation_capture_stop sample_count=\(sampleCount) duration_s=\(String(format: "%.3f", duration)) file_bytes=\(fileBytes.map(String.init) ?? "unknown") input_buffers=\(metrics.inputBufferCount) output_buffers=\(metrics.outputBufferCount) input_frames=\(metrics.inputFrameCount) max_rms=\(String(format: "%.6f", metrics.maxRMS)) max_level=\(String(format: "%.3f", metrics.maxAudioLevel)) non_silent_buffers=\(metrics.nonSilentBufferCount) missing_float_buffers=\(metrics.missingFloatChannelDataBufferCount) invalid_format_buffers=\(metrics.invalidFormatBufferCount)"
-        )
-        guard sampleCount >= Self.minimumSamples else {
-            // Clean up the too-short file
-            try? FileManager.default.removeItem(at: url)
-            AudioCaptureDiagnostics.append(
-                "dictation_capture_insufficient sample_count=\(sampleCount) required=\(Self.minimumSamples)"
-            )
-            throw AudioProcessorError.insufficientSamples
-        }
-
-        return url
-    }
-
-    // MARK: - Private
-
-    /// Configures the audio engine and starts recording.
-    ///
-    /// If `overrideDeviceID` is provided, explicitly sets that device on the engine's
-    /// input audio unit before reading the format. Otherwise uses the system default.
-    private func configureAndStart(
-        overrideDeviceID: AudioDeviceID?,
-        fallbackUsed: Bool,
-        requestedDeviceUID: String?
-    ) throws {
-        let engine = AVAudioEngine()
-        let inputNode = engine.inputNode
-
-        // Optionally override the input device
-        if let deviceID = overrideDeviceID {
-            if !AudioDeviceManager.setInputDevice(deviceID, on: engine) {
-                throw AudioProcessorError.recordingFailed(
-                    "Failed to set input device \(deviceID)"
-                )
-            }
-        }
-
-        // Log the resolved device
-        if let resolvedID = AudioDeviceManager.currentInputDevice(of: engine) {
-            let name = AudioDeviceManager.deviceName(resolvedID) ?? "unknown"
-            let uid = AudioDeviceManager.deviceUID(resolvedID) ?? "unknown"
-            let transport = AudioDeviceManager.transportType(resolvedID)
-            let transportLabel = AudioDeviceManager.InputDevice.label(for: transport)
-            logger.info(
-                "input_device id=\(resolvedID, privacy: .public) uid=\(uid, privacy: .private) name=\(name, privacy: .public) transport=\(transportLabel, privacy: .public) requested_uid=\(requestedDeviceUID ?? "system-default", privacy: .private)"
-            )
-        }
-
-        // Explicitly opt out of VPIO on this engine's inputNode. coreaudiod
-        // keeps the meeting recording's VPAU aggregate device alive after the
-        // meeting engine stops, and a fresh AVAudioEngine here will otherwise
-        // inherit that 3-channel duplex layout (channel 0 ≠ voice → silent
-        // dictation). Calling `setVoiceProcessingEnabled(false)` here forces
-        // this engine to detach from the duplex unit and bind to the raw mic.
-        // Wrapped in catch because on devices where VPIO never engaged the
-        // call may throw a benign "no-op" exception.
-        do {
-            try catchingObjCException {
-                try inputNode.setVoiceProcessingEnabled(false)
-            }
-            AudioCaptureDiagnostics.append("dictation_capture_vpio_disabled")
-        } catch {
-            logger.debug(
-                "dictation_vpio_disable_noop error=\(error.localizedDescription, privacy: .public)"
-            )
-        }
-
-        // AVFAudio raises an Objective-C NSException on aggregate / virtual
-        // audio devices in bad states (issue #91). Swift can't catch it without
-        // the ObjC trampoline — without the wrap this line will abort the
-        // process on cluster-A/C crash paths.
-        let inputFormat = try catchingObjCException {
-            inputNode.outputFormat(forBus: 0)
-        }
-        logger.info(
-            "input_format sr=\(inputFormat.sampleRate, privacy: .public) ch=\(inputFormat.channelCount, privacy: .public) common_format=\(inputFormat.commonFormat.rawValue, privacy: .public)"
-        )
-
-        // Capture device info for telemetry (before validation — we want info even on failure)
-        if let resolvedID = AudioDeviceManager.currentInputDevice(of: engine) {
-            let name = AudioDeviceManager.deviceName(resolvedID) ?? "unknown"
-            let uid = AudioDeviceManager.deviceUID(resolvedID)
-            let transport = AudioDeviceManager.transportType(resolvedID)
-            let subTransport = AudioDeviceManager.subDeviceTransport(resolvedID)
-            _deviceInfo = RecordingDeviceInfo(
-                deviceName: name,
-                transport: AudioDeviceManager.InputDevice.label(for: transport),
-                subTransport: subTransport.map { AudioDeviceManager.InputDevice.label(for: $0) },
-                sampleRate: inputFormat.sampleRate,
-                channels: inputFormat.channelCount,
-                fallbackUsed: fallbackUsed,
-                deviceUID: uid,
-                requestedDeviceUID: requestedDeviceUID
-            )
-        }
-        // Extract Sendable primitives so the diagnostics autoclosures don't
-        // capture the non-Sendable `AVAudioFormat` (Swift 6 strict concurrency
-        // flags `inputFormat` capture as a data-race risk when crossing the
-        // actor → static-function isolation boundary).
-        let inputSampleRate = inputFormat.sampleRate
-        let inputChannelCount = inputFormat.channelCount
-
-        AudioCaptureDiagnostics.append(
-            "dictation_capture_configured device=\"\(_deviceInfo?.deviceName ?? "unknown")\" transport=\(_deviceInfo?.transport ?? "unknown") fallback=\(fallbackUsed) sr=\(inputSampleRate) ch=\(inputChannelCount) requested=\(requestedDeviceUID == nil ? "system-default" : "custom")"
-        )
-
-        // Validate format — Bluetooth HFP can report 0 Hz or 0 channels
-        guard inputSampleRate > 0, inputChannelCount > 0 else {
-            AudioCaptureDiagnostics.append(
-                "dictation_capture_invalid_format sr=\(inputSampleRate) ch=\(inputChannelCount)"
-            )
-            throw AudioProcessorError.recordingFailed(
-                "Invalid input format: sampleRate=\(inputSampleRate) channels=\(inputChannelCount)"
-            )
-        }
-
-        // Target: 16kHz mono Float32
-        guard let outputFormat = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 16000,
-            channels: 1,
-            interleaved: false
-        ) else {
-            logger.error("failed_to_create_output_format")
-            throw AudioProcessorError.recordingFailed("Failed to create output format")
-        }
-
-        // Create temp file
-        let tempDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("macparakeet", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: tempDir.path) {
-            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-        }
-        let url = tempDir.appendingPathComponent("\(UUID().uuidString).wav")
-        let file = try AVAudioFile(forWriting: url, settings: outputFormat.settings)
-
-        // Pre-validate that the format we just read is convertible to our
-        // target. If this fails we want to bail fast before touching the tap.
-        guard let initialConverter = AVAudioConverter(from: inputFormat, to: outputFormat) else {
-            try? FileManager.default.removeItem(at: url)
-            logger.error(
-                "failed_to_create_audio_converter from sr=\(inputSampleRate) ch=\(inputChannelCount) to 16kHz 1ch"
-            )
-            throw AudioProcessorError.recordingFailed(
-                "Failed to create audio converter (input: \(inputSampleRate)Hz \(inputChannelCount)ch)"
-            )
-        }
-
-        self.tapErrorLogged.withLock { $0 = false }
-        self.firstBufferLogged.withLock { $0 = false }
-        self.runtimeMetrics.withLock { $0 = RecordingRuntimeMetrics() }
-        self.sampleCounter.withLock { $0 = 0 }
-
-        // Capture the current generation so stale callbacks from previous sessions bail out.
-        let tapGeneration = self.sessionGeneration.withLock { $0 }
-
-        // Converter cache for the tap block. We pass `format: nil` to
-        // installTap so AVFAudio delivers buffers in whatever format the bus
-        // is currently producing (avoiding the aggregate-device format-drift
-        // NSException that caused issue #91). Seed the cache with the
-        // converter we just created so the common case (bus format unchanged
-        // between `outputFormat(forBus:)` and the first tap callback) avoids
-        // a redundant `AVAudioConverter` allocation on the real-time audio
-        // thread. If the bus format drifts mid-stream the cache rebuilds it.
-        // Tap callbacks are serialized per bus so a plain reference-type
-        // cache is safe; `@unchecked Sendable` satisfies Swift 6 concurrency
-        // checks.
-        let converterCache = TapConverterCache()
-        converterCache.converter = initialConverter
-        converterCache.sourceFormat = inputFormat
-
-        // AVFAudio can raise NSException from installTap itself on aggregate
-        // devices (e.g. "required condition is false:
-        // IsFormatSampleRateAndChannelCountValid(hwFormat)"). Wrap the install
-        // call so the caller sees a Swift error rather than a hard abort.
-        do {
-            nonisolated(unsafe) let unsafeInputNode = inputNode
-            let outputFormatBox = UncheckedSendableAudioFormat(outputFormat)
-            let fileBox = UncheckedSendableAudioFile(file)
-            try catchingObjCException {
-                unsafeInputNode.installTap(onBus: 0, bufferSize: 4096, format: nil) {
-                    [weak self] buffer, _ in
-                    guard let self else { return }
-
-                    // Bail if stop() was called (generation bumped) or a new session started
-                    let currentGen = self.sessionGeneration.withLock { $0 }
-                    guard currentGen == tapGeneration else { return }
-
-                    // Calculate audio level (RMS) — written atomically, no Task allocation needed
-                    let channelData = buffer.floatChannelData?[0]
-                    let frameCount = Int(buffer.frameLength)
-                    self.runtimeMetrics.withLock { metrics in
-                        metrics.inputBufferCount += 1
-                        metrics.inputFrameCount += frameCount
-                    }
-                    if let data = channelData, frameCount > 0 {
-                        var rms: Float = 0
-                        for i in 0..<frameCount {
-                            rms += data[i] * data[i]
-                        }
-                        rms = sqrtf(rms / Float(frameCount))
-                        let normalized = min(rms * 5.0, 1.0)
-                        self.atomicAudioLevel.withLock { level in
-                            level = level * 0.3 + normalized * 0.7
-                        }
-                        let rmsValue = rms
-                        let normalizedValue = normalized
-                        self.runtimeMetrics.withLock { metrics in
-                            metrics.maxRMS = max(metrics.maxRMS, rmsValue)
-                            metrics.maxAudioLevel = max(metrics.maxAudioLevel, normalizedValue)
-                            if normalizedValue >= 0.02 {
-                                metrics.nonSilentBufferCount += 1
-                            }
-                        }
-                    } else {
-                        self.runtimeMetrics.withLock {
-                            $0.missingFloatChannelDataBufferCount += 1
-                        }
-                    }
-
-                    // Lazily build the converter from the *actual* buffer format.
-                    // With `format: nil` on installTap, AVFAudio delivers whatever
-                    // the bus is currently producing — which may differ from the
-                    // format we snapshotted before installTap. Re-check on each
-                    // buffer and rebuild the converter if the format drifts
-                    // mid-stream (rare, but cheap to handle).
-                    let bufferFormat = buffer.format
-                    let shouldLogFirstBuffer = self.firstBufferLogged.withLock { logged in
-                        guard !logged else { return false }
-                        logged = true
-                        return true
-                    }
-                    if shouldLogFirstBuffer {
-                        let sr = bufferFormat.sampleRate
-                        let ch = bufferFormat.channelCount
-                        let commonFormat = bufferFormat.commonFormat.rawValue
-                        let interleaved = bufferFormat.isInterleaved
-                        let frameLength = buffer.frameLength
-                        let hasFloatData = buffer.floatChannelData != nil
-                        Task {
-                            AudioCaptureDiagnostics.append(
-                                "dictation_capture_first_buffer sr=\(sr) ch=\(ch) common_format=\(commonFormat) interleaved=\(interleaved) frames=\(frameLength) has_float_data=\(hasFloatData)"
-                            )
-                        }
-                    }
-                    // Aggregate/virtual devices can occasionally deliver a
-                    // buffer whose format has sampleRate=0 or channelCount=0
-                    // during a hardware transition (Bluetooth HFP↔A2DP, USB
-                    // hot-plug, wake-from-sleep). Dividing by sampleRate below
-                    // would crash. Bail out quietly — the next buffer is
-                    // usually well-formed.
-                    guard bufferFormat.sampleRate > 0, bufferFormat.channelCount > 0 else {
-                        self.runtimeMetrics.withLock { $0.invalidFormatBufferCount += 1 }
-                        return
-                    }
-                    // Rebuild when the *full* AVAudioFormat identity changes
-                    // (including interleaving/layout), not just SR/ch/common.
-                    // Aggregate-device transitions can keep SR/ch/common stable
-                    // while flipping other format details.
-                    if tapConverterNeedsRebuild(
-                        cachedSourceFormat: converterCache.sourceFormat,
-                        incomingBufferFormat: bufferFormat
-                    ) {
-                        converterCache.converter = AVAudioConverter(from: bufferFormat, to: outputFormatBox.format)
-                        converterCache.sourceFormat = bufferFormat
-                    }
-                    guard let converter = converterCache.converter else {
-                        let alreadyLogged = self.tapErrorLogged.withLock { logged in
-                            let was = logged; logged = true; return was
-                        }
-                        if !alreadyLogged {
-                            let sr = bufferFormat.sampleRate
-                            let ch = bufferFormat.channelCount
-                            Task { await self.logTapError("converter_init_failed sr=\(sr) ch=\(ch)") }
-                        }
-                        return
-                    }
-
-                    // Convert to output format
-                    let outputFrameCapacity = AVAudioFrameCount(
-                        ceil(Double(buffer.frameLength) * outputFormatBox.format.sampleRate / bufferFormat.sampleRate)
-                    )
-                    guard outputFrameCapacity > 0,
-                        let convertedBuffer = AVAudioPCMBuffer(
-                            pcmFormat: outputFormatBox.format,
-                            frameCapacity: outputFrameCapacity
-                        )
-                    else { return }
-
-                    // One-shot input block: provide the buffer exactly once per convert() call.
-                    // The converter may call the input block multiple times if it needs more data;
-                    // returning the same buffer repeatedly would duplicate samples.
-                    let inputBuffer = UncheckedSendableAudioPCMBuffer(buffer)
-                    let inputConsumed = OSAllocatedUnfairLock(initialState: false)
-                    var error: NSError?
-                    let status = converter.convert(to: convertedBuffer, error: &error) { _, outStatus in
-                        let shouldProvideInput = inputConsumed.withLock { consumed -> Bool in
-                            guard !consumed else { return false }
-                            consumed = true
-                            return true
-                        }
-                        if !shouldProvideInput {
-                            outStatus.pointee = .noDataNow
-                            return nil
-                        }
-                        outStatus.pointee = .haveData
-                        return inputBuffer.buffer
-                    }
-
-                    switch status {
-                    case .haveData:
-                        // Re-check generation before writing — stop() may have been called
-                        // between the guard at the top and here.
-                        guard self.sessionGeneration.withLock({ $0 }) == tapGeneration else { return }
-                        do {
-                            let convertedFrameLength = Int(convertedBuffer.frameLength)
-                            try fileBox.file.write(from: convertedBuffer)
-                            self.sampleCounter.withLock { $0 += convertedFrameLength }
-                            self.runtimeMetrics.withLock { $0.outputBufferCount += 1 }
-                        } catch {
-                            // Log but don't crash — we're on the audio thread.
-                            // Throttled: only first error per session is logged.
-                            let alreadyLogged = self.tapErrorLogged.withLock { logged in
-                                let was = logged; logged = true; return was
-                            }
-                            if !alreadyLogged {
-                                let desc = error.localizedDescription
-                                Task { await self.logTapError("audio_write_error: \(desc)") }
-                            }
-                        }
-                    case .error:
-                        // Log converter errors (throttled — only first occurrence per recording)
-                        let alreadyLogged = self.tapErrorLogged.withLock { logged in
-                            let was = logged
-                            logged = true
-                            return was
-                        }
-                        if !alreadyLogged {
-                            let desc = error?.localizedDescription ?? "unknown"
-                            Task {
-                                await self.logTapError(
-                                    "converter_error: \(desc)"
-                                )
-                            }
-                        }
-                    case .endOfStream:
-                        break
-                    case .inputRanDry:
-                        break
-                    @unknown default:
-                        break
-                    }
-                }
-            }
-        } catch {
-            // installTap raised an NSException (issue #91) — cluster A/C crash
-            // path. Clean up and convert to a Swift error so the built-in-mic
-            // fallback in start() gets a chance, and so DictationService's
-            // catch emits a dictation_failed telemetry event with the real
-            // NSException reason in `error_detail`.
-            try? FileManager.default.removeItem(at: url)
-            logger.error(
-                "install_tap_raised error=\(error.localizedDescription, privacy: .public)"
-            )
-            throw AudioProcessorError.recordingFailed(
-                "Audio tap install failed: \(error.localizedDescription)"
-            )
-        }
-
-        // Reset counter before engine.start() — the tap can fire immediately after start.
-        self.sampleCounter.withLock { $0 = 0 }
-
-        // engine.start() is documented to throw Swift errors, but has been
-        // observed to raise NSException in corner cases (stale CoreAudio state,
-        // aggregate device teardown mid-start). Belt-and-braces wrap.
-        do {
-            nonisolated(unsafe) let unsafeEngine = engine
-            try catchingObjCException {
-                try unsafeEngine.start()
-            }
-        } catch {
-            // Clean up before propagating
-            inputNode.removeTap(onBus: 0)
-            try? FileManager.default.removeItem(at: url)
-            AudioCaptureDiagnostics.append(
-                "dictation_capture_engine_start_failed error=\"\(error.localizedDescription)\""
-            )
-            throw AudioProcessorError.recordingFailed(
-                "Audio engine failed to start: \(error.localizedDescription)"
-            )
-        }
-
-        self.audioEngine = engine
-        self.audioFile = file
-        self.outputURL = url
-        self.recording = true
-        AudioCaptureDiagnostics.append(
-            "dictation_capture_engine_started file=\(url.lastPathComponent)"
-        )
-    }
-
-    /// Subscribe to the shared microphone stream and write converted buffers
-    /// to a temp WAV file. Mirrors `configureAndStart`'s contract — same
-    /// 16kHz mono Float32 output, same generation-bumping discipline, same
-    /// AudioCaptureDiagnostics shape — but uses the shared engine instead
-    /// of owning a private `AVAudioEngine`.
-    ///
-    /// The buffer handler always runs `extractChannelZero(from:)` first.
-    /// When VPIO is engaged (process-wide), every subscriber sees the
-    /// duplex layout (ch=9) regardless of `wantsVPIO: false` — channel 0
-    /// is the post-AEC processed mono and the only channel we want.
-    private func startSharedMode() async throws {
-        guard let sharedStream else {
-            throw AudioProcessorError.recordingFailed("shared mic stream missing")
-        }
-
-        AudioCaptureDiagnostics.append(
-            "dictation_capture_start permission_status=\(AVCaptureDevice.authorizationStatus(for: .audio).rawValue) shared_mic_engine=true"
+            "dictation_capture_start permission_status=\(AVCaptureDevice.authorizationStatus(for: .audio).rawValue)"
         )
         guard permissionProvider() else {
             AudioCaptureDiagnostics.append(
-                "dictation_capture_start_denied shared_mic_engine=true"
+                "dictation_capture_start_denied"
             )
             throw AudioProcessorError.microphonePermissionDenied
         }
@@ -762,7 +204,7 @@ public actor AudioRecorder {
                 let hasFloatData = monoBuffer.floatChannelData != nil
                 Task {
                     AudioCaptureDiagnostics.append(
-                        "dictation_capture_first_buffer sr=\(sr) ch=\(ch) original_ch=\(originalChannelCount) common_format=\(commonFormat) interleaved=\(interleaved) frames=\(frameLength) has_float_data=\(hasFloatData) shared_mic_engine=true"
+                        "dictation_capture_first_buffer sr=\(sr) ch=\(ch) original_ch=\(originalChannelCount) common_format=\(commonFormat) interleaved=\(interleaved) frames=\(frameLength) has_float_data=\(hasFloatData)"
                     )
                 }
             }
@@ -786,7 +228,7 @@ public actor AudioRecorder {
                 if !alreadyLogged {
                     let sr = bufferFormat.sampleRate
                     let ch = bufferFormat.channelCount
-                    Task { await self.logTapError("converter_init_failed sr=\(sr) ch=\(ch) shared_mic_engine=true") }
+                    Task { await self.logTapError("converter_init_failed sr=\(sr) ch=\(ch)") }
                 }
                 return
             }
@@ -871,7 +313,7 @@ public actor AudioRecorder {
         }
 
         AudioCaptureDiagnostics.append(
-            "dictation_capture_starting shared_mic_engine=true"
+            "dictation_capture_starting"
         )
 
         let token: SharedMicrophoneStream.SubscriberToken
@@ -884,7 +326,7 @@ public actor AudioRecorder {
         } catch {
             try? FileManager.default.removeItem(at: url)
             AudioCaptureDiagnostics.append(
-                "dictation_capture_start_failed reason=\"\(error.localizedDescription)\" shared_mic_engine=true"
+                "dictation_capture_start_failed reason=\"\(error.localizedDescription)\""
             )
             throw AudioProcessorError.recordingFailed(error.localizedDescription)
         }
@@ -897,10 +339,11 @@ public actor AudioRecorder {
         let postSubscribeGeneration = self.sessionGeneration.withLock { $0 }
         let lostRace = preSubscribeGeneration != postSubscribeGeneration || !self.starting || self.recording
         if lostRace {
-            Task { await sharedStream.unsubscribe(token) }
+            let stream = sharedStream
+            Task { await stream.unsubscribe(token) }
             try? FileManager.default.removeItem(at: url)
             AudioCaptureDiagnostics.append(
-                "dictation_capture_start_aborted reason=\"interrupted_during_subscribe\" shared_mic_engine=true"
+                "dictation_capture_start_aborted reason=\"interrupted_during_subscribe\""
             )
             throw AudioProcessorError.recordingFailed("interrupted during subscribe")
         }
@@ -909,27 +352,73 @@ public actor AudioRecorder {
         self.outputURL = url
         self.recording = true
         self.sharedSubscriberToken = token
-        self._deviceInfo = nil  // device info comes from the platform; not surfaced through the stream yet
 
         AudioCaptureDiagnostics.append(
-            "dictation_capture_engine_started file=\(url.lastPathComponent) shared_mic_engine=true"
+            "dictation_capture_engine_started file=\(url.lastPathComponent)"
         )
         logger.info(
-            "dictation_capture_started shared_mic_engine=true file=\(url.lastPathComponent, privacy: .public)"
+            "dictation_capture_started file=\(url.lastPathComponent, privacy: .public)"
         )
     }
 
-    /// Logs all available input devices (called once at start for diagnostics).
-    private func logAvailableDevices() {
-        let devices = AudioDeviceManager.inputDevices()
-        let defaultID = AudioDeviceManager.defaultInputDevice()
-        logger.info("available_input_devices count=\(devices.count, privacy: .public)")
-        for device in devices {
-            let isDefault = device.id == defaultID ? " [DEFAULT]" : ""
-            logger.info(
-                "  device id=\(device.id, privacy: .public) uid=\(device.uid, privacy: .private) name=\(device.name, privacy: .public) transport=\(device.transportLabel, privacy: .public)\(isDefault, privacy: .public)"
-            )
+    /// Stop recording and return the path to the recorded WAV file.
+    /// Throws `insufficientSamples` if the recording is shorter than 1 second.
+    public func stop() throws -> URL {
+        if starting, !recording {
+            // `start()` awaits the stream subscription. A stop/cancel during
+            // that await must invalidate the pending tap generation so the
+            // in-flight start cannot claim a recording after cancellation.
+            sessionGeneration.withLock { $0 += 1 }
+            starting = false
+            throw AudioProcessorError.recordingFailed("Not recording")
         }
+        guard recording else {
+            throw AudioProcessorError.recordingFailed("Not recording")
+        }
+
+        if let token = sharedSubscriberToken {
+            // Fire-and-forget so stop() stays synchronous. The stream's
+            // engine queue serializes the unsubscribe behind any pending
+            // operations.
+            let stream = sharedStream
+            Task { await stream.unsubscribe(token) }
+            sharedSubscriberToken = nil
+            // Conversion and file writes run on this serial queue instead of
+            // the shared audio tap. Drain already-enqueued work so stop()
+            // reports a sample count that includes buffers accepted before
+            // the user stopped recording.
+            sharedProcessingQueue.sync {}
+            sessionGeneration.withLock { $0 += 1 }
+        }
+        audioFile = nil
+        recording = false
+        atomicAudioLevel.withLock { $0 = 0.0 }
+
+        let url = outputURL
+        outputURL = nil
+
+        guard let url else {
+            throw AudioProcessorError.recordingFailed("No output file")
+        }
+
+        let sampleCount = sampleCounter.withLock { $0 }
+        let metrics = runtimeMetrics.withLock { $0 }
+        let fileBytes = Self.fileSizeBytes(at: url)
+        let duration = Double(sampleCount) / 16_000.0
+        logger.debug("stop sampleCount=\(sampleCount, privacy: .public)")
+        AudioCaptureDiagnostics.append(
+            "dictation_capture_stop sample_count=\(sampleCount) duration_s=\(String(format: "%.3f", duration)) file_bytes=\(fileBytes.map(String.init) ?? "unknown") input_buffers=\(metrics.inputBufferCount) output_buffers=\(metrics.outputBufferCount) input_frames=\(metrics.inputFrameCount) max_rms=\(String(format: "%.6f", metrics.maxRMS)) max_level=\(String(format: "%.3f", metrics.maxAudioLevel)) non_silent_buffers=\(metrics.nonSilentBufferCount) missing_float_buffers=\(metrics.missingFloatChannelDataBufferCount) invalid_format_buffers=\(metrics.invalidFormatBufferCount)"
+        )
+        guard sampleCount >= Self.minimumSamples else {
+            // Clean up the too-short file
+            try? FileManager.default.removeItem(at: url)
+            AudioCaptureDiagnostics.append(
+                "dictation_capture_insufficient sample_count=\(sampleCount) required=\(Self.minimumSamples)"
+            )
+            throw AudioProcessorError.insufficientSamples
+        }
+
+        return url
     }
 
     private func logTapError(_ message: String) {

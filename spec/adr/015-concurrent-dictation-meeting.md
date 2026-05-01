@@ -2,11 +2,11 @@
 
 > Status: ACCEPTED
 > Date: 2026-04-06
-> Related: ADR-014 (meeting recording), ADR-009 (custom hotkeys), ADR-016 (centralized STT runtime and scheduler), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
+> Related: ADR-014 (meeting recording), ADR-009 (custom hotkeys), ADR-016 (centralized STT runtime and scheduler), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57), [PR #189](https://github.com/moona3k/macparakeet/pull/189)
 > Amended by: ADR-016 for STT runtime ownership, scheduling, and backpressure policy
 > Amendment note (2026-04-10): meeting mic capture remains raw at device tap time; echo mitigation is applied in meeting-only joined software-AEC processing while dictation remains raw. Concurrency isolation remains unchanged.
 > Amendment note (2026-04-29): meeting system audio moved from Core Audio process taps to ScreenCaptureKit audio, and meeting mic capture now prefers VPIO. Dictation remains raw on its independent `AVAudioEngine`.
-> Amendment note (2026-04-30): the "independent AVAudioEngine instances" decision below is **superseded** by `plans/active/shared-mic-engine.md`. Once VPIO ships in v0.6, two independent engines stopped being independent at the kernel layer — coreaudiod attaches the VPAU aggregate device to the process, not the engine, so the second engine inherits a multi-channel duplex layout and dictation reads silence. PR #189 replaces both engines with a single default-on `SharedMicrophoneStream` that fans buffers out to both flows; dictation always extracts ch[0] from the duplex layout, and meeting mic capture extracts ch[0] while VPIO is engaged, to get the post-AEC mono. The legacy private-engine paths remain behind `AppFeatures.useSharedMicEngine = false` for one DMG release as a rollback option, then Section 1 should be rewritten and the old paths deleted.
+> Amendment note (2026-04-30): the original "independent AVAudioEngine instances" decision was incompatible with VPIO. coreaudiod attaches the VPAU aggregate device to the **process**, not the engine, so once meeting recording engaged VPIO, every other `AVAudioEngine` in the process inherited the multi-channel duplex layout — and dictation read silence on channel 0 of the wrong layout. Section 1 is rewritten below to describe the shared-engine architecture that ships in v0.6 (PR #189). The rest of the ADR (STT scheduler, menu bar priority, UI layers, hotkey, audio semantics) is unchanged.
 
 ## Context
 
@@ -20,26 +20,25 @@ Both flows need microphone access, both use the Parakeet STT engine, both displa
 
 There is no mutual exclusion. A user can start a meeting recording, then use dictation as many times as they want during the meeting. Both flows operate independently with no shared mutable state between them.
 
-### 1. Independent AVAudioEngine instances (no shared audio engine)
+### 1. Shared microphone engine, independent system audio
 
-Each flow owns its own `AVAudioEngine` instance:
+Microphone capture is owned by a process-wide `SharedMicrophoneStream`. Both flows subscribe and receive every buffer; system audio remains a separate ScreenCaptureKit pipeline owned by the meeting flow.
 
-| Flow | Audio Engine | Tap |
-|------|-------------|-----|
-| Dictation | `AudioRecorder.audioEngine` | `inputNode.installTap(onBus: 0)` |
-| Meeting (mic) | `MicrophoneCapture.audioEngine` | `inputNode.installTap(onBus: 0)` with VPIO preferred |
-| Meeting (system) | `SystemAudioStream` | ScreenCaptureKit `SCStream` audio output |
+| Flow | Audio Source | Subscription |
+|------|--------------|--------------|
+| Dictation | `SharedMicrophoneStream` | `subscribe(wantsVPIO: false)` |
+| Meeting (mic) | `SharedMicrophoneStream` | `subscribe(wantsVPIO: true)` (VPIO preferred, raw fallback) |
+| Meeting (system) | `SystemAudioStream` (ScreenCaptureKit `SCStream`) | independent of mic engine |
 
-Meeting mic hardening uses macOS Voice Processing I/O in `MicrophoneCapture`, with transcript-layer dominant-system suppression retained in `MeetingRecordingService`. Dictation continues to use raw capture on its own engine.
+The shared stream owns one `AVAudioEngine`, manages VPIO engagement, fans buffers out to all subscribers, and tears down only when the last subscriber leaves. Subscribers receive the same buffer; both flows' downstream copies are isolated.
 
-macOS Core Audio's Hardware Abstraction Layer (HAL) natively multiplexes microphone access across multiple clients. Multiple `AVAudioEngine` instances tapping the same physical mic is a supported, documented pattern — it's how multiple apps can record simultaneously.
+**Why a shared engine is required (not optional):**
 
-**Why not a shared engine?** Dictation and meeting recording have fundamentally different lifecycles:
+macOS Voice Processing I/O (VPIO) provides built-in echo cancellation, noise suppression, and AGC, which we want for meeting recording. VPIO is engaged by enabling voice processing on an `AVAudioEngine`'s input node, which causes `coreaudiod` to attach a VPAU aggregate device (`CADefaultDeviceAggregate-<pid>-N`) to the **process**. That aggregate becomes the system default input for every `AVAudioEngine` in the process — including a separately-allocated dictation engine — and forces a multi-channel duplex layout (typically `ch=9`). Channel 0 carries the post-AEC processed mono; the rest are reference / loopback channels. A dictation engine that doesn't know about the duplex layout reads channel 0 of *something else* (or applies default channel reduction and dilutes the AEC), which manifests as silent transcripts during meetings.
 
-- Dictation: burst (3-10 seconds), starts/stops rapidly, engine created and destroyed per session
-- Meeting: sustained (minutes-hours), engine runs continuously for the entire session
+Two independent `AVAudioEngine` instances cannot escape this — VPIO state is process-scoped, not engine-scoped. The shared-engine design accepts this and exploits it: subscribers explicitly request VPIO or raw, the stream resolves the engine's actual mode (sticky once engaged, deferred when a non-VPIO subscriber blocks), and every subscriber that consumes audio while VPIO is engaged extracts channel 0 as mono. See `Sources/MacParakeetCore/Audio/SharedMicrophoneStream.swift` and `extractChannelZero(from:)` in `AudioRecorder.swift` for the implementation.
 
-A shared engine would mean dictation start/stop could glitch a long-running meeting recording. Isolation is more valuable than the marginal resource savings of a single engine.
+**Why a shared engine is also fine for lifecycle:** the original ADR worried that a long-running meeting engine would glitch when dictation start/stop touched it. In practice, dictation `subscribe`/`unsubscribe` calls are buffer-fanout list mutations behind a lock — they don't touch the running `AVAudioEngine`, don't reconfigure VPIO, and don't restart the engine. The engine starts on the first subscriber and stops on the last; mid-session subscribers join an already-running engine.
 
 ### 2. Shared STT runtime with explicit scheduling
 
@@ -131,20 +130,21 @@ Idle pill hides when either flow is active, shows when both are idle.
 
 - Users can dictate freely during meetings — the primary use case
 - No architectural coupling between the two flows
-- macOS handles mic multiplexing natively
-- STT ownership can remain centralized even while audio capture stays independent
+- One process-wide `AVAudioEngine` instead of two — fewer Core Audio resources, no cross-engine VPIO contention
+- STT ownership can remain centralized even while audio capture is fanned out per-subscriber
 
 ### Negative
 
-- Slightly higher resource usage during concurrent operation (two AVAudioEngine instances)
-- Edge case: single-channel USB mic with limited format support could theoretically conflict between two engines (mitigated by macOS HAL resampling)
+- Buffer fan-out runs on the audio render thread; subscribers must do only lightweight work in their handlers (the stream's documented contract is "copy and dispatch off-thread for anything heavier"). `AudioRecorder` honours this by copying the tap buffer and processing on a serial userInitiated queue
+- Device info from the platform is not yet plumbed through to dictation telemetry — `recordingDeviceInfo` is `nil` for shared-stream recordings (tracked as follow-up)
 - Menu bar icon can only show one state — user must infer meeting is still recording from the meeting pill when dictation is briefly active
 
 ### Risk assessment
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
-| Mic format conflict | Very low | Medium | macOS HAL handles resampling; test with USB mics |
+| VPIO duplex layout misread by a subscriber | Low | High | `extractChannelZero(from:)` is the design rule; centralized in shared code |
+| Slow handler blocks the audio render thread | Low | High | Subscribers copy + dispatch; documented in stream's `BufferHandler` contract |
 | STT queue starvation | Low | Medium | Explicit scheduler and backpressure policy in ADR-016 |
 | UI layer collision | Low | Low | NSPanel z-ordering is deterministic |
-| Meeting audio glitch during dictation start | Very low | High | Independent engines prevent cross-contamination |
+| Engine death mid-session | Low | High | `onEngineDeath` callbacks notify subscribers; meeting/dictation surface as stall errors |

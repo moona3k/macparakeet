@@ -1,21 +1,21 @@
 # Plan: Shared microphone engine for concurrent dictation + meeting
 
-> Status: **READY TO SHIP** — steps 1-6 done in PR #189; step 7 (legacy cleanup) waits one DMG release after merge.
+> Status: **COMPLETE** — all 7 steps shipped. Plan archived 2026-04-30 after step 7 cleanup PR.
 > Author: agent (Claude) + Daniel
-> Date: 2026-04-29 (revised 2026-04-30: steps 2-5 complete, dev-soak in progress)
-> Related: PR #186 (VPIO + ScreenCaptureKit), ADR-015 (concurrent dictation — now amended), ADR-014 (meeting recording), `docs/research/vpio-process-tap-conflict.md` (option (d))
+> Date: 2026-04-29 → 2026-04-30
+> Related: PR #189 (steps 1-6), step-7 cleanup PR (legacy paths removed), ADR-015 (rewritten §1), ADR-014 (meeting recording), `docs/research/vpio-process-tap-conflict.md` (option (d))
 
 ## Step status
 
 | Step | Status | Notes |
 |---|---|---|
-| 1. Build `SharedMicrophoneStream` + tests behind flag | ✅ Done | Commits `7f93935b` + `c7f690ea`. 2030 XCTest pass. Flag `AppFeatures.useSharedMicEngine = false`. |
+| 1. Build `SharedMicrophoneStream` + tests behind flag | ✅ Done | Commits `7f93935b` + `c7f690ea`. 2030 XCTest pass. |
 | 2. Migrate `MicrophoneCapture` to subscribe behind flag | ✅ Done | Commits `7e57f5fb` + `a6f8595f`. Platform device-fallback + onEngineDeath callback + flag-on subscriber path. 2040 XCTest pass after codex-review fixes (watchdog timing + start-during-stop race guard). |
-| 3. Soak meeting recording with flag on (1 day) | ✅ Done | Real-hardware smoke verified 2026-04-30: `shared_mic_engine_input_device_started source=system_default vpio=true`, `microphone_capture_started shared_mic_engine=true sample_rate=48000 channels=9`, first buffer in 113ms, clean teardown. |
-| 4. Migrate `AudioRecorder` (with ch[0] mono extraction) | ✅ Done | Commit `0d9f8cad`. New `extractChannelZero(from:)` helper + actor-reentrancy guard. 2045 XCTest pass (+5 extraction unit tests). |
-| 5. Concurrent-flow soak (the actual bug fix verification) | ✅ Done | Real-hardware verification 2026-04-30: 4 dictations run during a single live meeting produced `rawChars=161, 135, 77, 319` — pre-fix this would have been silence. Engine transitions clean across meeting→standalone→meeting cycles. |
-| 6. Flip `AppFeatures.useSharedMicEngine = true` | ✅ Done | Flipped in PR #189 alongside the rest of the work. Real-hardware sanity already verified (steps 3 + 5); legacy paths remain in source one DMG release as a rollback option. |
-| 7. Delete old code paths + ADR-015 amendment finalization | ⬜ Next | After one DMG release with flag default-on confirms no field issues. The ADR-015 head-amendment from 2026-04-30 already declares the section-1 supersession; step 7 rewrites the body and removes the legacy code paths. |
+| 3. Soak meeting recording with flag on (1 day) | ✅ Done | Real-hardware smoke verified 2026-04-30: `shared_mic_engine_input_device_started source=system_default vpio=true`, first buffer in 113ms, clean teardown. |
+| 4. Migrate `AudioRecorder` (with ch[0] mono extraction) | ✅ Done | Commit `0d9f8cad`. `extractChannelZero(from:)` helper + actor-reentrancy guard. |
+| 5. Concurrent-flow soak (the actual bug fix verification) | ✅ Done | Real-hardware verification 2026-04-30: 4 dictations during one live meeting produced `rawChars=161, 135, 77, 319` — pre-fix would have been silence. |
+| 6. Flip `AppFeatures.useSharedMicEngine = true` | ✅ Done | Commit `1412c6f7` in PR #189. Hardening commit `3149eb40` followed addressing Gemini bot RT-thread findings. |
+| 7. Delete legacy paths + finalize ADR-015 §1 | ✅ Done | Step-7 cleanup PR (post-#189). Removed `useSharedMicEngine` flag, deleted private-engine code from `MicrophoneCapture` / `AudioRecorder`, made `sharedStream` non-optional through the chain, rewrote ADR-015 §1 with the shared-engine architecture, dropped the in-transition callout in `spec/05-audio-pipeline.md`. 2051 XCTest + 16 Swift Testing pass. |
 
 ## Implementation summary
 

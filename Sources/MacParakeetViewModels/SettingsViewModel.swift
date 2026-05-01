@@ -770,7 +770,19 @@ public final class SettingsViewModel {
 
         microphoneTestTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let capture = MicrophoneCapture(selectedInputDeviceUIDProvider: { selectedUID })
+            let attemptsBuilder: AVAudioEngineMicrophonePlatform.DeviceAttemptsBuilder = {
+                let selectedID = selectedUID.flatMap { AudioDeviceManager.inputDeviceID(forUID: $0) }
+                return meetingInputDeviceAttempts(
+                    selectedUID: selectedUID,
+                    selectedInputDeviceID: { _ in selectedID },
+                    defaultInputDevice: { AudioDeviceManager.defaultInputDevice() },
+                    builtInMicrophone: { AudioDeviceManager.builtInMicrophone() }
+                )
+            }
+            let stream = SharedMicrophoneStream(
+                platform: AVAudioEngineMicrophonePlatform(deviceAttemptsBuilder: attemptsBuilder)
+            )
+            let capture = MicrophoneCapture(sharedStream: stream)
             do {
                 _ = try await capture.start(processingMode: .raw) { buffer, _ in
                     levelBox.record(buffer.rmsLevel)

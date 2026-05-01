@@ -4,14 +4,7 @@ import XCTest
 @testable import MacParakeetCore
 
 final class MicrophoneCaptureTests: XCTestCase {
-    func testInitCreatesCaptureInstance() {
-        let capture = MicrophoneCapture()
-        XCTAssertNotNil(capture)
-    }
-
-    // MARK: - Shared-stream path (AppFeatures.useSharedMicEngine = true)
-
-    func testSharedModeSubscribesWithVPIOForVPIOPreferred() async throws {
+    func testSubscribesWithVPIOForVPIOPreferred() async throws {
         let platform = SharedMicTestPlatform()
         let stream = SharedMicrophoneStream(platform: platform, bufferSize: 1024)
         let capture = MicrophoneCapture(

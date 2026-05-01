@@ -67,14 +67,10 @@ public actor MeetingAudioCaptureService {
 
     public init(
         micProcessingMode: MeetingMicProcessingMode = .raw,
-        selectedInputDeviceUIDProvider: @escaping @Sendable () -> String? = { nil },
         sourceModeProvider: @escaping @Sendable () -> MeetingAudioSourceMode = { .microphoneAndSystem },
-        sharedMicStream: SharedMicrophoneStream? = nil
+        sharedMicStream: SharedMicrophoneStream
     ) {
-        self.microphoneCapture = MicrophoneCapture(
-            selectedInputDeviceUIDProvider: selectedInputDeviceUIDProvider,
-            sharedStream: sharedMicStream
-        )
+        self.microphoneCapture = MicrophoneCapture(sharedStream: sharedMicStream)
         self.micProcessingMode = micProcessingMode
         self.sourceModeProvider = sourceModeProvider
         self.systemAudioCaptureFactory = {

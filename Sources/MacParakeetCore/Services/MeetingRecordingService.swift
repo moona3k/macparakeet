@@ -129,16 +129,14 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     public init(
         micProcessingMode: MeetingMicProcessingMode = .raw,
-        audioCaptureService: (any MeetingAudioCapturing)? = nil,
+        audioCaptureService: any MeetingAudioCapturing,
         audioConverter: any AudioFileConverting = AudioFileConverter(),
         sttTranscriber: STTTranscribing,
         lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
         fileManager: FileManager = .default
     ) {
         self.requestedMicProcessingMode = micProcessingMode
-        self.audioCaptureService = audioCaptureService ?? MeetingAudioCaptureService(
-            micProcessingMode: micProcessingMode
-        )
+        self.audioCaptureService = audioCaptureService
         self.audioConverter = audioConverter
         self.lockFileStore = lockFileStore
         self.fileManager = fileManager

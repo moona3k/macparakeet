@@ -5,14 +5,19 @@ public actor AudioProcessor: AudioProcessorProtocol {
     private let recorder: AudioRecorder
     private let converter: AudioFileConverter
 
-    public init(
-        selectedInputDeviceUIDProvider: @escaping @Sendable () -> String? = { nil },
-        sharedMicStream: SharedMicrophoneStream? = nil
-    ) {
-        self.recorder = AudioRecorder(
-            selectedInputDeviceUIDProvider: selectedInputDeviceUIDProvider,
-            sharedStream: sharedMicStream
+    public init(sharedMicStream: SharedMicrophoneStream) {
+        self.recorder = AudioRecorder(sharedStream: sharedMicStream)
+        self.converter = AudioFileConverter()
+    }
+
+    /// File-only init for callers that never need mic capture (CLI, tests).
+    /// Allocates an unstarted shared stream so the recorder API stays valid;
+    /// no Core Audio engine starts until `startCapture()` runs.
+    public init() {
+        let stream = SharedMicrophoneStream(
+            platform: AVAudioEngineMicrophonePlatform()
         )
+        self.recorder = AudioRecorder(sharedStream: stream)
         self.converter = AudioFileConverter()
     }
 
