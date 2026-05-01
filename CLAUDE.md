@@ -137,7 +137,7 @@ MacParakeet has three primary modes in the `main` branch product direction:
 2. **File transcription** -- Drag-drop audio/video files for full transcription (MacWhisper-style)
 3. **Meeting recording** -- Labs/Beta on `main`; capture system audio + mic simultaneously, transcribe locally (simple Granola-style)
 
-All three modes share the same STT scheduler/runtime path on `main` but have different UI flows, audio sources, and data models. Parakeet is the default engine; Whisper can be selected globally or per CLI call for languages Parakeet does not cover. **Dictation and meeting recording run concurrently** (ADR-015) -- a user can dictate freely during a meeting recording. Each flow owns its own AVAudioEngine; macOS HAL handles mic multiplexing.
+All three modes share the same STT scheduler/runtime path on `main` but have different UI flows, audio sources, and data models. Parakeet is the default engine; Whisper can be selected globally or per CLI call for languages Parakeet does not cover. **Dictation and meeting recording run concurrently** (ADR-015) -- a user can dictate freely during a meeting recording. Dictation and meeting microphone capture fan out from one process-wide `SharedMicrophoneStream`/AVAudioEngine; meeting system audio remains a separate ScreenCaptureKit stream.
 
 ADR-016 defines the STT architecture as one process-wide scheduler path with a reserved dictation slot and a shared background slot where meeting work outranks file transcription. ADR-021 extends that path with speech-engine routing, engine-switch guards, and meeting-session engine leases.
 
