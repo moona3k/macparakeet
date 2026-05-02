@@ -121,10 +121,12 @@ struct MeetingRecordingPanelView: View {
     }
 
     /// State-bearing tab label per ADR-020 §1. `ViewThatFits` picks the
-    /// richest variant the cell width allows: rich (noun [⌘N] · badge|dot) at
-    /// default panel widths, plain noun at the 360px floor. Tooltip carries
-    /// the full label so the state never disappears entirely — see
-    /// `.help(...)` on the parent button.
+    /// richest variant the cell width allows: rich (noun [⌘N] · badge, or
+    /// noun [⌘N] dot for streaming) at default panel widths, plain noun at
+    /// the 360px floor. The `·` separator is dropped before the streaming
+    /// dot — a symbol doesn't need text-style punctuation in front of it.
+    /// Tooltip carries the full label so the state never disappears
+    /// entirely — see `.help(...)` on the parent button.
     ///
     /// `isStreaming` takes precedence over `badge` because LLM-in-flight is
     /// the most actionable state — and today only the Ask tab uses it.
@@ -160,12 +162,16 @@ struct MeetingRecordingPanelView: View {
                     }
 
                     if hasTrailing {
-                        Text("·")
-                            .font(.system(size: 12, weight: .regular))
-                            .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.6))
+                        // The `·` separator only earns its keep before text-based
+                        // state (`Notes · 24w`, `Transcript · LIVE`). Before the
+                        // streaming dot it's redundant punctuation around what's
+                        // already a visual symbol — `Ask ●` reads cleaner.
                         if isStreaming {
                             AskStreamingDot(isActive: isActive)
                         } else if let badge {
+                            Text("·")
+                                .font(.system(size: 12, weight: .regular))
+                                .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.6))
                             Text(badge)
                                 .font(.system(size: 11, weight: .regular).monospacedDigit())
                                 .foregroundStyle(isActive

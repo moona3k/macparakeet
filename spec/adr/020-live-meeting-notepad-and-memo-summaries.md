@@ -66,7 +66,7 @@ What's missing: a place for the user to type during the meeting, a column to per
 ┌────────────────────────────────────────────────┐
 │ ● Recording 6:03                               │
 ├────────────────────────────────────────────────┤
-│  Notes        Transcript        Ask · ●        │
+│  Notes        Transcript        Ask ●          │
 ├────────────────────────────────────────────────┤
 │                                                │
 │  [content for selected tab]                    │
