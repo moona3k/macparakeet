@@ -144,6 +144,21 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertLessThanOrEqual(service.pendingEventCount, 1)
     }
 
+    func testClearQueueDropsQueuedEventsBeforeOptOut() async throws {
+        let service = makeService()
+        service.send(.appLaunched)
+        service.send(.dictationStarted(trigger: .hotkey, mode: .hold))
+        XCTAssertEqual(service.pendingEventCount, 2)
+
+        service.clearQueue()
+        let delivered = await service.sendAndFlush(.telemetryOptedOut)
+
+        XCTAssertTrue(delivered)
+        XCTAssertEqual(service.pendingEventCount, 0)
+        let events = try await eventuallyRecordedEvents()
+        XCTAssertEqual(events.map(\.event), [TelemetryEventName.telemetryOptedOut.rawValue])
+    }
+
     // MARK: - Queue Limits
 
     func testMaxQueueSizeEnforced() {
@@ -492,6 +507,36 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertNil(props["source_url"])
     }
 
+    func testCanonicalOperationBucketsUnknownEngineVariant() throws {
+        let event = TelemetryEvent(
+            spec: .dictationOperation(
+                operationID: "op-dict",
+                outcome: .success,
+                trigger: .hotkey,
+                mode: .persistent,
+                durationSeconds: 3.2,
+                wordCount: 10,
+                errorType: nil,
+                speechEngine: "whisper",
+                engineVariant: "/Users/example/local-models/private-variant"
+            ),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(props["speech_engine"], "whisper")
+        XCTAssertEqual(props["engine_variant"], "custom")
+    }
+
     func testOperationContextSerializesWorkflowParentAndStage() throws {
         let context = ObservabilityOperationContext(
             operationID: "op-meeting",
@@ -663,6 +708,14 @@ final class TelemetryServiceTests: XCTestCase {
         Telemetry.configure(service)
         Telemetry.send(.appLaunched)
         XCTAssertEqual(service.pendingEventCount, 1)
+    }
+
+    func testStaticTelemetryClearQueue() {
+        let service = makeService()
+        Telemetry.configure(service)
+        Telemetry.send(.appLaunched)
+        Telemetry.clearQueue()
+        XCTAssertEqual(service.pendingEventCount, 0)
     }
 
     func testStaticTelemetrySendBeforeConfigureIsNoOp() {

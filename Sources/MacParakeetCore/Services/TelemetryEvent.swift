@@ -611,7 +611,7 @@ extension TelemetryEventSpec {
                 ("duration_seconds", durationSeconds.map(Self.format)),
                 ("word_count", wordCount.map(String.init)),
                 ("speech_engine", speechEngine),
-                ("engine_variant", engineVariant),
+                ("engine_variant", Self.safeEngineVariant(engineVariant)),
                 ("error_type", errorType)
             ), device)
         case .transcriptionStarted(let source, let audioDurationSeconds):
@@ -689,7 +689,7 @@ extension TelemetryEventSpec {
                 ("media_extension", mediaExtension),
                 ("file_size_bucket", fileSizeBucket),
                 ("speech_engine", speechEngine),
-                ("engine_variant", engineVariant),
+                ("engine_variant", Self.safeEngineVariant(engineVariant)),
                 ("error_type", errorType)
             )
         case .diarizationStarted(let source):
@@ -1030,6 +1030,25 @@ extension TelemetryEventSpec {
     private static func sanitizedErrorDetail(_ detail: String?) -> String? {
         guard let detail, !detail.isEmpty else { return nil }
         return String(TelemetryErrorClassifier.sanitize(detail).prefix(512))
+    }
+
+    private static func safeEngineVariant(_ variant: String?) -> String? {
+        guard let normalized = SpeechEnginePreference.normalizeModelVariant(variant) else {
+            return nil
+        }
+
+        let allowedVariants: Set<String> = [
+            "tiny",
+            "base",
+            "small",
+            "medium",
+            "large",
+            "large-v2",
+            "large-v3",
+            SpeechEnginePreference.defaultWhisperModelVariant,
+        ]
+
+        return allowedVariants.contains(normalized) ? normalized : "custom"
     }
 
     private static func mergeDevice(_ base: [String: String]?, _ device: RecordingDeviceInfo?) -> [String: String]? {

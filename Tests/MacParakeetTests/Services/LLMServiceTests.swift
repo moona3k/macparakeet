@@ -160,6 +160,11 @@ private final class LLMTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendab
     }
 
     func flush() async {}
+    func clearQueue() {
+        lock.lock()
+        events.removeAll()
+        lock.unlock()
+    }
     func flushForTermination() {}
 
     func snapshot() -> [TelemetryEventSpec] {

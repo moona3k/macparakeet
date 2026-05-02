@@ -439,7 +439,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     do {
                         _ = try await ThumbnailCacheService.shared.extractVideoFrame(from: path, for: transcriptionId)
                     } catch {
-                        logger.error("transcription_thumbnail_extract_failed id=\(transcriptionId, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                        logger.error("transcription_thumbnail_extract_failed id=\(transcriptionId, privacy: .public) error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
                     }
                 }
             }
@@ -565,7 +565,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     do {
                         _ = try await ThumbnailCacheService.shared.downloadThumbnail(from: thumbURL, for: transcriptionId)
                     } catch {
-                        logger.error("transcription_thumbnail_download_failed id=\(transcriptionId, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+                        logger.error("transcription_thumbnail_download_failed id=\(transcriptionId, privacy: .public) error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
                     }
                 }
             }
@@ -1109,9 +1109,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         var snippets: [TextSnippet] = []
         if mode.usesDeterministicPipeline {
             do { customWords = try customWordRepo?.fetchEnabled() ?? [] }
-            catch { logger.error("transcription_custom_words_fetch_failed error=\(error.localizedDescription, privacy: .public)") }
+            catch { logger.error("transcription_custom_words_fetch_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)") }
             do { snippets = try snippetRepo?.fetchEnabled() ?? [] }
-            catch { logger.error("transcription_snippets_fetch_failed error=\(error.localizedDescription, privacy: .public)") }
+            catch { logger.error("transcription_snippets_fetch_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)") }
         }
 
         let refinement = await textRefinementService.refine(
@@ -1195,7 +1195,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             if error is CancellationError {
                 throw error
             }
-            logger.warning("transcription_ai_formatter_failed fallback=standard_cleanup error=\(error.localizedDescription, privacy: .public)")
+            logger.warning("transcription_ai_formatter_failed fallback=standard_cleanup error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
             let message = "\(error.localizedDescription) Used standard cleanup."
             NotificationCenter.default.post(
                 name: .macParakeetAIFormatterWarning,

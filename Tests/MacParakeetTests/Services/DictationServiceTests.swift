@@ -17,6 +17,11 @@ private final class DictationTelemetrySpy: TelemetryServiceProtocol, @unchecked 
     }
 
     func flush() async {}
+    func clearQueue() {
+        lock.lock()
+        events.removeAll()
+        lock.unlock()
+    }
     func flushForTermination() {}
 
     func snapshot() -> [TelemetryEventSpec] {

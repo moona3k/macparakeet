@@ -19,6 +19,12 @@ private final class OnboardingTelemetrySpy: TelemetryServiceProtocol, @unchecked
 
     func flush() async {}
 
+    func clearQueue() {
+        lock.lock()
+        events.removeAll()
+        lock.unlock()
+    }
+
     func flushForTermination() {}
 
     func snapshot() -> [TelemetryEventSpec] {

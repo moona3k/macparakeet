@@ -342,6 +342,9 @@ private final class MockTelemetryService: TelemetryServiceProtocol, @unchecked S
     }
 
     func flush() async {}
+    func clearQueue() {
+        sentEvents.removeAll()
+    }
     func flushForTermination() {}
 }
 

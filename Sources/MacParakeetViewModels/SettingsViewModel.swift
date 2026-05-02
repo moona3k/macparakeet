@@ -71,6 +71,7 @@ public final class SettingsViewModel {
         didSet {
             defaults.set(telemetryEnabled, forKey: AppPreferences.telemetryEnabledKey)
             if !telemetryEnabled {
+                Telemetry.clearQueue()
                 Telemetry.send(.telemetryOptedOut)
                 Task { await Telemetry.flush() }
             }

@@ -40,6 +40,12 @@ private final class TelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable 
 
     func flush() async {}
 
+    func clearQueue() {
+        lock.lock()
+        events.removeAll()
+        lock.unlock()
+    }
+
     func flushForTermination() {}
 
     func snapshot() -> [TelemetryEventSpec] {

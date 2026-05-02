@@ -10,6 +10,7 @@ public protocol TelemetryServiceProtocol: Sendable {
     func send(_ event: TelemetryEventSpec)
     @discardableResult
     func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool
+    func clearQueue()
     func flush() async
     func flushForTermination()
 }
@@ -167,6 +168,12 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
         await flushGate.enter()
         _ = await flushQueuedEvents()
         await flushGate.leave()
+    }
+
+    public func clearQueue() {
+        lock.lock()
+        queue.removeAll()
+        lock.unlock()
     }
 
     private func flushQueuedEvents() async -> Set<String> {
@@ -365,6 +372,10 @@ public enum Telemetry {
         configuredService()?.send(event)
     }
 
+    public static func clearQueue() {
+        configuredService()?.clearQueue()
+    }
+
     public static func flush() async {
         await configuredService()?.flush()
     }
@@ -380,6 +391,7 @@ public final class NoOpTelemetryService: TelemetryServiceProtocol {
     public init() {}
     public func send(_ event: TelemetryEventSpec) {}
     public func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool { true }
+    public func clearQueue() {}
     public func flush() async {}
     public func flushForTermination() {}
 }

@@ -512,7 +512,7 @@ public actor DictationService: DictationServiceProtocol {
         }
 
         AudioCaptureDiagnostics.append(
-            "dictation_transcribe_begin file=\(audioURL.lastPathComponent) file_bytes=\(Self.fileSizeBytes(at: audioURL).map(String.init) ?? "unknown")"
+            "dictation_transcribe_begin file_bytes=\(Self.fileSizeBytes(at: audioURL).map(String.init) ?? "unknown")"
         )
         let result = try await sttTranscriber.transcribe(audioPath: audioURL.path, job: .dictation)
         logger.debug("dictation_transcription_complete chars=\(result.text.count, privacy: .public)")
@@ -533,9 +533,9 @@ public actor DictationService: DictationServiceProtocol {
         var snippets: [TextSnippet] = []
         if mode.usesDeterministicPipeline {
             do { words = try customWordRepo?.fetchEnabled() ?? [] }
-            catch { logger.error("dictation_custom_words_fetch_failed error=\(error.localizedDescription, privacy: .public)") }
+            catch { logger.error("dictation_custom_words_fetch_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)") }
             do { snippets = try snippetRepo?.fetchEnabled() ?? [] }
-            catch { logger.error("dictation_snippets_fetch_failed error=\(error.localizedDescription, privacy: .public)") }
+            catch { logger.error("dictation_snippets_fetch_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)") }
         }
 
         // Voice Return: inject synthetic action snippet regardless of mode
@@ -575,7 +575,7 @@ public actor DictationService: DictationServiceProtocol {
 
         if saveHistory, shouldSaveAudio?() ?? false {
             do { try AppPaths.ensureDirectories() }
-            catch { logger.error("dictation_directory_create_failed error=\(error.localizedDescription, privacy: .public)") }
+            catch { logger.error("dictation_directory_create_failed error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)") }
             let destURL = URL(fileURLWithPath: AppPaths.dictationsDir, isDirectory: true)
                 .appendingPathComponent("\(dictation.id.uuidString).wav")
 
@@ -647,7 +647,7 @@ public actor DictationService: DictationServiceProtocol {
             if error is CancellationError {
                 throw error
             }
-            logger.warning("dictation_ai_formatter_failed fallback=standard_cleanup error=\(error.localizedDescription, privacy: .public)")
+            logger.warning("dictation_ai_formatter_failed fallback=standard_cleanup error_type=\(Self.errorType(for: error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
             let message = "\(error.localizedDescription) Used standard cleanup."
             NotificationCenter.default.post(
                 name: .macParakeetAIFormatterWarning,

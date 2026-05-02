@@ -14,7 +14,7 @@
 - **Transparent** — Users can see what's collected and opt out in Settings
 - **Minimal** — Collect what helps improve the product, nothing more
 - **Local-first still** — Audio never leaves the device. Only non-identifying usage signals are sent.
-- **Fully optional** — Turning telemetry off in Settings stops network telemetry after the final `telemetry_opted_out` event is flushed. Local `os.Logger` diagnostics remain on-device unless a user explicitly exports them.
+- **Fully optional** — Turning telemetry off in Settings discards queued unsent telemetry, sends only the final `telemetry_opted_out` event, and then stops queuing new network telemetry. A request already in flight may complete. Local `os.Logger` diagnostics remain on-device unless a user explicitly exports them.
 
 **Privacy promise (updated):**
 > "Telemetry never includes your audio, transcripts, notes, prompts, or file names. MacParakeet collects non-identifying usage statistics — like which features are popular and how long transcriptions take — to help us improve. You can opt out anytime in Settings."
@@ -164,6 +164,12 @@ when the question is "what happened to this operation?"
 | `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `error_type`, `device_*` | One wide outcome event per dictation attempt |
 
 > **Device props** (optional, included when available): `device_transport`, `device_sub_transport`, `device_sample_rate`, `device_channels`, `device_fallback`, `device_selected`. Raw device names and UIDs are intentionally not serialized.
+
+`speech_engine` and `engine_variant` describe the STT engine that actually
+processed the audio. They come from `STTResult` attribution or persisted
+transcription output, not the user's current mutable engine setting. Unknown
+model variants are serialized as `custom` so local model paths or future
+private identifiers cannot leak into telemetry.
 
 ### 3. Transcription — "Is file transcription valuable?"
 
@@ -392,6 +398,7 @@ Telemetry.send(.transcriptionOperation(
 public protocol TelemetryServiceProtocol: Sendable {
     func send(_ event: TelemetryEventSpec)
     func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool
+    func clearQueue()
     func flush() async
     func flushForTermination()
 }
@@ -592,8 +599,10 @@ External AI review of the telemetry design. Each point was evaluated and accepte
   every future client doing the right thing.
 - **Local diagnostic export** — Build an explicit user-triggered diagnostic
   bundle that includes recent `os.Logger` entries for MacParakeet subsystems,
-  `~/Library/Logs/MacParakeet/dictation-audio.log`, app version/build info, and
-  redacted runtime metadata. Do not upload automatically.
+  `~/Library/Logs/MacParakeet/dictation-audio.log` status/metric lines,
+  app version/build info, and redacted runtime metadata. Do not upload
+  automatically. Do not include audio bytes, transcripts, notes, prompts, file
+  names, paths, URLs, API keys, or device UIDs.
 - **Operation-event coverage gate** — For any new workflow that can succeed,
   fail, cancel, or become unavailable, require a matching wide `*_operation`
   event or a documented reason it is intentionally breadcrumb-only.
