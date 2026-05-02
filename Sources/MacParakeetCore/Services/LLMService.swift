@@ -81,9 +81,14 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         additionalProperties: false
     )
 
-    // Context budgets (characters)
-    internal static let cloudContextBudget = 100_000
-    internal static let localContextBudget = 24_000
+    // Context budgets (characters). Sized for 2026 model norms: every modern
+    // cloud provider ships at least a 200K-token context, and local models on
+    // Apple Silicon (Llama 4 / Qwen / Gemma / Mistral) routinely have 32K+
+    // tokens. We sit comfortably under those floors so first-token latency and
+    // per-turn cost stay reasonable while a multi-hour meeting can fit
+    // un-truncated. ~3.5 chars/token in English.
+    internal static let cloudContextBudget = 500_000   // ≈140K tokens
+    internal static let localContextBudget =  80_000   // ≈ 22K tokens
 
     public init(
         client: LLMClientProtocol = RoutingLLMClient(),

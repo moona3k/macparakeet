@@ -610,18 +610,18 @@ final class LLMServiceTests: XCTestCase {
     }
 
     func testCloudContextBudget() {
-        XCTAssertEqual(LLMService.cloudContextBudget, 100_000)
+        XCTAssertEqual(LLMService.cloudContextBudget, 500_000)
     }
 
     func testLocalContextBudget() {
-        XCTAssertEqual(LLMService.localContextBudget, 24_000)
+        XCTAssertEqual(LLMService.localContextBudget, 80_000)
     }
 
     func testLocalProviderUsesLocalBudget() async throws {
         mockConfigStore.config = .ollama(model: "llama3.2")
 
         // Create text that exceeds local budget but not cloud budget
-        let text = String(repeating: "word ", count: 6000) // 30_000 chars > 24_000 local budget
+        let text = String(repeating: "word ", count: 18_000) // 90_000 chars > 80_000 local budget
         _ = try await service.summarize(transcript: text)
 
         // The user message should be truncated
@@ -632,7 +632,7 @@ final class LLMServiceTests: XCTestCase {
     func testCloudProviderDoesNotTruncateWithinBudget() async throws {
         mockConfigStore.config = .openai(apiKey: "sk-test")
 
-        // 30K chars is within cloud budget (100K)
+        // 30K chars is comfortably within cloud budget (500K)
         let text = String(repeating: "word ", count: 6000)
         _ = try await service.summarize(transcript: text)
 
@@ -643,10 +643,10 @@ final class LLMServiceTests: XCTestCase {
     // MARK: - Chat History Overflow
 
     func testChatDropsOldHistoryWhenOverBudget() async throws {
-        mockConfigStore.config = .ollama(model: "llama3.2") // local = 24K budget
+        mockConfigStore.config = .ollama(model: "llama3.2") // local = 80K budget
 
         // Create a long transcript that uses most of the budget
-        let transcript = String(repeating: "word ", count: 4000) // 20K chars
+        let transcript = String(repeating: "word ", count: 14_000) // 70K chars
 
         // Create history with identifiable messages (~210 chars each)
         let history = (0..<50).flatMap { i -> [ChatMessage] in
@@ -672,16 +672,16 @@ final class LLMServiceTests: XCTestCase {
     }
 
     func testChatWithNegativeHistoryBudgetDropsAllHistory() async throws {
-        mockConfigStore.config = .ollama(model: "llama3.2") // local = 24K budget
+        mockConfigStore.config = .ollama(model: "llama3.2") // local = 80K budget
 
-        // The truncated transcript is ~90% of budget (45% head + 45% tail).
-        // System prompt prefix + truncated transcript + question leaves ~2K chars.
-        // Make each history entry large enough (>2K each) so none fit.
-        let transcript = String(repeating: "word ", count: 20000) // 100K chars
+        // The truncated transcript is ~90% of budget (45% head + 45% tail) → ~72K chars.
+        // System prompt prefix + truncated transcript + question leaves ~7-8K chars.
+        // Make each history entry large enough (>8K each) so none fit.
+        let transcript = String(repeating: "word ", count: 40_000) // 200K chars
 
         let history = [
-            ChatMessage(role: .user, content: String(repeating: "z", count: 3000)),
-            ChatMessage(role: .assistant, content: String(repeating: "z", count: 3000)),
+            ChatMessage(role: .user, content: String(repeating: "z", count: 10_000)),
+            ChatMessage(role: .assistant, content: String(repeating: "z", count: 10_000)),
         ]
 
         _ = try await service.chat(
@@ -694,7 +694,7 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(messages.first?.role, .system)
         XCTAssertEqual(messages.last?.role, .user)
         XCTAssertEqual(messages.last?.content, "New question")
-        // Each history entry is 3K chars, but only ~2K budget — none fit
+        // Each history entry is 10K chars, but only ~7-8K budget — none fit
         XCTAssertEqual(messages.count, 2)
     }
 
