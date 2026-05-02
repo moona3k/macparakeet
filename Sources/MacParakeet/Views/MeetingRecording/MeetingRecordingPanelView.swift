@@ -16,8 +16,8 @@ struct MeetingRecordingPanelView: View {
             paneContent
             // Notes and Ask own their own bottom UI (Notes shows a soft-cap
             // footer when relevant; Ask owns its composer + follow-up pills).
-            // The footer stays transcript-specific (Copy, auto-scroll toggle);
-            // the stop control is in the always-visible header.
+            // The footer stays transcript-specific (Copy, auto-scroll toggle, Stop).
+            // The floating recording pill remains the canonical Stop control.
             if viewModel.selectedTab == .transcript {
                 Divider()
                 footer
@@ -180,12 +180,6 @@ struct MeetingRecordingPanelView: View {
                     Text("\(viewModel.wordCount) words")
                         .font(.system(size: 10, weight: .regular).monospacedDigit())
                         .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.8))
-                }
-
-                if viewModel.canStop {
-                    StopRecordingButton {
-                        viewModel.onStop?()
-                    }
                 }
             }
 
