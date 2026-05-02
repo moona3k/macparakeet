@@ -193,6 +193,24 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.notesViewModel.notesText, "")
     }
 
+    func testTranscriptTabHasNoBadgeInAnyState() {
+        let viewModel = MeetingRecordingPanelViewModel()
+
+        // Recording state is already broadcast by the header (orb / "Recording" /
+        // elapsed timer / word count / Stop). The tab is intentionally plain so
+        // recording state isn't redundantly restated. ADR-020 §1 amendment 2026-05-02.
+        let states: [MeetingRecordingPanelViewModel.PanelState] = [
+            .hidden, .recording, .transcribing, .error("test")
+        ]
+        for state in states {
+            viewModel.state = state
+            XCTAssertNil(
+                viewModel.badge(for: .transcript),
+                "Transcript tab should be plain in state \(state) — header carries the recording signal"
+            )
+        }
+    }
+
     func testAskTabHasNoStringBadgeAndExposesStreamingFlagInstead() {
         let viewModel = MeetingRecordingPanelViewModel()
 

@@ -211,27 +211,22 @@ public final class MeetingRecordingPanelViewModel {
         return "\(count)w"
     }
 
-    /// Live state hint for the Transcript tab. "LIVE" while we're actively
-    /// recording (audio is flowing); `nil` in the transcribing/error/hidden
-    /// states where no new text is arriving.
-    public var transcriptBadge: String? {
-        switch state {
-        case .recording:
-            return "LIVE"
-        case .hidden, .transcribing, .error:
-            return nil
-        }
-    }
-
     /// The Ask tab intentionally has no string badge. A message count is
     /// decoration, not information — knowing "12 messages exist" doesn't help
     /// a user who has Notes in the foreground decide whether to switch back.
     /// `isAskStreaming` (below) is the actionable signal instead: a quiet
     /// breathing dot only while an answer is forming.
+    ///
+    /// The Transcript tab is also intentionally plain. Recording state ("we're
+    /// live, audio is flowing") is already broadcast by the panel header — the
+    /// pulsing dual-audio orb, the `Recording` status string, the elapsed
+    /// timer, the live word count, and the Stop button. A tab badge would be
+    /// the 6th instance of the same signal. See ADR-020 §1 amendment
+    /// (2026-05-02).
     public func badge(for tab: LivePanelTab) -> String? {
         switch tab {
         case .notes: return notesBadge
-        case .transcript: return transcriptBadge
+        case .transcript: return nil
         case .ask: return nil
         }
     }
