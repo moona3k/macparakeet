@@ -109,6 +109,10 @@ final class MeetingAutoStartCoordinator {
         // compile time. Keeps test runs and CI clean even if AppDelegate
         // forgot to gate.
         guard AppFeatures.meetingRecordingEnabled else { return }
+        // Calendar auto-start is independently gated. When the calendar flag
+        // is off we never poll, never request EventKit access, and never
+        // schedule countdown toasts — even if meeting recording is enabled.
+        guard AppFeatures.calendarEnabled else { return }
 
         scheduleCleanupTask()
         registerCalendarChangeObserver()

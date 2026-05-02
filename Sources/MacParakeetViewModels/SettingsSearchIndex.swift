@@ -87,10 +87,23 @@ public enum SettingsSearchIndex {
         "system.permissions.screen"
     ]
 
-    public static var entries: [SettingsSearchEntry] {
-        guard !AppFeatures.meetingRecordingEnabled else { return allEntries }
-        return allEntries.filter { !meetingGatedIds.contains($0.id) }
-    }
+    /// Ids gated on `AppFeatures.calendarEnabled` independently of meeting
+    /// recording. Filtered when calendar is hidden so search doesn't land
+    /// on the (currently invisible) calendar subsection.
+    private static let calendarGatedIds: Set<String> = [
+        "meeting.calendar"
+    ]
+
+    public static let entries: [SettingsSearchEntry] = {
+        var result = allEntries
+        if !AppFeatures.meetingRecordingEnabled {
+            result = result.filter { !meetingGatedIds.contains($0.id) }
+        }
+        if !AppFeatures.calendarEnabled {
+            result = result.filter { !calendarGatedIds.contains($0.id) }
+        }
+        return result
+    }()
 
     /// Full unfiltered catalog. Order matters: result lists are produced
     /// by `entries.filter(...)`, and tests assert that the filter is
@@ -165,8 +178,8 @@ public enum SettingsSearchIndex {
             id: "meeting",
             tab: .modes,
             title: "Meeting Recording",
-            subtitle: "System audio + microphone capture, calendar auto-start.",
-            keywords: ["meeting", "system audio", "screen recording", "calendar", "auto start", "core audio taps"],
+            subtitle: "Dedicated controls for meeting audio capture.",
+            keywords: ["meeting", "system audio", "screen recording", "meeting capture", "core audio taps"],
             cardAnchor: "meeting"
         ),
         SettingsSearchEntry(
@@ -174,7 +187,7 @@ public enum SettingsSearchIndex {
             tab: .modes,
             title: "Calendar",
             subtitle: "in Meeting Recording",
-            keywords: ["calendar", "auto start", "reminders", "events", "ics"],
+            keywords: ["calendar", "auto start", "auto-start", "reminders", "events", "ics"],
             cardAnchor: "meeting"
         ),
 

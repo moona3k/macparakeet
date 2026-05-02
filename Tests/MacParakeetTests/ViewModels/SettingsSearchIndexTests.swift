@@ -42,9 +42,22 @@ final class SettingsSearchIndexTests: XCTestCase {
     }
 
     func testSubtitleMatches() {
-        // "calendar auto-start" appears in the meeting card subtitle.
-        let results = SettingsSearchIndex.matches("auto-start")
+        let results = SettingsSearchIndex.matches("meeting audio")
         XCTAssertTrue(results.contains(where: { $0.id == "meeting" }))
+    }
+
+    func testCalendarQueriesHonorCalendarFeatureFlag() {
+        for query in ["calendar", "auto-start", "auto start", "reminders"] {
+            let results = SettingsSearchIndex.matches(query)
+            let ids = Set(results.map(\.id))
+
+            if AppFeatures.calendarEnabled {
+                XCTAssertTrue(ids.contains("meeting.calendar"), "Query \(query) should find the calendar row")
+            } else {
+                XCTAssertFalse(ids.contains("meeting"), "Query \(query) should not reveal the hidden meeting card")
+                XCTAssertFalse(ids.contains("meeting.calendar"), "Query \(query) should not reveal the hidden calendar row")
+            }
+        }
     }
 
     func testRowEntryHasBreadcrumbSubtitle() {
@@ -81,19 +94,25 @@ final class SettingsSearchIndexTests: XCTestCase {
     }
 
     func testMeetingEntriesGatedOnFeatureFlag() {
-        // The flag is a compile-time constant, so only one arm runs in
+        // The flags are compile-time constants, so only one arm runs in
         // any given build. Asserting both directions documents the
         // contract and forces a deliberate update if the gate semantics
         // change. Ids: card + sub-card + cross-tab permission row.
         let meetingGatedIds: Set<String> = ["meeting", "meeting.calendar", "system.permissions.screen"]
+        let calendarGatedIds: Set<String> = ["meeting.calendar"]
         let presentIds = Set(SettingsSearchIndex.entries.map(\.id))
         let intersection = presentIds.intersection(meetingGatedIds)
 
         if AppFeatures.meetingRecordingEnabled {
+            // Calendar entry drops out independently when calendarEnabled
+            // is off, even though meeting recording is on.
+            let expected = AppFeatures.calendarEnabled
+                ? meetingGatedIds
+                : meetingGatedIds.subtracting(calendarGatedIds)
             XCTAssertEqual(
                 intersection,
-                meetingGatedIds,
-                "All meeting-gated entries should be present when the flag is on"
+                expected,
+                "Meeting-gated entries should match the active flag combination"
             )
         } else {
             XCTAssertTrue(

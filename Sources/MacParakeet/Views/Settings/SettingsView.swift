@@ -643,12 +643,16 @@ struct SettingsView: View {
                     meetingAutoSaveOptionsView
                 }
 
-                Divider()
+                if AppFeatures.calendarEnabled {
+                    Divider()
 
-                // Calendar section folded in from the legacy standalone
-                // `calendarCard`. Calendar is meeting-only — folding it
-                // here removes a card without losing any controls.
-                meetingCalendarSection
+                    // Calendar section folded in from the legacy standalone
+                    // `calendarCard`. Calendar is meeting-only — folding it
+                    // here removes a card without losing any controls.
+                    // Hidden in v0.6 pending E2E validation; gate at the
+                    // section boundary so the divider also disappears.
+                    meetingCalendarSection
+                }
             }
         }
     }

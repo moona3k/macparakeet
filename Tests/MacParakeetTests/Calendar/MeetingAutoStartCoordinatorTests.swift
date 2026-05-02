@@ -116,7 +116,16 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         coordinator.stop()  // double-stop after initial
     }
 
-    func testSettingsChangeNotificationTriggersImmediateRePoll() async {
+    func testSettingsChangeNotificationTriggersImmediateRePoll() async throws {
+        // When `calendarEnabled` is gated off, `coordinator.start()` returns
+        // before registering the settings observer or scheduling polling, so
+        // the re-poll behavior under test cannot be exercised. Skip rather
+        // than assert false negatives.
+        try XCTSkipUnless(
+            AppFeatures.calendarEnabled,
+            "Calendar feature is gated off; coordinator.start() short-circuits"
+        )
+
         calendarService.stubPermissionStatus = .granted
         calendarService.stubEvents = [event(startsIn: 5 * 60)]
         seedSettings(mode: .notify, reminderMinutes: 5)

@@ -177,12 +177,16 @@ public final class OnboardingViewModel {
 
     /// Steps the user actually sees. Hidden steps (gated by `AppFeatures`) are
     /// filtered out so next/back/jump all walk the visible list — no flicker or
-    /// silent no-ops when flags are off.
+    /// silent no-ops when flags are off. Calendar requires BOTH meeting
+    /// recording and calendar to be enabled; gating the inner flag alone lets
+    /// us hide the (untested) calendar flow without dropping meeting recording.
     public static var visibleSteps: [Step] {
         Step.allCases.filter { step in
             switch step {
-            case .meetingRecording, .calendar:
+            case .meetingRecording:
                 return AppFeatures.meetingRecordingEnabled
+            case .calendar:
+                return AppFeatures.meetingRecordingEnabled && AppFeatures.calendarEnabled
             default:
                 return true
             }
