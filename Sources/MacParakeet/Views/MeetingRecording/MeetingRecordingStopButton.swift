@@ -18,7 +18,7 @@ struct StopRecordingButton: View {
                     confirming = false
                     onStop()
                 } label: {
-                    Text("Click to end")
+                    Text("End now")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(DesignSystem.Colors.errorRed)
                         .padding(.horizontal, 10)
@@ -77,7 +77,7 @@ struct StopRecordingButton: View {
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
             }
         }
-        .help(confirming ? "Click to confirm" : "End recording")
+        .help(confirming ? "End recording now" : "End recording")
         .onDisappear { revertTask?.cancel() }
     }
 
