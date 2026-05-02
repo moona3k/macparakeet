@@ -426,7 +426,7 @@ Floating panel opened from the meeting recording pill. Shows live notes, live tr
 │  Meeting Recording         01:23:45      │
 │  🎤 ██████████░░░░   🔊 ████████░░░░     │
 │  ──────────────────────────────────────  │
-│  [Notes · Nw] [Transcript · LIVE] [Ask]  │
+│  [Notes]   [Transcript]   [Ask · ●]      │
 │                                          │
 │  **Decision:** ship Friday               │
 │  /action QA smoke test                   │

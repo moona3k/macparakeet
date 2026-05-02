@@ -193,22 +193,39 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.notesViewModel.notesText, "")
     }
 
-    func testTranscriptTabHasNoBadgeInAnyState() {
+    func testNotesAndTranscriptTabsHaveNoBadgeInAnyState() {
         let viewModel = MeetingRecordingPanelViewModel()
 
-        // Recording state is already broadcast by the header (orb / "Recording" /
-        // elapsed timer / word count / Stop). The tab is intentionally plain so
-        // recording state isn't redundantly restated. ADR-020 §1 amendment 2026-05-02.
+        // ADR-020 §1 amendments (2026-05-02): all three tabs render as plain nouns.
+        // Notes was decoration (the writing surface itself shows the words; the
+        // soft-cap footer covers the only actionable word-count moment).
+        // Transcript was the 6th instance of recording state already broadcast
+        // by the panel header (orb / "Recording" / elapsed timer / transcript
+        // word count / Stop).
         let states: [MeetingRecordingPanelViewModel.PanelState] = [
             .hidden, .recording, .transcribing, .error("test")
         ]
         for state in states {
             viewModel.state = state
+
+            XCTAssertNil(
+                viewModel.badge(for: .notes),
+                "Notes tab should be plain in state \(state) — the pane itself surfaces the words"
+            )
             XCTAssertNil(
                 viewModel.badge(for: .transcript),
                 "Transcript tab should be plain in state \(state) — header carries the recording signal"
             )
         }
+
+        // Drive notes content > 0 to confirm the badge stays nil even when
+        // word count is non-zero (defends against accidentally re-introducing
+        // a notesBadge property that fires on user input).
+        viewModel.notesViewModel.notesBinding.wrappedValue = "hello world"
+        XCTAssertNil(
+            viewModel.badge(for: .notes),
+            "Notes tab stays plain even with content — word count is not surfaced on the tab strip"
+        )
     }
 
     func testAskTabHasNoStringBadgeAndExposesStreamingFlagInstead() {

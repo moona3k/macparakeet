@@ -202,32 +202,25 @@ public final class MeetingRecordingPanelViewModel {
 
     // MARK: - Tab badges (ADR-020 §1)
 
-    /// Live state hint for the Notes tab. `nil` while the editor is empty so
-    /// the tab reads as plain "Notes" until the user has actually written
-    /// something — avoids "Notes · 0w" noise in the empty state.
-    public var notesBadge: String? {
-        let count = notesViewModel.wordCount
-        guard count > 0 else { return nil }
-        return "\(count)w"
-    }
-
-    /// The Ask tab intentionally has no string badge. A message count is
-    /// decoration, not information — knowing "12 messages exist" doesn't help
-    /// a user who has Notes in the foreground decide whether to switch back.
-    /// `isAskStreaming` (below) is the actionable signal instead: a quiet
-    /// breathing dot only while an answer is forming.
+    /// All three tabs render as plain nouns. The badge taxonomy reduces to a
+    /// single rule: surface state the user can't see by switching tabs.
     ///
-    /// The Transcript tab is also intentionally plain. Recording state ("we're
-    /// live, audio is flowing") is already broadcast by the panel header — the
-    /// pulsing dual-audio orb, the `Recording` status string, the elapsed
-    /// timer, the live word count, and the Stop button. A tab badge would be
-    /// the 6th instance of the same signal. See ADR-020 §1 amendment
-    /// (2026-05-02).
+    /// - **Notes**: word count was decoration. The notes themselves are the
+    ///   canonical surface for "how much have I written?" — and the soft-cap
+    ///   warning has its own footer UI in `LiveNotesPaneView`.
+    /// - **Transcript**: recording state is already broadcast by the panel
+    ///   header (orb, "Recording", elapsed timer, transcript word count,
+    ///   Stop). A tab badge was the Nth instance of the same signal.
+    /// - **Ask**: a message count is decoration. The actionable state is
+    ///   "is an answer forming right now?" — covered by `isAskStreaming` and
+    ///   its breathing dot, which is rendered separately by the view layer
+    ///   (see `MeetingRecordingPanelView.tabLabel`).
+    ///
+    /// See ADR-020 §1 amendments (2026-05-02 and the Notes follow-on).
     public func badge(for tab: LivePanelTab) -> String? {
         switch tab {
-        case .notes: return notesBadge
-        case .transcript: return nil
-        case .ask: return nil
+        case .notes, .transcript, .ask:
+            return nil
         }
     }
 

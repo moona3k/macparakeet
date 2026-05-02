@@ -1,15 +1,19 @@
 # ADR-020: Live Meeting Notepad + Memo-Steered Summaries
 
 > Status: Implemented
-> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4) · Amended 2026-05-02 (Transcript-tab badge dropped)
+> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4) · Amended 2026-05-02 (Notes + Transcript tab badges dropped — all three tabs plain)
 > Related: ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-017 (calendar auto-start), ADR-018 (live meeting Ask tab), ADR-019 (crash-resilient meeting recording)
 > Naming Note (2026-04-28): The persisted table remains `summaries`, but the current Swift names are `PromptResult`, `PromptResultRepository`, and `PromptResultsViewModel`.
 
-## Amendment (2026-05-02, Transcript-tab badge dropped)
+## Amendment (2026-05-02, all three tab badges dropped)
 
-The Transcript tab no longer carries a `LIVE` badge. The recording-state signal is already broadcast five times in the panel header directly above the tab bar — the pulsing dual-audio orb, the `Recording` status string, the live elapsed timer, the live transcript word count, and the Stop button. A 6th instance on the tab was decoration, not information.
+In two passes the same day, we removed every text badge from the live-panel tab strip. The strip now reads `Notes   Transcript   Ask` plus a quiet breathing dot on Ask while `chatViewModel.isStreaming`. The `ViewThatFits`-based collapse machinery is unchanged — it just has fewer states to render.
 
-The state-bearing-tab-label intent of §1 stands, but is reframed: surface state the user *can't already see*. Notes still carries `Nw` (notes word count, unique to that tab). Ask still carries the streaming dot while `chatViewModel.isStreaming` (actionable: an answer is forming). Transcript reverts to the plain noun in every state. The `transcriptBadge` property and its `"LIVE"` literal were deleted from `MeetingRecordingPanelViewModel`. The `ViewThatFits`-based tab-label collapse machinery is unchanged — it just has fewer states to render.
+**Pass 1: Transcript dropped `LIVE`.** Recording state is already broadcast five times in the panel header directly above the tab bar — the pulsing dual-audio orb, the `Recording` status string, the live elapsed timer, the live transcript word count, and the Stop button. A 6th instance on the tab was decoration. `transcriptBadge` and its `"LIVE"` literal were deleted from `MeetingRecordingPanelViewModel`.
+
+**Pass 2: Notes dropped `Nw`.** Word count was decoration too. The notes themselves are the canonical surface for "how much have I written?" — and the soft-cap warning at 8,000 words has its own dedicated footer UI in `LiveNotesPaneView`. Writers' tooling lives inside the writing surface, not on the navigation strip. `notesBadge` was deleted from `MeetingRecordingPanelViewModel`. `MeetingNotesViewModel.wordCount` is still computed and used internally for `isApproachingSoftCap`.
+
+**Reframing of the §1 "state-bearing tab labels" intent.** The original framing assumed every tab should surface a richer-than-noun label. The corrected framing: surface state the user *can't already see by switching tabs*. Only Ask qualifies — its streaming state ("an answer is forming") is invisible while you're on Notes or Transcript. Everything else either repeats a louder header signal (Transcript) or is visible in the pane itself once you switch (Notes). The taxonomy is now: three plain nouns plus one ambient indicator on the one tab where ambient state matters.
 
 ## Amendment (2026-04-25, post-review)
 
@@ -62,7 +66,7 @@ What's missing: a place for the user to type during the meeting, a column to per
 ┌────────────────────────────────────────────────┐
 │ ● Recording 6:03                               │
 ├────────────────────────────────────────────────┤
-│  Notes · 24w   Transcript   Ask · ●            │
+│  Notes        Transcript        Ask · ●        │
 ├────────────────────────────────────────────────┤
 │                                                │
 │  [content for selected tab]                    │
@@ -74,7 +78,7 @@ Keyboard: ⌘1 → Notes, ⌘2 → Transcript, ⌘3 → Ask. The floating record
 
 The Notes default is the deliberate signal: this is the main event during a meeting. Transcript and Ask are the supporting cast.
 
-**Tab-label collapse at narrow panel widths.** The current panel has a 360px minimum width. State-bearing labels (`Notes · 24w`, `Ask · ●` while LLM-streaming) will not fit at the minimum. Transcript carries no badge per the 2026-05-02 amendment, so it always renders as the plain noun. Strategy: per-tab measurement at layout time. When the available cell width is below the measured label-with-badge width, the badge collapses into the tab's tooltip and the label renders as the plain noun (`Notes`, `Transcript`, `Ask`). Verified at 360px during Phase 2; the rich label is the goal at default panel widths (~440px+) where it consistently fits.
+**Tab-label collapse at narrow panel widths.** The current panel has a 360px minimum width. After the 2026-05-02 amendments, only Ask carries any extra glyph (the breathing dot while `chatViewModel.isStreaming`); Notes and Transcript always render as plain nouns. The `ViewThatFits` machinery still exists and gracefully collapses the Ask dot into the tab's tooltip if the cell ever gets too narrow to fit it. Verified at 360px during Phase 2; the rich label is the goal at default panel widths (~440px+) where it consistently fits.
 
 **Ask state is binary, not numeric.** The Ask tab originally exposed message count (`Ask · 12`). That was decoration: knowing twelve messages exist doesn't help a user reading Notes decide whether to switch back. The actionable state is "is an answer forming right now?" — so the Ask tab now shows a quiet breathing dot only while `chatViewModel.isStreaming` is true, and is otherwise just `Ask`. Strictly bound to streaming so the dot can't decay into a stale notification badge.
 
@@ -305,7 +309,7 @@ Reading scrolling text is passive. Watching an AI think back at you (Ask) is pas
 Folding the transcript into a one-line footer inside Notes (Char's pattern) was the leading alternative. Three reasons we kept tabs:
 
 - **Ask is fat-target.** ADR-018 just shipped; reviewers and users like the thinking-partner pills. Demoting Ask to a slash command (`/ask`) buries them and forces users to remember they exist.
-- **State-bearing tab labels** (`Notes · 24w`, `Ask · ●` while streaming; Transcript reverts to plain per the 2026-05-02 amendment because the panel header already broadcasts recording state) reduce the cost of three tabs by giving the user situational awareness from the tab bar. They don't need to switch as often.
+- **Ambient state on the Ask tab** (a quiet breathing dot while `chatViewModel.isStreaming`) reduces the cost of three tabs by letting a user reading Notes or Transcript see that their answer is forming without switching. After the 2026-05-02 amendments, Notes and Transcript are plain nouns — situational awareness for those two surfaces comes from the panes themselves and from the panel header, not from tab badges.
 - **The collapsible-footer pattern can still come later** as a polish refinement *inside* the Notes tab — a one-line "last sentence" strip at the bottom — without removing the Transcript tab. We can have both.
 
 ### Why not `/ask` in the slash menu

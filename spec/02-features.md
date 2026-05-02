@@ -1526,7 +1526,7 @@ Meeting transcription uses the current speech engine captured at recording start
 **Acceptance criteria:**
 - [x] `MeetingRecordingPanelView` defaults to the Notes tab when the panel opens
 - [x] ⌘1 / ⌘2 / ⌘3 navigate to Notes / Transcript / Ask respectively
-- [x] State-bearing tab labels (`Notes · Nw`, `Transcript · LIVE`, `Ask · N`) collapse to plain noun + tooltip at the 360px panel-width floor via `ViewThatFits`
+- [x] Tab labels render as plain nouns (`Notes`, `Transcript`, `Ask`); only the Ask tab carries an ambient indicator — a breathing dot while `chatViewModel.isStreaming`. `ViewThatFits` collapses the dot into the tooltip at the 360px panel-width floor (ADR-020 §1 amendments 2026-05-02)
 - [x] Notes auto-save serializes through `MeetingRecordingService.updateNotes(_:)` so all `recording.lock` writes share one writer
 - [x] Notes round-trip through crash recovery via lock-file `notes` (additive, decoded with `decodeIfPresent`, decoded independently so a malformed notes value doesn't block audio recovery)
 - [x] Soft-cap warning footer at 7,500 words; notes themselves are never truncated (cap applies only at prompt-assembly time)

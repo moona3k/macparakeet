@@ -203,7 +203,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Live meeting notepad (ADR-020): Notes/Transcript/Ask three-tab layout with Notes default (⌘1/⌘2/⌘3), debounced auto-save through `MeetingRecordingService.updateNotes`, lock-file extension carries notes through crash recovery, soft-cap warning at 7,500 words
 - [x] Memo-steered summaries (ADR-020): `{{userNotes}}` + `{{transcript}}` template variables via `PromptTemplateRenderer` (single-pass, simultaneous), new "Memo-Steered Notes" built-in prompt seeded auto-run with the existing-auto-run guard, `userNotesSnapshot` captured on the `PromptResult` row at generation time
 - [x] Slash commands in Notes pane (ADR-020): `/action`, `/decision`, `/now` with in-view ZStack overlay (NSPanel-safe — never SwiftUI `.popover`), arrow-key + Return + Esc nav via `.onKeyPress`
-- [x] State-bearing tab labels (ADR-020): `Notes · Nw`, `Transcript · LIVE`, `Ask · N` with `ViewThatFits` collapse to plain noun + tooltip at the 360px floor
+- [x] Plain-noun tab strip with one ambient indicator (ADR-020 §1, amended 2026-05-02): `Notes`, `Transcript`, `Ask` plus a breathing dot on Ask while `chatViewModel.isStreaming`; `ViewThatFits` collapses the dot into the tooltip at the 360px floor
 - [x] Rich pre-meeting countdown toast for calendar starts (ADR-020): attendees + service icon row + steering hint pointing the user at the Notes tab. Manual-trigger toasts unchanged
 - [x] STT failure copy refinement (ADR-020): "Recording Error" → "Meeting interrupted" + Library-recovery hint wrapper around the technical detail
 
