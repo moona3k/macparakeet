@@ -301,7 +301,10 @@ events remain useful for diarization-specific timing and failure analysis.
 | `model_loaded` | `load_time_seconds` | How long does model warmup take on different chips? |
 | `model_download_started` | — | First-run model setup funnel |
 | `model_download_completed` | `duration_seconds` | How long do model downloads take? |
+| `model_download_cancelled` | `model_kind`, `speech_engine`, `duration_seconds` | Are model setup/downloads being interrupted? |
 | `model_download_failed` | `error_type` | Are downloads failing? |
+| `model_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `action`, `outcome`, `stage`, `model_kind`, `speech_engine`, `engine_variant`, `duration_seconds`, `error_type` | Canonical model lifecycle event for downloads, warm-up, repairs, and cache clears |
+| `speech_engine_switch_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `from_engine`, `to_engine`, `outcome`, `duration_seconds`, `blocked_reason`, `error_type` | Why engine switches succeed, fail, cancel, or get blocked |
 
 ### 8. Permissions — "Is onboarding smooth?"
 
@@ -562,7 +565,7 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 | 4 | Missing `permission_prompted` / `permission_granted` — can't compute denial rate without denominator | Added both events to new "Permissions" category. |
 | 5 | Missing `dictation_failed` — core feature failures are a blind spot | Added to Dictation events with `error_type` prop. |
 | 6 | Missing `transcription_cancelled` — long jobs get abandoned | Added with `source` and `audio_duration_seconds` props. |
-| 7 | Missing `model_download_cancelled` — onboarding funnel gap | Accepted as a useful event, but not implemented in the current Swift enum as of the 2026-05-02 review. Keep as follow-up or remove the Worker allowlist entry. |
+| 7 | Missing `model_download_cancelled` — onboarding funnel gap | Implemented in Swift with safe model/engine dimensions and paired `model_operation` lifecycle events. |
 | 8 | Missing LLM failure telemetry — need provider-level failure rates | Added `llm_prompt_result_failed`, `llm_chat_failed`, and formatter failure events with provider + error props. |
 | 9 | Cut `dictation_private` — sensitive signal, user explicitly wanted privacy | Removed. |
 | 10 | Cut `hotkey_changed.key` value — track boolean, not which key | Changed to `hotkey_customized` with no props. |

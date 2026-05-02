@@ -173,8 +173,12 @@ public actor STTRuntime: STTRuntimeProtocol {
         onProgress?("Loading model into memory...")
 
         let start = ContinuousClock.now
+        let operationContext = Observability.childOperationContext()
+        let activeSpeechEngine = speechEngine
+        let modelKind = telemetryModelKind(for: activeSpeechEngine)
+        let engineVariant = telemetryEngineVariant(for: activeSpeechEngine)
         do {
-            switch speechEngine {
+            switch activeSpeechEngine {
             case .parakeet:
                 try await ensureInitialized()
             case .whisper:
@@ -185,9 +189,54 @@ public actor STTRuntime: STTRuntimeProtocol {
             let elapsed = start.duration(to: .now)
             let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
             Telemetry.send(.modelLoaded(loadTimeSeconds: seconds))
+            Telemetry.send(.modelOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                action: .warmUp,
+                outcome: .success,
+                stage: .warmUp,
+                modelKind: modelKind,
+                speechEngine: activeSpeechEngine,
+                engineVariant: engineVariant,
+                durationSeconds: seconds,
+                errorType: nil
+            ))
             onProgress?("Ready")
+        } catch is CancellationError {
+            let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+            Telemetry.send(.modelDownloadCancelled(
+                modelKind: modelKind,
+                speechEngine: activeSpeechEngine,
+                durationSeconds: durationSeconds
+            ))
+            Telemetry.send(.modelOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                action: .warmUp,
+                outcome: .cancelled,
+                stage: .warmUp,
+                modelKind: modelKind,
+                speechEngine: activeSpeechEngine,
+                engineVariant: engineVariant,
+                durationSeconds: durationSeconds,
+                errorType: "CancellationError"
+            ))
+            throw CancellationError()
         } catch {
-            throw try Self.mapWarmUpError(error)
+            let mapped = try Self.mapWarmUpError(error)
+            Telemetry.send(.modelOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                action: .warmUp,
+                outcome: .failure,
+                stage: .warmUp,
+                modelKind: modelKind,
+                speechEngine: activeSpeechEngine,
+                engineVariant: engineVariant,
+                durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                errorType: TelemetryErrorClassifier.classify(mapped)
+            ))
+            throw mapped
         }
     }
 
@@ -272,10 +321,25 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public func clearModelCache() async {
+        let operationContext = Observability.childOperationContext()
+        let activeSpeechEngine = speechEngine
+        let engineVariant = telemetryEngineVariant(for: activeSpeechEngine)
         await shutdown()
         DownloadUtils.clearAllModelCaches()
         try? FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)
         setBackgroundWarmUpState(.idle)
+        Telemetry.send(.modelOperation(
+            operationID: operationContext.operationID,
+            operationContext: operationContext,
+            action: .clearCache,
+            outcome: .success,
+            stage: .clearCache,
+            modelKind: .localSpeechStack,
+            speechEngine: activeSpeechEngine,
+            engineVariant: engineVariant,
+            durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+            errorType: nil
+        ))
     }
 
     public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
@@ -548,6 +612,24 @@ public actor STTRuntime: STTRuntimeProtocol {
             .interactive
         case .meetingFinalize, .meetingLiveChunk, .fileTranscription:
             .background
+        }
+    }
+
+    private func telemetryModelKind(for engine: SpeechEnginePreference) -> TelemetryModelKind {
+        switch engine {
+        case .parakeet:
+            .parakeetSTT
+        case .whisper:
+            .whisperSTT
+        }
+    }
+
+    private func telemetryEngineVariant(for engine: SpeechEnginePreference) -> String? {
+        switch engine {
+        case .parakeet:
+            nil
+        case .whisper:
+            whisperModelVariant
         }
     }
 

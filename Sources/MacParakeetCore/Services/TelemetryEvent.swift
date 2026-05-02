@@ -68,7 +68,10 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case modelLoaded = "model_loaded"
     case modelDownloadStarted = "model_download_started"
     case modelDownloadCompleted = "model_download_completed"
+    case modelDownloadCancelled = "model_download_cancelled"
     case modelDownloadFailed = "model_download_failed"
+    case modelOperation = "model_operation"
+    case speechEngineSwitchOperation = "speech_engine_switch_operation"
     // Meeting recording
     case meetingRecordingStarted = "meeting_recording_started"
     case meetingRecordingCompleted = "meeting_recording_completed"
@@ -129,6 +132,33 @@ public enum TelemetryTranscriptionStage: String, Sendable, Equatable {
     case diarization
     case postProcessing = "post_processing"
     case persistence
+}
+
+public enum TelemetryModelKind: String, Sendable, Equatable {
+    case parakeetSTT = "parakeet_stt"
+    case whisperSTT = "whisper_stt"
+    case speakerDiarization = "speaker_diarization"
+    case localSpeechStack = "local_speech_stack"
+}
+
+public enum TelemetryModelOperationAction: String, Sendable, Equatable {
+    case download
+    case warmUp = "warm_up"
+    case repair
+    case clearCache = "clear_cache"
+}
+
+public enum TelemetryModelOperationStage: String, Sendable, Equatable {
+    case preflight
+    case download
+    case load
+    case warmUp = "warm_up"
+    case clearCache = "clear_cache"
+}
+
+public enum TelemetrySpeechEngineSwitchBlockedReason: String, Sendable, Equatable {
+    case modelNotDownloaded = "model_not_downloaded"
+    case engineBusy = "engine_busy"
 }
 
 public enum TelemetryCopySource: String, Sendable, Equatable {
@@ -334,7 +364,34 @@ public enum TelemetryEventSpec: Sendable {
     case modelLoaded(loadTimeSeconds: Double)
     case modelDownloadStarted
     case modelDownloadCompleted(durationSeconds: Double)
+    case modelDownloadCancelled(
+        modelKind: TelemetryModelKind?,
+        speechEngine: SpeechEnginePreference?,
+        durationSeconds: Double?
+    )
     case modelDownloadFailed(errorType: String, errorDetail: String? = nil)
+    case modelOperation(
+        operationID: String,
+        operationContext: ObservabilityOperationContext? = nil,
+        action: TelemetryModelOperationAction,
+        outcome: ObservabilityOutcome,
+        stage: TelemetryModelOperationStage?,
+        modelKind: TelemetryModelKind?,
+        speechEngine: SpeechEnginePreference?,
+        engineVariant: String? = nil,
+        durationSeconds: Double,
+        errorType: String?
+    )
+    case speechEngineSwitchOperation(
+        operationID: String,
+        operationContext: ObservabilityOperationContext? = nil,
+        fromEngine: SpeechEnginePreference,
+        toEngine: SpeechEnginePreference,
+        outcome: ObservabilityOutcome,
+        durationSeconds: Double,
+        blockedReason: TelemetrySpeechEngineSwitchBlockedReason?,
+        errorType: String?
+    )
     // Lifecycle actions
     case feedbackSubmitted(category: String)
     case feedbackOperation(
@@ -502,7 +559,10 @@ extension TelemetryEventSpec {
         case .modelLoaded: return .modelLoaded
         case .modelDownloadStarted: return .modelDownloadStarted
         case .modelDownloadCompleted: return .modelDownloadCompleted
+        case .modelDownloadCancelled: return .modelDownloadCancelled
         case .modelDownloadFailed: return .modelDownloadFailed
+        case .modelOperation: return .modelOperation
+        case .speechEngineSwitchOperation: return .speechEngineSwitchOperation
         case .feedbackSubmitted: return .feedbackSubmitted
         case .feedbackOperation: return .feedbackOperation
         case .transcriptionDeleted: return .transcriptionDeleted
@@ -819,10 +879,62 @@ extension TelemetryEventSpec {
             return nil
         case .modelDownloadCompleted(let durationSeconds):
             return ["duration_seconds": Self.format(durationSeconds)]
+        case .modelDownloadCancelled(let modelKind, let speechEngine, let durationSeconds):
+            return Self.compactProps(
+                ("model_kind", modelKind?.rawValue),
+                ("speech_engine", speechEngine?.rawValue),
+                ("duration_seconds", durationSeconds.map(Self.format))
+            )
         case .modelDownloadFailed(let errorType, let errorDetail):
             var props = ["error_type": errorType]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
+        case .modelOperation(
+            let operationID,
+            let operationContext,
+            let action,
+            let outcome,
+            let stage,
+            let modelKind,
+            let speechEngine,
+            let engineVariant,
+            let durationSeconds,
+            let errorType
+        ):
+            return Self.compactProps(
+                ("operation_id", operationID),
+                ("workflow_id", operationContext?.workflowID),
+                ("parent_operation_id", operationContext?.parentOperationID),
+                ("action", action.rawValue),
+                ("outcome", outcome.rawValue),
+                ("stage", stage?.rawValue),
+                ("model_kind", modelKind?.rawValue),
+                ("speech_engine", speechEngine?.rawValue),
+                ("engine_variant", Self.safeEngineVariant(engineVariant)),
+                ("duration_seconds", Self.format(durationSeconds)),
+                ("error_type", errorType)
+            )
+        case .speechEngineSwitchOperation(
+            let operationID,
+            let operationContext,
+            let fromEngine,
+            let toEngine,
+            let outcome,
+            let durationSeconds,
+            let blockedReason,
+            let errorType
+        ):
+            return Self.compactProps(
+                ("operation_id", operationID),
+                ("workflow_id", operationContext?.workflowID),
+                ("parent_operation_id", operationContext?.parentOperationID),
+                ("from_engine", fromEngine.rawValue),
+                ("to_engine", toEngine.rawValue),
+                ("outcome", outcome.rawValue),
+                ("duration_seconds", Self.format(durationSeconds)),
+                ("blocked_reason", blockedReason?.rawValue),
+                ("error_type", errorType)
+            )
         case .feedbackSubmitted(let category):
             return ["category": category]
         case .feedbackOperation(
@@ -1119,7 +1231,10 @@ public enum TelemetryImplementedContract {
         .modelLoaded: ["load_time_seconds"],
         .modelDownloadStarted: [],
         .modelDownloadCompleted: ["duration_seconds"],
+        .modelDownloadCancelled: [],
         .modelDownloadFailed: ["error_type"],
+        .modelOperation: ["operation_id", "action", "outcome", "duration_seconds"],
+        .speechEngineSwitchOperation: ["operation_id", "from_engine", "to_engine", "outcome", "duration_seconds"],
         .feedbackSubmitted: ["category"],
         .feedbackOperation: ["operation_id", "category", "outcome", "duration_seconds", "screenshot_attached", "system_info_included"],
         .transcriptionDeleted: [],

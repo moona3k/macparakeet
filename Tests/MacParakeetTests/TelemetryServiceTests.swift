@@ -537,6 +537,86 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["engine_variant"], "custom")
     }
 
+    func testModelOperationSerializesSafeLifecycleDimensions() throws {
+        let context = ObservabilityOperationContext(
+            operationID: "model-op",
+            workflowID: "workflow-1",
+            parentOperationID: "parent-1"
+        )
+        let event = TelemetryEvent(
+            spec: .modelOperation(
+                operationID: context.operationID,
+                operationContext: context,
+                action: .download,
+                outcome: .success,
+                stage: .download,
+                modelKind: .whisperSTT,
+                speechEngine: .whisper,
+                engineVariant: "/Users/alice/private-whisper-model",
+                durationSeconds: 42.4,
+                errorType: nil
+            ),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(json["event"] as? String, "model_operation")
+        XCTAssertEqual(props["operation_id"], "model-op")
+        XCTAssertEqual(props["workflow_id"], "workflow-1")
+        XCTAssertEqual(props["parent_operation_id"], "parent-1")
+        XCTAssertEqual(props["action"], "download")
+        XCTAssertEqual(props["outcome"], "success")
+        XCTAssertEqual(props["stage"], "download")
+        XCTAssertEqual(props["model_kind"], "whisper_stt")
+        XCTAssertEqual(props["speech_engine"], "whisper")
+        XCTAssertEqual(props["engine_variant"], "custom")
+        XCTAssertEqual(props["duration_seconds"], "42.4")
+        XCTAssertNil(props["model_path"])
+    }
+
+    func testSpeechEngineSwitchOperationSerializesBlockedReason() throws {
+        let event = TelemetryEvent(
+            spec: .speechEngineSwitchOperation(
+                operationID: "switch-op",
+                fromEngine: .parakeet,
+                toEngine: .whisper,
+                outcome: .unavailable,
+                durationSeconds: 0.1,
+                blockedReason: .modelNotDownloaded,
+                errorType: "model_not_downloaded"
+            ),
+            appVer: "0.4.2",
+            osVer: "15.3",
+            locale: "en-US",
+            chip: "Apple M1",
+            session: "test-session"
+        )
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let props = try XCTUnwrap(json["props"] as? [String: String])
+
+        XCTAssertEqual(json["event"] as? String, "speech_engine_switch_operation")
+        XCTAssertEqual(props["operation_id"], "switch-op")
+        XCTAssertEqual(props["from_engine"], "parakeet")
+        XCTAssertEqual(props["to_engine"], "whisper")
+        XCTAssertEqual(props["outcome"], "unavailable")
+        XCTAssertEqual(props["duration_seconds"], "0.1")
+        XCTAssertEqual(props["blocked_reason"], "model_not_downloaded")
+        XCTAssertEqual(props["error_type"], "model_not_downloaded")
+    }
+
     func testOperationContextSerializesWorkflowParentAndStage() throws {
         let context = ObservabilityOperationContext(
             operationID: "op-meeting",
@@ -849,7 +929,27 @@ final class TelemetryServiceTests: XCTestCase {
             .modelLoaded(loadTimeSeconds: 2.5),
             .modelDownloadStarted,
             .modelDownloadCompleted(durationSeconds: 30.0),
+            .modelDownloadCancelled(modelKind: .whisperSTT, speechEngine: .whisper, durationSeconds: 3.0),
             .modelDownloadFailed(errorType: "network"),
+            .modelOperation(
+                operationID: "op-model",
+                action: .warmUp,
+                outcome: .success,
+                stage: .warmUp,
+                modelKind: .parakeetSTT,
+                speechEngine: .parakeet,
+                durationSeconds: 2.5,
+                errorType: nil
+            ),
+            .speechEngineSwitchOperation(
+                operationID: "op-switch",
+                fromEngine: .parakeet,
+                toEngine: .whisper,
+                outcome: .success,
+                durationSeconds: 1.1,
+                blockedReason: nil,
+                errorType: nil
+            ),
             .feedbackOperation(
                 operationID: "op-feedback",
                 category: "bug",
