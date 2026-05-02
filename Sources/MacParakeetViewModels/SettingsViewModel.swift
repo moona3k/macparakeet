@@ -1039,11 +1039,6 @@ public final class SettingsViewModel {
                 }
             } catch is CancellationError {
                 let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
-                Telemetry.send(.modelDownloadCancelled(
-                    modelKind: .whisperSTT,
-                    speechEngine: .whisper,
-                    durationSeconds: durationSeconds
-                ))
                 Telemetry.send(.modelOperation(
                     operationID: operationContext.operationID,
                     operationContext: operationContext,

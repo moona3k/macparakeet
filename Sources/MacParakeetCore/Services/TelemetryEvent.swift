@@ -68,7 +68,6 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case modelLoaded = "model_loaded"
     case modelDownloadStarted = "model_download_started"
     case modelDownloadCompleted = "model_download_completed"
-    case modelDownloadCancelled = "model_download_cancelled"
     case modelDownloadFailed = "model_download_failed"
     case modelOperation = "model_operation"
     case speechEngineSwitchOperation = "speech_engine_switch_operation"
@@ -364,11 +363,6 @@ public enum TelemetryEventSpec: Sendable {
     case modelLoaded(loadTimeSeconds: Double)
     case modelDownloadStarted
     case modelDownloadCompleted(durationSeconds: Double)
-    case modelDownloadCancelled(
-        modelKind: TelemetryModelKind?,
-        speechEngine: SpeechEnginePreference?,
-        durationSeconds: Double?
-    )
     case modelDownloadFailed(errorType: String, errorDetail: String? = nil)
     case modelOperation(
         operationID: String,
@@ -559,7 +553,6 @@ extension TelemetryEventSpec {
         case .modelLoaded: return .modelLoaded
         case .modelDownloadStarted: return .modelDownloadStarted
         case .modelDownloadCompleted: return .modelDownloadCompleted
-        case .modelDownloadCancelled: return .modelDownloadCancelled
         case .modelDownloadFailed: return .modelDownloadFailed
         case .modelOperation: return .modelOperation
         case .speechEngineSwitchOperation: return .speechEngineSwitchOperation
@@ -879,12 +872,6 @@ extension TelemetryEventSpec {
             return nil
         case .modelDownloadCompleted(let durationSeconds):
             return ["duration_seconds": Self.format(durationSeconds)]
-        case .modelDownloadCancelled(let modelKind, let speechEngine, let durationSeconds):
-            return Self.compactProps(
-                ("model_kind", modelKind?.rawValue),
-                ("speech_engine", speechEngine?.rawValue),
-                ("duration_seconds", durationSeconds.map(Self.format))
-            )
         case .modelDownloadFailed(let errorType, let errorDetail):
             var props = ["error_type": errorType]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
@@ -1231,7 +1218,6 @@ public enum TelemetryImplementedContract {
         .modelLoaded: ["load_time_seconds"],
         .modelDownloadStarted: [],
         .modelDownloadCompleted: ["duration_seconds"],
-        .modelDownloadCancelled: [],
         .modelDownloadFailed: ["error_type"],
         .modelOperation: ["operation_id", "action", "outcome", "duration_seconds"],
         .speechEngineSwitchOperation: ["operation_id", "from_engine", "to_engine", "outcome", "duration_seconds"],

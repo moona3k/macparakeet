@@ -56,14 +56,15 @@ correlation mechanism.
    automatic deletion in production.
 
 3. **Worker allowlist is a superset of app events.** It includes legacy/planned
-   names such as `app_updated`, `paywall_viewed`, `model_download_cancelled`,
-   `llm_summary_*`, and Live Ask prompt events. A superset is acceptable, but a
-   release check should verify every Swift `TelemetryEventName` is accepted and
-   docs match emitted events.
+   names such as `app_updated`, `paywall_viewed`, `llm_summary_*`, and Live Ask
+   prompt events. A superset is acceptable, but a release check should verify
+   every Swift `TelemetryEventName` is accepted and docs match emitted events.
 
-4. **`model_download_cancelled` is documented as accepted but not implemented
-   in the Swift enum.** Either implement it or remove the Worker allowlist/doc
-   references.
+4. **Model cancellation should be analyzed through `model_operation`.** The
+   earlier `model_download_cancelled` candidate duplicated the richer canonical
+   lifecycle event and was too broad for warm-up cancellation. The app and docs
+   now use `model_operation(outcome=cancelled)` for download/warm-up
+   interruption analysis.
 
 5. **Local logging conventions need continued tightening.** Many logs already
    use event-style `key=value` messages, but subsystems and privacy annotations

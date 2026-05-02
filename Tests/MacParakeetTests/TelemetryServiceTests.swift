@@ -929,7 +929,6 @@ final class TelemetryServiceTests: XCTestCase {
             .modelLoaded(loadTimeSeconds: 2.5),
             .modelDownloadStarted,
             .modelDownloadCompleted(durationSeconds: 30.0),
-            .modelDownloadCancelled(modelKind: .whisperSTT, speechEngine: .whisper, durationSeconds: 3.0),
             .modelDownloadFailed(errorType: "network"),
             .modelOperation(
                 operationID: "op-model",

@@ -294,7 +294,7 @@ The entire YouTube download pipeline (`YouTubeDownloader`) produces zero log ent
 | Event | Status |
 |-------|--------|
 | `app_updated` | Defined in spec, never fired — can't track update adoption |
-| `model_download_cancelled` | Defined in spec, never fired — onboarding funnel gap |
+| model lifecycle cancellation visibility | No emitted signal — onboarding/model setup interruption gap |
 | `model_loaded` | In enum, never fired — can't benchmark warm-up per chip |
 | `permission_denied(.accessibility)` | Only microphone fires — accessibility funnel incomplete |
 | `NSWorkspace.willSleep` flush | Spec requires it, not registered — events lost on lid close |

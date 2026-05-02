@@ -204,11 +204,6 @@ public actor STTRuntime: STTRuntimeProtocol {
             onProgress?("Ready")
         } catch is CancellationError {
             let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
-            Telemetry.send(.modelDownloadCancelled(
-                modelKind: modelKind,
-                speechEngine: activeSpeechEngine,
-                durationSeconds: durationSeconds
-            ))
             Telemetry.send(.modelOperation(
                 operationID: operationContext.operationID,
                 operationContext: operationContext,
