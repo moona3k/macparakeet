@@ -106,7 +106,7 @@ struct TranscriptResultView: View {
     @State private var showPromptLibrary = false
     @State private var showGeneratePopover = false
     @State private var retranscriptionConfirmation: RetranscriptionConfirmation?
-    @State private var showingEngineComparisonPopover = false
+    @State private var showingRetranscribeOptions = false
     @State private var showingCancelGenerationAlert: UUID?
     @FocusState private var chatInputFocused: Bool
     @FocusState private var meetingTitleFocused: Bool
@@ -424,38 +424,30 @@ struct TranscriptResultView: View {
 
             if onRetranscribe != nil, let filePath = transcription.filePath,
                FileManager.default.fileExists(atPath: filePath) {
+                let engineOption = viewModel.retranscriptionEngineOption(for: transcription)
                 Button {
-                    retranscriptionConfirmation = RetranscriptionConfirmation(speechEngineOverride: nil)
+                    if engineOption != nil {
+                        showingRetranscribeOptions.toggle()
+                    } else {
+                        retranscriptionConfirmation = RetranscriptionConfirmation(speechEngineOverride: nil)
+                    }
                 } label: {
-                    Label("Retranscribe", systemImage: "arrow.trianglehead.2.clockwise")
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.trianglehead.2.clockwise")
+                        Text("Retranscribe")
+                        if engineOption != nil {
+                            Image(systemName: "chevron.down")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 1)
+                        }
+                    }
                 }
                 .buttonStyle(.bordered)
-
-                if let option = viewModel.retranscriptionEngineOption(for: transcription) {
-                    HStack(spacing: 4) {
-                        Button {
-                            retranscriptionConfirmation = RetranscriptionConfirmation(
-                                speechEngineOverride: option.alternativeEngine
-                            )
-                        } label: {
-                            Label(option.title, systemImage: "arrow.triangle.2.circlepath")
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(!option.isAlternativeAvailable)
-                        .help(engineComparisonHelp(for: option))
-
-                        Button {
-                            showingEngineComparisonPopover.toggle()
-                        } label: {
-                            Image(systemName: "info.circle")
-                                .accessibilityLabel("Compare speech engines")
-                        }
-                        .buttonStyle(.borderless)
-                        .frame(width: 28, height: 28)
-                        .help("Compare Parakeet and Whisper")
-                        .popover(isPresented: $showingEngineComparisonPopover, arrowEdge: .top) {
-                            engineComparisonPopover(for: option)
-                        }
+                .help(engineOption != nil ? "Choose a speech engine for this rerun" : "Retranscribe this file")
+                .popover(isPresented: $showingRetranscribeOptions, arrowEdge: .top) {
+                    if let engineOption {
+                        retranscribeOptionsPopover(for: engineOption)
                     }
                 }
             }
@@ -501,73 +493,61 @@ struct TranscriptResultView: View {
         )
     }
 
-    private func engineComparisonPopover(
+    private func retranscribeOptionsPopover(
         for option: TranscriptionViewModel.RetranscriptionEngineOption
     ) -> some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            Text("Engine tradeoffs")
-                .font(DesignSystem.Typography.caption.weight(.semibold))
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Retranscribe with")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Text("Pick a speech engine for this rerun. Settings stay unchanged.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
 
-            Grid(alignment: .leading, horizontalSpacing: DesignSystem.Spacing.md, verticalSpacing: 6) {
-                GridRow {
-                    engineComparisonHeader("Engine")
-                    engineComparisonHeader("Best for")
-                    engineComparisonHeader("Language coverage")
+            VStack(spacing: DesignSystem.Spacing.xs + 2) {
+                EngineOptionCard(
+                    selection: option.primaryEngine,
+                    isPrimary: true,
+                    isAvailable: true,
+                    unavailableReason: nil
+                ) {
+                    selectRetranscribeEngine(option.primaryEngine, in: option)
                 }
-                GridRow {
-                    engineComparisonCell("Parakeet")
-                    engineComparisonCell("Fast reruns")
-                    engineComparisonCell("25 European languages, including English")
-                }
-                GridRow {
-                    engineComparisonCell("Whisper")
-                    engineComparisonCell("Broader language retry")
-                    engineComparisonCell("Korean, Chinese, Japanese, and more")
+
+                EngineOptionCard(
+                    selection: option.alternativeEngine,
+                    isPrimary: false,
+                    isAvailable: option.isAlternativeAvailable,
+                    unavailableReason: option.unavailableReason
+                ) {
+                    selectRetranscribeEngine(option.alternativeEngine, in: option)
                 }
             }
 
-            Text("Trying another engine affects only this rerun.")
+            Text("Affects only this rerun. Existing prompt results and chats are preserved.")
                 .font(DesignSystem.Typography.caption)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-            if option.alternativeEngine.engine == .whisper {
-                Text("Whisper language: \(option.alternativeEngine.language ?? "auto-detect").")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-            }
-
-            if let unavailableReason = option.unavailableReason {
-                Text(unavailableReason)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-            }
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(DesignSystem.Spacing.md)
-        .frame(width: 430)
+        .frame(width: 360)
     }
 
-    private func engineComparisonHeader(_ text: String) -> some View {
-        Text(text)
-            .font(DesignSystem.Typography.caption.weight(.semibold))
-            .foregroundStyle(DesignSystem.Colors.textSecondary)
-    }
-
-    private func engineComparisonCell(_ text: String) -> some View {
-        Text(text)
-            .font(DesignSystem.Typography.caption)
-            .foregroundStyle(DesignSystem.Colors.textPrimary)
-            .fixedSize(horizontal: false, vertical: true)
-    }
-
-    private func engineComparisonHelp(
-        for option: TranscriptionViewModel.RetranscriptionEngineOption
-    ) -> String {
-        let unavailable = option.unavailableReason.map { "\n\n\($0)" } ?? ""
-        return """
-        Parakeet: faster local reruns; 25 European languages, including English.
-        Whisper: slower, broader multilingual coverage for Korean, Chinese, Japanese, and more.
-        This changes only this rerun.\(unavailable)
-        """
+    private func selectRetranscribeEngine(
+        _ selection: SpeechEngineSelection,
+        in option: TranscriptionViewModel.RetranscriptionEngineOption
+    ) {
+        showingRetranscribeOptions = false
+        let override: SpeechEngineSelection? = (selection == option.primaryEngine) ? nil : selection
+        // Defer one runloop tick so the popover dismissal animation doesn't race
+        // the alert presentation — SwiftUI gets confused if both transition in
+        // the same tick and the alert can fail to appear.
+        DispatchQueue.main.async {
+            retranscriptionConfirmation = RetranscriptionConfirmation(speechEngineOverride: override)
+        }
     }
 
     private var activeTranscription: Transcription {
@@ -586,6 +566,12 @@ struct TranscriptResultView: View {
     }
 
     private var hasEditedTranscript: Bool {
+        guard activeTranscription.isTranscriptEdited else { return false }
+        guard let clean = activeTranscription.cleanTranscript else { return false }
+        return !clean.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var hasCleanTranscriptText: Bool {
         guard let clean = activeTranscription.cleanTranscript else { return false }
         return !clean.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
@@ -1042,7 +1028,7 @@ struct TranscriptResultView: View {
 
             Spacer()
 
-            if !editingTranscript, hasEditedTranscript, hasTimestamps {
+            if !editingTranscript, hasCleanTranscriptText, hasTimestamps {
                 Picker("Transcript view", selection: $transcriptDisplayMode) {
                     ForEach(TranscriptDisplayMode.allCases, id: \.self) { mode in
                         Text(mode.rawValue).tag(mode)
@@ -2317,7 +2303,7 @@ struct TranscriptResultView: View {
     }
 
     private func syncTranscriptDisplayMode() {
-        transcriptDisplayMode = hasEditedTranscript ? .text : .timed
+        transcriptDisplayMode = hasCleanTranscriptText ? .text : .timed
     }
 
     private func beginTranscriptEdit() {
@@ -2641,5 +2627,171 @@ struct TranscriptResultView: View {
         let minutes = totalSeconds / 60
         let seconds = totalSeconds % 60
         return String(format: "%02d:%02d", minutes, seconds)
+    }
+}
+
+private struct EngineOptionCard: View {
+    let selection: SpeechEngineSelection
+    let isPrimary: Bool
+    let isAvailable: Bool
+    let unavailableReason: String?
+    let onSelect: () -> Void
+
+    @State private var hovering = false
+
+    private var iconName: String {
+        switch selection.engine {
+        case .parakeet: "bolt.fill"
+        case .whisper: "globe"
+        }
+    }
+
+    private var subtitle: String {
+        switch selection.engine {
+        case .parakeet:
+            "Fast • 25 European languages, including English"
+        case .whisper:
+            "Broader languages • Korean, Chinese, Japanese, and more"
+        }
+    }
+
+    private var languageDetail: String? {
+        guard selection.engine == .whisper else { return nil }
+        let language = selection.language ?? "auto-detect"
+        return "Language: \(language)"
+    }
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+                Image(systemName: iconName)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(iconColor)
+                    .frame(width: 22, height: 22)
+                    .padding(.top, 1)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        Text(selection.engine.displayName)
+                            .font(DesignSystem.Typography.body.weight(.semibold))
+                            .foregroundStyle(titleColor)
+                        if isPrimary {
+                            EngineBadge(text: "Current", tint: DesignSystem.Colors.accent)
+                        } else if !isAvailable {
+                            EngineBadge(text: "Unavailable", tint: DesignSystem.Colors.warningAmber)
+                        }
+                    }
+
+                    Text(subtitle)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    if let languageDetail {
+                        Text(languageDetail)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    }
+
+                    if let unavailableReason, !isAvailable {
+                        Text(unavailableReason)
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.warningAmber)
+                            .multilineTextAlignment(.leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 1)
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                Image(systemName: "arrow.forward")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(DesignSystem.Colors.accent)
+                    .opacity(hovering && isAvailable ? 1 : 0)
+                    .padding(.top, 4)
+            }
+            .padding(.vertical, DesignSystem.Spacing.sm + 2)
+            .padding(.horizontal, DesignSystem.Spacing.sm + 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(backgroundFill)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(borderColor, lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isAvailable)
+        .onHover { isHovering in
+            guard isAvailable else { return }
+            withAnimation(DesignSystem.Animation.hoverTransition) {
+                hovering = isHovering
+            }
+        }
+        .accessibilityLabel(Text(accessibilityLabel))
+        .accessibilityHint(Text(accessibilityHint))
+    }
+
+    private var iconColor: Color {
+        guard isAvailable else { return DesignSystem.Colors.textTertiary }
+        return DesignSystem.Colors.accent
+    }
+
+    private var titleColor: Color {
+        isAvailable ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary
+    }
+
+    private var backgroundFill: Color {
+        if !isAvailable {
+            return DesignSystem.Colors.surfaceElevated.opacity(0.5)
+        }
+        return hovering ? DesignSystem.Colors.accentLight : DesignSystem.Colors.surfaceElevated
+    }
+
+    private var borderColor: Color {
+        if !isAvailable {
+            return DesignSystem.Colors.border.opacity(0.6)
+        }
+        return hovering ? DesignSystem.Colors.accent.opacity(0.5) : DesignSystem.Colors.border
+    }
+
+    private var accessibilityLabel: String {
+        var parts = [selection.engine.displayName]
+        if isPrimary { parts.append("current engine") }
+        if !isAvailable { parts.append("unavailable") }
+        return parts.joined(separator: ", ")
+    }
+
+    private var accessibilityHint: String {
+        if !isAvailable {
+            return unavailableReason ?? "Unavailable for this rerun."
+        }
+        return "Reruns this transcription with \(selection.engine.displayName). Settings stay unchanged."
+    }
+}
+
+private struct EngineBadge: View {
+    let text: String
+    let tint: Color
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(tint)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(tint.opacity(0.14))
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(tint.opacity(0.28), lineWidth: 0.5)
+            )
     }
 }
