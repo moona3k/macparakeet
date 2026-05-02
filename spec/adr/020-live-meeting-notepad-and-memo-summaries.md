@@ -68,7 +68,9 @@ Keyboard: ⌘1 → Notes, ⌘2 → Transcript, ⌘3 → Ask. The floating record
 
 The Notes default is the deliberate signal: this is the main event during a meeting. Transcript and Ask are the supporting cast.
 
-**Tab-label collapse at narrow panel widths.** The current panel has a 360px minimum width. State-bearing labels (`Notes · 24w`, `Transcript · LIVE`, `Ask · 3`) will not fit at the minimum. Strategy: per-tab measurement at layout time. When the available cell width is below the measured label-with-badge width, the badge collapses into the tab's tooltip and the label renders as the plain noun (`Notes`, `Transcript`, `Ask`). Verified at 360px during Phase 2; the rich label is the goal at default panel widths (~440px+) where it consistently fits.
+**Tab-label collapse at narrow panel widths.** The current panel has a 360px minimum width. State-bearing labels (`Notes · 24w`, `Transcript · LIVE`, `Ask · ●` while LLM-streaming) will not fit at the minimum. Strategy: per-tab measurement at layout time. When the available cell width is below the measured label-with-badge width, the badge collapses into the tab's tooltip and the label renders as the plain noun (`Notes`, `Transcript`, `Ask`). Verified at 360px during Phase 2; the rich label is the goal at default panel widths (~440px+) where it consistently fits.
+
+**Ask state is binary, not numeric.** The Ask tab originally exposed message count (`Ask · 12`). That was decoration: knowing twelve messages exist doesn't help a user reading Notes decide whether to switch back. The actionable state is "is an answer forming right now?" — so the Ask tab now shows a quiet breathing dot only while `chatViewModel.isStreaming` is true, and is otherwise just `Ask`. Strictly bound to streaming so the dot can't decay into a stale notification badge.
 
 **Escape-hatch threshold.** The collapsible-transcript-ticker-inside-Notes pattern (Char's collapsible footer) is listed under Future Work. The trigger to promote it from Future Work to required is concrete: if Phase 2 manual usability testing shows users switching between Notes and Transcript more than ~3 times per minute on average, the cost of the switch outweighs the cost of the inline ticker. The decision is taken before Phase 3 freezes — not at "tired of looking at the branch" time.
 
@@ -297,7 +299,7 @@ Reading scrolling text is passive. Watching an AI think back at you (Ask) is pas
 Folding the transcript into a one-line footer inside Notes (Char's pattern) was the leading alternative. Three reasons we kept tabs:
 
 - **Ask is fat-target.** ADR-018 just shipped; reviewers and users like the thinking-partner pills. Demoting Ask to a slash command (`/ask`) buries them and forces users to remember they exist.
-- **State-bearing tab labels** (`Notes · 24w`, `Transcript · LIVE`, `Ask · 3`) reduce the cost of three tabs by giving the user situational awareness from the tab bar. They don't need to switch as often.
+- **State-bearing tab labels** (`Notes · 24w`, `Transcript · LIVE`, `Ask · ●` while streaming) reduce the cost of three tabs by giving the user situational awareness from the tab bar. They don't need to switch as often.
 - **The collapsible-footer pattern can still come later** as a polish refinement *inside* the Notes tab — a one-line "last sentence" strip at the bottom — without removing the Transcript tab. We can have both.
 
 ### Why not `/ask` in the slash menu

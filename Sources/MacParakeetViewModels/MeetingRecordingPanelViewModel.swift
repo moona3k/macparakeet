@@ -223,22 +223,25 @@ public final class MeetingRecordingPanelViewModel {
         }
     }
 
-    /// Live state hint for the Ask tab. Number of messages in the live
-    /// thread; `nil` when the thread is empty so it doesn't shout for
-    /// attention before the user has actually started a conversation.
-    public var askBadge: String? {
-        let count = chatViewModel.messages.count
-        guard count > 0 else { return nil }
-        return "\(count)"
-    }
-
-    /// Stable badge accessor for any tab — used by the view layer's
-    /// per-tab label rendering.
+    /// The Ask tab intentionally has no string badge. A message count is
+    /// decoration, not information — knowing "12 messages exist" doesn't help
+    /// a user who has Notes in the foreground decide whether to switch back.
+    /// `isAskStreaming` (below) is the actionable signal instead: a quiet
+    /// breathing dot only while an answer is forming.
     public func badge(for tab: LivePanelTab) -> String? {
         switch tab {
         case .notes: return notesBadge
         case .transcript: return transcriptBadge
-        case .ask: return askBadge
+        case .ask: return nil
         }
+    }
+
+    /// True while the Ask conversation is mid-LLM-response. Drives the
+    /// breathing dot in the Ask tab label so a user reading Notes/Transcript
+    /// can see at a glance that their answer is forming. Strictly bound to
+    /// `chatViewModel.isStreaming` — vanishes the moment streaming ends so
+    /// the dot never decays into a stale notification badge.
+    public var isAskStreaming: Bool {
+        chatViewModel.isStreaming
     }
 }

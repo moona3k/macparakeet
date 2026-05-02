@@ -63,13 +63,14 @@ struct MeetingRecordingPanelView: View {
             }
         }()
         let badge = viewModel.badge(for: tab)
+        let isStreaming = (tab == .ask) && viewModel.isAskStreaming
         return Button {
             withAnimation(.easeOut(duration: 0.18)) {
                 viewModel.selectedTab = tab
             }
         } label: {
             VStack(spacing: 5) {
-                tabLabel(title: tab.title, badge: badge, isActive: isActive)
+                tabLabel(title: tab.title, badge: badge, isStreaming: isStreaming, isActive: isActive)
                 Capsule()
                     .fill(isActive ? DesignSystem.Colors.accent : Color.clear)
                     .frame(height: 1)
@@ -81,22 +82,48 @@ struct MeetingRecordingPanelView: View {
         }
         .buttonStyle(.plain)
         .keyboardShortcut(shortcut, modifiers: .command)
-        .help(badge.map { "\(tab.title) · \($0)" } ?? tab.title)
+        .help(tabTooltip(title: tab.title, badge: badge, isStreaming: isStreaming))
+    }
+
+    private func tabTooltip(title: String, badge: String?, isStreaming: Bool) -> String {
+        if isStreaming { return "\(title) · Responding…" }
+        if let badge { return "\(title) · \(badge)" }
+        return title
     }
 
     /// State-bearing tab label per ADR-020 §1. `ViewThatFits` picks the
-    /// richest variant the cell width allows: rich (noun · badge) at
-    /// default panel widths, plain noun at the 360px floor. Tooltip carries
-    /// the full label so the badge never disappears entirely — see
+    /// richest variant the cell width allows: rich (noun · badge or noun · dot)
+    /// at default panel widths, plain noun at the 360px floor. Tooltip carries
+    /// the full label so the state never disappears entirely — see
     /// `.help(...)` on the parent button.
+    ///
+    /// `isStreaming` takes precedence over `badge` because LLM-in-flight is
+    /// the most actionable state — and today only the Ask tab uses it.
     @ViewBuilder
-    private func tabLabel(title: String, badge: String?, isActive: Bool) -> some View {
+    private func tabLabel(title: String, badge: String?, isStreaming: Bool, isActive: Bool) -> some View {
         let weight: Font.Weight = isActive ? .medium : .regular
         let foreground: Color = isActive
             ? DesignSystem.Colors.textPrimary
             : DesignSystem.Colors.textTertiary
 
-        if let badge {
+        if isStreaming {
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 5) {
+                    Text(title)
+                        .font(.system(size: 12, weight: weight))
+                        .foregroundStyle(foreground)
+                    Text("·")
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.6))
+                    AskStreamingDot(isActive: isActive)
+                }
+                .fixedSize()
+
+                Text(title)
+                    .font(.system(size: 12, weight: weight))
+                    .foregroundStyle(foreground)
+            }
+        } else if let badge {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: 5) {
                     Text(title)
@@ -266,6 +293,29 @@ struct MeetingRecordingPanelView: View {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(DesignSystem.Colors.warningAmber)
         }
+    }
+}
+
+/// Quiet breathing dot rendered next to "Ask" while the LLM is mid-response.
+/// Strictly bound to streaming — vanishes the instant streaming ends so it
+/// can't decay into a stale notification badge. Matches the brand-orange
+/// emphasis of the Ask tab when active; falls back to tertiary text color
+/// when the user is on a different tab so it reads as ambient, not loud.
+private struct AskStreamingDot: View {
+    let isActive: Bool
+    @State private var animate = false
+
+    var body: some View {
+        Circle()
+            .fill(isActive ? DesignSystem.Colors.accent : DesignSystem.Colors.textTertiary)
+            .frame(width: 5, height: 5)
+            .opacity(animate ? 1.0 : 0.35)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.2).repeatForever(autoreverses: true)) {
+                    animate = true
+                }
+            }
+            .accessibilityLabel("Ask is responding")
     }
 }
 

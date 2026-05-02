@@ -192,4 +192,26 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
 
         XCTAssertEqual(viewModel.notesViewModel.notesText, "")
     }
+
+    func testAskTabHasNoStringBadgeAndExposesStreamingFlagInstead() {
+        let viewModel = MeetingRecordingPanelViewModel()
+
+        XCTAssertNil(
+            viewModel.badge(for: .ask),
+            "Ask tab no longer carries a numeric badge — message count is decoration, not information"
+        )
+        XCTAssertFalse(viewModel.isAskStreaming, "Default Ask state is idle (no breathing dot)")
+
+        viewModel.chatViewModel.isStreaming = true
+        XCTAssertTrue(
+            viewModel.isAskStreaming,
+            "isAskStreaming mirrors chatViewModel.isStreaming so the tab dot animates while an answer is forming"
+        )
+
+        viewModel.chatViewModel.isStreaming = false
+        XCTAssertFalse(
+            viewModel.isAskStreaming,
+            "Strictly bound to streaming — the dot vanishes the instant streaming ends so it can't decay into a stale notification badge"
+        )
+    }
 }
