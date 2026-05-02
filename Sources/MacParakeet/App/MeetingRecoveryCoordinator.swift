@@ -73,7 +73,7 @@ final class MeetingRecoveryCoordinator {
         alert.messageText = "We found \(recoveries.count) interrupted recording\(recoveries.count == 1 ? "" : "s")"
         alert.informativeText = recoveryDialogMessage(for: recoveries)
         alert.addButton(withTitle: "Recover")
-        alert.addButton(withTitle: "Recover Later")
+        alert.addButton(withTitle: "Later")
         alert.addButton(withTitle: "Discard")
         // Match `confirmAndCancelRecording` — the Discard path deletes the
         // session folder (`MeetingRecordingRecoveryService.discard`), so
@@ -108,7 +108,13 @@ final class MeetingRecoveryCoordinator {
         formatter.timeStyle = .short
 
         let sessionLines = recoveries.prefix(5).map { recovery in
-            "\(formatter.string(from: recovery.startedAt)) - \(recovery.displayName)"
+            let stamp = formatter.string(from: recovery.startedAt)
+            // Default-named meetings already bake the formatted start date
+            // into displayName ("Meeting <stamp>"); avoid rendering it twice.
+            let defaultName = "Meeting \(stamp)"
+            return recovery.displayName == defaultName
+                ? recovery.displayName
+                : "\(stamp) — \(recovery.displayName)"
         }
         let extraCount = max(0, recoveries.count - sessionLines.count)
         let extraLine = extraCount > 0 ? ["and \(extraCount) more"] : []
