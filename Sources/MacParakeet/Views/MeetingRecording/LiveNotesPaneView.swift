@@ -78,9 +78,15 @@ struct LiveNotesPaneView: View {
                 }
 
             if viewModel.notesText.isEmpty {
+                // Match TextEditor's outer padding; the +5 horizontal absorbs
+                // NSTextView's text-container inset so the placeholder's first
+                // glyph lines up with where the caret renders. Vertical extra
+                // is intentionally zero — NSTextView's top inset on macOS is
+                // ~0pt, so any +v nudge pushes the placeholder a half-line
+                // below the caret.
                 placeholder
                     .padding(.horizontal, DesignSystem.Spacing.md + 5)
-                    .padding(.vertical, DesignSystem.Spacing.sm + 8)
+                    .padding(.vertical, DesignSystem.Spacing.sm)
                     .allowsHitTesting(false)
             }
 
