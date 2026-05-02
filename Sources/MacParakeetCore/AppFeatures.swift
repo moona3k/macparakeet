@@ -5,9 +5,10 @@ import Foundation
 /// shipping configuration before tagging a version.
 public enum AppFeatures {
     /// Meeting Recording (ADR-014). When `false`, all meeting recording entry
-    /// points are hidden: sidebar item, menu-bar "Record Meeting", global meeting
-    /// hotkey, settings card, library filter, onboarding step, and the screen
-    /// recording permission row. Data model, services, and tests remain intact.
+    /// points are hidden: sidebar item, menu-bar "Start Recording", global
+    /// meeting hotkey, settings card, library filter, onboarding step, and
+    /// the screen recording permission row. Data model, services, and tests
+    /// remain intact.
     public static let meetingRecordingEnabled: Bool = true
 
     /// Calendar auto-start (ADR-017). When `false`, all calendar entry points

@@ -185,7 +185,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
         if AppFeatures.meetingRecordingEnabled {
             let recordMeetingItem = NSMenuItem(
-                title: "Record Meeting (Labs)",
+                title: "Start Recording",
                 action: #selector(toggleMeetingRecordingFromMenu),
                 keyEquivalent: ""
             )
@@ -353,8 +353,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         rebuildRecentDictationsSubmenu(with: dictations)
 
         recordMeetingMenuItem?.title = meetingRecordingActiveProvider()
-            ? "Stop Meeting Recording"
-            : "Record Meeting (Labs)"
+            ? "Stop Recording"
+            : "Start Recording"
     }
 
     private func handleDroppedFile(_ url: URL) {
