@@ -460,6 +460,8 @@ final class TelemetryServiceTests: XCTestCase {
                 inputKind: .audio,
                 mediaExtension: "m4a",
                 fileSizeBucket: "10_100mb",
+                speechEngine: "whisper",
+                engineVariant: SpeechEnginePreference.defaultWhisperModelVariant,
                 errorType: nil
             ),
             appVer: "0.4.2",
@@ -483,6 +485,8 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["input_kind"], "audio")
         XCTAssertEqual(props["media_extension"], "m4a")
         XCTAssertEqual(props["file_size_bucket"], "10_100mb")
+        XCTAssertEqual(props["speech_engine"], "whisper")
+        XCTAssertEqual(props["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
         XCTAssertNil(props["file_path"])
         XCTAssertNil(props["file_name"])
         XCTAssertNil(props["source_url"])

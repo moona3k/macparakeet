@@ -155,6 +155,10 @@ final class TranscriptionServiceTests: XCTestCase {
     }
 
     func testTranscribeFilePersistsEngineAttributionFromSTTResult() async throws {
+        let telemetry = TelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
         await mockSTT.configure(result: STTResult(
             text: "hello world",
             engine: .whisper,
@@ -168,6 +172,15 @@ final class TranscriptionServiceTests: XCTestCase {
         let fetched = try transcriptionRepo.fetch(id: result.id)
         XCTAssertEqual(fetched?.engine, "whisper")
         XCTAssertEqual(fetched?.engineVariant, SpeechEnginePreference.defaultWhisperModelVariant)
+
+        let operation = telemetry.snapshot().reversed().first {
+            if case .transcriptionOperation = $0 { return true }
+            return false
+        }
+        let operationEvent = try XCTUnwrap(operation)
+        let props = try XCTUnwrap(operationEvent.props)
+        XCTAssertEqual(props["speech_engine"], "whisper")
+        XCTAssertEqual(props["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
     }
 
     func testTranscribeFileDurationUsesMaximumWordEnd() async throws {

@@ -117,12 +117,17 @@ final class DictationServiceTests: XCTestCase {
     }
 
     func testStopRecordingTranscribesAndSaves() async throws {
+        let telemetry = DictationTelemetrySpy()
+        Telemetry.configure(telemetry)
+
         let expectedResult = STTResult(
             text: "Hello world",
             words: [
                 TimestampedWord(word: "Hello", startMs: 0, endMs: 500, confidence: 0.98),
                 TimestampedWord(word: "world", startMs: 520, endMs: 1000, confidence: 0.95)
-            ]
+            ],
+            engine: .whisper,
+            engineVariant: SpeechEnginePreference.defaultWhisperModelVariant
         )
         await mockSTT.configure(result: expectedResult)
 
@@ -139,6 +144,12 @@ final class DictationServiceTests: XCTestCase {
         let fetched = try dictationRepo.fetch(id: result.dictation.id)
         XCTAssertNotNil(fetched)
         XCTAssertEqual(fetched?.rawTranscript, "Hello world")
+        XCTAssertEqual(fetched?.engine, "whisper")
+        XCTAssertEqual(fetched?.engineVariant, SpeechEnginePreference.defaultWhisperModelVariant)
+
+        let operation = try XCTUnwrap(dictationOperationProps(in: telemetry.snapshot()).last)
+        XCTAssertEqual(operation["speech_engine"], "whisper")
+        XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
     }
 
     func testStopRecordingAppliesAIFormatterAsFinalStep() async throws {

@@ -439,7 +439,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     do {
                         _ = try await ThumbnailCacheService.shared.extractVideoFrame(from: path, for: transcriptionId)
                     } catch {
-                        logger.error("Thumbnail extraction failed for \(transcriptionId): \(error.localizedDescription, privacy: .public)")
+                        logger.error("transcription_thumbnail_extract_failed id=\(transcriptionId, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                     }
                 }
             }
@@ -565,7 +565,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     do {
                         _ = try await ThumbnailCacheService.shared.downloadThumbnail(from: thumbURL, for: transcriptionId)
                     } catch {
-                        logger.error("Thumbnail download failed for \(transcriptionId): \(error.localizedDescription, privacy: .public)")
+                        logger.error("transcription_thumbnail_download_failed id=\(transcriptionId, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                     }
                 }
             }
@@ -671,7 +671,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     outcome: .cancelled,
                     stage: lifecycleStage,
                     audioDurationSeconds: audioDurationSeconds,
-                    diarizationRequested: diarizationRequested
+                    diarizationRequested: diarizationRequested,
+                    speechEngine: transcription.engine,
+                    engineVariant: transcription.engineVariant
                 )
             } else {
                 Telemetry.send(.transcriptionFailed(
@@ -686,6 +688,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     stage: lifecycleStage,
                     audioDurationSeconds: audioDurationSeconds,
                     diarizationRequested: diarizationRequested,
+                    speechEngine: transcription.engine,
+                    engineVariant: transcription.engineVariant,
                     errorType: Self.errorType(for: error)
                 )
             }
@@ -1011,7 +1015,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     outcome: .cancelled,
                     stage: lifecycleStage,
                     audioDurationSeconds: audioDurationSeconds,
-                    diarizationRequested: diarizationRequested
+                    diarizationRequested: diarizationRequested,
+                    speechEngine: transcription.engine,
+                    engineVariant: transcription.engineVariant
                 )
             } else {
                 Telemetry.send(.transcriptionFailed(
@@ -1026,6 +1032,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     stage: lifecycleStage,
                     audioDurationSeconds: audioDurationSeconds,
                     diarizationRequested: diarizationRequested,
+                    speechEngine: transcription.engine,
+                    engineVariant: transcription.engineVariant,
                     errorType: Self.errorType(for: error)
                 )
             }
@@ -1101,9 +1109,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         var snippets: [TextSnippet] = []
         if mode.usesDeterministicPipeline {
             do { customWords = try customWordRepo?.fetchEnabled() ?? [] }
-            catch { logger.error("Failed to fetch custom words: \(error.localizedDescription, privacy: .public)") }
+            catch { logger.error("transcription_custom_words_fetch_failed error=\(error.localizedDescription, privacy: .public)") }
             do { snippets = try snippetRepo?.fetchEnabled() ?? [] }
-            catch { logger.error("Failed to fetch snippets: \(error.localizedDescription, privacy: .public)") }
+            catch { logger.error("transcription_snippets_fetch_failed error=\(error.localizedDescription, privacy: .public)") }
         }
 
         let refinement = await textRefinementService.refine(
@@ -1153,7 +1161,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             wordCount: wordCount,
             speakerCount: transcription.speakerCount,
             diarizationRequested: diarizationRequested,
-            diarizationApplied: diarizationApplied
+            diarizationApplied: diarizationApplied,
+            speechEngine: transcription.engine,
+            engineVariant: transcription.engineVariant
         )
 
         return transcription
@@ -1185,7 +1195,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             if error is CancellationError {
                 throw error
             }
-            logger.warning("AI formatter failed; falling back to standard cleanup error=\(error.localizedDescription, privacy: .public)")
+            logger.warning("transcription_ai_formatter_failed fallback=standard_cleanup error=\(error.localizedDescription, privacy: .public)")
             let message = "\(error.localizedDescription) Used standard cleanup."
             NotificationCenter.default.post(
                 name: .macParakeetAIFormatterWarning,
@@ -1233,6 +1243,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         speakerCount: Int? = nil,
         diarizationRequested: Bool = false,
         diarizationApplied: Bool = false,
+        speechEngine: String? = nil,
+        engineVariant: String? = nil,
         errorType: String? = nil
     ) {
         Telemetry.send(.transcriptionOperation(
@@ -1251,6 +1263,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             inputKind: operation.inputKind,
             mediaExtension: operation.mediaExtension,
             fileSizeBucket: operation.fileSizeBucket,
+            speechEngine: speechEngine,
+            engineVariant: engineVariant,
             errorType: errorType
         ))
     }

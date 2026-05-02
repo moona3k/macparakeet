@@ -120,7 +120,7 @@ public actor DictationService: DictationServiceProtocol {
         context: DictationTelemetryContext = DictationTelemetryContext(),
         sessionID: Int?
     ) async throws {
-        logger.debug("startRecording requested state=\(self.debugStateLabel(self._state), privacy: .public)")
+        logger.debug("dictation_start_requested state=\(self.debugStateLabel(self._state), privacy: .public)")
         let operationContext = ObservabilityOperationContext()
         if let entitlements {
             do {
@@ -194,14 +194,14 @@ public actor DictationService: DictationServiceProtocol {
                     recordingStartedAt = nil
                 }
                 logger.notice(
-                    "startRecording aborted session=\(requestedSessionID) active=\(activeAtStartCompletion) state=\(self.debugStateLabel(self._state), privacy: .public)"
+                    "dictation_start_aborted session=\(requestedSessionID, privacy: .public) active_session=\(activeAtStartCompletion, privacy: .public) state=\(self.debugStateLabel(self._state), privacy: .public)"
                 )
                 return
             }
             currentTelemetryContext = context
             recordingStartedAt = Date()
             Telemetry.send(.dictationStarted(trigger: context.trigger, mode: context.mode))
-            logger.debug("startRecording capture started session=\(requestedSessionID)")
+            logger.debug("dictation_capture_started session=\(requestedSessionID, privacy: .public)")
         } catch {
             let activeAtFailure = activeSessionID
             guard activeAtFailure == requestedSessionID else {
@@ -259,13 +259,13 @@ public actor DictationService: DictationServiceProtocol {
 
         let currentSession = activeSessionID
         _state = .processing
-        logger.debug("stopRecording processing begin session=\(currentSession)")
+        logger.debug("dictation_stop_processing_started session=\(currentSession, privacy: .public)")
 
         do {
             let audioURL = try await audioProcessor.stopCapture()
             let device = await audioProcessor.recordingDeviceInfo
             logger.debug(
-                "stopRecording capture stopped session=\(currentSession) url=\(audioURL.path, privacy: .public)"
+                "dictation_capture_stopped session=\(currentSession, privacy: .public) path=\(audioURL.path, privacy: .private)"
             )
             let result = try await withCurrentObservabilityContextIfAny {
                 try await processCapturedAudio(audioURL: audioURL)
@@ -283,6 +283,8 @@ public actor DictationService: DictationServiceProtocol {
                 outcome: .success,
                 durationSeconds: Double(result.dictation.durationMs) / 1000.0,
                 wordCount: result.dictation.wordCount,
+                speechEngine: result.dictation.engine,
+                engineVariant: result.dictation.engineVariant,
                 device: device
             )
             Telemetry.send(.dictationCompleted(
@@ -431,6 +433,8 @@ public actor DictationService: DictationServiceProtocol {
                 outcome: .success,
                 durationSeconds: Double(result.dictation.durationMs) / 1000.0,
                 wordCount: result.dictation.wordCount,
+                speechEngine: result.dictation.engine,
+                engineVariant: result.dictation.engineVariant,
                 device: device
             )
             Telemetry.send(.dictationCompleted(
@@ -511,7 +515,7 @@ public actor DictationService: DictationServiceProtocol {
             "dictation_transcribe_begin file=\(audioURL.lastPathComponent) file_bytes=\(Self.fileSizeBytes(at: audioURL).map(String.init) ?? "unknown")"
         )
         let result = try await sttTranscriber.transcribe(audioPath: audioURL.path, job: .dictation)
-        logger.debug("processCapturedAudio transcription complete chars=\(result.text.count)")
+        logger.debug("dictation_transcription_complete chars=\(result.text.count, privacy: .public)")
         AudioCaptureDiagnostics.append(
             "dictation_transcribe_complete chars=\(result.text.count) words=\(result.words.count) engine=\(result.engine.rawValue) variant=\(result.engineVariant ?? "none")"
         )
@@ -519,7 +523,7 @@ public actor DictationService: DictationServiceProtocol {
         let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             // defer will clean up audioURL
-            logger.warning("processCapturedAudio empty transcript")
+            logger.warning("dictation_transcription_empty")
             AudioCaptureDiagnostics.append("dictation_transcribe_empty")
             throw DictationServiceError.emptyTranscript
         }
@@ -529,9 +533,9 @@ public actor DictationService: DictationServiceProtocol {
         var snippets: [TextSnippet] = []
         if mode.usesDeterministicPipeline {
             do { words = try customWordRepo?.fetchEnabled() ?? [] }
-            catch { logger.error("Failed to load custom words: \(error.localizedDescription)") }
+            catch { logger.error("dictation_custom_words_fetch_failed error=\(error.localizedDescription, privacy: .public)") }
             do { snippets = try snippetRepo?.fetchEnabled() ?? [] }
-            catch { logger.error("Failed to load text snippets: \(error.localizedDescription)") }
+            catch { logger.error("dictation_snippets_fetch_failed error=\(error.localizedDescription, privacy: .public)") }
         }
 
         // Voice Return: inject synthetic action snippet regardless of mode
@@ -571,7 +575,7 @@ public actor DictationService: DictationServiceProtocol {
 
         if saveHistory, shouldSaveAudio?() ?? false {
             do { try AppPaths.ensureDirectories() }
-            catch { logger.error("Failed to create directories: \(error.localizedDescription, privacy: .public)") }
+            catch { logger.error("dictation_directory_create_failed error=\(error.localizedDescription, privacy: .public)") }
             let destURL = URL(fileURLWithPath: AppPaths.dictationsDir, isDirectory: true)
                 .appendingPathComponent("\(dictation.id.uuidString).wav")
 
@@ -643,7 +647,7 @@ public actor DictationService: DictationServiceProtocol {
             if error is CancellationError {
                 throw error
             }
-            logger.warning("AI formatter failed; falling back to standard cleanup error=\(error.localizedDescription, privacy: .public)")
+            logger.warning("dictation_ai_formatter_failed fallback=standard_cleanup error=\(error.localizedDescription, privacy: .public)")
             let message = "\(error.localizedDescription) Used standard cleanup."
             NotificationCenter.default.post(
                 name: .macParakeetAIFormatterWarning,
@@ -727,6 +731,8 @@ public actor DictationService: DictationServiceProtocol {
         durationSeconds: Double? = nil,
         wordCount: Int? = nil,
         errorType: String? = nil,
+        speechEngine: String? = nil,
+        engineVariant: String? = nil,
         device: RecordingDeviceInfo? = nil
     ) {
         guard let id = operationID ?? currentOperationID else { return }
@@ -741,6 +747,8 @@ public actor DictationService: DictationServiceProtocol {
             durationSeconds: durationSeconds,
             wordCount: wordCount,
             errorType: errorType,
+            speechEngine: speechEngine,
+            engineVariant: engineVariant,
             device: device
         ))
     }

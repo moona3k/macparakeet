@@ -218,6 +218,8 @@ public enum TelemetryEventSpec: Sendable {
         durationSeconds: Double?,
         wordCount: Int?,
         errorType: String?,
+        speechEngine: String? = nil,
+        engineVariant: String? = nil,
         device: RecordingDeviceInfo? = nil
     )
     case transcriptionStarted(source: TelemetryTranscriptionSource, audioDurationSeconds: Double?)
@@ -257,6 +259,8 @@ public enum TelemetryEventSpec: Sendable {
         inputKind: ObservabilityInputKind?,
         mediaExtension: String?,
         fileSizeBucket: String?,
+        speechEngine: String? = nil,
+        engineVariant: String? = nil,
         errorType: String?
     )
     case diarizationStarted(source: TelemetryTranscriptionSource)
@@ -593,6 +597,8 @@ extension TelemetryEventSpec {
             let durationSeconds,
             let wordCount,
             let errorType,
+            let speechEngine,
+            let engineVariant,
             let device
         ):
             return Self.mergeDevice(Self.compactProps(
@@ -604,6 +610,8 @@ extension TelemetryEventSpec {
                 ("mode", mode?.rawValue),
                 ("duration_seconds", durationSeconds.map(Self.format)),
                 ("word_count", wordCount.map(String.init)),
+                ("speech_engine", speechEngine),
+                ("engine_variant", engineVariant),
                 ("error_type", errorType)
             ), device)
         case .transcriptionStarted(let source, let audioDurationSeconds):
@@ -659,6 +667,8 @@ extension TelemetryEventSpec {
             let inputKind,
             let mediaExtension,
             let fileSizeBucket,
+            let speechEngine,
+            let engineVariant,
             let errorType
         ):
             return Self.compactProps(
@@ -678,6 +688,8 @@ extension TelemetryEventSpec {
                 ("input_kind", inputKind?.rawValue),
                 ("media_extension", mediaExtension),
                 ("file_size_bucket", fileSizeBucket),
+                ("speech_engine", speechEngine),
+                ("engine_variant", engineVariant),
                 ("error_type", errorType)
             )
         case .diarizationStarted(let source):

@@ -3,6 +3,7 @@
 > Status: **ACTIVE** — Design document for MacParakeet's privacy-first analytics system.
 > Reviewed by: Codex (2026-03-13). See [Codex Review](#codex-review-2026-03-13) for accepted/rejected feedback.
 > Observability update: Codex (2026-04-26). Added canonical operation events for product health and CLI/agent usage while preserving the existing opt-out and privacy model.
+> Logging/wide-events review: Codex (2026-05-02). Compared the implementation against the "Logging Sucks" wide-event guidance. Conclusion: MacParakeet already uses the right operation-wide-event model for product telemetry; follow-up work is mainly coverage, schema hygiene, and local diagnostic export. See [`docs/audits/2026-05-02-logging-telemetry-review.md`](audits/2026-05-02-logging-telemetry-review.md) and [`docs/audits/2026-05-02-logging-telemetry-issues.md`](audits/2026-05-02-logging-telemetry-issues.md).
 
 ## Philosophy
 
@@ -13,6 +14,7 @@
 - **Transparent** — Users can see what's collected and opt out in Settings
 - **Minimal** — Collect what helps improve the product, nothing more
 - **Local-first still** — Audio never leaves the device. Only non-identifying usage signals are sent.
+- **Fully optional** — Turning telemetry off in Settings stops network telemetry after the final `telemetry_opted_out` event is flushed. Local `os.Logger` diagnostics remain on-device unless a user explicitly exports them.
 
 **Privacy promise (updated):**
 > "Telemetry never includes your audio, transcripts, notes, prompts, or file names. MacParakeet collects non-identifying usage statistics — like which features are popular and how long transcriptions take — to help us improve. You can opt out anytime in Settings."
@@ -39,8 +41,8 @@ Cloudflare Worker (ingestion)
 Cloudflare D1 (SQLite)
     │
     ▼
-Dashboard (password-protected, internal)
-    │  SQL queries → charts
+Aggregate stats + internal inspection
+    │  SQL queries → public aggregate stats / private diagnostics
 ```
 
 ### Why This Stack?
@@ -58,7 +60,7 @@ CREATE TABLE events (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
     event_id  TEXT NOT NULL UNIQUE,  -- client-generated UUID, idempotency key
     event     TEXT NOT NULL,         -- 'dictation_completed', 'export_used'
-    props     TEXT CHECK(json_valid(props)),  -- JSON: {"duration": 12.5, "word_count": 84}
+    props     TEXT CHECK(json_valid(props) OR props IS NULL),  -- JSON props or NULL
     app_ver   TEXT NOT NULL,         -- '0.4.2'
     os_ver    TEXT NOT NULL,         -- '15.3'
     locale    TEXT,                  -- 'en-US'
@@ -94,8 +96,15 @@ CREATE INDEX idx_events_session ON events(session);
 - IP addresses
 - Microphone names, device UIDs, serial numbers, or hardware IDs
 - Persistent user identifiers across sessions
-- Unredacted error descriptions (server-side PII redaction strips paths, URLs, keys before storage)
+- Raw provider error bodies or free-form user content in error fields
 - Any data that could identify the user
+
+Error details that are sent are sanitized at the Swift event-serialization
+boundary: local file paths, `file://` URLs, and `http(s)` URLs are replaced and
+values are truncated. LLM call sites intentionally omit error detail because
+provider errors can echo transcript or prompt content. The ingestion Worker
+validates event names, top-level fields, batch size, and prop length; it should
+not be treated as the primary privacy scrubber for app-originated strings.
 
 ---
 
@@ -121,6 +130,19 @@ links one child operation to the operation that started it. These IDs exist to
 correlate local operation breadcrumbs inside one telemetry session, not to
 identify a user.
 
+This is the app equivalent of the wide-event / canonical-log-line model: for
+MacParakeet, the unit is an operation rather than an HTTP request. A successful
+dictation, file transcription, meeting recording, LLM call, auto-save, feedback
+submission, or CLI invocation should have one wide outcome event with the safe
+dimensions needed to answer product-health questions. Breadcrumb events remain
+useful for funnels and feature adoption, but new non-trivial workflows should
+not be breadcrumb-only.
+
+Local `os.Logger` lines are still useful for developer triage and user-supplied
+diagnostics, especially audio/runtime edge cases. They are not the canonical
+analytics source and should not replace a corresponding `*_operation` event
+when the question is "what happened to this operation?"
+
 ### 1. App Lifecycle — "Who's using this?"
 
 | Event | Props | Question It Answers |
@@ -139,7 +161,7 @@ identify a user.
 | `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, silence), `device_*` | Are people cancelling often? Why? |
 | `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
 | `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
-| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `error_type`, `device_*` | One wide outcome event per dictation attempt |
+| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `error_type`, `device_*` | One wide outcome event per dictation attempt |
 
 > **Device props** (optional, included when available): `device_transport`, `device_sub_transport`, `device_sample_rate`, `device_channels`, `device_fallback`, `device_selected`. Raw device names and UIDs are intentionally not serialized.
 
@@ -151,7 +173,7 @@ identify a user.
 | `transcription_completed` | `source`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied` | Real-world performance and speaker-label coverage across file, YouTube, and meeting pipelines |
 | `transcription_cancelled` | `source`, `audio_duration_seconds`, `stage` (download, audio_conversion, stt, diarization, post_processing) | Where do users abandon jobs? |
 | `transcription_failed` | `source`, `stage`, `error_type` | What's breaking, and in which pipeline stage? |
-| `transcription_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `source`, `stage`, `duration_seconds`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `input_kind`, `media_extension`, `file_size_bucket`, `error_type` | One wide outcome event per file, YouTube, or meeting transcription |
+| `transcription_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `source`, `stage`, `duration_seconds`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `input_kind`, `media_extension`, `file_size_bucket`, `speech_engine`, `engine_variant`, `error_type` | One wide outcome event per file, YouTube, or meeting transcription |
 
 `transcription_operation` is the broad product-health outcome event. Its
 `stage` values are `preflight`, `download`, `audio_conversion`, `stt`,
@@ -178,6 +200,8 @@ events remain useful for diarization-specific timing and failure analysis.
 | `llm_prompt_result_failed` | `provider`, `error_type` | Failure rates for prompt-library result generation per provider |
 | `llm_chat_used` | `provider`, `message_count` | Do people chat with transcripts? |
 | `llm_chat_failed` | `provider`, `error_type` | Chat failure rates per provider |
+| `llm_transform_used` | `provider` | One-off transform feature usage |
+| `llm_transform_failed` | `provider`, `error_type` | One-off transform failure rates |
 | `llm_formatter_used` | `provider`, `source`, `duration_seconds`, `input_chars`, `output_chars`, `default_prompt_used`, `input_truncated` | Is transcript/dictation formatting useful, and how expensive is it? |
 | `llm_formatter_failed` | `provider`, `source`, `duration_seconds`, `error_type`, `default_prompt_used`, `input_truncated` | Formatter failure rates and prompt-shape correlations |
 | `llm_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `feature`, `provider`, `streaming`, `outcome`, `duration_seconds`, `input_chars`, `output_chars`, `input_truncated`, `prompt_default_used`, `message_count`, `error_type` | One safe outcome event per LLM call, without prompts, responses, or provider error bodies |
@@ -225,9 +249,25 @@ events remain useful for diarization-specific timing and failure analysis.
 | `hotkey_customized` | — | Do people change the default hotkey? (not which key) |
 | `processing_mode_changed` | `mode` (raw, clean) | Is the clean pipeline valued? |
 | `custom_word_added` | — | Are custom words used? (NOT the word itself) |
+| `custom_word_deleted` | — | Are custom words removed often? |
 | `snippet_added` | — | Are snippets used? |
+| `snippet_deleted` | — | Are snippets removed often? |
+| `prompt_created` | — | Are custom prompt templates used? |
+| `prompt_updated` | — | Are custom prompts actively maintained? |
+| `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
 | `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, speaker_diarization, auto_save, meeting_auto_save, meeting_hotkey, file_transcription_hotkey, youtube_transcription_hotkey, microphone_selection, meeting_audio_source_mode, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_auto_stop_enabled, calendar_included_calendars) | Which settings get toggled? |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
+
+### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
+
+| Event | Props | Question It Answers |
+|---|---|---|
+| `calendar_reminder_shown` | `mode`, `lead_minutes`, `has_meet_url` | How often calendar reminders surface and under which mode |
+| `calendar_auto_start_triggered` | `lead_seconds`, `has_meet_url` | How often countdowns reach auto-start |
+| `calendar_auto_start_cancelled` | `reason` | How often users cancel the countdown |
+| `calendar_auto_start_failed` | `reason` (`permission_denied`, `state_busy`, `service_threw`) | What blocks auto-start |
+| `calendar_auto_stop_shown` | `event_duration_seconds` | How often auto-stop countdowns are shown |
+| `calendar_auto_stop_cancelled` | — | How often users extend beyond the calendar event end |
 
 ### 6. Licensing — "Is the business working?"
 
@@ -300,15 +340,15 @@ macparakeet-cli config list
 
 The CLI writes to the shared UserDefaults suite (`com.macparakeet.MacParakeet`),
 so a later GUI install picks the same preference up automatically.
+The CLI also honors `DO_NOT_TRACK=1` and `MACPARAKEET_TELEMETRY=off` for
+automation contexts.
 
-> **Important:** `error_occurred` includes a `description` field for full error visibility. The **Cloudflare Worker redacts PII server-side** before storage:
-> - File paths (`/Users/...`, `~/...`) → `[PATH]`
-> - URLs → `[URL]`
-> - Strings matching API key patterns → `[REDACTED]`
-> - Email addresses → `[EMAIL]`
-> - Truncated to 512 chars max
->
-> This gives us real debugging context while protecting user privacy.
+> **Important:** `error_occurred` includes a bounded `description` field, but
+> callers should treat it as an allowlisted diagnostic string, not a place for
+> arbitrary provider or user-content error bodies. `TelemetryEventSpec.props`
+> sanitizes paths and URLs at serialization time and truncates descriptions to
+> 512 chars. The Worker is an ingestion validator, not the primary redaction
+> boundary.
 
 ---
 
@@ -351,13 +391,15 @@ Telemetry.send(.transcriptionOperation(
 ```swift
 public protocol TelemetryServiceProtocol: Sendable {
     func send(_ event: TelemetryEventSpec)
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool
     func flush() async
+    func flushForTermination()
 }
 
 public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendable {
     // Queue events in memory
     // Each event gets a client-generated UUID (event_id) for idempotency
-    // Flush every 60 seconds, on app quit/background, or when queue hits 50 events
+    // Flush every 60 seconds, on app termination, or when queue hits 50 events
     // Respect opt-out setting
     // Random session UUID per launch (not persistent)
     // Include device context (app version, OS, locale, chip) with every event
@@ -370,9 +412,9 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
 - Each event gets a client-generated `event_id` (UUID) for idempotency — prevents double-counting on retries
 - Flush triggers:
   - Every **60 seconds** (timer)
-  - On **app quit or background** (NSApplication termination + `NSWorkspace.willSleep`)
+  - On **app termination** (`NSApplication.willTerminateNotification`)
   - When queue hits **50 events**
-  - **Immediately** for critical events: `telemetry_opted_out`, `onboarding_completed`, `license_activated`, and all licensing events
+  - **Immediately** for critical events: `telemetry_opted_out`, `onboarding_completed`, `app_quit`, `crash_occurred`, `license_activated`, and all licensing events
 - On flush: POST batch as JSON array to `/api/telemetry`
 - On network failure: failed events are requeued in memory and retried until queue pressure trims them. Events are still not persisted to disk.
 - Max queue size: **200 events** (prevent memory issues if network is down for extended period)
@@ -421,18 +463,25 @@ public final class TelemetryService: TelemetryServiceProtocol, @unchecked Sendab
    - Max **100 events** per batch
    - Required fields present (`event_id`, `event`, `app_ver`, `os_ver`, `session`, `ts`)
    - `event` name is on the **allowlist** (reject unknown event names)
-   - Props values within max length (256 chars per value)
+   - Props values within max length (1024 chars per value)
    - Reject unknown top-level fields
 3. Rate limit: max **10 requests per minute** per IP (via CF headers, IP not stored)
 4. Enrich: add `country` from `CF-IPCountry` header
 5. Insert batch into D1 using `batch()` (transactional — all or nothing)
-6. Return `200 OK` (or `207` for partial idempotency conflicts)
+6. Return `200 OK`; duplicate `event_id` values are ignored idempotently
 
 ### Event Name Allowlist
 
 The worker maintains a hardcoded allowlist of valid event names. Any event not on the list is rejected. This prevents:
 - Endpoint abuse / data poisoning from reverse-engineering
 - Accidental typos in event names going undetected
+
+The app-side source of truth is `TelemetryEventName` plus
+`TelemetryImplementedContract` in `Sources/MacParakeetCore/Services`. The
+website Worker allowlist may temporarily contain legacy or planned event names,
+but every emitted app event must be accepted by the Worker before release.
+Schema-drift checks should compare the Swift enum, this document, and the
+Worker allowlist together.
 
 ### CORS
 
@@ -443,14 +492,18 @@ Not technically needed for native HTTP clients, but included for consistency wit
 ## Data Retention
 
 - **Raw events:** 90 days
-- **Aggregated summaries:** Keep indefinitely (daily/weekly rollups via scheduled Worker)
-- **Deletion:** Scheduled Cloudflare Worker cron (`0 2 * * *`) deletes events older than 90 days
+- **Aggregated summaries:** Keep indefinitely once rollups exist
+- **Deletion:** The sibling `macparakeet-website` branch
+  `codex/telemetry-retention-cron` adds a standalone scheduled Cloudflare Worker
+  that runs daily at 02:00 UTC and deletes `events` rows older than 90 days.
+  Deploy that Worker before relying on automatic production deletion.
 
 ---
 
 ## Dashboard
 
-Internal, password-protected web page. Key views:
+Aggregate product stats are exposed through the website stats endpoint/page; raw
+event inspection should remain internal. Key views:
 
 1. **Overview** — DAU/WAU/MAU, sessions, app version distribution
 2. **Features** — Event counts by type, adoption trends
@@ -496,24 +549,24 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 
 | # | Feedback | Action Taken |
 |---|---|---|
-| 1 | `error_occurred.description` is a privacy leak — free-form text could contain file paths, user content | **Partially accepted.** Kept `description` for full error visibility, but added server-side PII redaction in the Worker (strips file paths, URLs, API keys, emails; truncates to 512 chars). |
+| 1 | `error_occurred.description` is a privacy leak — free-form text could contain file paths, user content | **Partially accepted.** Kept a bounded `description`, but the current implemented guardrail is Swift-side serialization sanitization for paths/URLs plus truncation. Worker-side PII redaction remains a defense-in-depth follow-up. |
 | 2 | No dedupe/idempotency key — retries cause double-counting | Added `event_id TEXT NOT NULL UNIQUE` (client-generated UUID) to schema. |
 | 3 | "Anonymous by architecture" is too strong — session + chip + locale + country + timestamps could theoretically single out users | Reworded to "non-identifying, session-scoped telemetry" throughout. |
 | 4 | Missing `permission_prompted` / `permission_granted` — can't compute denial rate without denominator | Added both events to new "Permissions" category. |
 | 5 | Missing `dictation_failed` — core feature failures are a blind spot | Added to Dictation events with `error_type` prop. |
 | 6 | Missing `transcription_cancelled` — long jobs get abandoned | Added with `source` and `audio_duration_seconds` props. |
-| 7 | Missing `model_download_cancelled` — onboarding funnel gap | Added to Performance events. |
+| 7 | Missing `model_download_cancelled` — onboarding funnel gap | Accepted as a useful event, but not implemented in the current Swift enum as of the 2026-05-02 review. Keep as follow-up or remove the Worker allowlist entry. |
 | 8 | Missing LLM failure telemetry — need provider-level failure rates | Added `llm_prompt_result_failed`, `llm_chat_failed`, and formatter failure events with provider + error props. |
 | 9 | Cut `dictation_private` — sensitive signal, user explicitly wanted privacy | Removed. |
 | 10 | Cut `hotkey_changed.key` value — track boolean, not which key | Changed to `hotkey_customized` with no props. |
 | 11 | Cut `pill_hidden` as separate event — redundant with `setting_changed` | Merged into `setting_changed` with `setting: "hide_pill"`. |
 | 12 | `error_occurred` needs allowlist — generic catch-all becomes junk | Added note: controlled allowlist of `domain` + `code`, no free-form text. |
 | 13 | Flush immediately for critical events (opt-out, onboarding, licensing) | Updated batching strategy with immediate flush list. |
-| 14 | Flush on app background/termination, not just quit — macOS can terminate without clean quit | Added `NSWorkspace.willSleep` and termination notification triggers. |
+| 14 | Flush on app background/termination, not just quit — macOS can terminate without clean quit | Implemented app termination flush. Background and sleep-triggered flush remain future hardening. |
 | 15 | Remove "respects macOS system analytics setting" — no public API to read it | Removed from opt-out behavior. |
 | 16 | Use D1 `batch()` for transactional inserts | Updated worker logic. |
 | 17 | Abuse controls: event name allowlist, rate limiting, field validation | Added to worker logic section. |
-| 18 | `CHECK(json_valid(props))` on props column | Added to schema. |
+| 18 | `CHECK(json_valid(props))` on props column | Current schema allows either valid JSON props or `NULL` props: `CHECK(json_valid(props) OR props IS NULL)`. |
 | 19 | Add purchase funnel events (paywall_viewed, purchase_started, restore_*) | Added to Licensing category. |
 | 20 | Document that metrics are best-effort, biased against short/crash sessions | Added note to batching strategy. |
 
@@ -533,7 +586,24 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 
 ## Future Considerations
 
-- **Crash reporting** — If Apple's built-in crash reports (Xcode Organizer) aren't sufficient, add Sentry later
+- **Server-side defense-in-depth redaction** — Add Worker-side scrubbing for
+  paths, URLs, API-key-looking strings, and emails before D1 insert. The app
+  already sanitizes current emitted details, but the Worker should not rely on
+  every future client doing the right thing.
+- **Local diagnostic export** — Build an explicit user-triggered diagnostic
+  bundle that includes recent `os.Logger` entries for MacParakeet subsystems,
+  `~/Library/Logs/MacParakeet/dictation-audio.log`, app version/build info, and
+  redacted runtime metadata. Do not upload automatically.
+- **Operation-event coverage gate** — For any new workflow that can succeed,
+  fail, cancel, or become unavailable, require a matching wide `*_operation`
+  event or a documented reason it is intentionally breadcrumb-only.
+- **Worker/schema sync test** — Add a small CI or release-check script that
+  verifies the Swift event-name enum is accepted by the checked-in/deployed
+  Worker allowlist.
+- **Tail sampling** — Not needed at current event volume. If costs rise, sample
+  successful fast operations first while keeping all failures, crashes,
+  unavailable outcomes, and slow operations.
+- **Crash reporting** — If the self-hosted crash reporter plus Apple's built-in crash reports (Xcode Organizer) aren't sufficient, add Sentry later
 - **A/B testing** — Not needed now, but the event infrastructure supports it
 - **Funnel analysis** — Can be done with SQL (session-based event sequences)
 - **~~Speaker diarization telemetry~~** — ✅ Shipped: `diarization_started`, `diarization_completed`, `diarization_failed`

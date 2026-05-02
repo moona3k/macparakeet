@@ -121,24 +121,33 @@ When first-run local model setup fails:
 
 ## Structured Logging
 
-All logging uses `os.Logger` with subsystem `com.macparakeet.app`:
+Local diagnostics use `os.Logger`. Current subsystems are layered by target:
 
 ```swift
-// Categories
-static let audio = Logger(subsystem: "com.macparakeet.app", category: "audio")
-static let stt = Logger(subsystem: "com.macparakeet.app", category: "stt")
-static let llm = Logger(subsystem: "com.macparakeet.app", category: "llm")
-static let database = Logger(subsystem: "com.macparakeet.app", category: "database")
-static let pipeline = Logger(subsystem: "com.macparakeet.app", category: "pipeline")
+Logger(subsystem: "com.macparakeet.app", category: "DictationFlow")
+Logger(subsystem: "com.macparakeet.core", category: "TranscriptionService")
+Logger(subsystem: "com.macparakeet.viewmodels", category: "SettingsViewModel")
+Logger(subsystem: "com.macparakeet", category: "CalendarService") // legacy/simple cases
 ```
 
-**Log levels:**
-- `.debug` -- Verbose diagnostic info (timestamps, buffer sizes)
-- `.info` -- Normal operations (recording started, transcription complete)
-- `.error` -- Recoverable errors (STT failure, fallback to raw text)
-- `.fault` -- Unrecoverable errors (database corruption, crash)
+New log lines should use stable event-style messages with `key=value`
+dimensions, for example `meeting_recording_started session=<uuid>`, rather than
+free-form prose. Local logs are for developer triage and explicit diagnostic
+bundles; product-health analytics come from typed telemetry operation events in
+`docs/telemetry.md`.
 
-**Privacy:** Audio content and transcription text are logged as `.private` to prevent leaking user data into system logs.
+**Log levels:**
+- `.debug` -- Verbose diagnostic info, high-volume details, and gated traces
+- `.info` / `.notice` -- Normal lifecycle transitions and notable state changes
+- `.warning` -- Degraded but recoverable behavior (fallbacks, stalls, retries)
+- `.error` -- Failed operations or recoverable errors that require attention
+- `.fault` -- Unrecoverable corruption or crash-adjacent failures
+
+**Privacy:** Transcript text, prompts, notes, file names, file paths, URLs,
+provider error bodies, microphone names, and device UIDs must be logged as
+`.private` or omitted. Prefer structured safe dimensions such as extension,
+file-size bucket, source, stage, outcome, device transport, and classified
+`error_type`.
 
 ## Retry Strategy
 
@@ -152,10 +161,13 @@ static let pipeline = Logger(subsystem: "com.macparakeet.app", category: "pipeli
 
 ## Error Reporting
 
-Errors are always logged locally. If telemetry is enabled, anonymized error events and crash reports may also be sent to MacParakeet's self-hosted telemetry pipeline. Users can export logs manually via:
+Errors are always logged locally. If telemetry is enabled, non-identifying
+operation failures and crash reports may also be sent to MacParakeet's
+self-hosted telemetry pipeline.
 
-```
-Menu Bar > Help > Export Diagnostic Logs
-```
-
-This creates a zip of recent `os.Logger` entries with `.private` fields redacted.
+Diagnostic export is a follow-up, not a shipped menu action in the current code.
+The desired support path is an explicit user-triggered bundle containing recent
+MacParakeet `os.Logger` entries, `~/Library/Logs/MacParakeet/dictation-audio.log`,
+app version/build info, and redacted runtime metadata. It must not include
+audio, transcripts, notes, prompts, file names, file paths, URLs, API keys, or
+device UIDs, and it must not upload automatically.
