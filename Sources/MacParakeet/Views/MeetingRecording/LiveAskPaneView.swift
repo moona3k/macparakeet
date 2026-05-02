@@ -306,7 +306,7 @@ enum LiveAskStarterPrompts {
             ),
             LiveAskPrompt(
                 label: "What did I miss?",
-                prompt: "Catch me up on what I missed in the last few minutes — the most important points or shifts. Be terse, signal-rich."
+                prompt: "Catch me up on the most recent shifts in the meeting — the latest decisions, new arguments, or topic changes. Skip what was clearly settled earlier. Be terse, signal-rich."
             ),
         ]),
         Group(label: "CAPTURE", prompts: [
@@ -423,7 +423,7 @@ enum LiveAskFollowUpPrompts {
     static let all: [LiveAskPrompt] = [
         LiveAskPrompt(
             label: "Tell me more",
-            prompt: "Expand on your previous response. Go deeper with concrete details and any nuances worth knowing."
+            prompt: "Expand on your previous response with more concrete detail from the meeting itself — quotes, specifics, who said what. Surface nuances or caveats you compressed out the first time."
         ),
         LiveAskPrompt(
             label: "Why?",
@@ -431,15 +431,15 @@ enum LiveAskFollowUpPrompts {
         ),
         LiveAskPrompt(
             label: "Give an example",
-            prompt: "Give a specific, concrete example that illustrates your previous response — ideally pulled from what was actually said in the meeting."
+            prompt: "Give one specific, concrete example that illustrates your previous response. Pull it from the meeting itself — a moment, exchange, or quote. If the meeting doesn't contain a clean example, say so plainly and offer the closest analogue."
         ),
         LiveAskPrompt(
             label: "Counter-argument?",
-            prompt: "What's the strongest counter-argument to your previous response? Steelman the opposing view."
+            prompt: "What's the strongest counter-argument to your previous response? Steelman the opposing view, and use anything in the meeting that supports it."
         ),
         LiveAskPrompt(
             label: "TL;DR",
-            prompt: "Compress your previous response into one or two short, punchy sentences."
+            prompt: "Give the punchy, no-fluff TL;DR of your previous response — one or two sentences. No headers, no list, no preamble."
         ),
     ]
 }
