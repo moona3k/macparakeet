@@ -892,6 +892,56 @@ final class LLMClientTests: XCTestCase {
         XCTAssertNil(capturedBody?["options"])
     }
 
+    func testOllamaListModelsUsesNativeTagsEndpoint() async throws {
+        var capturedRequest: URLRequest?
+
+        MockURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), Data("""
+            {"models":[{"name":"qwen3.5:4b"},{"name":"gemma3:4b"}]}
+            """.utf8))
+        }
+
+        let config = LLMProviderConfig.ollama(model: "qwen3.5:4b")
+        let models = try await llmClient.listModels(config: config)
+
+        XCTAssertEqual(capturedRequest?.url?.absoluteString, "http://localhost:11434/api/tags")
+        XCTAssertEqual(capturedRequest?.httpMethod, "GET")
+        XCTAssertEqual(models, ["gemma3:4b", "qwen3.5:4b"])
+    }
+
+    func testOllamaListModelsFallsBackToOpenAICompatibleModelsEndpoint() async throws {
+        var capturedURLs: [String] = []
+
+        MockURLProtocol.handler = { request in
+            capturedURLs.append(request.url!.absoluteString)
+            if request.url?.path == "/api/tags" {
+                let response = HTTPURLResponse(
+                    url: request.url!,
+                    statusCode: 404,
+                    httpVersion: nil,
+                    headerFields: nil
+                )!
+                return (response, Data())
+            }
+            return (self.okResponse(for: request), Data("""
+            {"data":[{"id":"qwen3.5:4b"}]}
+            """.utf8))
+        }
+
+        let config = LLMProviderConfig.ollama(model: "qwen3.5:4b")
+        let models = try await llmClient.listModels(config: config)
+
+        XCTAssertEqual(
+            capturedURLs,
+            [
+                "http://localhost:11434/api/tags",
+                "http://localhost:11434/v1/models",
+            ]
+        )
+        XCTAssertEqual(models, ["qwen3.5:4b"])
+    }
+
     // MARK: - Gemini Error Array Format
 
     func testGeminiErrorArrayParsedCorrectly() async {

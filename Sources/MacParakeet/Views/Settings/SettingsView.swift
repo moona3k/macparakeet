@@ -235,13 +235,10 @@ struct SettingsView: View {
         }
     }
 
-    /// AI tab — LLM provider config. The card embeds `LLMSettingsView`,
-    /// which already serves as its own first-run UX (the provider picker
-    /// IS the call to action), so a separate empty-state card would be
-    /// redundant. The header chip rolls up the latest signal we have:
-    /// per locked decision #5 we never go red on the AI surface (it's
-    /// opt-in), and we only flag yellow on a real failure the user
-    /// can act on.
+    /// AI tab — optional setup for summaries, chat, prompt actions, and Ask.
+    /// The card body owns the guided local/API/CLI paths. The tab badge stays
+    /// quiet unless a real connection test fails; AI is opt-in and should not
+    /// create speculative warnings.
     private var aiTabContent: some View {
         scrollableTabBody {
             aiProviderCard.id("ai.provider")
@@ -913,8 +910,8 @@ struct SettingsView: View {
 
     private var aiProviderCard: some View {
         SettingsCard(
-            title: "AI Provider",
-            subtitle: "Optional. Powers transcript summaries and chat.",
+            title: "AI Setup",
+            subtitle: "Optional. Powers summaries, chat, and meeting Ask.",
             icon: "brain",
             status: aiProviderCardStatus
         ) {
@@ -924,16 +921,15 @@ struct SettingsView: View {
 
     /// AI tab is opt-in, so this never returns `.required`. We only show
     /// signal when there is something actionable: yellow when the last
-    /// connection test failed (the user pressed "Test Connection" and it
-    /// errored), green when a saved configuration exists and nothing is
-    /// currently broken. Silent in the not-yet-configured state — the
+    /// connection test failed, green when a saved setup exists and nothing is
+    /// currently broken. Silent in the not-yet-configured state because the
     /// card body already explains the empty case.
     private var aiProviderCardStatus: SettingsCardStatus? {
         if case .error = llmSettingsViewModel.connectionTestState {
             return SettingsCardStatus(.recommended, label: "Last test failed")
         }
         if llmSettingsViewModel.isConfigured {
-            return SettingsCardStatus(.ok, label: "Configured")
+            return SettingsCardStatus(.ok, label: "Ready")
         }
         return nil
     }

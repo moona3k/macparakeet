@@ -226,11 +226,12 @@ public enum SettingsSearchIndex {
         SettingsSearchEntry(
             id: "ai.provider",
             tab: .ai,
-            title: "AI Provider",
-            subtitle: "Optional. Powers transcript summaries and chat.",
+            title: "AI Setup",
+            subtitle: "Optional. Powers summaries, chat, and meeting Ask.",
             keywords: [
                 "ai", "llm", "openai", "anthropic", "claude", "gpt", "lm studio", "ollama",
-                "openai compatible", "summary", "summaries", "chat", "api key", "provider"
+                "openai compatible", "summary", "summaries", "chat", "ask", "api key",
+                "provider", "local ai", "local app", "command line", "cli"
             ],
             cardAnchor: "ai.provider"
         ),

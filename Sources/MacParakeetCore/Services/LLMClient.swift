@@ -553,6 +553,16 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
     public func listModels(context: LLMExecutionContext) async throws -> [String] {
         let config = context.providerConfig
+        if config.id == .ollama {
+            do {
+                return try await listOllamaModels(config: config)
+            } catch {
+                // Older Ollama installs exposed only the OpenAI-compatible
+                // /v1/models route. Fall through so users with those setups can
+                // still refresh models from Settings.
+            }
+        }
+
         let url = config.baseURL.appendingPathComponent("models")
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.httpMethod = "GET"
@@ -606,6 +616,44 @@ public final class LLMClient: LLMClientProtocol, Sendable {
     }
 
     // MARK: - Private Helpers
+
+    private func listOllamaModels(config: LLMProviderConfig) async throws -> [String] {
+        guard let tagsURL = Self.ollamaTagsURL(from: config.baseURL) else {
+            throw LLMError.invalidResponse
+        }
+        var request = URLRequest(url: tagsURL, timeoutInterval: 15)
+        request.httpMethod = "GET"
+
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw LLMError.connectionFailed("Failed to fetch models.")
+        }
+
+        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+            throw LLMError.connectionFailed("Failed to fetch models.")
+        }
+
+        let tags = try JSONDecoder().decode(OllamaTagsResponse.self, from: data)
+        return tags.models.map(\.name).sorted()
+    }
+
+    private static func ollamaTagsURL(from baseURL: URL) -> URL? {
+        var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
+        guard components != nil else { return nil }
+        var segments = (components?.path ?? "")
+            .split(separator: "/")
+            .map(String.init)
+        if segments.last == "v1" {
+            segments.removeLast()
+        }
+        segments.append(contentsOf: ["api", "tags"])
+        components?.path = "/" + segments.joined(separator: "/")
+        components?.query = nil
+        return components?.url
+    }
 
     private func buildRequest(
         messages: [ChatMessage],
@@ -985,6 +1033,14 @@ struct ModelsListResponse: Decodable {
 
     struct ModelEntry: Decodable {
         let id: String
+    }
+}
+
+struct OllamaTagsResponse: Decodable {
+    let models: [ModelEntry]
+
+    struct ModelEntry: Decodable {
+        let name: String
     }
 }
 

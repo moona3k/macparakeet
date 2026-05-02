@@ -1965,10 +1965,10 @@ struct TranscriptResultView: View {
                 .foregroundStyle(DesignSystem.Colors.accent)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Chat needs an AI provider")
+                Text("Turn on AI for summaries and chat")
                     .font(DesignSystem.Typography.body.weight(.semibold))
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Text("Configure Gemini, OpenAI, Anthropic, or another provider in Settings to ask follow-up questions about this transcript.")
+                Text("MacParakeet can use a local AI app, your API key, or a command-line AI tool. Transcription still works without this.")
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
             }

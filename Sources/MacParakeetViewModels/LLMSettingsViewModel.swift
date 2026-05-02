@@ -24,6 +24,12 @@ public final class LLMSettingsViewModel {
         case error(String)
     }
 
+    public enum AISetupStatus: Equatable {
+        case setUpNeeded
+        case ready(displayName: String)
+        case cannotConnect(displayName: String, message: String)
+    }
+
     public private(set) var draft: LLMSettingsDraft
     public var connectionTestState: ConnectionTestState = .idle
     public var saveState: SaveState = .idle
@@ -91,6 +97,17 @@ public final class LLMSettingsViewModel {
         configStore != nil && (try? configStore?.loadConfig()) != nil
     }
 
+    public var setupStatus: AISetupStatus {
+        let displayName = savedAIOptionDisplayName ?? draft.providerID?.displayName ?? "AI"
+        if case .error(let message) = connectionTestState {
+            return .cannotConnect(displayName: displayName, message: message)
+        }
+        if isConfigured {
+            return .ready(displayName: displayName)
+        }
+        return .setUpNeeded
+    }
+
     public var requiresAPIKey: Bool {
         draft.requiresAPIKey
     }
@@ -101,14 +118,17 @@ public final class LLMSettingsViewModel {
 
     public var availableModels: [String] {
         guard let providerID = draft.providerID else { return [] }
-        if providerID == .lmstudio {
+        if Self.usesDiscoveredModelList(providerID) {
+            if providerID == .ollama, discoveredModels.isEmpty {
+                return Self.suggestedModels(for: providerID)
+            }
             return discoveredModels
         }
         return Self.suggestedModels(for: providerID)
     }
 
     public var canRefreshModelList: Bool {
-        draft.providerID == .lmstudio
+        draft.providerID.map(Self.usesDiscoveredModelList) ?? false
     }
 
     public var canChooseModelFromList: Bool {
@@ -120,6 +140,10 @@ public final class LLMSettingsViewModel {
             return true
         }
         return false
+    }
+
+    public var discoveredModelCount: Int {
+        discoveredModels.count
     }
 
     public var modelListErrorMessage: String? {
@@ -217,13 +241,13 @@ public final class LLMSettingsViewModel {
 
     public var aiFormatterDisabledReason: String? {
         if draft.providerID == nil {
-            return "Set an AI provider to enable the formatter."
+            return "Set up AI to enable the formatter."
         }
         if !isConfigured {
-            return "Save your AI provider first. Formatter changes apply immediately after that."
+            return "Save your AI setup first. Formatter changes apply immediately after that."
         }
         if draft.providerID != savedProviderID {
-            return "Save this provider first. Formatter changes apply immediately after that."
+            return "Save this AI option first. Formatter changes apply immediately after that."
         }
         return nil
     }
@@ -231,6 +255,17 @@ public final class LLMSettingsViewModel {
     private var savedProviderID: LLMProviderID? {
         guard let configStore else { return nil }
         return (try? configStore.loadConfig())?.id
+    }
+
+    private var savedAIOptionDisplayName: String? {
+        guard let configStore, let config = try? configStore.loadConfig() else { return nil }
+        if config.id == .localCLI {
+            return cliConfigStore
+                .flatMap { $0.load() }
+                .map { LocalCLITemplate.displayName(for: $0.commandTemplate) }
+                ?? config.id.displayName
+        }
+        return config.id.displayName
     }
 
     public var canResetAIFormatterPrompt: Bool {
@@ -359,15 +394,15 @@ public final class LLMSettingsViewModel {
         draft = .defaults(
             for: currentProvider,
             apiKey: apiKey,
-            defaultModelName: currentProvider == .lmstudio
-                ? discoveredModels.first ?? ""
-                : currentProvider.map { Self.defaultModelName(for: $0) } ?? "",
+            defaultModelName: defaultModelNameAfterClearing(currentProvider),
             cliConfig: preservedCLIConfig,
             aiFormatterEnabled: false,
             aiFormatterPrompt: AIFormatter.defaultPromptTemplate
         )
         if currentProvider == .lmstudio {
             draft.useCustomModel = discoveredModels.isEmpty
+        } else if currentProvider == .ollama {
+            draft.useCustomModel = false
         } else {
             resetDiscoveredModels()
         }
@@ -378,6 +413,11 @@ public final class LLMSettingsViewModel {
 
     public func resetAIFormatterPrompt() {
         aiFormatterPrompt = AIFormatter.defaultPromptTemplate
+    }
+
+    public func chooseLocalAIApp(_ providerID: LLMProviderID) {
+        guard Self.usesDiscoveredModelList(providerID) else { return }
+        selectedProviderID = providerID
     }
 
     public func refreshAvailableModels() {
@@ -434,7 +474,7 @@ public final class LLMSettingsViewModel {
             )
             return
         }
-        if providerID != .lmstudio {
+        if !Self.usesDiscoveredModelList(providerID) {
             resetDiscoveredModels()
         }
         let apiKey = providerID.supportsAPIKey ? ((try? configStore?.loadAPIKey(for: providerID)) ?? "") : ""
@@ -447,12 +487,15 @@ public final class LLMSettingsViewModel {
             aiFormatterEnabled: formatterEnabled,
             aiFormatterPrompt: formatterPrompt
         )
-        // Auto-switch to custom model input when provider has no suggested models
-        if Self.suggestedModels(for: providerID).isEmpty && providerID != .localCLI {
+        // Auto-switch to custom model input when provider has no suggested models.
+        if providerID == .lmstudio
+            || (Self.suggestedModels(for: providerID).isEmpty
+                && providerID != .localCLI
+                && !Self.usesDiscoveredModelList(providerID)) {
             nextDraft.useCustomModel = true
         }
         updateDraft(nextDraft)
-        if providerID == .lmstudio {
+        if Self.usesDiscoveredModelList(providerID) {
             refreshAvailableModels()
         }
     }
@@ -478,7 +521,7 @@ public final class LLMSettingsViewModel {
             aiFormatterEnabled: Self.loadStoredAIFormatterEnabled(from: defaults),
             aiFormatterPrompt: Self.loadStoredAIFormatterPrompt(from: defaults)
         )
-        if config.id == .lmstudio {
+        if Self.usesDiscoveredModelList(config.id) {
             refreshAvailableModels()
         } else {
             resetDiscoveredModels()
@@ -493,7 +536,7 @@ public final class LLMSettingsViewModel {
     }
 
     private func buildModelListContext(from draft: LLMSettingsDraft) throws -> LLMExecutionContext? {
-        guard let providerID = draft.providerID, providerID == .lmstudio else { return nil }
+        guard let providerID = draft.providerID, Self.usesDiscoveredModelList(providerID) else { return nil }
         guard let config = try draft.buildConfig(
             defaultBaseURL: Self.defaultBaseURL(for: providerID),
             allowMissingModelName: true
@@ -547,6 +590,21 @@ public final class LLMSettingsViewModel {
     private func resetDiscoveredModels() {
         discoveredModels = []
         modelListState = .idle
+    }
+
+    private func defaultModelNameAfterClearing(_ providerID: LLMProviderID?) -> String {
+        guard let providerID else { return "" }
+        if providerID == .lmstudio {
+            return discoveredModels.first ?? ""
+        }
+        if providerID == .ollama {
+            return discoveredModels.first ?? Self.defaultModelName(for: providerID)
+        }
+        return Self.defaultModelName(for: providerID)
+    }
+
+    private static func usesDiscoveredModelList(_ providerID: LLMProviderID) -> Bool {
+        providerID == .lmstudio || providerID == .ollama
     }
 
     private func persistAIFormatterPreferences(from draft: LLMSettingsDraft) -> String {

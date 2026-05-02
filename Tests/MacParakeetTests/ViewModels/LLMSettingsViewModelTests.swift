@@ -38,8 +38,28 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.connectionTestState, .idle)
         XCTAssertFalse(viewModel.isConfigured)
         XCTAssertFalse(viewModel.requiresAPIKey)
+        XCTAssertEqual(viewModel.setupStatus, .setUpNeeded)
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
+    }
+
+    func testSetupStatusReadyUsesSavedProviderDisplayName() {
+        mockConfigStore.config = .lmstudio(model: "local-model")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        XCTAssertEqual(viewModel.setupStatus, .ready(displayName: "LM Studio"))
+    }
+
+    func testSetupStatusCannotConnectUsesConnectionError() {
+        mockConfigStore.config = .ollama(model: "qwen3.5:4b")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.connectionTestState = .error("Connection failed")
+
+        XCTAssertEqual(
+            viewModel.setupStatus,
+            .cannotConnect(displayName: "Ollama", message: "Connection failed")
+        )
     }
 
     // MARK: - Provider Change
@@ -357,6 +377,20 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.modelListErrorMessage)
     }
 
+    func testOllamaLoadsAvailableModelsAndDefaultsToFirstResult() async throws {
+        mockClient.modelsList = ["qwen3.5:9b", "gemma3:4b"]
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .ollama
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(viewModel.availableModels, ["qwen3.5:9b", "gemma3:4b"])
+        XCTAssertEqual(viewModel.modelName, "qwen3.5:9b")
+        XCTAssertEqual(viewModel.discoveredModelCount, 2)
+        XCTAssertNil(viewModel.modelListErrorMessage)
+    }
+
     func testLMStudioModelListFailureKeepsCustomMode() async throws {
         mockClient.listModelsError = LLMError.connectionFailed("Failed to fetch models.")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
@@ -367,6 +401,20 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         XCTAssertTrue(viewModel.availableModels.isEmpty)
         XCTAssertTrue(viewModel.useCustomModel)
+        XCTAssertEqual(viewModel.modelListErrorMessage, "Connection failed: Failed to fetch models.")
+    }
+
+    func testOllamaModelListFailureKeepsRecommendedModels() async throws {
+        mockClient.listModelsError = LLMError.connectionFailed("Failed to fetch models.")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .ollama
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(viewModel.availableModels, LLMSettingsViewModel.suggestedModels(for: .ollama))
+        XCTAssertFalse(viewModel.useCustomModel)
+        XCTAssertEqual(viewModel.modelName, "qwen3.5:4b")
         XCTAssertEqual(viewModel.modelListErrorMessage, "Connection failed: Failed to fetch models.")
     }
 
