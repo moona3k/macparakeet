@@ -47,18 +47,25 @@ struct TranscriptionLibraryView: View {
                         Button {
                             viewModel.filter = filter
                         } label: {
-                            Text(filter.rawValue)
-                                .font(DesignSystem.Typography.bodySmall.weight(
-                                    viewModel.filter == filter ? .semibold : .regular
-                                ))
-                                .padding(.horizontal, DesignSystem.Spacing.md)
-                                .padding(.vertical, 8)
-                                .background(
-                                    Capsule()
-                                        .fill(viewModel.filter == filter
-                                              ? DesignSystem.Colors.accent.opacity(0.12)
-                                              : .clear)
-                                )
+                            HStack(spacing: 6) {
+                                Text(filter.rawValue)
+                                    .font(DesignSystem.Typography.bodySmall.weight(
+                                        viewModel.filter == filter ? .semibold : .regular
+                                    ))
+                                if filter == .meeting {
+                                    LabsBadge()
+                                        .scaleEffect(0.82)
+                                        .help(LabsBadge.message)
+                                }
+                            }
+                            .padding(.horizontal, DesignSystem.Spacing.md)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(viewModel.filter == filter
+                                          ? DesignSystem.Colors.accent.opacity(0.12)
+                                          : .clear)
+                            )
                         }
                         .buttonStyle(.plain)
                         .foregroundStyle(viewModel.filter == filter ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
@@ -77,29 +84,16 @@ struct TranscriptionLibraryView: View {
                     .padding(.bottom, DesignSystem.Spacing.sm)
             }
 
-            // Grid
+            // Content — date-grouped list for Meetings filter, thumbnail grid otherwise.
+            // Reason: meetings have no thumbnail-worthy visual asset, so a list with
+            // preview text + speaker count is denser and more useful than a wall of
+            // waveform placeholders.
             if viewModel.filteredTranscriptions.isEmpty {
                 emptyState
+            } else if viewModel.filter == .meeting {
+                meetingsList
             } else {
-                ScrollView {
-                    LazyVGrid(
-                        columns: [GridItem(.adaptive(minimum: DesignSystem.Layout.thumbnailCardMinWidth), spacing: DesignSystem.Spacing.md)],
-                        spacing: DesignSystem.Spacing.md
-                    ) {
-                        ForEach(viewModel.filteredTranscriptions) { transcription in
-                            TranscriptionThumbnailCard(transcription: transcription, searchText: viewModel.searchText) {
-                                onSelect(transcription)
-                            } menuContent: {
-                                libraryMenuItems(for: transcription)
-                            }
-                            .contextMenu {
-                                libraryMenuItems(for: transcription)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, DesignSystem.Spacing.lg)
-                    .padding(.bottom, DesignSystem.Spacing.lg)
-                }
+                thumbnailGrid
             }
         }
         .searchable(text: $viewModel.searchText, prompt: "Search transcriptions")
@@ -126,6 +120,50 @@ struct TranscriptionLibraryView: View {
             if let pending = pendingDelete {
                 Text("\"\(pending.fileName)\" will be permanently deleted.")
             }
+        }
+    }
+
+    private var thumbnailGrid: some View {
+        ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: DesignSystem.Layout.thumbnailCardMinWidth), spacing: DesignSystem.Spacing.md)],
+                spacing: DesignSystem.Spacing.md
+            ) {
+                ForEach(viewModel.filteredTranscriptions) { transcription in
+                    TranscriptionThumbnailCard(transcription: transcription, searchText: viewModel.searchText) {
+                        onSelect(transcription)
+                    } menuContent: {
+                        libraryMenuItems(for: transcription)
+                    }
+                    .contextMenu {
+                        libraryMenuItems(for: transcription)
+                    }
+                }
+            }
+            .padding(.horizontal, DesignSystem.Spacing.lg)
+            .padding(.bottom, DesignSystem.Spacing.lg)
+        }
+    }
+
+    private var meetingsList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(viewModel.groupedTranscriptions, id: \.group) { section in
+                    MeetingDateGroupHeader(group: section.group)
+                    ForEach(Array(section.items.enumerated()), id: \.element.id) { idx, transcription in
+                        MeetingRowCard(
+                            transcription: transcription,
+                            searchText: viewModel.searchText,
+                            onTap: { onSelect(transcription) },
+                            menuContent: { libraryMenuItems(for: transcription) }
+                        )
+                        if idx < section.items.count - 1 {
+                            MeetingRowHairline()
+                        }
+                    }
+                }
+            }
+            .padding(.bottom, DesignSystem.Spacing.lg)
         }
     }
 
@@ -158,21 +196,37 @@ struct TranscriptionLibraryView: View {
     private var emptyState: some View {
         VStack(spacing: DesignSystem.Spacing.lg) {
             Spacer()
-            Image(systemName: viewModel.searchText.isEmpty ? "square.grid.2x2" : "magnifyingglass")
+            Image(systemName: emptyStateIcon)
                 .font(.system(size: 40, weight: .light))
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
             Text(viewModel.searchText.isEmpty
-                 ? emptyTitle
+                 ? emptyStateTitle
                  : "No matching transcriptions")
                 .font(DesignSystem.Typography.body)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
             Text(viewModel.searchText.isEmpty
-                 ? emptyMessage
+                 ? emptyStateMessage
                  : "Try different words or clear your search.")
                 .font(DesignSystem.Typography.bodySmall)
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .multilineTextAlignment(.center)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var emptyStateIcon: String {
+        if !viewModel.searchText.isEmpty { return "magnifyingglass" }
+        return viewModel.filter == .meeting ? "waveform.badge.mic" : "square.grid.2x2"
+    }
+
+    private var emptyStateTitle: String {
+        viewModel.filter == .meeting ? "No meetings recorded yet" : emptyTitle
+    }
+
+    private var emptyStateMessage: String {
+        viewModel.filter == .meeting
+            ? "Press Record Meeting on the Transcribe tab to capture system audio and transcribe locally."
+            : emptyMessage
     }
 }

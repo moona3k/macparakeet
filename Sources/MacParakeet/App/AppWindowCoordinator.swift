@@ -20,7 +20,6 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
     private let feedbackViewModel: FeedbackViewModel
     private let discoverViewModel: DiscoverViewModel
     private let libraryViewModel: TranscriptionLibraryViewModel
-    private let meetingsViewModel: TranscriptionLibraryViewModel
     private let meetingPillViewModel: MeetingRecordingPillViewModel
     private let updaterController: SPUStandardUpdaterController
     private let onRecordMeeting: () -> Void
@@ -44,7 +43,6 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         feedbackViewModel: FeedbackViewModel,
         discoverViewModel: DiscoverViewModel,
         libraryViewModel: TranscriptionLibraryViewModel,
-        meetingsViewModel: TranscriptionLibraryViewModel,
         meetingPillViewModel: MeetingRecordingPillViewModel,
         updaterController: SPUStandardUpdaterController,
         onRecordMeeting: @escaping () -> Void,
@@ -65,7 +63,6 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         self.feedbackViewModel = feedbackViewModel
         self.discoverViewModel = discoverViewModel
         self.libraryViewModel = libraryViewModel
-        self.meetingsViewModel = meetingsViewModel
         self.meetingPillViewModel = meetingPillViewModel
         self.updaterController = updaterController
         self.onRecordMeeting = onRecordMeeting
@@ -173,7 +170,6 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
             feedbackViewModel: feedbackViewModel,
             discoverViewModel: discoverViewModel,
             libraryViewModel: libraryViewModel,
-            meetingsViewModel: meetingsViewModel,
             meetingPillViewModel: meetingPillViewModel,
             updater: updaterController.updater,
             onRecordMeeting: onRecordMeeting

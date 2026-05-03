@@ -6,7 +6,6 @@ import MacParakeetViewModels
 enum SidebarItem: String, CaseIterable, Identifiable {
     case transcribe = "Transcribe"
     case library = "Library"
-    case meetings = "Meetings"
     case dictations = "Dictations"
     case vocabulary = "Vocabulary"
     case feedback = "Feedback"
@@ -19,7 +18,6 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         switch self {
         case .transcribe: return "waveform"
         case .library: return "square.grid.2x2"
-        case .meetings: return "record.circle"
         case .dictations: return "clock.arrow.circlepath"
         case .vocabulary: return "book.fill"
         case .feedback: return "bubble.left.and.text.bubble.right"
@@ -28,15 +26,10 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Primary features — the core things users do
-    static var primaryItems: [SidebarItem] {
-        var items: [SidebarItem] = [.transcribe, .library]
-        if AppFeatures.meetingRecordingEnabled {
-            items.append(.meetings)
-        }
-        items.append(.dictations)
-        return items
-    }
+    /// Primary features — the core things users do. Meeting recording is
+    /// reachable from the Transcribe tab's third tile (when feature flag is
+    /// on); meeting browse lives in `Library` under the `Meetings` filter.
+    static let primaryItems: [SidebarItem] = [.transcribe, .library, .dictations]
 
     /// Configuration and support items
     static let configItems: [SidebarItem] = [.vocabulary, .feedback, .settings]
@@ -61,7 +54,6 @@ struct MainWindowView: View {
     let feedbackViewModel: FeedbackViewModel
     let discoverViewModel: DiscoverViewModel
     let libraryViewModel: TranscriptionLibraryViewModel
-    let meetingsViewModel: TranscriptionLibraryViewModel
     let meetingPillViewModel: MeetingRecordingPillViewModel
     let updater: SPUUpdater
     let onRecordMeeting: () -> Void
@@ -119,14 +111,6 @@ struct MainWindowView: View {
                         ) { transcription in
                             transcriptionViewModel.currentTranscription = transcription
                             state.navigateToTranscription(from: .library)
-                        }
-                    case .meetings:
-                        MeetingsView(
-                            viewModel: meetingsViewModel,
-                            onStartMeeting: onRecordMeeting
-                        ) { transcription in
-                            transcriptionViewModel.currentTranscription = transcription
-                            state.navigateToTranscription(from: .meetings)
                         }
                     case .dictations:
                         DictationHistoryView(viewModel: historyViewModel)
@@ -248,13 +232,6 @@ private struct SidebarItemLabel: View {
     let item: SidebarItem
 
     var body: some View {
-        HStack(spacing: DesignSystem.Spacing.sm) {
-            Label(item.rawValue, systemImage: item.icon)
-
-            if item == .meetings {
-                LabsBadge()
-                    .scaleEffect(0.88)
-            }
-        }
+        Label(item.rawValue, systemImage: item.icon)
     }
 }

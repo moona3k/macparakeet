@@ -35,7 +35,6 @@ final class AppEnvironmentConfigurer {
     private let textSnippetsViewModel: TextSnippetsViewModel
     private let vocabularyBackupViewModel: VocabularyBackupViewModel
     private let libraryViewModel: TranscriptionLibraryViewModel
-    private let meetingsViewModel: TranscriptionLibraryViewModel
     private let llmSettingsViewModel: LLMSettingsViewModel
     private let chatViewModel: TranscriptChatViewModel
     private let promptResultsViewModel: PromptResultsViewModel
@@ -52,7 +51,6 @@ final class AppEnvironmentConfigurer {
         textSnippetsViewModel: TextSnippetsViewModel,
         vocabularyBackupViewModel: VocabularyBackupViewModel,
         libraryViewModel: TranscriptionLibraryViewModel,
-        meetingsViewModel: TranscriptionLibraryViewModel,
         llmSettingsViewModel: LLMSettingsViewModel,
         chatViewModel: TranscriptChatViewModel,
         promptResultsViewModel: PromptResultsViewModel,
@@ -67,7 +65,6 @@ final class AppEnvironmentConfigurer {
         self.textSnippetsViewModel = textSnippetsViewModel
         self.vocabularyBackupViewModel = vocabularyBackupViewModel
         self.libraryViewModel = libraryViewModel
-        self.meetingsViewModel = meetingsViewModel
         self.llmSettingsViewModel = llmSettingsViewModel
         self.chatViewModel = chatViewModel
         self.promptResultsViewModel = promptResultsViewModel
@@ -98,7 +95,6 @@ final class AppEnvironmentConfigurer {
         )
         historyViewModel.configure(dictationRepo: env.dictationRepo)
         libraryViewModel.configure(transcriptionRepo: env.transcriptionRepo)
-        meetingsViewModel.configure(transcriptionRepo: env.transcriptionRepo)
         settingsViewModel.configure(
             permissionService: env.permissionService,
             dictationRepo: env.dictationRepo,
@@ -234,8 +230,7 @@ final class AppEnvironmentConfigurer {
                 guard let self else { return }
                 self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
                 self.libraryViewModel.loadTranscriptions()
-                self.meetingsViewModel.loadTranscriptions()
-                self.mainWindowState.navigateToTranscription(from: .meetings)
+                self.mainWindowState.navigateToTranscription(from: .library)
                 callbacks.onOpenMainWindow()
             },
             onRecordingBegan: {

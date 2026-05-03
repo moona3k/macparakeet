@@ -53,7 +53,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let feedbackViewModel = FeedbackViewModel()
     private let discoverViewModel = DiscoverViewModel()
     private let libraryViewModel = TranscriptionLibraryViewModel()
-    private let meetingsViewModel = TranscriptionLibraryViewModel(scope: .meetings)
     private let llmSettingsViewModel = LLMSettingsViewModel()
     private let chatViewModel = TranscriptChatViewModel()
     private let promptResultsViewModel = PromptResultsViewModel()
@@ -81,7 +80,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         textSnippetsViewModel: textSnippetsViewModel,
         vocabularyBackupViewModel: vocabularyBackupViewModel,
         libraryViewModel: libraryViewModel,
-        meetingsViewModel: meetingsViewModel,
         llmSettingsViewModel: llmSettingsViewModel,
         chatViewModel: chatViewModel,
         promptResultsViewModel: promptResultsViewModel,
@@ -112,11 +110,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         settingsViewModel: settingsViewModel,
         libraryViewModel: libraryViewModel,
-        meetingsViewModel: meetingsViewModel,
         onPresentRecoveredTranscription: { [weak self] transcription in
             guard let self else { return }
             self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
-            self.mainWindowState.navigateToTranscription(from: .meetings)
+            self.mainWindowState.navigateToTranscription(from: .library)
             self.windowCoordinator.openMainWindow()
         }
     )
@@ -136,7 +133,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         feedbackViewModel: feedbackViewModel,
         discoverViewModel: discoverViewModel,
         libraryViewModel: libraryViewModel,
-        meetingsViewModel: meetingsViewModel,
         meetingPillViewModel: meetingPillViewModel,
         updaterController: updaterController,
         onRecordMeeting: { [weak self] in
@@ -495,7 +491,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if originatesFromWindow {
-            mainWindowState.selectedItem = .meetings
+            // The Transcribe tab hosts the Meeting Recording tile, which
+            // reflects live recording state. Show the user that surface so
+            // they see the start/recording transition.
+            mainWindowState.selectedItem = .transcribe
             windowCoordinator.openMainWindow()
         }
 

@@ -8,20 +8,17 @@ final class MeetingRecoveryCoordinator {
     private let environmentProvider: () -> AppEnvironment?
     private let settingsViewModel: SettingsViewModel
     private let libraryViewModel: TranscriptionLibraryViewModel
-    private let meetingsViewModel: TranscriptionLibraryViewModel
     private let onPresentRecoveredTranscription: (Transcription) -> Void
 
     init(
         environmentProvider: @escaping () -> AppEnvironment?,
         settingsViewModel: SettingsViewModel,
         libraryViewModel: TranscriptionLibraryViewModel,
-        meetingsViewModel: TranscriptionLibraryViewModel,
         onPresentRecoveredTranscription: @escaping (Transcription) -> Void
     ) {
         self.environmentProvider = environmentProvider
         self.settingsViewModel = settingsViewModel
         self.libraryViewModel = libraryViewModel
-        self.meetingsViewModel = meetingsViewModel
         self.onPresentRecoveredTranscription = onPresentRecoveredTranscription
     }
 
@@ -142,7 +139,6 @@ final class MeetingRecoveryCoordinator {
                 source: source
             ))
             libraryViewModel.loadTranscriptions()
-            meetingsViewModel.loadTranscriptions()
             settingsViewModel.refreshPendingMeetingRecoveries()
             if let first = recovered.first {
                 onPresentRecoveredTranscription(first)

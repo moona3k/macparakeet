@@ -21,7 +21,7 @@ struct MeetingRecordingTile: View {
                 .padding(.vertical, DesignSystem.Spacing.md)
         }
         .frame(maxWidth: .infinity)
-        .frame(minHeight: 92)
+        .frame(height: 96)
         .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.dropZoneCornerRadius))
         .onHover { isHovered = $0 }
         .onTapGesture(perform: onTap)
