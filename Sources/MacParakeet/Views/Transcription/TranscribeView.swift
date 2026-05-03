@@ -12,6 +12,39 @@ struct TranscribeView: View {
     var onNavigateBack: (() -> Void)?
     @State private var showCancelConfirmation = false
     @State private var aiFormatterWarningMessage: String?
+    @State private var inspirationQuote: InspirationQuote = InspirationQuote.random()
+
+    private struct InspirationQuote {
+        let text: String
+        let author: String?
+
+        static let rotation: [InspirationQuote] = [
+            InspirationQuote(text: "Comprehend and copy nature.", author: "Viktor Schauberger"),
+            InspirationQuote(text: "Prevailing science thinks one octave too low.", author: "Viktor Schauberger"),
+            InspirationQuote(text: "All matter exists by reason of vibratory force.", author: "John Worrell Keely"),
+            InspirationQuote(text: "Throughout space there is energy.", author: "Nikola Tesla"),
+            InspirationQuote(text: "Knowledge can only be acquired through awareness.", author: "Walter Russell"),
+            InspirationQuote(text: "Love, work, and knowledge are the wellsprings of our life.", author: "Wilhelm Reich"),
+            InspirationQuote(text: "The laws of nature may be more like habits.", author: "Rupert Sheldrake"),
+            InspirationQuote(text: "As above, so below; as within, so without.", author: "The Kybalion"),
+            InspirationQuote(text: "There is no coming to consciousness without pain.", author: "Carl Jung"),
+            InspirationQuote(text: "What you seek is seeking you.", author: "Rumi"),
+            InspirationQuote(text: "You are an aperture through which the universe is looking at itself.", author: "Alan Watts"),
+            InspirationQuote(text: "Be the change you wish to see in the world.", author: nil),
+        ]
+
+        static func random() -> InspirationQuote {
+            rotation.randomElement() ?? rotation[0]
+        }
+
+        var rendered: String {
+            if let author {
+                return "\(text) — \(author)"
+            }
+            return text
+        }
+    }
+
     private enum PipelineStep: CaseIterable {
         case download
         case convert
@@ -132,10 +165,10 @@ struct TranscribeView: View {
                             .padding(.horizontal, DesignSystem.Spacing.xl)
                     }
 
-                    // Privacy tagline
-                    Text("Everything stays on your Mac.")
+                    Text(inspirationQuote.rendered)
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.tertiary)
+                        .multilineTextAlignment(.center)
                 }
 
                 Spacer()
