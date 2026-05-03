@@ -43,6 +43,16 @@ private enum TranscriptDisplayMode: String, CaseIterable, Hashable {
     case timed = "Timed"
 }
 
+/// Records the user's engine choice from the retranscribe popover so the
+/// confirmation alert can be presented in a *separate* render cycle from
+/// the popover dismissal — chaining popover → alert in the same cycle on
+/// macOS reliably drops the alert. The single `override` field carries
+/// nil when the user picked the primary engine (no override needed) and
+/// `.some` when they picked the alternative.
+private struct RetranscribePick: Sendable {
+    let override: SpeechEngineSelection?
+}
+
 struct TranscriptResultView: View {
     let transcription: Transcription
     @Bindable var viewModel: TranscriptionViewModel
@@ -98,6 +108,7 @@ struct TranscriptResultView: View {
     @State private var showGeneratePopover = false
     @State private var retranscriptionConfirmation: RetranscriptionConfirmation?
     @State private var showingRetranscribeOptions = false
+    @State private var pendingRetranscribePick: RetranscribePick?
     @State private var showingCancelGenerationAlert: UUID?
     @FocusState private var chatInputFocused: Bool
     @FocusState private var meetingTitleFocused: Bool
@@ -456,6 +467,18 @@ struct TranscriptResultView: View {
             Spacer()
         }
         .padding(DesignSystem.Spacing.md)
+        .onChange(of: showingRetranscribeOptions) { _, isOpen in
+            // Picker → alert handoff: the picker popover stores the user's
+            // choice in `pendingRetranscribePick` then closes itself. We hop
+            // through Task { @MainActor } so the popover-dismiss render
+            // cycle finishes before the alert tries to present — without the
+            // hop, SwiftUI on macOS reliably drops the alert.
+            guard !isOpen, let pick = pendingRetranscribePick else { return }
+            pendingRetranscribePick = nil
+            Task { @MainActor in
+                retranscriptionConfirmation = RetranscriptionConfirmation(speechEngineOverride: pick.override)
+            }
+        }
         .alert(
             retranscriptionConfirmation?.title ?? "Retranscribe this file?",
             isPresented: isRetranscriptionConfirmationPresented,
@@ -525,14 +548,11 @@ struct TranscriptResultView: View {
         _ selection: SpeechEngineSelection,
         in option: TranscriptionViewModel.RetranscriptionEngineOption
     ) {
-        showingRetranscribeOptions = false
         let override: SpeechEngineSelection? = (selection == option.primaryEngine) ? nil : selection
-        // Defer one runloop tick so the popover dismissal animation doesn't race
-        // the alert presentation — SwiftUI gets confused if both transition in
-        // the same tick and the alert can fail to appear.
-        DispatchQueue.main.async {
-            retranscriptionConfirmation = RetranscriptionConfirmation(speechEngineOverride: override)
-        }
+        pendingRetranscribePick = RetranscribePick(override: override)
+        showingRetranscribeOptions = false
+        // Confirmation alert is presented from the .onChange handler that
+        // observes showingRetranscribeOptions flipping to false — see actionBar.
     }
 
     private var activeTranscription: Transcription {
@@ -2706,8 +2726,16 @@ private struct EngineOptionCard: View {
                 hovering = isHovering
             }
         }
+        .help(helpText)
         .accessibilityLabel(Text(accessibilityLabel))
         .accessibilityHint(Text(accessibilityHint))
+    }
+
+    private var helpText: String {
+        if !isAvailable {
+            return unavailableReason ?? "Unavailable for this rerun."
+        }
+        return "Rerun with \(selection.engine.displayName)."
     }
 
     private var iconColor: Color {
