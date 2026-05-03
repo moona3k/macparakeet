@@ -44,6 +44,12 @@ struct LiveAskPaneView: View {
             }
             return .ignored
         }
+        .onChange(of: viewModel.isStreaming) { _, streaming in
+            // The sparkle button dims + ignores hits while streaming, but if the
+            // menu was already open when streaming began (e.g. user regenerated
+            // from an earlier bubble) it would sit there with non-firing prompts.
+            if streaming { showingPromptMenu = false }
+        }
     }
 
     /// In-view popover for mid-conversation prompt browsing. Anchored above the
@@ -210,8 +216,13 @@ struct LiveAskPaneView: View {
         HStack(spacing: DesignSystem.Spacing.sm) {
             // Menu button only mid-conversation — empty state already shows the
             // full prompt grid in the pane, so the button would be redundant.
+            // Mirrors the follow-up row's streaming treatment so the entire
+            // composer reads as "wait" while the assistant is composing.
             if !viewModel.messages.isEmpty && viewModel.canSendMessage {
                 PromptMenuButton(isOpen: $showingPromptMenu)
+                    .opacity(viewModel.isStreaming ? 0.45 : 1)
+                    .allowsHitTesting(!viewModel.isStreaming)
+                    .animation(.easeOut(duration: 0.18), value: viewModel.isStreaming)
             }
 
             TextField("Ask about the meeting…", text: $viewModel.inputText, axis: .vertical)
