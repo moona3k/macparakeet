@@ -1,3 +1,4 @@
+import AppKit
 import MacParakeetCore
 import MacParakeetViewModels
 import SwiftUI
@@ -135,8 +136,12 @@ struct LiveAskPaneView: View {
                         emptyStateWithPills
                     } else {
                         ForEach(viewModel.messages) { message in
-                            MessageBubble(message: message)
-                                .id(message.id)
+                            MessageBubble(
+                                message: message,
+                                isLast: message.id == viewModel.messages.last?.id,
+                                onRegenerate: { viewModel.regenerateLastResponse() }
+                            )
+                            .id(message.id)
                         }
                     }
 
@@ -563,13 +568,20 @@ private struct FollowUpPill: View {
 /// and leisurely; this one is in-the-moment thinking partnership.
 private struct MessageBubble: View {
     let message: ChatDisplayMessage
+    let isLast: Bool
+    let onRegenerate: () -> Void
 
     var body: some View {
         switch message.role {
         case .user:
             UserTurnView(content: message.content)
         case .assistant, .system:
-            AssistantTurnView(content: message.content, isStreaming: message.isStreaming)
+            AssistantTurnView(
+                content: message.content,
+                isStreaming: message.isStreaming,
+                isLast: isLast,
+                onRegenerate: onRegenerate
+            )
         }
     }
 }
@@ -604,17 +616,32 @@ private struct UserTurnView: View {
 private struct AssistantTurnView: View {
     let content: String
     let isStreaming: Bool
+    let isLast: Bool
+    let onRegenerate: () -> Void
+
+    @State private var hovered = false
+    @FocusState private var actionFocus: AssistantActionFocus?
 
     private var isEmptyStreaming: Bool { content.isEmpty && isStreaming }
+
+    /// Actions ride on the assistant turn but they're not part of the read.
+    /// Hide while streaming (no copying half-tokens; no regenerating an unfinished
+    /// turn) and on empty content. Reveal on hover OR keyboard focus so a tab-only
+    /// user can still reach them.
+    private var actionsVisible: Bool {
+        guard !isStreaming, !content.isEmpty else { return false }
+        return hovered || actionFocus != nil
+    }
 
     var body: some View {
         // Two columns: a 16pt leading anchor (head + accent rule), then typeset
         // prose. The rule fills the prose's full height via maxHeight, so a
-        // long markdown answer has a continuous accent column. While we wait
-        // for the first token, the rule and prose are hidden — the merkaba
-        // (brand voice / sacred-geometry rotation) pairs with three small
-        // wave-pulsing dots (universal "thinking" signal) for the loading
-        // state. Same job-division as iMessage's avatar + typing bubble.
+        // long markdown answer has a continuous accent column — and now also
+        // visually adopts the actions row beneath the prose. While we wait for
+        // the first token, the rule and prose are hidden — the merkaba (brand
+        // voice / sacred-geometry rotation) pairs with three small wave-pulsing
+        // dots (universal "thinking" signal) for the loading state. Same
+        // job-division as iMessage's avatar + typing bubble.
         HStack(alignment: .top, spacing: 12) {
             VStack(spacing: 6) {
                 AssistantHead(isStreaming: isStreaming)
@@ -629,20 +656,123 @@ private struct AssistantTurnView: View {
             if isEmptyStreaming {
                 ThinkingDots()
                     .transition(.opacity)
+                    // ThinkingDots is .accessibilityHidden(true) internally
+                    // (decorative); promote it to a single element here so
+                    // VoiceOver still reads the loading state.
+                    .accessibilityElement()
+                    .accessibilityLabel("Thinking")
             } else {
-                // Reuse the canonical NSTextView-based renderer used elsewhere
-                // (post-meeting Chat tab, PromptResults). Markdown, headings,
-                // code blocks, lists, and proper text selection — for free.
-                MarkdownContentView(content)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .transition(.opacity)
+                VStack(alignment: .leading, spacing: 0) {
+                    // Reuse the canonical NSTextView-based renderer used
+                    // elsewhere (post-meeting Chat tab, PromptResults).
+                    // Markdown, headings, code blocks, lists, and proper text
+                    // selection — for free.
+                    MarkdownContentView(content)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    // Always rendered (reserves height so hover doesn't shift
+                    // layout) but invisible until the assistant turn is hovered
+                    // or one of its action buttons takes keyboard focus.
+                    AssistantMessageActions(
+                        content: content,
+                        showRegenerate: isLast,
+                        onRegenerate: onRegenerate,
+                        focus: $actionFocus
+                    )
+                    .opacity(actionsVisible ? 1 : 0)
+                    .allowsHitTesting(actionsVisible)
+                    .animation(.easeOut(duration: 0.12), value: actionsVisible)
+                }
+                .transition(.opacity)
             }
 
             Spacer(minLength: 0)
         }
+        // Generous, forgiving hover target — cursor doesn't need to land
+        // precisely on prose to reveal actions; anywhere across the assistant
+        // strip counts.
+        .contentShape(Rectangle())
+        .onHover { hovered = $0 }
         .animation(.easeOut(duration: 0.2), value: isEmptyStreaming)
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel(isEmptyStreaming ? "Thinking" : "")
+    }
+}
+
+private enum AssistantActionFocus: Hashable {
+    case copy
+    case regenerate
+}
+
+/// Two SF Symbol buttons beneath the assistant prose: Copy (always) and
+/// Regenerate (tail only). Bare glyphs — no backgrounds, no labels — to honor
+/// the "whisper layout" intent: no chat-app chrome, just the response and
+/// quiet affordances that emerge on hover. Per-button hover bumps glyph
+/// opacity for a touch of liveliness without animating during reveal.
+private struct AssistantMessageActions: View {
+    let content: String
+    let showRegenerate: Bool
+    let onRegenerate: () -> Void
+    @FocusState.Binding var focus: AssistantActionFocus?
+
+    @State private var copied = false
+    @State private var copyHovered = false
+    @State private var regenerateHovered = false
+    @State private var resetTask: Task<Void, Never>?
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Button(action: copy) {
+                Image(systemName: copied ? "checkmark" : "doc.on.clipboard")
+                    .font(.system(size: 11, weight: .medium))
+                    .contentTransition(.symbolEffect(.replace))
+                    .foregroundStyle(
+                        copied
+                            ? DesignSystem.Colors.successGreen.opacity(0.95)
+                            : DesignSystem.Colors.accent.opacity(copyHovered ? 0.95 : 0.55)
+                    )
+                    .frame(width: 16, height: 16)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .focused($focus, equals: .copy)
+            .onHover { copyHovered = $0 }
+            .help(copied ? "Copied" : "Copy response")
+            .accessibilityLabel(copied ? "Copied" : "Copy response")
+
+            if showRegenerate {
+                Button(action: onRegenerate) {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(
+                            DesignSystem.Colors.accent.opacity(regenerateHovered ? 0.95 : 0.55)
+                        )
+                        .frame(width: 16, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .focused($focus, equals: .regenerate)
+                .onHover { regenerateHovered = $0 }
+                .help("Regenerate response")
+                .accessibilityLabel("Regenerate response")
+            }
+        }
+        .padding(.top, 8)
+        .onDisappear { resetTask?.cancel() }
+    }
+
+    private func copy() {
+        guard !content.isEmpty else { return }
+        // Copy the raw markdown source — pastes cleanly into Notes/Slack/email
+        // and preserves the bold quote callouts that make the response useful.
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(content, forType: .string)
+        copied = true
+        resetTask?.cancel()
+        resetTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(1200))
+            if !Task.isCancelled {
+                copied = false
+            }
+        }
     }
 }
 

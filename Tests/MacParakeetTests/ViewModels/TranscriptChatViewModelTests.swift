@@ -829,6 +829,114 @@ final class TranscriptChatViewModelTests: XCTestCase {
 
         XCTAssertNil(mockService.lastChatUserNotes)
     }
+
+    // MARK: - Regenerate Last Response
+
+    func testRegenerateLastResponseReissuesPriorPromptAndReplacesTail() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        mockService.streamTokens = ["First", " answer"]
+        viewModel.inputText = "What is this about?"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(viewModel.messages.count, 2)
+        XCTAssertEqual(viewModel.messages[1].content, "First answer")
+        let firstAssistantID = viewModel.messages[1].id
+
+        mockService.streamTokens = ["Second", " answer"]
+        viewModel.regenerateLastResponse()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        // Same shape (user + 1 assistant), new assistant content + new id.
+        XCTAssertEqual(viewModel.messages.count, 2)
+        XCTAssertEqual(viewModel.messages[0].role, .user)
+        XCTAssertEqual(viewModel.messages[0].content, "What is this about?")
+        XCTAssertEqual(viewModel.messages[1].role, .assistant)
+        XCTAssertEqual(viewModel.messages[1].content, "Second answer")
+        XCTAssertNotEqual(viewModel.messages[1].id, firstAssistantID)
+
+        // LLM saw the same user prompt and history excluded the trailing user turn.
+        XCTAssertEqual(mockService.lastChatQuestion, "What is this about?")
+        XCTAssertEqual(mockService.lastChatHistory?.count, 0)
+    }
+
+    func testRegenerateLastResponsePreservesEarlierTurnsInHistory() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        mockService.streamTokens = ["A1"]
+        viewModel.inputText = "Q1"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        mockService.streamTokens = ["A2"]
+        viewModel.inputText = "Q2"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(viewModel.messages.count, 4)
+
+        mockService.streamTokens = ["A2-prime"]
+        viewModel.regenerateLastResponse()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        // Q1/A1/Q2 retained; A2 replaced.
+        XCTAssertEqual(viewModel.messages.count, 4)
+        XCTAssertEqual(viewModel.messages.map(\.content), ["Q1", "A1", "Q2", "A2-prime"])
+
+        // History sent to the LLM excludes the trailing user turn (Q2 is the question).
+        XCTAssertEqual(mockService.lastChatQuestion, "Q2")
+        XCTAssertEqual(mockService.lastChatHistory?.count, 2)
+        XCTAssertEqual(mockService.lastChatHistory?[0].content, "Q1")
+        XCTAssertEqual(mockService.lastChatHistory?[1].content, "A1")
+    }
+
+    func testRegenerateLastResponseDoesNothingWhenStreaming() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        mockService.streamTokens = ["slow"]
+        mockService.streamDelayNs = 200_000_000
+        viewModel.inputText = "Q"
+        viewModel.sendMessage()
+
+        // While streaming, regenerate must be a no-op.
+        let countBefore = viewModel.messages.count
+        viewModel.regenerateLastResponse()
+        XCTAssertEqual(viewModel.messages.count, countBefore)
+        XCTAssertTrue(viewModel.isStreaming)
+
+        try await Task.sleep(nanoseconds: 400_000_000)
+    }
+
+    func testRegenerateLastResponseDoesNothingOnEmptyThread() {
+        viewModel.regenerateLastResponse()
+        XCTAssertTrue(viewModel.messages.isEmpty)
+        XCTAssertFalse(viewModel.isStreaming)
+    }
+
+    func testRegenerateLastResponseDoesNothingAfterErrorTail() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        mockService.errorToThrow = LLMError.authenticationFailed(nil)
+        viewModel.inputText = "Will fail"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        // After error, only the user turn remains — regenerate has nothing to replace.
+        XCTAssertEqual(viewModel.messages.count, 1)
+        XCTAssertEqual(viewModel.messages[0].role, .user)
+
+        let chatCallsBefore = mockService.chatCallCount
+        viewModel.regenerateLastResponse()
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(mockService.chatCallCount, chatCallsBefore, "Regenerate must not re-issue when tail isn't an assistant turn")
+        XCTAssertEqual(viewModel.messages.count, 1)
+    }
 }
 
 /// Tiny @unchecked-Sendable string box used by the closure-reevaluation test.

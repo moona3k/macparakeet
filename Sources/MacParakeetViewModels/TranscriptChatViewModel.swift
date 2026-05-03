@@ -145,7 +145,7 @@ public final class TranscriptChatViewModel {
     ///   user-visible bubble and persisted history both show `inputText`.
     public func sendMessage(richPrompt: String? = nil) {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty, !isStreaming, let llmService else { return }
+        guard !text.isEmpty, !isStreaming, llmService != nil else { return }
         let llmQuestion: String
         if let rich = richPrompt?.trimmingCharacters(in: .whitespacesAndNewlines), !rich.isEmpty {
             llmQuestion = rich
@@ -194,6 +194,42 @@ public final class TranscriptChatViewModel {
         chatHistory.append(ChatMessage(role: .user, content: text))
         persistChatMessages()
 
+        startStreamingAssistant(question: llmQuestion, historyForRequest: historyForRequest)
+    }
+
+    /// Tail-only regenerate: drops the last completed assistant turn and re-issues
+    /// the most recent user prompt against the same prior history. Mid-history
+    /// regeneration would force a branching/forking model into a surface that's
+    /// purposefully linear; we deliberately don't support it.
+    public func regenerateLastResponse() {
+        guard !isStreaming, llmService != nil else { return }
+        guard let last = messages.last,
+              last.role == .assistant,
+              !last.isStreaming else { return }
+        guard chatHistory.last?.role == .assistant else { return }
+
+        // Pop the assistant turn from both the visible thread and persisted
+        // history; commit the removal so a crash/restart wouldn't replay the
+        // stale answer.
+        messages.removeLast()
+        chatHistory.removeLast()
+        persistChatMessages()
+        errorMessage = nil
+
+        guard let trailingUser = chatHistory.last,
+              trailingUser.role == .user else { return }
+        let userPrompt = trailingUser.content
+        let historyForRequest = Array(chatHistory.dropLast())
+
+        startStreamingAssistant(question: userPrompt, historyForRequest: historyForRequest)
+    }
+
+    /// Shared streaming kernel for both first-send and regenerate. Appends a
+    /// streaming-state assistant turn, then runs the LLM stream with the same
+    /// detach/cancel/error semantics in both code paths.
+    private func startStreamingAssistant(question: String, historyForRequest: [ChatMessage]) {
+        guard let llmService else { return }
+
         let assistantID = UUID()
         let assistantMessage = ChatDisplayMessage(id: assistantID, role: .assistant, content: "", isStreaming: true)
         messages.append(assistantMessage)
@@ -213,7 +249,7 @@ public final class TranscriptChatViewModel {
             var accumulated = ""
             do {
                 let stream = llmService.chatStream(
-                    question: llmQuestion,
+                    question: question,
                     transcript: transcript,
                     userNotes: userNotes,
                     history: historyForRequest
