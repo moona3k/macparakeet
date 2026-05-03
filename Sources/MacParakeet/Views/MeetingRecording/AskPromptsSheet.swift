@@ -351,16 +351,19 @@ struct AskPromptsSheet: View {
             }
 
             HStack(spacing: 4) {
+                let isFirst = index == 0
+                let isLast = index >= rows.count - 1
+
                 Button {
                     movePrompt(prompt, by: -1, in: rows, pinned: pinned)
                 } label: {
                     rowIcon("chevron.up", isHovered: isActive)
                 }
                 .buttonStyle(.plain)
-                .disabled(index == 0)
-                .opacity(index == 0 ? 0.25 : 1)
+                .disabled(isFirst)
+                .opacity(isFirst ? 0.25 : 1)
                 .focused($focusedRowID, equals: prompt.id)
-                .polishedTooltip("Move up")
+                .polishedTooltip(isFirst ? "Already at the top" : "Move up")
                 .accessibilityLabel("Move \(prompt.label) up")
 
                 Button {
@@ -369,10 +372,10 @@ struct AskPromptsSheet: View {
                     rowIcon("chevron.down", isHovered: isActive)
                 }
                 .buttonStyle(.plain)
-                .disabled(index >= rows.count - 1)
-                .opacity(index >= rows.count - 1 ? 0.25 : 1)
+                .disabled(isLast)
+                .opacity(isLast ? 0.25 : 1)
                 .focused($focusedRowID, equals: prompt.id)
-                .polishedTooltip("Move down")
+                .polishedTooltip(isLast ? "Already at the bottom" : "Move down")
                 .accessibilityLabel("Move \(prompt.label) down")
 
                 Button {
