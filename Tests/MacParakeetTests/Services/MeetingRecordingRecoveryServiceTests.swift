@@ -225,6 +225,16 @@ final class MeetingRecordingRecoveryServiceTests: XCTestCase {
         XCTAssertEqual(transcription.userNotes, "key decision: ship Friday\nfollow up with QA")
     }
 
+    func testRecoverWritesRecoveredNotesSidecar() async throws {
+        let fixture = try makeRecoverableSession(notes: "key decision: ship Friday\nfollow up with QA")
+
+        _ = try await recoveryService.recover(fixture.lock)
+
+        let notesURL = MeetingNotesFile.fileURL(for: fixture.folderURL)
+        let content = try String(contentsOf: notesURL, encoding: .utf8)
+        XCTAssertEqual(content, "# Recovered Team Sync\n\nkey decision: ship Friday\nfollow up with QA\n")
+    }
+
     func testRecoverDoesNotSetUserNotesWhenLockHasNone() async throws {
         let fixture = try makeRecoverableSession(notes: nil)
 

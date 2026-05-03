@@ -23,20 +23,22 @@ enum MeetingNotesFile {
         displayName: String,
         to folderURL: URL,
         fileManager: FileManager = .default
-    ) throws {
+    ) async throws {
         let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let url = fileURL(for: folderURL)
 
-        guard !trimmedNotes.isEmpty else {
-            if fileManager.fileExists(atPath: url.path) {
-                try fileManager.removeItem(at: url)
+        try await Task.detached(priority: .utility) {
+            guard !trimmedNotes.isEmpty else {
+                if fileManager.fileExists(atPath: url.path) {
+                    try fileManager.removeItem(at: url)
+                }
+                return
             }
-            return
-        }
 
-        let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
-        let header = trimmedName.isEmpty ? "" : "# \(trimmedName)\n\n"
-        let content = header + trimmedNotes + "\n"
-        try content.write(to: url, atomically: true, encoding: .utf8)
+            let trimmedName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+            let header = trimmedName.isEmpty ? "" : "# \(trimmedName)\n\n"
+            let content = header + trimmedNotes + "\n"
+            try content.write(to: url, atomically: true, encoding: .utf8)
+        }.value
     }
 }

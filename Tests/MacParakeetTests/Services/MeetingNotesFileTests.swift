@@ -12,12 +12,14 @@ final class MeetingNotesFileTests: XCTestCase {
     }
 
     override func tearDownWithError() throws {
-        try? FileManager.default.removeItem(at: folderURL)
+        if let folderURL {
+            try? FileManager.default.removeItem(at: folderURL)
+        }
         folderURL = nil
     }
 
-    func testWritesNotesWithDisplayNameHeader() throws {
-        try MeetingNotesFile.write(
+    func testWritesNotesWithDisplayNameHeader() async throws {
+        try await MeetingNotesFile.write(
             notes: "decision: ship Friday\nQA owns smoke tests",
             displayName: "Q2 Planning",
             to: folderURL
@@ -29,29 +31,29 @@ final class MeetingNotesFileTests: XCTestCase {
         XCTAssertEqual(content, "# Q2 Planning\n\ndecision: ship Friday\nQA owns smoke tests\n")
     }
 
-    func testEmptyNotesProducesNoFile() throws {
-        try MeetingNotesFile.write(notes: "", displayName: "Empty", to: folderURL)
+    func testEmptyNotesProducesNoFile() async throws {
+        try await MeetingNotesFile.write(notes: "", displayName: "Empty", to: folderURL)
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: MeetingNotesFile.fileURL(for: folderURL).path)
         )
     }
 
-    func testNilNotesProducesNoFile() throws {
-        try MeetingNotesFile.write(notes: nil, displayName: "Nil", to: folderURL)
+    func testNilNotesProducesNoFile() async throws {
+        try await MeetingNotesFile.write(notes: nil, displayName: "Nil", to: folderURL)
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: MeetingNotesFile.fileURL(for: folderURL).path)
         )
     }
 
-    func testWhitespaceOnlyNotesProducesNoFile() throws {
-        try MeetingNotesFile.write(notes: "   \n\t  ", displayName: "WS", to: folderURL)
+    func testWhitespaceOnlyNotesProducesNoFile() async throws {
+        try await MeetingNotesFile.write(notes: "   \n\t  ", displayName: "WS", to: folderURL)
         XCTAssertFalse(
             FileManager.default.fileExists(atPath: MeetingNotesFile.fileURL(for: folderURL).path)
         )
     }
 
-    func testEmptyDisplayNameOmitsHeader() throws {
-        try MeetingNotesFile.write(
+    func testEmptyDisplayNameOmitsHeader() async throws {
+        try await MeetingNotesFile.write(
             notes: "raw note",
             displayName: "",
             to: folderURL
@@ -63,8 +65,8 @@ final class MeetingNotesFileTests: XCTestCase {
         XCTAssertEqual(content, "raw note\n")
     }
 
-    func testWhitespaceDisplayNameOmitsHeader() throws {
-        try MeetingNotesFile.write(
+    func testWhitespaceDisplayNameOmitsHeader() async throws {
+        try await MeetingNotesFile.write(
             notes: "raw note",
             displayName: "   ",
             to: folderURL
@@ -76,9 +78,9 @@ final class MeetingNotesFileTests: XCTestCase {
         XCTAssertEqual(content, "raw note\n")
     }
 
-    func testRewriteReplacesPreviousContent() throws {
-        try MeetingNotesFile.write(notes: "first", displayName: "M", to: folderURL)
-        try MeetingNotesFile.write(notes: "second", displayName: "M", to: folderURL)
+    func testRewriteReplacesPreviousContent() async throws {
+        try await MeetingNotesFile.write(notes: "first", displayName: "M", to: folderURL)
+        try await MeetingNotesFile.write(notes: "second", displayName: "M", to: folderURL)
         let content = try String(
             contentsOf: MeetingNotesFile.fileURL(for: folderURL),
             encoding: .utf8
@@ -86,19 +88,19 @@ final class MeetingNotesFileTests: XCTestCase {
         XCTAssertEqual(content, "# M\n\nsecond\n")
     }
 
-    func testEmptyNotesRemovesStaleFile() throws {
+    func testEmptyNotesRemovesStaleFile() async throws {
         // Pre-existing file from a prior run with notes...
-        try MeetingNotesFile.write(notes: "old notes", displayName: "M", to: folderURL)
+        try await MeetingNotesFile.write(notes: "old notes", displayName: "M", to: folderURL)
         let url = MeetingNotesFile.fileURL(for: folderURL)
         XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
 
         // ...is removed when notes get cleared.
-        try MeetingNotesFile.write(notes: nil, displayName: "M", to: folderURL)
+        try await MeetingNotesFile.write(notes: nil, displayName: "M", to: folderURL)
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
     }
 
-    func testNotesAreTrimmedBeforeWriting() throws {
-        try MeetingNotesFile.write(
+    func testNotesAreTrimmedBeforeWriting() async throws {
+        try await MeetingNotesFile.write(
             notes: "\n\n  body  \n\n",
             displayName: "M",
             to: folderURL
@@ -110,8 +112,8 @@ final class MeetingNotesFileTests: XCTestCase {
         XCTAssertEqual(content, "# M\n\nbody\n")
     }
 
-    func testInternalLineBreaksArePreserved() throws {
-        try MeetingNotesFile.write(
+    func testInternalLineBreaksArePreserved() async throws {
+        try await MeetingNotesFile.write(
             notes: "line one\n\nline two\n- bullet\n- bullet two",
             displayName: "M",
             to: folderURL

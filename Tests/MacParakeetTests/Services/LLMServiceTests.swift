@@ -672,11 +672,12 @@ final class LLMServiceTests: XCTestCase {
 
     func testTruncationSnapsToWordBoundary() {
         let text = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima"
-        let result = LLMService.truncateMiddle(text, limit: 40)
+        let result = LLMService.truncateMiddle(text, limit: 60)
         XCTAssertTrue(result.contains("[... content truncated ...]"))
         // Should not split mid-word
         let parts = result.components(separatedBy: "\n\n[... content truncated ...]\n\n")
         XCTAssertEqual(parts.count, 2)
+        guard parts.count == 2 else { return }
         let head = parts[0]
         let tail = parts[1]
         XCTAssertFalse(head.isEmpty)
@@ -760,8 +761,8 @@ final class LLMServiceTests: XCTestCase {
     func testChatWithNegativeHistoryBudgetDropsAllHistory() async throws {
         mockConfigStore.config = .ollama(model: "llama3.2") // local = 80K budget
 
-        // The truncated transcript is ~90% of budget (45% head + 45% tail) → ~72K chars.
-        // System prompt prefix + truncated transcript + question leaves ~7-8K chars.
+        // The truncated transcript fills almost all available local context.
+        // System prompt prefix + truncated transcript + question leave little history budget.
         // Make each history entry large enough (>8K each) so none fit.
         let transcript = String(repeating: "word ", count: 40_000) // 200K chars
 
@@ -783,6 +784,36 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(messages.last?.content, "New question")
         // Each history entry is 10K chars, but only ~7-8K budget — none fit
         XCTAssertEqual(messages.count, 2)
+    }
+
+    func testChatBudgetsUserNotesAndTranscriptTogether() async throws {
+        mockConfigStore.config = .ollama(model: "llama3.2")
+
+        let transcript = String(repeating: "transcript word ", count: 12_000)
+        let notes = String(repeating: "notes word ", count: 12_000)
+        let history = [
+            ChatMessage(role: .user, content: "Earlier question"),
+            ChatMessage(role: .assistant, content: "Earlier answer"),
+        ]
+        let question = "Latest question"
+
+        _ = try await service.chat(
+            question: question,
+            transcript: transcript,
+            userNotes: notes,
+            history: history
+        )
+
+        let messages = mockClient.capturedMessages
+        let systemPrompt = try XCTUnwrap(messages.first?.content)
+        XCTAssertLessThanOrEqual(
+            systemPrompt.count + question.count,
+            LLMService.localContextBudget
+        )
+        XCTAssertTrue(systemPrompt.contains("User's notes from the meeting"))
+        XCTAssertTrue(systemPrompt.contains("Transcript:"))
+        XCTAssertEqual(messages.last?.content, question)
+        XCTAssertGreaterThan(messages.count, 2, "Small recent history should still fit after notes/transcript budgeting")
     }
 
     // MARK: - Streaming

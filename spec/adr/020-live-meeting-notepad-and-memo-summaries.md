@@ -37,7 +37,7 @@ The "Memo-Steered Notes" built-in prompt described in §5 has been removed from 
 
 The first surface gives the user a file they can read; the second gives the AI context the user already typed. Together they cover the value the reverted built-in prompt was trying to deliver, without the auto-run footguns. A richer in-app surface on the transcription detail page (collapsed Notes section) is a future option, not a requirement.
 
-**Tests:** `testReconcileRemovesRevertedMemoSteeredNotesPrompt` in `DatabaseManagerTests` pins the prompt-deletion behavior. `MeetingNotesFileTests` covers the `notes.md` writer (header, empty/nil/whitespace cases, stale-file removal, internal line-break preservation). `MeetingRecordingServiceTests` integration-tests the finalize call site (notes-with-content writes the file; empty-notes meetings do not). `LLMServiceTests` cover the chat-threading path: notes block precedes the transcript block when present, is omitted entirely on nil/empty/whitespace, and the byte-identical equivalence between nil and whitespace-only is asserted. `TranscriptChatViewModelTests` cover the provider-closure plumbing including re-evaluation on every send (so live-meeting Ask sees the freshest keystroke).
+**Tests:** `testReconcileRemovesRevertedMemoSteeredNotesPrompt` in `DatabaseManagerTests` pins the prompt-deletion behavior. `MeetingNotesFileTests` covers the async `notes.md` writer (header, empty/nil/whitespace cases, stale-file removal, internal line-break preservation). `MeetingRecordingServiceTests` integration-tests the finalize call site (notes-with-content writes the file; empty-notes meetings do not), and `MeetingRecordingRecoveryServiceTests` verifies recovered notes also write the sidecar. `LLMServiceTests` cover the chat-threading path: notes block precedes the transcript block when present, is omitted entirely on nil/empty/whitespace, the byte-identical equivalence between nil and whitespace-only is asserted, and notes+transcript are budgeted together. `TranscriptChatViewModelTests` cover the provider-closure plumbing including re-evaluation on every send (so live-meeting Ask sees the freshest keystroke) and rich-prompt regeneration.
 
 ## Amendment (2026-05-02, all three tab badges dropped)
 
@@ -94,7 +94,7 @@ What's missing: a place for the user to type during the meeting, a column to per
 
 ### 1. Three tabs in the live panel: Notes / Transcript / Ask, Notes default
 
-`MeetingRecordingPanelView` grows from two tabs to three. The Notes tab is selected by default when the panel opens. Tab labels carry live state hints so the user gets situational awareness from the tab bar:
+`MeetingRecordingPanelView` grows from two tabs to three. The Notes tab is selected by default when the panel opens. Notes and Transcript render as plain labels; Ask is the only tab that carries live state, showing a breathing dot while `chatViewModel.isStreaming` so the user can tell an answer is forming without restoring the old numeric badge model:
 
 ```
 ┌────────────────────────────────────────────────┐
@@ -122,7 +122,7 @@ The Notes default is the deliberate signal: this is the main event during a meet
 
 The Notes pane is a `TextEditor` with placeholder copy. No rich-text, no NSTextView wrapper, no markdown rendering during the meeting. Slash commands (§7) cover the highest-signal structuring needs (action items, decisions, timestamps) without a formatting infrastructure.
 
-Rich-text is deferred to Future Work. Plaintext is enough to ship the memo→summary mechanic, which is where the user value lives.
+Rich-text is deferred to Future Work. Plaintext is enough to ship the notepad, notes sidecar, chat context, and `{{userNotes}}` template plumbing; the built-in memo-steered prompt can return later with proper source scoping.
 
 ### 3. Notes persist on `transcriptions.userNotes`
 

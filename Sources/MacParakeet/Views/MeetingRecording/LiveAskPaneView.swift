@@ -799,10 +799,11 @@ private struct AssistantMessageActions: View {
 /// rotation work.
 private struct ThinkingDots: View {
     @State private var phase = 0
+    private let dotCount = 3
 
     var body: some View {
         HStack(spacing: 5) {
-            ForEach(0..<3, id: \.self) { i in
+            ForEach(0..<dotCount, id: \.self) { i in
                 Circle()
                     .fill(DesignSystem.Colors.accent.opacity(phase == i ? 0.85 : 0.28))
                     .frame(width: 4, height: 4)
@@ -815,7 +816,7 @@ private struct ThinkingDots: View {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(330))
                 withAnimation(.easeInOut(duration: 0.32)) {
-                    phase = (phase + 1) % 3
+                    phase = (phase + 1) % dotCount
                 }
             }
         }

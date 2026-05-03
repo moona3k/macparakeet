@@ -174,29 +174,47 @@ public struct LLMUsage: Sendable, Codable {
 
 ```swift
 public protocol LLMServiceProtocol: Sendable {
-    /// Generate a summary of a transcript
-    func summarize(transcript: String, systemPrompt: String?) async throws -> String
+    func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String
 
     /// Chat about a transcript (maintains conversation context)
     func chat(
         question: String,
         transcript: String,
+        userNotes: String?,
         history: [ChatMessage]
     ) async throws -> String
 
     /// Apply a custom transform to text
     func transform(text: String, prompt: String) async throws -> String
+    func formatTranscript(
+        transcript: String,
+        promptTemplate: String,
+        source: TelemetryFormatterSource,
+        defaultPromptUsed: Bool
+    ) async throws -> String
 
     /// Envelope variants used by CLI JSON output
-    func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult
-    func chatDetailed(question: String, transcript: String, history: [ChatMessage]) async throws -> LLMResult
+    func generatePromptResultDetailed(
+        transcript: String,
+        systemPrompt: String?
+    ) async throws -> LLMResult
+    func chatDetailed(
+        question: String,
+        transcript: String,
+        userNotes: String?,
+        history: [ChatMessage]
+    ) async throws -> LLMResult
     func transformDetailed(text: String, prompt: String) async throws -> LLMResult
 
     /// Streaming variants
-    func summarizeStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
+    func generatePromptResultStream(
+        transcript: String,
+        systemPrompt: String?
+    ) -> AsyncThrowingStream<String, Error>
     func chatStream(
         question: String,
         transcript: String,
+        userNotes: String?,
         history: [ChatMessage]
     ) -> AsyncThrowingStream<String, Error>
     func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error>
@@ -240,7 +258,7 @@ concise summary that captures the key points, decisions, and action items.
 Use bullet points for clarity. Keep the summary under 500 words.
 ```
 
-**Context assembly:** Full transcript text. If transcript exceeds the context budget, truncate from the middle — keep first 45% + last 45% of the budget with an ellipsis marker. Truncation snaps to word boundaries to avoid slicing multi-byte Unicode. **Budget:** 100,000 characters (~25K tokens) for cloud providers, 24,000 characters (~6K tokens) for local providers (`isLocal == true`) to fit within typical 8K context windows.
+**Context assembly:** Full transcript text. If transcript exceeds the context budget, truncate from the middle with an ellipsis marker, preserving the head and tail within the limit. Truncation snaps to word boundaries to avoid slicing multi-byte Unicode. **Budget:** 500,000 characters for cloud providers, 80,000 characters for local providers (`isLocal == true`).
 
 ### 2. Chat with Transcript
 
@@ -249,7 +267,7 @@ Use bullet points for clarity. Keep the summary under 500 words.
 **Behavior:**
 - Opens a chat panel alongside the transcript
 - User asks questions, LLM responds with transcript as context
-- Conversation history maintained in-memory (not persisted across sessions)
+- Conversation history is persisted per transcription where a `ChatConversationRepository` is available; live in-meeting Ask uses in-memory history until it can be promoted after finalization
 - Streaming responses displayed incrementally
 
 **System prompt:**
@@ -263,7 +281,7 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 </transcript>
 ```
 
-**Context assembly:** System prompt with full transcript + conversation history. Same context budget as summary (100K cloud / 24K local). If total context exceeds the budget, drop oldest conversation turns first (keep system prompt + transcript + recent turns).
+**Context assembly:** System prompt with full transcript + conversation history. Same context budget as summary (500K cloud / 80K local). Notes and transcript are budgeted together inside the system prompt with a small recent-history reserve; if the remaining context exceeds the budget, drop oldest conversation turns first (keep system prompt + recent turns).
 
 **User notes (meeting recordings, optional):** When the transcription has non-empty `userNotes`, the chat system prompt gains a `User's notes from the meeting:\n…` block before the transcript block. Empty / nil / whitespace-only notes are omitted entirely — chat behavior is byte-identical to a chat without notes. Threaded via `LLMService.chat / chatStream / chatDetailed`'s `userNotes: String?` parameter; the GUI calls `TranscriptChatViewModel.bindUserNotesProvider(_:)` with a closure that returns the latest notes at chat-send time (static for saved transcriptions, live for in-meeting Ask). See ADR-020's 2026-05-02 amendment for context on why this is safe even though the auto-run "Memo-Steered Notes" prompt was reverted.
 

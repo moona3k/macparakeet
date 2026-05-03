@@ -858,13 +858,12 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         config: LLMProviderConfig
     ) -> [ChatMessage] {
         let budget = contextBudget(for: config)
-        let truncated = Self.truncateMiddle(transcript, limit: budget)
-
-        let trimmedNotes = userNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let notesBlock = trimmedNotes.isEmpty
-            ? ""
-            : "\n\n---\nUser's notes from the meeting (treat these as what the user thinks matters; the transcript is the source of truth for facts):\n" + trimmedNotes
-        let systemPrompt = Prompts.chat + notesBlock + "\n\n---\nTranscript:\n" + truncated
+        let systemPrompt = Self.buildChatSystemPrompt(
+            transcript: transcript,
+            userNotes: userNotes,
+            question: question,
+            budget: budget
+        )
 
         var messages = [ChatMessage(role: .system, content: systemPrompt)]
 
@@ -900,18 +899,55 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         return messages
     }
 
-    /// Truncate text from the middle, keeping first 45% and last 45% of the budget.
+    private static func buildChatSystemPrompt(
+        transcript: String,
+        userNotes: String?,
+        question: String,
+        budget: Int
+    ) -> String {
+        let trimmedNotes = userNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let transcriptHeader = "\n\n---\nTranscript:\n"
+        let notesHeader = "\n\n---\nUser's notes from the meeting (treat these as what the user thinks matters; the transcript is the source of truth for facts):\n"
+        let historyReserve = min(8_000, max(0, budget / 10))
+        let contextBudget = max(0, budget - Prompts.chat.count - question.count - historyReserve)
+
+        let notesBlock: String
+        if trimmedNotes.isEmpty {
+            notesBlock = ""
+        } else {
+            let notesTextBudget = max(0, min(trimmedNotes.count, contextBudget / 4))
+            notesBlock = notesHeader + truncateMiddle(trimmedNotes, limit: notesTextBudget)
+        }
+
+        let transcriptBudget = max(0, contextBudget - notesBlock.count - transcriptHeader.count)
+        let transcriptBlock = transcriptHeader + truncateMiddle(transcript, limit: transcriptBudget)
+        let context = notesBlock + transcriptBlock
+        let boundedContext = context.count > contextBudget
+            ? truncateMiddle(context, limit: contextBudget)
+            : context
+
+        return Prompts.chat + boundedContext
+    }
+
+    /// Truncate text from the middle, keeping the head and tail within the limit.
     /// Snaps to word boundaries to avoid slicing multi-byte Unicode characters.
     internal static func truncateMiddle(_ text: String, limit: Int) -> String {
+        guard limit > 0 else { return "" }
         guard text.count > limit else { return text }
 
-        let headBudget = Int(Double(limit) * 0.45)
-        let tailBudget = Int(Double(limit) * 0.45)
+        let marker = "\n\n[... content truncated ...]\n\n"
+        guard limit > marker.count else {
+            return String(text.prefix(limit))
+        }
+
+        let contentBudget = limit - marker.count
+        let headBudget = contentBudget / 2
+        let tailBudget = contentBudget - headBudget
 
         let head = snapToWordBoundary(text, fromStart: true, budget: headBudget)
         let tail = snapToWordBoundary(text, fromStart: false, budget: tailBudget)
 
-        return head + "\n\n[... content truncated ...]\n\n" + tail
+        return head + marker + tail
     }
 
     private static func snapToWordBoundary(_ text: String, fromStart: Bool, budget: Int) -> String {

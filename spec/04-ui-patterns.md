@@ -421,7 +421,7 @@ Floating panel opened from the meeting recording pill. Shows live notes, live tr
 
 ### Layout
 
-```
+```text
 ┌──────────────────────────────────────────┐
 │  Meeting Recording         01:23:45      │
 │  🎤 ██████████░░░░   🔊 ████████░░░░     │
@@ -440,7 +440,7 @@ Floating panel opened from the meeting recording pill. Shows live notes, live tr
 
 - **Elapsed timer** — updates every second
 - **Dual audio level meters** — mic and system audio levels (visual feedback that both streams are capturing)
-- **Tabs** — Notes / Transcript / Ask, with ⌘1 / ⌘2 / ⌘3 shortcuts and state-bearing labels that collapse at narrow width
+- **Tabs** — Notes / Transcript / Ask, with ⌘1 / ⌘2 / ⌘3 shortcuts; Notes and Transcript are plain labels, Ask adds a streaming dot while `chatViewModel.isStreaming` and collapses that dot into the tooltip at narrow width
 - **Notes pane** — plaintext editor with slash commands, debounced auto-save through `MeetingRecordingService.updateNotes(_:)`, soft-cap warning near 8,000 words, and lock-file crash recovery
 - **Transcript pane** — scrolling live preview with source labels ([Me] = mic, [Them] = system audio); lag notice appears when preview chunks fall behind or are dropped
 - **Ask pane** — live chat against the rolling transcript using the configured LLM provider; follow-up state is handed off after finalization
@@ -799,7 +799,7 @@ Note: How It Works, Tips, Custom Words, and Text Snippets sections are only visi
 
 ### Speech Recognition (v0.7)
 
-```
+```text
 ┌───────────────────────────────────────────────────────────┐
 │  SPEECH RECOGNITION                                       │
 │  ─────────────────────────────────────────────────────    │

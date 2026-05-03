@@ -6,12 +6,20 @@ public struct ChatDisplayMessage: Identifiable, Equatable {
     public let id: UUID
     public let role: ChatMessage.Role
     public var content: String
+    public let effectivePrompt: String?
     public var isStreaming: Bool
 
-    public init(id: UUID = UUID(), role: ChatMessage.Role, content: String, isStreaming: Bool = false) {
+    public init(
+        id: UUID = UUID(),
+        role: ChatMessage.Role,
+        content: String,
+        effectivePrompt: String? = nil,
+        isStreaming: Bool = false
+    ) {
         self.id = id
         self.role = role
         self.content = content
+        self.effectivePrompt = effectivePrompt
         self.isStreaming = isStreaming
     }
 }
@@ -186,7 +194,8 @@ public final class TranscriptChatViewModel {
         inputText = ""
         errorMessage = nil
 
-        let userMessage = ChatDisplayMessage(role: .user, content: text)
+        let effectivePrompt = llmQuestion == text ? nil : llmQuestion
+        let userMessage = ChatDisplayMessage(role: .user, content: text, effectivePrompt: effectivePrompt)
         messages.append(userMessage)
 
         // Capture history BEFORE appending user message — buildChatMessages() adds question separately
@@ -217,8 +226,10 @@ public final class TranscriptChatViewModel {
         errorMessage = nil
 
         guard let trailingUser = chatHistory.last,
-              trailingUser.role == .user else { return }
-        let userPrompt = trailingUser.content
+              trailingUser.role == .user,
+              let visibleUser = messages.last,
+              visibleUser.role == .user else { return }
+        let userPrompt = visibleUser.effectivePrompt ?? trailingUser.content
         let historyForRequest = Array(chatHistory.dropLast())
 
         startStreamingAssistant(question: userPrompt, historyForRequest: historyForRequest)

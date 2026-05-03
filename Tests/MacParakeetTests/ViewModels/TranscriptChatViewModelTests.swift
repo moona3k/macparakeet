@@ -862,6 +862,23 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertEqual(mockService.lastChatHistory?.count, 0)
     }
 
+    func testRegenerateLastResponseReusesRichPrompt() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        mockService.streamTokens = ["First"]
+        viewModel.inputText = "Tell me more"
+        viewModel.sendMessage(richPrompt: "Explain the unresolved risks in the meeting so far.")
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        mockService.streamTokens = ["Second"]
+        viewModel.regenerateLastResponse()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(viewModel.messages.map(\.content), ["Tell me more", "Second"])
+        XCTAssertEqual(mockService.lastChatQuestion, "Explain the unresolved risks in the meeting so far.")
+    }
+
     func testRegenerateLastResponsePreservesEarlierTurnsInHistory() async throws {
         let transcriptionId = UUID()
         viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)

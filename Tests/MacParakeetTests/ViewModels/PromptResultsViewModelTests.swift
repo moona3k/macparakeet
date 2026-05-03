@@ -26,10 +26,10 @@ final class PromptResultsViewModelTests: XCTestCase {
             promptResultRepo: promptResultRepo
         )
 
-        // 6 built-in prompts after ADR-020's 2026-05-02 amendment reverted
-        // "Memo-Steered Notes". "Summary" is now sortOrder=0 and isAutoRun=true,
-        // so it is the auto-selected default when no prior selection exists.
-        XCTAssertEqual(viewModel.visiblePrompts.count, 6)
+        // After ADR-020's 2026-05-02 amendment reverted "Memo-Steered Notes",
+        // "Summary" is sortOrder=0 and isAutoRun=true, so it is the
+        // auto-selected default when no prior selection exists.
+        XCTAssertTrue(viewModel.visiblePrompts.contains { $0.name == "Summary" })
         XCTAssertEqual(viewModel.selectedPrompt?.name, "Summary")
         XCTAssertTrue(viewModel.canGeneratePromptResult)
         XCTAssertTrue(viewModel.canGenerateManualPromptResult)

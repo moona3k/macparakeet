@@ -411,7 +411,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
         let finalNotes = currentNotes
         do {
-            try MeetingNotesFile.write(
+            try await MeetingNotesFile.write(
                 notes: finalNotes,
                 displayName: session.displayName,
                 to: session.folderURL

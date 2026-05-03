@@ -1513,7 +1513,7 @@ Prompt library and multi-summary system. Users control how AI processes transcri
 
 ## v0.6 — Meeting Recording (Implemented on main; unreleased)
 
-The v0.6 release ships system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), calendar-driven auto-start (ADR-017), the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad + memo-steered summaries (ADR-020). The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 feature surface that this PR introduces.
+The v0.6 release ships system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), calendar-driven auto-start (ADR-017), the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 feature surface that this PR introduces.
 
 Meeting transcription uses the current speech engine captured at recording start. Parakeet remains the default; WhisperKit can be selected before starting a meeting for languages outside Parakeet coverage.
 
@@ -1521,7 +1521,7 @@ Meeting transcription uses the current speech engine captured at recording start
 
 > Status: **IMPLEMENTED**
 
-**What:** Three-tab live meeting panel — Notes / Transcript / Ask, Notes default — with a plaintext `TextEditor` for free-form note-taking during a recording. Auto-saves through `MeetingRecordingService.updateNotes(_:)` on a 250 ms idle debounce; survives crashes via the ADR-019 lock file's additive `notes` field; persists onto `transcriptions.userNotes` at finalize where it steers post-meeting summary generation.
+**What:** Three-tab live meeting panel — Notes / Transcript / Ask, Notes default — with a plaintext `TextEditor` for free-form note-taking during a recording. Auto-saves through `MeetingRecordingService.updateNotes(_:)` on a 250 ms idle debounce; survives crashes via the ADR-019 lock file's additive `notes` field; persists onto `transcriptions.userNotes` at finalize for saved meeting context, chat threading, `notes.md` sidecar export, and future/custom `{{userNotes}}` prompt templates.
 
 **Acceptance criteria:**
 - [x] `MeetingRecordingPanelView` defaults to the Notes tab when the panel opens

@@ -15,6 +15,7 @@ private struct ExportConfirmation: Identifiable {
 
 private struct RetranscriptionConfirmation: Identifiable {
     let id = UUID()
+    let transcriptionID: UUID
     let speechEngineOverride: SpeechEngineSelection?
 
     var title: String {
@@ -50,6 +51,7 @@ private enum TranscriptDisplayMode: String, CaseIterable, Hashable {
 /// nil when the user picked the primary engine (no override needed) and
 /// `.some` when they picked the alternative.
 private struct RetranscribePick: Sendable {
+    let transcriptionID: UUID
     let override: SpeechEngineSelection?
 }
 
@@ -440,7 +442,10 @@ struct TranscriptResultView: View {
                     if engineOption != nil {
                         showingRetranscribeOptions.toggle()
                     } else {
-                        retranscriptionConfirmation = RetranscriptionConfirmation(speechEngineOverride: nil)
+                        retranscriptionConfirmation = RetranscriptionConfirmation(
+                            transcriptionID: transcription.id,
+                            speechEngineOverride: nil
+                        )
                     }
                 } label: {
                     HStack(spacing: 6) {
@@ -485,8 +490,16 @@ struct TranscriptResultView: View {
             guard !isOpen, let pick = pendingRetranscribePick else { return }
             pendingRetranscribePick = nil
             Task { @MainActor in
-                retranscriptionConfirmation = RetranscriptionConfirmation(speechEngineOverride: pick.override)
+                retranscriptionConfirmation = RetranscriptionConfirmation(
+                    transcriptionID: pick.transcriptionID,
+                    speechEngineOverride: pick.override
+                )
             }
+        }
+        .onChange(of: transcription.id) {
+            pendingRetranscribePick = nil
+            retranscriptionConfirmation = nil
+            showingRetranscribeOptions = false
         }
         .alert(
             retranscriptionConfirmation?.title ?? "Retranscribe this file?",
@@ -494,6 +507,7 @@ struct TranscriptResultView: View {
             presenting: retranscriptionConfirmation
         ) { confirmation in
             Button(confirmation.confirmLabel, role: .destructive) {
+                guard confirmation.transcriptionID == transcription.id else { return }
                 onRetranscribe?(transcription, confirmation.speechEngineOverride)
             }
             Button("Cancel", role: .cancel) { }
@@ -507,7 +521,7 @@ struct TranscriptResultView: View {
 
     private var isRetranscriptionConfirmationPresented: Binding<Bool> {
         Binding(
-            get: { retranscriptionConfirmation != nil },
+            get: { retranscriptionConfirmation?.transcriptionID == transcription.id },
             set: { isPresented in
                 if !isPresented {
                     retranscriptionConfirmation = nil
@@ -558,7 +572,7 @@ struct TranscriptResultView: View {
         in option: TranscriptionViewModel.RetranscriptionEngineOption
     ) {
         let override: SpeechEngineSelection? = (selection == option.primaryEngine) ? nil : selection
-        pendingRetranscribePick = RetranscribePick(override: override)
+        pendingRetranscribePick = RetranscribePick(transcriptionID: transcription.id, override: override)
         showingRetranscribeOptions = false
         // Confirmation alert is presented from the .onChange handler that
         // observes showingRetranscribeOptions flipping to false — see actionBar.
@@ -580,9 +594,7 @@ struct TranscriptResultView: View {
     }
 
     private var hasEditedTranscript: Bool {
-        guard activeTranscription.isTranscriptEdited else { return false }
-        guard let clean = activeTranscription.cleanTranscript else { return false }
-        return !clean.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        activeTranscription.isTranscriptEdited && hasCleanTranscriptText
     }
 
     private var hasCleanTranscriptText: Bool {

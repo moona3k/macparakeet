@@ -207,6 +207,16 @@ REQ-MEET-006:
   version: v0.6
   status: implemented
 
+REQ-MEET-008:
+  description: Meeting recording panel provides Notes, Transcript, and Ask tabs with Notes as default, plain tab labels, and a streaming-only Ask indicator
+  version: v0.6
+  status: implemented
+
+REQ-MEET-009:
+  description: User-authored meeting notes persist through crash recovery, final transcription metadata, notes.md sidecar export, LLM chat context, and custom prompt template substitution without shipping the reverted built-in memo-steered prompt
+  version: v0.6
+  status: implemented
+
 # --- v0.7 Multilingual Speech Recognition ---
 
 REQ-STT-002:

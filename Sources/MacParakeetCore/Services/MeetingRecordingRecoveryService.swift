@@ -171,7 +171,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         )
 
         do {
-            try MeetingNotesFile.write(
+            try await MeetingNotesFile.write(
                 notes: lock.notes,
                 displayName: lock.displayName,
                 to: folderURL
