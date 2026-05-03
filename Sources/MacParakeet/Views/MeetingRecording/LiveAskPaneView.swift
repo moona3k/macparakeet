@@ -629,60 +629,67 @@ private struct AssistantTurnView: View {
     }
 
     var body: some View {
-        // Two columns: a 16pt leading anchor (head + accent rule), then typeset
-        // prose. The rule fills the prose's full height via maxHeight, so a
-        // long markdown answer has a continuous accent column — and now also
-        // visually adopts the actions row beneath the prose. While we wait for
-        // the first token, the rule and prose are hidden — the merkaba (brand
-        // voice / sacred-geometry rotation) pairs with three small wave-pulsing
-        // dots (universal "thinking" signal) for the loading state. Same
-        // job-division as iMessage's avatar + typing bubble.
-        HStack(alignment: .top, spacing: 12) {
-            VStack(spacing: 6) {
-                AssistantHead(isStreaming: isStreaming)
+        // Two columns: an 18pt leading anchor (head + accent rule) and the
+        // typeset prose. The rule stretches to fill its column, and the HStack
+        // top-aligns to the prose — so the rule ends exactly where the prose
+        // ends. Actions ride beneath the HStack (with matching leading padding)
+        // so the reserved-but-invisible actions row never inflates the rule
+        // past the visible text. While we wait for the first token, the rule
+        // and prose are hidden — the merkaba (brand voice / sacred-geometry
+        // rotation) pairs with three small wave-pulsing dots (universal
+        // "thinking" signal) for the loading state. Same job-division as
+        // iMessage's avatar + typing bubble.
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(spacing: 6) {
+                    AssistantHead(isStreaming: isStreaming)
 
-                if !isEmptyStreaming {
-                    AssistantAccentRule(isActive: isStreaming)
-                        .transition(.opacity)
+                    if !isEmptyStreaming {
+                        AssistantAccentRule(isActive: isStreaming)
+                            .transition(.opacity)
+                    }
                 }
-            }
-            .frame(width: 18)
+                .frame(width: 18)
 
-            if isEmptyStreaming {
-                ThinkingDots()
-                    .transition(.opacity)
-                    // ThinkingDots is .accessibilityHidden(true) internally
-                    // (decorative); promote it to a single element here so
-                    // VoiceOver still reads the loading state.
-                    .accessibilityElement()
-                    .accessibilityLabel("Thinking")
-            } else {
-                VStack(alignment: .leading, spacing: 0) {
+                if isEmptyStreaming {
+                    ThinkingDots()
+                        .transition(.opacity)
+                        // ThinkingDots is .accessibilityHidden(true) internally
+                        // (decorative); promote it to a single element here so
+                        // VoiceOver still reads the loading state.
+                        .accessibilityElement()
+                        .accessibilityLabel("Thinking")
+                } else {
                     // Reuse the canonical NSTextView-based renderer used
                     // elsewhere (post-meeting Chat tab, PromptResults).
                     // Markdown, headings, code blocks, lists, and proper text
                     // selection — for free.
                     MarkdownContentView(content)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    // Always rendered (reserves height so hover doesn't shift
-                    // layout) but invisible until the assistant turn is hovered
-                    // or one of its action buttons takes keyboard focus.
-                    AssistantMessageActions(
-                        content: content,
-                        showRegenerate: isLast,
-                        onRegenerate: onRegenerate,
-                        focus: $actionFocus,
-                        copied: $copied
-                    )
-                    .opacity(actionsVisible ? 1 : 0)
-                    .allowsHitTesting(actionsVisible)
-                    .animation(.easeOut(duration: 0.12), value: actionsVisible)
+                        .transition(.opacity)
                 }
-                .transition(.opacity)
+
+                Spacer(minLength: 0)
             }
 
-            Spacer(minLength: 0)
+            if !isEmptyStreaming {
+                // Always rendered (reserves height so hover doesn't shift
+                // layout) but invisible until the assistant turn is hovered
+                // or one of its action buttons takes keyboard focus. Leading
+                // padding (head 18 + HStack spacing 12) keeps the actions row
+                // column-aligned with the prose above it.
+                AssistantMessageActions(
+                    content: content,
+                    showRegenerate: isLast,
+                    onRegenerate: onRegenerate,
+                    focus: $actionFocus,
+                    copied: $copied
+                )
+                .padding(.leading, 30)
+                .opacity(actionsVisible ? 1 : 0)
+                .allowsHitTesting(actionsVisible)
+                .animation(.easeOut(duration: 0.12), value: actionsVisible)
+            }
         }
         // Generous, forgiving hover target — cursor doesn't need to land
         // precisely on prose to reveal actions; anywhere across the assistant
