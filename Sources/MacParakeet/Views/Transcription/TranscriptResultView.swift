@@ -2387,18 +2387,12 @@ struct TranscriptResultView: View {
         return !words.isEmpty
     }
 
-    private var hasEditedTranscriptForExport: Bool {
-        guard activeTranscription.isTranscriptEdited else { return false }
-        guard let cleanTranscript = activeTranscription.cleanTranscript else { return false }
-        return !cleanTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     private var hasAlignedTimestampsForExport: Bool {
-        hasTimestamps && !hasEditedTranscriptForExport
+        hasTimestamps && !hasEditedTranscript
     }
 
     private var hasSpeakerLabelsForExport: Bool {
-        guard !hasEditedTranscriptForExport else { return false }
+        guard !hasEditedTranscript else { return false }
         guard let speakers = activeTranscription.speakers, !speakers.isEmpty,
               let words = activeTranscription.wordTimestamps else { return false }
         return words.contains { $0.speakerId != nil }
