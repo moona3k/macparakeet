@@ -285,26 +285,27 @@ Stores user-customizable live meeting Ask tab shortcut pills. These are separate
 ```sql
 CREATE TABLE quick_prompts (
     id        TEXT PRIMARY KEY,                          -- UUID string
-    kind      TEXT NOT NULL,                              -- 'starter' or 'follow_up'
     label     TEXT NOT NULL,                              -- Chip / chat bubble text
     prompt    TEXT NOT NULL,                              -- Full instruction sent to the LLM
-    groupLabel TEXT,                                      -- Optional starter grouping; nil for follow-ups
-    sortOrder INTEGER NOT NULL DEFAULT 0,                 -- Display ordering within kind
+    groupLabel TEXT,                                      -- Optional grouping for empty state / sparkle menu
+    sortOrder INTEGER NOT NULL DEFAULT 0,                 -- Display ordering within pin bucket
     isVisible INTEGER NOT NULL DEFAULT 1,                 -- false = hidden from Ask UI
+    isPinned INTEGER NOT NULL DEFAULT 0,                  -- true = after-response strip candidate
     isBuiltIn INTEGER NOT NULL DEFAULT 0,                 -- Shipped seed row; editable/resettable, not deletable
     createdAt TEXT NOT NULL,                              -- ISO 8601 timestamp
     updatedAt TEXT NOT NULL                               -- ISO 8601 timestamp
 );
 
-CREATE INDEX idx_quick_prompts_kind_sort ON quick_prompts(kind, sortOrder);
+CREATE INDEX idx_quick_prompts_pinned_sort ON quick_prompts(isPinned, sortOrder);
 ```
 
 **Notes:**
 - Built-ins are seeded from `QuickPrompt.builtInPrompts()` by `QuickPromptRepository.seedIfNeeded()` after migrations complete. The reconciler inserts missing built-ins and retires removed built-ins, but never overwrites an existing user's edited row.
-- Built-ins are editable, hideable, reorderable, and resettable. They cannot be deleted. Reset restores canonical kind/label/prompt/group/order while preserving visibility.
+- Built-ins are editable, hideable, reorderable, and resettable. They cannot be deleted. Reset restores canonical label/prompt/group/order and visible-compatible pin state, while preserving visibility.
 - Custom rows can be created, edited, reordered, hidden, deleted, exported, and imported.
-- Follow-up prompts are intentionally flat: repository writes normalize follow-up `groupLabel` to `NULL`.
-- The CLI backup/share format is `QuickPromptBundle` with `schema: "macparakeet.quick_prompts"` and `version: 1`.
+- `isPinned` controls the after-response strip; the strip is a horizontal `ScrollView` with edge-fade affordance and renders all visible pinned rows by `sortOrder` — pinning is unbounded.
+- Hidden rows are never pinned. Repository writes normalize hidden+pinned rows to hidden+unpinned; hiding a pinned row auto-unpins it, and pinning a hidden row auto-shows it.
+- The CLI backup/share format is `QuickPromptBundle` with `schema: "macparakeet.quick_prompts"` and `version: 1`; each prompt carries `isPinned: Bool`.
 
 ---
 
@@ -583,20 +584,15 @@ import GRDB
 
 struct QuickPrompt: Codable, Identifiable, Sendable {
     var id: UUID
-    var kind: Kind
     var label: String
     var prompt: String
     var groupLabel: String?
     var sortOrder: Int
     var isVisible: Bool
+    var isPinned: Bool
     var isBuiltIn: Bool
     var createdAt: Date
     var updatedAt: Date
-
-    enum Kind: String, Codable, Sendable {
-        case starter
-        case followUp = "follow_up"
-    }
 }
 
 extension QuickPrompt: FetchableRecord, PersistableRecord {

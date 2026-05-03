@@ -2,20 +2,25 @@ import ArgumentParser
 import Foundation
 import MacParakeetCore
 
-/// `macparakeet-cli quick-prompts` — manage the live meeting Ask tab pills
-/// (starter and follow-up prompts). Mirrors `prompts` shape for familiarity,
-/// adds `export` / `import` for portable JSON round-tripping (versioned wire
-/// format; see `QuickPromptBundle`).
+/// `macparakeet-cli quick-prompts` — manage the live meeting Ask tab quick
+/// prompts. Mirrors `prompts` shape for familiarity, adds `export` / `import`
+/// for portable JSON round-tripping (versioned wire format; see
+/// `QuickPromptBundle`).
+///
+/// Pin status (`isPinned`) controls whether a prompt surfaces in the
+/// horizontally-scrollable after-response strip. Pinning is unbounded.
 struct QuickPromptsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "quick-prompts",
-        abstract: "Manage the live meeting Ask tab pills (starter + follow-up).",
+        abstract: "Manage the live meeting Ask tab quick prompts.",
         subcommands: [
             ListSubcommand.self,
             ShowSubcommand.self,
             AddSubcommand.self,
             SetSubcommand.self,
             DeleteSubcommand.self,
+            PinSubcommand.self,
+            UnpinSubcommand.self,
             RestoreDefaultsSubcommand.self,
             ExportSubcommand.self,
             ImportSubcommand.self,
@@ -25,18 +30,6 @@ struct QuickPromptsCommand: AsyncParsableCommand {
 }
 
 // MARK: - Shared
-
-enum QuickPromptKindArg: String, ExpressibleByArgument {
-    case starter
-    case followUp = "follow-up"
-
-    var domain: QuickPrompt.Kind {
-        switch self {
-        case .starter:  return .starter
-        case .followUp: return .followUp
-        }
-    }
-}
 
 /// Resolve a quick prompt by exact UUID, UUID prefix, or case-insensitive label.
 /// Names are checked only after no UUID-prefix match was found, mirroring
@@ -88,7 +81,8 @@ private func quickPromptShortPrefixErrorIfApplicable(_ value: String) -> CLILook
 }
 
 private func renderBadges(_ p: QuickPrompt) -> String {
-    var badges: [String] = ["\(p.kind.rawValue)"]
+    var badges: [String] = []
+    badges.append(p.isPinned ? "pinned" : "unpinned")
     if p.isBuiltIn { badges.append("built-in") }
     if !p.isVisible { badges.append("hidden") }
     if let group = p.groupLabel { badges.append("group: \(group)") }
@@ -138,8 +132,8 @@ extension QuickPromptsCommand {
             abstract: "List quick prompts."
         )
 
-        @Option(name: .long, help: "Filter by kind: starter or follow-up.")
-        var kind: QuickPromptKindArg?
+        @Option(name: .long, help: "Filter by pin state: true = pinned only, false = unpinned only.")
+        var pinned: Bool?
 
         @Flag(name: .long, help: "Only visible prompts.")
         var visibleOnly: Bool = false
@@ -156,14 +150,12 @@ extension QuickPromptsCommand {
                 let db = try DatabaseManager(path: resolvedDatabasePath(database))
                 let repo = QuickPromptRepository(dbQueue: db.dbQueue)
 
-                var prompts: [QuickPrompt]
-                if let kind = kind?.domain {
-                    prompts = visibleOnly
-                        ? try repo.fetchVisible(kind: kind)
-                        : try repo.fetchAll(kind: kind)
-                } else {
-                    prompts = try repo.fetchAll()
-                    if visibleOnly { prompts = prompts.filter { $0.isVisible } }
+                var prompts = try repo.fetchAll()
+                if let pinned {
+                    prompts = prompts.filter { $0.isPinned == pinned }
+                }
+                if visibleOnly {
+                    prompts = prompts.filter { $0.isVisible }
                 }
 
                 if json {
@@ -216,7 +208,7 @@ extension QuickPromptsCommand {
                 }
 
                 print("ID:        \(p.id.uuidString)")
-                print("Kind:      \(p.kind.rawValue)")
+                print("Pinned:    \(p.isPinned ? "yes" : "no")")
                 print("Label:     \(p.label)\(renderBadges(p))")
                 if let group = p.groupLabel { print("Group:     \(group)") }
                 print("Updated:   \(ISO8601DateFormatter().string(from: p.updatedAt))")
@@ -236,9 +228,6 @@ extension QuickPromptsCommand {
             abstract: "Add a custom quick prompt."
         )
 
-        @Option(name: .long, help: "Pill kind: starter or follow-up.")
-        var kind: QuickPromptKindArg
-
         @Option(name: .long, help: "Display label shown on the pill (short).")
         var label: String
 
@@ -248,11 +237,14 @@ extension QuickPromptsCommand {
         @Option(name: .long, help: "Path to a file containing the prompt body.")
         var fromFile: String?
 
-        @Option(name: .long, help: "Optional group label (starters only — e.g. CATCH UP, CAPTURE, CHALLENGE).")
+        @Option(name: .long, help: "Optional group label (e.g. CATCH UP, CAPTURE, CHALLENGE).")
         var group: String?
 
         @Flag(name: .long, help: "Insert as hidden (visibility off).")
         var hidden: Bool = false
+
+        @Flag(name: .long, help: "Pin immediately to the after-response strip.")
+        var pinned: Bool = false
 
         @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
         var json: Bool = false
@@ -266,9 +258,6 @@ extension QuickPromptsCommand {
             }
             if label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 throw ValidationError("--label must not be empty")
-            }
-            if kind.domain == .followUp && group != nil {
-                throw ValidationError("--group is only valid for starter prompts")
             }
         }
 
@@ -295,27 +284,27 @@ extension QuickPromptsCommand {
                     throw QuickPromptCLIError.emptyBody
                 }
 
-                let nextSortOrder: Int = {
-                    let existing = (try? repo.fetchAll(kind: kind.domain)) ?? []
-                    return (existing.map(\.sortOrder).max() ?? -1) + 1
-                }()
-
                 let normalizedGroup: String? = {
                     guard let raw = group else { return nil }
                     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                     return trimmed.isEmpty ? nil : trimmed
                 }()
 
-                let p = QuickPrompt(
-                    kind: kind.domain,
+                var p = QuickPrompt(
                     label: label.trimmingCharacters(in: .whitespacesAndNewlines),
                     prompt: body,
                     groupLabel: normalizedGroup,
-                    sortOrder: nextSortOrder,
+                    sortOrder: 0,
                     isVisible: !hidden,
+                    isPinned: false,
                     isBuiltIn: false
                 )
+
                 try repo.save(p)
+                if pinned {
+                    _ = try repo.setPinned(id: p.id, isPinned: true)
+                }
+                if let updated = try repo.fetch(id: p.id) { p = updated }
 
                 if json {
                     try printJSON(QuickPromptWriteResult(ok: true, prompt: p))
@@ -345,7 +334,7 @@ extension QuickPromptsCommand {
         @Option(name: .long, help: "Replace the prompt body.")
         var prompt: String?
 
-        @Option(name: .long, help: "Replace the group label (starters only). Pass empty string to clear.")
+        @Option(name: .long, help: "Replace the group label. Pass empty string to clear.")
         var group: String?
 
         @Option(name: .long, help: "Replace the sort order (integer; lower = earlier).")
@@ -385,9 +374,6 @@ extension QuickPromptsCommand {
                 let repo = QuickPromptRepository(dbQueue: db.dbQueue)
 
                 var p = try findQuickPrompt(idOrLabel: idOrLabel, repo: repo)
-                if group != nil && p.kind == .followUp {
-                    throw ValidationError("--group is only valid for starter prompts")
-                }
 
                 if let label {
                     p.label = label.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -407,6 +393,9 @@ extension QuickPromptsCommand {
 
                 p.updatedAt = Date()
                 try repo.save(p)
+                if let updated = try repo.fetch(id: p.id) {
+                    p = updated
+                }
 
                 if json {
                     try printJSON(QuickPromptWriteResult(ok: true, prompt: p))
@@ -460,6 +449,84 @@ extension QuickPromptsCommand {
     }
 }
 
+// MARK: - Pin / Unpin
+
+extension QuickPromptsCommand {
+    struct PinSubcommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "pin",
+            abstract: "Pin a quick prompt to the after-response strip."
+        )
+
+        @Argument(help: "Quick prompt ID, ID prefix, or label.")
+        var idOrLabel: String
+
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
+        func run() throws {
+            try emitJSONOrRethrow(json: json) {
+                try AppPaths.ensureDirectories()
+                let db = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = QuickPromptRepository(dbQueue: db.dbQueue)
+                let p = try findQuickPrompt(idOrLabel: idOrLabel, repo: repo)
+
+                switch try repo.setPinned(id: p.id, isPinned: true) {
+                case .ok:
+                    let refreshed = (try? repo.fetch(id: p.id)) ?? p
+                    if json {
+                        try printJSON(QuickPromptWriteResult(ok: true, prompt: refreshed))
+                    } else {
+                        print("Pinned '\(refreshed.label)'\(renderBadges(refreshed))")
+                    }
+                case .notFound:
+                    throw CLILookupError.notFound("Quick prompt '\(p.label)' no longer exists.")
+                }
+            }
+        }
+    }
+
+    struct UnpinSubcommand: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "unpin",
+            abstract: "Unpin a quick prompt from the after-response strip."
+        )
+
+        @Argument(help: "Quick prompt ID, ID prefix, or label.")
+        var idOrLabel: String
+
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
+        func run() throws {
+            try emitJSONOrRethrow(json: json) {
+                try AppPaths.ensureDirectories()
+                let db = try DatabaseManager(path: resolvedDatabasePath(database))
+                let repo = QuickPromptRepository(dbQueue: db.dbQueue)
+                let p = try findQuickPrompt(idOrLabel: idOrLabel, repo: repo)
+
+                switch try repo.setPinned(id: p.id, isPinned: false) {
+                case .ok:
+                    let refreshed = (try? repo.fetch(id: p.id)) ?? p
+                    if json {
+                        try printJSON(QuickPromptWriteResult(ok: true, prompt: refreshed))
+                    } else {
+                        print("Unpinned '\(refreshed.label)'\(renderBadges(refreshed))")
+                    }
+                case .notFound:
+                    throw CLILookupError.notFound("Quick prompt '\(p.label)' no longer exists.")
+                }
+            }
+        }
+    }
+}
+
 // MARK: - Restore Defaults
 
 extension QuickPromptsCommand {
@@ -469,10 +536,7 @@ extension QuickPromptsCommand {
             abstract: "Reset built-in quick prompts to canonical values (preserves visibility, leaves customs alone)."
         )
 
-        @Option(name: .long, help: "Limit restore to one kind: starter or follow-up.")
-        var kind: QuickPromptKindArg?
-
-        @Option(name: .long, help: "Limit restore to a single built-in by ID. Mutually exclusive with --kind.")
+        @Option(name: .long, help: "Limit restore to a single built-in by ID.")
         var id: String?
 
         @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
@@ -480,12 +544,6 @@ extension QuickPromptsCommand {
 
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
-
-        func validate() throws {
-            if kind != nil && id != nil {
-                throw ValidationError("--kind and --id are mutually exclusive")
-            }
-        }
 
         func run() throws {
             try emitJSONOrRethrow(json: json) {
@@ -506,13 +564,12 @@ extension QuickPromptsCommand {
                         print("Restored '\(p.label)' to built-in defaults.")
                     }
                 } else {
-                    try repo.restoreBuiltInDefaults(kind: kind?.domain)
+                    try repo.restoreBuiltInDefaults()
                     if json {
-                        struct R: Encodable { let ok: Bool; let kind: String? }
-                        try printJSON(R(ok: true, kind: kind?.rawValue))
+                        struct R: Encodable { let ok: Bool }
+                        try printJSON(R(ok: true))
                     } else {
-                        let scope = kind?.rawValue ?? "all kinds"
-                        print("Restored built-in defaults (\(scope)).")
+                        print("Restored all built-in defaults.")
                     }
                 }
             }
@@ -532,10 +589,10 @@ extension QuickPromptsCommand {
         @Option(name: .long, help: "Output file path. If omitted, writes JSON to stdout.")
         var out: String?
 
-        @Option(name: .long, help: "Limit export to one kind: starter or follow-up.")
-        var kind: QuickPromptKindArg?
+        @Option(name: .long, help: "Filter by pin state: true = pinned only, false = unpinned only.")
+        var pinned: Bool?
 
-        @Flag(name: .long, help: "Include built-in pills in the export. Default: customs only.")
+        @Flag(name: .long, help: "Include built-in prompts in the export. Default: customs only.")
         var includeBuiltins: Bool = false
 
         @Flag(name: .long, help: "Emit JSON envelope on failure (success always writes the bundle JSON).")
@@ -550,11 +607,9 @@ extension QuickPromptsCommand {
                 let db = try DatabaseManager(path: resolvedDatabasePath(database))
                 let repo = QuickPromptRepository(dbQueue: db.dbQueue)
 
-                var prompts: [QuickPrompt]
-                if let kind = kind?.domain {
-                    prompts = try repo.fetchAll(kind: kind)
-                } else {
-                    prompts = try repo.fetchAll()
+                var prompts = try repo.fetchAll()
+                if let pinned {
+                    prompts = prompts.filter { $0.isPinned == pinned }
                 }
                 if !includeBuiltins {
                     prompts = prompts.filter { !$0.isBuiltIn }

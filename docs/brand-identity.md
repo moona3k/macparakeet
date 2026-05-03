@@ -111,7 +111,7 @@ The mark is consumed at runtime through three paths:
 The app icon is the parakeet illustration on a near-black background with
 macOS-standard rounded corners.
 
-```
+```text
 Background: near-black with a subtle radial vignette toward the center
 Mark: White (#FFFFFF), single-stroke parakeet illustration
 Corner radius: macOS standard (~22% of icon size)

@@ -1,8 +1,92 @@
 # ADR-018: Live Meeting Ask Tab
 
-> Status: IMPLEMENTED (Ask half — Insights dropped per design pivot, see "Amendment" below)
-> Date: 2026-04-19 (proposed) · Amended 2026-04-24 · Implemented 2026-04-24
+> Status: IMPLEMENTED (Ask half — Insights dropped per 2026-04-24 amendment; quick-prompt model unified per 2026-05-03 amendment; pin cap removed per 2026-05-03 amendment)
+> Date: 2026-04-19 (proposed) · Amended 2026-04-24, 2026-05-03, 2026-05-03 · Implemented 2026-04-24
 > Related: ADR-011 (LLM providers), ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-016 (centralized STT runtime), ADR-017 (calendar auto-start)
+
+## Amendment (2026-05-03, later) — Pin cap removed
+
+The `QuickPrompt.pinnedCap = 5` constraint shipped earlier on 2026-05-03 (see
+the prior amendment) is **removed**. Pinning is now unbounded; the
+after-response strip is a horizontal `ScrollView` with a leading + trailing
+edge-fade gradient that makes overflow legible without a visible scrollbar.
+
+**Why the second-second pivot.** The cap's only justification was layout
+("must fit visually without wrapping"). Once we accepted scroll as the
+overflow mechanism, the cap stopped doing work — it persisted only as a
+paternalistic friction surface (the swap-picker `confirmationDialog`) that
+forced curation decisions the user did not ask for. A user who pins 12
+prompts experiences natural feedback (the strip is now slower to scan than
+the sparkle menu) and self-corrects; they do not need a wall.
+
+**What changed concretely.**
+- `QuickPrompt.pinnedCap` constant removed.
+- `QuickPromptRepository`: `swapPin`, `saveAndPin`, and the
+  `SetPinnedResult.capExceeded` case are removed; `setPinned` no longer
+  guards on cap; `fetchPinned` no longer applies a `LIMIT`.
+- `QuickPromptsViewModel`: `swapRequest`, `confirmSwap`, `cancelSwap`, and
+  the `SwapRequest` struct are removed; `togglePin` is now unconditional;
+  `visiblePinned` no longer applies a `prefix(...)` cap.
+- `AskPromptsSheet`: the swap-picker `confirmationDialog` and `n/cap` count
+  display are removed; the header shows just `Pinned · n`.
+- CLI: `QuickPromptCLIError.pinCapExceeded` removed; `add --pin` and `pin`
+  no longer return cap-exceeded errors.
+- View layer: `LiveAskPaneView.followUpRow` keeps its existing
+  `ScrollView(.horizontal)` and gains a `.mask(LinearGradient(...))` with
+  4% leading and trailing transparent stops — invisible when content fits
+  the viewport (overlapping only horizontal padding) and reads as a soft
+  horizon when content overflows.
+
+The 5 pinned built-ins still seed by default, providing a strong "here's
+what's worth pinning" curation signal. Pin remains an explicit user knob;
+nothing has changed about what pinning *means*, only what its upper bound
+is.
+
+## Amendment (2026-05-03) — Unified quick-prompt model
+
+The starter / follow-up two-kind split implemented during prerelease work (see
+Decision §2) is collapsed into one library with an `isPinned: Bool` flag. Pinned prompts
+surface as compact pills in the after-response strip; everything visible
+(pinned + unpinned) shows in the empty Ask state and the sparkle popover,
+grouped by `groupLabel`. Pin is the single explicit knob users control to move
+a prompt between the two render surfaces. This amendment initially capped
+pinning at 5; the later same-day amendment above removes that cap.
+
+**Why the second pivot.** The categorical split (`kind = .starter | .followUp`)
+was load-bearing only for placement, not for semantics — both flavors are
+"prebuilt prompts to inspire." The split surfaced as cognitive overhead in
+the editor sheet (two sections, two Add affordances, two Reset menus) and in
+the CLI (`--kind` on every relevant subcommand) without a corresponding user
+benefit. Unifying gives users one mental model, one editor, and one explicit
+control (the pin icon) that parallels the existing visibility toggle.
+
+**Pin metaphor.** Pin is universally understood (Notion sidebar, Slack
+starred, Linear pinned views, Finder favorites). The pin icon is row-level
+and always visible — filled in pinned, outline elsewhere. The first
+implementation of this amendment used a cap-overflow swap picker; the later
+same-day amendment above removed that friction once the strip became
+horizontally scrollable.
+
+**What changed concretely.**
+- `QuickPrompt.Kind` removed; `isPinned: Bool` added. The initial
+  `QuickPrompt.pinnedCap = 5` from this amendment was removed by the later
+  same-day amendment above.
+- The final prerelease `quick_prompts` table schema stores `isPinned`
+  directly and indexes `(isPinned, sortOrder)`.
+- `QuickPromptBundle` schema v1 carries `isPinned: Bool` per prompt. No
+  `kind` bundle decoder is retained because quick prompts have not shipped
+  publicly yet.
+- CLI quick-prompts commands expose the unified model: `--pinned <true|false>`
+  filters `list` and `export`; `add --pinned` creates pinned rows; `pin` and
+  `unpin` toggle strip placement. There is no `--kind` quick-prompts surface.
+- `groupLabel` is now valid on every prompt (was previously starter-only).
+- Seeds preserve every UUID from the prerelease two-kind set: 9 unpinned
+  (CATCH UP / CAPTURE / CHALLENGE) + 5 pinned (Tell me more, Why?, Give an
+  example, Counter-argument?, TL;DR).
+
+The Decision section §2 below describes the earlier kind-based design and is
+preserved for historical context. The current implementation matches this
+amendment plus the later cap-removal amendment above.
 
 ## Amendment (2026-04-24)
 
@@ -184,7 +268,9 @@ Two ways the follow-up row could be smarter: (a) embed "suggested follow-ups" in
 - Live meeting recording now has a useful chat affordance with one-tap depth.
 - Thinking-partner framing differentiates from every other "chat with your meeting" tool on the market.
 - Zero idle LLM cost — nothing fires unless the user taps a pill or sends a message.
-- No new tables, no schema migrations: `ChatConversation` is reused for the live thread post-finalize.
+- No new tables for the chat plumbing: `ChatConversation` is reused for the
+  live thread post-finalize. (The 2026-05-03 amendment adds a one-way schema
+  migration on `quick_prompts` — see the amendment block above.)
 - Live and finalized surfaces share state — no data loss on the meeting → transcription transition.
 - No-LLM-key users get the same recording they had before; this is pure addition.
 
@@ -192,7 +278,7 @@ Two ways the follow-up row could be smarter: (a) embed "suggested follow-ups" in
 
 - **No passive glance value.** A user who tunes out can no longer look up at the panel and see "they just decided X." They have to tap a pill. For long meetings this is real, but the v1 cost-benefit of an Insights pane to reclaim it doesn't justify it.
 - **In-memory chat is lost if transcription fails.** If the user has a substantive Ask conversation and then transcription errors out (rare), the chat is lost along with the transcription. A JSON sidecar persistence layer is sketched as "Future Work" below.
-- **English-first pills.** Both starter and follow-up pill labels are hardcoded English. Localization deferred until multilingual demand surfaces.
+- **English-first pills.** Quick-prompt labels are hardcoded English. Localization deferred until multilingual demand surfaces.
 
 ### Neutral
 
@@ -203,7 +289,16 @@ Two ways the follow-up row could be smarter: (a) embed "suggested follow-ups" in
 
 ### Core (MacParakeetCore)
 
-Unchanged. No new actors, services, or schema.
+For the original Ask shipment: unchanged — no new actors, services, or schema.
+
+For the 2026-05-03 quick-prompt unification (see amendment): `DatabaseManager`
+creates the final `quick_prompts` table with `isPinned: Bool`,
+`QuickPrompt.Kind` is replaced by `isPinned`, `QuickPromptRepository` gains
+`setPinned`, `fetchPinned`, and bucket-scoped `reorder(ids:pinned:)`, and
+`QuickPromptBundle` schema v1 carries `isPinned`. The later same-day
+cap-removal amendment means there is no
+`pinnedCap`, `swapPin`, `saveAndPin`, cap-exceeded result, or `fetchPinned`
+limit in the current implementation.
 
 ### ViewModels (MacParakeetViewModels)
 
@@ -238,7 +333,7 @@ See decision §2 for the full lists.
 ## Future Work
 
 - **Transcription-failure chat recovery.** If transcription fails after stop, the in-memory Ask thread is lost. Sketch: write `chatHistory` to `~/Library/Application Support/MacParakeet/pending-chat-{recordingId}.json` on every send; delete the sidecar on successful finalize; on next launch, surface a "Recover chat" entry if a sidecar is found. ~50 lines, no schema migration. Defer until telemetry or a user complaint says it matters.
-- **Localization** of starter and follow-up pill copy.
+- **Localization** of quick-prompt copy.
 - **Markdown rendering** in assistant bubbles (bold, lists, code blocks). Currently plain text; would lift the visual quality of long responses without changing the data model.
 - **Per-message actions** (copy, regenerate) on hover in the live thread. The post-finalize Chat tab does not have these either; could be added in both surfaces together.
 - **Reopen Insights** if telemetry indicates users want passive-glance value enough to justify the LLM cost surface.

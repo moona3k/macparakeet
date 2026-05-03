@@ -129,19 +129,24 @@ agent can re-prompt the user.
 
 ### Manage live Ask quick prompts
 
-Ask quick prompts are the starter and follow-up pills shown in the live meeting
-Ask tab. They are lightweight chat shortcuts, not persistent transcript result
-templates.
+Ask quick prompts are the lightweight chat shortcuts shown in the live meeting
+Ask tab. Pinned prompts surface as compact after-response pills; every visible
+prompt appears in the empty Ask state and sparkle menu. They are not persistent
+transcript result templates.
 
 ```bash
 macparakeet-cli quick-prompts list --json
+macparakeet-cli quick-prompts list --pinned true --json
+macparakeet-cli quick-prompts pin "Action items" --json
+macparakeet-cli quick-prompts unpin "Tell me more" --json
 macparakeet-cli quick-prompts set "Tell me more" --prompt "Expand with more detail from the meeting." --json
 macparakeet-cli quick-prompts export --out ask-prompts.json --include-builtins --json
 macparakeet-cli quick-prompts import ask-prompts.json --mode merge --dry-run --json
 ```
 
 The bundle envelope is stable within the CLI major version:
-`schema: "macparakeet.quick_prompts"`, `version: 1`.
+`schema: "macparakeet.quick_prompts"`, `version: 1`. Each prompt carries
+`isPinned: Bool` for after-response strip placement.
 
 ### Inspect meeting recordings
 

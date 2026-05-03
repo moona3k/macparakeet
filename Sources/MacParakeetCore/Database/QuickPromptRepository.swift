@@ -39,6 +39,12 @@ public enum QuickPromptImportError: Error, LocalizedError, Equatable {
     }
 }
 
+/// Outcome of a `setPinned` attempt.
+public enum SetPinnedResult: Equatable, Sendable {
+    case ok
+    case notFound
+}
+
 /// CRUD + reconciliation + import/export for the live meeting Ask tab pills.
 ///
 /// Mirrors `PromptRepository` shape so the patterns are familiar, but with two
@@ -52,11 +58,22 @@ public protocol QuickPromptRepositoryProtocol: Sendable {
     func save(_ prompt: QuickPrompt) throws
     func fetch(id: UUID) throws -> QuickPrompt?
     func fetchAll() throws -> [QuickPrompt]
-    func fetchAll(kind: QuickPrompt.Kind) throws -> [QuickPrompt]
-    func fetchVisible(kind: QuickPrompt.Kind) throws -> [QuickPrompt]
+    func fetchVisible() throws -> [QuickPrompt]
+    /// Visible pinned rows for the after-response strip, in pinned-bucket
+    /// sortOrder. The strip is horizontally scrollable; pinning is unbounded.
+    func fetchPinned() throws -> [QuickPrompt]
     func delete(id: UUID) throws -> Bool
     func toggleVisibility(id: UUID) throws
-    func reorder(ids: [UUID], within kind: QuickPrompt.Kind) throws
+
+    /// Toggle a single row's `isPinned`. Pinning is unbounded — there is no
+    /// cap, so the caller never has to handle a cap-exceeded path.
+    @discardableResult
+    func setPinned(id: UUID, isPinned: Bool) throws -> SetPinnedResult
+
+    /// Reorder rows within a pin-bucket. Caller passes the new full ordered
+    /// list of ids for that bucket. Pinned and unpinned buckets are reordered
+    /// independently — the editor sheet has separate reorder arrows per zone.
+    func reorder(ids: [UUID], pinned: Bool) throws
 
     /// Idempotent first-launch + upgrade-launch hydration. Inserts any built-in
     /// rows missing by canonical UUID and removes built-in rows whose UUIDs are
@@ -64,11 +81,12 @@ public protocol QuickPromptRepositoryProtocol: Sendable {
     /// existing row.
     func seedIfNeeded() throws
 
-    /// Rewrites every built-in row in `kind` back to canonical seed values
-    /// (label / prompt / groupLabel / sortOrder). Visibility is preserved —
-    /// "restore default" is about content, not whether the user has hidden the
-    /// pill. Customs are untouched.
-    func restoreBuiltInDefaults(kind: QuickPrompt.Kind?) throws
+    /// Rewrites every built-in row back to canonical seed values
+    /// (label / prompt / groupLabel / sortOrder / visible-compatible pin
+    /// state). Visibility is preserved — "restore default" is about content,
+    /// not whether the user has hidden the pill. Hidden rows remain unpinned.
+    /// Customs are untouched.
+    func restoreBuiltInDefaults() throws
 
     /// Per-row variant for the "Restore default" affordance on a single
     /// edited built-in row.
@@ -92,8 +110,7 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
 
     public func save(_ prompt: QuickPrompt) throws {
         try dbQueue.write { db in
-            var copy = prompt
-            copy = normalizedForWrite(copy)
+            var copy = try normalizedForWrite(prompt, db: db)
             copy.updatedAt = Date()
             try copy.save(db)
         }
@@ -108,24 +125,24 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     public func fetchAll() throws -> [QuickPrompt] {
         try dbQueue.read { db in
             try QuickPrompt
-                .order(QuickPrompt.Columns.kind.asc, QuickPrompt.Columns.sortOrder.asc)
+                .order(QuickPrompt.Columns.isPinned.asc, QuickPrompt.Columns.sortOrder.asc)
                 .fetchAll(db)
         }
     }
 
-    public func fetchAll(kind: QuickPrompt.Kind) throws -> [QuickPrompt] {
+    public func fetchVisible() throws -> [QuickPrompt] {
         try dbQueue.read { db in
             try QuickPrompt
-                .filter(QuickPrompt.Columns.kind == kind.rawValue)
-                .order(QuickPrompt.Columns.sortOrder.asc)
+                .filter(QuickPrompt.Columns.isVisible == true)
+                .order(QuickPrompt.Columns.isPinned.asc, QuickPrompt.Columns.sortOrder.asc)
                 .fetchAll(db)
         }
     }
 
-    public func fetchVisible(kind: QuickPrompt.Kind) throws -> [QuickPrompt] {
+    public func fetchPinned() throws -> [QuickPrompt] {
         try dbQueue.read { db in
             try QuickPrompt
-                .filter(QuickPrompt.Columns.kind == kind.rawValue)
+                .filter(QuickPrompt.Columns.isPinned == true)
                 .filter(QuickPrompt.Columns.isVisible == true)
                 .order(QuickPrompt.Columns.sortOrder.asc)
                 .fetchAll(db)
@@ -143,23 +160,72 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     public func toggleVisibility(id: UUID) throws {
         try dbQueue.write { db in
             guard var prompt = try QuickPrompt.fetchOne(db, key: id) else { return }
+            let willHide = prompt.isVisible
             prompt.isVisible.toggle()
+            // Hiding a pinned prompt auto-unpins it. A pinned-but-hidden row
+            // surfaces nowhere — `fetchPinned` filters by both flags — so
+            // leaving the pin set would just be a ghost flag that lies about
+            // future behavior. Move the row to the end of the unpinned bucket
+            // the same way an explicit `setPinned(false)` would. Showing a
+            // previously-hidden prompt does NOT auto-repin: pin remains an
+            // explicit opt-in so re-enabled rows don't silently re-enter the
+            // strip without the user's say-so.
+            if willHide && prompt.isPinned {
+                prompt.isPinned = false
+                prompt.sortOrder = try nextSortOrder(db: db, pinned: false)
+            }
             prompt.updatedAt = Date()
             try prompt.update(db)
         }
     }
 
-    public func reorder(ids: [UUID], within kind: QuickPrompt.Kind) throws {
+    @discardableResult
+    public func setPinned(id: UUID, isPinned: Bool) throws -> SetPinnedResult {
+        try dbQueue.write { db in
+            guard var prompt = try QuickPrompt.fetchOne(db, key: id) else {
+                return .notFound
+            }
+            // Pinning a hidden prompt auto-enables visibility. Pin's contract
+            // is "this WILL appear in the after-response strip", which the
+            // strip's filter (`isPinned && isVisible`) requires. Without this,
+            // clicking the pin on a hidden row would silently no-op visually
+            // and leave the row in zombie state. Unpinning never touches
+            // visibility — that's an independent decision.
+            if isPinned && !prompt.isVisible {
+                prompt.isVisible = true
+            }
+            // Idempotent re-pin / re-unpin is a cheap no-op that still bumps
+            // updatedAt for convergence with other clients.
+            if isPinned && !prompt.isPinned {
+                // Pinning lands the row at the end of the pinned bucket so the
+                // user's recent action is the rightmost pill. Sort within the
+                // bucket can be tweaked via `reorder(ids:pinned:)`.
+                prompt.sortOrder = try nextSortOrder(db: db, pinned: true)
+            } else if !isPinned && prompt.isPinned {
+                // Unpinning lands the row at the end of the unpinned bucket
+                // for the same reason — preserves the "I just touched this"
+                // visual cue in the editor's ALL PROMPTS zone.
+                prompt.sortOrder = try nextSortOrder(db: db, pinned: false)
+            }
+            prompt.isPinned = isPinned
+            prompt.updatedAt = Date()
+            try prompt.update(db)
+            return .ok
+        }
+    }
+
+    public func reorder(ids: [UUID], pinned: Bool) throws {
         try dbQueue.write { db in
             let now = Date()
+            let pinnedFlag = pinned ? 1 : 0
             for (index, id) in ids.enumerated() {
                 try db.execute(
                     sql: """
                         UPDATE quick_prompts
                         SET sortOrder = ?, updatedAt = ?
-                        WHERE id = ? AND kind = ?
+                        WHERE id = ? AND isPinned = ?
                         """,
-                    arguments: [index, now, id, kind.rawValue]
+                    arguments: [index, now, id, pinnedFlag]
                 )
             }
         }
@@ -202,14 +268,9 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
         }
     }
 
-    public func restoreBuiltInDefaults(kind: QuickPrompt.Kind?) throws {
+    public func restoreBuiltInDefaults() throws {
         let now = Date()
-        let canonical: [QuickPrompt]
-        if let kind {
-            canonical = QuickPrompt.builtInPrompts(kind: kind, now: now)
-        } else {
-            canonical = QuickPrompt.builtInPrompts(now: now)
-        }
+        let canonical = QuickPrompt.builtInPrompts(now: now)
         try dbQueue.write { db in
             for seed in canonical {
                 try restoreOne(seed: seed, db: db, now: now)
@@ -227,21 +288,32 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
 
     /// Rewrite canonical fields for a single built-in seed. Visibility is
     /// **preserved** — restoring default content shouldn't override an explicit
-    /// hide. If the row is missing entirely, this is a no-op (the reconciler
-    /// will re-insert it on the next `seedIfNeeded()`).
+    /// hide. Pin state restores to the seed's canonical value only when the row
+    /// is visible; hidden rows stay unpinned because hidden+pinned is not a
+    /// valid state. If the row is missing entirely, this is a no-op (the
+    /// reconciler will re-insert it on the next `seedIfNeeded()`).
     private func restoreOne(seed: QuickPrompt, db: Database, now: Date) throws {
+        guard let existing = try QuickPrompt.fetchOne(db, key: seed.id) else { return }
+        let restoredPinned = existing.isVisible ? seed.isPinned : false
+        let restoredSortOrder: Int
+        if restoredPinned == seed.isPinned {
+            restoredSortOrder = seed.sortOrder
+        } else {
+            restoredSortOrder = try nextSortOrder(db: db, pinned: false)
+        }
+
         try db.execute(
             sql: """
                 UPDATE quick_prompts
-                SET kind = ?, label = ?, prompt = ?, groupLabel = ?, sortOrder = ?, isBuiltIn = 1, updatedAt = ?
+                SET label = ?, prompt = ?, groupLabel = ?, sortOrder = ?, isPinned = ?, isBuiltIn = 1, updatedAt = ?
                 WHERE id = ?
                 """,
             arguments: [
-                seed.kind.rawValue,
                 seed.label,
                 seed.prompt,
                 seed.groupLabel,
-                seed.sortOrder,
+                restoredSortOrder,
+                restoredPinned,
                 now,
                 seed.id,
             ]
@@ -256,17 +328,20 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
         dryRun: Bool
     ) throws -> QuickPromptImport.Summary {
         let now = Date()
-        let incoming = bundle.prompts.map {
-            normalizedForWrite(QuickPromptBundle.materialize($0, now: now))
+        let materialized = bundle.prompts.map {
+            QuickPromptBundle.materialize($0, now: now)
         }
         var incomingIDs = Set<UUID>()
-        for entry in incoming {
+        for entry in materialized {
             guard incomingIDs.insert(entry.id).inserted else {
                 throw QuickPromptImportError.duplicateID(entry.id)
             }
         }
 
         return try dbQueue.write { db in
+            // Normalize inside the write block so case-insensitive group
+            // canonicalization sees the freshest existing rows.
+            let incoming = try materialized.map { try normalizedForWrite($0, db: db) }
             let existing = try QuickPrompt.fetchAll(db)
             let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
             let canonicalSeeds = QuickPrompt.builtInPrompts(now: now)
@@ -341,50 +416,83 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     /// content field matches; timestamps don't count. Used to classify
     /// merge/replace results without spurious updates.
     private func areEquivalent(_ lhs: QuickPrompt, _ rhs: QuickPrompt) -> Bool {
-        lhs.kind == rhs.kind
-            && lhs.label == rhs.label
+        lhs.label == rhs.label
             && lhs.prompt == rhs.prompt
             && lhs.groupLabel == rhs.groupLabel
             && lhs.sortOrder == rhs.sortOrder
             && lhs.isVisible == rhs.isVisible
+            && lhs.isPinned == rhs.isPinned
             && lhs.isBuiltIn == rhs.isBuiltIn
     }
 
     /// Write a merged row, preserving the existing row's `createdAt` so import
-    /// does not reset history. Reserved built-in UUIDs keep their canonical kind
-    /// and built-in status; custom rows cannot forge that status.
+    /// does not reset history. Reserved built-in UUIDs keep their built-in
+    /// status; custom rows cannot forge that status.
+    /// Caller is responsible for passing a `normalizedForWrite`-normalized entry.
     private func writeMerged(entry: QuickPrompt, existing: QuickPrompt, db: Database, now: Date) throws {
-        var merged = normalizedForWrite(entry)
+        var merged = entry
         merged.createdAt = existing.createdAt
         merged.updatedAt = now
         try merged.save(db)
     }
 
+    /// Caller is responsible for passing a `normalizedForWrite`-normalized entry.
     private func writeNew(entry: QuickPrompt, db: Database, now: Date) throws {
-        var fresh = normalizedForWrite(entry)
+        var fresh = entry
         fresh.createdAt = now
         fresh.updatedAt = now
         try fresh.save(db)
     }
 
-    private func normalizedForWrite(_ prompt: QuickPrompt) -> QuickPrompt {
+    /// Settle every cross-cutting field that should be canonicalized before a
+    /// row hits the DB:
+    /// - `isBuiltIn` is forced from the canonical UUID set.
+    /// - `groupLabel` is trimmed, nil-empty, and snapped to the canonical
+    ///   casing of any existing case-insensitive match.
+    /// - hidden rows are forced unpinned; pin is a visible-row sub-state.
+    ///
+    /// Visible-row pin state is intentionally **not** coerced — even for
+    /// built-ins. Pin is user-controlled; re-coercing here would silently
+    /// revert a user's manual pin or unpin the next time they edited or
+    /// imported the row.
+    private func normalizedForWrite(_ prompt: QuickPrompt, db: Database) throws -> QuickPrompt {
         var normalized = prompt
-        if let canonical = QuickPrompt.builtInPrompt(id: prompt.id) {
-            normalized.kind = canonical.kind
-            normalized.isBuiltIn = true
+        normalized.isBuiltIn = QuickPrompt.builtInPrompt(id: prompt.id) != nil
+
+        if let raw = normalized.groupLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty {
+            // Case-insensitive match against the rest of the table; if found,
+            // adopt that casing so "capture" and "CAPTURE" don't fork into two
+            // visually-distinct buckets. Excludes the row itself so a user
+            // editing the canonical "CAPTURE" row to "Capture" can rename it.
+            let canonical = try String.fetchOne(
+                db,
+                sql: """
+                    SELECT groupLabel FROM quick_prompts
+                    WHERE id <> ?
+                      AND groupLabel IS NOT NULL
+                      AND LOWER(groupLabel) = LOWER(?)
+                    ORDER BY rowid LIMIT 1
+                    """,
+                arguments: [prompt.id, raw]
+            )
+            normalized.groupLabel = canonical ?? raw
         } else {
-            normalized.isBuiltIn = false
-        }
-        if normalized.kind == .followUp {
             normalized.groupLabel = nil
         }
-        // Empty / whitespace-only group strings collapse to nil so the GUI never
-        // renders an empty capsule and equality checks match canonical seeds
-        // whose groupLabel is genuinely nil.
-        if let trimmed = normalized.groupLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
-           trimmed.isEmpty {
-            normalized.groupLabel = nil
+
+        if !normalized.isVisible && normalized.isPinned {
+            normalized.isPinned = false
+            normalized.sortOrder = try nextSortOrder(db: db, pinned: false)
         }
         return normalized
+    }
+
+    private func nextSortOrder(db: Database, pinned: Bool) throws -> Int {
+        try Int.fetchOne(
+            db,
+            sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = ?",
+            arguments: [pinned ? 1 : 0]
+        ).map { $0 + 1 } ?? 0
     }
 }

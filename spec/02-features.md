@@ -1589,16 +1589,18 @@ Meeting transcription uses the current speech engine captured at recording start
 
 > Status: **IMPLEMENTED**
 
-**What:** Live meeting Ask tab starter and follow-up pills are backed by the `quick_prompts` table instead of hardcoded enums. Users can tune the visible chip label separately from the full LLM instruction, reorder pills, hide built-ins, reset built-ins, and create/delete custom pills from the Ask Prompts sheet. The CLI exposes the same surface for backup, sharing, and agent automation.
+**What:** Live meeting Ask tab quick prompts are backed by the `quick_prompts` table instead of hardcoded enums. One unified library with an `isPinned` flag — pinned prompts surface as compact pills in the after-response strip (horizontally scrollable with edge-fade overflow, unbounded), and every visible prompt (pinned + unpinned) appears in the empty Ask state and the sparkle popover, grouped by `groupLabel`. Users can tune the visible chip label separately from the full LLM instruction, reorder pills within their pin-bucket, pin/unpin via a row-level affordance, hide built-ins, reset built-ins, and create/delete custom pills from the Ask Prompts sheet. The CLI exposes the same surface for backup, sharing, and agent automation.
 
 **Acceptance criteria:**
-- [x] `quick_prompts` table stores `starter` and `follow_up` rows with label, prompt body, optional starter group, sort order, visibility, and built-in marker
+- [x] `quick_prompts` table stores rows with `isPinned: Bool`, label, prompt body, optional `groupLabel`, sort order, visibility, and built-in marker
 - [x] Built-ins are editable, hideable, reorderable, and resettable, but not deletable
-- [x] Reset built-ins restores canonical kind/label/prompt/group/order while preserving visibility and leaving custom pills untouched
-- [x] Follow-up prompts are flat; import/save paths drop `groupLabel` for follow-ups
-- [x] Live Ask reads visible starters/follow-ups from `QuickPromptsViewModel`, preserving starter group order by first occurrence
-- [x] `macparakeet-cli quick-prompts` supports list/show/add/set/delete/restore-defaults/export/import with JSON success/failure envelopes
-- [x] Quick-prompt import/export uses stable `schema: "macparakeet.quick_prompts"` and `version: 1`; duplicate ids and malformed bundles fail with `errorType: "import_schema"`
+- [x] Reset built-ins restores canonical label/prompt/group/order and visible-compatible pin state, preserving visibility and leaving custom pills untouched
+- [x] `groupLabel` is valid on every prompt regardless of pin state; whitespace-only group strings collapse to nil on save
+- [x] Pinning is unbounded; the after-response strip is a horizontal `ScrollView` with leading + trailing edge-fade gradient affordance for overflow
+- [x] Hidden rows cannot remain pinned: hiding a pinned row auto-unpins it, pinning a hidden row auto-shows it, and imports/saves normalize hidden+pinned rows to hidden+unpinned
+- [x] Live Ask strip reads `visiblePinned` from `QuickPromptsViewModel`; empty Ask state and sparkle popover read `visiblePromptGroups`, preserving group order by first occurrence with unpinned prompts before pinned-no-group cluster
+- [x] `macparakeet-cli quick-prompts` supports list/show/add/set/delete/pin/unpin/restore-defaults/export/import with JSON success/failure envelopes; `--pinned <true|false>` filters list and export
+- [x] Quick-prompt import/export uses stable `schema: "macparakeet.quick_prompts"` and `version: 1` with `isPinned: Bool`; duplicate ids and malformed bundles fail with `errorType: "import_schema"`
 
 ---
 

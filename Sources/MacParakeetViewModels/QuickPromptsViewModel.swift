@@ -3,12 +3,11 @@ import MacParakeetCore
 
 /// View-model for the live meeting Ask tab quick prompts. Doubles as:
 ///
-/// 1. **Pill data source** — `LiveAskPaneView` reads `visibleStarters` /
-///    `visibleFollowUps` to render the chip rows (replacing the old hardcoded
-///    `LiveAskStarterPrompts` / `LiveAskFollowUpPrompts` enums).
-/// 2. **Manage sheet state** — `AskPromptsSheet` reads `allStarters` /
-///    `allFollowUps` (including hidden), the editing/creating state, and
-///    invokes save/delete/reorder/restore-default.
+/// 1. **Pill data source** — `LiveAskPaneView` reads `visiblePinned` (strip)
+///    and `visiblePromptGroups` (empty state + sparkle popover).
+/// 2. **Manage sheet state** — `AskPromptsSheet` reads `allPrompts` (including
+///    hidden), the editing/creating state, and invokes save / delete /
+///    reorder / pin / restore-default.
 ///
 /// One VM owned by the meeting panel, refreshed on sheet dismiss. Reading from
 /// GRDB on every action is fine — these tables are small (≤30 rows in
@@ -16,14 +15,14 @@ import MacParakeetCore
 @MainActor
 @Observable
 public final class QuickPromptsViewModel {
-    public var allStarters: [QuickPrompt] = []
-    public var allFollowUps: [QuickPrompt] = []
+    /// Full library, ordered (unpinned ASC by sortOrder, then pinned ASC).
+    public var allPrompts: [QuickPrompt] = []
 
     /// In-progress edit state for a row in the management sheet.
     public var editingPrompt: QuickPrompt?
 
     /// Pending new-prompt buffer. `nil` when no creation is in progress;
-    /// otherwise holds the kind being created plus draft fields.
+    /// otherwise holds the draft fields plus a default pin state.
     public var creating: Draft?
 
     public var errorMessage: String?
@@ -39,35 +38,64 @@ public final class QuickPromptsViewModel {
 
     // MARK: - Read
 
-    /// Visible starters grouped by `groupLabel`, preserving first-occurrence
-    /// group order so users who reorder rows control how groups appear.
-    public var visibleStarters: [QuickPrompt] {
-        allStarters.filter(\.isVisible)
+    // `allPrompts` is loaded via `repo.fetchAll()` which orders by
+    // `(isPinned ASC, sortOrder ASC)` — unpinned first, then pinned, sortOrder
+    // ascending within each bucket. The accessors below trust that order.
+
+    /// Visible pinned prompts in pinned-bucket sortOrder. Drives the
+    /// horizontally-scrollable after-response strip. Pinning is unbounded;
+    /// the strip's edge-fade affordance handles overflow.
+    public var visiblePinned: [QuickPrompt] {
+        allPrompts.filter { $0.isVisible && $0.isPinned }
     }
 
-    public var visibleFollowUps: [QuickPrompt] {
-        allFollowUps.filter(\.isVisible)
-    }
-
-    /// Visible starters grouped for `LiveAskPaneView`'s `StarterPromptList`.
-    /// Stable order: groups appear in the order their first member is seen
-    /// (mirrors the legacy hardcoded enum behavior).
-    public var visibleStarterGroups: [(label: String, prompts: [QuickPrompt])] {
+    /// All visible prompts grouped for the empty-state list and sparkle
+    /// popover. Stable group order: groups appear in the order their first
+    /// member is seen, with unpinned groups before the unnamed pinned cluster
+    /// (which falls naturally to the end given pinned prompts seed without a
+    /// `groupLabel`).
+    ///
+    /// Bucketing is **case-insensitive** so "capture" and "CAPTURE" merge into
+    /// one group. The first occurrence's casing wins for the displayed label.
+    /// Save-time canonicalization in the repository keeps storage consistent,
+    /// but this view-layer fold is also belt-and-suspenders for any imported
+    /// rows that bypass `normalizedForWrite`.
+    public var visiblePromptGroups: [(label: String, prompts: [QuickPrompt])] {
+        let visible = allPrompts.filter(\.isVisible)
         var seen: [String] = []
+        var labelByKey: [String: String] = [:]
         var buckets: [String: [QuickPrompt]] = [:]
-        for prompt in visibleStarters {
-            let key = prompt.groupLabel ?? ""
-            if buckets[key] == nil { seen.append(key) }
+        for prompt in visible {
+            let displayLabel = prompt.groupLabel ?? ""
+            let key = displayLabel.lowercased()
+            if buckets[key] == nil {
+                seen.append(key)
+                labelByKey[key] = displayLabel
+            }
             buckets[key, default: []].append(prompt)
         }
-        return seen.map { (label: $0, prompts: buckets[$0] ?? []) }
+        return seen.map { key in
+            (label: labelByKey[key] ?? "", prompts: buckets[key] ?? [])
+        }
     }
+
+    /// Editor zone — pinned subset (always full subset, including hidden
+    /// rows so the editor can show what's pinned but currently hidden).
+    public var allPinned: [QuickPrompt] {
+        allPrompts.filter(\.isPinned)
+    }
+
+    /// Editor zone — the rest. Hidden rows included for the same reason.
+    public var allUnpinned: [QuickPrompt] {
+        allPrompts.filter { !$0.isPinned }
+    }
+
+    public var pinnedCount: Int { allPrompts.filter(\.isPinned).count }
 
     public func refresh() {
         guard let repo else { return }
         do {
-            allStarters = try repo.fetchAll(kind: .starter)
-            allFollowUps = try repo.fetchAll(kind: .followUp)
+            allPrompts = try repo.fetchAll()
             errorMessage = nil
         } catch {
             errorMessage = error.localizedDescription
@@ -107,8 +135,8 @@ public final class QuickPromptsViewModel {
         }
     }
 
-    public func startCreating(kind: QuickPrompt.Kind) {
-        creating = Draft(kind: kind)
+    public func startCreating(pinned: Bool = false) {
+        creating = Draft(isPinned: pinned)
         errorMessage = nil
     }
 
@@ -122,26 +150,21 @@ public final class QuickPromptsViewModel {
             return false
         }
 
-        let nextSortOrder: Int = {
-            switch draft.kind {
-            case .starter:  return (allStarters.map(\.sortOrder).max() ?? -1) + 1
-            case .followUp: return (allFollowUps.map(\.sortOrder).max() ?? -1) + 1
-            }
-        }()
+        // New prompts always start unpinned regardless of the draft hint.
+        // Pinning is an explicit follow-up action.
+        let nextSortOrder = (allUnpinned.map(\.sortOrder).max() ?? -1) + 1
 
-        let group: String? = draft.kind == .starter
-            ? draft.groupLabel
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .nilIfEmpty
-            : nil
+        let group: String? = draft.groupLabel
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .nilIfEmpty
 
         let prompt = QuickPrompt(
-            kind: draft.kind,
             label: trimmedLabel,
             prompt: trimmedPrompt,
             groupLabel: group,
             sortOrder: nextSortOrder,
             isVisible: true,
+            isPinned: false,
             isBuiltIn: false
         )
 
@@ -182,13 +205,30 @@ public final class QuickPromptsViewModel {
         }
     }
 
-    /// Reorder within a kind. Caller passes the new full ordered list of ids
-    /// for that kind.
-    public func reorder(ids: [UUID], within kind: QuickPrompt.Kind) {
+    /// Reorder within a pin-bucket. Caller passes the new full ordered list of
+    /// ids for that bucket. Pinned and unpinned reorder independently.
+    public func reorder(ids: [UUID], pinned: Bool) {
         guard let repo else { return }
         do {
-            try repo.reorder(ids: ids, within: kind)
+            try repo.reorder(ids: ids, pinned: pinned)
             refresh()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// Pin or unpin a prompt. Pinning is unbounded.
+    public func togglePin(_ prompt: QuickPrompt) {
+        guard let repo else { return }
+        let target = !prompt.isPinned
+        do {
+            switch try repo.setPinned(id: prompt.id, isPinned: target) {
+            case .ok:
+                refresh()
+            case .notFound:
+                errorMessage = "Prompt no longer exists."
+                refresh()
+            }
         } catch {
             errorMessage = error.localizedDescription
         }
@@ -204,10 +244,10 @@ public final class QuickPromptsViewModel {
         }
     }
 
-    public func restoreBuiltInDefaults(kind: QuickPrompt.Kind) {
+    public func restoreAllBuiltInDefaults() {
         guard let repo else { return }
         do {
-            try repo.restoreBuiltInDefaults(kind: kind)
+            try repo.restoreBuiltInDefaults()
             refresh()
         } catch {
             errorMessage = error.localizedDescription
@@ -217,16 +257,19 @@ public final class QuickPromptsViewModel {
     // MARK: - Draft
 
     public struct Draft: Sendable {
-        public var kind: QuickPrompt.Kind
         public var label: String
         public var prompt: String
         public var groupLabel: String
+        /// Hint for the create sheet only; new prompts always persist as
+        /// unpinned regardless. Kept as a field so future flows could change
+        /// the default behavior without rewiring.
+        public var isPinned: Bool
 
-        public init(kind: QuickPrompt.Kind, label: String = "", prompt: String = "", groupLabel: String = "") {
-            self.kind = kind
+        public init(label: String = "", prompt: String = "", groupLabel: String = "", isPinned: Bool = false) {
             self.label = label
             self.prompt = prompt
             self.groupLabel = groupLabel
+            self.isPinned = isPinned
         }
     }
 }

@@ -72,6 +72,7 @@ struct VocabularyBackupSection: View {
                     preview: preview
                 )
                 .frame(minWidth: 460)
+                .tint(DesignSystem.Colors.accent)
             }
         }
     }

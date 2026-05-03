@@ -67,6 +67,10 @@ final class DictationOverlayController {
         if panel != nil { return }
 
         let view = DictationOverlayView(viewModel: overlayViewModel)
+        // No `.tint(...)` here — the overlay's controls are all custom-drawn,
+        // so cascading the brand accent has no visible effect, and the typed
+        // property `hostingView: NSHostingView<DictationOverlayView>` would
+        // need widening to accept a `ModifiedContent<...>` payload.
         let hosting = NSHostingView(rootView: view)
 
         // Start with generous size — SwiftUI content sizes itself, panel background is clear

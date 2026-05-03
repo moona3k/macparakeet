@@ -7,6 +7,12 @@ import Foundation
 /// Mirrors `VocabularyBundle`'s envelope shape so the two export formats stay
 /// visually similar.
 ///
+/// ## Schema
+///
+/// **v1** (2026-05): each prompt carries `isPinned: Bool`. Pin controls
+/// whether the prompt appears in the after-response strip; visible prompts
+/// always appear in the empty Ask state and sparkle popover.
+///
 /// ## Schema policy (CLI semver contract)
 ///
 /// `schema` and `version` are stable within a CLI MAJOR. Adding new optional
@@ -16,7 +22,7 @@ import Foundation
 ///
 /// Decoders **must ignore unknown fields** (forward-compat). This is enforced
 /// for free by `Codable`'s default behavior and exercised in
-/// `QuickPromptBundleTests.testForwardCompatIgnoresUnknownFields`.
+/// `QuickPromptBundleTests` at both the envelope and prompt-entry levels.
 public struct QuickPromptBundle: Codable, Sendable, Equatable {
     public static let schemaIdentifier = "macparakeet.quick_prompts"
     public static let currentVersion = 1
@@ -41,31 +47,31 @@ public struct QuickPromptBundle: Codable, Sendable, Equatable {
 
     public struct ExportedQuickPrompt: Codable, Sendable, Equatable {
         public let id: UUID
-        public let kind: QuickPrompt.Kind
         public let label: String
         public let prompt: String
         public let groupLabel: String?
         public let sortOrder: Int
         public let isVisible: Bool
+        public let isPinned: Bool
         public let isBuiltIn: Bool
 
         public init(
             id: UUID,
-            kind: QuickPrompt.Kind,
             label: String,
             prompt: String,
             groupLabel: String?,
             sortOrder: Int,
             isVisible: Bool,
+            isPinned: Bool,
             isBuiltIn: Bool
         ) {
             self.id = id
-            self.kind = kind
             self.label = label
             self.prompt = prompt
             self.groupLabel = groupLabel
             self.sortOrder = sortOrder
             self.isVisible = isVisible
+            self.isPinned = isPinned
             self.isBuiltIn = isBuiltIn
         }
     }
@@ -82,7 +88,7 @@ public enum QuickPromptBundleError: Error, LocalizedError, Equatable {
         case .wrongSchema(let found):
             return "Not a MacParakeet quick-prompts file (schema='\(found)', expected '\(QuickPromptBundle.schemaIdentifier)')."
         case .unsupportedVersion(let found, let supported):
-            return "Unsupported quick-prompts schema version \(found); this build supports up to \(supported)."
+            return "Unsupported quick-prompts schema version \(found); this build supports version \(supported)."
         }
     }
 }
@@ -107,7 +113,7 @@ extension QuickPromptBundle {
         guard schema == Self.schemaIdentifier else {
             throw QuickPromptBundleError.wrongSchema(found: schema)
         }
-        guard version <= Self.currentVersion else {
+        guard version == Self.currentVersion else {
             throw QuickPromptBundleError.unsupportedVersion(
                 found: version,
                 supported: Self.currentVersion
@@ -117,22 +123,23 @@ extension QuickPromptBundle {
 
     /// Conversion from wire entry → domain model. Coerces `isBuiltIn` to `false`
     /// unless the id matches a known seed, defending against forged "built-in"
-    /// markers in import files.
+    /// markers in import files. Pin state remains ordinary user data, even for
+    /// built-ins; repository write normalization only clears it when a row is
+    /// hidden, because hidden+pinned is not a valid state.
     public static func materialize(
         _ entry: ExportedQuickPrompt,
         now: Date = Date()
     ) -> QuickPrompt {
-        let canonicalBuiltIn = QuickPrompt.builtInPrompt(id: entry.id, now: now)
-        let resolvedKind = canonicalBuiltIn?.kind ?? entry.kind
-        let trustedBuiltIn = entry.isBuiltIn && canonicalBuiltIn != nil
+        let canonical = QuickPrompt.builtInPrompt(id: entry.id, now: now)
+        let trustedBuiltIn = entry.isBuiltIn && canonical != nil
         return QuickPrompt(
             id: entry.id,
-            kind: resolvedKind,
             label: entry.label,
             prompt: entry.prompt,
-            groupLabel: resolvedKind == .starter ? entry.groupLabel : nil,
+            groupLabel: entry.groupLabel,
             sortOrder: entry.sortOrder,
             isVisible: entry.isVisible,
+            isPinned: entry.isPinned,
             isBuiltIn: trustedBuiltIn,
             createdAt: now,
             updatedAt: now
@@ -144,12 +151,12 @@ extension QuickPromptBundle.ExportedQuickPrompt {
     init(_ p: QuickPrompt) {
         self.init(
             id: p.id,
-            kind: p.kind,
             label: p.label,
             prompt: p.prompt,
             groupLabel: p.groupLabel,
             sortOrder: p.sortOrder,
             isVisible: p.isVisible,
+            isPinned: p.isPinned,
             isBuiltIn: p.isBuiltIn
         )
     }

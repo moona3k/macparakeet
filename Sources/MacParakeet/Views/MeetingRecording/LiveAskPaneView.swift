@@ -72,7 +72,7 @@ struct LiveAskPaneView: View {
                 .onTapGesture { showingPromptMenu = false }
 
             VStack(spacing: 0) {
-                StarterPromptList(groups: quickPromptsViewModel.visibleStarterGroups) { entry in
+                StarterPromptList(groups: quickPromptsViewModel.visiblePromptGroups) { entry in
                     showingPromptMenu = false
                     fire(entry)
                 }
@@ -88,7 +88,7 @@ struct LiveAskPaneView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "slider.horizontal.3")
                             .font(.system(size: 11, weight: .medium))
-                        Text("Edit pills…")
+                        Text("Edit prompts…")
                             .font(.system(size: 11, weight: .medium))
                     }
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
@@ -116,11 +116,14 @@ struct LiveAskPaneView: View {
         }
     }
 
-    /// Composer = follow-up pills (when conversation has started) + input.
-    /// Single visual chunk, single divider above. Owns the bottom of the panel.
+    /// Composer = follow-up pills (when conversation has started + at least one
+    /// pinned prompt is visible) + input. Single visual chunk, single divider
+    /// above. Owns the bottom of the panel.
     private var composerArea: some View {
         VStack(spacing: 0) {
-            if !viewModel.messages.isEmpty && viewModel.canSendMessage {
+            if !viewModel.messages.isEmpty
+                && viewModel.canSendMessage
+                && !quickPromptsViewModel.visiblePinned.isEmpty {
                 followUpRow
             }
             inputBar
@@ -134,7 +137,7 @@ struct LiveAskPaneView: View {
     private var followUpRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(quickPromptsViewModel.visibleFollowUps) { entry in
+                ForEach(quickPromptsViewModel.visiblePinned) { entry in
                     FollowUpPill(label: entry.label) {
                         fire(entry)
                     }
@@ -144,6 +147,24 @@ struct LiveAskPaneView: View {
             .padding(.top, 10)
             .padding(.bottom, 4)
         }
+        // Edge-fade affordance: when pills overflow the strip width, the
+        // trailing edge fades to signal "more available here, scroll" without
+        // a visible scrollbar. When content fits, the fade overlaps only the
+        // horizontal padding (background-only area), so it stays invisible.
+        // 4% on each side ≈ 12-16pt at typical panel widths — subtle enough
+        // not to clip pill edges, strong enough to read as a soft horizon.
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: 0.04),
+                    .init(color: .black, location: 0.96),
+                    .init(color: .clear, location: 1.0),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
         // Communicate "wait for the current response" — fire() also guards.
         .opacity(viewModel.isStreaming ? 0.45 : 1)
         .allowsHitTesting(!viewModel.isStreaming)
@@ -204,7 +225,7 @@ struct LiveAskPaneView: View {
 
     private var emptyStateWithPills: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            StarterPromptList(groups: quickPromptsViewModel.visibleStarterGroups) { entry in
+            StarterPromptList(groups: quickPromptsViewModel.visiblePromptGroups) { entry in
                 fire(entry)
             }
 
@@ -214,7 +235,7 @@ struct LiveAskPaneView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 10, weight: .medium))
-                    Text("Edit pills…")
+                    Text("Edit prompts…")
                         .font(.system(size: 10, weight: .medium))
                 }
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
@@ -349,7 +370,7 @@ struct LiveAskPaneView: View {
 /// Renders the grouped starter prompt list. Single source of truth for both the
 /// empty-state pane and the mid-conversation popover so the two surfaces stay
 /// visually identical and behavior never drifts. Groups come from
-/// `QuickPromptsViewModel.visibleStarterGroups`, which preserves first-occurrence
+/// `QuickPromptsViewModel.visiblePromptGroups`, which preserves first-occurrence
 /// group order so users who reorder pills control how groups appear.
 private struct StarterPromptList: View {
     let groups: [(label: String, prompts: [QuickPrompt])]
@@ -608,60 +629,67 @@ private struct AssistantTurnView: View {
     }
 
     var body: some View {
-        // Two columns: a 16pt leading anchor (head + accent rule), then typeset
-        // prose. The rule fills the prose's full height via maxHeight, so a
-        // long markdown answer has a continuous accent column — and now also
-        // visually adopts the actions row beneath the prose. While we wait for
-        // the first token, the rule and prose are hidden — the merkaba (brand
-        // voice / sacred-geometry rotation) pairs with three small wave-pulsing
-        // dots (universal "thinking" signal) for the loading state. Same
-        // job-division as iMessage's avatar + typing bubble.
-        HStack(alignment: .top, spacing: 12) {
-            VStack(spacing: 6) {
-                AssistantHead(isStreaming: isStreaming)
+        // Two columns: an 18pt leading anchor (head + accent rule) and the
+        // typeset prose. The rule stretches to fill its column, and the HStack
+        // top-aligns to the prose — so the rule ends exactly where the prose
+        // ends. Actions ride beneath the HStack (with matching leading padding)
+        // so the reserved-but-invisible actions row never inflates the rule
+        // past the visible text. While we wait for the first token, the rule
+        // and prose are hidden — the merkaba (brand voice / sacred-geometry
+        // rotation) pairs with three small wave-pulsing dots (universal
+        // "thinking" signal) for the loading state. Same job-division as
+        // iMessage's avatar + typing bubble.
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(spacing: 6) {
+                    AssistantHead(isStreaming: isStreaming)
 
-                if !isEmptyStreaming {
-                    AssistantAccentRule(isActive: isStreaming)
-                        .transition(.opacity)
+                    if !isEmptyStreaming {
+                        AssistantAccentRule(isActive: isStreaming)
+                            .transition(.opacity)
+                    }
                 }
-            }
-            .frame(width: 18)
+                .frame(width: 18)
 
-            if isEmptyStreaming {
-                ThinkingDots()
-                    .transition(.opacity)
-                    // ThinkingDots is .accessibilityHidden(true) internally
-                    // (decorative); promote it to a single element here so
-                    // VoiceOver still reads the loading state.
-                    .accessibilityElement()
-                    .accessibilityLabel("Thinking")
-            } else {
-                VStack(alignment: .leading, spacing: 0) {
+                if isEmptyStreaming {
+                    ThinkingDots()
+                        .transition(.opacity)
+                        // ThinkingDots is .accessibilityHidden(true) internally
+                        // (decorative); promote it to a single element here so
+                        // VoiceOver still reads the loading state.
+                        .accessibilityElement()
+                        .accessibilityLabel("Thinking")
+                } else {
                     // Reuse the canonical NSTextView-based renderer used
                     // elsewhere (post-meeting Chat tab, PromptResults).
                     // Markdown, headings, code blocks, lists, and proper text
                     // selection — for free.
                     MarkdownContentView(content)
                         .fixedSize(horizontal: false, vertical: true)
-
-                    // Always rendered (reserves height so hover doesn't shift
-                    // layout) but invisible until the assistant turn is hovered
-                    // or one of its action buttons takes keyboard focus.
-                    AssistantMessageActions(
-                        content: content,
-                        showRegenerate: isLast,
-                        onRegenerate: onRegenerate,
-                        focus: $actionFocus,
-                        copied: $copied
-                    )
-                    .opacity(actionsVisible ? 1 : 0)
-                    .allowsHitTesting(actionsVisible)
-                    .animation(.easeOut(duration: 0.12), value: actionsVisible)
+                        .transition(.opacity)
                 }
-                .transition(.opacity)
+
+                Spacer(minLength: 0)
             }
 
-            Spacer(minLength: 0)
+            if !isEmptyStreaming {
+                // Always rendered (reserves height so hover doesn't shift
+                // layout) but invisible until the assistant turn is hovered
+                // or one of its action buttons takes keyboard focus. Leading
+                // padding (head 18 + HStack spacing 12) keeps the actions row
+                // column-aligned with the prose above it.
+                AssistantMessageActions(
+                    content: content,
+                    showRegenerate: isLast,
+                    onRegenerate: onRegenerate,
+                    focus: $actionFocus,
+                    copied: $copied
+                )
+                .padding(.leading, 30)
+                .opacity(actionsVisible ? 1 : 0)
+                .allowsHitTesting(actionsVisible)
+                .animation(.easeOut(duration: 0.12), value: actionsVisible)
+            }
         }
         // Generous, forgiving hover target — cursor doesn't need to land
         // precisely on prose to reveal actions; anywhere across the assistant

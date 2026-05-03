@@ -7,24 +7,24 @@ final class QuickPromptBundleTests: XCTestCase {
         let prompts = [
             QuickPrompt(
                 id: UUID(uuidString: "11111111-2222-4333-8444-555555555555")!,
-                kind: .starter,
                 label: "Catch me up",
                 prompt: "Summarize the meeting so far.",
                 groupLabel: "CATCH UP",
                 sortOrder: 0,
                 isVisible: true,
+                isPinned: false,
                 isBuiltIn: false,
                 createdAt: now,
                 updatedAt: now
             ),
             QuickPrompt(
                 id: UUID(uuidString: "22222222-3333-4444-8555-666666666666")!,
-                kind: .followUp,
                 label: "TL;DR",
                 prompt: "Punchy two-line summary.",
                 groupLabel: nil,
                 sortOrder: 4,
                 isVisible: false,
+                isPinned: true,
                 isBuiltIn: false,
                 createdAt: now,
                 updatedAt: now
@@ -40,7 +40,7 @@ final class QuickPromptBundleTests: XCTestCase {
         XCTAssertEqual(decoded.appVersion, "0.7.0")
         XCTAssertEqual(decoded.prompts.count, 2)
         XCTAssertEqual(decoded.prompts.map(\.label), ["Catch me up", "TL;DR"])
-        XCTAssertEqual(decoded.prompts.map(\.kind), [.starter, .followUp])
+        XCTAssertEqual(decoded.prompts.map(\.isPinned), [false, true])
         XCTAssertEqual(decoded.prompts[0].groupLabel, "CATCH UP")
         XCTAssertNil(decoded.prompts[1].groupLabel)
         XCTAssertEqual(decoded.prompts[1].isVisible, false)
@@ -82,6 +82,40 @@ final class QuickPromptBundleTests: XCTestCase {
         }
     }
 
+    func testValidateRejectsOldSchemaVersion() throws {
+        let json = """
+            {
+              "schema": "macparakeet.quick_prompts",
+              "version": 0,
+              "exportedAt": "2026-05-02T20:00:00Z",
+              "prompts": []
+            }
+            """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let bundle = try decoder.decode(QuickPromptBundle.self, from: Data(json.utf8))
+
+        XCTAssertThrowsError(try bundle.validate()) { error in
+            XCTAssertEqual(error as? QuickPromptBundleError, .unsupportedVersion(found: 0, supported: 1))
+        }
+    }
+
+    func testValidateAcceptsCurrentV1Bundle() throws {
+        let json = """
+            {
+              "schema": "macparakeet.quick_prompts",
+              "version": 1,
+              "exportedAt": "2026-05-02T20:00:00Z",
+              "prompts": []
+            }
+            """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let bundle = try decoder.decode(QuickPromptBundle.self, from: Data(json.utf8))
+        XCTAssertNoThrow(try bundle.validate())
+        XCTAssertEqual(bundle.version, 1)
+    }
+
     func testForwardCompatIgnoresUnknownTopLevelFields() throws {
         let json = """
             {
@@ -108,12 +142,12 @@ final class QuickPromptBundleTests: XCTestCase {
               "prompts": [
                 {
                   "id": "11111111-2222-4333-8444-555555555555",
-                  "kind": "starter",
                   "label": "Test",
                   "prompt": "Test prompt",
                   "groupLabel": null,
                   "sortOrder": 0,
                   "isVisible": true,
+                  "isPinned": false,
                   "isBuiltIn": false,
                   "experimental": "ignore me"
                 }
@@ -127,15 +161,38 @@ final class QuickPromptBundleTests: XCTestCase {
         XCTAssertEqual(bundle.prompts.first?.label, "Test")
     }
 
+    func testMissingIsPinnedRejectsBundle() throws {
+        let json = """
+            {
+              "schema": "macparakeet.quick_prompts",
+              "version": 1,
+              "exportedAt": "2026-05-02T20:00:00Z",
+              "prompts": [
+                {
+                  "id": "11111111-2222-4333-8444-555555555555",
+                  "label": "Bare",
+                  "prompt": "x",
+                  "sortOrder": 0,
+                  "isVisible": true,
+                  "isBuiltIn": false
+                }
+              ]
+            }
+            """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        XCTAssertThrowsError(try decoder.decode(QuickPromptBundle.self, from: Data(json.utf8)))
+    }
+
     func testMaterializeCoercesForgedBuiltIn() {
         let entry = QuickPromptBundle.ExportedQuickPrompt(
             id: UUID(),
-            kind: .followUp,
             label: "Forged",
             prompt: "x",
             groupLabel: nil,
             sortOrder: 0,
             isVisible: true,
+            isPinned: false,
             isBuiltIn: true
         )
         let materialized = QuickPromptBundle.materialize(entry)
@@ -146,57 +203,42 @@ final class QuickPromptBundleTests: XCTestCase {
         let realID = QuickPrompt.builtInPrompts().first!.id
         let entry = QuickPromptBundle.ExportedQuickPrompt(
             id: realID,
-            kind: .starter,
             label: "Re-styled",
             prompt: "y",
             groupLabel: "X",
             sortOrder: 0,
             isVisible: true,
+            isPinned: false,
             isBuiltIn: true
         )
         let materialized = QuickPromptBundle.materialize(entry)
         XCTAssertTrue(materialized.isBuiltIn)
     }
 
-    func testMaterializeCanonicalizesBuiltInKind() {
-        let starter = QuickPrompt.builtInPrompts(kind: .starter).first!
+    func testMaterializePreservesBuiltInPinState() {
+        let unpinned = QuickPrompt.builtInPrompts().first { !$0.isPinned }!
         let entry = QuickPromptBundle.ExportedQuickPrompt(
-            id: starter.id,
-            kind: .followUp,
+            id: unpinned.id,
             label: "Moved",
-            prompt: "should stay a starter",
+            prompt: "should preserve imported pin state",
             groupLabel: "CATCH UP",
             sortOrder: 0,
             isVisible: true,
+            isPinned: true,
             isBuiltIn: true
         )
 
         let materialized = QuickPromptBundle.materialize(entry)
-        XCTAssertEqual(materialized.kind, .starter)
+        XCTAssertEqual(materialized.isPinned, true, "pin state is user data even for built-ins")
         XCTAssertTrue(materialized.isBuiltIn)
     }
 
-    func testMaterializeDropsGroupLabelForFollowUps() {
-        let entry = QuickPromptBundle.ExportedQuickPrompt(
-            id: UUID(),
-            kind: .followUp,
-            label: "Flat",
-            prompt: "Stay flat.",
-            groupLabel: "SHOULD NOT STICK",
-            sortOrder: 0,
-            isVisible: true,
-            isBuiltIn: false
-        )
-
-        let materialized = QuickPromptBundle.materialize(entry)
-        XCTAssertNil(materialized.groupLabel)
-    }
-
-    func testKindWireFormatIsSnakeCase() throws {
-        let prompts = [QuickPrompt(kind: .followUp, label: "x", prompt: "y")]
+    func testIsPinnedWireFormatBoolean() throws {
+        let prompts = [QuickPrompt(label: "x", prompt: "y", isPinned: true)]
         let bundle = QuickPromptBundle(from: prompts, exportedAt: Date(), appVersion: nil)
         let data = try JSONEncoder().encode(bundle)
         let s = String(decoding: data, as: UTF8.self)
-        XCTAssertTrue(s.contains("\"kind\":\"follow_up\""), "JSON should use snake_case 'follow_up' wire value")
+        XCTAssertTrue(s.contains("\"isPinned\":true"), "JSON should emit isPinned as boolean")
+        XCTAssertFalse(s.contains("\"kind\""), "export must not emit kind field")
     }
 }

@@ -562,28 +562,29 @@ public final class DatabaseManager: Sendable {
             }
         }
 
-        // v0.10 — Live meeting Ask tab quick prompts. User-customizable starter
-        // and follow-up pills shown above the chat composer. Built-ins seeded
-        // by the in-app reconciler (`QuickPromptRepository.seedIfNeeded()`),
-        // which is the single source of truth for canonical IDs and runs on
-        // both first launch and every subsequent launch.
+        // v0.10 — Live meeting Ask tab quick prompts. User-customizable Ask
+        // shortcuts with an explicit `isPinned` presentation flag. Built-ins
+        // are seeded by the in-app reconciler
+        // (`QuickPromptRepository.seedIfNeeded()`), which is the single source
+        // of truth for canonical IDs and runs on both first launch and every
+        // subsequent launch.
         migrator.registerMigration("v0.10-quick-prompts") { db in
             try db.create(table: "quick_prompts") { t in
                 t.column("id", .text).primaryKey()
-                t.column("kind", .text).notNull()
                 t.column("label", .text).notNull()
                 t.column("prompt", .text).notNull()
                 t.column("groupLabel", .text)
                 t.column("sortOrder", .integer).notNull().defaults(to: 0)
                 t.column("isVisible", .boolean).notNull().defaults(to: true)
+                t.column("isPinned", .boolean).notNull().defaults(to: false)
                 t.column("isBuiltIn", .boolean).notNull().defaults(to: false)
                 t.column("createdAt", .text).notNull()
                 t.column("updatedAt", .text).notNull()
             }
             try db.create(
-                index: "idx_quick_prompts_kind_sort",
+                index: "idx_quick_prompts_pinned_sort",
                 on: "quick_prompts",
-                columns: ["kind", "sortOrder"]
+                columns: ["isPinned", "sortOrder"]
             )
         }
 

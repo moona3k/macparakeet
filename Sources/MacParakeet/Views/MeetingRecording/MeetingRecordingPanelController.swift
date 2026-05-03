@@ -58,7 +58,7 @@ final class MeetingRecordingPanelController {
         panel.isReleasedWhenClosed = false
         panel.minSize = NSSize(width: 360, height: 320)
         panel.setFrameAutosaveName("MeetingRecordingPanel")
-        panel.contentView = NSHostingView(rootView: MeetingRecordingPanelView(viewModel: viewModel))
+        panel.contentView = NSHostingView(rootView: MeetingRecordingPanelView(viewModel: viewModel).tint(DesignSystem.Colors.accent))
 
         if panel.frame.origin == .zero, let screen = NSScreen.main {
             let frame = screen.visibleFrame

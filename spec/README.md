@@ -205,8 +205,8 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Concurrent dictation during meeting recording (ADR-015)
 - [x] Centralized STT runtime + two-slot scheduler (ADR-016)
 - [x] Live panel tabs: Transcript / Ask (ADR-018; Insights dropped per amendment 2026-04-24)
-- [x] Live Ask chat with thinking-partner starter pills + persistent follow-up pills + persist-on-finalize handoff
-- [x] Customizable Ask quick prompts: GRDB-backed starter/follow-up pills, Ask Prompts sheet, and `macparakeet-cli quick-prompts` import/export
+- [x] Live Ask chat with thinking-partner quick prompts + pinned after-response pills + persist-on-finalize handoff
+- [x] Customizable Ask quick prompts: GRDB-backed unified prompt library with pinning, Ask Prompts sheet, and `macparakeet-cli quick-prompts` import/export
 - [x] Calendar-driven reminders (ADR-017 Phase 1): EventKit integration + onboarding + settings + per-calendar include list
 - [x] Pre-meeting macOS notifications at configurable lead time (off / 1 / 5 / 10 min)
 - [x] Auto-start countdown toast (ADR-017 Phase 2): 5s cancellable, top-center, non-activating

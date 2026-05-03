@@ -6,7 +6,7 @@ struct CLI: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "macparakeet-cli",
         abstract: "Local STT, transcription, and prompt automation for Apple Silicon. Powered by Parakeet TDT, with optional Whisper multilingual recognition.",
-        version: "1.5.0",
+        version: "2.0.0",
         subcommands: [
             TranscribeCommand.self,
             HistoryCommand.self,

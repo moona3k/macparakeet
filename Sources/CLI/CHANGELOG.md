@@ -79,19 +79,28 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added — `quick-prompts`
+
+- `quick-prompts` manages live meeting Ask tab shortcuts: `list`, `show`,
+  `add`, `set`, `delete`, `pin`, `unpin`, `restore-defaults`, `export`, and
+  `import`.
+- `quick-prompts pin <id|prefix|label>` — pin to the after-response strip.
+  Pinning is unbounded; overflow is handled visually by the strip's
+  horizontal scroll with edge-fade affordance.
+- `quick-prompts unpin <id|prefix|label>` — unpin from the strip.
+- `quick-prompts add --pinned` — create a custom prompt already pinned.
+- Group labels are valid on every prompt; they control empty-state and
+  sparkle-menu grouping only.
+- Hidden quick prompts cannot stay pinned: `set --hidden` auto-unpins a pinned
+  row, and `pin` auto-shows a hidden row.
+- `quick-prompts list --pinned <true|false>` — filter list by pin state.
+- `quick-prompts export --pinned <true|false>` — filter export by pin state.
+- Quick-prompt import/export uses bundle schema **v1**
+  (`macparakeet.quick_prompts/1`) with `isPinned: Bool` per prompt. There is
+  no `kind` bundle schema because this surface has not shipped publicly yet.
+
 ### Added
 
-- `quick-prompts` subcommand surface for managing the live meeting Ask tab
-  pills (starter and follow-up prompts). Subcommands: `list`, `show`, `add`,
-  `set`, `delete`, `restore-defaults`, `export`, `import`. All mutation
-  subcommands honor `--json` for the success/failure envelope. Built-ins are
-  user-editable; `delete` rejects them with `errorType: "validation"`.
-  `import --mode merge` (default) UPSERTs by id and preserves untouched rows;
-  `import --mode replace` wipes customs, re-seeds built-ins, then applies the
-  file (prompts for confirmation unless `--json` or `--yes`). `import
-  --dry-run` reports planned `{added, updated, deleted, unchanged}` counts
-  without writing. Bundle format is versioned (`macparakeet.quick_prompts`
-  v1) and round-trippable.
 - `import_schema` `errorType` value for malformed quick-prompts import files
   (e.g. wrong `schema`, unsupported `version`, JSON parse failure).
 - `flow vocabulary export`, `flow vocabulary import`, and `flow vocabulary

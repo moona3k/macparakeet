@@ -273,7 +273,7 @@ Use bullet points for clarity. Keep the summary under 500 words.
 - Opens a chat panel alongside the transcript
 - User asks questions, LLM responds with transcript as context
 - Conversation history is persisted per transcription where a `ChatConversationRepository` is available; live in-meeting Ask uses in-memory history until it can be promoted after finalization
-- Rich-prompt starter/follow-up turns store the visible label in `content` and the actual model prompt in `modelPromptOverride`; regenerate and later model-history assembly use `modelPromptOverride` while the UI continues to show the label
+- Quick-prompt turns store the visible label in `content` and the actual model prompt in `modelPromptOverride`; regenerate and later model-history assembly use `modelPromptOverride` while the UI continues to show the label
 - Streaming responses displayed incrementally
 
 **System prompt:**
