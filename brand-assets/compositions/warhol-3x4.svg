@@ -15,7 +15,7 @@
   </g>
   <g>
     <rect x="500"  y="0" width="500" height="500" fill="#3FC5C2"/>
-    <use href="#bird" x="500"  y="0" width="500" height="500" color="#E86B3B"/>
+    <use href="#bird" x="500"  y="0" width="500" height="500" color="#0E0F12"/>
   </g>
   <g>
     <rect x="1000" y="0" width="500" height="500" fill="#F4B83A"/>
@@ -43,7 +43,7 @@
   </g>
   <g>
     <rect x="500"  y="1000" width="500" height="500" fill="#A684E8"/>
-    <use href="#bird" x="500"  y="1000" width="500" height="500" color="#E86B3B"/>
+    <use href="#bird" x="500"  y="1000" width="500" height="500" color="#F4B83A"/>
   </g>
   <g>
     <rect x="1000" y="1000" width="500" height="500" fill="#B53D2C"/>

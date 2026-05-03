@@ -110,31 +110,48 @@ The `<symbol id="bird">` block defines the mark once per file. Reusing it via
 
 ### When in doubt
 
-| You need…                              | Start from…                                |
-| -------------------------------------- | ------------------------------------------ |
-| Hero image for the website             | `wordmark-lockup.svg`                      |
-| GitHub social preview / Twitter card   | `og-image.svg`                             |
-| Instagram feed post                    | `social-square.svg`                        |
-| Instagram Story / TikTok cover         | `social-story.svg`                         |
-| Conference poster, t-shirt, sticker    | `warhol-3x4.svg` (or single-portrait)      |
-| Blog header, slide background          | `single-portrait.svg`                      |
+| You need…                              | Start from…                                | Mark   |
+| -------------------------------------- | ------------------------------------------ | ------ |
+| Hero image for the website             | `wordmark-lockup.svg`                      | line   |
+| GitHub social preview / Twitter card   | `og-image.svg`                             | line   |
+| Instagram feed post                    | `social-square.svg`                        | fill   |
+| Instagram Story / TikTok cover         | `social-story.svg`                         | fill   |
+| Conference poster, t-shirt, sticker    | `warhol-3x4.svg` (or single-portrait)      | fill   |
+| Blog header, slide background          | `single-portrait.svg`                      | fill   |
+
+Brand-chrome compositions (wordmark, OG meta) inline the line mark; campaign
+and Pop compositions (social, Warhol) inline the fill silhouette. If you
+swap a composition's mark variant, document why — the choice is intentional.
 
 ## Recoloring recipes
 
-### CSS / web
+### CSS / web (inline SVG)
+
+The cleanest path: paste the contents of `marks/parakeet-line.svg` (or `parakeet-fill.svg`) directly into your HTML, then drive `currentColor` from CSS.
 
 ```html
 <link rel="stylesheet" href="brand-assets/palette/palette.css"/>
-<svg style="color: var(--mp-aqua); background: var(--mp-coral)">
-  <use href="brand-assets/marks/parakeet-fill.svg#…"/>
-</svg>
+<style>
+  .brand-tile {
+    background: var(--mp-coral);
+    color: var(--mp-paper);          /* the bird inherits this */
+    width: 200px; aspect-ratio: 1;
+  }
+</style>
+
+<div class="brand-tile">
+  <!-- inline the contents of marks/parakeet-line.svg here -->
+  <svg viewBox="0 0 1024 1024" width="100%" height="100%">…</svg>
+</div>
 ```
 
-### Search-and-replace (any tool)
+### Search-and-replace (any composition SVG)
 
-In any composition SVG:
-- `fill="#E86B3B"` → swap to set the **ground** color.
-- `color="#F8F4EC"` (on `<use>`) → swap to set the **figure** color.
+Each composition follows the same shape:
+- The `<rect …>` near the top of the file sets the **ground** color via its `fill` attribute.
+- Each `<use href="#bird" … color="…">` sets the **figure** color via its `color` attribute (which `currentColor` on the symbol's paths inherits).
+
+Swap those two attributes to recompose. No other surgery needed.
 
 ### Programmatic batch (rsvg / ImageMagick)
 
