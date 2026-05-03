@@ -552,75 +552,168 @@ private struct FollowUpPill: View {
 
 // MARK: - Message Bubble
 
+/// "Whisper" layout — designed for the live in-meeting context, not a generic
+/// chat. Asymmetric on purpose: user turns are small accent-tinted capsules
+/// (gestural, low visual weight); assistant turns are bubble-less typeset prose
+/// anchored by a leading accent rule with a sparkles glyph at the top. The rule
+/// breathes while streaming, echoing the recording pill's sacred-geometry
+/// language. Optimized for glance-and-return cognition in a narrow panel — no
+/// avatar burning width, no chat-app chrome competing with content. Distinct
+/// from the post-meeting transcript chat by design: that surface is archival
+/// and leisurely; this one is in-the-moment thinking partnership.
 private struct MessageBubble: View {
     let message: ChatDisplayMessage
 
     var body: some View {
-        HStack(alignment: .top, spacing: 0) {
-            if message.role == .user { Spacer(minLength: 32) }
-
-            if message.role != .user && message.content.isEmpty && message.isStreaming {
-                TypingIndicator()
-            } else {
-                // Reuse the canonical NSTextView-based renderer used by the
-                // post-meeting Chat tab and PromptResults — same code path means
-                // the live thread and its persisted form look identical, and we
-                // get headings, code blocks, blockquotes, ordered lists, and
-                // proper text selection without re-implementing them here.
-                MarkdownContentView(message.content)
-                    .padding(.horizontal, DesignSystem.Spacing.md)
-                    .padding(.vertical, 10)
-                    .background(
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(bubbleColor)
-                    )
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-
-            if message.role == .assistant { Spacer(minLength: 32) }
-        }
-    }
-
-    private var bubbleColor: Color {
         switch message.role {
         case .user:
-            return DesignSystem.Colors.accent.opacity(0.18)
+            UserTurnView(content: message.content)
         case .assistant, .system:
-            return DesignSystem.Colors.surfaceElevated.opacity(0.6)
+            AssistantTurnView(content: message.content, isStreaming: message.isStreaming)
         }
     }
 }
 
-/// Three accent dots that wave gracefully while the assistant is composing.
-/// On-brand replacement for the placeholder "…" — restrained, ~1.4s cycle.
-private struct TypingIndicator: View {
+private struct UserTurnView: View {
+    let content: String
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 32)
+
+            Text(content)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(DesignSystem.Colors.accent)
+                .multilineTextAlignment(.trailing)
+                .textSelection(.enabled)
+                .padding(.horizontal, 11)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(DesignSystem.Colors.accent.opacity(0.10))
+                )
+                .overlay(
+                    Capsule()
+                        .strokeBorder(DesignSystem.Colors.accent.opacity(0.22), lineWidth: 0.5)
+                )
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+private struct AssistantTurnView: View {
+    let content: String
+    let isStreaming: Bool
+
+    private var isEmptyStreaming: Bool { content.isEmpty && isStreaming }
+
+    var body: some View {
+        // Two columns: a 16pt leading anchor (head + accent rule), then typeset
+        // prose. The rule fills the prose's full height via maxHeight, so a
+        // long markdown answer has a continuous accent column. While we wait
+        // for the first token, the rule and prose are hidden — the merkaba
+        // (brand voice / sacred-geometry rotation) pairs with three small
+        // wave-pulsing dots (universal "thinking" signal) for the loading
+        // state. Same job-division as iMessage's avatar + typing bubble.
+        HStack(alignment: .top, spacing: 12) {
+            VStack(spacing: 6) {
+                AssistantHead(isStreaming: isStreaming)
+
+                if !isEmptyStreaming {
+                    AssistantAccentRule(isActive: isStreaming)
+                        .transition(.opacity)
+                }
+            }
+            .frame(width: 16)
+
+            if isEmptyStreaming {
+                ThinkingDots()
+                    .transition(.opacity)
+            } else {
+                // Reuse the canonical NSTextView-based renderer used elsewhere
+                // (post-meeting Chat tab, PromptResults). Markdown, headings,
+                // code blocks, lists, and proper text selection — for free.
+                MarkdownContentView(content)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .transition(.opacity)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .animation(.easeOut(duration: 0.2), value: isEmptyStreaming)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(isEmptyStreaming ? "Thinking" : "")
+    }
+}
+
+/// Three small accent dots that wave during empty-streaming. Sits at the right
+/// of the merkaba head, vertically centered to it, so the pair reads as one
+/// anchored loading affordance — not a glyph and floating decoration. Pure
+/// opacity wave (no scale) keeps static moments clean; the merkaba does the
+/// rotation work.
+private struct ThinkingDots: View {
     @State private var phase = 0
-    private let dotCount = 3
-    private let interval: Duration = .milliseconds(380)
 
     var body: some View {
         HStack(spacing: 5) {
-            ForEach(0..<dotCount, id: \.self) { i in
+            ForEach(0..<3, id: \.self) { i in
                 Circle()
-                    .fill(DesignSystem.Colors.accent.opacity(phase == i ? 0.9 : 0.32))
-                    .frame(width: 6, height: 6)
-                    .scaleEffect(phase == i ? 1.25 : 0.85)
+                    .fill(DesignSystem.Colors.accent.opacity(phase == i ? 0.85 : 0.28))
+                    .frame(width: 4, height: 4)
             }
         }
-        .padding(.horizontal, DesignSystem.Spacing.md)
-        .padding(.vertical, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 14)
-                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.6))
-        )
+        // Match the merkaba's 16pt frame so HStack(.top) aligns the two
+        // affordances by their centers, not their tops.
+        .frame(height: 16, alignment: .center)
         .task {
             while !Task.isCancelled {
-                try? await Task.sleep(for: interval)
+                try? await Task.sleep(for: .milliseconds(330))
                 withAnimation(.easeInOut(duration: 0.32)) {
-                    phase = (phase + 1) % dotCount
+                    phase = (phase + 1) % 3
                 }
             }
         }
-        .accessibilityLabel("Thinking")
+        .accessibilityHidden(true)
+    }
+}
+
+/// Head of the assistant column — swaps between a spinning merkaba (streaming)
+/// and a static sparkles glyph (idle). Same visual language as the dictation
+/// overlay and post-meeting transcript chat avatar; carries sacred-geometry
+/// motion into the live Ask without bringing back chat-app avatar chrome.
+private struct AssistantHead: View {
+    let isStreaming: Bool
+
+    var body: some View {
+        ZStack {
+            if isStreaming {
+                SpinnerRingView(size: 14, revolutionDuration: 2.0, tintColor: DesignSystem.Colors.accent)
+                    .transition(.opacity)
+            } else {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.accent.opacity(0.85))
+                    .transition(.opacity)
+            }
+        }
+        .frame(width: 16, height: 16)
+        .animation(.easeInOut(duration: 0.2), value: isStreaming)
+        .accessibilityHidden(true)
+    }
+}
+
+/// 2pt vertical accent rule. Sits quiet when idle (0.18); brightens to a steady
+/// 0.4 during streaming so the column feels alive without competing with the
+/// spinning merkaba above it. Two motion sources stacked would be noise — the
+/// merkaba does the rotation, the rule does the static "active" presence.
+private struct AssistantAccentRule: View {
+    let isActive: Bool
+
+    var body: some View {
+        RoundedRectangle(cornerRadius: 1)
+            .fill(DesignSystem.Colors.accent.opacity(isActive ? 0.40 : 0.18))
+            .frame(width: 2)
+            .frame(maxHeight: .infinity)
+            .animation(.easeInOut(duration: 0.3), value: isActive)
     }
 }
