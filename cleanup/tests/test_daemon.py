@@ -112,6 +112,11 @@ def _shutdown(socket_path: str, thread: threading.Thread) -> None:
         Path(socket_path).unlink()
     except FileNotFoundError:
         pass
+    # Best-effort: this helper can't reliably break out of accept() across
+    # threads in the same process. The runner thread is daemon=True so it
+    # won't keep the test process alive even if it hangs here. Tests that
+    # rely on the daemon actually exiting (e.g. idle-exit tests) assert
+    # `not thread.is_alive()` directly.
     thread.join(timeout=2.0)
 
 
@@ -167,14 +172,23 @@ def test_warmup_request_triggers_async_load_and_returns_fast():
     with tempfile.TemporaryDirectory() as td:
         sock = str(Path(td) / "d.sock")
         engine = FakeEngine("fake")
-        engine.load_delay_s = 0.5  # simulate slow model load
+        load_delay_s = 0.5  # simulate slow model load
+        engine.load_delay_s = load_delay_s
         thread = _serve_in_thread(sock, engine, idle_exit_seconds=3600)
         try:
             t0 = time.perf_counter()
             send_warmup(sock, timeout=2.0)
             elapsed = time.perf_counter() - t0
-            # Warmup must return well before the simulated 500ms load completes.
-            assert elapsed < 0.2, f"warmup blocked for {elapsed:.3f}s"
+            # Warmup must return well before the simulated load completes.
+            # Compare against a fraction of the simulated delay rather than a
+            # hard wall-clock cutoff — keeps the assertion meaningful (proves
+            # send_warmup didn't block on the load) without flaking on busy
+            # CI runners that take 100-200ms just to schedule the read.
+            cutoff = load_delay_s * 0.6
+            assert elapsed < cutoff, (
+                f"warmup blocked for {elapsed:.3f}s "
+                f"(expected < {cutoff:.3f}s = 60% of {load_delay_s}s simulated load)"
+            )
             # Wait for the async load to complete.
             for _ in range(100):
                 if engine.is_loaded:
