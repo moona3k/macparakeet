@@ -14,6 +14,14 @@ import Foundation
 enum MeetingNotesFile {
     static let fileName = "notes.md"
 
+    struct SendableFileManager: @unchecked Sendable {
+        fileprivate let value: FileManager
+
+        init(_ value: FileManager = .default) {
+            self.value = value
+        }
+    }
+
     static func fileURL(for folderURL: URL) -> URL {
         folderURL.appendingPathComponent(fileName)
     }
@@ -22,15 +30,15 @@ enum MeetingNotesFile {
         notes: String?,
         displayName: String,
         to folderURL: URL,
-        fileManager: FileManager = .default
+        fileManager: SendableFileManager = SendableFileManager()
     ) async throws {
         let trimmedNotes = notes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let url = fileURL(for: folderURL)
 
         try await Task.detached(priority: .utility) {
             guard !trimmedNotes.isEmpty else {
-                if fileManager.fileExists(atPath: url.path) {
-                    try fileManager.removeItem(at: url)
+                if fileManager.value.fileExists(atPath: url.path) {
+                    try fileManager.value.removeItem(at: url)
                 }
                 return
             }

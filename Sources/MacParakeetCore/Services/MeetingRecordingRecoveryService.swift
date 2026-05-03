@@ -175,7 +175,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
                 notes: lock.notes,
                 displayName: lock.displayName,
                 to: folderURL,
-                fileManager: fileManager
+                fileManager: MeetingNotesFile.SendableFileManager(fileManager)
             )
         } catch {
             logger.warning("meeting_notes_file_write_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")

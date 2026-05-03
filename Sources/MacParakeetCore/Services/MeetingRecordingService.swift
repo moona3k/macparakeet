@@ -410,12 +410,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
 
         let finalNotes = currentNotes
+        let notesFileManager = MeetingNotesFile.SendableFileManager(fileManager)
         do {
             try await MeetingNotesFile.write(
                 notes: finalNotes,
                 displayName: session.displayName,
                 to: session.folderURL,
-                fileManager: fileManager
+                fileManager: notesFileManager
             )
         } catch {
             logger.warning(
