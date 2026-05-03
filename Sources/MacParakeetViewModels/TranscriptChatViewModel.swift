@@ -45,6 +45,18 @@ public final class TranscriptChatViewModel {
     private var conversationRepo: ChatConversationRepositoryProtocol?
     private var transcriptionId: UUID?
     private var transcriptText: String = ""
+    /// Optional provider closure that returns the user's typed meeting notes
+    /// at chat-send time. Returning nil/empty omits the notes block from the
+    /// chat system prompt, leaving chat behavior byte-identical to a chat
+    /// without notes. The closure shape (vs. a stored snapshot) lets the live
+    /// in-meeting Ask path read the freshest keystroke without reactive
+    /// plumbing — see `MeetingRecordingPanelViewModel` for the wiring.
+    ///
+    /// `@MainActor`-isolated rather than `@Sendable` because the closure is
+    /// invoked from `sendMessage()` on the MainActor before the streaming
+    /// task is detached, and typical implementations read MainActor-isolated
+    /// state (e.g. `MeetingNotesViewModel.notesText`).
+    private var userNotesProvider: (@MainActor () -> String?)?
     private var chatHistory: [ChatMessage] = []
     private var streamingTask: Task<Void, Never>?
     private var streamingAssistantID: UUID?
@@ -189,6 +201,7 @@ public final class TranscriptChatViewModel {
         streamingAssistantID = assistantID
 
         let transcript = transcriptText
+        let userNotes = userNotesProvider?()
 
         // Capture context so the task can persist independently if detached (e.g. user clicks New Chat)
         let capturedConversationId = currentConversation?.id
@@ -202,6 +215,7 @@ public final class TranscriptChatViewModel {
                 let stream = llmService.chatStream(
                     question: llmQuestion,
                     transcript: transcript,
+                    userNotes: userNotes,
                     history: historyForRequest
                 )
                 for try await token in stream {
@@ -280,6 +294,22 @@ public final class TranscriptChatViewModel {
     /// should run against the latest text without losing prior turns.
     public func updateTranscriptText(_ text: String) {
         transcriptText = text
+    }
+
+    /// Wire a closure that returns the user's typed meeting notes at chat-send
+    /// time. Pass `nil` to clear. Empty / whitespace-only return values are
+    /// treated as "no notes" by the LLM service — chat behaves identically to
+    /// a chat without notes when the closure has nothing to give.
+    ///
+    /// Two shapes of caller:
+    /// - **Saved transcription detail page**: bind a closure that returns the
+    ///   loaded `Transcription.userNotes`. It is effectively static for the
+    ///   page's lifetime, but the closure pattern keeps the API uniform.
+    /// - **Live in-meeting Ask**: bind a closure that reads the live
+    ///   notepad's `notesText` at call time so chat sees every keystroke up
+    ///   to the moment the user hits Send.
+    public func bindUserNotesProvider(_ provider: (@MainActor () -> String?)?) {
+        self.userNotesProvider = provider
     }
 
     /// Promotes an in-memory live chat (no transcriptionId, no conversationRepo)

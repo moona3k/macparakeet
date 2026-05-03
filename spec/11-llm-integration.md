@@ -265,6 +265,8 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 
 **Context assembly:** System prompt with full transcript + conversation history. Same context budget as summary (100K cloud / 24K local). If total context exceeds the budget, drop oldest conversation turns first (keep system prompt + transcript + recent turns).
 
+**User notes (meeting recordings, optional):** When the transcription has non-empty `userNotes`, the chat system prompt gains a `User's notes from the meeting:\n…` block before the transcript block. Empty / nil / whitespace-only notes are omitted entirely — chat behavior is byte-identical to a chat without notes. Threaded via `LLMService.chat / chatStream / chatDetailed`'s `userNotes: String?` parameter; the GUI calls `TranscriptChatViewModel.bindUserNotesProvider(_:)` with a closure that returns the latest notes at chat-send time (static for saved transcriptions, live for in-meeting Ask). See ADR-020's 2026-05-02 amendment for context on why this is safe even though the auto-run "Memo-Steered Notes" prompt was reverted.
+
 ### 3. Custom Transforms
 
 > Historical note: the dedicated custom-transform concept below was the original design. The current branch routes this behavior through the Prompt Library in [spec/12-processing-layer.md](12-processing-layer.md) rather than a separate Settings-managed transform list.

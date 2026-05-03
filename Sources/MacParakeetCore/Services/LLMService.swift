@@ -4,7 +4,7 @@ import Foundation
 
 public protocol LLMServiceProtocol: Sendable {
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String
-    func chat(question: String, transcript: String, history: [ChatMessage]) async throws -> String
+    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String
     func transform(text: String, prompt: String) async throws -> String
     func formatTranscript(
         transcript: String,
@@ -14,7 +14,7 @@ public protocol LLMServiceProtocol: Sendable {
     ) async throws -> String
 
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
-    func chatStream(question: String, transcript: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error>
+    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) -> AsyncThrowingStream<String, Error>
     func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error>
 
     // MARK: Envelope variants
@@ -25,7 +25,7 @@ public protocol LLMServiceProtocol: Sendable {
     // `String`-returning callers (the GUI) are unaffected.
 
     func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult
-    func chatDetailed(question: String, transcript: String, history: [ChatMessage]) async throws -> LLMResult
+    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult
     func transformDetailed(text: String, prompt: String) async throws -> LLMResult
 }
 
@@ -123,8 +123,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         try await generatePromptResultDetailed(transcript: transcript, systemPrompt: systemPrompt).output
     }
 
-    public func chat(question: String, transcript: String, history: [ChatMessage]) async throws -> String {
-        try await chatDetailed(question: question, transcript: transcript, history: history).output
+    public func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String {
+        try await chatDetailed(question: question, transcript: transcript, userNotes: userNotes, history: history).output
     }
 
     public func transform(text: String, prompt: String) async throws -> String {
@@ -206,7 +206,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         }
     }
 
-    public func chatDetailed(question: String, transcript: String, history: [ChatMessage]) async throws -> LLMResult {
+    public func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult {
         let operationID = Observability.operationID()
         let startedAt = Date()
         let context = try loadContextForLLMOperation(
@@ -218,7 +218,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             messageCount: history.count + 1
         )
         let config = context.providerConfig
-        let messages = buildChatMessages(question: question, transcript: transcript, history: history, config: config)
+        let messages = buildChatMessages(question: question, transcript: transcript, userNotes: userNotes, history: history, config: config)
         let budget = contextBudget(for: config)
         do {
             let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
@@ -566,7 +566,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         }
     }
 
-    public func chatStream(question: String, transcript: String, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
+    public func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let operationID = Observability.operationID()
             let startedAt = Date()
@@ -596,7 +596,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     let config = context.providerConfig
                     provider = config.id.rawValue
                     inputTruncated = transcript.count > self.contextBudget(for: config)
-                    let messages = self.buildChatMessages(question: question, transcript: transcript, history: history, config: config)
+                    let messages = self.buildChatMessages(question: question, transcript: transcript, userNotes: userNotes, history: history, config: config)
                     let stream = self.client.chatCompletionStream(messages: messages, context: context, options: .default)
                     for try await token in stream {
                         outputChars += token.count
@@ -853,13 +853,18 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     private func buildChatMessages(
         question: String,
         transcript: String,
+        userNotes: String?,
         history: [ChatMessage],
         config: LLMProviderConfig
     ) -> [ChatMessage] {
         let budget = contextBudget(for: config)
         let truncated = Self.truncateMiddle(transcript, limit: budget)
 
-        let systemPrompt = Prompts.chat + "\n\n---\nTranscript:\n" + truncated
+        let trimmedNotes = userNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let notesBlock = trimmedNotes.isEmpty
+            ? ""
+            : "\n\n---\nUser's notes from the meeting (treat these as what the user thinks matters; the transcript is the source of truth for facts):\n" + trimmedNotes
+        let systemPrompt = Prompts.chat + notesBlock + "\n\n---\nTranscript:\n" + truncated
 
         var messages = [ChatMessage(role: .system, content: systemPrompt)]
 

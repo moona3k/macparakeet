@@ -141,6 +141,13 @@ struct TranscriptResultView: View {
             promptResultsViewModel.loadPromptResults(transcriptionId: transcription.id)
             let text = viewModel.currentTranscription?.cleanTranscript ?? viewModel.currentTranscription?.rawTranscript ?? ""
             chatViewModel.loadTranscript(text, transcriptionId: viewModel.currentTranscription?.id)
+            // Feed the user's typed meeting notes (if any) into chat alongside
+            // the transcript. The closure is re-evaluated on every chat-send so
+            // a CLI edit to userNotes in another process is visible to the next
+            // chat turn without having to reload the page.
+            chatViewModel.bindUserNotesProvider { [viewModel] in
+                viewModel.currentTranscription?.userNotes
+            }
         }
         .onChange(of: transcription.id) {
             Task {

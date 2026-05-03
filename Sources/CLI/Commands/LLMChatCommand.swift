@@ -43,16 +43,16 @@ struct LLMChatCommand: AsyncParsableCommand {
             )
 
             if json {
-                let result = try await service.chatDetailed(question: question, transcript: text, history: [])
+                let result = try await service.chatDetailed(question: question, transcript: text, userNotes: nil, history: [])
                 try printJSON(result)
             } else if stream {
-                let tokenStream = service.chatStream(question: question, transcript: text, history: [])
+                let tokenStream = service.chatStream(question: question, transcript: text, userNotes: nil, history: [])
                 for try await token in tokenStream {
                     print(token, terminator: "")
                 }
                 print()
             } else {
-                print(try await service.chat(question: question, transcript: text, history: []))
+                print(try await service.chat(question: question, transcript: text, userNotes: nil, history: []))
             }
         }
     }

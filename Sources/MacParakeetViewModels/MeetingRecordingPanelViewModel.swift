@@ -45,7 +45,18 @@ public final class MeetingRecordingPanelViewModel {
     private var copiedResetTask: Task<Void, Never>?
     private var previewLineWordCounts: [Int] = []
 
-    public init() {}
+    public init() {
+        // Thread the live notepad into the live Ask chat: the closure is
+        // called by `TranscriptChatViewModel` at chat-send time, so the
+        // freshest keystroke up to the moment the user hits Send is what the
+        // LLM sees alongside the rolling transcript. See ADR-020 (post-revert
+        // amendment) for why this is safe even though we reverted the
+        // memo-steered auto-run prompt — chat is user-initiated, so empty
+        // notes don't produce nonsense output.
+        chatViewModel.bindUserNotesProvider { [weak notesViewModel] in
+            notesViewModel?.notesText
+        }
+    }
 
     /// Show "Copied" confirmation and auto-dismiss after 1.5s.
     /// Owns the timer so the View doesn't need @State Task.

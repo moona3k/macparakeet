@@ -218,7 +218,7 @@ final class LLMServiceTests: XCTestCase {
         mockConfigStore.config = nil
 
         do {
-            _ = try await service.chat(question: "Q", transcript: "T", history: [])
+            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [])
             XCTFail("Expected LLMError.notConfigured")
         } catch let error as LLMError {
             if case .notConfigured = error {} else {
@@ -304,6 +304,7 @@ final class LLMServiceTests: XCTestCase {
         _ = try await service.chat(
             question: "What was discussed?",
             transcript: "We talked about the release.",
+            userNotes: nil,
             history: []
         )
 
@@ -323,6 +324,7 @@ final class LLMServiceTests: XCTestCase {
         _ = try await service.chat(
             question: "What did Alice say?",
             transcript: "Alice said hello.",
+            userNotes: nil,
             history: history
         )
 
@@ -333,6 +335,88 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(mockClient.capturedMessages[2].role, .assistant)
         XCTAssertEqual(mockClient.capturedMessages[3].role, .user)
         XCTAssertEqual(mockClient.capturedMessages[3].content, "What did Alice say?")
+    }
+
+    func testChatInjectsUserNotesIntoSystemPromptWhenPresent() async throws {
+        _ = try await service.chat(
+            question: "Why did we delay?",
+            transcript: "Alice: We're slipping by a week.",
+            userNotes: "decision: ship Friday\nQA owns smoke tests",
+            history: []
+        )
+
+        let systemPrompt = mockClient.capturedMessages[0].content
+        XCTAssertTrue(systemPrompt.contains("User's notes from the meeting"))
+        XCTAssertTrue(systemPrompt.contains("decision: ship Friday"))
+        XCTAssertTrue(systemPrompt.contains("QA owns smoke tests"))
+        // The notes block must precede the transcript block — the LLM reads
+        // them as context for what the user cares about, applied while reading
+        // the transcript that follows.
+        let notesIdx = systemPrompt.range(of: "User's notes from the meeting")!.lowerBound
+        let transcriptIdx = systemPrompt.range(of: "Transcript:")!.lowerBound
+        XCTAssertLessThan(notesIdx, transcriptIdx)
+    }
+
+    func testChatOmitsUserNotesBlockWhenNotesAreNil() async throws {
+        _ = try await service.chat(
+            question: "Q",
+            transcript: "T",
+            userNotes: nil,
+            history: []
+        )
+        XCTAssertFalse(
+            mockClient.capturedMessages[0].content.contains("User's notes from the meeting"),
+            "Nil userNotes must not introduce the notes block"
+        )
+    }
+
+    func testChatOmitsUserNotesBlockWhenNotesAreEmpty() async throws {
+        _ = try await service.chat(
+            question: "Q",
+            transcript: "T",
+            userNotes: "",
+            history: []
+        )
+        XCTAssertFalse(
+            mockClient.capturedMessages[0].content.contains("User's notes from the meeting"),
+            "Empty userNotes must not introduce the notes block"
+        )
+    }
+
+    func testChatOmitsUserNotesBlockWhenNotesAreWhitespaceOnly() async throws {
+        _ = try await service.chat(
+            question: "Q",
+            transcript: "T",
+            userNotes: "   \n\t  \n  ",
+            history: []
+        )
+        XCTAssertFalse(
+            mockClient.capturedMessages[0].content.contains("User's notes from the meeting"),
+            "Whitespace-only userNotes must not introduce the notes block"
+        )
+    }
+
+    func testChatWithNilNotesIsByteIdenticalToOmittedBlock() async throws {
+        _ = try await service.chat(
+            question: "Q",
+            transcript: "T",
+            userNotes: nil,
+            history: []
+        )
+        let withoutNotes = mockClient.capturedMessages[0].content
+
+        // Re-init the mock and exercise with empty/whitespace notes; output
+        // should be identical to the nil-notes case (no degraded behavior for
+        // chats where the user simply hasn't typed during the meeting).
+        mockClient.capturedMessages = []
+        _ = try await service.chat(
+            question: "Q",
+            transcript: "T",
+            userNotes: "   ",
+            history: []
+        )
+        let withWhitespace = mockClient.capturedMessages[0].content
+        XCTAssertEqual(withoutNotes, withWhitespace)
     }
 
     // MARK: - Detailed (Envelope) Variants
@@ -376,6 +460,7 @@ final class LLMServiceTests: XCTestCase {
         let result = try await service.chatDetailed(
             question: "Who?",
             transcript: "Alice and Bob spoke.",
+            userNotes: nil,
             history: []
         )
 
@@ -659,6 +744,7 @@ final class LLMServiceTests: XCTestCase {
         _ = try await service.chat(
             question: "Latest question",
             transcript: transcript,
+            userNotes: nil,
             history: history
         )
 
@@ -687,6 +773,7 @@ final class LLMServiceTests: XCTestCase {
         _ = try await service.chat(
             question: "New question",
             transcript: transcript,
+            userNotes: nil,
             history: history
         )
 
@@ -717,6 +804,7 @@ final class LLMServiceTests: XCTestCase {
         let stream = service.chatStream(
             question: "What happened?",
             transcript: "Something happened.",
+            userNotes: nil,
             history: []
         )
 
@@ -790,7 +878,7 @@ final class LLMServiceTests: XCTestCase {
 
     func testChatStreamThrowsWhenNotConfigured() async {
         mockConfigStore.config = nil
-        let stream = service.chatStream(question: "Q", transcript: "T", history: [])
+        let stream = service.chatStream(question: "Q", transcript: "T", userNotes: nil, history: [])
 
         do {
             for try await _ in stream {

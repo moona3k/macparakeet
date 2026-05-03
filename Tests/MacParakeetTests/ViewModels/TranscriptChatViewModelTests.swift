@@ -760,4 +760,90 @@ final class TranscriptChatViewModelTests: XCTestCase {
 
         XCTAssertTrue(mockConversationRepo.deleteEmptyCalls.contains(transcriptionId))
     }
+
+    // MARK: - userNotes provider (post-Memo-Steered-revert path)
+
+    func testSendMessagePassesUserNotesFromProviderToLLM() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+        viewModel.bindUserNotesProvider { "decision: ship Friday" }
+        mockService.streamTokens = ["ok"]
+        viewModel.inputText = "Why Friday?"
+
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(mockService.lastChatUserNotes, "decision: ship Friday")
+    }
+
+    func testSendMessagePassesNilUserNotesWhenProviderUnset() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+        // No bindUserNotesProvider call — closure is nil.
+        mockService.streamTokens = ["ok"]
+        viewModel.inputText = "Q"
+
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertNil(mockService.lastChatUserNotes)
+    }
+
+    func testProviderClosureIsReevaluatedOnEverySend() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        // Mutable backing store the closure reads from each invocation —
+        // simulates a live notepad where the user keeps typing between sends.
+        let liveNotes = LockedString()
+        liveNotes.set("first")
+        viewModel.bindUserNotesProvider { liveNotes.get() }
+
+        mockService.streamTokens = ["ok"]
+        viewModel.inputText = "First send"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(mockService.lastChatUserNotes, "first")
+
+        liveNotes.set("first\nsecond — added between sends")
+        viewModel.inputText = "Second send"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertEqual(
+            mockService.lastChatUserNotes,
+            "first\nsecond — added between sends",
+            "Closure must read the latest notes at each chat-send, not snapshot at bind time"
+        )
+    }
+
+    func testBindUserNotesProviderNilClearsExistingProvider() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+        viewModel.bindUserNotesProvider { "some notes" }
+        viewModel.bindUserNotesProvider(nil)
+
+        mockService.streamTokens = ["ok"]
+        viewModel.inputText = "Q"
+        viewModel.sendMessage()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertNil(mockService.lastChatUserNotes)
+    }
+}
+
+/// Tiny @unchecked-Sendable string box used by the closure-reevaluation test.
+/// XCTest setup runs on @MainActor; the closure may be called from the LLM
+/// service's task. A real lock would be overkill — this is a serialized
+/// MainActor + Task hand-off in tests.
+private final class LockedString: @unchecked Sendable {
+    private var value: String = ""
+    private let lock = NSLock()
+    func get() -> String {
+        lock.lock(); defer { lock.unlock() }
+        return value
+    }
+    func set(_ newValue: String) {
+        lock.lock(); defer { lock.unlock() }
+        value = newValue
+    }
 }
