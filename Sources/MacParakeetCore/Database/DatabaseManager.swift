@@ -587,6 +587,39 @@ public final class DatabaseManager: Sendable {
             )
         }
 
+        // v0.10.1 — Unify Ask quick prompts: drop the starter/follow-up `kind`
+        // discriminator and replace it with `isPinned`. Pinned prompts surface
+        // as compact pills in the after-response strip; everything visible
+        // (pinned + unpinned) shows in the empty-state grouped layout. Lossless
+        // mapping: kind='follow_up' → isPinned=true.
+        //
+        // SQLite 3.35+ supports `DROP COLUMN`; macOS 14.2 ships 3.41+. The
+        // migration is one-way — older binaries opening a migrated DB will
+        // fail to decode the model. The codebase doesn't support binary
+        // downgrade in general, so this is acceptable.
+        migrator.registerMigration("v0.10.1-quick-prompts-pin") { db in
+            let columns = try db.columns(in: "quick_prompts").map(\.name)
+            if !columns.contains("isPinned") {
+                try db.alter(table: "quick_prompts") { t in
+                    t.add(column: "isPinned", .boolean).notNull().defaults(to: false)
+                }
+                try db.execute(
+                    sql: "UPDATE quick_prompts SET isPinned = 1 WHERE kind = ?",
+                    arguments: ["follow_up"]
+                )
+            }
+            try db.execute(sql: "DROP INDEX IF EXISTS idx_quick_prompts_kind_sort")
+            if columns.contains("kind") {
+                try db.alter(table: "quick_prompts") { t in
+                    t.drop(column: "kind")
+                }
+            }
+            try db.execute(sql: """
+                CREATE INDEX IF NOT EXISTS idx_quick_prompts_pinned_sort
+                ON quick_prompts(isPinned, sortOrder)
+                """)
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()

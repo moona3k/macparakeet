@@ -79,19 +79,53 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
-### Added
+> Bumps to **2.0.0** — breaking changes to `quick-prompts`. The starter/follow-up
+> distinction is dropped in favor of a single `isPinned` flag; pinning a prompt
+> surfaces it as a quick pill in the after-response strip.
 
-- `quick-prompts` subcommand surface for managing the live meeting Ask tab
-  pills (starter and follow-up prompts). Subcommands: `list`, `show`, `add`,
-  `set`, `delete`, `restore-defaults`, `export`, `import`. All mutation
-  subcommands honor `--json` for the success/failure envelope. Built-ins are
-  user-editable; `delete` rejects them with `errorType: "validation"`.
-  `import --mode merge` (default) UPSERTs by id and preserves untouched rows;
-  `import --mode replace` wipes customs, re-seeds built-ins, then applies the
-  file (prompts for confirmation unless `--json` or `--yes`). `import
-  --dry-run` reports planned `{added, updated, deleted, unchanged}` counts
-  without writing. Bundle format is versioned (`macparakeet.quick_prompts`
-  v1) and round-trippable.
+### Breaking — `quick-prompts`
+
+- The `kind` field is removed from `QuickPrompt` JSON output everywhere
+  (`list --json`, `show --json`, `add --json`, `set --json`, `pin --json`,
+  `unpin --json`, `restore-defaults --json`). Replaced by `isPinned: Bool`.
+- `--kind <starter|follow-up>` flag is removed from `list`, `add`, `export`,
+  and `restore-defaults`. Use `--pinned <true|false>` instead (filters by pin
+  state). The starter→follow-up boundary maps cleanly:
+  `kind == follow-up` ↔ `pinned == true`.
+- `add --kind` is removed; new prompts default to unpinned. Use the new
+  `--pinned` flag on `add` to pin immediately (subject to the cap; rolls back
+  with `errorType: "validation"` if the cap is full).
+- `set --group` is no longer rejected for follow-up prompts. Group labels are
+  now valid on every prompt. Existing scripts that relied on this validation
+  will silently succeed on what they previously expected to fail.
+
+### Added — `quick-prompts`
+
+- `quick-prompts pin <id|prefix|label>` — pin to the after-response strip.
+  Returns `errorType: "validation"` with `pinCapExceeded` semantics if the
+  pinned cap (5) is already reached. The error message lists the currently
+  pinned prompts so the caller can pick one to unpin.
+- `quick-prompts unpin <id|prefix|label>` — unpin from the strip. Always
+  succeeds for an existing row (cap doesn't apply).
+- `quick-prompts list --pinned <true|false>` — filter list by pin state.
+- `quick-prompts export --pinned <true|false>` — filter export by pin state.
+
+### Bundle schema
+
+- Bumped to **v2** (`macparakeet.quick_prompts/2`). v2 emits `isPinned: Bool`
+  per prompt instead of `kind: "starter"|"follow_up"`. Decoder accepts v1
+  files transparently — `kind == "follow_up"` maps to `isPinned: true`. v1
+  files are still round-trippable on the import side; export always emits v2.
+- v1 → v2 migration is automatic and lossless on the codebase side; no manual
+  re-export of saved bundles is required.
+
+### CLI surface stays at this MAJOR for `prompts`, `transcribe`, etc.
+
+Only `quick-prompts` and the `QuickPromptBundle` schema change in 2.0.0.
+Other subcommands are untouched and remain backward-compatible with 1.x.
+
+### Added (also in 1.x prior to 2.0.0)
+
 - `import_schema` `errorType` value for malformed quick-prompts import files
   (e.g. wrong `schema`, unsupported `version`, JSON parse failure).
 - `flow vocabulary export`, `flow vocabulary import`, and `flow vocabulary

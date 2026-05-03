@@ -72,7 +72,7 @@ struct LiveAskPaneView: View {
                 .onTapGesture { showingPromptMenu = false }
 
             VStack(spacing: 0) {
-                StarterPromptList(groups: quickPromptsViewModel.visibleStarterGroups) { entry in
+                StarterPromptList(groups: quickPromptsViewModel.visiblePromptGroups) { entry in
                     showingPromptMenu = false
                     fire(entry)
                 }
@@ -88,7 +88,7 @@ struct LiveAskPaneView: View {
                     HStack(spacing: 6) {
                         Image(systemName: "slider.horizontal.3")
                             .font(.system(size: 11, weight: .medium))
-                        Text("Edit pills…")
+                        Text("Edit prompts…")
                             .font(.system(size: 11, weight: .medium))
                     }
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
@@ -134,7 +134,7 @@ struct LiveAskPaneView: View {
     private var followUpRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(quickPromptsViewModel.visibleFollowUps) { entry in
+                ForEach(quickPromptsViewModel.visiblePinned) { entry in
                     FollowUpPill(label: entry.label) {
                         fire(entry)
                     }
@@ -204,7 +204,7 @@ struct LiveAskPaneView: View {
 
     private var emptyStateWithPills: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            StarterPromptList(groups: quickPromptsViewModel.visibleStarterGroups) { entry in
+            StarterPromptList(groups: quickPromptsViewModel.visiblePromptGroups) { entry in
                 fire(entry)
             }
 
@@ -214,7 +214,7 @@ struct LiveAskPaneView: View {
                 HStack(spacing: 6) {
                     Image(systemName: "slider.horizontal.3")
                         .font(.system(size: 10, weight: .medium))
-                    Text("Edit pills…")
+                    Text("Edit prompts…")
                         .font(.system(size: 10, weight: .medium))
                 }
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
@@ -349,7 +349,7 @@ struct LiveAskPaneView: View {
 /// Renders the grouped starter prompt list. Single source of truth for both the
 /// empty-state pane and the mid-conversation popover so the two surfaces stay
 /// visually identical and behavior never drifts. Groups come from
-/// `QuickPromptsViewModel.visibleStarterGroups`, which preserves first-occurrence
+/// `QuickPromptsViewModel.visiblePromptGroups`, which preserves first-occurrence
 /// group order so users who reorder pills control how groups appear.
 private struct StarterPromptList: View {
     let groups: [(label: String, prompts: [QuickPrompt])]

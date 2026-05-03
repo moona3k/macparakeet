@@ -295,6 +295,7 @@ enum CLIErrorType {
             case .writeFailed:         return runtime
             case .importSchemaError:   return importSchema
             case .importCancelled:     return validation
+            case .pinCapExceeded:      return validation
             }
         }
         if let cli = error as? CLIError {

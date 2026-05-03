@@ -39,6 +39,15 @@ public enum QuickPromptImportError: Error, LocalizedError, Equatable {
     }
 }
 
+/// Outcome of a `setPinned` attempt. The cap-exceeded case carries the current
+/// pinned roster so the GUI can populate its swap-picker without a follow-up
+/// fetch.
+public enum SetPinnedResult: Equatable, Sendable {
+    case ok
+    case capExceeded(currentlyPinned: [QuickPrompt])
+    case notFound
+}
+
 /// CRUD + reconciliation + import/export for the live meeting Ask tab pills.
 ///
 /// Mirrors `PromptRepository` shape so the patterns are familiar, but with two
@@ -52,11 +61,27 @@ public protocol QuickPromptRepositoryProtocol: Sendable {
     func save(_ prompt: QuickPrompt) throws
     func fetch(id: UUID) throws -> QuickPrompt?
     func fetchAll() throws -> [QuickPrompt]
-    func fetchAll(kind: QuickPrompt.Kind) throws -> [QuickPrompt]
-    func fetchVisible(kind: QuickPrompt.Kind) throws -> [QuickPrompt]
+    func fetchVisible() throws -> [QuickPrompt]
+    func fetchPinned() throws -> [QuickPrompt]
     func delete(id: UUID) throws -> Bool
     func toggleVisibility(id: UUID) throws
-    func reorder(ids: [UUID], within kind: QuickPrompt.Kind) throws
+
+    /// Toggle a single row's `isPinned`. Pinning enforces `QuickPrompt.pinnedCap`;
+    /// when the cap is exceeded, the call returns `.capExceeded` with the
+    /// current pinned roster — no write occurs. Unpinning is always allowed.
+    @discardableResult
+    func setPinned(id: UUID, isPinned: Bool) throws -> SetPinnedResult
+
+    /// Atomic pin-swap — unpin one row and pin another in the same transaction.
+    /// Used by the GUI's swap-picker when the user attempts to pin a 6th
+    /// prompt at cap. No-op (returns `.notFound`) if either id is missing.
+    @discardableResult
+    func swapPin(unpinID: UUID, pinID: UUID) throws -> SetPinnedResult
+
+    /// Reorder rows within a pin-bucket. Caller passes the new full ordered
+    /// list of ids for that bucket. Pinned and unpinned buckets are reordered
+    /// independently — the editor sheet has separate reorder arrows per zone.
+    func reorder(ids: [UUID], pinned: Bool) throws
 
     /// Idempotent first-launch + upgrade-launch hydration. Inserts any built-in
     /// rows missing by canonical UUID and removes built-in rows whose UUIDs are
@@ -64,11 +89,11 @@ public protocol QuickPromptRepositoryProtocol: Sendable {
     /// existing row.
     func seedIfNeeded() throws
 
-    /// Rewrites every built-in row in `kind` back to canonical seed values
-    /// (label / prompt / groupLabel / sortOrder). Visibility is preserved —
-    /// "restore default" is about content, not whether the user has hidden the
-    /// pill. Customs are untouched.
-    func restoreBuiltInDefaults(kind: QuickPrompt.Kind?) throws
+    /// Rewrites every built-in row back to canonical seed values
+    /// (label / prompt / groupLabel / sortOrder / isPinned). Visibility is
+    /// preserved — "restore default" is about content, not whether the user
+    /// has hidden the pill. Customs are untouched.
+    func restoreBuiltInDefaults() throws
 
     /// Per-row variant for the "Restore default" affordance on a single
     /// edited built-in row.
@@ -108,24 +133,24 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     public func fetchAll() throws -> [QuickPrompt] {
         try dbQueue.read { db in
             try QuickPrompt
-                .order(QuickPrompt.Columns.kind.asc, QuickPrompt.Columns.sortOrder.asc)
+                .order(QuickPrompt.Columns.isPinned.asc, QuickPrompt.Columns.sortOrder.asc)
                 .fetchAll(db)
         }
     }
 
-    public func fetchAll(kind: QuickPrompt.Kind) throws -> [QuickPrompt] {
+    public func fetchVisible() throws -> [QuickPrompt] {
         try dbQueue.read { db in
             try QuickPrompt
-                .filter(QuickPrompt.Columns.kind == kind.rawValue)
-                .order(QuickPrompt.Columns.sortOrder.asc)
+                .filter(QuickPrompt.Columns.isVisible == true)
+                .order(QuickPrompt.Columns.isPinned.asc, QuickPrompt.Columns.sortOrder.asc)
                 .fetchAll(db)
         }
     }
 
-    public func fetchVisible(kind: QuickPrompt.Kind) throws -> [QuickPrompt] {
+    public func fetchPinned() throws -> [QuickPrompt] {
         try dbQueue.read { db in
             try QuickPrompt
-                .filter(QuickPrompt.Columns.kind == kind.rawValue)
+                .filter(QuickPrompt.Columns.isPinned == true)
                 .filter(QuickPrompt.Columns.isVisible == true)
                 .order(QuickPrompt.Columns.sortOrder.asc)
                 .fetchAll(db)
@@ -149,17 +174,121 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
         }
     }
 
-    public func reorder(ids: [UUID], within kind: QuickPrompt.Kind) throws {
+    @discardableResult
+    public func setPinned(id: UUID, isPinned: Bool) throws -> SetPinnedResult {
+        try dbQueue.write { db in
+            guard var prompt = try QuickPrompt.fetchOne(db, key: id) else {
+                return .notFound
+            }
+            // Unpinning is always allowed; idempotent re-pin / re-unpin is a
+            // cheap no-op that still bumps updatedAt for convergence.
+            if isPinned && !prompt.isPinned {
+                let pinnedCount = try Int.fetchOne(
+                    db,
+                    sql: "SELECT COUNT(*) FROM quick_prompts WHERE isPinned = 1"
+                ) ?? 0
+                if pinnedCount >= QuickPrompt.pinnedCap {
+                    let current = try QuickPrompt
+                        .filter(QuickPrompt.Columns.isPinned == true)
+                        .order(QuickPrompt.Columns.sortOrder.asc)
+                        .fetchAll(db)
+                    return .capExceeded(currentlyPinned: current)
+                }
+                // Pinning lands the row at the end of the pinned bucket so the
+                // user's recent action is the rightmost pill. Sort within the
+                // bucket can be tweaked via `reorder(ids:pinned:)`.
+                let maxPinnedSort = try Int.fetchOne(
+                    db,
+                    sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = 1"
+                ) ?? -1
+                prompt.sortOrder = maxPinnedSort + 1
+            } else if !isPinned && prompt.isPinned {
+                // Unpinning lands the row at the end of the unpinned bucket
+                // for the same reason — preserves the "I just touched this"
+                // visual cue in the editor's ALL PROMPTS zone.
+                let maxUnpinnedSort = try Int.fetchOne(
+                    db,
+                    sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = 0"
+                ) ?? -1
+                prompt.sortOrder = maxUnpinnedSort + 1
+            }
+            prompt.isPinned = isPinned
+            prompt.updatedAt = Date()
+            try prompt.update(db)
+            return .ok
+        }
+    }
+
+    @discardableResult
+    public func swapPin(unpinID: UUID, pinID: UUID) throws -> SetPinnedResult {
+        do {
+            return try dbQueue.write { db -> SetPinnedResult in
+                guard var toUnpin = try QuickPrompt.fetchOne(db, key: unpinID),
+                      var toPin = try QuickPrompt.fetchOne(db, key: pinID) else {
+                    return .notFound
+                }
+                // No-op if both ids point at the same row — defensive against
+                // a stale picker offering the same pill twice.
+                if unpinID == pinID { return .ok }
+                let now = Date()
+
+                // Unpin first to free a slot.
+                if toUnpin.isPinned {
+                    let maxUnpinnedSort = try Int.fetchOne(
+                        db,
+                        sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = 0"
+                    ) ?? -1
+                    toUnpin.isPinned = false
+                    toUnpin.sortOrder = maxUnpinnedSort + 1
+                    toUnpin.updatedAt = now
+                    try toUnpin.update(db)
+                }
+
+                // Pin the replacement at the end of the pinned bucket. The
+                // unpin above is already staged within this transaction, so
+                // the cap check below sees the freed slot. If `toUnpin` was
+                // not actually pinned, the cap may still be hit — throw to
+                // roll back.
+                if !toPin.isPinned {
+                    let pinnedCount = try Int.fetchOne(
+                        db,
+                        sql: "SELECT COUNT(*) FROM quick_prompts WHERE isPinned = 1"
+                    ) ?? 0
+                    if pinnedCount >= QuickPrompt.pinnedCap {
+                        let current = try QuickPrompt
+                            .filter(QuickPrompt.Columns.isPinned == true)
+                            .order(QuickPrompt.Columns.sortOrder.asc)
+                            .fetchAll(db)
+                        throw SwapPinAborted.stillFull(current: current)
+                    }
+                    let maxPinnedSort = try Int.fetchOne(
+                        db,
+                        sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = 1"
+                    ) ?? -1
+                    toPin.isPinned = true
+                    toPin.sortOrder = maxPinnedSort + 1
+                    toPin.updatedAt = now
+                    try toPin.update(db)
+                }
+                return .ok
+            }
+        } catch SwapPinAborted.stillFull(let current) {
+            return .capExceeded(currentlyPinned: current)
+        }
+    }
+
+    public func reorder(ids: [UUID], pinned: Bool) throws {
         try dbQueue.write { db in
             let now = Date()
+            let pinnedFlag = pinned ? 1 : 0
             for (index, id) in ids.enumerated() {
                 try db.execute(
                     sql: """
                         UPDATE quick_prompts
                         SET sortOrder = ?, updatedAt = ?
-                        WHERE id = ? AND kind = ?
+                        WHERE id = ? AND isPinned = ?
                         """,
-                    arguments: [index, now, id, kind.rawValue]
+                    arguments: [index, now, id, pinnedFlag]
                 )
             }
         }
@@ -202,14 +331,9 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
         }
     }
 
-    public func restoreBuiltInDefaults(kind: QuickPrompt.Kind?) throws {
+    public func restoreBuiltInDefaults() throws {
         let now = Date()
-        let canonical: [QuickPrompt]
-        if let kind {
-            canonical = QuickPrompt.builtInPrompts(kind: kind, now: now)
-        } else {
-            canonical = QuickPrompt.builtInPrompts(now: now)
-        }
+        let canonical = QuickPrompt.builtInPrompts(now: now)
         try dbQueue.write { db in
             for seed in canonical {
                 try restoreOne(seed: seed, db: db, now: now)
@@ -233,15 +357,15 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
         try db.execute(
             sql: """
                 UPDATE quick_prompts
-                SET kind = ?, label = ?, prompt = ?, groupLabel = ?, sortOrder = ?, isBuiltIn = 1, updatedAt = ?
+                SET label = ?, prompt = ?, groupLabel = ?, sortOrder = ?, isPinned = ?, isBuiltIn = 1, updatedAt = ?
                 WHERE id = ?
                 """,
             arguments: [
-                seed.kind.rawValue,
                 seed.label,
                 seed.prompt,
                 seed.groupLabel,
                 seed.sortOrder,
+                seed.isPinned,
                 now,
                 seed.id,
             ]
@@ -341,18 +465,18 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     /// content field matches; timestamps don't count. Used to classify
     /// merge/replace results without spurious updates.
     private func areEquivalent(_ lhs: QuickPrompt, _ rhs: QuickPrompt) -> Bool {
-        lhs.kind == rhs.kind
-            && lhs.label == rhs.label
+        lhs.label == rhs.label
             && lhs.prompt == rhs.prompt
             && lhs.groupLabel == rhs.groupLabel
             && lhs.sortOrder == rhs.sortOrder
             && lhs.isVisible == rhs.isVisible
+            && lhs.isPinned == rhs.isPinned
             && lhs.isBuiltIn == rhs.isBuiltIn
     }
 
     /// Write a merged row, preserving the existing row's `createdAt` so import
-    /// does not reset history. Reserved built-in UUIDs keep their canonical kind
-    /// and built-in status; custom rows cannot forge that status.
+    /// does not reset history. Reserved built-in UUIDs keep their canonical
+    /// pin-state and built-in status; custom rows cannot forge that status.
     private func writeMerged(entry: QuickPrompt, existing: QuickPrompt, db: Database, now: Date) throws {
         var merged = normalizedForWrite(entry)
         merged.createdAt = existing.createdAt
@@ -370,13 +494,12 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     private func normalizedForWrite(_ prompt: QuickPrompt) -> QuickPrompt {
         var normalized = prompt
         if let canonical = QuickPrompt.builtInPrompt(id: prompt.id) {
-            normalized.kind = canonical.kind
             normalized.isBuiltIn = true
+            // Built-in canonical pin-state is authoritative — a custom import
+            // that flipped a built-in's pin state shouldn't override it.
+            normalized.isPinned = canonical.isPinned
         } else {
             normalized.isBuiltIn = false
-        }
-        if normalized.kind == .followUp {
-            normalized.groupLabel = nil
         }
         // Empty / whitespace-only group strings collapse to nil so the GUI never
         // renders an empty capsule and equality checks match canonical seeds
@@ -387,4 +510,10 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
         }
         return normalized
     }
+}
+
+/// Internal swap-pin abort signal. Caught at the `swapPin` API boundary and
+/// converted to `SetPinnedResult.capExceeded` so callers see one result shape.
+private enum SwapPinAborted: Error {
+    case stillFull(current: [QuickPrompt])
 }

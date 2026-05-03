@@ -20,21 +20,22 @@ final class QuickPromptRepositoryTests: XCTestCase {
         XCTAssertTrue(all.allSatisfy(\.isVisible))
     }
 
-    func testStarterAndFollowUpCounts() throws {
-        let starters = try repo.fetchAll(kind: .starter)
-        let followUps = try repo.fetchAll(kind: .followUp)
-        XCTAssertEqual(starters.count, 9)
-        XCTAssertEqual(followUps.count, 5)
+    func testPinnedAndUnpinnedDefaultCounts() throws {
+        let pinned = try repo.fetchAll().filter(\.isPinned)
+        let unpinned = try repo.fetchAll().filter { !$0.isPinned }
+        XCTAssertEqual(unpinned.count, 9)
+        XCTAssertEqual(pinned.count, 5)
+        XCTAssertEqual(pinned.count, QuickPrompt.pinnedCap)
     }
 
-    func testStartersHaveGroupLabels() throws {
-        let starters = try repo.fetchAll(kind: .starter)
-        XCTAssertTrue(starters.allSatisfy { $0.groupLabel != nil })
+    func testUnpinnedSeedsHaveGroupLabels() throws {
+        let unpinned = try repo.fetchAll().filter { !$0.isPinned }
+        XCTAssertTrue(unpinned.allSatisfy { $0.groupLabel != nil })
     }
 
-    func testFollowUpsHaveNoGroupLabel() throws {
-        let followUps = try repo.fetchAll(kind: .followUp)
-        XCTAssertTrue(followUps.allSatisfy { $0.groupLabel == nil })
+    func testPinnedSeedsHaveNoGroupLabel() throws {
+        let pinned = try repo.fetchAll().filter(\.isPinned)
+        XCTAssertTrue(pinned.allSatisfy { $0.groupLabel == nil })
     }
 
     func testSeedIfNeededIsIdempotent() throws {
@@ -45,16 +46,16 @@ final class QuickPromptRepositoryTests: XCTestCase {
     }
 
     func testSeedIfNeededDoesNotClobberEdits() throws {
-        guard var firstStarter = try repo.fetchAll(kind: .starter).first else {
-            return XCTFail("expected built-in starter")
+        guard var firstUnpinned = try repo.fetchAll().first(where: { !$0.isPinned }) else {
+            return XCTFail("expected built-in unpinned prompt")
         }
-        firstStarter.label = "EDITED LABEL"
-        firstStarter.prompt = "edited body"
-        try repo.save(firstStarter)
+        firstUnpinned.label = "EDITED LABEL"
+        firstUnpinned.prompt = "edited body"
+        try repo.save(firstUnpinned)
 
         try repo.seedIfNeeded()
 
-        let after = try repo.fetch(id: firstStarter.id)
+        let after = try repo.fetch(id: firstUnpinned.id)
         XCTAssertEqual(after?.label, "EDITED LABEL")
         XCTAssertEqual(after?.prompt, "edited body")
     }
@@ -69,10 +70,10 @@ final class QuickPromptRepositoryTests: XCTestCase {
         let retiredID = UUID(uuidString: "DEADBEEF-0000-4000-8000-000000000000")!
         let retired = QuickPrompt(
             id: retiredID,
-            kind: .starter,
             label: "Retired",
             prompt: "retired body",
             groupLabel: "RETIRED",
+            isPinned: false,
             isBuiltIn: true
         )
         try manager.dbQueue.write { db in try retired.insert(db) }
@@ -83,7 +84,7 @@ final class QuickPromptRepositoryTests: XCTestCase {
     }
 
     func testRetiredBuiltInDoesNotDeleteCustoms() throws {
-        let custom = QuickPrompt(kind: .starter, label: "Mine", prompt: "my body")
+        let custom = QuickPrompt(label: "Mine", prompt: "my body")
         try repo.save(custom)
         try repo.seedIfNeeded()
         XCTAssertNotNil(try repo.fetch(id: custom.id))
@@ -92,14 +93,13 @@ final class QuickPromptRepositoryTests: XCTestCase {
     // MARK: CRUD
 
     func testSaveAndFetchCustom() throws {
-        let custom = QuickPrompt(kind: .followUp, label: "ELI5", prompt: "Explain like I'm five.")
+        let custom = QuickPrompt(label: "ELI5", prompt: "Explain like I'm five.")
         try repo.save(custom)
         XCTAssertEqual(try repo.fetch(id: custom.id)?.label, "ELI5")
     }
 
     func testSaveCollapsesWhitespaceOnlyGroupLabelToNil() throws {
         let custom = QuickPrompt(
-            kind: .starter,
             label: "Custom",
             prompt: "body",
             groupLabel: "   "
@@ -108,101 +108,194 @@ final class QuickPromptRepositoryTests: XCTestCase {
         XCTAssertNil(try repo.fetch(id: custom.id)?.groupLabel)
     }
 
+    func testCustomMayCarryGroupLabelEvenWhenPinned() throws {
+        var custom = QuickPrompt(label: "Pinned with group", prompt: "body", groupLabel: "REFINE")
+        try repo.save(custom)
+        // Pin it via setPinned (drops a default to free a slot first).
+        let firstPinned = try repo.fetchAll().first(where: \.isPinned)!
+        try repo.setPinned(id: firstPinned.id, isPinned: false)
+        custom = try XCTUnwrap(try repo.fetch(id: custom.id))
+        let result = try repo.setPinned(id: custom.id, isPinned: true)
+        XCTAssertEqual(result, .ok)
+        XCTAssertEqual(try repo.fetch(id: custom.id)?.groupLabel, "REFINE")
+    }
+
     func testDeleteBuiltInRejected() throws {
-        let builtIn = try repo.fetchAll(kind: .starter).first!
+        let builtIn = try repo.fetchAll().first { $0.isBuiltIn }!
         let deleted = try repo.delete(id: builtIn.id)
         XCTAssertFalse(deleted)
         XCTAssertNotNil(try repo.fetch(id: builtIn.id))
     }
 
     func testDeleteCustomSucceeds() throws {
-        let custom = QuickPrompt(kind: .followUp, label: "X", prompt: "x")
+        let custom = QuickPrompt(label: "X", prompt: "x")
         try repo.save(custom)
         XCTAssertTrue(try repo.delete(id: custom.id))
         XCTAssertNil(try repo.fetch(id: custom.id))
     }
 
     func testToggleVisibility() throws {
-        let prompt = try repo.fetchAll(kind: .followUp).first!
+        let prompt = try repo.fetchAll().first(where: \.isPinned)!
         try repo.toggleVisibility(id: prompt.id)
         XCTAssertEqual(try repo.fetch(id: prompt.id)?.isVisible, false)
-        XCTAssertTrue(try repo.fetchVisible(kind: .followUp).allSatisfy { $0.id != prompt.id })
+        XCTAssertFalse(try repo.fetchPinned().contains { $0.id == prompt.id })
         try repo.toggleVisibility(id: prompt.id)
         XCTAssertEqual(try repo.fetch(id: prompt.id)?.isVisible, true)
     }
 
-    func testReorderUpdatesSortOrder() throws {
-        var followUps = try repo.fetchAll(kind: .followUp)
-        XCTAssertEqual(followUps.count, 5)
-        followUps.reverse()
-        try repo.reorder(ids: followUps.map(\.id), within: .followUp)
+    func testReorderWithinPinnedBucketUpdatesSortOrder() throws {
+        var pinned = try repo.fetchAll().filter(\.isPinned).sorted { $0.sortOrder < $1.sortOrder }
+        XCTAssertEqual(pinned.count, 5)
+        pinned.reverse()
+        try repo.reorder(ids: pinned.map(\.id), pinned: true)
 
-        let after = try repo.fetchAll(kind: .followUp)
-        XCTAssertEqual(after.map(\.id), followUps.map(\.id))
+        let after = try repo.fetchAll().filter(\.isPinned).sorted { $0.sortOrder < $1.sortOrder }
+        XCTAssertEqual(after.map(\.id), pinned.map(\.id))
+    }
+
+    func testReorderWithinPinnedDoesNotTouchUnpinned() throws {
+        let unpinnedBefore = try repo.fetchAll().filter { !$0.isPinned }.map(\.id)
+        let pinned = try repo.fetchAll().filter(\.isPinned).sorted { $0.sortOrder < $1.sortOrder }
+        try repo.reorder(ids: pinned.reversed().map(\.id), pinned: true)
+        let unpinnedAfter = try repo.fetchAll().filter { !$0.isPinned }.map(\.id)
+        XCTAssertEqual(unpinnedBefore, unpinnedAfter)
+    }
+
+    // MARK: Pin / unpin / cap / swap
+
+    func testFetchPinnedReturnsVisiblePinnedOnly() throws {
+        let all = try repo.fetchAll().filter(\.isPinned)
+        let pinned = try repo.fetchPinned()
+        XCTAssertEqual(pinned.count, all.count)
+        // Hide one and confirm it falls out.
+        try repo.toggleVisibility(id: all.first!.id)
+        XCTAssertEqual(try repo.fetchPinned().count, all.count - 1)
+    }
+
+    func testSetPinnedTogglesUnpinnedToPinnedWhenSlotAvailable() throws {
+        // Free a slot first.
+        let pinned = try repo.fetchAll().first(where: \.isPinned)!
+        try repo.setPinned(id: pinned.id, isPinned: false)
+        XCTAssertEqual(try repo.fetchAll().filter(\.isPinned).count, 4)
+
+        let candidate = try repo.fetchAll().first { !$0.isPinned && !$0.isBuiltIn || $0.id == pinned.id ? false : !$0.isPinned }!
+        let result = try repo.setPinned(id: candidate.id, isPinned: true)
+        XCTAssertEqual(result, .ok)
+        XCTAssertEqual(try repo.fetch(id: candidate.id)?.isPinned, true)
+    }
+
+    func testSetPinnedReturnsCapExceededAtCap() throws {
+        let custom = QuickPrompt(label: "Sixth", prompt: "body")
+        try repo.save(custom)
+        let result = try repo.setPinned(id: custom.id, isPinned: true)
+        guard case .capExceeded(let current) = result else {
+            return XCTFail("expected .capExceeded, got \(result)")
+        }
+        XCTAssertEqual(current.count, QuickPrompt.pinnedCap)
+        XCTAssertEqual(try repo.fetch(id: custom.id)?.isPinned, false, "candidate must remain unpinned on cap-exceed")
+    }
+
+    func testSetPinnedReturnsNotFoundForMissingID() throws {
+        let result = try repo.setPinned(id: UUID(), isPinned: true)
+        XCTAssertEqual(result, .notFound)
+    }
+
+    func testSetPinnedToSameStateIsIdempotentNoOp() throws {
+        let pinned = try repo.fetchAll().first(where: \.isPinned)!
+        let result = try repo.setPinned(id: pinned.id, isPinned: true)
+        XCTAssertEqual(result, .ok)
+        XCTAssertEqual(try repo.fetch(id: pinned.id)?.isPinned, true)
+    }
+
+    func testSwapPinAtomicallyExchangesPinState() throws {
+        let candidate = QuickPrompt(label: "Sixth", prompt: "body")
+        try repo.save(candidate)
+        let victim = try repo.fetchAll().first(where: \.isPinned)!
+
+        let result = try repo.swapPin(unpinID: victim.id, pinID: candidate.id)
+        XCTAssertEqual(result, .ok)
+        XCTAssertEqual(try repo.fetch(id: victim.id)?.isPinned, false)
+        XCTAssertEqual(try repo.fetch(id: candidate.id)?.isPinned, true)
+        XCTAssertEqual(try repo.fetchAll().filter(\.isPinned).count, QuickPrompt.pinnedCap)
+    }
+
+    func testSwapPinReturnsCapExceededWhenUnpinIDIsAlreadyUnpinned() throws {
+        // Caller passes a victim that's not actually pinned. After unpin (a
+        // no-op) the cap is still full, so the pin attempt rolls back.
+        let candidate = QuickPrompt(label: "Sixth", prompt: "body")
+        try repo.save(candidate)
+        let alsoUnpinned = QuickPrompt(label: "Seventh", prompt: "body")
+        try repo.save(alsoUnpinned)
+
+        let result = try repo.swapPin(unpinID: alsoUnpinned.id, pinID: candidate.id)
+        guard case .capExceeded = result else {
+            return XCTFail("expected .capExceeded, got \(result)")
+        }
+        // Both should remain unpinned (transaction rolled back).
+        XCTAssertEqual(try repo.fetch(id: candidate.id)?.isPinned, false)
+        XCTAssertEqual(try repo.fetch(id: alsoUnpinned.id)?.isPinned, false)
+    }
+
+    func testSwapPinSameIDIsNoOp() throws {
+        let pinned = try repo.fetchAll().first(where: \.isPinned)!
+        let result = try repo.swapPin(unpinID: pinned.id, pinID: pinned.id)
+        XCTAssertEqual(result, .ok)
+        XCTAssertEqual(try repo.fetch(id: pinned.id)?.isPinned, true)
     }
 
     // MARK: Restore defaults
 
     func testRestoreSingleDefaultRevertsLabelAndPromptButPreservesVisibility() throws {
-        guard var firstStarter = try repo.fetchAll(kind: .starter).first else {
-            return XCTFail("expected built-in starter")
+        guard var first = try repo.fetchAll().first(where: { !$0.isPinned }) else {
+            return XCTFail("expected built-in unpinned prompt")
         }
-        let canonicalLabel = firstStarter.label
-        let canonicalPrompt = firstStarter.prompt
-        firstStarter.label = "DRIFTED"
-        firstStarter.prompt = "drifted"
-        firstStarter.isVisible = false
-        try repo.save(firstStarter)
+        let canonicalLabel = first.label
+        let canonicalPrompt = first.prompt
+        first.label = "DRIFTED"
+        first.prompt = "drifted"
+        first.isVisible = false
+        try repo.save(first)
 
-        try repo.restoreBuiltInDefault(id: firstStarter.id)
+        try repo.restoreBuiltInDefault(id: first.id)
 
-        let restored = try repo.fetch(id: firstStarter.id)
+        let restored = try repo.fetch(id: first.id)
         XCTAssertEqual(restored?.label, canonicalLabel)
         XCTAssertEqual(restored?.prompt, canonicalPrompt)
         XCTAssertEqual(restored?.isVisible, false, "visibility should be preserved across restore")
     }
 
-    func testRestoreDefaultsByKindLeavesOtherKindAlone() throws {
-        guard var followUp = try repo.fetchAll(kind: .followUp).first,
-              var starter = try repo.fetchAll(kind: .starter).first
-        else { return XCTFail("expected both built-in kinds") }
-        let originalFollowUpLabel = followUp.label
-        followUp.label = "DRIFT-FOLLOW"
-        starter.label = "DRIFT-STARTER"
-        try repo.save(followUp)
-        try repo.save(starter)
-
-        try repo.restoreBuiltInDefaults(kind: .starter)
-
-        XCTAssertEqual(try repo.fetch(id: followUp.id)?.label, "DRIFT-FOLLOW",
-                       "follow-up should be untouched when restoring starters only")
-        XCTAssertEqual(try repo.fetch(id: starter.id)?.label,
-                       QuickPrompt.builtInPrompts(kind: .starter).first { $0.id == starter.id }?.label)
-        _ = originalFollowUpLabel
+    func testRestoreAllBuiltInDefaultsLeavesCustomsAlone() throws {
+        let custom = QuickPrompt(label: "Mine", prompt: "my body")
+        try repo.save(custom)
+        try repo.restoreBuiltInDefaults()
+        XCTAssertNotNil(try repo.fetch(id: custom.id))
     }
 
-    func testRestoreDefaultsLeavesCustomsAlone() throws {
-        let custom = QuickPrompt(kind: .followUp, label: "Mine", prompt: "my body")
-        try repo.save(custom)
-        try repo.restoreBuiltInDefaults(kind: nil)
-        XCTAssertNotNil(try repo.fetch(id: custom.id))
+    func testRestoreSingleDefaultRevertsPinState() throws {
+        // Take a built-in pinned row and unpin it; restoreSingle should pin it again.
+        let pinned = try repo.fetchAll().first(where: \.isPinned)!
+        try repo.setPinned(id: pinned.id, isPinned: false)
+        XCTAssertEqual(try repo.fetch(id: pinned.id)?.isPinned, false)
+
+        try repo.restoreBuiltInDefault(id: pinned.id)
+
+        XCTAssertEqual(try repo.fetch(id: pinned.id)?.isPinned, true)
     }
 
     // MARK: Import — merge
 
     func testImportMergeUpsertsByID() throws {
-        // Existing custom that we'll update via import
-        let custom = QuickPrompt(kind: .followUp, label: "Old", prompt: "old body")
+        let custom = QuickPrompt(label: "Old", prompt: "old body")
         try repo.save(custom)
 
         let updated = QuickPromptBundle.ExportedQuickPrompt(
             id: custom.id,
-            kind: .followUp,
             label: "New",
             prompt: "new body",
             groupLabel: nil,
             sortOrder: 99,
             isVisible: true,
+            isPinned: false,
             isBuiltIn: false
         )
         let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [updated])
@@ -217,12 +310,12 @@ final class QuickPromptRepositoryTests: XCTestCase {
         let newID = UUID()
         let entry = QuickPromptBundle.ExportedQuickPrompt(
             id: newID,
-            kind: .followUp,
             label: "Brand New",
             prompt: "fresh",
             groupLabel: nil,
             sortOrder: 100,
             isVisible: true,
+            isPinned: false,
             isBuiltIn: false
         )
         let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [entry])
@@ -233,29 +326,28 @@ final class QuickPromptRepositoryTests: XCTestCase {
     }
 
     func testImportMergePreservesUntouchedRows() throws {
-        let starterCount = try repo.fetchAll(kind: .starter).count
-        let followUpCount = try repo.fetchAll(kind: .followUp).count
+        let unpinnedCount = try repo.fetchAll().filter { !$0.isPinned }.count
+        let pinnedCount = try repo.fetchAll().filter(\.isPinned).count
 
-        // Empty bundle — should change nothing.
         let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [])
         let summary = try repo.applyImport(bundle, mode: .merge, dryRun: false)
 
         XCTAssertEqual(summary.added, 0)
         XCTAssertEqual(summary.updated, 0)
         XCTAssertEqual(summary.deleted, 0)
-        XCTAssertEqual(try repo.fetchAll(kind: .starter).count, starterCount)
-        XCTAssertEqual(try repo.fetchAll(kind: .followUp).count, followUpCount)
+        XCTAssertEqual(try repo.fetchAll().filter { !$0.isPinned }.count, unpinnedCount)
+        XCTAssertEqual(try repo.fetchAll().filter(\.isPinned).count, pinnedCount)
     }
 
     func testImportDryRunMakesNoWrites() throws {
         let entry = QuickPromptBundle.ExportedQuickPrompt(
             id: UUID(),
-            kind: .followUp,
             label: "Should not land",
             prompt: "ghost",
             groupLabel: nil,
             sortOrder: 200,
             isVisible: true,
+            isPinned: false,
             isBuiltIn: false
         )
         let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [entry])
@@ -269,12 +361,12 @@ final class QuickPromptRepositoryTests: XCTestCase {
         let forgedID = UUID(uuidString: "11111111-2222-4333-8444-555555555555")!
         let entry = QuickPromptBundle.ExportedQuickPrompt(
             id: forgedID,
-            kind: .followUp,
             label: "I claim to be built-in",
             prompt: "fake",
             groupLabel: nil,
             sortOrder: 0,
             isVisible: true,
+            isPinned: false,
             isBuiltIn: true
         )
         let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [entry])
@@ -287,22 +379,22 @@ final class QuickPromptRepositoryTests: XCTestCase {
         let duplicateID = UUID(uuidString: "11111111-2222-4333-8444-555555555555")!
         let first = QuickPromptBundle.ExportedQuickPrompt(
             id: duplicateID,
-            kind: .followUp,
             label: "First",
             prompt: "first",
             groupLabel: nil,
             sortOrder: 0,
             isVisible: true,
+            isPinned: false,
             isBuiltIn: false
         )
         let second = QuickPromptBundle.ExportedQuickPrompt(
             id: duplicateID,
-            kind: .followUp,
             label: "Second",
             prompt: "second",
             groupLabel: nil,
             sortOrder: 1,
             isVisible: true,
+            isPinned: false,
             isBuiltIn: false
         )
         let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [first, second])
@@ -312,46 +404,34 @@ final class QuickPromptRepositoryTests: XCTestCase {
         }
     }
 
-    func testImportCanonicalizesBuiltInKind() throws {
-        let starter = QuickPrompt.builtInPrompts(kind: .starter).first!
+    func testImportCanonicalizesBuiltInPinState() throws {
+        // Take an unpinned built-in; an import claiming it's pinned must NOT
+        // flip its canonical pin state.
+        let unpinned = QuickPrompt.builtInPrompts().first { !$0.isPinned }!
         let entry = QuickPromptBundle.ExportedQuickPrompt(
-            id: starter.id,
-            kind: .followUp,
-            label: "Still a starter",
+            id: unpinned.id,
+            label: "Still unpinned",
             prompt: "updated body",
             groupLabel: "CATCH UP",
             sortOrder: 99,
             isVisible: true,
+            isPinned: true, // forged
             isBuiltIn: true
         )
         let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [entry])
 
         _ = try repo.applyImport(bundle, mode: .merge, dryRun: false)
 
-        let saved = try repo.fetch(id: starter.id)
-        XCTAssertEqual(saved?.kind, .starter)
+        let saved = try repo.fetch(id: unpinned.id)
+        XCTAssertEqual(saved?.isPinned, false, "canonical pin state wins over import-claimed pin state for built-ins")
         XCTAssertTrue(saved?.isBuiltIn ?? false)
-        XCTAssertEqual(saved?.label, "Still a starter")
-    }
-
-    func testRestoreDefaultRestoresKind() throws {
-        let starter = try repo.fetchAll(kind: .starter).first!
-        try manager.dbQueue.write { db in
-            try db.execute(
-                sql: "UPDATE quick_prompts SET kind = ? WHERE id = ?",
-                arguments: [QuickPrompt.Kind.followUp.rawValue, starter.id]
-            )
-        }
-
-        try repo.restoreBuiltInDefault(id: starter.id)
-
-        XCTAssertEqual(try repo.fetch(id: starter.id)?.kind, .starter)
+        XCTAssertEqual(saved?.label, "Still unpinned")
     }
 
     // MARK: Import — replace
 
     func testImportReplaceWipesCustomsAndReseeds() throws {
-        let custom = QuickPrompt(kind: .followUp, label: "Doomed", prompt: "doomed")
+        let custom = QuickPrompt(label: "Doomed", prompt: "doomed")
         try repo.save(custom)
 
         let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [])
@@ -363,17 +443,17 @@ final class QuickPromptRepositoryTests: XCTestCase {
     }
 
     func testImportReplaceDryRunCountsBuiltInResetsWithoutWriting() throws {
-        var starter = try repo.fetchAll(kind: .starter).first!
-        let canonicalLabel = starter.label
-        starter.label = "Edited"
-        starter.isVisible = false
-        try repo.save(starter)
+        var unpinned = try repo.fetchAll().first(where: { !$0.isPinned })!
+        let canonicalLabel = unpinned.label
+        unpinned.label = "Edited"
+        unpinned.isVisible = false
+        try repo.save(unpinned)
 
         let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [])
         let summary = try repo.applyImport(bundle, mode: .replace, dryRun: true)
 
         XCTAssertEqual(summary.updated, 1)
-        let after = try repo.fetch(id: starter.id)
+        let after = try repo.fetch(id: unpinned.id)
         XCTAssertEqual(after?.label, "Edited")
         XCTAssertEqual(after?.isVisible, false)
         XCTAssertNotEqual(after?.label, canonicalLabel)

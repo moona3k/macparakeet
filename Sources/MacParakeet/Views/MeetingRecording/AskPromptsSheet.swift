@@ -2,17 +2,23 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
-/// Manage Ask tab quick prompts (starter + follow-up). Reachable from the
-/// sparkle popover footer in `LiveAskPaneView`. Reuses Prompt Library design
-/// tokens for visual consistency, but is tighter — pills are micro-shortcuts,
-/// not heavyweight result templates, so we drop auto-run / expand chrome.
+/// Manage Ask tab quick prompts. Reachable from the sparkle popover footer in
+/// `LiveAskPaneView`. Reuses Prompt Library design tokens for visual
+/// consistency, but tighter — pills are micro-shortcuts, not heavyweight
+/// result templates, so we drop auto-run / expand chrome.
+///
+/// One unified library, two visual zones:
+/// - **PINNED · n/5** — prompts that surface as compact pills in the
+///   after-response strip.
+/// - **ALL PROMPTS** — everything else; surfaces in the empty Ask state and
+///   the sparkle popover.
 struct AskPromptsSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var viewModel: QuickPromptsViewModel
 
     @State private var hoveredID: UUID?
     @State private var pendingDelete: QuickPrompt?
-    @State private var pendingResetKind: QuickPrompt.Kind?
+    @State private var showingResetConfirm = false
     /// Tracks which row currently owns keyboard focus so we can mirror the
     /// hover-revealed icon brightening for keyboard-only users. Set by
     /// `.focused($focusedRowID, equals: prompt.id)` on each row's controls.
@@ -28,19 +34,35 @@ struct AskPromptsSheet: View {
                         errorBanner(errorMessage)
                     }
 
-                    section(
-                        title: "Starters",
-                        subtitle: "Shown when the Ask tab is empty and inside the sparkle menu mid-conversation. Optional group label clusters related pills (CATCH UP, CAPTURE, CHALLENGE).",
-                        kind: .starter,
-                        rows: viewModel.allStarters
+                    zone(
+                        title: "Pinned",
+                        countSuffix: "\(viewModel.pinnedCount)/\(viewModel.pinnedCap)",
+                        subtitle: "Compact pills shown in the after-response strip. Order here controls strip order.",
+                        rows: viewModel.allPinned,
+                        pinned: true
                     )
 
-                    section(
-                        title: "Follow-ups",
-                        subtitle: "Shown above the input mid-conversation. Universal next-moves on the previous response — keep this row tight.",
-                        kind: .followUp,
-                        rows: viewModel.allFollowUps
+                    zone(
+                        title: "All prompts",
+                        countSuffix: nil,
+                        subtitle: "Shown when the Ask tab is empty and inside the sparkle menu mid-conversation. Optional group label clusters related prompts (CATCH UP, CAPTURE, CHALLENGE).",
+                        rows: viewModel.allUnpinned,
+                        pinned: false
                     )
+
+                    Button {
+                        viewModel.startCreating()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "plus")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("Add a prompt")
+                                .font(DesignSystem.Typography.body.weight(.medium))
+                        }
+                        .foregroundStyle(DesignSystem.Colors.accent)
+                        .padding(.vertical, 6)
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(DesignSystem.Spacing.xl)
             }
@@ -48,7 +70,7 @@ struct AskPromptsSheet: View {
         .background(DesignSystem.Colors.background)
         .frame(minWidth: 720, minHeight: 640)
         .alert(
-            "Delete quick prompt?",
+            "Delete prompt?",
             isPresented: Binding(
                 get: { pendingDelete != nil },
                 set: { if !$0 { pendingDelete = nil } }
@@ -62,24 +84,37 @@ struct AskPromptsSheet: View {
             }
             Button("Cancel", role: .cancel) { pendingDelete = nil }
         } message: {
-            Text("This custom pill will be removed from the Ask tab.")
+            Text("This custom prompt will be removed from the Ask tab.")
         }
         .alert(
             "Reset built-ins?",
-            isPresented: Binding(
-                get: { pendingResetKind != nil },
-                set: { if !$0 { pendingResetKind = nil } }
-            )
+            isPresented: $showingResetConfirm
         ) {
             Button("Reset", role: .destructive) {
-                if let kind = pendingResetKind {
-                    withAnimation { viewModel.restoreBuiltInDefaults(kind: kind) }
-                }
-                pendingResetKind = nil
+                withAnimation { viewModel.restoreAllBuiltInDefaults() }
             }
-            Button("Cancel", role: .cancel) { pendingResetKind = nil }
+            Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Built-in pills return to their default labels and prompt text. Your custom pills stay untouched.")
+            Text("Built-in prompts return to their default labels, prompt text, group, and pin state. Your custom prompts stay untouched.")
+        }
+        .confirmationDialog(
+            swapDialogTitle,
+            isPresented: Binding(
+                get: { viewModel.swapRequest != nil },
+                set: { if !$0 { viewModel.cancelSwap() } }
+            ),
+            titleVisibility: .visible
+        ) {
+            if let request = viewModel.swapRequest {
+                ForEach(request.currentlyPinned) { victim in
+                    Button(victim.label) {
+                        withAnimation { viewModel.confirmSwap(unpin: victim) }
+                    }
+                }
+                Button("Cancel", role: .cancel) { viewModel.cancelSwap() }
+            }
+        } message: {
+            Text("Pin cap is 5. Tap a currently pinned prompt to unpin it and pin '\(viewModel.swapRequest?.candidate.label ?? "")' in its place.")
         }
         .sheet(
             isPresented: Binding(
@@ -107,6 +142,13 @@ struct AskPromptsSheet: View {
         }
     }
 
+    private var swapDialogTitle: String {
+        guard let candidate = viewModel.swapRequest?.candidate else {
+            return "Pinned cap reached"
+        }
+        return "Pin '\(candidate.label)' — replace which?"
+    }
+
     // MARK: - Header
 
     private var header: some View {
@@ -115,11 +157,27 @@ struct AskPromptsSheet: View {
                 Text("Ask Prompts")
                     .font(DesignSystem.Typography.heroTitle)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Text("Customize the pills that show up above your live meeting Ask input.")
+                Text("One library. Pinned prompts surface as quick pills after a response; everything else shows in the empty Ask state and sparkle menu.")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
             Spacer()
+
+            Menu {
+                Button("Reset built-ins to defaults") {
+                    showingResetConfirm = true
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 18))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .frame(width: 32, height: 32)
+            .help("More options")
+            .accessibilityLabel("More options")
+
             Button {
                 dismiss()
             } label: {
@@ -137,96 +195,95 @@ struct AskPromptsSheet: View {
         .background(DesignSystem.Colors.surface)
     }
 
-    // MARK: - Section
+    // MARK: - Zone
 
-    private func section(
+    private func zone(
         title: String,
+        countSuffix: String?,
         subtitle: String,
-        kind: QuickPrompt.Kind,
-        rows: [QuickPrompt]
+        rows: [QuickPrompt],
+        pinned: Bool
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            HStack(alignment: .bottom) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(DesignSystem.Typography.sectionTitle)
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    Text(subtitle)
-                        .font(DesignSystem.Typography.bodySmall)
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(title.uppercased())
+                    .font(.system(size: 11, weight: .semibold))
+                    .tracking(0.8)
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                if let countSuffix {
+                    Text("· \(countSuffix)")
+                        .font(.system(size: 11, weight: .semibold))
+                        .tracking(0.8)
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
                 }
                 Spacer()
-
-                Menu {
-                    Button("Reset built-ins") {
-                        pendingResetKind = kind
-                    }
-                    Button("Add new \(kind == .starter ? "starter" : "follow-up")") {
-                        viewModel.startCreating(kind: kind)
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                        .font(.system(size: 16))
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .frame(width: 28, height: 28)
-                .help("\(title) options")
-                .accessibilityLabel("\(title) options")
             }
 
-            cardGroup {
-                ForEach(Array(rows.enumerated()), id: \.element.id) { index, prompt in
-                    promptRow(prompt, kind: kind, rows: rows, index: index)
-                    if index < rows.count - 1 { Divider().padding(.leading, 16) }
-                }
-                if rows.isEmpty {
-                    Button {
-                        viewModel.startCreating(kind: kind)
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "plus")
-                                .font(.system(size: 12, weight: .semibold))
-                            Text("Add \(kind == .starter ? "a starter" : "a follow-up")")
-                                .font(DesignSystem.Typography.body.weight(.medium))
-                        }
-                        .foregroundStyle(DesignSystem.Colors.accent)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, DesignSystem.Spacing.lg)
-                    }
-                    .buttonStyle(.plain)
-                }
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .padding(.bottom, 2)
             }
 
-            if !rows.isEmpty {
-                Button {
-                    viewModel.startCreating(kind: kind)
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus")
-                            .font(.system(size: 11, weight: .semibold))
-                        Text("Add \(kind == .starter ? "a starter" : "a follow-up")")
-                            .font(DesignSystem.Typography.bodySmall.weight(.medium))
+            if rows.isEmpty {
+                emptyZone(pinned: pinned)
+            } else {
+                cardGroup {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, prompt in
+                        promptRow(prompt, rows: rows, index: index, pinned: pinned)
+                        if index < rows.count - 1 { Divider().padding(.leading, 16) }
                     }
-                    .foregroundStyle(DesignSystem.Colors.accent)
-                    .padding(.vertical, 6)
-                    .padding(.horizontal, 4)
                 }
-                .buttonStyle(.plain)
             }
+        }
+    }
+
+    private func emptyZone(pinned: Bool) -> some View {
+        cardGroup {
+            HStack(spacing: 10) {
+                Image(systemName: pinned ? "pin.slash" : "tray")
+                    .font(.system(size: 14))
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                Text(pinned ? "No pinned prompts. Pin a prompt below to surface it as a quick pill." : "No prompts. Add one below.")
+                    .font(DesignSystem.Typography.body)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                Spacer()
+            }
+            .padding(DesignSystem.Spacing.lg)
         }
     }
 
     // MARK: - Row
 
-    private func promptRow(_ prompt: QuickPrompt, kind: QuickPrompt.Kind, rows: [QuickPrompt], index: Int) -> some View {
+    private func promptRow(_ prompt: QuickPrompt, rows: [QuickPrompt], index: Int, pinned: Bool) -> some View {
         // Treat keyboard focus the same as hover so a Tab-only user gets the
         // same icon brightening + row highlight that a mouse user does.
         let isActive = hoveredID == prompt.id || focusedRowID == prompt.id
-        let kindNoun = kind == .starter ? "starter" : "follow-up"
 
         return HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            Button {
+                withAnimation { viewModel.togglePin(prompt) }
+            } label: {
+                Image(systemName: prompt.isPinned ? "pin.fill" : "pin")
+                    .font(.system(size: 13))
+                    .foregroundStyle(prompt.isPinned
+                                     ? DesignSystem.Colors.accent
+                                     : (isActive ? DesignSystem.Colors.textSecondary : DesignSystem.Colors.textTertiary))
+                    .frame(width: 26, height: 26)
+                    .background(
+                        Circle()
+                            .fill(prompt.isPinned
+                                  ? DesignSystem.Colors.accent.opacity(0.12)
+                                  : (isActive ? DesignSystem.Colors.rowHoverBackground : .clear))
+                    )
+            }
+            .buttonStyle(.plain)
+            .focused($focusedRowID, equals: prompt.id)
+            .help(prompt.isPinned ? "Unpin from quick strip" : "Pin to quick strip")
+            .accessibilityLabel(prompt.isPinned ? "Unpin \(prompt.label)" : "Pin \(prompt.label)")
+            .padding(.top, 2)
+
             Toggle("", isOn: Binding(
                 get: { prompt.isVisible },
                 set: { _ in withAnimation { viewModel.toggleVisibility(prompt) } }
@@ -287,7 +344,7 @@ struct AskPromptsSheet: View {
 
             HStack(spacing: 4) {
                 Button {
-                    movePrompt(prompt, by: -1, in: rows, kind: kind)
+                    movePrompt(prompt, by: -1, in: rows, pinned: pinned)
                 } label: {
                     rowIcon("chevron.up", isHovered: isActive)
                 }
@@ -299,7 +356,7 @@ struct AskPromptsSheet: View {
                 .accessibilityLabel("Move \(prompt.label) up")
 
                 Button {
-                    movePrompt(prompt, by: 1, in: rows, kind: kind)
+                    movePrompt(prompt, by: 1, in: rows, pinned: pinned)
                 } label: {
                     rowIcon("chevron.down", isHovered: isActive)
                 }
@@ -318,7 +375,7 @@ struct AskPromptsSheet: View {
                 .buttonStyle(.plain)
                 .focused($focusedRowID, equals: prompt.id)
                 .help("Edit")
-                .accessibilityLabel("Edit \(kindNoun) \(prompt.label)")
+                .accessibilityLabel("Edit \(prompt.label)")
 
                 if prompt.isBuiltIn {
                     Button {
@@ -339,7 +396,7 @@ struct AskPromptsSheet: View {
                     .buttonStyle(.plain)
                     .focused($focusedRowID, equals: prompt.id)
                     .help("Delete")
-                    .accessibilityLabel("Delete \(kindNoun) \(prompt.label)")
+                    .accessibilityLabel("Delete \(prompt.label)")
                 }
             }
             .opacity(isActive ? 1.0 : 0.4)
@@ -355,13 +412,13 @@ struct AskPromptsSheet: View {
         }
     }
 
-    private func movePrompt(_ prompt: QuickPrompt, by delta: Int, in rows: [QuickPrompt], kind: QuickPrompt.Kind) {
+    private func movePrompt(_ prompt: QuickPrompt, by delta: Int, in rows: [QuickPrompt], pinned: Bool) {
         var ids = rows.map(\.id)
         guard let currentIndex = ids.firstIndex(of: prompt.id) else { return }
         let newIndex = currentIndex + delta
         guard ids.indices.contains(newIndex) else { return }
         ids.swapAt(currentIndex, newIndex)
-        withAnimation { viewModel.reorder(ids: ids, within: kind) }
+        withAnimation { viewModel.reorder(ids: ids, pinned: pinned) }
     }
 
     private func rowIcon(_ system: String, isHovered: Bool, destructive: Bool = false) -> some View {
@@ -445,7 +502,7 @@ private struct EditPromptSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                Text("Edit \(initial.kind == .starter ? "starter" : "follow-up")")
+                Text("Edit prompt")
                     .font(DesignSystem.Typography.sectionTitle)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                 Spacer()
@@ -461,13 +518,11 @@ private struct EditPromptSheet: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                     field(title: "Label (shown on the pill)", text: $label, placeholder: "Tell me more")
-                    if initial.kind == .starter {
-                        field(
-                            title: "Group (optional — e.g. CATCH UP, CAPTURE, CHALLENGE)",
-                            text: $groupLabel,
-                            placeholder: "Leave blank for ungrouped"
-                        )
-                    }
+                    field(
+                        title: "Group (optional — e.g. CATCH UP, CAPTURE, CHALLENGE)",
+                        text: $groupLabel,
+                        placeholder: "Leave blank for ungrouped"
+                    )
                     promptField
                 }
                 .padding(DesignSystem.Spacing.xl)
@@ -572,11 +627,9 @@ private struct CreatePromptSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                if let kind = viewModel.creating?.kind {
-                    Text("New \(kind == .starter ? "starter" : "follow-up")")
-                        .font(DesignSystem.Typography.sectionTitle)
-                        .foregroundStyle(DesignSystem.Colors.textPrimary)
-                }
+                Text("New prompt")
+                    .font(DesignSystem.Typography.sectionTitle)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
                 Spacer()
                 Button("Cancel") { attemptCancel() }
                     .keyboardShortcut(.cancelAction)
@@ -602,17 +655,18 @@ private struct CreatePromptSheet: View {
                             ),
                             placeholder: "ELI5"
                         )
-                        if viewModel.creating?.kind == .starter {
-                            field(
-                                title: "Group (optional)",
-                                binding: Binding(
-                                    get: { viewModel.creating?.groupLabel ?? "" },
-                                    set: { viewModel.creating?.groupLabel = $0 }
-                                ),
-                                placeholder: "CATCH UP / CAPTURE / CHALLENGE"
-                            )
-                        }
+                        field(
+                            title: "Group (optional)",
+                            binding: Binding(
+                                get: { viewModel.creating?.groupLabel ?? "" },
+                                set: { viewModel.creating?.groupLabel = $0 }
+                            ),
+                            placeholder: "CATCH UP / CAPTURE / CHALLENGE"
+                        )
                         promptField
+                        Text("New prompts start unpinned. Use the pin icon in the list to surface a prompt as a quick pill.")
+                            .font(DesignSystem.Typography.bodySmall)
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
                     }
                 }
                 .padding(DesignSystem.Spacing.xl)
@@ -620,7 +674,7 @@ private struct CreatePromptSheet: View {
         }
         .frame(minWidth: 560, minHeight: 480)
         .background(DesignSystem.Colors.background)
-        .alert("Discard new pill?", isPresented: $showingDiscardConfirm) {
+        .alert("Discard new prompt?", isPresented: $showingDiscardConfirm) {
             Button("Discard", role: .destructive) {
                 viewModel.cancelCreating()
                 dismiss()

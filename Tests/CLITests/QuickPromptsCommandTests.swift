@@ -10,7 +10,7 @@ final class QuickPromptsCommandTests: XCTestCase {
     func testFindByExactUUID() throws {
         let db = try DatabaseManager()
         let repo = QuickPromptRepository(dbQueue: db.dbQueue)
-        let p = QuickPrompt(kind: .followUp, label: "ELI5", prompt: "Explain like I'm five.")
+        let p = QuickPrompt(label: "ELI5", prompt: "Explain like I'm five.")
         try repo.save(p)
 
         let found = try findQuickPrompt(idOrLabel: p.id.uuidString, repo: repo)
@@ -20,7 +20,7 @@ final class QuickPromptsCommandTests: XCTestCase {
     func testFindByPrefix() throws {
         let db = try DatabaseManager()
         let repo = QuickPromptRepository(dbQueue: db.dbQueue)
-        let p = QuickPrompt(kind: .followUp, label: "Recap", prompt: "Recap.")
+        let p = QuickPrompt(label: "Recap", prompt: "Recap.")
         try repo.save(p)
 
         let prefix = String(p.id.uuidString.prefix(8))
@@ -31,7 +31,7 @@ final class QuickPromptsCommandTests: XCTestCase {
     func testFindByLabelCaseInsensitive() throws {
         let db = try DatabaseManager()
         let repo = QuickPromptRepository(dbQueue: db.dbQueue)
-        let p = QuickPrompt(kind: .starter, label: "My Custom Pill", prompt: "x")
+        let p = QuickPrompt(label: "My Custom Pill", prompt: "x")
         try repo.save(p)
 
         let found = try findQuickPrompt(idOrLabel: "my custom pill", repo: repo)
@@ -57,8 +57,8 @@ final class QuickPromptsCommandTests: XCTestCase {
         let repo = QuickPromptRepository(dbQueue: db.dbQueue)
         let id1 = UUID(uuidString: "BEEFCAFE-1111-4111-8111-111111111111")!
         let id2 = UUID(uuidString: "BEEFCAFE-2222-4222-8222-222222222222")!
-        try repo.save(QuickPrompt(id: id1, kind: .followUp, label: "X", prompt: "x"))
-        try repo.save(QuickPrompt(id: id2, kind: .followUp, label: "Y", prompt: "y"))
+        try repo.save(QuickPrompt(id: id1, label: "X", prompt: "x"))
+        try repo.save(QuickPrompt(id: id2, label: "Y", prompt: "y"))
 
         XCTAssertThrowsError(try findQuickPrompt(idOrLabel: "BEEFCAFE", repo: repo)) { error in
             guard let e = error as? CLILookupError else {
@@ -84,36 +84,56 @@ final class QuickPromptsCommandTests: XCTestCase {
         }
     }
 
+    // MARK: - List
+
+    func testListPinnedFilterOnlyReturnsPinnedRows() throws {
+        let dbURL = temporaryDatabaseURL()
+        let command = try QuickPromptsCommand.ListSubcommand.parse([
+            "--pinned", "true",
+            "--database", dbURL.path,
+            "--json",
+        ])
+
+        let output = try captureStandardOutput { try command.run() }
+        let prompts = try decodedJSONArray(output)
+        XCTAssertFalse(prompts.isEmpty)
+        XCTAssertTrue(prompts.allSatisfy { ($0["isPinned"] as? Bool) == true })
+        XCTAssertEqual(prompts.count, QuickPrompt.pinnedCap)
+    }
+
+    func testListUnpinnedFilterOnlyReturnsUnpinnedRows() throws {
+        let dbURL = temporaryDatabaseURL()
+        let command = try QuickPromptsCommand.ListSubcommand.parse([
+            "--pinned", "false",
+            "--database", dbURL.path,
+            "--json",
+        ])
+
+        let output = try captureStandardOutput { try command.run() }
+        let prompts = try decodedJSONArray(output)
+        XCTAssertFalse(prompts.isEmpty)
+        XCTAssertTrue(prompts.allSatisfy { ($0["isPinned"] as? Bool) == false })
+    }
+
     // MARK: - Add validation
 
-    func testAddRequiresKindAndLabel() {
+    func testAddRequiresLabel() {
         XCTAssertThrowsError(try QuickPromptsCommand.AddSubcommand.parse([]))
-        XCTAssertThrowsError(try QuickPromptsCommand.AddSubcommand.parse(["--label", "x", "--prompt", "y"]))
     }
 
     func testAddRejectsPromptAndFromFileTogether() {
         XCTAssertThrowsError(
             try QuickPromptsCommand.AddSubcommand.parse([
-                "--kind", "follow-up", "--label", "X", "--prompt", "body", "--from-file", "/tmp/x.txt"
+                "--label", "X", "--prompt", "body", "--from-file", "/tmp/x.txt"
             ])
         )
     }
 
-    func testAddRejectsGroupOnFollowUp() {
-        XCTAssertThrowsError(
-            try QuickPromptsCommand.AddSubcommand.parse([
-                "--kind", "follow-up", "--label", "X", "--prompt", "y", "--group", "FOO"
-            ])
-        ) { error in
-            XCTAssertTrue(String(describing: error).contains("--group is only valid for starter"),
-                          "Expected message about --group requiring starter, got: \(error)")
-        }
-    }
-
-    func testAddAcceptsGroupOnStarter() {
+    func testAddAcceptsGroupOnAnyPrompt() {
+        // v2: --group is now valid for every prompt, not just starters.
         XCTAssertNoThrow(
             try QuickPromptsCommand.AddSubcommand.parse([
-                "--kind", "starter", "--label", "X", "--prompt", "y", "--group", "CATCH UP"
+                "--label", "X", "--prompt", "y", "--group", "REFINE"
             ])
         )
     }
@@ -121,7 +141,7 @@ final class QuickPromptsCommandTests: XCTestCase {
     func testAddRejectsEmptyLabel() {
         XCTAssertThrowsError(
             try QuickPromptsCommand.AddSubcommand.parse([
-                "--kind", "starter", "--label", "   ", "--prompt", "y"
+                "--label", "   ", "--prompt", "y"
             ])
         )
     }
@@ -129,7 +149,6 @@ final class QuickPromptsCommandTests: XCTestCase {
     func testAddJSONReturnsSuccessEnvelope() throws {
         let dbURL = temporaryDatabaseURL()
         let command = try QuickPromptsCommand.AddSubcommand.parse([
-            "--kind", "follow-up",
             "--label", "ELI5",
             "--prompt", "Explain simply.",
             "--database", dbURL.path,
@@ -144,7 +163,25 @@ final class QuickPromptsCommandTests: XCTestCase {
         XCTAssertEqual(envelope["ok"] as? Bool, true)
         let prompt = try XCTUnwrap(envelope["prompt"] as? [String: Any])
         XCTAssertEqual(prompt["label"] as? String, "ELI5")
-        XCTAssertNil(envelope["label"], "write responses should be wrapped under prompt")
+        XCTAssertEqual(prompt["isPinned"] as? Bool, false, "new prompts default unpinned")
+        XCTAssertNil(prompt["kind"], "v2 model has no kind field")
+    }
+
+    func testAddPinnedFailsWhenCapAlreadyMet() throws {
+        let dbURL = temporaryDatabaseURL()
+        // Default seeds already fill the pinned cap, so any --pinned add hits cap.
+        let command = try QuickPromptsCommand.AddSubcommand.parse([
+            "--label", "Sixth pinned",
+            "--prompt", "body",
+            "--pinned",
+            "--database", dbURL.path,
+            "--json",
+        ])
+
+        let output = try captureStandardOutput { try? command.run() }
+        let envelope = try decodedJSONObject(output)
+        XCTAssertEqual(envelope["ok"] as? Bool, false)
+        XCTAssertEqual(envelope["errorType"] as? String, "validation")
     }
 
     // MARK: - Set validation
@@ -171,24 +208,28 @@ final class QuickPromptsCommandTests: XCTestCase {
         XCTAssertThrowsError(try QuickPromptsCommand.SetSubcommand.parse(["x", "--prompt", "   "]))
     }
 
-    func testSetRejectsGroupOnFollowUpAfterLookup() throws {
+    func testSetGroupOnPinnedPromptIsAllowed() throws {
+        // v2: --group is no longer rejected on previously-followup prompts.
         let dbURL = temporaryDatabaseURL()
         let command = try QuickPromptsCommand.SetSubcommand.parse([
             "Tell me more",
-            "--group", "CATCH UP",
+            "--group", "REFINE",
             "--database", dbURL.path,
+            "--json",
         ])
 
-        XCTAssertThrowsError(try command.run()) { error in
-            XCTAssertTrue(String(describing: error).contains("--group is only valid for starter"))
-        }
+        let output = try captureStandardOutput { try command.run() }
+        let envelope = try decodedJSONObject(output)
+        XCTAssertEqual(envelope["ok"] as? Bool, true)
+        let saved = try XCTUnwrap(envelope["prompt"] as? [String: Any])
+        XCTAssertEqual(saved["groupLabel"] as? String, "REFINE")
     }
 
     func testSetJSONReturnsSuccessEnvelope() throws {
         let dbURL = temporaryDatabaseURL()
         let db = try DatabaseManager(path: dbURL.path)
         let repo = QuickPromptRepository(dbQueue: db.dbQueue)
-        let prompt = QuickPrompt(kind: .starter, label: "Original", prompt: "body")
+        let prompt = QuickPrompt(label: "Original", prompt: "body")
         try repo.save(prompt)
 
         let command = try QuickPromptsCommand.SetSubcommand.parse([
@@ -209,28 +250,75 @@ final class QuickPromptsCommandTests: XCTestCase {
         XCTAssertEqual(saved["label"] as? String, "Updated")
     }
 
-    // MARK: - RestoreDefaults validation
+    // MARK: - Pin / Unpin
 
-    func testRestoreRejectsKindAndIDTogether() {
-        XCTAssertThrowsError(
-            try QuickPromptsCommand.RestoreDefaultsSubcommand.parse([
-                "--kind", "starter", "--id", "abcd"
-            ])
-        )
+    func testUnpinSucceedsOnDefaultBuiltIn() throws {
+        let dbURL = temporaryDatabaseURL()
+        let command = try QuickPromptsCommand.UnpinSubcommand.parse([
+            "Tell me more",
+            "--database", dbURL.path,
+            "--json",
+        ])
+
+        let output = try captureStandardOutput { try command.run() }
+        let envelope = try decodedJSONObject(output)
+        XCTAssertEqual(envelope["ok"] as? Bool, true)
+        let saved = try XCTUnwrap(envelope["prompt"] as? [String: Any])
+        XCTAssertEqual(saved["isPinned"] as? Bool, false)
     }
 
-    // MARK: - Kind argument parsing
+    func testPinReturnsCapExceededWhenDefaultPinnedCapFull() throws {
+        let dbURL = temporaryDatabaseURL()
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = QuickPromptRepository(dbQueue: db.dbQueue)
+        let candidate = QuickPrompt(label: "Sixth", prompt: "body")
+        try repo.save(candidate)
 
-    func testKindArgAcceptsBothValues() throws {
-        let starter = try QuickPromptsCommand.AddSubcommand.parse([
-            "--kind", "starter", "--label", "X", "--prompt", "y"
+        let command = try QuickPromptsCommand.PinSubcommand.parse([
+            candidate.id.uuidString,
+            "--database", dbURL.path,
+            "--json",
         ])
-        XCTAssertEqual(starter.kind, .starter)
 
-        let followUp = try QuickPromptsCommand.AddSubcommand.parse([
-            "--kind", "follow-up", "--label", "X", "--prompt", "y"
+        let output = try captureStandardOutput { try? command.run() }
+        let envelope = try decodedJSONObject(output)
+        XCTAssertEqual(envelope["ok"] as? Bool, false)
+        XCTAssertEqual(envelope["errorType"] as? String, "validation")
+    }
+
+    func testPinSucceedsAfterFreeingASlot() throws {
+        let dbURL = temporaryDatabaseURL()
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = QuickPromptRepository(dbQueue: db.dbQueue)
+        // Free a slot.
+        let firstPinned = try repo.fetchAll().first(where: \.isPinned)!
+        try repo.setPinned(id: firstPinned.id, isPinned: false)
+
+        let candidate = QuickPrompt(label: "Newly pinned", prompt: "body")
+        try repo.save(candidate)
+
+        let command = try QuickPromptsCommand.PinSubcommand.parse([
+            candidate.id.uuidString,
+            "--database", dbURL.path,
+            "--json",
         ])
-        XCTAssertEqual(followUp.kind, .followUp)
+
+        let output = try captureStandardOutput { try command.run() }
+        let envelope = try decodedJSONObject(output)
+        XCTAssertEqual(envelope["ok"] as? Bool, true)
+        let saved = try XCTUnwrap(envelope["prompt"] as? [String: Any])
+        XCTAssertEqual(saved["isPinned"] as? Bool, true)
+    }
+
+    // MARK: - Restore-defaults
+
+    func testRestoreDefaultsHasNoKindFlag() {
+        // v2 dropped --kind; only --id remains. Parsing --kind should fail.
+        XCTAssertThrowsError(
+            try QuickPromptsCommand.RestoreDefaultsSubcommand.parse([
+                "--kind", "starter"
+            ])
+        )
     }
 
     // MARK: - Error type mapping
@@ -254,6 +342,11 @@ final class QuickPromptsCommandTests: XCTestCase {
         XCTAssertEqual(CLIErrorType.key(for: err), "input_missing")
     }
 
+    func testErrorTypeMapsPinCapExceededToValidation() {
+        let err = QuickPromptCLIError.pinCapExceeded(label: "X", currentlyPinned: [])
+        XCTAssertEqual(CLIErrorType.key(for: err), "validation")
+    }
+
     private func temporaryDatabaseURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-quick-prompts-\(UUID().uuidString).db")
@@ -263,5 +356,11 @@ final class QuickPromptsCommandTests: XCTestCase {
         let data = Data(output.utf8)
         let object = try JSONSerialization.jsonObject(with: data)
         return try XCTUnwrap(object as? [String: Any])
+    }
+
+    private func decodedJSONArray(_ output: String) throws -> [[String: Any]] {
+        let data = Data(output.utf8)
+        let object = try JSONSerialization.jsonObject(with: data)
+        return try XCTUnwrap(object as? [[String: Any]])
     }
 }
