@@ -227,7 +227,9 @@ Two ways the follow-up row could be smarter: (a) embed "suggested follow-ups" in
 - Live meeting recording now has a useful chat affordance with one-tap depth.
 - Thinking-partner framing differentiates from every other "chat with your meeting" tool on the market.
 - Zero idle LLM cost — nothing fires unless the user taps a pill or sends a message.
-- No new tables, no schema migrations: `ChatConversation` is reused for the live thread post-finalize.
+- No new tables for the chat plumbing: `ChatConversation` is reused for the
+  live thread post-finalize. (The 2026-05-03 amendment adds a one-way schema
+  migration on `quick_prompts` — see the amendment block above.)
 - Live and finalized surfaces share state — no data loss on the meeting → transcription transition.
 - No-LLM-key users get the same recording they had before; this is pure addition.
 
@@ -246,7 +248,14 @@ Two ways the follow-up row could be smarter: (a) embed "suggested follow-ups" in
 
 ### Core (MacParakeetCore)
 
-Unchanged. No new actors, services, or schema.
+For the original Ask shipment: unchanged — no new actors, services, or schema.
+
+For the 2026-05-03 quick-prompt unification (see amendment): adds the
+`v0.10.1-quick-prompts-pin` migration to `DatabaseManager`, replaces
+`QuickPrompt.Kind` with `isPinned: Bool` plus `QuickPrompt.pinnedCap = 5`,
+extends `QuickPromptRepository` with `setPinned`, `swapPin`, `saveAndPin`,
+`fetchPinned`, and bucket-scoped `reorder(ids:pinned:)`, and bumps
+`QuickPromptBundle` schema to v2 with v1 (`kind`-based) decoder fallback.
 
 ### ViewModels (MacParakeetViewModels)
 

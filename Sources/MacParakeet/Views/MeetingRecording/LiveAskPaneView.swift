@@ -116,11 +116,14 @@ struct LiveAskPaneView: View {
         }
     }
 
-    /// Composer = follow-up pills (when conversation has started) + input.
-    /// Single visual chunk, single divider above. Owns the bottom of the panel.
+    /// Composer = follow-up pills (when conversation has started + at least one
+    /// pinned prompt is visible) + input. Single visual chunk, single divider
+    /// above. Owns the bottom of the panel.
     private var composerArea: some View {
         VStack(spacing: 0) {
-            if !viewModel.messages.isEmpty && viewModel.canSendMessage {
+            if !viewModel.messages.isEmpty
+                && viewModel.canSendMessage
+                && !quickPromptsViewModel.visiblePinned.isEmpty {
                 followUpRow
             }
             inputBar

@@ -289,42 +289,31 @@ extension QuickPromptsCommand {
                     throw QuickPromptCLIError.emptyBody
                 }
 
-                // New prompts always start in the unpinned bucket so the
-                // sortOrder calculation is straightforward; if --pinned is
-                // requested, we save first then pin in a follow-up call so
-                // the cap check sees a real row.
-                let unpinnedRows = (try? repo.fetchAll().filter { !$0.isPinned }) ?? []
-                let nextSortOrder = (unpinnedRows.map(\.sortOrder).max() ?? -1) + 1
-
                 let normalizedGroup: String? = {
                     guard let raw = group else { return nil }
                     let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
                     return trimmed.isEmpty ? nil : trimmed
                 }()
 
+                // sortOrder is recomputed inside `saveAndPin` based on the
+                // target bucket; the value here is a placeholder.
                 var p = QuickPrompt(
                     label: label.trimmingCharacters(in: .whitespacesAndNewlines),
                     prompt: body,
                     groupLabel: normalizedGroup,
-                    sortOrder: nextSortOrder,
+                    sortOrder: 0,
                     isVisible: !hidden,
                     isPinned: false,
                     isBuiltIn: false
                 )
-                try repo.save(p)
 
-                if pinned {
-                    switch try repo.setPinned(id: p.id, isPinned: true) {
-                    case .ok:
-                        if let updated = try repo.fetch(id: p.id) { p = updated }
-                    case .notFound:
-                        break
-                    case .capExceeded(let current):
-                        // Roll back the unpinned save so the user doesn't get
-                        // a half-applied state when --pinned was the intent.
-                        _ = try repo.delete(id: p.id)
-                        throw QuickPromptCLIError.pinCapExceeded(label: p.label, currentlyPinned: current)
-                    }
+                switch try repo.saveAndPin(p, isPinned: pinned) {
+                case .ok:
+                    if let updated = try repo.fetch(id: p.id) { p = updated }
+                case .notFound:
+                    break
+                case .capExceeded(let current):
+                    throw QuickPromptCLIError.pinCapExceeded(label: p.label, currentlyPinned: current)
                 }
 
                 if json {

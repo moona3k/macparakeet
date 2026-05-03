@@ -43,12 +43,14 @@ public final class QuickPromptsViewModel {
 
     // MARK: - Read
 
+    // `allPrompts` is loaded via `repo.fetchAll()` which orders by
+    // `(isPinned ASC, sortOrder ASC)` — unpinned first, then pinned, sortOrder
+    // ascending within each bucket. The accessors below trust that order.
+
     /// Visible pinned prompts in pinned-bucket sortOrder. Drives the
     /// after-response strip.
     public var visiblePinned: [QuickPrompt] {
-        allPrompts
-            .filter { $0.isVisible && $0.isPinned }
-            .sorted { $0.sortOrder < $1.sortOrder }
+        allPrompts.filter { $0.isVisible && $0.isPinned }
     }
 
     /// All visible prompts grouped for the empty-state list and sparkle
@@ -57,14 +59,7 @@ public final class QuickPromptsViewModel {
     /// (which falls naturally to the end given pinned prompts seed without a
     /// `groupLabel`).
     public var visiblePromptGroups: [(label: String, prompts: [QuickPrompt])] {
-        let visible = allPrompts
-            .filter(\.isVisible)
-            .sorted { lhs, rhs in
-                if lhs.isPinned != rhs.isPinned {
-                    return !lhs.isPinned // unpinned first
-                }
-                return lhs.sortOrder < rhs.sortOrder
-            }
+        let visible = allPrompts.filter(\.isVisible)
         var seen: [String] = []
         var buckets: [String: [QuickPrompt]] = [:]
         for prompt in visible {
@@ -78,12 +73,12 @@ public final class QuickPromptsViewModel {
     /// Editor zone — pinned subset (always full subset, including hidden
     /// rows so the editor can show what's pinned but currently hidden).
     public var allPinned: [QuickPrompt] {
-        allPrompts.filter(\.isPinned).sorted { $0.sortOrder < $1.sortOrder }
+        allPrompts.filter(\.isPinned)
     }
 
     /// Editor zone — the rest. Hidden rows included for the same reason.
     public var allUnpinned: [QuickPrompt] {
-        allPrompts.filter { !$0.isPinned }.sorted { $0.sortOrder < $1.sortOrder }
+        allPrompts.filter { !$0.isPinned }
     }
 
     public var pinnedCount: Int { allPrompts.filter(\.isPinned).count }

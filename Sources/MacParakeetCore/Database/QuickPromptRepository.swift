@@ -72,6 +72,14 @@ public protocol QuickPromptRepositoryProtocol: Sendable {
     @discardableResult
     func setPinned(id: UUID, isPinned: Bool) throws -> SetPinnedResult
 
+    /// Insert a new prompt and pin it (or not) in a single transaction. Used by
+    /// the CLI's `add --pinned` so the caller never observes a half-applied
+    /// state where the row exists but the pin failed the cap check. The
+    /// caller's `prompt.sortOrder` is recomputed inside the transaction to
+    /// land at the end of the target bucket.
+    @discardableResult
+    func saveAndPin(_ prompt: QuickPrompt, isPinned: Bool) throws -> SetPinnedResult
+
     /// Atomic pin-swap — unpin one row and pin another in the same transaction.
     /// Used by the GUI's swap-picker when the user attempts to pin a 6th
     /// prompt at cap. No-op (returns `.notFound`) if either id is missing.
@@ -215,6 +223,37 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
             prompt.isPinned = isPinned
             prompt.updatedAt = Date()
             try prompt.update(db)
+            return .ok
+        }
+    }
+
+    @discardableResult
+    public func saveAndPin(_ prompt: QuickPrompt, isPinned: Bool) throws -> SetPinnedResult {
+        try dbQueue.write { db in
+            if isPinned {
+                let pinnedCount = try Int.fetchOne(
+                    db,
+                    sql: "SELECT COUNT(*) FROM quick_prompts WHERE isPinned = 1"
+                ) ?? 0
+                if pinnedCount >= QuickPrompt.pinnedCap {
+                    let current = try QuickPrompt
+                        .filter(QuickPrompt.Columns.isPinned == true)
+                        .order(QuickPrompt.Columns.sortOrder.asc)
+                        .fetchAll(db)
+                    return .capExceeded(currentlyPinned: current)
+                }
+            }
+            var copy = normalizedForWrite(prompt)
+            copy.isPinned = isPinned
+            let bucketFlag = isPinned ? 1 : 0
+            let maxSort = try Int.fetchOne(
+                db,
+                sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = ?",
+                arguments: [bucketFlag]
+            ) ?? -1
+            copy.sortOrder = maxSort + 1
+            copy.updatedAt = Date()
+            try copy.save(db)
             return .ok
         }
     }
@@ -493,14 +532,16 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
 
     private func normalizedForWrite(_ prompt: QuickPrompt) -> QuickPrompt {
         var normalized = prompt
-        if let canonical = QuickPrompt.builtInPrompt(id: prompt.id) {
+        if QuickPrompt.builtInPrompt(id: prompt.id) != nil {
             normalized.isBuiltIn = true
-            // Built-in canonical pin-state is authoritative — a custom import
-            // that flipped a built-in's pin state shouldn't override it.
-            normalized.isPinned = canonical.isPinned
         } else {
             normalized.isBuiltIn = false
         }
+        // Note: pin state is user-controlled even on built-ins. Imports that
+        // forge a built-in's pin state are coerced earlier in
+        // `QuickPromptBundle.materialize` so this path can trust whatever it
+        // receives. Re-coercing here would silently revert a user's manual
+        // unpin the next time they edited the row's label.
         // Empty / whitespace-only group strings collapse to nil so the GUI never
         // renders an empty capsule and equality checks match canonical seeds
         // whose groupLabel is genuinely nil.

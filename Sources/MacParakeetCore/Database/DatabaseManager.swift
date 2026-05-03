@@ -603,8 +603,15 @@ public final class DatabaseManager: Sendable {
                 try db.alter(table: "quick_prompts") { t in
                     t.add(column: "isPinned", .boolean).notNull().defaults(to: false)
                 }
+            }
+            // Backfill runs whenever `kind` still exists, not only on the
+            // fresh column-add path. Defensive against a partially migrated DB
+            // where `isPinned` is already present but legacy `follow_up` rows
+            // haven't been mapped yet — without this, dropping `kind` below
+            // would silently turn them into unpinned rows.
+            if columns.contains("kind") {
                 try db.execute(
-                    sql: "UPDATE quick_prompts SET isPinned = 1 WHERE kind = ?",
+                    sql: "UPDATE quick_prompts SET isPinned = 1 WHERE kind = ? AND isPinned = 0",
                     arguments: ["follow_up"]
                 )
             }
