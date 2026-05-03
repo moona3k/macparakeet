@@ -366,6 +366,7 @@ private struct AskStreamingDot: View {
 /// empty listening state. Matches the flower head from the recording pill,
 /// without the stem. Also reused as the summary-generation loading indicator.
 struct BreathingSeedOfLifeView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var rotation: Double = 0
     @State private var glowBreathing = false
 
@@ -399,6 +400,12 @@ struct BreathingSeedOfLifeView: View {
         .frame(width: size, height: size)
         .rotationEffect(.degrees(rotation))
         .onAppear {
+            // Honor System Settings → Accessibility → Display → Reduce
+            // Motion. Vestibular-sensitive users get a still seed-of-life
+            // mark — same shape, color, and brand vocabulary, just no
+            // rotation or glow pulse. Matches the accommodation already
+            // applied to the slash-menu transition in LiveNotesPaneView.
+            guard !reduceMotion else { return }
             withAnimation(.linear(duration: 18).repeatForever(autoreverses: false)) {
                 rotation = 360
             }
