@@ -29,8 +29,7 @@ betraying it. Two principles govern every artifact in here:
 brand-assets/
 ├── README.md                       you are here
 ├── marks/                          the bird, as vector source
-│   ├── parakeet-line.svg           single-stroke line mark (canonical, app-scale)
-│   └── parakeet-fill.svg           plump silhouette sibling (poster-scale, Pop)
+│   └── parakeet-line.svg           the canonical brand mark — used everywhere
 ├── palette/                        the colors
 │   ├── palette.json                machine-readable hex + role + guidance
 │   ├── palette.css                 CSS variables for web
@@ -44,7 +43,7 @@ brand-assets/
 │   ├── social-square.svg           1080×1080 Instagram / general feed
 │   └── social-story.svg            1080×1920 IG Story / TikTok / Reels cover
 ├── exports/                        ready-to-grab PNG renders
-│   ├── parakeet-{line,fill}-{ink,paper,coral}-{256,512,1024,2048,4096}.png
+│   ├── parakeet-line-{ink,paper,coral}-{256,512,1024,2048,4096}.png
 │   ├── single-portrait.png
 │   ├── warhol-3x4.png
 │   ├── wordmark-lockup.png
@@ -55,20 +54,23 @@ brand-assets/
     └── render.sh                   regenerate every PNG from SVG sources
 ```
 
-## The two marks
+## The mark
 
-| Mark                       | When                                                                                  | Why                                                                                       |
-| -------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `parakeet-line.svg`        | App icon, menu bar, inline UI, business-card-scale chrome, anything ≥18 pt            | Calligraphic, delicate, distinctive. Reads as one gesture. The brand voice in vector form. |
-| `parakeet-fill.svg`        | Posters, large-format social, Warhol-style tile work, anything where the bird is large | Strong silhouette tiles powerfully against flat color fields. Eye dot kept as negative space — every tile's eye carries the ground color through, which gives the series rhythm. |
+There's one canonical mark: `marks/parakeet-line.svg`. It's a calligraphic
+single-stroke parakeet — head, beak, eye dot, body curve, looped tail — traced
+from `Assets/AppIcon-1024x1024.png`. It carries the brand voice (calm,
+confident, minimal) at every size: legible at 18 pt, beautiful at 4096 px,
+strong enough to tile in a Warhol grid and delicate enough for chrome.
 
-Both marks use `fill="currentColor"`. Recolor by setting CSS `color`, by
+The mark uses `fill="currentColor"`. Recolor by setting CSS `color`, by
 swapping `currentColor` for a hex literal, or via `<use color="…">` — pick the
 mechanism your tool understands.
 
-The `parakeet-fill.svg` is **derived from** `parakeet-line.svg` — same
-posture, same proportions, same calligraphic ancestry. They're siblings, not
-strangers.
+Why one mark and not two: an earlier draft of this library had a second
+"silhouette" sibling for Pop work. It killed the calligraphic detail — the
+looped tail flattened into a blob — and that's the opposite of the brand voice.
+The line mark already tiles powerfully on flat color fields; it doesn't need a
+heftier sibling.
 
 ## The palette
 
@@ -110,24 +112,24 @@ The `<symbol id="bird">` block defines the mark once per file. Reusing it via
 
 ### When in doubt
 
-| You need…                              | Start from…                                | Mark   |
-| -------------------------------------- | ------------------------------------------ | ------ |
-| Hero image for the website             | `wordmark-lockup.svg`                      | line   |
-| GitHub social preview / Twitter card   | `og-image.svg`                             | line   |
-| Instagram feed post                    | `social-square.svg`                        | fill   |
-| Instagram Story / TikTok cover         | `social-story.svg`                         | fill   |
-| Conference poster, t-shirt, sticker    | `warhol-3x4.svg` (or single-portrait)      | fill   |
-| Blog header, slide background          | `single-portrait.svg`                      | fill   |
+| You need…                              | Start from…                                |
+| -------------------------------------- | ------------------------------------------ |
+| Hero image for the website             | `wordmark-lockup.svg`                      |
+| GitHub social preview / Twitter card   | `og-image.svg`                             |
+| Instagram feed post                    | `social-square.svg`                        |
+| Instagram Story / TikTok cover         | `social-story.svg`                         |
+| Conference poster, t-shirt, sticker    | `warhol-3x4.svg` (or `single-portrait.svg`) |
+| Blog header, slide background          | `single-portrait.svg`                      |
 
-Brand-chrome compositions (wordmark, OG meta) inline the line mark; campaign
-and Pop compositions (social, Warhol) inline the fill silhouette. If you
-swap a composition's mark variant, document why — the choice is intentional.
+Every composition inlines the canonical line mark as a `<symbol id="bird">`.
+The shape is the same everywhere; what changes per composition is the layout,
+type, ground color, and figure color.
 
 ## Recoloring recipes
 
 ### CSS / web (inline SVG)
 
-The cleanest path: paste the contents of `marks/parakeet-line.svg` (or `parakeet-fill.svg`) directly into your HTML, then drive `currentColor` from CSS.
+The cleanest path: paste the contents of `marks/parakeet-line.svg` directly into your HTML, then drive `currentColor` from CSS.
 
 ```html
 <link rel="stylesheet" href="brand-assets/palette/palette.css"/>
@@ -177,23 +179,22 @@ SVG sources. Requires `librsvg` (`brew install librsvg`).
 The line mark (`parakeet-line.svg`) was traced from the canonical 1024×1024
 PNG (`Assets/AppIcon-1024x1024.png`) using `potrace` after a luminance
 threshold isolated the bird, then re-coordinated into a clean 0..1024
-viewBox. The fill mark (`parakeet-fill.svg`) was derived from the same source
-via morphological closing + interior fill, with the eye dot carved back as
-negative space.
+viewBox. Four paths: compound body with eye-hole (fill-rule evenodd), iris dot,
+beak, and the small cheek/tail-curve flourish.
 
-Both SVGs are independent of `Sources/MacParakeet/Resources/parakeet-mark.png`
-— that PNG remains the runtime asset path and source of truth for the
-shipping app. The vector siblings live here for design work that PNG can't do
-(infinite scaling, recoloring, vector-native composition).
+The SVG is independent of `Sources/MacParakeet/Resources/parakeet-mark.png` —
+that PNG remains the runtime asset path and source of truth for the shipping
+app. The vector source lives here for design work that PNG can't do (infinite
+scaling, recoloring, vector-native composition).
 
 ## Don'ts (these match `docs/brand-identity.md`)
 
 - No gradients, drop shadows, glows, or "glassmorphism" on the mark.
-- No outlines added to the silhouette.
+- No outlines or strokes added on top of the mark — it's already calligraphic.
 - No rotation or flipping of the mark — gaze direction is intentional.
+- No simplifying the silhouette (e.g. dropping the looped tail). The detail is the brand.
 - No new brand colors introduced ad-hoc — work from the palette.
 - No mark below 16 px (illegible). Prefer 18 px and up.
-- No mixing line + fill in the same composition unless deliberate (they speak in different volumes).
 
 ## Adding to this library
 

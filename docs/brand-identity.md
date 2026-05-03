@@ -43,8 +43,7 @@ recoloring, poster-scale composition).
 | `Assets/AppIcon-1024x1024.png` | 1024×1024 | Runtime source of truth for the parakeet illustration; reference asset for design work |
 | `Sources/MacParakeet/Resources/parakeet-mark.png` | 1024×1024 | Same PNG copied into the SwiftPM runtime bundle so app code can load it via `Bundle.module` |
 | `Sources/MacParakeet/Resources/menubar-icon.png` / `@2x.png` | 18pt / 36px | Hand-tuned smaller variant for the macOS menu bar; not derived from the 1024px source — separate authored asset |
-| `brand-assets/marks/parakeet-line.svg` | vector | Vector trace of the canonical mark, for design work (posters, social, large format). Recolorable via `currentColor`. |
-| `brand-assets/marks/parakeet-fill.svg` | vector | Plump silhouette sibling, for poster-scale and Pop tile work. See `brand-assets/README.md`. |
+| `brand-assets/marks/parakeet-line.svg` | vector | Vector trace of the canonical mark — used everywhere from chrome to Pop tiles. Recolorable via `currentColor`. See `brand-assets/README.md`. |
 
 ### Sizing & Legibility
 
