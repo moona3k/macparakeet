@@ -631,6 +631,7 @@ private struct AssistantTurnView: View {
     let onRegenerate: () -> Void
 
     @State private var hovered = false
+    @State private var copied = false
     @FocusState private var actionFocus: AssistantActionFocus?
 
     private var isEmptyStreaming: Bool { content.isEmpty && isStreaming }
@@ -638,10 +639,11 @@ private struct AssistantTurnView: View {
     /// Actions ride on the assistant turn but they're not part of the read.
     /// Hide while streaming (no copying half-tokens; no regenerating an unfinished
     /// turn) and on empty content. Reveal on hover OR keyboard focus so a tab-only
-    /// user can still reach them.
+    /// user can still reach them. The `copied` hold keeps the row up while the
+    /// green-checkmark confirmation plays out, even if the cursor leaves first.
     private var actionsVisible: Bool {
         guard !isStreaming, !content.isEmpty else { return false }
-        return hovered || actionFocus != nil
+        return hovered || actionFocus != nil || copied
     }
 
     var body: some View {
@@ -688,7 +690,8 @@ private struct AssistantTurnView: View {
                         content: content,
                         showRegenerate: isLast,
                         onRegenerate: onRegenerate,
-                        focus: $actionFocus
+                        focus: $actionFocus,
+                        copied: $copied
                     )
                     .opacity(actionsVisible ? 1 : 0)
                     .allowsHitTesting(actionsVisible)
@@ -723,8 +726,10 @@ private struct AssistantMessageActions: View {
     let showRegenerate: Bool
     let onRegenerate: () -> Void
     @FocusState.Binding var focus: AssistantActionFocus?
+    /// Lifted to the parent so the actions row stays revealed for the full
+    /// confirmation animation even if the cursor leaves the assistant turn.
+    @Binding var copied: Bool
 
-    @State private var copied = false
     @State private var copyHovered = false
     @State private var regenerateHovered = false
     @State private var resetTask: Task<Void, Never>?
