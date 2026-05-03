@@ -16,15 +16,15 @@ running this rollout doesn't have those credentials.
 
 ## Posting order + timing
 
-The right time is **alongside v0.6.0** (the meeting-recording release)
-for compounding momentum — meeting recording is the headline for
-existing users, and the agent reframe is the headline for the new
-audience. Both are interesting in their own right; together they tell
-a fuller story about where MacParakeet is going.
+The right time is **alongside v0.6.0** (meeting recording + optional
+WhisperKit) for compounding momentum — the v0.6 product release is the
+headline for existing users, and the agent reframe is the headline for
+the new audience. Both are interesting in their own right; together
+they tell a fuller story about where MacParakeet is going.
 
 If posting before v0.6.0, lead with the CLI / agent angle and link to
-the `/agents` page + the launch blog post. Avoid pre-announcing
-v0.6.0.
+the `/agents` page + the launch blog post. Avoid pre-announcing v0.6.0
+release details.
 
 Suggested cadence:
 

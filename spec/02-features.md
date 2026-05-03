@@ -1505,9 +1505,9 @@ Prompt library and multi-summary system. Users control how AI processes transcri
 
 ---
 
-## Labs on `main` — Meeting Recording + Multilingual STT
+## v0.6 — Meeting Recording + Multilingual STT
 
-The main-branch Labs scope includes system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional WhisperKit multilingual STT (ADR-021), the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented in source but hidden by `AppFeatures.calendarEnabled = false`. The full Labs backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 feature surface.
+The v0.6 scope includes system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional WhisperKit multilingual STT (ADR-021), the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented in source but hidden by `AppFeatures.calendarEnabled = false`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 feature surface.
 
 Meeting transcription uses the current speech engine captured at recording start. Parakeet remains the default; WhisperKit can be selected before starting a meeting for languages outside Parakeet coverage.
 

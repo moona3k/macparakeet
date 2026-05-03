@@ -184,4 +184,4 @@ Total remaining: ~0.5 engineering days for Phase F polish.
 
 ## Changelog line (when all phases land)
 
-> **Meeting Recording (completed):** Meetings now open with live Transcript and Ask tabs so you can chat with the rolling transcript and use one-tap thinking-partner pills ("What did I miss?", "What's worth pushing back on?", "Action items?") without leaving the panel. Calendar-driven auto-start can remind you before a meeting begins and (optionally) start recording for you. Works with Zoom, Google Meet, Microsoft Teams, and Webex links on your macOS calendar.
+> **Meeting Recording (completed):** Meetings now open with Notes, Transcript, and Ask tabs so you can write meeting notes, chat with the rolling transcript, and use one-tap thinking-partner pills ("What did I miss?", "What's worth pushing back on?", "Action items?") without leaving the panel. Recordings save to the library with local final transcription, export, prompts, chat, and crash recovery. Calendar auto-start/reminder code exists behind `AppFeatures.calendarEnabled = false` and is not part of the v0.6 shipping surface.

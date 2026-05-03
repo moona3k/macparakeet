@@ -867,6 +867,8 @@ CREATE TABLE dictations (
     processingMode  TEXT NOT NULL DEFAULT 'raw', -- 'raw' (v0.1) or 'clean' (v0.2 default via UserDefaults)
     hidden          BOOLEAN NOT NULL DEFAULT 0,  -- private dictation mode (v0.5)
     wordCount       INTEGER NOT NULL DEFAULT 0,  -- cached for voice stats (v0.5)
+    engine          TEXT,                   -- STT engine attribution (v0.8)
+    engineVariant   TEXT,                   -- engine-specific model variant (v0.8)
     status          TEXT NOT NULL DEFAULT 'completed', -- 'recording' | 'processing' | 'completed' | 'error'
     errorMessage    TEXT,                   -- non-null if status == 'error'
     updatedAt       TEXT NOT NULL

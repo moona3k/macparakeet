@@ -23,7 +23,7 @@
 
 **The reframe:** MacParakeet is the canonical Swift-native CLI for Parakeet TDT on Apple Silicon, with a beautiful Mac GUI on top. The CLI is the foundation; the GUI is one (excellent) consumer of it. Apple Silicon AI-agent operators are a real, growing audience that needs exactly this.
 
-**Why now:** OpenClaw (acquired by OpenAI Feb 2026, 350K GitHub stars, 500K running instances) and Hermes Agent (Nous Research, 95K stars in 7 weeks) are exploding. Both deploy as daemons on user-controlled compute (Mac mini, VPS). Both shell out to local CLIs via `AGENTS.md`/`SOUL.md` skill specs. **Voice/STT is the documented gap** in their stacks today — Whisper.cpp is too slow without ANE; OpenAI Whisper API breaks privacy + costs money.
+**Why now:** OpenClaw (acquired by OpenAI Feb 2026, 350K GitHub stars, 500K running instances) and Hermes Agent (Nous Research, 95K stars in 7 weeks) are exploding. Both deploy as daemons on user-controlled compute (Mac mini, VPS). Both shell out to local CLIs via `AGENTS.md`, OpenClaw `SKILL.md` packages, and thin integration READMEs. **Voice/STT is the documented gap** in their stacks today — Whisper.cpp is too slow without ANE; OpenAI Whisper API breaks privacy + costs money.
 
 **The slot is open and winnable.** Nobody is currently sitting in the chair labeled *"canonical Swift-native Parakeet CLI for Apple Silicon, batteries included."* parakeet-mlx (Python) is closest in spirit but structurally weaker (Python deps, no SQLite memory layer, no prompts/diarization). MacParakeet — after the PR #138 CLI work — is structurally there. The remaining gap is **claiming the position deliberately.**
 
@@ -80,7 +80,7 @@ FluidAudio (CoreML/ANE Swift wrapper, public)
   (foundation)       (GUI consumer)
         │
         ├──► AGENTS.md (Hermes / Codex CLI / generic)
-        ├──► SOUL.md (OpenClaw)
+        ├──► SKILL.md / README.md (OpenClaw)
         ├──► brew install (headless install)
         └──► [future] MCP server, more clients
 ```
@@ -150,7 +150,7 @@ Recommend pre-built binary path for distribution speed.
   - Privacy notes (all local, no network unless YouTube/LLM)
   - Error-handling conventions (exit codes, stderr vs stdout)
 - Per-agent thin wrappers in `integrations/`:
-  - `integrations/openclaw/SOUL.md` — points to root AGENTS.md, adds OpenClaw-specific install
+  - `integrations/openclaw/README.md` — points to root AGENTS.md and documents the future OpenClaw SKILL.md package/install path
   - `integrations/hermes/README.md` — Hermes skill registration
   - `integrations/README.md` — landing page for the integration story
 
@@ -178,14 +178,14 @@ Recommend pre-built binary path for distribution speed.
 **Why:** Distribution. The skill registries are how agent users discover integrations.
 
 **What:**
-- PR to `awesome-openclaw-skills` registry — submission with link back to canonical SOUL.md / AGENTS.md
+- PR to `awesome-openclaw-skills` registry — after ClawHub publication, submission with link back to the OpenClaw SKILL.md package / integration README and `AGENTS.md`
 - PR to `awesome-hermes-agent` registry — same
 - Cross-post to:
   - r/LocalLLaMA: "Local Whisper alternative for Mac mini AI agents"
   - Hacker News: "MacParakeet — canonical Parakeet CLI for Apple Silicon agent operators"
   - Nous Research Discord
   - OpenClaw Discord
-- Time these to land alongside v0.6.0 release for compounding momentum
+- Time these to land alongside the v0.6.0 meeting-recording + WhisperKit release for compounding momentum
 
 **Effort:** 0.5 day for the PRs + community posts (excluding response/moderation time)
 
@@ -217,7 +217,7 @@ Items 1-3 are deep work. Items 4-6 are mostly content + light coding. All can be
 ## What's explicitly out of scope (for now)
 
 - **MCP server.** Different niche (Claude Desktop / Cursor users), more effort, no validated demand. Defer until OpenClaw/Hermes integration shows real adoption signal.
-- **Bundle agent integration into v0.6.0 release notes.** v0.6.0 should headline meeting-notepad for current users. Agent integration is a parallel narrative.
+- **Bundle agent integration into v0.6.0 release notes.** v0.6.0 should headline meeting recording and optional WhisperKit for current users. Agent integration is a parallel narrative.
 - **Pivot away from GUI users.** They remain the largest and most loved audience. The reframe is *additive*, not subtractive.
 - **Renaming.** "MacParakeet" stays. CLI stays as `macparakeet-cli`. Brand is good.
 - **Whisper.cpp integration.** Stick with FluidAudio + Parakeet TDT. That's the moat.
@@ -240,7 +240,7 @@ Items 1-3 are deep work. Items 4-6 are mostly content + light coding. All can be
 
 | Phase | When | What |
 |---|---|---|
-| v0.6.0 prep + release | Imminent (separate track) | Meeting-notepad headliner; cut release with usual flow |
+| v0.6.0 prep + release | Imminent (separate track) | Meeting recording + WhisperKit headliner; cut release with usual flow |
 | Item 1 (semver + CHANGELOG) | Can ship before or with v0.6.0 | Doesn't touch app code |
 | Item 2 (brew tap) | Can ship before or with v0.6.0 | Separate repo |
 | Item 3 (AGENTS.md + integrations/) | Can ship before or with v0.6.0 | Pure docs |

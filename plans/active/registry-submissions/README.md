@@ -57,6 +57,7 @@ Once the registry placements have landed, cross-post to:
 - **OpenClaw Discord** — `#showcase` or equivalent
 - **Nous Research Discord** — `#hermes-agent` or equivalent
 
-Time these to land alongside v0.6.0 release for compounding momentum
-(item #6 of the canonical plan). Don't fire community posts before
-the brew tap is live AND the registry placements have been accepted.
+Time these to land alongside the v0.6.0 meeting-recording + WhisperKit
+release for compounding momentum (item #6 of the canonical plan). Don't
+fire community posts before the brew tap is live AND the registry
+placements have been accepted.

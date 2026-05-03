@@ -4,7 +4,7 @@
 
 ## What is MacParakeet?
 
-A **fast, private, local-first voice app** for macOS. The current stable DMG ships system-wide dictation and file/URL transcription. The `main` branch also includes Labs meeting recording and optional local WhisperKit multilingual STT for Korean, Japanese, Chinese, and other languages outside Parakeet's coverage.
+A **fast, private, local-first voice app** for macOS. The v0.6 release ships system-wide dictation, file/URL transcription, meeting recording, and optional local WhisperKit multilingual STT for Korean, Japanese, Chinese, and other languages outside Parakeet's coverage.
 
 **North Star:** Fast, local-first voice app for Mac.
 
@@ -16,15 +16,13 @@ A **fast, private, local-first voice app** for macOS. The current stable DMG shi
 
 | Channel | Agent Assumption | Features |
 |---------|------------------|----------|
-| Stable DMG | User-facing release, recommended for normal use | Dictation, file/video/YouTube transcription, exports, vocabulary, AI features |
-| `main` | Development | Stable features plus Labs meeting recording, optional WhisperKit, and hidden calendar auto-start/reminder code under `AppFeatures.calendarEnabled = false` |
+| Stable DMG | User-facing release, recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, optional WhisperKit, exports, vocabulary, AI features |
+| `main` | Development | v0.6 release scope plus hidden calendar auto-start/reminder code under `AppFeatures.calendarEnabled = false` |
 
-When editing public-facing docs, preserve this release boundary: the current
-stable DMG does not include meeting recording or WhisperKit. Mark them as Labs
-features on `main` until they are cut into a public release. Calendar
-reminders, auto-start, and auto-stop are implemented in source but hidden
-behind `AppFeatures.calendarEnabled = false` pending hands-on end-to-end
-validation.
+When editing public-facing docs, preserve this release boundary: v0.6 includes
+meeting recording and WhisperKit. Calendar reminders, auto-start, and auto-stop
+are implemented in source but hidden behind `AppFeatures.calendarEnabled =
+false` pending hands-on end-to-end validation.
 
 ## Quick Navigation
 
@@ -121,14 +119,14 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**Current main branch** -- Labs meeting recording and optional WhisperKit multilingual STT are implemented on `main` and are not in the current public DMG. Calendar auto-start/reminders are implemented in source but hidden behind `AppFeatures.calendarEnabled = false`.
+**Current main branch** -- v0.6 release scope includes meeting recording and optional WhisperKit multilingual STT. Calendar auto-start/reminders are implemented in source but hidden behind `AppFeatures.calendarEnabled = false`.
 
 - **v0.1** MVP -- System-wide dictation, file transcription, overlay, history, export, SQLite, CLI, STT engine
 - **v0.2** Clean Pipeline -- Text processing (filler removal, custom words, snippets), Vocabulary UI, feedback form
 - **v0.3** YouTube & Export -- YouTube URL transcription, multi-format export (TXT, MD, SRT, VTT, JSON, PDF, DOCX), drag-and-drop enhancements
 - **v0.4** Polish + Launch -- Diarization, custom hotkeys, Sparkle updates, LLM providers, voice stats, distribution
 - **v0.5** Data, UI & Prompts -- Private dictation, multi-conversation chat, favorites, video player, split-pane detail, library grid, prompt library, multi-summary, open-source release
-- **Labs on main** Meeting Recording + Multilingual STT -- ScreenCaptureKit system audio + AVAudioEngine mic capture with VPIO preferred, fragmented MP4 source files + crash recovery (ADR-019), transcript-layer suppression, concurrent with dictation (ADR-015), centralized STT runtime + scheduler (ADR-016), sacred-geometry recording pill + Notes/Transcript/Ask meeting panel, customizable Ask quick prompts, library integration, prompt/result/chat support (ADR-014), live notepad + memo-steered summaries with `{{userNotes}}` template variable + slash commands (ADR-020), plus optional WhisperKit engine support for non-Parakeet languages, persisted speech-engine preference, Whisper language picker/default, CLI `transcribe --engine parakeet|whisper --language`, Whisper model download path, and engine pinning for active meeting sessions and crash recovery (ADR-021)
+- **v0.6** Meeting Recording + Multilingual STT -- ScreenCaptureKit system audio + AVAudioEngine mic capture with VPIO preferred, fragmented MP4 source files + crash recovery (ADR-019), transcript-layer suppression, concurrent with dictation (ADR-015), centralized STT runtime + scheduler (ADR-016), sacred-geometry recording pill + Notes/Transcript/Ask meeting panel, customizable Ask quick prompts, library integration, prompt/result/chat support (ADR-014), live notepad + memo-steered summaries with `{{userNotes}}` template variable + slash commands (ADR-020), plus optional WhisperKit engine support for non-Parakeet languages, persisted speech-engine preference, Whisper language picker/default, CLI `transcribe --engine parakeet|whisper --language`, Whisper model download path, and engine pinning for active meeting sessions and crash recovery (ADR-021)
 - **Calendar auto-start** -- Implemented in code (ADR-017 Phases 1 + 2) but hidden from v0.6 by `AppFeatures.calendarEnabled = false`.
 
 ## Key Patterns
