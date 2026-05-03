@@ -504,8 +504,12 @@ public final class DatabaseManager: Sendable {
             }
         }
 
-        // v0.8 - Live meeting notepad: capture user notes alongside the transcript so
-        // they can steer the post-meeting summary (ADR-020).
+        // v0.8 - Live meeting notepad: capture user notes alongside the
+        // transcript. Surfaced to the user via the transcription detail page,
+        // the `notes.md` sidecar in the meeting session folder, and the chat
+        // path's optional `userNotes` parameter (ADR-020 + 2026-05-02
+        // amendment that reverted the auto-run "Memo-Steered Notes" prompt
+        // but kept the column and the {{userNotes}} template variable).
         migrator.registerMigration("v0.8-meeting-notepad-user-notes") { db in
             try db.alter(table: "transcriptions") { t in
                 t.add(column: "userNotes", .text)

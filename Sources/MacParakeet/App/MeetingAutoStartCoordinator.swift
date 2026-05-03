@@ -343,7 +343,7 @@ final class MeetingAutoStartCoordinator {
         let calendarContext = MeetingCountdownToastViewModel.CalendarContext(
             attendeeCount: event.attendeeCount,
             serviceName: serviceName,
-            steeringHint: "Take notes to shape the summary. ⌘1 jumps to Notes."
+            steeringHint: "Take notes during the meeting. ⌘1 jumps to Notes."
         )
 
         toastController.showAutoStart(

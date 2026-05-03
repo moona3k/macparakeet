@@ -21,7 +21,7 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
         let context = MeetingCountdownToastViewModel.CalendarContext(
             attendeeCount: 4,
             serviceName: "Zoom",
-            steeringHint: "Take notes to shape the summary."
+            steeringHint: "Take notes during the meeting."
         )
         let vm = MeetingCountdownToastViewModel(
             style: .autoStart,
@@ -38,7 +38,7 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
         let context = MeetingCountdownToastViewModel.CalendarContext(
             attendeeCount: 1,
             serviceName: "Google Meet",
-            steeringHint: "Take notes to shape the summary."
+            steeringHint: "Take notes during the meeting."
         )
         let vm = MeetingCountdownToastViewModel(
             style: .autoStart,

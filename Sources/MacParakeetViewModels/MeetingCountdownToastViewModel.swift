@@ -26,7 +26,7 @@ public final class MeetingCountdownToastViewModel {
     public struct CalendarContext: Sendable, Equatable {
         public let attendeeCount: Int
         public let serviceName: String?      // "Zoom", "Google Meet", "Teams"…
-        public let steeringHint: String      // "Take notes to shape the summary. ⌘1 = Notes"
+        public let steeringHint: String      // "Take notes during the meeting. ⌘1 = Notes"
 
         public init(attendeeCount: Int, serviceName: String?, steeringHint: String) {
             self.attendeeCount = attendeeCount

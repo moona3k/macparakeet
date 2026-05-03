@@ -150,8 +150,9 @@ final class AppEnvironmentConfigurer {
             promptRepo: env.promptRepo,
             promptResultRepo: env.promptResultRepo,
             // Without this, `fetchUserNotes` short-circuits to `nil`, which
-            // would silently render `{{userNotes}}` as an empty string and
-            // break the headline ADR-020 memo→summary mechanic.
+            // would silently render `{{userNotes}}` as an empty string in any
+            // user-defined prompt that references it, and feed `nil` userNotes
+            // into the chat path that ADR-020's 2026-05-02 amendment relies on.
             transcriptionRepo: env.transcriptionRepo,
             configStore: env.llmConfigStore
         )

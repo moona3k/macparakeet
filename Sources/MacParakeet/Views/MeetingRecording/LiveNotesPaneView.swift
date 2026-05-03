@@ -116,10 +116,10 @@ struct LiveNotesPaneView: View {
 
     private var placeholder: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Take notes to shape the summary…")
+            Text("Take notes during the meeting…")
                 .font(DesignSystem.Typography.body)
                 .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.7))
-            Text("Anything you type here steers the post-meeting summary. Headings, bullets, scratch — all welcome.")
+            Text("Saved with the recording. Available in Ask. Headings, bullets, scratch — all welcome.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.55))
                 .fixedSize(horizontal: false, vertical: true)
