@@ -46,10 +46,11 @@ is.
 
 The starter / follow-up two-kind split shipped on 2026-05-02 (see Decision §2)
 is collapsed into one library with an `isPinned: Bool` flag. Pinned prompts
-surface as compact pills in the after-response strip (cap = 5); everything
-visible (pinned + unpinned) shows in the empty Ask state and the sparkle
-popover, grouped by `groupLabel`. Pin is the single explicit knob users
-control to move a prompt between the two render surfaces.
+surface as compact pills in the after-response strip; everything visible
+(pinned + unpinned) shows in the empty Ask state and the sparkle popover,
+grouped by `groupLabel`. Pin is the single explicit knob users control to move
+a prompt between the two render surfaces. This amendment initially capped
+pinning at 5; the later same-day amendment above removes that cap.
 
 **Why the second pivot.** The categorical split (`kind = .starter | .followUp`)
 was load-bearing only for placement, not for semantics — both flavors are
@@ -61,13 +62,15 @@ control (the pin icon) that parallels the existing visibility toggle.
 
 **Pin metaphor.** Pin is universally understood (Notion sidebar, Slack
 starred, Linear pinned views, Finder favorites). The pin icon is row-level
-and always visible — filled in pinned, outline elsewhere. When pinning would
-exceed the cap, a swap-picker confirmationDialog opens listing the current
-five pinned; selecting one performs an atomic unpin-then-pin in a single DB
-transaction.
+and always visible — filled in pinned, outline elsewhere. The first
+implementation of this amendment used a cap-overflow swap picker; the later
+same-day amendment above removed that friction once the strip became
+horizontally scrollable.
 
 **What changed concretely.**
-- `QuickPrompt.Kind` removed; `isPinned: Bool` added; `QuickPrompt.pinnedCap = 5`.
+- `QuickPrompt.Kind` removed; `isPinned: Bool` added. The initial
+  `QuickPrompt.pinnedCap = 5` from this amendment was removed by the later
+  same-day amendment above.
 - DB migration `v0.10.1-quick-prompts-pin` adds `isPinned`, derives it
   from `kind == 'follow_up'`, drops the legacy index + `kind` column, and
   creates a new `(isPinned, sortOrder)` index. One-way migration.
@@ -84,7 +87,7 @@ transaction.
 
 The Decision section §2 below describes the v1 (kind-based) shape and is
 preserved for historical context. The current implementation matches this
-amendment.
+amendment plus the later cap-removal amendment above.
 
 ## Amendment (2026-04-24)
 
@@ -291,10 +294,12 @@ For the original Ask shipment: unchanged — no new actors, services, or schema.
 
 For the 2026-05-03 quick-prompt unification (see amendment): adds the
 `v0.10.1-quick-prompts-pin` migration to `DatabaseManager`, replaces
-`QuickPrompt.Kind` with `isPinned: Bool` plus `QuickPrompt.pinnedCap = 5`,
-extends `QuickPromptRepository` with `setPinned`, `swapPin`, `saveAndPin`,
-`fetchPinned`, and bucket-scoped `reorder(ids:pinned:)`, and bumps
-`QuickPromptBundle` schema to v2 with v1 (`kind`-based) decoder fallback.
+`QuickPrompt.Kind` with `isPinned: Bool`, extends `QuickPromptRepository` with
+`setPinned`, `fetchPinned`, and bucket-scoped `reorder(ids:pinned:)`, and
+bumps `QuickPromptBundle` schema to v2 with v1 (`kind`-based) decoder
+fallback. The later same-day cap-removal amendment means there is no
+`pinnedCap`, `swapPin`, `saveAndPin`, cap-exceeded result, or `fetchPinned`
+limit in the current implementation.
 
 ### ViewModels (MacParakeetViewModels)
 

@@ -7,8 +7,8 @@ import GRDB
 /// - **Empty Ask state + sparkle popover** — every visible prompt, grouped by
 ///   `groupLabel` (CATCH UP / CAPTURE / CHALLENGE / unnamed). Full title +
 ///   body preview.
-/// - **After-response strip** — only `isPinned` prompts (cap 5), title-only
-///   pills, in sortOrder.
+/// - **After-response strip** — visible `isPinned` prompts, title-only pills,
+///   in sortOrder. Pinning is unbounded; the strip scrolls horizontally.
 ///
 /// `label` is what the user sees on the chip and in their own message bubble;
 /// `prompt` is the more comprehensive instruction sent to the LLM. Keep them
@@ -253,4 +253,3 @@ extension QuickPrompt {
         ]
     }
 }
-
