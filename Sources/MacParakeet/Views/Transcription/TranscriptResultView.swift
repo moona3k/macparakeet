@@ -436,10 +436,10 @@ struct TranscriptResultView: View {
                         Image(systemName: "arrow.trianglehead.2.clockwise")
                         Text("Retranscribe")
                         if engineOption != nil {
-                            Image(systemName: "chevron.down")
+                            Image(systemName: "chevron.up.chevron.down")
                                 .font(.system(size: 9, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .padding(.leading, 1)
+                                .padding(.leading, 2)
                         }
                     }
                 }
@@ -507,7 +507,7 @@ struct TranscriptResultView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            VStack(spacing: DesignSystem.Spacing.xs + 2) {
+            VStack(spacing: DesignSystem.Spacing.sm) {
                 EngineOptionCard(
                     selection: option.primaryEngine,
                     isPrimary: true,
@@ -2691,7 +2691,7 @@ private struct EngineOptionCard: View {
                     if let unavailableReason, !isAvailable {
                         Text(unavailableReason)
                             .font(DesignSystem.Typography.caption)
-                            .foregroundStyle(DesignSystem.Colors.warningAmber)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
                             .multilineTextAlignment(.leading)
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.top, 1)
@@ -2699,12 +2699,6 @@ private struct EngineOptionCard: View {
                 }
 
                 Spacer(minLength: 0)
-
-                Image(systemName: "arrow.forward")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(DesignSystem.Colors.accent)
-                    .opacity(hovering && isAvailable ? 1 : 0)
-                    .padding(.top, 4)
             }
             .padding(.vertical, DesignSystem.Spacing.sm + 2)
             .padding(.horizontal, DesignSystem.Spacing.sm + 2)
