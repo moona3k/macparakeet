@@ -13,11 +13,6 @@ struct MeetingRecordingTile: View {
     @Bindable var viewModel: MeetingRecordingPillViewModel
     var onTap: () -> Void
 
-    // Press-driven bloom on the Start button's leading glyph. Pure visual
-    // flourish: the action fires immediately; if the tile stays idle after
-    // a denied permission prompt or retryable race, the bloom resets below.
-    @State private var startBloom: Double = 0
-
     var body: some View {
         tileSurface
             .accessibilityElement(children: .contain)
@@ -209,15 +204,16 @@ struct MeetingRecordingTile: View {
     // MARK: - Action Buttons
 
     private var startButton: some View {
-        Button(action: triggerStart) {
-            HStack(spacing: 7) {
-                BloomBudGlyph(progress: startBloom)
-                    .frame(width: 22, height: 22)
+        Button(action: onTap) {
+            HStack(spacing: 6) {
+                Circle()
+                    .fill(DesignSystem.Colors.recordingRed)
+                    .frame(width: 8, height: 8)
                 Text("Start")
                     .font(DesignSystem.Typography.caption.weight(.semibold))
             }
             .foregroundStyle(DesignSystem.Colors.recordingRed)
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(
                 Capsule()
@@ -233,33 +229,17 @@ struct MeetingRecordingTile: View {
         .accessibilityHint("Captures system audio and microphone, then transcribes locally.")
     }
 
-    private func triggerStart() {
-        onTap()
-        withAnimation(.spring(response: 0.4, dampingFraction: 0.55)) {
-            startBloom = 1.0
-        }
-        // If state stayed .idle (permission denied, race, etc.), reset so a
-        // retry press blooms again. The .recording transition tears down
-        // this view so this branch is benign in the happy path.
-        Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(700))
-            withAnimation(.easeOut(duration: 0.25)) {
-                startBloom = 0.0
-            }
-        }
-    }
-
     private var stopButton: some View {
         Button(action: onTap) {
-            HStack(spacing: 7) {
-                RoundedRectangle(cornerRadius: 3)
+            HStack(spacing: 6) {
+                RoundedRectangle(cornerRadius: 2)
                     .fill(.white)
-                    .frame(width: 12, height: 12)
+                    .frame(width: 8, height: 8)
                 Text("Stop")
                     .font(DesignSystem.Typography.caption.weight(.semibold))
                     .foregroundStyle(.white)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 12)
             .padding(.vertical, 7)
             .background(
                 Capsule().fill(DesignSystem.Colors.recordingRed)
@@ -441,62 +421,6 @@ private struct SacredFlowerTile: View {
         withAnimation(.easeInOut(duration: 4).repeatForever(autoreverses: true)) {
             idleBreath = 1
         }
-    }
-}
-
-// MARK: - Start glyph (bud → bloom on press)
-
-/// Leading glyph on the Start button — a miniature flower-of-life
-/// rendered in the recording-red palette. Geometry mirrors the larger
-/// `SacredFlowerTile`: all seven circles are equal in diameter and the
-/// six outer petals' centers sit on the central circle's rim (the
-/// classic Vesica Piscis pattern that makes the rosette read as a
-/// flower).
-///
-/// At rest (`progress` 0) the petals are visible at low opacity and
-/// pulled inward, reading as a dim, closed flower waiting to open. On
-/// press the petals fan out to their full positions and brighten — the
-/// spring-driven transition is what makes the bud "bloom." The tile's
-/// `.idle → .recording` state transition usually tears the button down
-/// before bloom completes; the cut blends into the tile's content swap,
-/// which is the intended choreography.
-private struct BloomBudGlyph: View {
-    var progress: Double
-
-    private let frameSize: CGFloat = 22
-    private let circleSize: CGFloat = 8
-    private let bloomedOffset: CGFloat = 4 // half of circleSize → petals sit on central rim
-
-    // Idle holds a "closed but readable" silhouette: petals at 70% spread
-    // and 50% opacity — clearly a flower, just not fully open. Bloom
-    // interpolates to 100% spread and full opacity.
-    private var spread: CGFloat { 0.7 + 0.3 * CGFloat(progress) }
-    private var petalOpacity: Double { 0.5 + 0.5 * progress }
-    private var ringOpacity: Double { 0.7 + 0.3 * progress }
-
-    var body: some View {
-        ZStack {
-            ForEach(0..<6, id: \.self) { index in
-                let angle = Double(index) * 60.0
-                let radians = angle * .pi / 180
-                let x = CGFloat(cos(radians)) * bloomedOffset * spread
-                let y = CGFloat(sin(radians)) * bloomedOffset * spread
-
-                Circle()
-                    .stroke(DesignSystem.Colors.recordingRed.opacity(petalOpacity), lineWidth: 1.0)
-                    .frame(width: circleSize, height: circleSize)
-                    .offset(x: x, y: y)
-            }
-
-            Circle()
-                .stroke(DesignSystem.Colors.recordingRed.opacity(ringOpacity), lineWidth: 1.0)
-                .frame(width: circleSize, height: circleSize)
-
-            Circle()
-                .fill(DesignSystem.Colors.recordingRed)
-                .frame(width: 3, height: 3)
-        }
-        .frame(width: frameSize, height: frameSize)
     }
 }
 
