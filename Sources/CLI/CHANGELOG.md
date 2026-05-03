@@ -109,6 +109,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   Pinning is unbounded; overflow is handled visually by the strip's
   horizontal scroll with edge-fade affordance.
 - `quick-prompts unpin <id|prefix|label>` — unpin from the strip.
+- Hidden quick prompts cannot stay pinned: `set --hidden` auto-unpins a pinned
+  row, and `pin` auto-shows a hidden row.
 - `quick-prompts list --pinned <true|false>` — filter list by pin state.
 - `quick-prompts export --pinned <true|false>` — filter export by pin state.
 

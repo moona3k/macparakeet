@@ -393,6 +393,9 @@ extension QuickPromptsCommand {
 
                 p.updatedAt = Date()
                 try repo.save(p)
+                if let updated = try repo.fetch(id: p.id) {
+                    p = updated
+                }
 
                 if json {
                     try printJSON(QuickPromptWriteResult(ok: true, prompt: p))

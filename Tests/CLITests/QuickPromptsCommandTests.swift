@@ -251,6 +251,23 @@ final class QuickPromptsCommandTests: XCTestCase {
         XCTAssertEqual(saved["label"] as? String, "Updated")
     }
 
+    func testSetHiddenAutoUnpinsPinnedPrompt() throws {
+        let dbURL = temporaryDatabaseURL()
+        let command = try QuickPromptsCommand.SetSubcommand.parse([
+            "Tell me more",
+            "--hidden",
+            "--database", dbURL.path,
+            "--json",
+        ])
+
+        let output = try captureStandardOutput { try command.run() }
+        let envelope = try decodedJSONObject(output)
+        XCTAssertEqual(envelope["ok"] as? Bool, true)
+        let saved = try XCTUnwrap(envelope["prompt"] as? [String: Any])
+        XCTAssertEqual(saved["isVisible"] as? Bool, false)
+        XCTAssertEqual(saved["isPinned"] as? Bool, false)
+    }
+
     // MARK: - Pin / Unpin
 
     func testUnpinSucceedsOnDefaultBuiltIn() throws {

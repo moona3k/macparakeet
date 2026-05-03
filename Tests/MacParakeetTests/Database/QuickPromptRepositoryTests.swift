@@ -139,13 +139,27 @@ final class QuickPromptRepositoryTests: XCTestCase {
     func testCustomMayCarryGroupLabelEvenWhenPinned() throws {
         var custom = QuickPrompt(label: "Pinned with group", prompt: "body", groupLabel: "REFINE")
         try repo.save(custom)
-        // Pin it via setPinned (drops a default to free a slot first).
-        let firstPinned = try repo.fetchAll().first(where: \.isPinned)!
-        try repo.setPinned(id: firstPinned.id, isPinned: false)
         custom = try XCTUnwrap(try repo.fetch(id: custom.id))
         let result = try repo.setPinned(id: custom.id, isPinned: true)
         XCTAssertEqual(result, .ok)
         XCTAssertEqual(try repo.fetch(id: custom.id)?.groupLabel, "REFINE")
+    }
+
+    func testSaveNormalizesHiddenPinnedToUnpinned() throws {
+        let custom = QuickPrompt(
+            label: "Hidden pinned",
+            prompt: "body",
+            sortOrder: 999,
+            isVisible: false,
+            isPinned: true
+        )
+
+        try repo.save(custom)
+
+        let saved = try XCTUnwrap(try repo.fetch(id: custom.id))
+        XCTAssertFalse(saved.isVisible)
+        XCTAssertFalse(saved.isPinned)
+        XCTAssertFalse(try repo.fetchPinned().contains { $0.id == custom.id })
     }
 
     func testDeleteBuiltInRejected() throws {
@@ -208,7 +222,7 @@ final class QuickPromptRepositoryTests: XCTestCase {
         XCTAssertEqual(unpinnedBefore, unpinnedAfter)
     }
 
-    // MARK: Pin / unpin / cap / swap
+    // MARK: Pin / unpin
 
     func testFetchPinnedReturnsVisiblePinnedOnly() throws {
         let all = try repo.fetchAll().filter(\.isPinned)
@@ -341,6 +355,23 @@ final class QuickPromptRepositoryTests: XCTestCase {
         try repo.restoreBuiltInDefault(id: pinned.id)
 
         XCTAssertEqual(try repo.fetch(id: pinned.id)?.isPinned, true)
+    }
+
+    func testRestoreDefaultKeepsHiddenBuiltInUnpinned() throws {
+        let pinned = try XCTUnwrap(try repo.fetchAll().first(where: \.isPinned))
+        try repo.toggleVisibility(id: pinned.id)
+        var hidden = try XCTUnwrap(try repo.fetch(id: pinned.id))
+        XCTAssertFalse(hidden.isVisible)
+        XCTAssertFalse(hidden.isPinned)
+        hidden.label = "Drifted"
+        try repo.save(hidden)
+
+        try repo.restoreBuiltInDefault(id: pinned.id)
+
+        let restored = try XCTUnwrap(try repo.fetch(id: pinned.id))
+        XCTAssertFalse(restored.isVisible)
+        XCTAssertFalse(restored.isPinned)
+        XCTAssertEqual(restored.label, pinned.label)
     }
 
     // MARK: Import — merge
@@ -487,6 +518,26 @@ final class QuickPromptRepositoryTests: XCTestCase {
         XCTAssertEqual(saved?.isPinned, true, "import should preserve user-controlled built-in pin state")
         XCTAssertTrue(saved?.isBuiltIn ?? false)
         XCTAssertEqual(saved?.label, "Now pinned")
+    }
+
+    func testImportNormalizesHiddenPinnedToUnpinned() throws {
+        let entry = QuickPromptBundle.ExportedQuickPrompt(
+            id: UUID(),
+            label: "Hidden pinned import",
+            prompt: "body",
+            groupLabel: nil,
+            sortOrder: 1,
+            isVisible: false,
+            isPinned: true,
+            isBuiltIn: false
+        )
+        let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [entry])
+
+        _ = try repo.applyImport(bundle, mode: .merge, dryRun: false)
+
+        let saved = try XCTUnwrap(try repo.fetch(id: entry.id))
+        XCTAssertFalse(saved.isVisible)
+        XCTAssertFalse(saved.isPinned)
     }
 
     // MARK: Import — replace

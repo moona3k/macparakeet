@@ -166,7 +166,8 @@ extension QuickPromptBundle {
     /// Conversion from wire entry → domain model. Coerces `isBuiltIn` to `false`
     /// unless the id matches a known seed, defending against forged "built-in"
     /// markers in import files. Pin state remains ordinary user data, even for
-    /// built-ins, so backup/import preserves the user's pinned strip exactly.
+    /// built-ins; repository write normalization only clears it when a row is
+    /// hidden, because hidden+pinned is not a valid state.
     public static func materialize(
         _ entry: ExportedQuickPrompt,
         now: Date = Date()

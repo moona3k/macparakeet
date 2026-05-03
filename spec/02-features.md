@@ -1594,9 +1594,10 @@ Meeting transcription uses the current speech engine captured at recording start
 **Acceptance criteria:**
 - [x] `quick_prompts` table stores rows with `isPinned: Bool`, label, prompt body, optional `groupLabel`, sort order, visibility, and built-in marker (the prior `kind` column was migrated and dropped in `v0.10.1-quick-prompts-pin`)
 - [x] Built-ins are editable, hideable, reorderable, and resettable, but not deletable
-- [x] Reset built-ins restores canonical label/prompt/group/order/pin state, preserving visibility and leaving custom pills untouched
+- [x] Reset built-ins restores canonical label/prompt/group/order and visible-compatible pin state, preserving visibility and leaving custom pills untouched
 - [x] `groupLabel` is valid on every prompt regardless of pin state; whitespace-only group strings collapse to nil on save
 - [x] Pinning is unbounded; the after-response strip is a horizontal `ScrollView` with leading + trailing edge-fade gradient affordance for overflow
+- [x] Hidden rows cannot remain pinned: hiding a pinned row auto-unpins it, pinning a hidden row auto-shows it, and imports/saves normalize hidden+pinned rows to hidden+unpinned
 - [x] Live Ask strip reads `visiblePinned` from `QuickPromptsViewModel`; empty Ask state and sparkle popover read `visiblePromptGroups`, preserving group order by first occurrence with unpinned prompts before pinned-no-group cluster
 - [x] `macparakeet-cli quick-prompts` (v2.0.0) supports list/show/add/set/delete/pin/unpin/restore-defaults/export/import with JSON success/failure envelopes; `--pinned <true|false>` filters list and export
 - [x] Quick-prompt import/export uses stable `schema: "macparakeet.quick_prompts"` and `version: 2`; v1 (`kind`-based) bundles still decode via fallback (`kind == "follow_up"` → `isPinned: true`); duplicate ids and malformed bundles fail with `errorType: "import_schema"`

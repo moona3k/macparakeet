@@ -82,9 +82,10 @@ public protocol QuickPromptRepositoryProtocol: Sendable {
     func seedIfNeeded() throws
 
     /// Rewrites every built-in row back to canonical seed values
-    /// (label / prompt / groupLabel / sortOrder / isPinned). Visibility is
-    /// preserved — "restore default" is about content, not whether the user
-    /// has hidden the pill. Customs are untouched.
+    /// (label / prompt / groupLabel / sortOrder / visible-compatible pin
+    /// state). Visibility is preserved — "restore default" is about content,
+    /// not whether the user has hidden the pill. Hidden rows remain unpinned.
+    /// Customs are untouched.
     func restoreBuiltInDefaults() throws
 
     /// Per-row variant for the "Restore default" affordance on a single
@@ -299,11 +300,19 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
 
     /// Rewrite canonical fields for a single built-in seed. Visibility is
     /// **preserved** — restoring default content shouldn't override an explicit
-    /// hide. Pin state restores to the seed's canonical value (pinning is
-    /// unbounded). If the row is missing entirely, this is a no-op (the
+    /// hide. Pin state restores to the seed's canonical value only when the row
+    /// is visible; hidden rows stay unpinned because hidden+pinned is not a
+    /// valid state. If the row is missing entirely, this is a no-op (the
     /// reconciler will re-insert it on the next `seedIfNeeded()`).
     private func restoreOne(seed: QuickPrompt, db: Database, now: Date) throws {
-        guard try QuickPrompt.fetchOne(db, key: seed.id) != nil else { return }
+        guard let existing = try QuickPrompt.fetchOne(db, key: seed.id) else { return }
+        let restoredPinned = existing.isVisible ? seed.isPinned : false
+        let restoredSortOrder: Int
+        if restoredPinned == seed.isPinned {
+            restoredSortOrder = seed.sortOrder
+        } else {
+            restoredSortOrder = try nextSortOrder(db: db, pinned: false)
+        }
 
         try db.execute(
             sql: """
@@ -315,8 +324,8 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
                 seed.label,
                 seed.prompt,
                 seed.groupLabel,
-                seed.sortOrder,
-                seed.isPinned,
+                restoredSortOrder,
+                restoredPinned,
                 now,
                 seed.id,
             ]
@@ -452,10 +461,12 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     /// - `isBuiltIn` is forced from the canonical UUID set.
     /// - `groupLabel` is trimmed, nil-empty, and snapped to the canonical
     ///   casing of any existing case-insensitive match.
+    /// - hidden rows are forced unpinned; pin is a visible-row sub-state.
     ///
-    /// Pin state is intentionally **not** coerced — even for built-ins. Pin is
-    /// user-controlled; re-coercing here would silently revert a user's manual
-    /// pin or unpin the next time they edited or imported the row.
+    /// Visible-row pin state is intentionally **not** coerced — even for
+    /// built-ins. Pin is user-controlled; re-coercing here would silently
+    /// revert a user's manual pin or unpin the next time they edited or
+    /// imported the row.
     private func normalizedForWrite(_ prompt: QuickPrompt, db: Database) throws -> QuickPrompt {
         var normalized = prompt
         normalized.isBuiltIn = QuickPrompt.builtInPrompt(id: prompt.id) != nil
@@ -481,6 +492,19 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
         } else {
             normalized.groupLabel = nil
         }
+
+        if !normalized.isVisible && normalized.isPinned {
+            normalized.isPinned = false
+            normalized.sortOrder = try nextSortOrder(db: db, pinned: false)
+        }
         return normalized
+    }
+
+    private func nextSortOrder(db: Database, pinned: Bool) throws -> Int {
+        try Int.fetchOne(
+            db,
+            sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = ?",
+            arguments: [pinned ? 1 : 0]
+        ).map { $0 + 1 } ?? 0
     }
 }
