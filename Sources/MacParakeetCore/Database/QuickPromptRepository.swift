@@ -125,8 +125,7 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
 
     public func save(_ prompt: QuickPrompt) throws {
         try dbQueue.write { db in
-            var copy = prompt
-            copy = normalizedForWrite(copy)
+            var copy = try normalizedForWrite(prompt, db: db)
             copy.updatedAt = Date()
             try copy.save(db)
         }
@@ -243,7 +242,7 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
                     return .capExceeded(currentlyPinned: current)
                 }
             }
-            var copy = normalizedForWrite(prompt)
+            var copy = try normalizedForWrite(prompt, db: db)
             copy.isPinned = isPinned
             let bucketFlag = isPinned ? 1 : 0
             let maxSort = try Int.fetchOne(
@@ -419,17 +418,20 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
         dryRun: Bool
     ) throws -> QuickPromptImport.Summary {
         let now = Date()
-        let incoming = bundle.prompts.map {
-            normalizedForWrite(QuickPromptBundle.materialize($0, now: now))
+        let materialized = bundle.prompts.map {
+            QuickPromptBundle.materialize($0, now: now)
         }
         var incomingIDs = Set<UUID>()
-        for entry in incoming {
+        for entry in materialized {
             guard incomingIDs.insert(entry.id).inserted else {
                 throw QuickPromptImportError.duplicateID(entry.id)
             }
         }
 
         return try dbQueue.write { db in
+            // Normalize inside the write block so case-insensitive group
+            // canonicalization sees the freshest existing rows.
+            let incoming = try materialized.map { try normalizedForWrite($0, db: db) }
             let existing = try QuickPrompt.fetchAll(db)
             let existingByID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
             let canonicalSeeds = QuickPrompt.builtInPrompts(now: now)
@@ -516,37 +518,55 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     /// Write a merged row, preserving the existing row's `createdAt` so import
     /// does not reset history. Reserved built-in UUIDs keep their canonical
     /// pin-state and built-in status; custom rows cannot forge that status.
+    /// Caller is responsible for passing a `normalizedForWrite`-normalized entry.
     private func writeMerged(entry: QuickPrompt, existing: QuickPrompt, db: Database, now: Date) throws {
-        var merged = normalizedForWrite(entry)
+        var merged = entry
         merged.createdAt = existing.createdAt
         merged.updatedAt = now
         try merged.save(db)
     }
 
+    /// Caller is responsible for passing a `normalizedForWrite`-normalized entry.
     private func writeNew(entry: QuickPrompt, db: Database, now: Date) throws {
-        var fresh = normalizedForWrite(entry)
+        var fresh = entry
         fresh.createdAt = now
         fresh.updatedAt = now
         try fresh.save(db)
     }
 
-    private func normalizedForWrite(_ prompt: QuickPrompt) -> QuickPrompt {
+    /// Settle every cross-cutting field that should be canonicalized before a
+    /// row hits the DB:
+    /// - `isBuiltIn` is forced from the canonical UUID set.
+    /// - `groupLabel` is trimmed, nil-empty, and snapped to the canonical
+    ///   casing of any existing case-insensitive match.
+    ///
+    /// Pin state is intentionally **not** coerced — even for built-ins. Pin is
+    /// user-controlled; imports that forge a built-in's pin state are clipped
+    /// in `QuickPromptBundle.materialize`, and re-coercing here would silently
+    /// revert a user's manual unpin the next time they edited the row.
+    private func normalizedForWrite(_ prompt: QuickPrompt, db: Database) throws -> QuickPrompt {
         var normalized = prompt
-        if QuickPrompt.builtInPrompt(id: prompt.id) != nil {
-            normalized.isBuiltIn = true
+        normalized.isBuiltIn = QuickPrompt.builtInPrompt(id: prompt.id) != nil
+
+        if let raw = normalized.groupLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !raw.isEmpty {
+            // Case-insensitive match against the rest of the table; if found,
+            // adopt that casing so "capture" and "CAPTURE" don't fork into two
+            // visually-distinct buckets. Excludes the row itself so a user
+            // editing the canonical "CAPTURE" row to "Capture" can rename it.
+            let canonical = try String.fetchOne(
+                db,
+                sql: """
+                    SELECT groupLabel FROM quick_prompts
+                    WHERE id <> ?
+                      AND groupLabel IS NOT NULL
+                      AND LOWER(groupLabel) = LOWER(?)
+                    ORDER BY rowid LIMIT 1
+                    """,
+                arguments: [prompt.id, raw]
+            )
+            normalized.groupLabel = canonical ?? raw
         } else {
-            normalized.isBuiltIn = false
-        }
-        // Note: pin state is user-controlled even on built-ins. Imports that
-        // forge a built-in's pin state are coerced earlier in
-        // `QuickPromptBundle.materialize` so this path can trust whatever it
-        // receives. Re-coercing here would silently revert a user's manual
-        // unpin the next time they edited the row's label.
-        // Empty / whitespace-only group strings collapse to nil so the GUI never
-        // renders an empty capsule and equality checks match canonical seeds
-        // whose groupLabel is genuinely nil.
-        if let trimmed = normalized.groupLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
-           trimmed.isEmpty {
             normalized.groupLabel = nil
         }
         return normalized

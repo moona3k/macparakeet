@@ -108,6 +108,35 @@ final class QuickPromptRepositoryTests: XCTestCase {
         XCTAssertNil(try repo.fetch(id: custom.id)?.groupLabel)
     }
 
+    func testSaveSnapsGroupLabelToExistingCanonicalCasing() throws {
+        // A canonical built-in carries groupLabel "CAPTURE". Saving a custom
+        // with "capture" should snap to the existing casing.
+        let custom = QuickPrompt(label: "Custom catch-up", prompt: "body", groupLabel: "capture")
+        try repo.save(custom)
+        XCTAssertEqual(try repo.fetch(id: custom.id)?.groupLabel, "CAPTURE")
+    }
+
+    func testSaveSnapsGroupLabelCaseInsensitivelyAcrossCustoms() throws {
+        let first = QuickPrompt(label: "Note A", prompt: "body", groupLabel: "Wins")
+        try repo.save(first)
+        let second = QuickPrompt(label: "Note B", prompt: "body", groupLabel: "WINS")
+        try repo.save(second)
+        // First-seen casing wins for both.
+        XCTAssertEqual(try repo.fetch(id: first.id)?.groupLabel, "Wins")
+        XCTAssertEqual(try repo.fetch(id: second.id)?.groupLabel, "Wins")
+    }
+
+    func testSaveAllowsRenamingExistingGroupCasing() throws {
+        // Editing the only row in a group should let the user change its
+        // casing without snapping back to itself.
+        let only = QuickPrompt(label: "Solo", prompt: "body", groupLabel: "Mood")
+        try repo.save(only)
+        var edited = try XCTUnwrap(try repo.fetch(id: only.id))
+        edited.groupLabel = "MOOD"
+        try repo.save(edited)
+        XCTAssertEqual(try repo.fetch(id: only.id)?.groupLabel, "MOOD")
+    }
+
     func testCustomMayCarryGroupLabelEvenWhenPinned() throws {
         var custom = QuickPrompt(label: "Pinned with group", prompt: "body", groupLabel: "REFINE")
         try repo.save(custom)

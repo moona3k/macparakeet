@@ -120,4 +120,23 @@ final class QuickPromptsViewModelTests: XCTestCase {
         let groupCount = viewModel.visiblePromptGroups.flatMap(\.prompts).count
         XCTAssertEqual(groupCount, QuickPrompt.builtInPrompts().count)
     }
+
+    func testVisiblePromptGroupsBucketsCaseInsensitively() throws {
+        // The repo snaps casing on save, so to actually exercise the
+        // view-layer fold we have to bypass save() and inject a row whose
+        // `groupLabel` differs in case from the canonical "CAPTURE" seed.
+        let mismatched = QuickPrompt(
+            label: "Custom",
+            prompt: "body",
+            groupLabel: "Capture"
+        )
+        try manager.dbQueue.write { db in try mismatched.insert(db) }
+        viewModel.refresh()
+
+        let captureGroups = viewModel.visiblePromptGroups.filter {
+            $0.label.lowercased() == "capture"
+        }
+        XCTAssertEqual(captureGroups.count, 1, "Capture and CAPTURE should fold into one group")
+        XCTAssertTrue(captureGroups.first?.prompts.contains { $0.id == mismatched.id } ?? false)
+    }
 }

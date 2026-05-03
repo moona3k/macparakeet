@@ -58,16 +58,29 @@ public final class QuickPromptsViewModel {
     /// member is seen, with unpinned groups before the unnamed pinned cluster
     /// (which falls naturally to the end given pinned prompts seed without a
     /// `groupLabel`).
+    ///
+    /// Bucketing is **case-insensitive** so "capture" and "CAPTURE" merge into
+    /// one group. The first occurrence's casing wins for the displayed label.
+    /// Save-time canonicalization in the repository keeps storage consistent,
+    /// but this view-layer fold is also belt-and-suspenders for any imported
+    /// rows that bypass `normalizedForWrite`.
     public var visiblePromptGroups: [(label: String, prompts: [QuickPrompt])] {
         let visible = allPrompts.filter(\.isVisible)
         var seen: [String] = []
+        var labelByKey: [String: String] = [:]
         var buckets: [String: [QuickPrompt]] = [:]
         for prompt in visible {
-            let key = prompt.groupLabel ?? ""
-            if buckets[key] == nil { seen.append(key) }
+            let displayLabel = prompt.groupLabel ?? ""
+            let key = displayLabel.lowercased()
+            if buckets[key] == nil {
+                seen.append(key)
+                labelByKey[key] = displayLabel
+            }
             buckets[key, default: []].append(prompt)
         }
-        return seen.map { (label: $0, prompts: buckets[$0] ?? []) }
+        return seen.map { key in
+            (label: labelByKey[key] ?? "", prompts: buckets[key] ?? [])
+        }
     }
 
     /// Editor zone — pinned subset (always full subset, including hidden
