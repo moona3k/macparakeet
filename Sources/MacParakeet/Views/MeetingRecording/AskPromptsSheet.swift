@@ -8,8 +8,9 @@ import MacParakeetViewModels
 /// result templates, so we drop auto-run / expand chrome.
 ///
 /// One unified library, two visual zones:
-/// - **PINNED · n/5** — prompts that surface as compact pills in the
-///   after-response strip.
+/// - **PINNED · n** — prompts that surface as compact pills in the
+///   after-response strip (horizontally scrollable with edge-fade overflow,
+///   unbounded).
 /// - **ALL PROMPTS** — everything else; surfaces in the empty Ask state and
 ///   the sparkle popover.
 struct AskPromptsSheet: View {
@@ -36,7 +37,7 @@ struct AskPromptsSheet: View {
 
                     zone(
                         title: "Pinned",
-                        countSuffix: "\(viewModel.pinnedCount)/\(viewModel.pinnedCap)",
+                        countSuffix: "\(viewModel.pinnedCount)",
                         subtitle: "Compact pills shown in the after-response strip. Order here controls strip order.",
                         rows: viewModel.allPinned,
                         pinned: true
@@ -95,26 +96,7 @@ struct AskPromptsSheet: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Built-in prompts return to their default labels, prompt text, group, and pin state when the pinned cap allows. Your custom prompts stay untouched.")
-        }
-        .confirmationDialog(
-            swapDialogTitle,
-            isPresented: Binding(
-                get: { viewModel.swapRequest != nil },
-                set: { if !$0 { viewModel.cancelSwap() } }
-            ),
-            titleVisibility: .visible
-        ) {
-            if let request = viewModel.swapRequest {
-                ForEach(request.currentlyPinned) { victim in
-                    Button(victim.label) {
-                        withAnimation { viewModel.confirmSwap(unpin: victim) }
-                    }
-                }
-                Button("Cancel", role: .cancel) { viewModel.cancelSwap() }
-            }
-        } message: {
-            Text("Pin cap is 5. Tap a currently pinned prompt to unpin it and pin '\(viewModel.swapRequest?.candidate.label ?? "")' in its place.")
+            Text("Built-in prompts return to their default labels, prompt text, group, and pin state. Your custom prompts stay untouched.")
         }
         .sheet(
             isPresented: Binding(
@@ -154,13 +136,6 @@ struct AskPromptsSheet: View {
         // environment). System blue would otherwise leak through against the
         // coral brand.
         .tint(DesignSystem.Colors.accent)
-    }
-
-    private var swapDialogTitle: String {
-        guard let candidate = viewModel.swapRequest?.candidate else {
-            return "Pinned cap reached"
-        }
-        return "Pin '\(candidate.label)' — replace which?"
     }
 
     // MARK: - Header

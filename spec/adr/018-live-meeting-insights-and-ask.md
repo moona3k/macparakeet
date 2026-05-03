@@ -1,8 +1,46 @@
 # ADR-018: Live Meeting Ask Tab
 
-> Status: IMPLEMENTED (Ask half — Insights dropped per 2026-04-24 amendment; quick-prompt model unified per 2026-05-03 amendment)
-> Date: 2026-04-19 (proposed) · Amended 2026-04-24, 2026-05-03 · Implemented 2026-04-24
+> Status: IMPLEMENTED (Ask half — Insights dropped per 2026-04-24 amendment; quick-prompt model unified per 2026-05-03 amendment; pin cap removed per 2026-05-03 amendment)
+> Date: 2026-04-19 (proposed) · Amended 2026-04-24, 2026-05-03, 2026-05-03 · Implemented 2026-04-24
 > Related: ADR-011 (LLM providers), ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-016 (centralized STT runtime), ADR-017 (calendar auto-start)
+
+## Amendment (2026-05-03, later) — Pin cap removed
+
+The `QuickPrompt.pinnedCap = 5` constraint shipped earlier on 2026-05-03 (see
+the prior amendment) is **removed**. Pinning is now unbounded; the
+after-response strip is a horizontal `ScrollView` with a leading + trailing
+edge-fade gradient that makes overflow legible without a visible scrollbar.
+
+**Why the second-second pivot.** The cap's only justification was layout
+("must fit visually without wrapping"). Once we accepted scroll as the
+overflow mechanism, the cap stopped doing work — it persisted only as a
+paternalistic friction surface (the swap-picker `confirmationDialog`) that
+forced curation decisions the user did not ask for. A user who pins 12
+prompts experiences natural feedback (the strip is now slower to scan than
+the sparkle menu) and self-corrects; they do not need a wall.
+
+**What changed concretely.**
+- `QuickPrompt.pinnedCap` constant removed.
+- `QuickPromptRepository`: `swapPin`, `saveAndPin`, and the
+  `SetPinnedResult.capExceeded` case are removed; `setPinned` no longer
+  guards on cap; `fetchPinned` no longer applies a `LIMIT`.
+- `QuickPromptsViewModel`: `swapRequest`, `confirmSwap`, `cancelSwap`, and
+  the `SwapRequest` struct are removed; `togglePin` is now unconditional;
+  `visiblePinned` no longer applies a `prefix(...)` cap.
+- `AskPromptsSheet`: the swap-picker `confirmationDialog` and `n/cap` count
+  display are removed; the header shows just `Pinned · n`.
+- CLI: `QuickPromptCLIError.pinCapExceeded` removed; `add --pin` and `pin`
+  no longer return cap-exceeded errors.
+- View layer: `LiveAskPaneView.followUpRow` keeps its existing
+  `ScrollView(.horizontal)` and gains a `.mask(LinearGradient(...))` with
+  4% leading and trailing transparent stops — invisible when content fits
+  the viewport (overlapping only horizontal padding) and reads as a soft
+  horizon when content overflows.
+
+The 5 pinned built-ins still seed by default, providing a strong "here's
+what's worth pinning" curation signal. Pin remains an explicit user knob;
+nothing has changed about what pinning *means*, only what its upper bound
+is.
 
 ## Amendment (2026-05-03) — Unified quick-prompt model
 

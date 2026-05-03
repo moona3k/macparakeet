@@ -97,8 +97,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   The starter→follow-up boundary maps cleanly:
   `kind == follow-up` ↔ `pinned == true`.
 - `add --kind` is removed; new prompts default to unpinned. Use the new
-  `--pinned` flag on `add` to pin immediately (subject to the cap; rolls back
-  with `errorType: "validation"` if the cap is full).
+  `--pinned` flag on `add` to pin immediately. Pinning is unbounded — the
+  after-response strip is horizontally scrollable.
 - `set --group` is no longer rejected for follow-up prompts. Group labels are
   now valid on every prompt. Existing scripts that relied on this validation
   will silently succeed on what they previously expected to fail.
@@ -106,11 +106,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 ### Added — `quick-prompts`
 
 - `quick-prompts pin <id|prefix|label>` — pin to the after-response strip.
-  Returns `errorType: "validation"` with `pinCapExceeded` semantics if the
-  pinned cap (5) is already reached. The error message lists the currently
-  pinned prompts so the caller can pick one to unpin.
-- `quick-prompts unpin <id|prefix|label>` — unpin from the strip. Always
-  succeeds for an existing row (cap doesn't apply).
+  Pinning is unbounded; overflow is handled visually by the strip's
+  horizontal scroll with edge-fade affordance.
+- `quick-prompts unpin <id|prefix|label>` — unpin from the strip.
 - `quick-prompts list --pinned <true|false>` — filter list by pin state.
 - `quick-prompts export --pinned <true|false>` — filter export by pin state.
 

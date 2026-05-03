@@ -25,7 +25,6 @@ final class QuickPromptRepositoryTests: XCTestCase {
         let unpinned = try repo.fetchAll().filter { !$0.isPinned }
         XCTAssertEqual(unpinned.count, 9)
         XCTAssertEqual(pinned.count, 5)
-        XCTAssertEqual(pinned.count, QuickPrompt.pinnedCap)
     }
 
     func testUnpinnedSeedsHaveGroupLabels() throws {
@@ -201,9 +200,12 @@ final class QuickPromptRepositoryTests: XCTestCase {
         XCTAssertEqual(try repo.fetchPinned().count, all.count - 1)
     }
 
-    func testFetchPinnedCapsVisibleRowsEvenIfDatabaseIsOverCap() throws {
-        let overflow = QuickPrompt(
-            label: "Imported sixth",
+    func testFetchPinnedReturnsAllVisiblePinnedRows() throws {
+        // Pinning is unbounded — fetchPinned returns every visible pinned row,
+        // ordered by sortOrder. Strip overflow is handled by the view-layer
+        // ScrollView's edge-fade affordance, not by truncation.
+        let extra = QuickPrompt(
+            label: "Imported pinned",
             prompt: "body",
             sortOrder: 999,
             isPinned: true
@@ -212,39 +214,34 @@ final class QuickPromptRepositoryTests: XCTestCase {
             exportedAt: Date(),
             appVersion: nil,
             prompts: [
-                QuickPromptBundle.ExportedQuickPrompt(overflow)
+                QuickPromptBundle.ExportedQuickPrompt(extra)
             ]
         )
 
         _ = try repo.applyImport(bundle, mode: .merge, dryRun: false)
 
-        XCTAssertEqual(try repo.fetchAll().filter(\.isPinned).count, QuickPrompt.pinnedCap + 1)
+        let allPinned = try repo.fetchAll().filter(\.isPinned)
         let stripPinned = try repo.fetchPinned()
-        XCTAssertEqual(stripPinned.count, QuickPrompt.pinnedCap)
-        XCTAssertFalse(stripPinned.contains { $0.id == overflow.id })
+        XCTAssertEqual(stripPinned.count, allPinned.count)
+        XCTAssertTrue(stripPinned.contains { $0.id == extra.id })
     }
 
-    func testSetPinnedTogglesUnpinnedToPinnedWhenSlotAvailable() throws {
-        // Free a slot first.
-        let pinned = try repo.fetchAll().first(where: \.isPinned)!
-        try repo.setPinned(id: pinned.id, isPinned: false)
-        XCTAssertEqual(try repo.fetchAll().filter(\.isPinned).count, 4)
-
-        let candidate = try repo.fetchAll().first { !$0.isPinned && !$0.isBuiltIn || $0.id == pinned.id ? false : !$0.isPinned }!
+    func testSetPinnedTogglesUnpinnedToPinned() throws {
+        let candidate = try XCTUnwrap(try repo.fetchAll().first { !$0.isPinned })
         let result = try repo.setPinned(id: candidate.id, isPinned: true)
         XCTAssertEqual(result, .ok)
         XCTAssertEqual(try repo.fetch(id: candidate.id)?.isPinned, true)
     }
 
-    func testSetPinnedReturnsCapExceededAtCap() throws {
-        let custom = QuickPrompt(label: "Sixth", prompt: "body")
-        try repo.save(custom)
-        let result = try repo.setPinned(id: custom.id, isPinned: true)
-        guard case .capExceeded(let current) = result else {
-            return XCTFail("expected .capExceeded, got \(result)")
+    func testSetPinnedAllowsPinningBeyondDefaultSeedCount() throws {
+        // No cap — the strip is unbounded; overflow is handled visually by
+        // the horizontal ScrollView's edge-fade affordance.
+        for i in 0..<20 {
+            let extra = QuickPrompt(label: "Extra\(i)", prompt: "body")
+            try repo.save(extra)
+            XCTAssertEqual(try repo.setPinned(id: extra.id, isPinned: true), .ok)
         }
-        XCTAssertEqual(current.count, QuickPrompt.pinnedCap)
-        XCTAssertEqual(try repo.fetch(id: custom.id)?.isPinned, false, "candidate must remain unpinned on cap-exceed")
+        XCTAssertEqual(try repo.fetchAll().filter(\.isPinned).count, 25)
     }
 
     func testSetPinnedReturnsNotFoundForMissingID() throws {
@@ -255,42 +252,6 @@ final class QuickPromptRepositoryTests: XCTestCase {
     func testSetPinnedToSameStateIsIdempotentNoOp() throws {
         let pinned = try repo.fetchAll().first(where: \.isPinned)!
         let result = try repo.setPinned(id: pinned.id, isPinned: true)
-        XCTAssertEqual(result, .ok)
-        XCTAssertEqual(try repo.fetch(id: pinned.id)?.isPinned, true)
-    }
-
-    func testSwapPinAtomicallyExchangesPinState() throws {
-        let candidate = QuickPrompt(label: "Sixth", prompt: "body")
-        try repo.save(candidate)
-        let victim = try repo.fetchAll().first(where: \.isPinned)!
-
-        let result = try repo.swapPin(unpinID: victim.id, pinID: candidate.id)
-        XCTAssertEqual(result, .ok)
-        XCTAssertEqual(try repo.fetch(id: victim.id)?.isPinned, false)
-        XCTAssertEqual(try repo.fetch(id: candidate.id)?.isPinned, true)
-        XCTAssertEqual(try repo.fetchAll().filter(\.isPinned).count, QuickPrompt.pinnedCap)
-    }
-
-    func testSwapPinReturnsCapExceededWhenUnpinIDIsAlreadyUnpinned() throws {
-        // Caller passes a victim that's not actually pinned. After unpin (a
-        // no-op) the cap is still full, so the pin attempt rolls back.
-        let candidate = QuickPrompt(label: "Sixth", prompt: "body")
-        try repo.save(candidate)
-        let alsoUnpinned = QuickPrompt(label: "Seventh", prompt: "body")
-        try repo.save(alsoUnpinned)
-
-        let result = try repo.swapPin(unpinID: alsoUnpinned.id, pinID: candidate.id)
-        guard case .capExceeded = result else {
-            return XCTFail("expected .capExceeded, got \(result)")
-        }
-        // Both should remain unpinned (transaction rolled back).
-        XCTAssertEqual(try repo.fetch(id: candidate.id)?.isPinned, false)
-        XCTAssertEqual(try repo.fetch(id: alsoUnpinned.id)?.isPinned, false)
-    }
-
-    func testSwapPinSameIDIsNoOp() throws {
-        let pinned = try repo.fetchAll().first(where: \.isPinned)!
-        let result = try repo.swapPin(unpinID: pinned.id, pinID: pinned.id)
         XCTAssertEqual(result, .ok)
         XCTAssertEqual(try repo.fetch(id: pinned.id)?.isPinned, true)
     }
@@ -332,26 +293,6 @@ final class QuickPromptRepositoryTests: XCTestCase {
         try repo.restoreBuiltInDefault(id: pinned.id)
 
         XCTAssertEqual(try repo.fetch(id: pinned.id)?.isPinned, true)
-    }
-
-    func testRestoreSingleDefaultDoesNotExceedPinnedCapWhenSlotWasFilled() throws {
-        let builtIn = try XCTUnwrap(try repo.fetchAll().first(where: \.isPinned))
-        let canonicalLabel = builtIn.label
-        try repo.setPinned(id: builtIn.id, isPinned: false)
-
-        let custom = QuickPrompt(label: "Custom favorite", prompt: "body")
-        XCTAssertEqual(try repo.saveAndPin(custom, isPinned: true), .ok)
-
-        var edited = try XCTUnwrap(try repo.fetch(id: builtIn.id))
-        edited.label = "Drifted"
-        try repo.save(edited)
-
-        try repo.restoreBuiltInDefault(id: builtIn.id)
-
-        let restored = try XCTUnwrap(try repo.fetch(id: builtIn.id))
-        XCTAssertEqual(restored.label, canonicalLabel)
-        XCTAssertEqual(restored.isPinned, false, "restore should not create a 6th pinned row")
-        XCTAssertEqual(try repo.fetchAll().filter(\.isPinned).count, QuickPrompt.pinnedCap)
     }
 
     // MARK: Import — merge

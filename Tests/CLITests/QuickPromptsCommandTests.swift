@@ -98,7 +98,7 @@ final class QuickPromptsCommandTests: XCTestCase {
         let prompts = try decodedJSONArray(output)
         XCTAssertFalse(prompts.isEmpty)
         XCTAssertTrue(prompts.allSatisfy { ($0["isPinned"] as? Bool) == true })
-        XCTAssertEqual(prompts.count, QuickPrompt.pinnedCap)
+        XCTAssertEqual(prompts.count, 5, "default seed pins 5 built-ins")
     }
 
     func testListUnpinnedFilterOnlyReturnsUnpinnedRows() throws {
@@ -167,21 +167,22 @@ final class QuickPromptsCommandTests: XCTestCase {
         XCTAssertNil(prompt["kind"], "v2 model has no kind field")
     }
 
-    func testAddPinnedFailsWhenCapAlreadyMet() throws {
+    func testAddPinnedSucceedsUnbounded() throws {
         let dbURL = temporaryDatabaseURL()
-        // Default seeds already fill the pinned cap, so any --pinned add hits cap.
+        // Pinning is unbounded — adding past the default seed count is allowed.
         let command = try QuickPromptsCommand.AddSubcommand.parse([
-            "--label", "Sixth pinned",
+            "--label", "Extra pinned",
             "--prompt", "body",
             "--pinned",
             "--database", dbURL.path,
             "--json",
         ])
 
-        let output = try captureStandardOutput { try? command.run() }
+        let output = try captureStandardOutput { try command.run() }
         let envelope = try decodedJSONObject(output)
-        XCTAssertEqual(envelope["ok"] as? Bool, false)
-        XCTAssertEqual(envelope["errorType"] as? String, "validation")
+        XCTAssertEqual(envelope["ok"] as? Bool, true)
+        let saved = try XCTUnwrap(envelope["prompt"] as? [String: Any])
+        XCTAssertEqual(saved["isPinned"] as? Bool, true)
     }
 
     // MARK: - Set validation
@@ -267,33 +268,10 @@ final class QuickPromptsCommandTests: XCTestCase {
         XCTAssertEqual(saved["isPinned"] as? Bool, false)
     }
 
-    func testPinReturnsCapExceededWhenDefaultPinnedCapFull() throws {
+    func testPinSucceedsBeyondDefaultPinnedCount() throws {
         let dbURL = temporaryDatabaseURL()
         let db = try DatabaseManager(path: dbURL.path)
         let repo = QuickPromptRepository(dbQueue: db.dbQueue)
-        let candidate = QuickPrompt(label: "Sixth", prompt: "body")
-        try repo.save(candidate)
-
-        let command = try QuickPromptsCommand.PinSubcommand.parse([
-            candidate.id.uuidString,
-            "--database", dbURL.path,
-            "--json",
-        ])
-
-        let output = try captureStandardOutput { try? command.run() }
-        let envelope = try decodedJSONObject(output)
-        XCTAssertEqual(envelope["ok"] as? Bool, false)
-        XCTAssertEqual(envelope["errorType"] as? String, "validation")
-    }
-
-    func testPinSucceedsAfterFreeingASlot() throws {
-        let dbURL = temporaryDatabaseURL()
-        let db = try DatabaseManager(path: dbURL.path)
-        let repo = QuickPromptRepository(dbQueue: db.dbQueue)
-        // Free a slot.
-        let firstPinned = try repo.fetchAll().first(where: \.isPinned)!
-        try repo.setPinned(id: firstPinned.id, isPinned: false)
-
         let candidate = QuickPrompt(label: "Newly pinned", prompt: "body")
         try repo.save(candidate)
 
@@ -340,11 +318,6 @@ final class QuickPromptsCommandTests: XCTestCase {
     func testErrorTypeMapsReadFailedToInputMissing() {
         let err = QuickPromptCLIError.readFailed("/no/such/path", underlying: NSError(domain: "test", code: 1))
         XCTAssertEqual(CLIErrorType.key(for: err), "input_missing")
-    }
-
-    func testErrorTypeMapsPinCapExceededToValidation() {
-        let err = QuickPromptCLIError.pinCapExceeded(label: "X", currentlyPinned: [])
-        XCTAssertEqual(CLIErrorType.key(for: err), "validation")
     }
 
     private func temporaryDatabaseURL() -> URL {

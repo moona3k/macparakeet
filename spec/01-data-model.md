@@ -301,9 +301,9 @@ CREATE INDEX idx_quick_prompts_pinned_sort ON quick_prompts(isPinned, sortOrder)
 
 **Notes:**
 - Built-ins are seeded from `QuickPrompt.builtInPrompts()` by `QuickPromptRepository.seedIfNeeded()` after migrations complete. The reconciler inserts missing built-ins and retires removed built-ins, but never overwrites an existing user's edited row.
-- Built-ins are editable, hideable, reorderable, and resettable. They cannot be deleted. Reset restores canonical label/prompt/group/order and restores pin state when doing so does not exceed `QuickPrompt.pinnedCap`, while preserving visibility.
+- Built-ins are editable, hideable, reorderable, and resettable. They cannot be deleted. Reset restores canonical label/prompt/group/order/pin state, while preserving visibility.
 - Custom rows can be created, edited, reordered, hidden, deleted, exported, and imported.
-- `isPinned` controls the after-response strip; the strip displays the first `QuickPrompt.pinnedCap` visible pinned rows by `sortOrder`, so lossless imports or migrations that contain more pinned rows do not expand the UI.
+- `isPinned` controls the after-response strip; the strip is a horizontal `ScrollView` with edge-fade affordance and renders all visible pinned rows by `sortOrder` — pinning is unbounded.
 - The CLI backup/share format is `QuickPromptBundle` with `schema: "macparakeet.quick_prompts"` and `version: 2`; version 1 bundles still import by mapping `kind == "follow_up"` to `isPinned == true`.
 
 ---

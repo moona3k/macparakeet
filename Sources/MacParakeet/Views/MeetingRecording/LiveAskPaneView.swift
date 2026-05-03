@@ -147,6 +147,24 @@ struct LiveAskPaneView: View {
             .padding(.top, 10)
             .padding(.bottom, 4)
         }
+        // Edge-fade affordance: when pills overflow the strip width, the
+        // trailing edge fades to signal "more available here, scroll" without
+        // a visible scrollbar. When content fits, the fade overlaps only the
+        // horizontal padding (background-only area), so it stays invisible.
+        // 4% on each side ≈ 12-16pt at typical panel widths — subtle enough
+        // not to clip pill edges, strong enough to read as a soft horizon.
+        .mask(
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0),
+                    .init(color: .black, location: 0.04),
+                    .init(color: .black, location: 0.96),
+                    .init(color: .clear, location: 1.0),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+        )
         // Communicate "wait for the current response" — fire() also guards.
         .opacity(viewModel.isStreaming ? 0.45 : 1)
         .allowsHitTesting(!viewModel.isStreaming)

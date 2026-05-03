@@ -8,8 +8,7 @@ import MacParakeetCore
 /// `QuickPromptBundle`).
 ///
 /// Pin status (`isPinned`) controls whether a prompt surfaces in the
-/// after-response strip. Cap is `QuickPrompt.pinnedCap` (5); pinning a 6th
-/// returns a structured cap-exceeded error so callers can react explicitly.
+/// horizontally-scrollable after-response strip. Pinning is unbounded.
 struct QuickPromptsCommand: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "quick-prompts",
@@ -103,7 +102,6 @@ enum QuickPromptCLIError: Error, LocalizedError {
     case writeFailed(String, underlying: Error)
     case importSchemaError(String)
     case importCancelled
-    case pinCapExceeded(label: String, currentlyPinned: [QuickPrompt])
 
     var errorDescription: String? {
         switch self {
@@ -121,9 +119,6 @@ enum QuickPromptCLIError: Error, LocalizedError {
             return "Import schema error: \(message)"
         case .importCancelled:
             return "Import cancelled."
-        case .pinCapExceeded(let label, let currentlyPinned):
-            let names = currentlyPinned.map { "'\($0.label)'" }.joined(separator: ", ")
-            return "Cannot pin '\(label)' — pinned cap (\(QuickPrompt.pinnedCap)) reached. Currently pinned: \(names). Unpin one first or use the GUI's swap picker."
         }
     }
 }
@@ -248,7 +243,7 @@ extension QuickPromptsCommand {
         @Flag(name: .long, help: "Insert as hidden (visibility off).")
         var hidden: Bool = false
 
-        @Flag(name: .long, help: "Pin immediately. Fails with cap-exceeded error if \(QuickPrompt.pinnedCap) prompts are already pinned.")
+        @Flag(name: .long, help: "Pin immediately to the after-response strip.")
         var pinned: Bool = false
 
         @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
@@ -295,8 +290,6 @@ extension QuickPromptsCommand {
                     return trimmed.isEmpty ? nil : trimmed
                 }()
 
-                // sortOrder is recomputed inside `saveAndPin` based on the
-                // target bucket; the value here is a placeholder.
                 var p = QuickPrompt(
                     label: label.trimmingCharacters(in: .whitespacesAndNewlines),
                     prompt: body,
@@ -307,14 +300,11 @@ extension QuickPromptsCommand {
                     isBuiltIn: false
                 )
 
-                switch try repo.saveAndPin(p, isPinned: pinned) {
-                case .ok:
-                    if let updated = try repo.fetch(id: p.id) { p = updated }
-                case .notFound:
-                    break
-                case .capExceeded(let current):
-                    throw QuickPromptCLIError.pinCapExceeded(label: p.label, currentlyPinned: current)
+                try repo.save(p)
+                if pinned {
+                    _ = try repo.setPinned(id: p.id, isPinned: true)
                 }
+                if let updated = try repo.fetch(id: p.id) { p = updated }
 
                 if json {
                     try printJSON(QuickPromptWriteResult(ok: true, prompt: p))
@@ -462,7 +452,7 @@ extension QuickPromptsCommand {
     struct PinSubcommand: ParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "pin",
-            abstract: "Pin a quick prompt to the after-response strip (cap \(QuickPrompt.pinnedCap))."
+            abstract: "Pin a quick prompt to the after-response strip."
         )
 
         @Argument(help: "Quick prompt ID, ID prefix, or label.")
@@ -491,8 +481,6 @@ extension QuickPromptsCommand {
                     }
                 case .notFound:
                     throw CLILookupError.notFound("Quick prompt '\(p.label)' no longer exists.")
-                case .capExceeded(let current):
-                    throw QuickPromptCLIError.pinCapExceeded(label: p.label, currentlyPinned: current)
                 }
             }
         }
@@ -530,9 +518,6 @@ extension QuickPromptsCommand {
                     }
                 case .notFound:
                     throw CLILookupError.notFound("Quick prompt '\(p.label)' no longer exists.")
-                case .capExceeded:
-                    // Unpinning never hits the cap; treat as a hard error.
-                    throw QuickPromptCLIError.deleteFailed(p.label)
                 }
             }
         }

@@ -254,11 +254,3 @@ extension QuickPrompt {
     }
 }
 
-extension QuickPrompt {
-    /// Cap on simultaneously-pinned prompts. Matches the after-response strip's
-    /// visual capacity (5 fits cleanly without wrap on the standard meeting
-    /// panel width). Hard cap at write time; the GUI surfaces a swap-picker
-    /// affordance when the user tries to pin a 6th rather than silently
-    /// disabling the pin button.
-    public static let pinnedCap: Int = 5
-}

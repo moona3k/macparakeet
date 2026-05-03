@@ -1,11 +1,22 @@
 # Unified Quick Prompts — pin-to-strip mechanic
 
-> Status: **ACTIVE** — 2026-05-03
+> Status: **ACTIVE** — 2026-05-03 (cap removed per follow-up amendment, same day)
 > Ship target: **app v0.7.x** (post-v0.7.0)
 > Branch: `feat/unified-quick-prompts`
 > Predecessor: `plans/completed/2026-05-ask-quick-prompts.md` (shipped 2026-05-02)
 > Related: ADR-018 (live meeting Ask), ADR-013 (prompt library — pattern reference), `plans/active/cli-as-canonical-parakeet-surface.md`
 > Touches: `Sources/MacParakeetCore/Models/QuickPrompt.swift`, `Sources/MacParakeetCore/Database/{QuickPromptRepository,DatabaseManager}.swift`, `Sources/MacParakeetCore/Models/QuickPromptBundle.swift`, `Sources/MacParakeetViewModels/QuickPromptsViewModel.swift`, `Sources/MacParakeet/Views/MeetingRecording/{AskPromptsSheet,LiveAskPaneView}.swift`, `Sources/CLI/Commands/QuickPromptsCommand.swift`, `Sources/CLI/CHANGELOG.md`, four test files, ADR-018.
+
+## Pivot — pin cap removed (2026-05-03, second amendment)
+
+The plan below describes a hard `pinnedCap = 5` enforced through a swap-picker
+`confirmationDialog`. **Implementation diverges**: pinning is now unbounded
+and the after-response strip is a horizontal `ScrollView` with edge-fade
+overflow. Code, tests, ADR-018, `spec/01-data-model.md`, and
+`spec/02-features.md` reflect the uncapped shape. The cap-related sections
+below (decision §2, edge cases, AC4, risk #3) are preserved for historical
+context only — they do not match what shipped on this branch. See ADR-018's
+"Pin cap removed" amendment for the full rationale.
 
 ## Overview
 

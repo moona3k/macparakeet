@@ -25,11 +25,6 @@ public final class QuickPromptsViewModel {
     /// otherwise holds the draft fields plus a default pin state.
     public var creating: Draft?
 
-    /// When the user attempts to pin a prompt and the cap is already met,
-    /// this captures the candidate + the current pinned roster so the sheet
-    /// can render a swap picker. Cleared on user choice or dismiss.
-    public var swapRequest: SwapRequest?
-
     public var errorMessage: String?
 
     private var repo: QuickPromptRepositoryProtocol?
@@ -48,18 +43,10 @@ public final class QuickPromptsViewModel {
     // ascending within each bucket. The accessors below trust that order.
 
     /// Visible pinned prompts in pinned-bucket sortOrder. Drives the
-    /// after-response strip.
-    ///
-    /// Hard-capped at `QuickPrompt.pinnedCap` so a stray import / direct DB
-    /// write that bypasses `setPinned`'s cap check never blows out the strip.
-    /// First-N-by-sortOrder wins; overflow rows are filtered out of view but
-    /// remain in `allPinned` so the editor sheet can surface them.
+    /// horizontally-scrollable after-response strip. Pinning is unbounded;
+    /// the strip's edge-fade affordance handles overflow.
     public var visiblePinned: [QuickPrompt] {
-        Array(
-            allPrompts
-                .filter { $0.isVisible && $0.isPinned }
-                .prefix(QuickPrompt.pinnedCap)
-        )
+        allPrompts.filter { $0.isVisible && $0.isPinned }
     }
 
     /// All visible prompts grouped for the empty-state list and sparkle
@@ -104,7 +91,6 @@ public final class QuickPromptsViewModel {
     }
 
     public var pinnedCount: Int { allPrompts.filter(\.isPinned).count }
-    public var pinnedCap: Int { QuickPrompt.pinnedCap }
 
     public func refresh() {
         guard let repo else { return }
@@ -165,8 +151,7 @@ public final class QuickPromptsViewModel {
         }
 
         // New prompts always start unpinned regardless of the draft hint.
-        // Pinning is an explicit follow-up action so users see the cap-aware
-        // swap picker on demand instead of as a creation-time surprise.
+        // Pinning is an explicit follow-up action.
         let nextSortOrder = (allUnpinned.map(\.sortOrder).max() ?? -1) + 1
 
         let group: String? = draft.groupLabel
@@ -232,9 +217,7 @@ public final class QuickPromptsViewModel {
         }
     }
 
-    /// Pin or unpin a prompt. On cap-exceeded, populates `swapRequest` so the
-    /// sheet can render a swap picker; the caller must invoke
-    /// `confirmSwap(unpin:)` (or `cancelSwap()`).
+    /// Pin or unpin a prompt. Pinning is unbounded.
     public func togglePin(_ prompt: QuickPrompt) {
         guard let repo else { return }
         let target = !prompt.isPinned
@@ -245,37 +228,10 @@ public final class QuickPromptsViewModel {
             case .notFound:
                 errorMessage = "Prompt no longer exists."
                 refresh()
-            case .capExceeded(let current):
-                swapRequest = SwapRequest(candidate: prompt, currentlyPinned: current)
             }
         } catch {
             errorMessage = error.localizedDescription
         }
-    }
-
-    public func confirmSwap(unpin victim: QuickPrompt) {
-        guard let repo, let request = swapRequest else { return }
-        do {
-            switch try repo.swapPin(unpinID: victim.id, pinID: request.candidate.id) {
-            case .ok:
-                swapRequest = nil
-                refresh()
-            case .notFound:
-                errorMessage = "Prompt no longer exists."
-                swapRequest = nil
-                refresh()
-            case .capExceeded(let current):
-                // Concurrent state shifted; refresh the picker with the new
-                // roster rather than dropping the user's intent.
-                swapRequest = SwapRequest(candidate: request.candidate, currentlyPinned: current)
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    public func cancelSwap() {
-        swapRequest = nil
     }
 
     public func restoreSingleDefault(_ prompt: QuickPrompt) {
@@ -298,7 +254,7 @@ public final class QuickPromptsViewModel {
         }
     }
 
-    // MARK: - Draft + swap
+    // MARK: - Draft
 
     public struct Draft: Sendable {
         public var label: String
@@ -315,11 +271,6 @@ public final class QuickPromptsViewModel {
             self.groupLabel = groupLabel
             self.isPinned = isPinned
         }
-    }
-
-    public struct SwapRequest: Sendable, Equatable {
-        public let candidate: QuickPrompt
-        public let currentlyPinned: [QuickPrompt]
     }
 }
 

@@ -62,50 +62,20 @@ final class QuickPromptsViewModelTests: XCTestCase {
         let pinned = viewModel.allPinned.first!
         viewModel.togglePin(pinned)
         XCTAssertEqual(try repo.fetch(id: pinned.id)?.isPinned, false)
-        XCTAssertNil(viewModel.swapRequest)
     }
 
-    func testTogglePinAtCapPopulatesSwapRequest() throws {
-        // Add a 6th candidate as a custom unpinned row.
+    func testTogglePinPinsCustomRowUnbounded() throws {
+        // Pinning is unbounded — no swap dialog ever fires. Pinning a
+        // custom row when the strip already has the default seed pinned
+        // succeeds without intervention.
         let candidate = QuickPrompt(label: "Maybe pin me", prompt: "body")
         try repo.save(candidate)
         viewModel.refresh()
 
         viewModel.togglePin(candidate)
 
-        XCTAssertNotNil(viewModel.swapRequest)
-        XCTAssertEqual(viewModel.swapRequest?.candidate.id, candidate.id)
-        XCTAssertEqual(viewModel.swapRequest?.currentlyPinned.count, 5)
-        // Candidate itself is still unpinned — VM only stages the request.
-        XCTAssertEqual(try repo.fetch(id: candidate.id)?.isPinned, false)
-    }
-
-    func testConfirmSwapAtomicallyExchangesPinState() throws {
-        let candidate = QuickPrompt(label: "New favorite", prompt: "body")
-        try repo.save(candidate)
-        viewModel.refresh()
-        viewModel.togglePin(candidate)
-        let victim = try XCTUnwrap(viewModel.swapRequest?.currentlyPinned.first)
-
-        viewModel.confirmSwap(unpin: victim)
-
-        XCTAssertNil(viewModel.swapRequest)
         XCTAssertEqual(try repo.fetch(id: candidate.id)?.isPinned, true)
-        XCTAssertEqual(try repo.fetch(id: victim.id)?.isPinned, false)
-        XCTAssertEqual(viewModel.allPinned.count, 5)
-    }
-
-    func testCancelSwapClearsRequestWithoutMutation() throws {
-        let candidate = QuickPrompt(label: "Maybe", prompt: "body")
-        try repo.save(candidate)
-        viewModel.refresh()
-        viewModel.togglePin(candidate)
-
-        viewModel.cancelSwap()
-
-        XCTAssertNil(viewModel.swapRequest)
-        XCTAssertEqual(try repo.fetch(id: candidate.id)?.isPinned, false)
-        XCTAssertEqual(viewModel.allPinned.count, 5)
+        XCTAssertEqual(viewModel.allPinned.count, 6)
     }
 
     // MARK: - Visibility & grouping
@@ -114,21 +84,6 @@ final class QuickPromptsViewModelTests: XCTestCase {
         let pinned = viewModel.allPinned.first!
         viewModel.toggleVisibility(pinned)
         XCTAssertFalse(viewModel.visiblePinned.contains { $0.id == pinned.id })
-    }
-
-    func testVisiblePinnedCapsRowsEvenIfDatabaseIsOverCap() throws {
-        let overflow = QuickPrompt(
-            label: "Imported sixth",
-            prompt: "body",
-            sortOrder: 999,
-            isPinned: true
-        )
-        try manager.dbQueue.write { db in try overflow.insert(db) }
-        viewModel.refresh()
-
-        XCTAssertEqual(viewModel.allPinned.count, QuickPrompt.pinnedCap + 1)
-        XCTAssertEqual(viewModel.visiblePinned.count, QuickPrompt.pinnedCap)
-        XCTAssertFalse(viewModel.visiblePinned.contains { $0.id == overflow.id })
     }
 
     func testVisiblePromptGroupsIncludesAllVisible() {
