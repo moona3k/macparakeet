@@ -242,21 +242,21 @@ final class QuickPromptBundleTests: XCTestCase {
         XCTAssertTrue(materialized.isBuiltIn)
     }
 
-    func testMaterializeCanonicalizesBuiltInPinState() {
+    func testMaterializePreservesBuiltInPinState() {
         let unpinned = QuickPrompt.builtInPrompts().first { !$0.isPinned }!
         let entry = QuickPromptBundle.ExportedQuickPrompt(
             id: unpinned.id,
             label: "Moved",
-            prompt: "should stay unpinned",
+            prompt: "should preserve imported pin state",
             groupLabel: "CATCH UP",
             sortOrder: 0,
             isVisible: true,
-            isPinned: true, // forged
+            isPinned: true,
             isBuiltIn: true
         )
 
         let materialized = QuickPromptBundle.materialize(entry)
-        XCTAssertEqual(materialized.isPinned, false, "canonical pin state wins for built-ins")
+        XCTAssertEqual(materialized.isPinned, true, "pin state is user data even for built-ins")
         XCTAssertTrue(materialized.isBuiltIn)
     }
 

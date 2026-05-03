@@ -417,18 +417,18 @@ final class QuickPromptRepositoryTests: XCTestCase {
         }
     }
 
-    func testImportCanonicalizesBuiltInPinState() throws {
-        // Take an unpinned built-in; an import claiming it's pinned must NOT
-        // flip its canonical pin state.
+    func testImportPreservesBuiltInPinState() throws {
+        // Take an unpinned built-in; import should preserve pin state because
+        // pinning is user-controlled and backup/restore must be lossless.
         let unpinned = QuickPrompt.builtInPrompts().first { !$0.isPinned }!
         let entry = QuickPromptBundle.ExportedQuickPrompt(
             id: unpinned.id,
-            label: "Still unpinned",
+            label: "Now pinned",
             prompt: "updated body",
             groupLabel: "CATCH UP",
             sortOrder: 99,
             isVisible: true,
-            isPinned: true, // forged
+            isPinned: true,
             isBuiltIn: true
         )
         let bundle = QuickPromptBundle(exportedAt: Date(), appVersion: nil, prompts: [entry])
@@ -436,9 +436,9 @@ final class QuickPromptRepositoryTests: XCTestCase {
         _ = try repo.applyImport(bundle, mode: .merge, dryRun: false)
 
         let saved = try repo.fetch(id: unpinned.id)
-        XCTAssertEqual(saved?.isPinned, false, "canonical pin state wins over import-claimed pin state for built-ins")
+        XCTAssertEqual(saved?.isPinned, true, "import should preserve user-controlled built-in pin state")
         XCTAssertTrue(saved?.isBuiltIn ?? false)
-        XCTAssertEqual(saved?.label, "Still unpinned")
+        XCTAssertEqual(saved?.label, "Now pinned")
     }
 
     // MARK: Import — replace

@@ -403,8 +403,8 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     }
 
     /// Write a merged row, preserving the existing row's `createdAt` so import
-    /// does not reset history. Reserved built-in UUIDs keep their canonical
-    /// pin-state and built-in status; custom rows cannot forge that status.
+    /// does not reset history. Reserved built-in UUIDs keep their built-in
+    /// status; custom rows cannot forge that status.
     /// Caller is responsible for passing a `normalizedForWrite`-normalized entry.
     private func writeMerged(entry: QuickPrompt, existing: QuickPrompt, db: Database, now: Date) throws {
         var merged = entry
@@ -428,9 +428,8 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     ///   casing of any existing case-insensitive match.
     ///
     /// Pin state is intentionally **not** coerced — even for built-ins. Pin is
-    /// user-controlled; imports that forge a built-in's pin state are clipped
-    /// in `QuickPromptBundle.materialize`, and re-coercing here would silently
-    /// revert a user's manual unpin the next time they edited the row.
+    /// user-controlled; re-coercing here would silently revert a user's manual
+    /// pin or unpin the next time they edited or imported the row.
     private func normalizedForWrite(_ prompt: QuickPrompt, db: Database) throws -> QuickPrompt {
         var normalized = prompt
         normalized.isBuiltIn = QuickPrompt.builtInPrompt(id: prompt.id) != nil
@@ -459,4 +458,3 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
         return normalized
     }
 }
-

@@ -165,15 +165,14 @@ extension QuickPromptBundle {
 
     /// Conversion from wire entry → domain model. Coerces `isBuiltIn` to `false`
     /// unless the id matches a known seed, defending against forged "built-in"
-    /// markers in import files. For known built-ins, the canonical pin-state
-    /// also wins — a custom file cannot flip a built-in's pin status.
+    /// markers in import files. Pin state remains ordinary user data, even for
+    /// built-ins, so backup/import preserves the user's pinned strip exactly.
     public static func materialize(
         _ entry: ExportedQuickPrompt,
         now: Date = Date()
     ) -> QuickPrompt {
         let canonical = QuickPrompt.builtInPrompt(id: entry.id, now: now)
         let trustedBuiltIn = entry.isBuiltIn && canonical != nil
-        let resolvedPinned = canonical?.isPinned ?? entry.isPinned
         return QuickPrompt(
             id: entry.id,
             label: entry.label,
@@ -181,7 +180,7 @@ extension QuickPromptBundle {
             groupLabel: entry.groupLabel,
             sortOrder: entry.sortOrder,
             isVisible: entry.isVisible,
-            isPinned: resolvedPinned,
+            isPinned: entry.isPinned,
             isBuiltIn: trustedBuiltIn,
             createdAt: now,
             updatedAt: now
