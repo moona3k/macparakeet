@@ -176,7 +176,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.isTranscribing)
 
         viewModel.cancelTranscription()
-        try await Task.sleep(for: .milliseconds(100))
+        try await waitUntil { !self.viewModel.isTranscribing }
 
         XCTAssertFalse(viewModel.isTranscribing)
         XCTAssertEqual(viewModel.progress, "")
@@ -564,14 +564,12 @@ final class TranscriptionViewModelTests: XCTestCase {
             try? FileManager.default.removeItem(at: supportedURL)
         }
 
-        let unsupportedProvider = NSItemProvider(contentsOf: unsupportedURL)
-        let supportedProvider = NSItemProvider(contentsOf: supportedURL)
-        XCTAssertNotNil(unsupportedProvider)
-        XCTAssertNotNil(supportedProvider)
+        let unsupportedProvider = try XCTUnwrap(NSItemProvider(contentsOf: unsupportedURL))
+        let supportedProvider = try XCTUnwrap(NSItemProvider(contentsOf: supportedURL))
 
         var accepted = false
         let handled = viewModel.handleFileDrop(
-            providers: [unsupportedProvider!, supportedProvider!],
+            providers: [unsupportedProvider, supportedProvider],
             onAccepted: { accepted = true }
         )
         XCTAssertTrue(handled)
