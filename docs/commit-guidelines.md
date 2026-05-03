@@ -37,7 +37,7 @@ Add dictation overlay with waveform visualization
   with recording state indicator, waveform, and cancel button
 - Sources/MacParakeet/Views/Dictation/WaveformView.swift: Real-time audio level waveform using
   AVAudioEngine tap data
-- Sources/MacParakeetCore/Services/DictationService.swift: Added audioLevelPublisher for UI
+- Sources/MacParakeetCore/Services/Dictation/DictationService.swift: Added audioLevelPublisher for UI
 - Tests/MacParakeetTests/DictationServiceTests.swift: Test audio level callback registration
 
 ## Root Intent
@@ -63,7 +63,7 @@ to DictationService so the view can subscribe to audio levels.
 ## Files Changed
 - Sources/MacParakeet/Views/Dictation/DictationOverlayView.swift (+145)
 - Sources/MacParakeet/Views/Dictation/WaveformView.swift (+62)
-- Sources/MacParakeetCore/Services/DictationService.swift (+28, ~12)
+- Sources/MacParakeetCore/Services/Dictation/DictationService.swift (+28, ~12)
 - Tests/MacParakeetTests/DictationServiceTests.swift (+34)
 ```
 
@@ -73,7 +73,7 @@ to DictationService so the view can subscribe to audio levels.
 Fix clipboard not restoring after dictation paste
 
 ## What Changed
-- Sources/MacParakeetCore/Services/DictationService.swift: Save clipboard contents
+- Sources/MacParakeetCore/Services/Dictation/DictationService.swift: Save clipboard contents
   before pasting transcription, restore after CGEvent paste completes
 
 ## Root Intent
@@ -88,7 +88,7 @@ current contents. After the CGEvent Cmd+V is dispatched and a short delay
 (100ms), restore the saved clipboard contents.
 
 ## Files Changed
-- Sources/MacParakeetCore/Services/DictationService.swift (~18)
+- Sources/MacParakeetCore/Services/Dictation/DictationService.swift (~18)
 ```
 
 ## Why This Matters
