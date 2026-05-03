@@ -156,7 +156,7 @@ CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId);
 
 The current branch seeds built-in/community prompts from `Prompt.builtInPrompts()` in Swift. `Sources/MacParakeetCore/Resources/community-prompts.json` exists as a contribution/reference file, but it is not yet the runtime source of truth for prompt seeding.
 
-`Summary` is the classic built-in fallback. `Memo-Steered Notes` is also built in and uses `{{userNotes}}` for meeting recordings. The shipped built-in list is defined in code and currently includes `Memo-Steered Notes`, `Summary`, `Action Items & Decisions`, `Chapter Breakdown`, `Study Guide`, `Blog Post`, and `What Stood Out`.
+`Summary` is the auto-run default and the classic built-in fallback. The shipped built-in list is defined in code and currently includes `Summary`, `Action Items & Decisions`, `Chapter Breakdown`, `Study Guide`, `Blog Post`, and `What Stood Out`. The `PromptTemplateRenderer` still exposes `{{userNotes}}` and `{{transcript}}` for custom prompts that want to thread meeting notes into their output, but no built-in references `{{userNotes}}` today (the "Memo-Steered Notes" built-in was reverted on 2026-05-02; see ADR-020).
 
 ### System Prompt Assembly
 

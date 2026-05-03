@@ -5,14 +5,16 @@ import SwiftUI
 /// Notes tab inside the live meeting panel — the primary "active" surface
 /// during a recording (ADR-020 §1, §2). Plain-text scratchpad that auto-saves
 /// onto the lock file via a 250 ms idle debounce; on finalize, the notes are
-/// persisted onto the Transcription's `userNotes` column where the
-/// "Memo-Steered Notes" prompt can pull them in to shape the summary.
+/// persisted onto the Transcription's `userNotes` column. The "Memo-Steered
+/// Notes" built-in prompt that originally consumed those notes was reverted
+/// on 2026-05-02, but the column persists and the `{{userNotes}}` template
+/// variable remains available for custom prompts.
 ///
 /// "Notes are user-authored only" (ADR-020 §11): the only mutator wired up
 /// here is the user's own keystrokes. There is intentionally no /ask insertion
 /// path or "drop assistant reply into notes" affordance — that invariant is
-/// what lets the summary template treat `{{userNotes}}` as a trustable signal
-/// of what the user actually cares about.
+/// what lets any future summary template treat `{{userNotes}}` as a trustable
+/// signal of what the user actually cares about.
 struct LiveNotesPaneView: View {
     @Bindable var viewModel: MeetingNotesViewModel
     /// Elapsed meeting time, supplied by the parent panel. Used by the

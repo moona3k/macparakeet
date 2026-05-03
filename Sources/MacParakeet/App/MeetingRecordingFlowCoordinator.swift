@@ -304,7 +304,10 @@ final class MeetingRecordingFlowCoordinator {
             // recording service. The service serializes lock-file writes and
             // carries the latest notes into MeetingRecordingOutput.userNotes,
             // where TranscriptionService persists them onto the Transcription
-            // for Memo-Steered Notes summary generation (ADR-020 §8, §10).
+            // (ADR-020 §8, §10). The "Memo-Steered Notes" built-in prompt that
+            // originally consumed these notes was reverted on 2026-05-02; the
+            // notes themselves and the {{userNotes}} template variable remain
+            // available for custom prompts.
             panelVM.notesViewModel.bindPersist { [weak self] notes in
                 await self?.meetingRecordingService.updateNotes(notes)
             }

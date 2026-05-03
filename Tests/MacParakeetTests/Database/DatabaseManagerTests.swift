@@ -138,7 +138,7 @@ final class DatabaseManagerTests: XCTestCase {
             try PromptResult(
                 id: promptResultID,
                 transcriptionId: transcriptionID,
-                promptName: "Memo-Steered Notes",
+                promptName: "Summary",
                 promptContent: "...",
                 content: "Generated summary",
                 userNotesSnapshot: "snapshot of notes at gen time"
@@ -154,8 +154,9 @@ final class DatabaseManagerTests: XCTestCase {
     func testReconcileBuiltInPromptsHonorsAutoRunGuardWhenZeroAutoRun() throws {
         // Seed a v0.7-shaped database where the user has explicitly disabled
         // every auto-run prompt (a valid state per ADR-013). Then run the
-        // current migrator: the new "Memo-Steered Notes" prompt must be
-        // inserted with isAutoRun=false to preserve the user's choice.
+        // current migrator: any built-in whose canonical isAutoRun is `true`
+        // (e.g. "Summary") must be inserted with isAutoRun=false to preserve
+        // the user's choice.
         let tempDir = FileManager.default.temporaryDirectory
         let dbPath = tempDir.appendingPathComponent("autorun_guard_zero_\(UUID().uuidString).db").path
 
@@ -275,15 +276,15 @@ final class DatabaseManagerTests: XCTestCase {
 
         let manager = try DatabaseManager(path: dbPath)
         try manager.dbQueue.read { db in
-            // Memo-Steered Notes was inserted by reconcile (its canonical UUID
-            // wasn't in the DB before). Auto-run guard kicked in: no pre-existing
-            // auto-run row, so the new built-in must be inserted with auto-run
-            // disabled.
+            // "Summary" was inserted by reconcile (its canonical UUID wasn't
+            // in the DB before — the v0.7 migration was marked complete but
+            // skipped). Auto-run guard kicked in: no pre-existing auto-run
+            // row, so the new built-in must be inserted with auto-run disabled.
             let row = try Row.fetchOne(
                 db,
-                sql: "SELECT isAutoRun FROM prompts WHERE name = 'Memo-Steered Notes'"
+                sql: "SELECT isAutoRun FROM prompts WHERE name = 'Summary'"
             )
-            XCTAssertNotNil(row, "Memo-Steered Notes should have been inserted by reconcile")
+            XCTAssertNotNil(row, "Summary should have been inserted by reconcile")
             let isAutoRun = (row?["isAutoRun"] as Int?) ?? 0
             XCTAssertEqual(isAutoRun, 0, "Auto-run guard must preserve zero-auto-run state (ADR-020 §5)")
         }
@@ -293,8 +294,8 @@ final class DatabaseManagerTests: XCTestCase {
 
     func testReconcileBuiltInPromptsHonorsAutoRunGuardWhenAtLeastOneAutoRun() throws {
         // Same shape as the above test, but seed with one existing auto-run
-        // prompt. The new built-in must be inserted with auto-run enabled
-        // (its canonical value) because the guard is satisfied.
+        // prompt. A new built-in whose canonical isAutoRun is `true` must be
+        // inserted with auto-run enabled because the guard is satisfied.
         let tempDir = FileManager.default.temporaryDirectory
         let dbPath = tempDir.appendingPathComponent("autorun_guard_some_\(UUID().uuidString).db").path
 
@@ -405,11 +406,155 @@ final class DatabaseManagerTests: XCTestCase {
         try manager.dbQueue.read { db in
             let row = try Row.fetchOne(
                 db,
-                sql: "SELECT isAutoRun FROM prompts WHERE name = 'Memo-Steered Notes'"
+                sql: "SELECT isAutoRun FROM prompts WHERE name = 'Summary'"
             )
-            XCTAssertNotNil(row, "Memo-Steered Notes should have been inserted by reconcile")
+            XCTAssertNotNil(row, "Summary should have been inserted by reconcile")
             let isAutoRun = (row?["isAutoRun"] as Int?) ?? 0
             XCTAssertEqual(isAutoRun, 1, "Auto-run guard satisfied; new built-in honors canonical isAutoRun=true (ADR-020 §5)")
+        }
+
+        try? FileManager.default.removeItem(atPath: dbPath)
+    }
+
+    func testReconcileRemovesRevertedMemoSteeredNotesPrompt() throws {
+        // ADR-020 (2026-05-02 amendment): the "Memo-Steered Notes" built-in
+        // was reverted. Existing DBs that have its row (from a build that
+        // shipped between 2026-04-25 and 2026-05-02) must have it removed by
+        // the reconciler on next launch. The reconciler's generic
+        // "delete built-ins not in the canonical list" path covers this.
+        let tempDir = FileManager.default.temporaryDirectory
+        let dbPath = tempDir.appendingPathComponent("memo_steered_revert_\(UUID().uuidString).db").path
+
+        let memoSteeredID = "1C5A1B4A-7E2C-4D38-B3EF-5C0F8A7E3E1A"
+
+        let seedQueue = try DatabaseQueue(path: dbPath)
+        try seedQueue.write { db in
+            try db.execute(sql: """
+                CREATE TABLE grdb_migrations (
+                    identifier TEXT NOT NULL PRIMARY KEY
+                )
+            """)
+            for migrationID in prePromptLibraryMigrationIDs + [
+                "v0.7-prompts-and-summaries",
+                "v0.7.1-prompt-default",
+                "v0.7.2-prompt-autorun",
+                "v0.7.3-prompt-autorun-visibility",
+                "v0.7.4-lifetime-dictation-stats",
+                "v0.7.5-meeting-recovery-flag",
+            ] {
+                try db.execute(
+                    sql: "INSERT INTO grdb_migrations (identifier) VALUES (?)",
+                    arguments: [migrationID]
+                )
+            }
+            try db.execute(sql: """
+                CREATE TABLE text_snippets (
+                    id TEXT PRIMARY KEY,
+                    trigger TEXT NOT NULL,
+                    expansion TEXT NOT NULL,
+                    isEnabled INTEGER NOT NULL DEFAULT 1,
+                    useCount INTEGER NOT NULL DEFAULT 0,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL,
+                    action TEXT
+                )
+            """)
+            try db.execute(sql: """
+                CREATE TABLE transcriptions (
+                    id TEXT PRIMARY KEY,
+                    createdAt TEXT NOT NULL,
+                    fileName TEXT NOT NULL,
+                    filePath TEXT,
+                    fileSizeBytes INTEGER,
+                    durationMs INTEGER,
+                    rawTranscript TEXT,
+                    cleanTranscript TEXT,
+                    wordTimestamps TEXT,
+                    language TEXT DEFAULT 'en',
+                    speakerCount INTEGER,
+                    speakers TEXT,
+                    status TEXT NOT NULL DEFAULT 'processing',
+                    errorMessage TEXT,
+                    exportPath TEXT,
+                    updatedAt TEXT NOT NULL,
+                    sourceURL TEXT,
+                    diarizationSegments TEXT,
+                    summary TEXT,
+                    chatMessages TEXT,
+                    thumbnailURL TEXT,
+                    channelName TEXT,
+                    videoDescription TEXT,
+                    isFavorite INTEGER NOT NULL DEFAULT 0,
+                    sourceType TEXT NOT NULL DEFAULT 'file',
+                    recoveredFromCrash INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+            try Self.createV05DictationsTable(db: db)
+            try db.execute(sql: """
+                CREATE TABLE prompts (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    content TEXT NOT NULL,
+                    category TEXT NOT NULL DEFAULT 'summary',
+                    isBuiltIn INTEGER NOT NULL DEFAULT 0,
+                    isVisible INTEGER NOT NULL DEFAULT 1,
+                    isAutoRun INTEGER NOT NULL DEFAULT 0,
+                    sortOrder INTEGER NOT NULL DEFAULT 0,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
+                )
+            """)
+            try db.execute(sql: """
+                CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE)
+            """)
+            try db.execute(sql: """
+                CREATE TABLE summaries (
+                    id TEXT PRIMARY KEY,
+                    transcriptionId TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,
+                    promptName TEXT NOT NULL,
+                    promptContent TEXT NOT NULL,
+                    extraInstructions TEXT,
+                    content TEXT NOT NULL,
+                    createdAt TEXT NOT NULL,
+                    updatedAt TEXT NOT NULL
+                )
+            """)
+            try db.execute(sql: """
+                CREATE INDEX idx_summaries_transcription_id ON summaries(transcriptionId)
+            """)
+            // Pre-seed the Memo-Steered Notes row exactly as a 2026-04-25
+            // build would have written it: canonical UUID, isBuiltIn=1,
+            // isAutoRun=1, sortOrder=0.
+            let now = Date()
+            try db.execute(
+                sql: "INSERT INTO prompts (id, name, content, category, isBuiltIn, isVisible, isAutoRun, sortOrder, createdAt, updatedAt) VALUES (?, ?, ?, ?, 1, 1, 1, 0, ?, ?)",
+                arguments: [memoSteeredID, "Memo-Steered Notes", "old prompt body", "summary", now, now]
+            )
+        }
+
+        let manager = try DatabaseManager(path: dbPath)
+        try manager.dbQueue.read { db in
+            let memoSteeredRow = try Row.fetchOne(
+                db,
+                sql: "SELECT id FROM prompts WHERE id = ?",
+                arguments: [memoSteeredID]
+            )
+            XCTAssertNil(memoSteeredRow, "Reverted Memo-Steered Notes row must be deleted by reconcile")
+
+            let nameRow = try Row.fetchOne(
+                db,
+                sql: "SELECT id FROM prompts WHERE name = 'Memo-Steered Notes'"
+            )
+            XCTAssertNil(nameRow, "No prompt with the Memo-Steered Notes name should remain")
+
+            // Reconciler should have inserted Summary as the new sortOrder=0
+            // built-in.
+            let summaryRow = try Row.fetchOne(
+                db,
+                sql: "SELECT sortOrder FROM prompts WHERE name = 'Summary'"
+            )
+            XCTAssertNotNil(summaryRow, "Summary should be present after reconcile")
+            XCTAssertEqual(summaryRow?["sortOrder"] as Int?, 0, "Summary is now sortOrder=0")
         }
 
         try? FileManager.default.removeItem(atPath: dbPath)

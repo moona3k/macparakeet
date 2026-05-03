@@ -77,33 +77,15 @@ public struct Prompt: Codable, Identifiable, Sendable {
 
     /// Built-in prompt definitions shipped with the app.
     /// `community-prompts.json` is kept in sync as a contribution/reference artifact.
+    ///
+    /// Note: the "Memo-Steered Notes" prompt was reverted on 2026-05-02. Its
+    /// canonical UUID `1C5A1B4A-7E2C-4D38-B3EF-5C0F8A7E3E1A` must not be reused
+    /// for a different prompt — the reconciler deletes any existing row with
+    /// that ID on next launch (because it is no longer in the canonical list),
+    /// and reissuing the UUID would resurrect the prompt on installs that still
+    /// have its row in their DB. See ADR-020 (2026-05-02 amendment).
     public static func builtInPrompts(now: Date = Date()) -> [Prompt] {
         [
-            makeBuiltInPrompt(
-                id: "1C5A1B4A-7E2C-4D38-B3EF-5C0F8A7E3E1A",
-                name: "Memo-Steered Notes",
-                content: """
-                    You are summarizing a meeting. The user took the notes below during the meeting — treat them as the structure and priorities of the summary. Expand each note with supporting detail from the transcript provided. If the user wrote nothing, infer structure from the transcript and produce a clean meeting-notes view.
-
-                    USER NOTES:
-                    {{userNotes}}
-
-                    Output (omit any section that has no real content — don't fabricate to fill structure):
-
-                    **Key Points** — Each user note expanded with supporting detail from the transcript. Stay close to what the user emphasized; don't dilute their priorities.
-
-                    **Action Items** — Concrete commitments. Owner and deadline if stated. Only include items the transcript actually supports.
-
-                    **Decisions** — Anything that was agreed upon, resolved, or settled.
-
-                    **Open Questions** — Unresolved threads worth a follow-up.
-
-                    Be direct. Prefer specifics — names, numbers, exact wording — over generalizations. If the transcript is short, keep the output proportionally brief.
-                    """.replacingOccurrences(of: "                    ", with: ""),
-                isAutoRun: true,
-                sortOrder: 0,
-                now: now
-            ),
             makeBuiltInPrompt(
                 id: "A4882688-E72C-415A-9A5E-1F6AC82DF0D0",
                 name: "Summary",
@@ -121,7 +103,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
                     Be direct. Prefer specifics over generalizations — names, numbers, and concrete details beat vague summaries. If the transcript is short or straightforward, keep the output proportionally brief. Don't pad.
                     """.replacingOccurrences(of: "                    ", with: ""),
                 isAutoRun: true,
-                sortOrder: 1,
+                sortOrder: 0,
                 now: now
             ),
             makeBuiltInPrompt(
@@ -144,7 +126,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
 
                     If the transcript contains no clear actions or decisions, say so plainly — don't invent structure where none exists. Order items by the sequence they appeared.
                     """.replacingOccurrences(of: "                    ", with: ""),
-                sortOrder: 2,
+                sortOrder: 1,
                 now: now
             ),
             makeBuiltInPrompt(
@@ -162,7 +144,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
 
                     If the transcript is a monologue (lecture, presentation, solo recording), organize by topic or argument progression instead of conversational turns.
                     """.replacingOccurrences(of: "                    ", with: ""),
-                sortOrder: 3,
+                sortOrder: 2,
                 now: now
             ),
             makeBuiltInPrompt(
@@ -186,7 +168,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
 
                     Write for someone encountering this material for the first time. Prioritize understanding over completeness.
                     """.replacingOccurrences(of: "                    ", with: ""),
-                sortOrder: 4,
+                sortOrder: 3,
                 now: now
             ),
             makeBuiltInPrompt(
@@ -205,7 +187,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
 
                     Write in a clear, conversational tone. Vary sentence length. Cut filler. If the original conversation wandered or repeated itself, reorganize for the reader's benefit — the post should be tighter than the transcript, not a 1:1 rewrite.
                     """.replacingOccurrences(of: "                    ", with: ""),
-                sortOrder: 5,
+                sortOrder: 4,
                 now: now
             ),
             makeBuiltInPrompt(
@@ -224,7 +206,7 @@ public struct Prompt: Codable, Identifiable, Sendable {
 
                     Be specific and grounded in the text. Every observation should point to a concrete moment in the transcript. If you're speculating, say so.
                     """.replacingOccurrences(of: "                    ", with: ""),
-                sortOrder: 6,
+                sortOrder: 5,
                 now: now
             ),
         ]

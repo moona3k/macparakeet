@@ -26,11 +26,11 @@ final class PromptResultsViewModelTests: XCTestCase {
             promptResultRepo: promptResultRepo
         )
 
-        // 7 built-in prompts as of v0.8 (ADR-020 added "Memo-Steered Notes").
-        XCTAssertEqual(viewModel.visiblePrompts.count, 7)
-        // The new "Memo-Steered Notes" prompt is sortOrder=0 and isAutoRun=true,
-        // so it becomes the auto-selected default when no prior selection exists.
-        XCTAssertEqual(viewModel.selectedPrompt?.name, "Memo-Steered Notes")
+        // 6 built-in prompts after ADR-020's 2026-05-02 amendment reverted
+        // "Memo-Steered Notes". "Summary" is now sortOrder=0 and isAutoRun=true,
+        // so it is the auto-selected default when no prior selection exists.
+        XCTAssertEqual(viewModel.visiblePrompts.count, 6)
+        XCTAssertEqual(viewModel.selectedPrompt?.name, "Summary")
         XCTAssertTrue(viewModel.canGeneratePromptResult)
         XCTAssertTrue(viewModel.canGenerateManualPromptResult)
     }
@@ -288,14 +288,18 @@ final class PromptResultsViewModelTests: XCTestCase {
             )
         )
 
-        let memoSteered = Prompt(
-            name: "Memo-Steered Notes",
+        // Custom prompt that exercises the {{userNotes}} substitution path.
+        // Named generically — the built-in "Memo-Steered Notes" prompt was
+        // reverted (ADR-020 2026-05-02 amendment) but the template renderer
+        // continues to support {{userNotes}} for custom prompts.
+        let notesAwarePrompt = Prompt(
+            name: "Notes-Aware Custom Prompt",
             content: "Notes:\n{{userNotes}}\n---\nProduce structured output.",
             category: .result,
             isBuiltIn: false,
             sortOrder: 0
         )
-        promptRepo.prompts = [memoSteered]
+        promptRepo.prompts = [notesAwarePrompt]
 
         viewModel.configure(
             llmService: llm,
@@ -303,7 +307,7 @@ final class PromptResultsViewModelTests: XCTestCase {
             promptResultRepo: promptResultRepo,
             transcriptionRepo: transcriptionRepo
         )
-        viewModel.selectedPrompt = memoSteered
+        viewModel.selectedPrompt = notesAwarePrompt
         llm.streamTokens = ["done"]
 
         viewModel.generatePromptResult(

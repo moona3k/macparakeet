@@ -20,8 +20,9 @@ final class PromptsViewModelTests: XCTestCase {
 
         viewModel.addPrompt()
 
-        // 7 built-ins (v0.8 added Memo-Steered Notes) + 1 custom = 8.
-        XCTAssertEqual(viewModel.prompts.count, 8)
+        // 6 built-ins after ADR-020's 2026-05-02 revert of Memo-Steered Notes
+        // + 1 custom = 7.
+        XCTAssertEqual(viewModel.prompts.count, 7)
         XCTAssertEqual(viewModel.prompts.last?.name, "Standup Notes")
         XCTAssertFalse(viewModel.prompts.last?.isBuiltIn ?? true)
     }
@@ -32,8 +33,8 @@ final class PromptsViewModelTests: XCTestCase {
 
         viewModel.addPrompt()
 
-        // Rejected; the 7 built-ins remain (no add).
-        XCTAssertEqual(viewModel.prompts.count, 7)
+        // Rejected; the 6 built-ins remain (no add).
+        XCTAssertEqual(viewModel.prompts.count, 6)
         XCTAssertEqual(viewModel.errorMessage, "'summary' already exists")
     }
 

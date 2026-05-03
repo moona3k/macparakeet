@@ -1,9 +1,36 @@
 # ADR-020: Live Meeting Notepad + Memo-Steered Summaries
 
-> Status: Implemented
-> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4) · Amended 2026-05-02 (Notes + Transcript tab badges dropped — all three tabs plain)
+> Status: Partially Implemented (notepad + template plumbing shipped; "Memo-Steered Notes" built-in prompt reverted 2026-05-02)
+> Date: 2026-04-25 (proposed) · Amended 2026-04-25 (post-review) · Implemented 2026-04-25 (Phases 1–4) · Amended 2026-05-02 (Notes + Transcript tab badges dropped — all three tabs plain) · Amended 2026-05-02 ("Memo-Steered Notes" built-in prompt reverted)
 > Related: ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-017 (calendar auto-start), ADR-018 (live meeting Ask tab), ADR-019 (crash-resilient meeting recording)
 > Naming Note (2026-04-28): The persisted table remains `summaries`, but the current Swift names are `PromptResult`, `PromptResultRepository`, and `PromptResultsViewModel`.
+
+## Amendment (2026-05-02, "Memo-Steered Notes" built-in prompt reverted)
+
+The "Memo-Steered Notes" built-in prompt described in §5 has been removed from `Prompt.builtInPrompts()` and `community-prompts.json`. The reconciler's existing "delete built-ins not in the canonical list" path removes the row on next launch for any DB that has it from the 2026-04-25 → 2026-05-02 window. The canonical UUID `1C5A1B4A-7E2C-4D38-B3EF-5C0F8A7E3E1A` is reserved and must not be reused for a different prompt — reissuing it would resurrect the removed prompt on installs that still have its row.
+
+**Why reverted:**
+
+1. **Source leak.** The prompt is a meeting-recording concept but was shipped as a global auto-run built-in with no source scoping in `Prompt`. It fired on YouTube, file, and audio transcriptions where `transcriptions.userNotes` is always `nil` — `{{userNotes}}` substituted to empty string, but the prompt's output template (`Key Points — Each user note expanded with supporting detail...`) explicitly anchors to user notes. The output was structurally pretending notes existed on sources where they couldn't.
+
+2. **Empty-notes case is structurally awkward.** Even on meeting recordings, the median user takes no notes. The prompt's preamble says "If the user wrote nothing, infer structure from the transcript and produce a clean meeting-notes view," but the highlighted output section directly contradicts that ("Each user note expanded..."). The LLM bridges the gap, but the prompt is internally inconsistent in the empty case.
+
+3. **Duplicate auto-run summaries.** Both `Memo-Steered Notes` and `Summary` shipped with `isAutoRun: true`. With notes empty (the median case), users got two transcript-only summaries that overlapped ~80%. With notes filled, they got one note-expanded and one transcript-only — still redundant for most users. The architecture conflated "best summary for meetings with notes" with "summary that everyone always wants."
+
+**What stays:**
+- The Notes tab in the live meeting panel (§1, §2)
+- `transcriptions.userNotes` schema column (§3)
+- Soft length cap (§3, 8,000 words)
+- `PromptTemplateRenderer` with `{{userNotes}}` and `{{transcript}}` (§4) — available for custom prompts
+- `userNotesSnapshot` on `PromptResult` (§6)
+- Slash commands in the Notes pane (§7)
+- Service-routed auto-save (§8) and lock-file extension (§9)
+- Rich pre-meeting countdown toast (§10)
+- The notes invariant: "Notes are user-authored only" (§11)
+
+**What re-introduction looks like:** A future memo-steered prompt should not auto-run as a global default. Two paths are open: (a) add a `Prompt.appliesToSources: [TranscriptionSource]?` field so the prompt only appears on meeting-recording transcriptions; or (b) gate auto-run dispatch on the substitution: if a prompt references `{{userNotes}}` and the transcription's `userNotes` is `nil`/empty, skip auto-run. Path (a) is stronger (also hides from the picker on non-meeting sources); path (b) is smaller. The infrastructure for both is already in place.
+
+**Tests:** `testReconcileRemovesRevertedMemoSteeredNotesPrompt` in `DatabaseManagerTests` pins the deletion behavior — seeds a DB with the canonical UUID row, runs the reconciler, asserts the row is removed and `Summary` is the new sortOrder=0 built-in.
 
 ## Amendment (2026-05-02, all three tab badges dropped)
 
