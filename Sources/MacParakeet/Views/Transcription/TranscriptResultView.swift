@@ -34,16 +34,7 @@ private struct RetranscriptionConfirmation: Identifiable {
     }
 
     var message: String {
-        if let speechEngineOverride {
-            let languageSuffix: String
-            if speechEngineOverride.engine == .whisper {
-                languageSuffix = " Whisper language: \(speechEngineOverride.language ?? "auto-detect")."
-            } else {
-                languageSuffix = ""
-            }
-            return "This reruns the saved audio with \(speechEngineOverride.engine.displayName) for this attempt only.\(languageSuffix) Meeting metadata and Settings stay unchanged. Existing prompt results and chats are preserved, but may no longer match the updated transcript."
-        }
-        return "This replaces the transcript text in place. Existing prompt results and chats are preserved, but may no longer match the updated transcript."
+        "Replaces this transcript. Prompts and chats are preserved."
     }
 }
 
@@ -497,15 +488,9 @@ struct TranscriptResultView: View {
         for option: TranscriptionViewModel.RetranscriptionEngineOption
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text("Retranscribe with")
-                    .font(DesignSystem.Typography.body.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Text("Pick a speech engine for this rerun. Settings stay unchanged.")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+            Text("Retranscribe with")
+                .font(DesignSystem.Typography.body.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
 
             VStack(spacing: DesignSystem.Spacing.sm) {
                 EngineOptionCard(
@@ -527,7 +512,7 @@ struct TranscriptResultView: View {
                 }
             }
 
-            Text("Affects only this rerun. Existing prompt results and chats are preserved.")
+            Text("Replaces this transcript. Prompts and chats are preserved.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -2759,7 +2744,7 @@ private struct EngineOptionCard: View {
         if !isAvailable {
             return unavailableReason ?? "Unavailable for this rerun."
         }
-        return "Reruns this transcription with \(selection.engine.displayName). Settings stay unchanged."
+        return "Reruns this transcription with \(selection.engine.displayName)."
     }
 }
 
