@@ -625,7 +625,7 @@ private struct AssistantTurnView: View {
                         .transition(.opacity)
                 }
             }
-            .frame(width: 28)
+            .frame(width: 22)
 
             if isEmptyStreaming {
                 ThinkingDots()
@@ -770,9 +770,11 @@ private struct ThinkingDots: View {
                     .frame(width: 4, height: 4)
             }
         }
-        // Match the merkaba's 16pt frame so HStack(.top) aligns the two
-        // affordances by their centers, not their tops.
-        .frame(height: 16, alignment: .center)
+        // Match the AssistantHead's 22pt frame so HStack(.top) aligns the two
+        // affordances by their centers, not their tops. If you change the head
+        // size, change this height to match — the contract is "same frame
+        // height as the head, content centered within".
+        .frame(height: 22, alignment: .center)
         .task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .milliseconds(330))
@@ -799,11 +801,11 @@ private struct AssistantHead: View {
                 SpinnerRingView(size: 14, revolutionDuration: 2.0, tintColor: DesignSystem.Colors.accent)
                     .transition(.opacity)
             } else {
-                BreathWaveLogo(size: 28, tint: DesignSystem.Colors.accent, opacity: 1.0)
+                BreathWaveLogo(size: 22, tint: DesignSystem.Colors.accent, opacity: 1.0)
                     .transition(.opacity)
             }
         }
-        .frame(width: 28, height: 28)
+        .frame(width: 22, height: 22)
         .animation(.easeInOut(duration: 0.2), value: isStreaming)
         .accessibilityHidden(true)
     }
