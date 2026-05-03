@@ -204,6 +204,24 @@ final class QuickPromptRepositoryTests: XCTestCase {
         XCTAssertEqual(try repo.fetch(id: unpinned.id)?.isPinned, false)
     }
 
+    func testToggleVisibilityRepairsLegacyHiddenPinnedRowWhenShowing() throws {
+        let legacy = QuickPrompt(
+            label: "Legacy ghost",
+            prompt: "body",
+            isVisible: false,
+            isPinned: true
+        )
+        try manager.dbQueue.write { db in
+            try legacy.insert(db)
+        }
+
+        try repo.toggleVisibility(id: legacy.id)
+
+        let after = try XCTUnwrap(try repo.fetch(id: legacy.id))
+        XCTAssertTrue(after.isVisible)
+        XCTAssertFalse(after.isPinned)
+    }
+
     func testReorderWithinPinnedBucketUpdatesSortOrder() throws {
         var pinned = try repo.fetchAll().filter(\.isPinned).sorted { $0.sortOrder < $1.sortOrder }
         XCTAssertEqual(pinned.count, 5)

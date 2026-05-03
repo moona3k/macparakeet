@@ -171,12 +171,14 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
             // explicit opt-in so re-enabled rows don't silently re-enter the
             // strip without the user's say-so.
             if willHide && prompt.isPinned {
-                let maxUnpinnedSort = try Int.fetchOne(
-                    db,
-                    sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = 0"
-                ) ?? -1
                 prompt.isPinned = false
-                prompt.sortOrder = maxUnpinnedSort + 1
+                prompt.sortOrder = try nextSortOrder(db: db, pinned: false)
+            } else if !willHide && prompt.isPinned {
+                // Repair any legacy/imported hidden+pinned row encountered
+                // before the write-normalization invariant existed. Showing a
+                // hidden row should still land visible+unpinned.
+                prompt.isPinned = false
+                prompt.sortOrder = try nextSortOrder(db: db, pinned: false)
             }
             prompt.updatedAt = Date()
             try prompt.update(db)
@@ -204,20 +206,12 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
                 // Pinning lands the row at the end of the pinned bucket so the
                 // user's recent action is the rightmost pill. Sort within the
                 // bucket can be tweaked via `reorder(ids:pinned:)`.
-                let maxPinnedSort = try Int.fetchOne(
-                    db,
-                    sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = 1"
-                ) ?? -1
-                prompt.sortOrder = maxPinnedSort + 1
+                prompt.sortOrder = try nextSortOrder(db: db, pinned: true)
             } else if !isPinned && prompt.isPinned {
                 // Unpinning lands the row at the end of the unpinned bucket
                 // for the same reason — preserves the "I just touched this"
                 // visual cue in the editor's ALL PROMPTS zone.
-                let maxUnpinnedSort = try Int.fetchOne(
-                    db,
-                    sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = 0"
-                ) ?? -1
-                prompt.sortOrder = maxUnpinnedSort + 1
+                prompt.sortOrder = try nextSortOrder(db: db, pinned: false)
             }
             prompt.isPinned = isPinned
             prompt.updatedAt = Date()
