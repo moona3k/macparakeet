@@ -130,7 +130,6 @@ final class QuickPromptsCommandTests: XCTestCase {
     }
 
     func testAddAcceptsGroupOnAnyPrompt() {
-        // v2: --group is now valid for every prompt, not just starters.
         XCTAssertNoThrow(
             try QuickPromptsCommand.AddSubcommand.parse([
                 "--label", "X", "--prompt", "y", "--group", "REFINE"
@@ -164,7 +163,7 @@ final class QuickPromptsCommandTests: XCTestCase {
         let prompt = try XCTUnwrap(envelope["prompt"] as? [String: Any])
         XCTAssertEqual(prompt["label"] as? String, "ELI5")
         XCTAssertEqual(prompt["isPinned"] as? Bool, false, "new prompts default unpinned")
-        XCTAssertNil(prompt["kind"], "v2 model has no kind field")
+        XCTAssertNil(prompt["kind"], "quick-prompts model has no kind field")
     }
 
     func testAddPinnedSucceedsUnbounded() throws {
@@ -210,7 +209,6 @@ final class QuickPromptsCommandTests: XCTestCase {
     }
 
     func testSetGroupOnPinnedPromptIsAllowed() throws {
-        // v2: --group is no longer rejected on previously-followup prompts.
         let dbURL = temporaryDatabaseURL()
         let command = try QuickPromptsCommand.SetSubcommand.parse([
             "Tell me more",
@@ -308,7 +306,7 @@ final class QuickPromptsCommandTests: XCTestCase {
     // MARK: - Restore-defaults
 
     func testRestoreDefaultsHasNoKindFlag() {
-        // v2 dropped --kind; only --id remains. Parsing --kind should fail.
+        // quick-prompts has no --kind flag; only --id scopes restore-defaults.
         XCTAssertThrowsError(
             try QuickPromptsCommand.RestoreDefaultsSubcommand.parse([
                 "--kind", "starter"

@@ -145,8 +145,8 @@ macparakeet-cli quick-prompts import ask-prompts.json --mode merge --dry-run --j
 ```
 
 The bundle envelope is stable within the CLI major version:
-`schema: "macparakeet.quick_prompts"`, `version: 2`. Version 1 bundles still
-import; `kind: "follow_up"` maps to `isPinned: true`.
+`schema: "macparakeet.quick_prompts"`, `version: 1`. Each prompt carries
+`isPinned: Bool` for after-response strip placement.
 
 ### Inspect meeting recordings
 

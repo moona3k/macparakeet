@@ -7,13 +7,11 @@ import Foundation
 /// Mirrors `VocabularyBundle`'s envelope shape so the two export formats stay
 /// visually similar.
 ///
-/// ## Schema versions
+/// ## Schema
 ///
-/// - **v1** (2026-05-02): each prompt carries `kind: "starter" | "follow_up"`.
-///   Shipped briefly with the original Ask quick-prompts feature.
-/// - **v2** (current): each prompt carries `isPinned: Bool`. Pin replaces
-///   the starter/follow-up distinction entirely. v1 files still decode —
-///   `kind == "follow_up"` maps to `isPinned: true`.
+/// **v1** (2026-05): each prompt carries `isPinned: Bool`. Pin controls
+/// whether the prompt appears in the after-response strip; visible prompts
+/// always appear in the empty Ask state and sparkle popover.
 ///
 /// ## Schema policy (CLI semver contract)
 ///
@@ -24,10 +22,10 @@ import Foundation
 ///
 /// Decoders **must ignore unknown fields** (forward-compat). This is enforced
 /// for free by `Codable`'s default behavior and exercised in
-/// `QuickPromptBundleTests.testForwardCompatIgnoresUnknownFields`.
+/// `QuickPromptBundleTests` at both the envelope and prompt-entry levels.
 public struct QuickPromptBundle: Codable, Sendable, Equatable {
     public static let schemaIdentifier = "macparakeet.quick_prompts"
-    public static let currentVersion = 2
+    public static let currentVersion = 1
 
     public let schema: String
     public let version: Int
@@ -76,46 +74,6 @@ public struct QuickPromptBundle: Codable, Sendable, Equatable {
             self.isPinned = isPinned
             self.isBuiltIn = isBuiltIn
         }
-
-        // MARK: v1 → v2 fallback decoding
-
-        private enum CodingKeys: String, CodingKey {
-            case id, label, prompt, groupLabel, sortOrder, isVisible, isPinned, isBuiltIn, kind
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            self.id = try container.decode(UUID.self, forKey: .id)
-            self.label = try container.decode(String.self, forKey: .label)
-            self.prompt = try container.decode(String.self, forKey: .prompt)
-            self.groupLabel = try container.decodeIfPresent(String.self, forKey: .groupLabel)
-            self.sortOrder = try container.decode(Int.self, forKey: .sortOrder)
-            self.isVisible = try container.decode(Bool.self, forKey: .isVisible)
-            self.isBuiltIn = try container.decode(Bool.self, forKey: .isBuiltIn)
-            // v2: read isPinned directly. v1 fallback: derive from kind.
-            if let pinned = try container.decodeIfPresent(Bool.self, forKey: .isPinned) {
-                self.isPinned = pinned
-            } else if let legacyKind = try container.decodeIfPresent(String.self, forKey: .kind) {
-                self.isPinned = legacyKind == "follow_up"
-            } else {
-                self.isPinned = false
-            }
-        }
-
-        public func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            try container.encode(id, forKey: .id)
-            try container.encode(label, forKey: .label)
-            try container.encode(prompt, forKey: .prompt)
-            try container.encodeIfPresent(groupLabel, forKey: .groupLabel)
-            try container.encode(sortOrder, forKey: .sortOrder)
-            try container.encode(isVisible, forKey: .isVisible)
-            try container.encode(isPinned, forKey: .isPinned)
-            try container.encode(isBuiltIn, forKey: .isBuiltIn)
-            // Note: v2 omits the legacy `kind` field. v1 readers that require
-            // `kind` will fail; v1 readers that don't (the previous codebase)
-            // will continue working since they tolerated unknown fields.
-        }
     }
 }
 
@@ -130,7 +88,7 @@ public enum QuickPromptBundleError: Error, LocalizedError, Equatable {
         case .wrongSchema(let found):
             return "Not a MacParakeet quick-prompts file (schema='\(found)', expected '\(QuickPromptBundle.schemaIdentifier)')."
         case .unsupportedVersion(let found, let supported):
-            return "Unsupported quick-prompts schema version \(found); this build supports up to \(supported)."
+            return "Unsupported quick-prompts schema version \(found); this build supports version \(supported)."
         }
     }
 }
@@ -155,7 +113,7 @@ extension QuickPromptBundle {
         guard schema == Self.schemaIdentifier else {
             throw QuickPromptBundleError.wrongSchema(found: schema)
         }
-        guard version <= Self.currentVersion else {
+        guard version == Self.currentVersion else {
             throw QuickPromptBundleError.unsupportedVersion(
                 found: version,
                 supported: Self.currentVersion

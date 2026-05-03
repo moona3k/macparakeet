@@ -195,9 +195,9 @@ extension QuickPrompt {
     }
 
     /// Default pinned prompts — universal response-shaping moves that show up
-    /// as compact pills in the after-response strip. Five built-in slots fill
-    /// the strip's cap; users can pin/unpin any prompt to swap. SortOrder
-    /// ranges 0-4 (independent of the unpinned bucket).
+    /// as compact pills in the after-response strip. Five built-ins seed a
+    /// useful default strip; users can pin/unpin without a hard cap. SortOrder
+    /// ranges 0-4 for the shipped seeds (independent of the unpinned bucket).
     private static func defaultPinned(now: Date) -> [QuickPrompt] {
         [
             QuickPrompt(

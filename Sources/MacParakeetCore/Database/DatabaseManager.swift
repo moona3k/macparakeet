@@ -562,69 +562,30 @@ public final class DatabaseManager: Sendable {
             }
         }
 
-        // v0.10 — Live meeting Ask tab quick prompts. User-customizable starter
-        // and follow-up pills shown above the chat composer. Built-ins seeded
-        // by the in-app reconciler (`QuickPromptRepository.seedIfNeeded()`),
-        // which is the single source of truth for canonical IDs and runs on
-        // both first launch and every subsequent launch.
+        // v0.10 — Live meeting Ask tab quick prompts. User-customizable Ask
+        // shortcuts with an explicit `isPinned` presentation flag. Built-ins
+        // are seeded by the in-app reconciler
+        // (`QuickPromptRepository.seedIfNeeded()`), which is the single source
+        // of truth for canonical IDs and runs on both first launch and every
+        // subsequent launch.
         migrator.registerMigration("v0.10-quick-prompts") { db in
             try db.create(table: "quick_prompts") { t in
                 t.column("id", .text).primaryKey()
-                t.column("kind", .text).notNull()
                 t.column("label", .text).notNull()
                 t.column("prompt", .text).notNull()
                 t.column("groupLabel", .text)
                 t.column("sortOrder", .integer).notNull().defaults(to: 0)
                 t.column("isVisible", .boolean).notNull().defaults(to: true)
+                t.column("isPinned", .boolean).notNull().defaults(to: false)
                 t.column("isBuiltIn", .boolean).notNull().defaults(to: false)
                 t.column("createdAt", .text).notNull()
                 t.column("updatedAt", .text).notNull()
             }
             try db.create(
-                index: "idx_quick_prompts_kind_sort",
+                index: "idx_quick_prompts_pinned_sort",
                 on: "quick_prompts",
-                columns: ["kind", "sortOrder"]
+                columns: ["isPinned", "sortOrder"]
             )
-        }
-
-        // v0.10.1 — Unify Ask quick prompts: drop the starter/follow-up `kind`
-        // discriminator and replace it with `isPinned`. Pinned prompts surface
-        // as compact pills in the after-response strip; everything visible
-        // (pinned + unpinned) shows in the empty-state grouped layout. Lossless
-        // mapping: kind='follow_up' → isPinned=true.
-        //
-        // SQLite 3.35+ supports `DROP COLUMN`; macOS 14.2 ships 3.41+. The
-        // migration is one-way — older binaries opening a migrated DB will
-        // fail to decode the model. The codebase doesn't support binary
-        // downgrade in general, so this is acceptable.
-        migrator.registerMigration("v0.10.1-quick-prompts-pin") { db in
-            let columns = try db.columns(in: "quick_prompts").map(\.name)
-            if !columns.contains("isPinned") {
-                try db.alter(table: "quick_prompts") { t in
-                    t.add(column: "isPinned", .boolean).notNull().defaults(to: false)
-                }
-            }
-            // Backfill runs whenever `kind` still exists, not only on the
-            // fresh column-add path. Defensive against a partially migrated DB
-            // where `isPinned` is already present but legacy `follow_up` rows
-            // haven't been mapped yet — without this, dropping `kind` below
-            // would silently turn them into unpinned rows.
-            if columns.contains("kind") {
-                try db.execute(
-                    sql: "UPDATE quick_prompts SET isPinned = 1 WHERE kind = ? AND isPinned = 0",
-                    arguments: ["follow_up"]
-                )
-            }
-            try db.execute(sql: "DROP INDEX IF EXISTS idx_quick_prompts_kind_sort")
-            if columns.contains("kind") {
-                try db.alter(table: "quick_prompts") { t in
-                    t.drop(column: "kind")
-                }
-            }
-            try db.execute(sql: """
-                CREATE INDEX IF NOT EXISTS idx_quick_prompts_pinned_sort
-                ON quick_prompts(isPinned, sortOrder)
-                """)
         }
 
         try migrator.migrate(dbQueue)

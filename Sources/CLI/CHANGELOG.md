@@ -79,56 +79,27 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
-> Bumps to **2.0.0** — breaking changes to `quick-prompts`. The starter/follow-up
-> distinction is dropped in favor of a single `isPinned` flag; pinning a prompt
-> surfaces it as a quick pill in the after-response strip.
-
-### Breaking — `quick-prompts`
-
-- The `kind` field is removed from `QuickPrompt` JSON output everywhere it
-  used to appear (`list --json`, `show --json`, `add --json`, `set --json`,
-  `pin --json`, `unpin --json`). Replaced by `isPinned: Bool`. (`restore-defaults
-  --json` is unaffected — it returns `{ok}` / `{ok,id,label}`, not a
-  `QuickPrompt` payload.)
-- `--kind <starter|follow-up>` flag is removed from `list`, `add`, `export`,
-  and `restore-defaults`. Use `--pinned <true|false>` to filter `list` and
-  `export` by pin state; use `add --pinned` to create a pinned custom prompt.
-  `restore-defaults` now restores all built-ins or one built-in via `--id`.
-  The starter→follow-up boundary maps cleanly:
-  `kind == follow-up` ↔ `pinned == true`.
-- `add --kind` is removed; new prompts default to unpinned. Use the new
-  `--pinned` flag on `add` to pin immediately. Pinning is unbounded — the
-  after-response strip is horizontally scrollable.
-- `set --group` is no longer rejected for follow-up prompts. Group labels are
-  now valid on every prompt. Existing scripts that relied on this validation
-  will silently succeed on what they previously expected to fail.
-
 ### Added — `quick-prompts`
 
+- `quick-prompts` manages live meeting Ask tab shortcuts: `list`, `show`,
+  `add`, `set`, `delete`, `pin`, `unpin`, `restore-defaults`, `export`, and
+  `import`.
 - `quick-prompts pin <id|prefix|label>` — pin to the after-response strip.
   Pinning is unbounded; overflow is handled visually by the strip's
   horizontal scroll with edge-fade affordance.
 - `quick-prompts unpin <id|prefix|label>` — unpin from the strip.
+- `quick-prompts add --pinned` — create a custom prompt already pinned.
+- Group labels are valid on every prompt; they control empty-state and
+  sparkle-menu grouping only.
 - Hidden quick prompts cannot stay pinned: `set --hidden` auto-unpins a pinned
   row, and `pin` auto-shows a hidden row.
 - `quick-prompts list --pinned <true|false>` — filter list by pin state.
 - `quick-prompts export --pinned <true|false>` — filter export by pin state.
+- Quick-prompt import/export uses bundle schema **v1**
+  (`macparakeet.quick_prompts/1`) with `isPinned: Bool` per prompt. There is
+  no `kind` bundle schema because this surface has not shipped publicly yet.
 
-### Bundle schema
-
-- Bumped to **v2** (`macparakeet.quick_prompts/2`). v2 emits `isPinned: Bool`
-  per prompt instead of `kind: "starter"|"follow_up"`. Decoder accepts v1
-  files transparently — `kind == "follow_up"` maps to `isPinned: true`. v1
-  files are still round-trippable on the import side; export always emits v2.
-- v1 → v2 migration is automatic and lossless on the codebase side; no manual
-  re-export of saved bundles is required.
-
-### CLI surface stays at this MAJOR for `prompts`, `transcribe`, etc.
-
-Only `quick-prompts` and the `QuickPromptBundle` schema change in 2.0.0.
-Other subcommands are untouched and remain backward-compatible with 1.x.
-
-### Added (also in 1.x prior to 2.0.0)
+### Added
 
 - `import_schema` `errorType` value for malformed quick-prompts import files
   (e.g. wrong `schema`, unsupported `version`, JSON parse failure).

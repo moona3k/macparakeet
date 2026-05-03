@@ -173,12 +173,6 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
             if willHide && prompt.isPinned {
                 prompt.isPinned = false
                 prompt.sortOrder = try nextSortOrder(db: db, pinned: false)
-            } else if !willHide && prompt.isPinned {
-                // Repair any legacy/imported hidden+pinned row encountered
-                // before the write-normalization invariant existed. Showing a
-                // hidden row should still land visible+unpinned.
-                prompt.isPinned = false
-                prompt.sortOrder = try nextSortOrder(db: db, pinned: false)
             }
             prompt.updatedAt = Date()
             try prompt.update(db)

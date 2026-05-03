@@ -44,8 +44,8 @@ is.
 
 ## Amendment (2026-05-03) — Unified quick-prompt model
 
-The starter / follow-up two-kind split shipped on 2026-05-02 (see Decision §2)
-is collapsed into one library with an `isPinned: Bool` flag. Pinned prompts
+The starter / follow-up two-kind split implemented during prerelease work (see
+Decision §2) is collapsed into one library with an `isPinned: Bool` flag. Pinned prompts
 surface as compact pills in the after-response strip; everything visible
 (pinned + unpinned) shows in the empty Ask state and the sparkle popover,
 grouped by `groupLabel`. Pin is the single explicit knob users control to move
@@ -71,21 +71,20 @@ horizontally scrollable.
 - `QuickPrompt.Kind` removed; `isPinned: Bool` added. The initial
   `QuickPrompt.pinnedCap = 5` from this amendment was removed by the later
   same-day amendment above.
-- DB migration `v0.10.1-quick-prompts-pin` adds `isPinned`, derives it
-  from `kind == 'follow_up'`, drops the legacy index + `kind` column, and
-  creates a new `(isPinned, sortOrder)` index. One-way migration.
-- `QuickPromptBundle` schema bumped to v2 (`isPinned: Bool` per prompt).
-  v1 files still decode — `kind == "follow_up"` maps to `isPinned: true`.
-- CLI bumped to 2.0.0 with breaking changes: `--kind` removed from `list /
-  add / export / restore-defaults`; `--pinned <true|false>` filters added
-  to `list` and `export`; `add --pinned` added for immediate pinning; new
-  `pin` and `unpin` subcommands added; the `kind` JSON field is gone.
+- The final prerelease `quick_prompts` table schema stores `isPinned`
+  directly and indexes `(isPinned, sortOrder)`.
+- `QuickPromptBundle` schema v1 carries `isPinned: Bool` per prompt. No
+  `kind` bundle decoder is retained because quick prompts have not shipped
+  publicly yet.
+- CLI quick-prompts commands expose the unified model: `--pinned <true|false>`
+  filters `list` and `export`; `add --pinned` creates pinned rows; `pin` and
+  `unpin` toggle strip placement. There is no `--kind` quick-prompts surface.
 - `groupLabel` is now valid on every prompt (was previously starter-only).
-- New seeds preserve every UUID from the v1 set: 9 unpinned (CATCH UP /
-  CAPTURE / CHALLENGE) + 5 pinned (Tell me more, Why?, Give an example,
-  Counter-argument?, TL;DR).
+- Seeds preserve every UUID from the prerelease two-kind set: 9 unpinned
+  (CATCH UP / CAPTURE / CHALLENGE) + 5 pinned (Tell me more, Why?, Give an
+  example, Counter-argument?, TL;DR).
 
-The Decision section §2 below describes the v1 (kind-based) shape and is
+The Decision section §2 below describes the earlier kind-based design and is
 preserved for historical context. The current implementation matches this
 amendment plus the later cap-removal amendment above.
 
@@ -292,12 +291,12 @@ Two ways the follow-up row could be smarter: (a) embed "suggested follow-ups" in
 
 For the original Ask shipment: unchanged — no new actors, services, or schema.
 
-For the 2026-05-03 quick-prompt unification (see amendment): adds the
-`v0.10.1-quick-prompts-pin` migration to `DatabaseManager`, replaces
-`QuickPrompt.Kind` with `isPinned: Bool`, extends `QuickPromptRepository` with
+For the 2026-05-03 quick-prompt unification (see amendment): `DatabaseManager`
+creates the final `quick_prompts` table with `isPinned: Bool`,
+`QuickPrompt.Kind` is replaced by `isPinned`, `QuickPromptRepository` gains
 `setPinned`, `fetchPinned`, and bucket-scoped `reorder(ids:pinned:)`, and
-bumps `QuickPromptBundle` schema to v2 with v1 (`kind`-based) decoder
-fallback. The later same-day cap-removal amendment means there is no
+`QuickPromptBundle` schema v1 carries `isPinned`. The later same-day
+cap-removal amendment means there is no
 `pinnedCap`, `swapPin`, `saveAndPin`, cap-exceeded result, or `fetchPinned`
 limit in the current implementation.
 

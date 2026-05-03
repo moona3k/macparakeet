@@ -36,7 +36,7 @@ final class QuickPromptBundleTests: XCTestCase {
         let decoded = try JSONDecoder().decode(QuickPromptBundle.self, from: data)
 
         XCTAssertEqual(decoded.schema, "macparakeet.quick_prompts")
-        XCTAssertEqual(decoded.version, 2)
+        XCTAssertEqual(decoded.version, 1)
         XCTAssertEqual(decoded.appVersion, "0.7.0")
         XCTAssertEqual(decoded.prompts.count, 2)
         XCTAssertEqual(decoded.prompts.map(\.label), ["Catch me up", "TL;DR"])
@@ -50,7 +50,7 @@ final class QuickPromptBundleTests: XCTestCase {
         let json = """
             {
               "schema": "macparakeet.vocabulary",
-              "version": 2,
+              "version": 1,
               "exportedAt": "2026-05-02T20:00:00Z",
               "prompts": []
             }
@@ -78,12 +78,29 @@ final class QuickPromptBundleTests: XCTestCase {
         let bundle = try decoder.decode(QuickPromptBundle.self, from: Data(json.utf8))
 
         XCTAssertThrowsError(try bundle.validate()) { error in
-            XCTAssertEqual(error as? QuickPromptBundleError, .unsupportedVersion(found: 99, supported: 2))
+            XCTAssertEqual(error as? QuickPromptBundleError, .unsupportedVersion(found: 99, supported: 1))
         }
     }
 
-    func testValidateAcceptsLegacyV1Bundle() throws {
-        // v1 wire format (kind-based). Decoder must accept it; validate() too.
+    func testValidateRejectsOldSchemaVersion() throws {
+        let json = """
+            {
+              "schema": "macparakeet.quick_prompts",
+              "version": 0,
+              "exportedAt": "2026-05-02T20:00:00Z",
+              "prompts": []
+            }
+            """
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let bundle = try decoder.decode(QuickPromptBundle.self, from: Data(json.utf8))
+
+        XCTAssertThrowsError(try bundle.validate()) { error in
+            XCTAssertEqual(error as? QuickPromptBundleError, .unsupportedVersion(found: 0, supported: 1))
+        }
+    }
+
+    func testValidateAcceptsCurrentV1Bundle() throws {
         let json = """
             {
               "schema": "macparakeet.quick_prompts",
@@ -103,7 +120,7 @@ final class QuickPromptBundleTests: XCTestCase {
         let json = """
             {
               "schema": "macparakeet.quick_prompts",
-              "version": 2,
+              "version": 1,
               "exportedAt": "2026-05-02T20:00:00Z",
               "iAmFromTheFuture": "whatever",
               "prompts": []
@@ -120,7 +137,7 @@ final class QuickPromptBundleTests: XCTestCase {
         let json = """
             {
               "schema": "macparakeet.quick_prompts",
-              "version": 2,
+              "version": 1,
               "exportedAt": "2026-05-02T20:00:00Z",
               "prompts": [
                 {
@@ -144,54 +161,11 @@ final class QuickPromptBundleTests: XCTestCase {
         XCTAssertEqual(bundle.prompts.first?.label, "Test")
     }
 
-    func testV1KindFieldDecodesIntoIsPinned() throws {
-        // v1 bundle: each prompt carries `kind` instead of `isPinned`. Decoder
-        // must derive isPinned from kind ("follow_up" → true, else false).
+    func testMissingIsPinnedRejectsBundle() throws {
         let json = """
             {
               "schema": "macparakeet.quick_prompts",
               "version": 1,
-              "exportedAt": "2026-05-02T20:00:00Z",
-              "prompts": [
-                {
-                  "id": "11111111-2222-4333-8444-555555555555",
-                  "kind": "follow_up",
-                  "label": "Why?",
-                  "prompt": "Explain.",
-                  "groupLabel": null,
-                  "sortOrder": 0,
-                  "isVisible": true,
-                  "isBuiltIn": false
-                },
-                {
-                  "id": "22222222-3333-4444-8555-666666666666",
-                  "kind": "starter",
-                  "label": "Summarize",
-                  "prompt": "Summarize so far.",
-                  "groupLabel": "CATCH UP",
-                  "sortOrder": 0,
-                  "isVisible": true,
-                  "isBuiltIn": false
-                }
-              ]
-            }
-            """
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let bundle = try decoder.decode(QuickPromptBundle.self, from: Data(json.utf8))
-
-        XCTAssertEqual(bundle.prompts.count, 2)
-        XCTAssertTrue(bundle.prompts[0].isPinned, "kind=follow_up should land as isPinned=true")
-        XCTAssertFalse(bundle.prompts[1].isPinned, "kind=starter should land as isPinned=false")
-    }
-
-    func testMissingIsPinnedAndKindDefaultsToFalse() throws {
-        // Defensive: a malformed file with neither field should default
-        // isPinned to false rather than throw.
-        let json = """
-            {
-              "schema": "macparakeet.quick_prompts",
-              "version": 2,
               "exportedAt": "2026-05-02T20:00:00Z",
               "prompts": [
                 {
@@ -207,8 +181,7 @@ final class QuickPromptBundleTests: XCTestCase {
             """
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        let bundle = try decoder.decode(QuickPromptBundle.self, from: Data(json.utf8))
-        XCTAssertEqual(bundle.prompts.first?.isPinned, false)
+        XCTAssertThrowsError(try decoder.decode(QuickPromptBundle.self, from: Data(json.utf8)))
     }
 
     func testMaterializeCoercesForgedBuiltIn() {
@@ -266,6 +239,6 @@ final class QuickPromptBundleTests: XCTestCase {
         let data = try JSONEncoder().encode(bundle)
         let s = String(decoding: data, as: UTF8.self)
         XCTAssertTrue(s.contains("\"isPinned\":true"), "JSON should emit isPinned as boolean")
-        XCTAssertFalse(s.contains("\"kind\""), "v2 export must not emit legacy kind field")
+        XCTAssertFalse(s.contains("\"kind\""), "export must not emit kind field")
     }
 }
