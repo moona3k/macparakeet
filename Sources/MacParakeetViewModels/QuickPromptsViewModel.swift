@@ -49,8 +49,17 @@ public final class QuickPromptsViewModel {
 
     /// Visible pinned prompts in pinned-bucket sortOrder. Drives the
     /// after-response strip.
+    ///
+    /// Hard-capped at `QuickPrompt.pinnedCap` so a stray import / direct DB
+    /// write that bypasses `setPinned`'s cap check never blows out the strip.
+    /// First-N-by-sortOrder wins; overflow rows are filtered out of view but
+    /// remain in `allPinned` so the editor sheet can surface them.
     public var visiblePinned: [QuickPrompt] {
-        allPrompts.filter { $0.isVisible && $0.isPinned }
+        Array(
+            allPrompts
+                .filter { $0.isVisible && $0.isPinned }
+                .prefix(QuickPrompt.pinnedCap)
+        )
     }
 
     /// All visible prompts grouped for the empty-state list and sparkle

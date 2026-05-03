@@ -95,7 +95,7 @@ struct AskPromptsSheet: View {
             }
             Button("Cancel", role: .cancel) { }
         } message: {
-            Text("Built-in prompts return to their default labels, prompt text, group, and pin state. Your custom prompts stay untouched.")
+            Text("Built-in prompts return to their default labels, prompt text, group, and pin state when the pinned cap allows. Your custom prompts stay untouched.")
         }
         .confirmationDialog(
             swapDialogTitle,
@@ -175,7 +175,7 @@ struct AskPromptsSheet: View {
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)
             .frame(width: 32, height: 32)
-            .help("More options")
+            .polishedTooltip("More options")
             .accessibilityLabel("More options")
 
             Button {
@@ -280,7 +280,7 @@ struct AskPromptsSheet: View {
             }
             .buttonStyle(.plain)
             .focused($focusedRowID, equals: prompt.id)
-            .help(prompt.isPinned ? "Unpin from quick strip" : "Pin to quick strip")
+            .polishedTooltip(prompt.isPinned ? "Unpin from quick strip" : "Pin to quick strip")
             .accessibilityLabel(prompt.isPinned ? "Unpin \(prompt.label)" : "Pin \(prompt.label)")
             .padding(.top, 2)
 
@@ -352,7 +352,7 @@ struct AskPromptsSheet: View {
                 .disabled(index == 0)
                 .opacity(index == 0 ? 0.25 : 1)
                 .focused($focusedRowID, equals: prompt.id)
-                .help("Move up")
+                .polishedTooltip("Move up")
                 .accessibilityLabel("Move \(prompt.label) up")
 
                 Button {
@@ -364,7 +364,7 @@ struct AskPromptsSheet: View {
                 .disabled(index >= rows.count - 1)
                 .opacity(index >= rows.count - 1 ? 0.25 : 1)
                 .focused($focusedRowID, equals: prompt.id)
-                .help("Move down")
+                .polishedTooltip("Move down")
                 .accessibilityLabel("Move \(prompt.label) down")
 
                 Button {
@@ -374,7 +374,7 @@ struct AskPromptsSheet: View {
                 }
                 .buttonStyle(.plain)
                 .focused($focusedRowID, equals: prompt.id)
-                .help("Edit")
+                .polishedTooltip("Edit")
                 .accessibilityLabel("Edit \(prompt.label)")
 
                 if prompt.isBuiltIn {
@@ -385,7 +385,7 @@ struct AskPromptsSheet: View {
                     }
                     .buttonStyle(.plain)
                     .focused($focusedRowID, equals: prompt.id)
-                    .help("Restore default")
+                    .polishedTooltip("Restore default")
                     .accessibilityLabel("Restore \(prompt.label) to default")
                 } else {
                     Button {
@@ -395,7 +395,7 @@ struct AskPromptsSheet: View {
                     }
                     .buttonStyle(.plain)
                     .focused($focusedRowID, equals: prompt.id)
-                    .help("Delete")
+                    .polishedTooltip("Delete")
                     .accessibilityLabel("Delete \(prompt.label)")
                 }
             }

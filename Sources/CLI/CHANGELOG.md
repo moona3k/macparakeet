@@ -91,8 +91,10 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   --json` is unaffected — it returns `{ok}` / `{ok,id,label}`, not a
   `QuickPrompt` payload.)
 - `--kind <starter|follow-up>` flag is removed from `list`, `add`, `export`,
-  and `restore-defaults`. Use `--pinned <true|false>` instead (filters by pin
-  state). The starter→follow-up boundary maps cleanly:
+  and `restore-defaults`. Use `--pinned <true|false>` to filter `list` and
+  `export` by pin state; use `add --pinned` to create a pinned custom prompt.
+  `restore-defaults` now restores all built-ins or one built-in via `--id`.
+  The starter→follow-up boundary maps cleanly:
   `kind == follow-up` ↔ `pinned == true`.
 - `add --kind` is removed; new prompts default to unpinned. Use the new
   `--pinned` flag on `add` to pin immediately (subject to the cap; rolls back

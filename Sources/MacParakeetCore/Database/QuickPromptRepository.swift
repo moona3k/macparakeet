@@ -62,6 +62,9 @@ public protocol QuickPromptRepositoryProtocol: Sendable {
     func fetch(id: UUID) throws -> QuickPrompt?
     func fetchAll() throws -> [QuickPrompt]
     func fetchVisible() throws -> [QuickPrompt]
+    /// Visible pinned rows for the after-response strip. Caps at
+    /// `QuickPrompt.pinnedCap` so legacy/imported over-cap data never expands
+    /// the strip beyond its designed capacity.
     func fetchPinned() throws -> [QuickPrompt]
     func delete(id: UUID) throws -> Bool
     func toggleVisibility(id: UUID) throws
@@ -100,7 +103,8 @@ public protocol QuickPromptRepositoryProtocol: Sendable {
     /// Rewrites every built-in row back to canonical seed values
     /// (label / prompt / groupLabel / sortOrder / isPinned). Visibility is
     /// preserved — "restore default" is about content, not whether the user
-    /// has hidden the pill. Customs are untouched.
+    /// has hidden the pill. Customs are untouched, so canonical re-pinning is
+    /// applied only while it fits within `QuickPrompt.pinnedCap`.
     func restoreBuiltInDefaults() throws
 
     /// Per-row variant for the "Restore default" affordance on a single
@@ -160,6 +164,7 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
                 .filter(QuickPrompt.Columns.isPinned == true)
                 .filter(QuickPrompt.Columns.isVisible == true)
                 .order(QuickPrompt.Columns.sortOrder.asc)
+                .limit(QuickPrompt.pinnedCap)
                 .fetchAll(db)
         }
     }
@@ -389,9 +394,15 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
 
     /// Rewrite canonical fields for a single built-in seed. Visibility is
     /// **preserved** — restoring default content shouldn't override an explicit
-    /// hide. If the row is missing entirely, this is a no-op (the reconciler
-    /// will re-insert it on the next `seedIfNeeded()`).
+    /// hide. Restoring default pin state must not create a 6th pinned prompt:
+    /// if a user filled the slot with a custom prompt, content still restores
+    /// but the built-in stays unpinned. If the row is missing entirely, this
+    /// is a no-op (the reconciler will re-insert it on the next
+    /// `seedIfNeeded()`).
     private func restoreOne(seed: QuickPrompt, db: Database, now: Date) throws {
+        guard let existing = try QuickPrompt.fetchOne(db, key: seed.id) else { return }
+        let restoredPinned = try restoredPinState(seed: seed, existing: existing, db: db)
+
         try db.execute(
             sql: """
                 UPDATE quick_prompts
@@ -403,11 +414,23 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
                 seed.prompt,
                 seed.groupLabel,
                 seed.sortOrder,
-                seed.isPinned,
+                restoredPinned,
                 now,
                 seed.id,
             ]
         )
+    }
+
+    private func restoredPinState(seed: QuickPrompt, existing: QuickPrompt, db: Database) throws -> Bool {
+        guard seed.isPinned else { return false }
+        if existing.isPinned { return true }
+
+        let pinnedExcludingRow = try Int.fetchOne(
+            db,
+            sql: "SELECT COUNT(*) FROM quick_prompts WHERE isPinned = 1 AND id <> ?",
+            arguments: [seed.id]
+        ) ?? 0
+        return pinnedExcludingRow < QuickPrompt.pinnedCap
     }
 
     // MARK: Import

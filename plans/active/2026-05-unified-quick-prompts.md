@@ -29,11 +29,11 @@ Collapse the artificial Starter / Follow-up distinction in Ask quick prompts int
 4. **Pin icon is row-level and always visible.** Filled in pinned section, outline in unpinned. First control on the row, sibling to the existing visibility toggle. Matches the toggle's prominence because the two flags answer symmetric questions (active? pinned?).
 5. **Editor sheet shows two visual zones in one list.** "PINNED · n/5" header on top, "ALL PROMPTS" header below. One semantic library, two rendered zones — same data shape used at runtime.
 6. **`groupLabel` is now available on every prompt**, not just starters. Pinned prompts can carry a group too — it's still presentation-only and only renders in the empty-state grouped layout.
-7. **Group matching stays exact, case-sensitive.** "CAPTURE" and "Capture" remain distinct groups. Predictable rule; users will notice and fix typos the first time they happen.
+7. **Group matching is case-insensitive.** "CAPTURE" and "Capture" fold into one group; the first existing casing wins so imports and CLI edits do not fork visually identical groups.
 8. **Long pinned titles truncate with `…` + `.help()` tooltip.** No `shortLabel` field in v1. Add later if telemetry shows real friction.
 9. **Reconciler stays insert-only for built-in identity, but built-in seeds now carry `isPinned`.** The 5 universal moves seed pinned; the 9 starters seed unpinned. `seedIfNeeded()` semantics unchanged: never updates an existing user-edited row.
 10. **Bundle schema bumps to v2.** v2 emits `isPinned`. v1 still decodes via fallback (`kind == "follow_up"` → `isPinned: true`). Schema validation accepts both.
-11. **CLI takes a MAJOR bump.** Removing `--kind` and changing JSON shape (`kind` field gone) is breaking. `--kind` is kept as a deprecated alias for one minor release with a stderr warning, mapping to `--pinned`.
+11. **CLI takes a MAJOR bump.** Removing `--kind` and changing JSON shape (`kind` field gone) is breaking. No deprecated alias is retained in 2.0.0; parse-time failures keep exit code `2`.
 
 ## Migration shape
 
@@ -49,7 +49,7 @@ CREATE INDEX idx_quick_prompts_pinned_sort ON quick_prompts(isPinned, sortOrder)
 
 SQLite 3.35+ supports `DROP COLUMN`; macOS 14.2 ships 3.41+, so this is safe. The migration is one-way — older binaries opening a migrated DB will see no `kind` column and fail to decode the model. The codebase doesn't support binary downgrade in general, so this is acceptable; documenting it explicitly here for posterity.
 
-**Custom-prompt edge case.** A user who used the CLI to add many `--kind follow-up` customs may end up with >5 pinned post-migration. The migration leaves them all pinned (lossless); on next launch, the strip will simply render the first 5 by sortOrder, and the rest will appear pinned in the editor with the cap at "n/5" where n > 5. The first attempt to pin an additional row will trigger the swap picker, which the user can use to unpin the over-cap rows. We do **not** auto-unpin during migration — that loses user state.
+**Custom-prompt edge case.** A user who used the CLI to add many `--kind follow-up` customs may end up with >5 pinned post-migration. The migration leaves them all pinned (lossless); on next launch, the strip renders the first 5 by sortOrder, and the rest appear pinned in the editor with the cap at "n/5" where n > 5. The first attempt to pin an additional row triggers the swap picker, which the user can use to unpin the over-cap rows. We do **not** auto-unpin during migration or import — that loses user state.
 
 ## CLI semver impact
 
@@ -57,15 +57,15 @@ Bump `macparakeet-cli` to **2.0.0**.
 
 | Change | Type | Notes |
 |---|---|---|
-| `quick-prompts list --kind` removed (deprecated alias kept) | breaking | Deprecated alias prints stderr warning, maps to `--pinned`. Remove in 3.0.0. |
+| `quick-prompts list --kind` removed | breaking | Use `list --pinned <true\|false>` |
 | `quick-prompts list --pinned <true\|false>` added | additive (within MAJOR) | New filter |
 | `quick-prompts pin <id>` added | additive | New subcommand |
 | `quick-prompts unpin <id>` added | additive | New subcommand |
-| `quick-prompts add --kind` removed (alias kept) | breaking | Same deprecation path |
+| `quick-prompts add --kind` removed | breaking | New prompts default unpinned; use `add --pinned` to pin immediately |
 | `quick-prompts add --group` no longer starter-only | broadened | Backward-compatible widening |
 | `quick-prompts set --group` no longer starter-only | broadened | Backward-compatible widening |
-| `quick-prompts restore-defaults --kind` removed | breaking | Replace with `--pinned` filter |
-| `quick-prompts export --kind` removed | breaking | Replace with `--pinned` filter |
+| `quick-prompts restore-defaults --kind` removed | breaking | Restore all built-ins or one built-in via `--id` |
+| `quick-prompts export --kind` removed | breaking | Replace with `export --pinned <true\|false>` |
 | JSON output: `kind` field removed, `isPinned` field added | breaking | Documented in CHANGELOG |
 | Bundle schema bumped 1 → 2 | additive (v1 still decodes) | Decoder fallback preserves v1 round-trip |
 
@@ -81,7 +81,7 @@ Bump `macparakeet-cli` to **2.0.0**.
 | AC4 | Pinning a 6th prompt opens a swap picker; selecting an entry unpins it and pins the new one atomically | Repository test for atomic swap, VM test for picker state |
 | AC5 | Pin icon visible state: filled in pinned section, outline in unpinned section | Manual visual smoke + sheet snapshot via VM properties |
 | AC6 | Bundle v1 file imports cleanly into v2 schema; v2 export round-trips | Bundle test for v1 forward, v2 round-trip |
-| AC7 | CLI `--kind` accepted with stderr deprecation warning; maps to `--pinned`; `--json` suppresses the warning | CLI test |
+| AC7 | CLI `--kind` is rejected by the 2.0.0 parser with exit code `2` | CLI test |
 | AC8 | CLI `pin <id>` and `unpin <id>` work; pinning at cap returns structured error with current pinned list | CLI test |
 | AC9 | All previously passing tests pass | `swift test` green |
 
@@ -91,7 +91,7 @@ Adapted (existing files):
 - `Tests/MacParakeetTests/Database/QuickPromptRepositoryTests.swift` — replace `kind`-based tests with `isPinned`-based; add `setPinned` cap + atomic swap tests.
 - `Tests/MacParakeetTests/ViewModels/QuickPromptsViewModelTests.swift` — replace starter/followup property tests with unified-prompts + pinned subset tests.
 - `Tests/MacParakeetTests/QuickPromptBundleTests.swift` — add v1→v2 fallback test, v2 round-trip.
-- `Tests/CLITests/QuickPromptsCommandTests.swift` — replace `--kind` tests with `--pinned`; add `pin`/`unpin` tests; add deprecation-warning test.
+- `Tests/CLITests/QuickPromptsCommandTests.swift` — replace `--kind` tests with `--pinned`; add `pin`/`unpin` tests; add parser-rejection test for `--kind`.
 
 New (within existing files where possible):
 - Migration test: insert pre-migration DB shape, run migrator, assert `isPinned` derivation and `kind` column gone.
@@ -102,7 +102,7 @@ Target after work: same number of passing tests as before, +~20 new tests.
 ## Risks + mitigations
 
 1. **Destructive one-way migration.** Mitigation: SQL is well-formed, fixture migration test exercises real pre-state, and SQLite 3.35+ `DROP COLUMN` is widely supported on the target OS floor.
-2. **CLI break for downstream agents (OpenClaw / Hermes).** Mitigation: deprecated `--kind` alias preserves invocations for one release with a stderr deprecation warning; CHANGELOG calls out the cutover. Grep `integrations/openclaw/` and `integrations/hermes/` for any baked-in `--kind` usage before merging.
+2. **CLI break for downstream agents (OpenClaw / Hermes).** Mitigation: `macparakeet-cli` bumps to 2.0.0, CHANGELOG calls out the cutover, and `integrations/README.md` documents the v2 schema / pin commands. Grep `integrations/openclaw/` and `integrations/hermes/` for any baked-in `--kind` usage before merging.
 3. **Custom-prompts >5 pinned post-migration.** Mitigation: documented above. The strip renders the first 5 by sortOrder; user can rebalance via swap picker. No data loss.
 4. **Reserved UUID `1C5A1B4A-...` (ADR-020 burned).** Not reused — neither in seeds nor in the migration. Existing built-in UUIDs are preserved verbatim.
 5. **Telemetry allowlist drift.** Mitigation: this PR introduces no new telemetry events. If we add pin/unpin events later, the website worker `ALLOWED_EVENTS` needs the same change (per `feedback_telemetry_allowlist.md`).

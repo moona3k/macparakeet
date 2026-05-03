@@ -201,6 +201,29 @@ final class QuickPromptRepositoryTests: XCTestCase {
         XCTAssertEqual(try repo.fetchPinned().count, all.count - 1)
     }
 
+    func testFetchPinnedCapsVisibleRowsEvenIfDatabaseIsOverCap() throws {
+        let overflow = QuickPrompt(
+            label: "Imported sixth",
+            prompt: "body",
+            sortOrder: 999,
+            isPinned: true
+        )
+        let bundle = QuickPromptBundle(
+            exportedAt: Date(),
+            appVersion: nil,
+            prompts: [
+                QuickPromptBundle.ExportedQuickPrompt(overflow)
+            ]
+        )
+
+        _ = try repo.applyImport(bundle, mode: .merge, dryRun: false)
+
+        XCTAssertEqual(try repo.fetchAll().filter(\.isPinned).count, QuickPrompt.pinnedCap + 1)
+        let stripPinned = try repo.fetchPinned()
+        XCTAssertEqual(stripPinned.count, QuickPrompt.pinnedCap)
+        XCTAssertFalse(stripPinned.contains { $0.id == overflow.id })
+    }
+
     func testSetPinnedTogglesUnpinnedToPinnedWhenSlotAvailable() throws {
         // Free a slot first.
         let pinned = try repo.fetchAll().first(where: \.isPinned)!
@@ -309,6 +332,26 @@ final class QuickPromptRepositoryTests: XCTestCase {
         try repo.restoreBuiltInDefault(id: pinned.id)
 
         XCTAssertEqual(try repo.fetch(id: pinned.id)?.isPinned, true)
+    }
+
+    func testRestoreSingleDefaultDoesNotExceedPinnedCapWhenSlotWasFilled() throws {
+        let builtIn = try XCTUnwrap(try repo.fetchAll().first(where: \.isPinned))
+        let canonicalLabel = builtIn.label
+        try repo.setPinned(id: builtIn.id, isPinned: false)
+
+        let custom = QuickPrompt(label: "Custom favorite", prompt: "body")
+        XCTAssertEqual(try repo.saveAndPin(custom, isPinned: true), .ok)
+
+        var edited = try XCTUnwrap(try repo.fetch(id: builtIn.id))
+        edited.label = "Drifted"
+        try repo.save(edited)
+
+        try repo.restoreBuiltInDefault(id: builtIn.id)
+
+        let restored = try XCTUnwrap(try repo.fetch(id: builtIn.id))
+        XCTAssertEqual(restored.label, canonicalLabel)
+        XCTAssertEqual(restored.isPinned, false, "restore should not create a 6th pinned row")
+        XCTAssertEqual(try repo.fetchAll().filter(\.isPinned).count, QuickPrompt.pinnedCap)
     }
 
     // MARK: Import — merge

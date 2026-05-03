@@ -36,8 +36,9 @@ transaction.
 - `QuickPromptBundle` schema bumped to v2 (`isPinned: Bool` per prompt).
   v1 files still decode — `kind == "follow_up"` maps to `isPinned: true`.
 - CLI bumped to 2.0.0 with breaking changes: `--kind` removed from `list /
-  add / export / restore-defaults`; `--pinned <true|false>` filter added;
-  new `pin` and `unpin` subcommands; the `kind` JSON field is gone.
+  add / export / restore-defaults`; `--pinned <true|false>` filters added
+  to `list` and `export`; `add --pinned` added for immediate pinning; new
+  `pin` and `unpin` subcommands added; the `kind` JSON field is gone.
 - `groupLabel` is now valid on every prompt (was previously starter-only).
 - New seeds preserve every UUID from the v1 set: 9 unpinned (CATCH UP /
   CAPTURE / CHALLENGE) + 5 pinned (Tell me more, Why?, Give an example,
@@ -237,7 +238,7 @@ Two ways the follow-up row could be smarter: (a) embed "suggested follow-ups" in
 
 - **No passive glance value.** A user who tunes out can no longer look up at the panel and see "they just decided X." They have to tap a pill. For long meetings this is real, but the v1 cost-benefit of an Insights pane to reclaim it doesn't justify it.
 - **In-memory chat is lost if transcription fails.** If the user has a substantive Ask conversation and then transcription errors out (rare), the chat is lost along with the transcription. A JSON sidecar persistence layer is sketched as "Future Work" below.
-- **English-first pills.** Both starter and follow-up pill labels are hardcoded English. Localization deferred until multilingual demand surfaces.
+- **English-first pills.** Quick-prompt labels are hardcoded English. Localization deferred until multilingual demand surfaces.
 
 ### Neutral
 
@@ -290,7 +291,7 @@ See decision §2 for the full lists.
 ## Future Work
 
 - **Transcription-failure chat recovery.** If transcription fails after stop, the in-memory Ask thread is lost. Sketch: write `chatHistory` to `~/Library/Application Support/MacParakeet/pending-chat-{recordingId}.json` on every send; delete the sidecar on successful finalize; on next launch, surface a "Recover chat" entry if a sidecar is found. ~50 lines, no schema migration. Defer until telemetry or a user complaint says it matters.
-- **Localization** of starter and follow-up pill copy.
+- **Localization** of quick-prompt copy.
 - **Markdown rendering** in assistant bubbles (bold, lists, code blocks). Currently plain text; would lift the visual quality of long responses without changing the data model.
 - **Per-message actions** (copy, regenerate) on hover in the live thread. The post-finalize Chat tab does not have these either; could be added in both surfaces together.
 - **Reopen Insights** if telemetry indicates users want passive-glance value enough to justify the LLM cost surface.

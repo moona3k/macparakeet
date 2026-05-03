@@ -116,6 +116,21 @@ final class QuickPromptsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.visiblePinned.contains { $0.id == pinned.id })
     }
 
+    func testVisiblePinnedCapsRowsEvenIfDatabaseIsOverCap() throws {
+        let overflow = QuickPrompt(
+            label: "Imported sixth",
+            prompt: "body",
+            sortOrder: 999,
+            isPinned: true
+        )
+        try manager.dbQueue.write { db in try overflow.insert(db) }
+        viewModel.refresh()
+
+        XCTAssertEqual(viewModel.allPinned.count, QuickPrompt.pinnedCap + 1)
+        XCTAssertEqual(viewModel.visiblePinned.count, QuickPrompt.pinnedCap)
+        XCTAssertFalse(viewModel.visiblePinned.contains { $0.id == overflow.id })
+    }
+
     func testVisiblePromptGroupsIncludesAllVisible() {
         let groupCount = viewModel.visiblePromptGroups.flatMap(\.prompts).count
         XCTAssertEqual(groupCount, QuickPrompt.builtInPrompts().count)
