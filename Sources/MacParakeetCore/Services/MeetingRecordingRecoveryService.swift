@@ -171,6 +171,16 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         )
 
         do {
+            try MeetingNotesFile.write(
+                notes: lock.notes,
+                displayName: lock.displayName,
+                to: folderURL
+            )
+        } catch {
+            logger.warning("meeting_notes_file_write_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+        }
+
+        do {
             try await audioConverter.mixToM4A(
                 inputURLs: recoveredSources.map(\.url),
                 outputURL: mixedURL,

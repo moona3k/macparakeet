@@ -1040,6 +1040,44 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(lockStore.writes.last?.file.notes, "notes from the meeting")
         XCTAssertEqual(lockStore.writes.last?.file.state, .awaitingTranscription)
 
+        // notes.md is written to the meeting folder on finalize so the user
+        // can read what they typed in Finder / any editor without launching
+        // the app. Snapshot only — not synced with later DB edits.
+        let notesURL = MeetingNotesFile.fileURL(for: output.folderURL)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: notesURL.path))
+        let notesContent = try String(contentsOf: notesURL, encoding: .utf8)
+        XCTAssertTrue(notesContent.contains("notes from the meeting"))
+
+        await service.completeTranscription(for: output)
+    }
+
+    func testStopRecordingDoesNotWriteNotesFileWhenNoNotesTaken() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        // No updateNotes call — user attended without typing.
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertNil(output.userNotes)
+        let notesURL = MeetingNotesFile.fileURL(for: output.folderURL)
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: notesURL.path),
+            "Empty-notes meeting should not produce a notes.md file"
+        )
+
         await service.completeTranscription(for: output)
     }
 }

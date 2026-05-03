@@ -410,6 +410,18 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         }
 
         let finalNotes = currentNotes
+        do {
+            try MeetingNotesFile.write(
+                notes: finalNotes,
+                displayName: session.displayName,
+                to: session.folderURL
+            )
+        } catch {
+            logger.warning(
+                "meeting_notes_file_write_failed session=\(session.id.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+            )
+        }
+
         let awaitingLock = (currentLockFile ?? MeetingRecordingLockFile(
             sessionId: session.id,
             startedAt: session.startedAt,
