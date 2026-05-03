@@ -4,9 +4,11 @@ import GRDB
 
 final class TranscriptionRepositoryTests: XCTestCase {
     var repo: TranscriptionRepository!
+    var dbQueue: DatabaseQueue!
 
     override func setUp() async throws {
         let manager = try DatabaseManager()
+        dbQueue = manager.dbQueue
         repo = TranscriptionRepository(dbQueue: manager.dbQueue)
     }
 
@@ -198,6 +200,23 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(results.map(\.id), [newerID, olderID])
         XCTAssertEqual(try repo.fetchByIDPrefix("AABBCCDD-1111").map(\.id), [olderID])
         XCTAssertEqual(try repo.fetchByIDPrefix("aabbccdd1111").map(\.id), [olderID])
+    }
+
+    func testFetchByIDPrefixMatchesTextStoredUUIDAcrossHyphen() throws {
+        let textID = UUID(uuidString: "DDBBAAEE-1111-1111-1111-111111111111")!
+        let now = Date()
+        try dbQueue.write { db in
+            try db.execute(
+                sql: """
+                    INSERT INTO transcriptions (id, createdAt, fileName, updatedAt, sourceType)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                arguments: [textID.uuidString, now, "Text UUID", now, "meeting"]
+            )
+        }
+
+        XCTAssertEqual(try repo.fetchByIDPrefix("ddbbaaee1111").map(\.id), [textID])
+        XCTAssertEqual(try repo.fetchBySourceType(.meeting, idPrefix: "DDBBAAEE1111").map(\.id), [textID])
     }
 
     func testFetchBySourceTypeAndFileNameIsCaseInsensitive() throws {

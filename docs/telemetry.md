@@ -608,7 +608,8 @@ External AI review of the telemetry design. Each point was evaluated and accepte
   `~/Library/Logs/MacParakeet/dictation-audio.log` status/metric lines,
   app version/build info, and redacted runtime metadata. Do not upload
   automatically. Do not include audio bytes, transcripts, notes, prompts, file
-  names, paths, URLs, API keys, or device UIDs.
+  names, paths, URLs, API keys, microphone names, CoreAudio device IDs, or
+  device UIDs.
 - **Operation-event coverage gate** — For any new workflow that can succeed,
   fail, cancel, or become unavailable, require a matching wide `*_operation`
   event or a documented reason it is intentionally breadcrumb-only.

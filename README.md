@@ -43,7 +43,7 @@
 
 ---
 
-MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The v0.6 release scope includes system-wide dictation, file/URL transcription, meeting recording, and optional local WhisperKit recognition for languages Parakeet does not cover. All speech recognition happens on your Mac.
+MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The current stable DMG focuses on system-wide dictation and file/URL transcription; the `main` branch also includes Labs meeting recording and optional local WhisperKit recognition for languages Parakeet does not cover. All speech recognition happens on your Mac.
 
 ## Release status
 
@@ -51,10 +51,10 @@ The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the st
 
 | Channel | Status | Includes |
 |---------|--------|----------|
-| Stable DMG | Recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, optional WhisperKit, exports, vocabulary, AI features |
-| `main` branch | Development | v0.6 release scope plus hidden calendar auto-start code under `AppFeatures.calendarEnabled = false` |
+| Stable DMG | Recommended for normal use | Dictation, file/video/YouTube transcription, exports, vocabulary, AI features |
+| `main` branch | Development | Stable features plus Labs meeting recording, optional WhisperKit, and hidden calendar auto-start code under `AppFeatures.calendarEnabled = false` |
 
-Calendar reminders, auto-start, and auto-stop are implemented in source but hidden from the v0.6 product surface while they await end-to-end validation.
+Meeting recording and WhisperKit are implemented on `main` as Labs features and are not in the current public DMG yet. Calendar reminders, auto-start, and auto-stop are implemented in source but hidden while they await end-to-end validation.
 
 ## What it does
 
@@ -62,7 +62,7 @@ Calendar reminders, auto-start, and auto-stop are implemented in source but hidd
 
 **File transcription** — Drag audio or video files, or paste a YouTube URL. Full transcript with word-level timestamps, speaker labels, and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON). Assign global hotkeys to trigger File or YouTube transcription from anywhere.
 
-**Meeting recording** — Record system audio and microphone together, see a live local transcript preview, take notes during the call, then save the finalized transcript to the library with export, prompts, and chat.
+**Labs on main: Meeting recording** — Record system audio and microphone together, see a live local transcript preview, take notes during the call, then save the finalized transcript to the library with export, prompts, and chat.
 
 **Text cleanup** — Filler word removal, custom word replacements, text snippets with triggers. Deterministic pipeline, no LLM needed.
 

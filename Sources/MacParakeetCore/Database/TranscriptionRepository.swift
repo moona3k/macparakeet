@@ -103,8 +103,12 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol {
         guard !trimmed.isEmpty else { return [] }
         let textPattern = escapedLikePattern(trimmed.lowercased()) + "%"
         let compactPattern = escapedLikePattern(trimmed.lowercased().replacingOccurrences(of: "-", with: "")) + "%"
-        var sql = "(lower(id) LIKE ? ESCAPE '\\' OR lower(hex(id)) LIKE ? ESCAPE '\\')"
-        var arguments: [String] = [textPattern, compactPattern]
+        var sql = """
+            (lower(id) LIKE ? ESCAPE '\\'
+                OR lower(hex(id)) LIKE ? ESCAPE '\\'
+                OR replace(lower(id), '-', '') LIKE ? ESCAPE '\\')
+            """
+        var arguments: [String] = [textPattern, compactPattern, compactPattern]
         if let sourceType {
             sql = "sourceType = ? AND \(sql)"
             arguments.insert(sourceType.rawValue, at: 0)

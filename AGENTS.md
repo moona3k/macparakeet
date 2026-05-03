@@ -15,10 +15,10 @@ CoreML on the Apple Neural Engine is the default STT engine. WhisperKit is also
 available on `main` as an optional local multilingual engine for languages
 Parakeet does not cover.
 
-**Release status:** v0.6 ships system-wide dictation, file/URL transcription,
-meeting recording, and optional WhisperKit multilingual STT. Calendar reminders,
-auto-start, and auto-stop are implemented in source but hidden behind
-`AppFeatures.calendarEnabled = false` pending hands-on end-to-end validation.
+**Release status:** the public DMG is the stable channel and currently ships
+dictation + file/URL transcription. Meeting recording and WhisperKit
+multilingual STT are Labs features implemented on `main`, under active
+testing, and not in the current public DMG yet.
 
 Free and open-source (GPL-3.0). Apple Silicon only. Requires macOS 14.2+.
 
