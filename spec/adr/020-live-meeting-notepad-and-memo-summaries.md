@@ -43,11 +43,11 @@ The first surface gives the user a file they can read; the second gives the AI c
 
 In two passes the same day, we removed every text badge from the live-panel tab strip. The strip now reads `Notes   Transcript   Ask` plus a quiet breathing dot on Ask while `chatViewModel.isStreaming`. The `ViewThatFits`-based collapse machinery is unchanged — it just has fewer states to render.
 
-**Pass 1: Transcript dropped `LIVE`.** Recording state is already broadcast five times in the panel header directly above the tab bar — the pulsing dual-audio orb, the `Recording` status string, the live elapsed timer, the live transcript word count, and the Stop button. A 6th instance on the tab was decoration. `transcriptBadge` and its `"LIVE"` literal were deleted from `MeetingRecordingPanelViewModel`.
+**Pass 1: Transcript dropped `LIVE`.** Recording state is already broadcast five times in the panel header directly above the tab bar — the pulsing dual-audio orb, the `Recording` status string, the live elapsed timer, the live transcript word count, and the Stop button. A 6th instance on the tab was decoration, so Transcript now renders as a plain tab label.
 
-**Pass 2: Notes dropped `Nw`.** Word count was decoration too. The notes themselves are the canonical surface for "how much have I written?" — and the soft-cap warning at 8,000 words has its own dedicated footer UI in `LiveNotesPaneView`. Writers' tooling lives inside the writing surface, not on the navigation strip. `notesBadge` was deleted from `MeetingRecordingPanelViewModel`. `MeetingNotesViewModel.wordCount` is still computed and used internally for `isApproachingSoftCap`.
+**Pass 2: Notes dropped `Nw`.** Word count was decoration too. The notes themselves are the canonical surface for "how much have I written?" — and the soft-cap warning at 8,000 words has its own dedicated footer UI in `LiveNotesPaneView`. Writers' tooling lives inside the writing surface, not on the navigation strip. `MeetingNotesViewModel.wordCount` is still computed and used internally for `isApproachingSoftCap`.
 
-**Reframing of the §1 "state-bearing tab labels" intent.** The original framing assumed every tab should surface a richer-than-noun label. The corrected framing: surface state the user *can't already see by switching tabs*. Only Ask qualifies — its streaming state ("an answer is forming") is invisible while you're on Notes or Transcript. Everything else either repeats a louder header signal (Transcript) or is visible in the pane itself once you switch (Notes). The taxonomy is now: three plain nouns plus one ambient indicator on the one tab where ambient state matters.
+**Reframing of the §1 tab-label intent.** The original framing assumed every tab should surface a richer-than-noun label. The corrected framing: surface state the user *can't already see by switching tabs*. Only Ask qualifies — its streaming state ("an answer is forming") is invisible while you're on Notes or Transcript. Everything else either repeats a louder header signal (Transcript) or is visible in the pane itself once you switch (Notes). The taxonomy is now: three plain nouns plus one ambient indicator on the one tab where ambient state matters.
 
 ## Amendment (2026-04-25, post-review)
 
@@ -279,7 +279,7 @@ The invariant is therefore enforced by surface area, not by hope.
 ┌──────────────────────────────────────────────────────────┐
 │              MeetingRecordingPanelView                   │
 │  ┌──────────┐ ┌───────────┐ ┌─────┐                      │
-│  │ Notes·Nw │ │Transcript │ │Ask·N│  ← tabs (⌘1/⌘2/⌘3)   │
+│  │ Notes    │ │Transcript │ │Ask ●│  ← tabs (⌘1/⌘2/⌘3)   │
 │  └──────────┘ └───────────┘ └─────┘                      │
 │                                                          │
 │  ┌──────────────────────────────────────────────────┐    │
@@ -414,7 +414,7 @@ If post-implementation the diff is genuinely too large to review in one sitting,
 
 ### Negative
 
-- **Three tabs in a small floating panel risks feeling cramped.** Mitigated by Notes default, tab-label collapse strategy at narrow widths (§1), and state-bearing tab labels at wider widths. If Phase 2 usability testing shows users switching too frequently, the collapsible-transcript-ticker-inside-Notes pattern is a planned escape hatch with a defined trigger threshold (~3+ switches/min).
+- **Three tabs in a small floating panel risks feeling cramped.** Mitigated by Notes default, the `ViewThatFits` collapse strategy at narrow widths (§1), and the Ask-only streaming dot at wider widths. If Phase 2 usability testing shows users switching too frequently, the collapsible-transcript-ticker-inside-Notes pattern is a planned escape hatch with a defined trigger threshold (~3+ switches/min).
 - **No inline formatting during the meeting.** Plaintext + slash commands cover headings/labels via plaintext markers; bold/italic/lists are not available. Char's TipTap renders formatted blocks live; ours render raw `**Action:**` characters until post-meeting markdown rendering ships (Future Work). Users coming from Char will experience this as a visual regression. Acceptable v0.6 compromise; markdown rendering is one of the first follow-up PRs.
 - **Customized clones of built-in prompts will not gain `{{userNotes}}` automatically.** Users who cloned a built-in into a custom prompt for editing will continue to see their custom prompt produce notes-blind summaries. There is no migration path that touches custom prompts (by design — we don't rewrite user content). The new "Memo-Steered Notes" built-in is the recommended path for users who want notes-aware summaries; the prompt library UI surfaces this via copy on the new prompt's card.
 - **One more thing to do during a meeting.** Whether to type notes is now a live decision. Placeholder copy nudges; no force.

@@ -135,6 +135,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
         let mixedURL = folderURL.appendingPathComponent("meeting.m4a")
 
         if let existing = try existingCompletedTranscription(for: mixedURL) {
+            await writeNotesSidecar(for: lock, folderURL: folderURL)
             return try completeExistingTranscription(existing, folderURL: folderURL, lock: lock)
         }
         try deleteIncompleteTranscriptions(for: mixedURL)
@@ -170,16 +171,7 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             folderURL: folderURL
         )
 
-        do {
-            try await MeetingNotesFile.write(
-                notes: lock.notes,
-                displayName: lock.displayName,
-                to: folderURL,
-                fileManager: MeetingNotesFile.SendableFileManager(fileManager)
-            )
-        } catch {
-            logger.warning("meeting_notes_file_write_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
-        }
+        await writeNotesSidecar(for: lock, folderURL: folderURL)
 
         do {
             try await audioConverter.mixToM4A(
@@ -253,6 +245,19 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             microphone: track(for: .microphone),
             system: track(for: .system)
         )
+    }
+
+    private func writeNotesSidecar(for lock: MeetingRecordingLockFile, folderURL: URL) async {
+        do {
+            try await MeetingNotesFile.write(
+                notes: lock.notes,
+                displayName: lock.displayName,
+                to: folderURL,
+                fileManager: MeetingNotesFile.SendableFileManager(fileManager)
+            )
+        } catch {
+            logger.warning("meeting_notes_file_write_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func existingCompletedTranscription(for mixedURL: URL) throws -> Transcription? {
