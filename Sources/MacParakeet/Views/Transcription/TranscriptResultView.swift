@@ -1621,34 +1621,39 @@ struct TranscriptResultView: View {
 
             ScrollViewReader { proxy in
                 VStack(spacing: 0) {
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                            if !chatVM.canSendMessage {
-                                chatConfigurationBanner
-                            } else if chatVM.messages.isEmpty {
-                                chatEmptyState(chatVM: chatVM)
-                            }
-
-                            ForEach(chatVM.messages) { message in
-                                chatBubble(message)
-                                    .id(message.id)
-                            }
+                    if chatVM.canSendMessage && chatVM.messages.isEmpty {
+                        VStack(spacing: DesignSystem.Spacing.md) {
+                            chatEmptyState(chatVM: chatVM)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
                             if let error = chatVM.errorMessage {
-                                HStack(spacing: 6) {
-                                    Image(systemName: "exclamationmark.triangle.fill")
-                                        .foregroundStyle(DesignSystem.Colors.errorRed)
-                                    Text(error)
-                                        .font(DesignSystem.Typography.caption)
-                                        .foregroundStyle(DesignSystem.Colors.errorRed)
-                                }
-                                .padding(.horizontal, DesignSystem.Spacing.md)
+                                chatErrorRow(error)
                             }
                         }
                         .padding(DesignSystem.Spacing.lg)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(DesignSystem.Colors.surface)
+                    } else {
+                        ScrollView {
+                            LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+                                if !chatVM.canSendMessage {
+                                    chatConfigurationBanner
+                                }
+
+                                ForEach(chatVM.messages) { message in
+                                    chatBubble(message)
+                                        .id(message.id)
+                                }
+
+                                if let error = chatVM.errorMessage {
+                                    chatErrorRow(error)
+                                }
+                            }
+                            .padding(DesignSystem.Spacing.lg)
+                        }
+                        .defaultScrollAnchor(.bottom)
+                        .background(DesignSystem.Colors.surface)
                     }
-                    .defaultScrollAnchor(.bottom)
-                    .background(DesignSystem.Colors.surface)
 
                     Divider()
 
@@ -1973,55 +1978,72 @@ struct TranscriptResultView: View {
         )
     }
 
+    @ViewBuilder
+    private func chatErrorRow(_ error: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .foregroundStyle(DesignSystem.Colors.errorRed)
+            Text(error)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.errorRed)
+        }
+        .padding(.horizontal, DesignSystem.Spacing.md)
+    }
+
     private func chatEmptyState(chatVM: TranscriptChatViewModel) -> some View {
-        VStack(spacing: DesignSystem.Spacing.lg) {
-            MeditativeMerkabaView(
-                size: 60,
-                revolutionDuration: 6.0,
-                tintColor: DesignSystem.Colors.accent
-            )
+        VStack(spacing: 0) {
+            Spacer(minLength: DesignSystem.Spacing.hero)
 
-            VStack(spacing: DesignSystem.Spacing.xs) {
-                Text("Ask a question about this transcript")
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    .font(DesignSystem.Typography.pageTitle)
+            VStack(spacing: DesignSystem.Spacing.lg) {
+                MeditativeMerkabaView(
+                    size: 60,
+                    revolutionDuration: 6.0,
+                    tintColor: DesignSystem.Colors.accent
+                )
 
-                Text("Start with a quick prompt, then keep drilling down.")
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .font(DesignSystem.Typography.body)
-            }
+                VStack(spacing: DesignSystem.Spacing.xs) {
+                    Text("Ask a question about this transcript")
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                        .font(DesignSystem.Typography.pageTitle)
 
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                ForEach(suggestedPrompts, id: \.self) { prompt in
-                    Button {
-                        chatVM.inputText = prompt
-                        chatVM.sendMessage()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "sparkles")
-                                .font(.system(size: 11))
-                                .foregroundStyle(DesignSystem.Colors.accent.opacity(0.7))
-                            Text(prompt)
-                                .font(DesignSystem.Typography.bodySmall)
+                    Text("Start with a quick prompt, then keep drilling down.")
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .font(DesignSystem.Typography.body)
+                }
+
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    ForEach(suggestedPrompts, id: \.self) { prompt in
+                        Button {
+                            chatVM.inputText = prompt
+                            chatVM.sendMessage()
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "sparkles")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(DesignSystem.Colors.accent.opacity(0.7))
+                                Text(prompt)
+                                    .font(DesignSystem.Typography.bodySmall)
+                            }
+                            .padding(.horizontal, DesignSystem.Spacing.md)
+                            .padding(.vertical, 8)
+                            .background(
+                                Capsule()
+                                    .fill(DesignSystem.Colors.surfaceElevated)
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(DesignSystem.Colors.border.opacity(0.8), lineWidth: 1)
+                                    )
+                            )
                         }
-                        .padding(.horizontal, DesignSystem.Spacing.md)
-                        .padding(.vertical, 8)
-                        .background(
-                            Capsule()
-                                .fill(DesignSystem.Colors.surfaceElevated)
-                                .overlay(
-                                    Capsule()
-                                        .stroke(DesignSystem.Colors.border.opacity(0.8), lineWidth: 1)
-                                )
-                        )
+                        .buttonStyle(.plain)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                     }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
                 }
             }
+
+            Spacer(minLength: DesignSystem.Spacing.hero)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DesignSystem.Spacing.hero)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(.horizontal, DesignSystem.Spacing.lg)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
