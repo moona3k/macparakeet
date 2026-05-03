@@ -79,6 +79,8 @@ struct TranscriptResultView: View {
     @State private var copiedResetTask: Task<Void, Never>?
     @State private var resultCopiedResetTask: Task<Void, Never>?
     @State private var resultButtonCopiedResetTask: Task<Void, Never>?
+    @State private var notesCopied = false
+    @State private var notesCopiedResetTask: Task<Void, Never>?
     @State private var dismissTask: Task<Void, Never>?
     @State private var editingMeetingTitle = false
     @State private var meetingTitleDraft = ""
@@ -939,6 +941,11 @@ struct TranscriptResultView: View {
                 LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                     transcriptPaneHeader
 
+                    if let userNotes = activeTranscription.userNotes,
+                       !userNotes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        meetingNotesSection(userNotes)
+                    }
+
                     if let error = transcriptEditError {
                         Label(error, systemImage: "exclamationmark.triangle.fill")
                             .font(DesignSystem.Typography.caption)
@@ -1118,6 +1125,53 @@ struct TranscriptResultView: View {
                 RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                     .fill(DesignSystem.Colors.surfaceElevated.opacity(0.6))
             )
+    }
+
+    private func meetingNotesSection(_ notes: String) -> some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+            HStack(spacing: DesignSystem.Spacing.xs) {
+                Label("Your notes", systemImage: "note.text")
+                    .font(DesignSystem.Typography.caption.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                Spacer()
+
+                Button {
+                    TranscriptResultActions.copyText(notes)
+                    notesCopied = true
+                    notesCopiedResetTask?.cancel()
+                    notesCopiedResetTask = Task {
+                        try? await Task.sleep(for: .seconds(1))
+                        if !Task.isCancelled {
+                            notesCopied = false
+                        }
+                    }
+                } label: {
+                    HStack(spacing: DesignSystem.Spacing.xs) {
+                        Image(systemName: notesCopied ? "checkmark" : "doc.on.doc")
+                        Text(notesCopied ? "Copied" : "Copy")
+                    }
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(notesCopied ? DesignSystem.Colors.successGreen : .primary)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .accessibilityLabel(notesCopied ? "Notes copied" : "Copy your notes")
+            }
+
+            Text(notes)
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.25))
+        )
     }
 
     // MARK: - Tab Bar
@@ -1376,10 +1430,6 @@ struct TranscriptResultView: View {
                         .controlSize(.small)
                     }
 
-                    if let notesUsed = promptResult.displayableUserNotesSnapshot {
-                        notesUsedSection(notesUsed)
-                    }
-
                     MarkdownContentView(promptResult.content, font: DesignSystem.Typography.bodyLarge)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -1395,23 +1445,6 @@ struct TranscriptResultView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .strokeBorder(DesignSystem.Colors.border.opacity(0.75), lineWidth: 0.5)
         )
-    }
-
-    private func notesUsedSection(_ notes: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-            Label("Notes used", systemImage: "note.text")
-                .font(DesignSystem.Typography.caption.weight(.semibold))
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-            Text(notes)
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .padding(.bottom, DesignSystem.Spacing.sm)
-        .accessibilityElement(children: .combine)
     }
 
     @ViewBuilder

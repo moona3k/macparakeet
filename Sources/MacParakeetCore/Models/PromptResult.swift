@@ -16,13 +16,6 @@ public struct PromptResult: Codable, Identifiable, Sendable {
     public var createdAt: Date
     public var updatedAt: Date
 
-    public var displayableUserNotesSnapshot: String? {
-        guard let userNotesSnapshot else { return nil }
-        return userNotesSnapshot.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? nil
-            : userNotesSnapshot
-    }
-
     public init(
         id: UUID = UUID(),
         transcriptionId: UUID,
