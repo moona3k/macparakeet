@@ -454,6 +454,8 @@ struct TranscriptResultView: View {
                 }
             }
 
+            Spacer()
+
             if let onStartNew {
                 Button {
                     onStartNew()
@@ -463,8 +465,6 @@ struct TranscriptResultView: View {
                 .buttonStyle(.bordered)
                 .tint(DesignSystem.Colors.accent)
             }
-
-            Spacer()
         }
         .padding(DesignSystem.Spacing.md)
         .onChange(of: showingRetranscribeOptions) { _, isOpen in
