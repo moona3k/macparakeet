@@ -1,54 +1,33 @@
 import SwiftUI
 
-/// Hover-driven tooltip with a 300ms reveal delay and DesignSystem-tuned
-/// content. Uses `.popover` so positioning escapes parent clipping (the
-/// AskPromptsSheet rows live inside a `.clipShape`-bounded card group, where
-/// a plain `.overlay`-based tooltip would clip at the card edge).
+/// Tooltip wrapper for buttons in the AskPromptsSheet (and friends).
 ///
-/// Pair with `.accessibilityLabel(...)` for VoiceOver — this modifier does
-/// not set accessibility hints itself, since `.help(...)` (which it
-/// replaces) had that side effect and we want callers to remain explicit.
+/// **History:** initially backed by a custom 300ms-reveal `.popover` so we
+/// could control visual styling. Reverted to `.help(...)` because
+/// SwiftUI's `.popover` dismissal swallows the first click on the
+/// underlying button (NSPopover semantics) — every tooltip-decorated
+/// button needed two clicks to fire. `.help(...)` doesn't have that
+/// failure mode.
+///
+/// Trade-off accepted: ~1500ms native delay (vs the prior 300ms) and
+/// system styling (vs DesignSystem-tuned chrome). The polished *copy*
+/// (e.g. "Already at the top" when reorder is disabled) is preserved —
+/// only the chrome reverts. First-click response matters more than
+/// reveal speed.
+///
+/// Pair with `.accessibilityLabel(...)` so VoiceOver gets a specific
+/// label even though `.help` seeds an accessibility hint of its own.
 struct PolishedTooltip: ViewModifier {
     let text: String
 
-    @State private var isHovering = false
-    @State private var isShowing = false
-    @State private var revealTask: Task<Void, Never>?
-
-    /// 300ms feels quick without being jumpy. macOS system tooltips delay
-    /// closer to 1500ms; the polished version exists to feel faster.
-    private static let revealDelay: UInt64 = 300_000_000
-
     func body(content: Content) -> some View {
-        content
-            .onHover { hovering in
-                isHovering = hovering
-                revealTask?.cancel()
-                if hovering {
-                    revealTask = Task {
-                        try? await Task.sleep(nanoseconds: Self.revealDelay)
-                        guard !Task.isCancelled, isHovering else { return }
-                        isShowing = true
-                    }
-                } else {
-                    isShowing = false
-                }
-            }
-            .popover(isPresented: $isShowing, arrowEdge: .bottom) {
-                Text(text)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .fixedSize(horizontal: true, vertical: false)
-            }
+        content.help(text)
     }
 }
 
 extension View {
-    /// Drop-in replacement for `.help(...)` with a faster reveal (~300ms vs
-    /// macOS default ~1500ms) and DesignSystem-styled content. Pair with
-    /// `.accessibilityLabel(...)` for VoiceOver.
+    /// Tooltip helper. See `PolishedTooltip` for context. Pair with
+    /// `.accessibilityLabel(...)` to stay explicit about VoiceOver.
     func polishedTooltip(_ text: String) -> some View {
         modifier(PolishedTooltip(text: text))
     }
