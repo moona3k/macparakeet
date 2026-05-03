@@ -50,7 +50,7 @@ struct PromptLibraryView: View {
                     // Built-In Prompts Section
                     sectionContainer(
                         title: "Built-In Prompts",
-                        subtitle: "Toggle visibility or enable Auto-Run to generate results automatically after transcription."
+                        subtitle: "Toggle visibility or enable Auto-Run to generate results automatically after transcription longer than ~80 words."
                     ) {
                         cardGroup {
                             let builtIns = viewModel.prompts.filter(\.isBuiltIn)
