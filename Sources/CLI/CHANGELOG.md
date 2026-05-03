@@ -81,6 +81,19 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `quick-prompts` subcommand surface for managing the live meeting Ask tab
+  pills (starter and follow-up prompts). Subcommands: `list`, `show`, `add`,
+  `set`, `delete`, `restore-defaults`, `export`, `import`. All mutation
+  subcommands honor `--json` for the success/failure envelope. Built-ins are
+  user-editable; `delete` rejects them with `errorType: "validation"`.
+  `import --mode merge` (default) UPSERTs by id and preserves untouched rows;
+  `import --mode replace` wipes customs, re-seeds built-ins, then applies the
+  file (prompts for confirmation unless `--json` or `--yes`). `import
+  --dry-run` reports planned `{added, updated, deleted, unchanged}` counts
+  without writing. Bundle format is versioned (`macparakeet.quick_prompts`
+  v1) and round-trippable.
+- `import_schema` `errorType` value for malformed quick-prompts import files
+  (e.g. wrong `schema`, unsupported `version`, JSON parse failure).
 - `flow vocabulary export`, `flow vocabulary import`, and `flow vocabulary
   schema` commands for round-trip backup of the combined vocabulary (custom
   words + text snippets). `import` supports `--policy skip|replace`,

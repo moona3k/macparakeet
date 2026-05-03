@@ -9,9 +9,11 @@ import SwiftUI
 /// the meeting is finalized (see TranscriptChatViewModel.bindPersistedConversation).
 struct LiveAskPaneView: View {
     @Bindable var viewModel: TranscriptChatViewModel
+    @Bindable var quickPromptsViewModel: QuickPromptsViewModel
 
     @FocusState private var inputFocused: Bool
     @State private var showingPromptMenu = false
+    @State private var showingPromptsSheet = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -50,6 +52,13 @@ struct LiveAskPaneView: View {
             // from an earlier bubble) it would sit there with non-firing prompts.
             if streaming { showingPromptMenu = false }
         }
+        .sheet(isPresented: $showingPromptsSheet, onDismiss: {
+            // Refresh after the user closes the sheet so any edits / new pills
+            // / restored defaults take effect immediately in the live pane.
+            quickPromptsViewModel.refresh()
+        }) {
+            AskPromptsSheet(viewModel: quickPromptsViewModel)
+        }
     }
 
     /// In-view popover for mid-conversation prompt browsing. Anchored above the
@@ -62,9 +71,33 @@ struct LiveAskPaneView: View {
                 .contentShape(Rectangle())
                 .onTapGesture { showingPromptMenu = false }
 
-            StarterPromptList(groups: LiveAskStarterPrompts.groups) { entry in
-                showingPromptMenu = false
-                fire(entry)
+            VStack(spacing: 0) {
+                StarterPromptList(groups: quickPromptsViewModel.visibleStarterGroups) { entry in
+                    showingPromptMenu = false
+                    fire(entry)
+                }
+
+                Divider()
+                    .padding(.top, DesignSystem.Spacing.sm)
+                    .padding(.bottom, 6)
+
+                Button {
+                    showingPromptMenu = false
+                    showingPromptsSheet = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "slider.horizontal.3")
+                            .font(.system(size: 11, weight: .medium))
+                        Text("Edit pills…")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 4)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
             }
             .padding(DesignSystem.Spacing.md)
             .background(
@@ -101,7 +134,7 @@ struct LiveAskPaneView: View {
     private var followUpRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
-                ForEach(LiveAskFollowUpPrompts.all, id: \.self) { entry in
+                ForEach(quickPromptsViewModel.visibleFollowUps) { entry in
                     FollowUpPill(label: entry.label) {
                         fire(entry)
                     }
@@ -118,7 +151,7 @@ struct LiveAskPaneView: View {
     }
 
     /// Pill tap → bubble shows the short label, LLM gets the comprehensive prompt.
-    private func fire(_ entry: LiveAskPrompt) {
+    private func fire(_ entry: QuickPrompt) {
         guard viewModel.canSendMessage, !viewModel.isStreaming else { return }
         viewModel.inputText = entry.label
         viewModel.sendMessage(richPrompt: entry.prompt)
@@ -170,8 +203,26 @@ struct LiveAskPaneView: View {
     // MARK: - Empty State
 
     private var emptyStateWithPills: some View {
-        StarterPromptList(groups: LiveAskStarterPrompts.groups) { entry in
-            fire(entry)
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            StarterPromptList(groups: quickPromptsViewModel.visibleStarterGroups) { entry in
+                fire(entry)
+            }
+
+            Button {
+                showingPromptsSheet = true
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("Edit pills…")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .padding(.leading, 4)
+                .padding(.top, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
     }
 
@@ -295,90 +346,29 @@ struct LiveAskPaneView: View {
 
 // MARK: - Prompts
 
-/// A pill is two strings: a short, gestural `label` rendered on the chip AND in
-/// the user's bubble, and a more comprehensive `prompt` actually sent to the LLM.
-/// The thread reads conversational ("Tell me more") while the model gets enough
-/// scaffolding to answer well.
-struct LiveAskPrompt: Hashable {
-    let label: String
-    let prompt: String
-}
-
-/// Empty-state "thinking-partner" prompts — meant to start a thread and make the
-/// user sharper in the meeting, not just summarize. Grouped by intent so the empty
-/// state orients the user before they read any individual label. English-first;
-/// localization deferred.
-enum LiveAskStarterPrompts {
-    struct Group: Hashable {
-        let label: String
-        let prompts: [LiveAskPrompt]
-    }
-
-    static let groups: [Group] = [
-        Group(label: "CATCH UP", prompts: [
-            LiveAskPrompt(
-                label: "Summarize so far",
-                prompt: "Give a concise summary of the meeting so far. Focus on the main topics, decisions made, and any clear conclusions. Skip verbal filler."
-            ),
-            LiveAskPrompt(
-                label: "What did I miss?",
-                prompt: "Catch me up on the most recent shifts in the meeting — the latest decisions, new arguments, or topic changes. Skip what was clearly settled earlier. Be terse, signal-rich."
-            ),
-        ]),
-        Group(label: "CAPTURE", prompts: [
-            LiveAskPrompt(
-                label: "Decisions made",
-                prompt: "List the decisions reached in the meeting so far. For each, note what was decided and the brief context that explains why. Skip topics that were only discussed without a decision."
-            ),
-            LiveAskPrompt(
-                label: "Action items",
-                prompt: "List concrete action items from the meeting so far — what needs to happen next, by whom, and by when if mentioned. Be specific. Skip vague intentions."
-            ),
-            LiveAskPrompt(
-                label: "Who owns what?",
-                prompt: "Map who owns what from the meeting so far — assignments, commitments, areas of responsibility. If ownership for an item is unclear or unstated, flag that explicitly."
-            ),
-        ]),
-        Group(label: "CHALLENGE", prompts: [
-            LiveAskPrompt(
-                label: "What's unresolved?",
-                prompt: "List the open questions, unmade decisions, or topics still hanging from the meeting so far. Be specific."
-            ),
-            LiveAskPrompt(
-                label: "What question is worth asking?",
-                prompt: "Based on the meeting so far, suggest one sharp, useful question I could ask next that would advance the discussion or surface something important that hasn't been addressed."
-            ),
-            LiveAskPrompt(
-                label: "What's worth pushing back on?",
-                prompt: "Identify any claims, assumptions, or decisions in the meeting so far that deserve scrutiny. What might be wrong, weak, or worth challenging?"
-            ),
-            LiveAskPrompt(
-                label: "Where are we going in circles?",
-                prompt: "Have we revisited the same topic or argument without making progress? If so, point out where we're looping and what would actually move things forward."
-            ),
-        ]),
-    ]
-}
-
-/// Renders the 3-group starter prompt list. Single source of truth for both the
+/// Renders the grouped starter prompt list. Single source of truth for both the
 /// empty-state pane and the mid-conversation popover so the two surfaces stay
-/// visually identical and behavior never drifts.
+/// visually identical and behavior never drifts. Groups come from
+/// `QuickPromptsViewModel.visibleStarterGroups`, which preserves first-occurrence
+/// group order so users who reorder pills control how groups appear.
 private struct StarterPromptList: View {
-    let groups: [LiveAskStarterPrompts.Group]
-    let onSelect: (LiveAskPrompt) -> Void
+    let groups: [(label: String, prompts: [QuickPrompt])]
+    let onSelect: (QuickPrompt) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ForEach(groups, id: \.self) { group in
+            ForEach(groups, id: \.label) { group in
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(group.label)
-                        .font(.system(size: 10, weight: .semibold))
-                        .tracking(0.8)
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
-                        .padding(.leading, 4)
+                    if !group.label.isEmpty {
+                        Text(group.label)
+                            .font(.system(size: 10, weight: .semibold))
+                            .tracking(0.8)
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                            .padding(.leading, 4)
+                    }
 
                     VStack(spacing: 5) {
-                        ForEach(group.prompts, id: \.self) { entry in
+                        ForEach(group.prompts) { entry in
                             StarterPromptPill(entry: entry) {
                                 onSelect(entry)
                             }
@@ -430,38 +420,8 @@ private struct PromptMenuButton: View {
     }
 }
 
-/// Always-visible follow-up prompts above the input once a conversation exists.
-/// Strictly universal "next-moves on the last assistant message" — keep, expand,
-/// probe, push back, compress. Global meeting prompts (Summarize / What did I
-/// miss? / Action items) live in the empty-state starters so this row stays
-/// honest about its single job: continue the thread.
-enum LiveAskFollowUpPrompts {
-    static let all: [LiveAskPrompt] = [
-        LiveAskPrompt(
-            label: "Tell me more",
-            prompt: "Expand on your previous response with more concrete detail from the meeting itself — quotes, specifics, who said what. Surface nuances or caveats you compressed out the first time."
-        ),
-        LiveAskPrompt(
-            label: "Why?",
-            prompt: "Explain the reasoning behind your previous answer. What from the meeting transcript supports it?"
-        ),
-        LiveAskPrompt(
-            label: "Give an example",
-            prompt: "Give one specific, concrete example that illustrates your previous response. Pull it from the meeting itself — a moment, exchange, or quote. If the meeting doesn't contain a clean example, say so plainly and offer the closest analogue."
-        ),
-        LiveAskPrompt(
-            label: "Counter-argument?",
-            prompt: "What's the strongest counter-argument to your previous response? Steelman the opposing view, and use anything in the meeting that supports it."
-        ),
-        LiveAskPrompt(
-            label: "TL;DR",
-            prompt: "Give the punchy, no-fluff TL;DR of your previous response — one or two sentences. No headers, no list, no preamble."
-        ),
-    ]
-}
-
 private struct StarterPromptPill: View {
-    let entry: LiveAskPrompt
+    let entry: QuickPrompt
     let action: () -> Void
 
     @State private var isHovered = false

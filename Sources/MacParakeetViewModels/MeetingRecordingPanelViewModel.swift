@@ -1,4 +1,5 @@
 import Foundation
+import MacParakeetCore
 import SwiftUI
 
 @MainActor @Observable
@@ -39,6 +40,7 @@ public final class MeetingRecordingPanelViewModel {
     public var selectedTab: LivePanelTab = .notes
     public let chatViewModel: TranscriptChatViewModel = TranscriptChatViewModel()
     public let notesViewModel: MeetingNotesViewModel = MeetingNotesViewModel()
+    public let quickPromptsViewModel: QuickPromptsViewModel = QuickPromptsViewModel()
     public var onStop: (() -> Void)?
     public var onClose: (() -> Void)?
 

@@ -255,6 +255,7 @@ enum CLIErrorType {
     static let config = "config"
     static let connection = "connection"
     static let context = "context"
+    static let importSchema = "import_schema"
     static let inputEmpty = "input_empty"
     static let inputMissing = "input_missing"
     static let invalidResponse = "invalid_response"
@@ -285,6 +286,17 @@ enum CLIErrorType {
         }
         if error is CLILookupError { return lookup }
         if error is CLIInputError { return inputEmpty }
+        if let qpe = error as? QuickPromptCLIError {
+            switch qpe {
+            case .cannotDeleteBuiltIn: return validation
+            case .deleteFailed:        return runtime
+            case .emptyBody:           return inputEmpty
+            case .readFailed:          return inputMissing
+            case .writeFailed:         return runtime
+            case .importSchemaError:   return importSchema
+            case .importCancelled:     return validation
+            }
+        }
         if let cli = error as? CLIError {
             switch cli {
             case .fileNotFound:

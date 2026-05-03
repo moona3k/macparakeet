@@ -221,6 +221,7 @@ final class AppEnvironmentConfigurer {
             permissionService: env.permissionService,
             transcriptionRepo: env.transcriptionRepo,
             conversationRepo: env.chatConversationRepo,
+            quickPromptRepo: env.quickPromptRepo,
             configStore: env.llmConfigStore,
             meetingAudioSourceModeProvider: { env.runtimePreferences.meetingAudioSourceMode },
             llmService: hasLLMConfig ? env.llmService : nil,

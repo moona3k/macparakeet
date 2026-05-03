@@ -37,6 +37,7 @@ final class MeetingRecordingFlowCoordinator {
     private let permissionService: PermissionServiceProtocol
     private let transcriptionRepo: TranscriptionRepositoryProtocol
     private let conversationRepo: ChatConversationRepositoryProtocol
+    private let quickPromptRepo: QuickPromptRepositoryProtocol
     private let configStore: LLMConfigStoreProtocol
     private let cliConfigStore: LocalCLIConfigStore
     private let meetingAudioSourceModeProvider: @MainActor @Sendable () -> MeetingAudioSourceMode
@@ -67,6 +68,7 @@ final class MeetingRecordingFlowCoordinator {
         permissionService: PermissionServiceProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol,
         conversationRepo: ChatConversationRepositoryProtocol,
+        quickPromptRepo: QuickPromptRepositoryProtocol,
         configStore: LLMConfigStoreProtocol,
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore(),
         meetingAudioSourceModeProvider: @escaping @MainActor @Sendable () -> MeetingAudioSourceMode = { .microphoneAndSystem },
@@ -81,6 +83,7 @@ final class MeetingRecordingFlowCoordinator {
         self.permissionService = permissionService
         self.transcriptionRepo = transcriptionRepo
         self.conversationRepo = conversationRepo
+        self.quickPromptRepo = quickPromptRepo
         self.configStore = configStore
         self.cliConfigStore = cliConfigStore
         self.meetingAudioSourceModeProvider = meetingAudioSourceModeProvider
@@ -300,6 +303,7 @@ final class MeetingRecordingFlowCoordinator {
                 configStore: configStore,
                 cliConfigStore: cliConfigStore
             )
+            panelVM.quickPromptsViewModel.configure(repo: quickPromptRepo)
             // Wire the notepad's debounced persistence target through the
             // recording service. The service serializes lock-file writes and
             // carries the latest notes into MeetingRecordingOutput.userNotes,

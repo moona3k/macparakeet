@@ -42,7 +42,10 @@ struct MeetingRecordingPanelView: View {
         case .transcript:
             transcriptContent
         case .ask:
-            LiveAskPaneView(viewModel: viewModel.chatViewModel)
+            LiveAskPaneView(
+                viewModel: viewModel.chatViewModel,
+                quickPromptsViewModel: viewModel.quickPromptsViewModel
+            )
         }
     }
 

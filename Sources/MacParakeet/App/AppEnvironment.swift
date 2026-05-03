@@ -12,6 +12,7 @@ final class AppEnvironment {
     let chatConversationRepo: ChatConversationRepository
     let promptRepo: PromptRepository
     let promptResultRepo: PromptResultRepository
+    let quickPromptRepo: QuickPromptRepository
     let sttRuntime: STTRuntime
     let sttScheduler: STTScheduler
     let sharedMicStream: SharedMicrophoneStream
@@ -47,6 +48,7 @@ final class AppEnvironment {
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
         promptRepo = PromptRepository(dbQueue: databaseManager.dbQueue)
         promptResultRepo = PromptResultRepository(dbQueue: databaseManager.dbQueue)
+        quickPromptRepo = QuickPromptRepository(dbQueue: databaseManager.dbQueue)
 
         // Services
         let runtimePreferences = UserDefaultsAppRuntimePreferences()
