@@ -1,8 +1,51 @@
 # ADR-018: Live Meeting Ask Tab
 
-> Status: IMPLEMENTED (Ask half — Insights dropped per design pivot, see "Amendment" below)
-> Date: 2026-04-19 (proposed) · Amended 2026-04-24 · Implemented 2026-04-24
+> Status: IMPLEMENTED (Ask half — Insights dropped per 2026-04-24 amendment; quick-prompt model unified per 2026-05-03 amendment)
+> Date: 2026-04-19 (proposed) · Amended 2026-04-24, 2026-05-03 · Implemented 2026-04-24
 > Related: ADR-011 (LLM providers), ADR-013 (prompt library + multi-summary), ADR-014 (meeting recording), ADR-016 (centralized STT runtime), ADR-017 (calendar auto-start)
+
+## Amendment (2026-05-03) — Unified quick-prompt model
+
+The starter / follow-up two-kind split shipped on 2026-05-02 (see Decision §2)
+is collapsed into one library with an `isPinned: Bool` flag. Pinned prompts
+surface as compact pills in the after-response strip (cap = 5); everything
+visible (pinned + unpinned) shows in the empty Ask state and the sparkle
+popover, grouped by `groupLabel`. Pin is the single explicit knob users
+control to move a prompt between the two render surfaces.
+
+**Why the second pivot.** The categorical split (`kind = .starter | .followUp`)
+was load-bearing only for placement, not for semantics — both flavors are
+"prebuilt prompts to inspire." The split surfaced as cognitive overhead in
+the editor sheet (two sections, two Add affordances, two Reset menus) and in
+the CLI (`--kind` on every relevant subcommand) without a corresponding user
+benefit. Unifying gives users one mental model, one editor, and one explicit
+control (the pin icon) that parallels the existing visibility toggle.
+
+**Pin metaphor.** Pin is universally understood (Notion sidebar, Slack
+starred, Linear pinned views, Finder favorites). The pin icon is row-level
+and always visible — filled in pinned, outline elsewhere. When pinning would
+exceed the cap, a swap-picker confirmationDialog opens listing the current
+five pinned; selecting one performs an atomic unpin-then-pin in a single DB
+transaction.
+
+**What changed concretely.**
+- `QuickPrompt.Kind` removed; `isPinned: Bool` added; `QuickPrompt.pinnedCap = 5`.
+- DB migration `v0.10.1-quick-prompts-pin` adds `isPinned`, derives it
+  from `kind == 'follow_up'`, drops the legacy index + `kind` column, and
+  creates a new `(isPinned, sortOrder)` index. One-way migration.
+- `QuickPromptBundle` schema bumped to v2 (`isPinned: Bool` per prompt).
+  v1 files still decode — `kind == "follow_up"` maps to `isPinned: true`.
+- CLI bumped to 2.0.0 with breaking changes: `--kind` removed from `list /
+  add / export / restore-defaults`; `--pinned <true|false>` filter added;
+  new `pin` and `unpin` subcommands; the `kind` JSON field is gone.
+- `groupLabel` is now valid on every prompt (was previously starter-only).
+- New seeds preserve every UUID from the v1 set: 9 unpinned (CATCH UP /
+  CAPTURE / CHALLENGE) + 5 pinned (Tell me more, Why?, Give an example,
+  Counter-argument?, TL;DR).
+
+The Decision section §2 below describes the v1 (kind-based) shape and is
+preserved for historical context. The current implementation matches this
+amendment.
 
 ## Amendment (2026-04-24)
 
