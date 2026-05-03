@@ -198,7 +198,7 @@ CREATE TABLE chat_conversations (
     transcriptionId TEXT NOT NULL                      -- FK to transcriptions
         REFERENCES transcriptions(id) ON DELETE CASCADE,
     title TEXT NOT NULL DEFAULT '',                    -- Derived from first user message (auto-titled)
-    messages TEXT,                                     -- JSON: [{"role":"user","content":"..."},{"role":"assistant","content":"..."}]
+    messages TEXT,                                     -- JSON: [{"role":"user","content":"...","modelPromptOverride":"..."},{"role":"assistant","content":"..."}]
     createdAt TEXT NOT NULL,                           -- ISO 8601 timestamp
     updatedAt TEXT NOT NULL                            -- ISO 8601 timestamp
 );
@@ -209,6 +209,7 @@ CREATE INDEX idx_chat_conversations_transcription_id ON chat_conversations(trans
 **Notes:**
 - `transcriptionId` has a cascading delete — deleting a transcription removes all its conversations.
 - `messages` is a JSON array of `ChatMessage` objects, decoded via GRDB's `Codable` pattern.
+- `messages[].modelPromptOverride` is optional and only present for rich-prompt user turns; `content` remains the visible chat label, while regenerate/model-history assembly use `modelPromptOverride`.
 - `title` is auto-derived from the first user message (up to 50 chars) during creation or migration.
 - Legacy `chatMessages` field on `transcriptions` is nulled out after migration but kept for backward compatibility.
 

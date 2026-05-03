@@ -5,6 +5,7 @@ import Foundation
 public struct ChatMessage: Codable, Sendable, Equatable {
     public let role: Role
     public let content: String
+    public let modelPromptOverride: String?
 
     public enum Role: String, Codable, Sendable {
         case system
@@ -12,9 +13,14 @@ public struct ChatMessage: Codable, Sendable, Equatable {
         case assistant
     }
 
-    public init(role: Role, content: String) {
+    public init(role: Role, content: String, modelPromptOverride: String? = nil) {
         self.role = role
         self.content = content
+        self.modelPromptOverride = modelPromptOverride
+    }
+
+    public var modelContent: String {
+        role == .user ? (modelPromptOverride ?? content) : content
     }
 }
 

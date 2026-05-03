@@ -881,22 +881,29 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             i -= 1
             // If this is an assistant message preceded by a user message, take both as a turn
             if i > 0 && history[i].role == .assistant && history[i - 1].role == .user {
-                let turnChars = history[i - 1].content.count + history[i].content.count
+                let userMessage = Self.requestMessage(from: history[i - 1])
+                let assistantMessage = Self.requestMessage(from: history[i])
+                let turnChars = userMessage.content.count + assistantMessage.content.count
                 if historyChars + turnChars > historyBudget { break }
                 historyChars += turnChars
-                keptTurns.insert([history[i - 1], history[i]], at: 0)
+                keptTurns.insert([userMessage, assistantMessage], at: 0)
                 i -= 1
             } else {
-                let turnChars = history[end - 1].content.count
+                let message = Self.requestMessage(from: history[end - 1])
+                let turnChars = message.content.count
                 if historyChars + turnChars > historyBudget { break }
                 historyChars += turnChars
-                keptTurns.insert([history[end - 1]], at: 0)
+                keptTurns.insert([message], at: 0)
             }
         }
         messages.append(contentsOf: keptTurns.flatMap { $0 })
 
         messages.append(ChatMessage(role: .user, content: question))
         return messages
+    }
+
+    private static func requestMessage(from message: ChatMessage) -> ChatMessage {
+        ChatMessage(role: message.role, content: message.modelContent)
     }
 
     private static func buildChatSystemPrompt(

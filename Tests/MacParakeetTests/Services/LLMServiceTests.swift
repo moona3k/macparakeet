@@ -816,6 +816,27 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertGreaterThan(messages.count, 2, "Small recent history should still fit after notes/transcript budgeting")
     }
 
+    func testChatHistoryUsesModelPromptOverrideForRichPromptTurns() async throws {
+        mockConfigStore.config = .openai(apiKey: "sk-test", model: "gpt-4")
+
+        let richPrompt = "Explain the unresolved risks in the meeting so far."
+        let history = [
+            ChatMessage(role: .user, content: "Tell me more", modelPromptOverride: richPrompt),
+            ChatMessage(role: .assistant, content: "The main risk is timeline compression."),
+        ]
+
+        _ = try await service.chat(
+            question: "What should we do next?",
+            transcript: "The team discussed delivery risks.",
+            userNotes: nil,
+            history: history
+        )
+
+        let messages = mockClient.capturedMessages
+        XCTAssertTrue(messages.contains { $0.role == .user && $0.content == richPrompt })
+        XCTAssertFalse(messages.contains { $0.role == .user && $0.content == "Tell me more" })
+    }
+
     // MARK: - Streaming
 
     func testSummarizeStreamYieldsTokens() async throws {

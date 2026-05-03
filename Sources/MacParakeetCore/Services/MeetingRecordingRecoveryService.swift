@@ -174,7 +174,8 @@ public final class MeetingRecordingRecoveryService: MeetingRecordingRecoveryServ
             try await MeetingNotesFile.write(
                 notes: lock.notes,
                 displayName: lock.displayName,
-                to: folderURL
+                to: folderURL,
+                fileManager: fileManager
             )
         } catch {
             logger.warning("meeting_notes_file_write_failed session=\(lock.sessionId.uuidString, privacy: .public) error=\(error.localizedDescription, privacy: .public)")

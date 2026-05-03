@@ -6,20 +6,20 @@ public struct ChatDisplayMessage: Identifiable, Equatable {
     public let id: UUID
     public let role: ChatMessage.Role
     public var content: String
-    public let effectivePrompt: String?
+    public let modelPromptOverride: String?
     public var isStreaming: Bool
 
     public init(
         id: UUID = UUID(),
         role: ChatMessage.Role,
         content: String,
-        effectivePrompt: String? = nil,
+        modelPromptOverride: String? = nil,
         isStreaming: Bool = false
     ) {
         self.id = id
         self.role = role
         self.content = content
-        self.effectivePrompt = effectivePrompt
+        self.modelPromptOverride = modelPromptOverride
         self.isStreaming = isStreaming
     }
 }
@@ -194,13 +194,13 @@ public final class TranscriptChatViewModel {
         inputText = ""
         errorMessage = nil
 
-        let effectivePrompt = llmQuestion == text ? nil : llmQuestion
-        let userMessage = ChatDisplayMessage(role: .user, content: text, effectivePrompt: effectivePrompt)
+        let modelPromptOverride = llmQuestion == text ? nil : llmQuestion
+        let userMessage = ChatDisplayMessage(role: .user, content: text, modelPromptOverride: modelPromptOverride)
         messages.append(userMessage)
 
         // Capture history BEFORE appending user message — buildChatMessages() adds question separately
         let historyForRequest = chatHistory
-        chatHistory.append(ChatMessage(role: .user, content: text))
+        chatHistory.append(ChatMessage(role: .user, content: text, modelPromptOverride: modelPromptOverride))
         persistChatMessages()
 
         startStreamingAssistant(question: llmQuestion, historyForRequest: historyForRequest)
@@ -229,7 +229,7 @@ public final class TranscriptChatViewModel {
               trailingUser.role == .user,
               let visibleUser = messages.last,
               visibleUser.role == .user else { return }
-        let userPrompt = visibleUser.effectivePrompt ?? trailingUser.content
+        let userPrompt = trailingUser.modelPromptOverride ?? visibleUser.modelPromptOverride ?? trailingUser.content
         let historyForRequest = Array(chatHistory.dropLast())
 
         startStreamingAssistant(question: userPrompt, historyForRequest: historyForRequest)
@@ -553,7 +553,7 @@ public final class TranscriptChatViewModel {
         currentConversation = conversation
         if let chatMessages = conversation.messages, !chatMessages.isEmpty {
             messages = chatMessages.map { msg in
-                ChatDisplayMessage(role: msg.role, content: msg.content)
+                ChatDisplayMessage(role: msg.role, content: msg.content, modelPromptOverride: msg.modelPromptOverride)
             }
             chatHistory = chatMessages
         } else {

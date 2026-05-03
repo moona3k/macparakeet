@@ -414,7 +414,8 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             try await MeetingNotesFile.write(
                 notes: finalNotes,
                 displayName: session.displayName,
-                to: session.folderURL
+                to: session.folderURL,
+                fileManager: fileManager
             )
         } catch {
             logger.warning(

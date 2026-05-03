@@ -866,17 +866,52 @@ final class TranscriptChatViewModelTests: XCTestCase {
         let transcriptionId = UUID()
         viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
 
+        let richPrompt = "Explain the unresolved risks in the meeting so far."
         mockService.streamTokens = ["First"]
         viewModel.inputText = "Tell me more"
-        viewModel.sendMessage(richPrompt: "Explain the unresolved risks in the meeting so far.")
+        viewModel.sendMessage(richPrompt: richPrompt)
         try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(mockConversationRepo.updateMessagesCalls.last?.messages?.first?.modelPromptOverride, richPrompt)
 
         mockService.streamTokens = ["Second"]
         viewModel.regenerateLastResponse()
         try await Task.sleep(nanoseconds: 200_000_000)
 
         XCTAssertEqual(viewModel.messages.map(\.content), ["Tell me more", "Second"])
-        XCTAssertEqual(mockService.lastChatQuestion, "Explain the unresolved risks in the meeting so far.")
+        XCTAssertEqual(mockService.lastChatQuestion, richPrompt)
+    }
+
+    func testRegenerateLastResponseReusesPersistedRichPromptAfterReload() async throws {
+        let transcriptionId = UUID()
+        viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        let richPrompt = "Explain the unresolved risks in the meeting so far."
+        mockService.streamTokens = ["First"]
+        viewModel.inputText = "Tell me more"
+        viewModel.sendMessage(richPrompt: richPrompt)
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        let persisted = try XCTUnwrap(mockConversationRepo.conversations.first)
+        XCTAssertEqual(persisted.messages?.first?.content, "Tell me more")
+        XCTAssertEqual(persisted.messages?.first?.modelPromptOverride, richPrompt)
+
+        let reloadedService = MockLLMService()
+        let reloaded = TranscriptChatViewModel()
+        reloaded.configure(
+            llmService: reloadedService,
+            transcriptText: "Transcript",
+            transcriptionRepo: mockRepo,
+            conversationRepo: mockConversationRepo
+        )
+        reloaded.loadTranscript("Transcript", transcriptionId: transcriptionId)
+
+        reloadedService.streamTokens = ["Second"]
+        reloaded.regenerateLastResponse()
+        try await Task.sleep(nanoseconds: 200_000_000)
+
+        XCTAssertEqual(reloaded.messages.map(\.content), ["Tell me more", "Second"])
+        XCTAssertEqual(reloadedService.lastChatQuestion, richPrompt)
     }
 
     func testRegenerateLastResponsePreservesEarlierTurnsInHistory() async throws {
