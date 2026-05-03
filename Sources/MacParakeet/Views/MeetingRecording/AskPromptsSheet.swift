@@ -123,11 +123,19 @@ struct AskPromptsSheet: View {
             )
         ) {
             if let editing = viewModel.editingPrompt {
-                EditPromptSheet(prompt: editing) { updated in
-                    viewModel.saveEdit(updated)
-                } onCancel: {
-                    viewModel.editingPrompt = nil
-                }
+                EditPromptSheet(
+                    prompt: editing,
+                    onSave: { updated in
+                        viewModel.saveEdit(updated)
+                    },
+                    onCancel: {
+                        viewModel.editingPrompt = nil
+                    },
+                    onRestore: editing.isBuiltIn ? {
+                        withAnimation { viewModel.restoreSingleDefault(editing) }
+                        viewModel.editingPrompt = nil
+                    } : nil
+                )
             }
         }
         .sheet(
@@ -377,17 +385,10 @@ struct AskPromptsSheet: View {
                 .polishedTooltip("Edit")
                 .accessibilityLabel("Edit \(prompt.label)")
 
-                if prompt.isBuiltIn {
-                    Button {
-                        withAnimation { viewModel.restoreSingleDefault(prompt) }
-                    } label: {
-                        rowIcon("arrow.uturn.backward", isHovered: isActive)
-                    }
-                    .buttonStyle(.plain)
-                    .focused($focusedRowID, equals: prompt.id)
-                    .polishedTooltip("Restore default")
-                    .accessibilityLabel("Restore \(prompt.label) to default")
-                } else {
+                // Built-ins no longer carry a row-level "restore default"
+                // button — the action lives inside the Edit sheet (rare,
+                // overwrites user edits, deserves a confirmation alert).
+                if !prompt.isBuiltIn {
                     Button {
                         pendingDelete = prompt
                     } label: {
@@ -471,16 +472,28 @@ private struct EditPromptSheet: View {
     let initial: QuickPrompt
     let onSave: (QuickPrompt) -> Bool
     let onCancel: () -> Void
+    /// Optional restore-default action. Only invoked for built-ins (the sheet
+    /// renders the restore affordance when this is non-nil and `initial.isBuiltIn`).
+    /// Caller is responsible for performing the restore — the sheet only
+    /// gathers user confirmation before firing.
+    let onRestore: (() -> Void)?
 
     @State private var label: String
     @State private var promptBody: String
     @State private var groupLabel: String
     @State private var showingDiscardConfirm = false
+    @State private var showingRestoreConfirm = false
 
-    init(prompt: QuickPrompt, onSave: @escaping (QuickPrompt) -> Bool, onCancel: @escaping () -> Void) {
+    init(
+        prompt: QuickPrompt,
+        onSave: @escaping (QuickPrompt) -> Bool,
+        onCancel: @escaping () -> Void,
+        onRestore: (() -> Void)? = nil
+    ) {
         self.initial = prompt
         self.onSave = onSave
         self.onCancel = onCancel
+        self.onRestore = onRestore
         self._label = State(initialValue: prompt.label)
         self._promptBody = State(initialValue: prompt.prompt)
         self._groupLabel = State(initialValue: prompt.groupLabel ?? "")
@@ -501,10 +514,13 @@ private struct EditPromptSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: DesignSystem.Spacing.md) {
                 Text("Edit prompt")
                     .font(DesignSystem.Typography.sectionTitle)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
+                if let onRestore, initial.isBuiltIn {
+                    restoreButton(onRestore: onRestore)
+                }
                 Spacer()
                 Button("Cancel") { attemptCancel() }
                     .keyboardShortcut(.cancelAction)
@@ -539,6 +555,34 @@ private struct EditPromptSheet: View {
         } message: {
             Text("Your edits to '\(initial.label)' will be lost.")
         }
+        .alert("Restore '\(initial.label)' to default?", isPresented: $showingRestoreConfirm) {
+            Button("Restore", role: .destructive) {
+                onRestore?()
+                dismiss()
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Returns to its original label, prompt, group, sort order, and pin state (when the pinned cap allows). Visibility is kept. Any unsaved edits in this sheet will also be discarded.")
+        }
+    }
+
+    private func restoreButton(onRestore: @escaping () -> Void) -> some View {
+        Button {
+            showingRestoreConfirm = true
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.uturn.backward")
+                    .font(.system(size: 11, weight: .medium))
+                Text("Restore default")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Restore '\(initial.label)' to default")
     }
 
     private func attemptCancel() {
