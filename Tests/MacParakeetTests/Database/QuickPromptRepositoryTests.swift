@@ -165,10 +165,29 @@ final class QuickPromptRepositoryTests: XCTestCase {
     func testToggleVisibility() throws {
         let prompt = try repo.fetchAll().first(where: \.isPinned)!
         try repo.toggleVisibility(id: prompt.id)
-        XCTAssertEqual(try repo.fetch(id: prompt.id)?.isVisible, false)
+        let hidden = try XCTUnwrap(try repo.fetch(id: prompt.id))
+        XCTAssertFalse(hidden.isVisible)
+        // Hiding a pinned row auto-unpins it — pinned-but-hidden surfaces
+        // nowhere, so the pin would lie about future behavior.
+        XCTAssertFalse(hidden.isPinned)
         XCTAssertFalse(try repo.fetchPinned().contains { $0.id == prompt.id })
+
+        // Re-enabling visibility does NOT auto-repin — pin is an explicit
+        // opt-in so re-shown rows don't silently re-enter the strip.
         try repo.toggleVisibility(id: prompt.id)
-        XCTAssertEqual(try repo.fetch(id: prompt.id)?.isVisible, true)
+        let restored = try XCTUnwrap(try repo.fetch(id: prompt.id))
+        XCTAssertTrue(restored.isVisible)
+        XCTAssertFalse(restored.isPinned)
+    }
+
+    func testToggleVisibilityFromUnpinnedDoesNotTouchPin() throws {
+        // The auto-unpin only fires when hiding a *pinned* row. Toggling an
+        // unpinned row's visibility leaves isPinned alone in both directions.
+        let unpinned = try XCTUnwrap(try repo.fetchAll().first { !$0.isPinned })
+        try repo.toggleVisibility(id: unpinned.id)
+        XCTAssertEqual(try repo.fetch(id: unpinned.id)?.isPinned, false)
+        try repo.toggleVisibility(id: unpinned.id)
+        XCTAssertEqual(try repo.fetch(id: unpinned.id)?.isPinned, false)
     }
 
     func testReorderWithinPinnedBucketUpdatesSortOrder() throws {
@@ -231,6 +250,35 @@ final class QuickPromptRepositoryTests: XCTestCase {
         let result = try repo.setPinned(id: candidate.id, isPinned: true)
         XCTAssertEqual(result, .ok)
         XCTAssertEqual(try repo.fetch(id: candidate.id)?.isPinned, true)
+    }
+
+    func testSetPinnedAutoEnablesVisibilityWhenPinningHiddenPrompt() throws {
+        // Pinning a hidden row makes it visible too. Pin's contract is
+        // "this WILL appear in the strip" — the strip filter requires
+        // isVisible, so pinning without showing would silently no-op.
+        let candidate = try XCTUnwrap(try repo.fetchAll().first { !$0.isPinned })
+        try repo.toggleVisibility(id: candidate.id)
+        XCTAssertEqual(try repo.fetch(id: candidate.id)?.isVisible, false)
+
+        let result = try repo.setPinned(id: candidate.id, isPinned: true)
+        XCTAssertEqual(result, .ok)
+
+        let after = try XCTUnwrap(try repo.fetch(id: candidate.id))
+        XCTAssertTrue(after.isPinned)
+        XCTAssertTrue(after.isVisible)
+        XCTAssertTrue(try repo.fetchPinned().contains { $0.id == candidate.id })
+    }
+
+    func testSetPinnedFalseDoesNotTouchVisibility() throws {
+        // Unpinning an already-pinned visible row leaves isVisible alone.
+        // Visibility is an independent decision — flipping pin off should
+        // not push a row into the hidden bin.
+        let pinned = try XCTUnwrap(try repo.fetchAll().first(where: \.isPinned))
+        let result = try repo.setPinned(id: pinned.id, isPinned: false)
+        XCTAssertEqual(result, .ok)
+        let after = try XCTUnwrap(try repo.fetch(id: pinned.id))
+        XCTAssertFalse(after.isPinned)
+        XCTAssertTrue(after.isVisible)
     }
 
     func testSetPinnedAllowsPinningBeyondDefaultSeedCount() throws {

@@ -159,7 +159,24 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
     public func toggleVisibility(id: UUID) throws {
         try dbQueue.write { db in
             guard var prompt = try QuickPrompt.fetchOne(db, key: id) else { return }
+            let willHide = prompt.isVisible
             prompt.isVisible.toggle()
+            // Hiding a pinned prompt auto-unpins it. A pinned-but-hidden row
+            // surfaces nowhere — `fetchPinned` filters by both flags — so
+            // leaving the pin set would just be a ghost flag that lies about
+            // future behavior. Move the row to the end of the unpinned bucket
+            // the same way an explicit `setPinned(false)` would. Showing a
+            // previously-hidden prompt does NOT auto-repin: pin remains an
+            // explicit opt-in so re-enabled rows don't silently re-enter the
+            // strip without the user's say-so.
+            if willHide && prompt.isPinned {
+                let maxUnpinnedSort = try Int.fetchOne(
+                    db,
+                    sql: "SELECT COALESCE(MAX(sortOrder), -1) FROM quick_prompts WHERE isPinned = 0"
+                ) ?? -1
+                prompt.isPinned = false
+                prompt.sortOrder = maxUnpinnedSort + 1
+            }
             prompt.updatedAt = Date()
             try prompt.update(db)
         }
@@ -170,6 +187,15 @@ public final class QuickPromptRepository: QuickPromptRepositoryProtocol {
         try dbQueue.write { db in
             guard var prompt = try QuickPrompt.fetchOne(db, key: id) else {
                 return .notFound
+            }
+            // Pinning a hidden prompt auto-enables visibility. Pin's contract
+            // is "this WILL appear in the after-response strip", which the
+            // strip's filter (`isPinned && isVisible`) requires. Without this,
+            // clicking the pin on a hidden row would silently no-op visually
+            // and leave the row in zombie state. Unpinning never touches
+            // visibility — that's an independent decision.
+            if isPinned && !prompt.isVisible {
+                prompt.isVisible = true
             }
             // Idempotent re-pin / re-unpin is a cheap no-op that still bumps
             // updatedAt for convergence with other clients.
