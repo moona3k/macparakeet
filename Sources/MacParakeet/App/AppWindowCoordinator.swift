@@ -194,7 +194,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
             height: DesignSystem.Layout.windowMinHeight
         )
         window.titlebarAppearsTransparent = true
-        window.contentView = NSHostingView(rootView: contentView)
+        window.contentView = NSHostingView(rootView: contentView.tint(DesignSystem.Colors.accent))
         window.delegate = self
         window.isReleasedWhenClosed = false
 

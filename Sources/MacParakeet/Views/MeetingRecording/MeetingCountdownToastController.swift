@@ -120,7 +120,7 @@ final class MeetingCountdownToastController {
                 : { [weak self] in self?.finish(.primedEarly) }
         )
 
-        let hosting = NSHostingView(rootView: view)
+        let hosting = NSHostingView(rootView: view.tint(DesignSystem.Colors.accent))
         hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 130)
 
         let panel = CountdownPanel(

@@ -42,12 +42,14 @@ struct VocabularyView: View {
         } content: {
             CustomWordsView(viewModel: customWordsViewModel)
                 .frame(minWidth: 620, minHeight: 460)
+                .tint(DesignSystem.Colors.accent)
         }
         .sheet(isPresented: $showTextSnippets) {
             settingsViewModel.refreshStats()
         } content: {
             TextSnippetsView(viewModel: textSnippetsViewModel)
                 .frame(minWidth: 620, minHeight: 460)
+                .tint(DesignSystem.Colors.accent)
         }
         .onAppear {
             settingsViewModel.refreshStats()

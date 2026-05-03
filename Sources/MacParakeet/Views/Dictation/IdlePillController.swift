@@ -97,6 +97,9 @@ final class IdlePillController {
         if panel != nil { return }
 
         let view = IdlePillView(viewModel: viewModel)
+        // No `.tint(...)` — pill is fully custom-drawn (no .borderedProminent /
+        // Toggle / ProgressView), and `hostingView: NSHostingView<IdlePillView>`
+        // is typed against the bare view.
         let hosting = NSHostingView(rootView: view)
 
         let panelWidth: CGFloat = 350
