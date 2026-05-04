@@ -150,7 +150,10 @@ struct TranscriptTextView: NSViewRepresentable {
 
                 let speaker = NSAttributedString(string: "\(line.speakerLabel)  ", attributes: [
                     .font: speakerFont,
-                    .foregroundColor: nsColor(for: line.source, alpha: 0.85),
+                    .foregroundColor: nsColor(
+                        for: line.source,
+                        alpha: DesignSystem.Colors.transcriptSpeakerLabelAlpha
+                    ),
                 ])
                 result.append(speaker)
 

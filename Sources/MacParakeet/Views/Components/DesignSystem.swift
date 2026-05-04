@@ -61,6 +61,7 @@ enum DesignSystem {
         static let playbackFill = Color.accentColor
 
         // Speaker diarization palette — distinct, readable in both light/dark
+        static let transcriptSpeakerLabelAlpha: CGFloat = 0.85
         static let speakerColors: [Color] = [
             Color(light: .init(red: 0.20, green: 0.51, blue: 0.84),
                   dark: .init(red: 0.42, green: 0.68, blue: 0.96)),   // Blue
