@@ -17,7 +17,10 @@ struct TranscribeView: View {
     /// Fixed footer attribution. Previously rotated through 19 randomly-picked
     /// quotes per view init; pinned to a single quote until the rotation
     /// system has a clear product role.
-    private static let inspirationQuote = "Be the change you wish to see in the world."
+    ///
+    /// Typed as `LocalizedStringKey` so `Text(_:)` uses the localization-aware
+    /// initializer rather than the raw `String` overload.
+    private static let inspirationQuote: LocalizedStringKey = "Be the change you wish to see in the world."
 
     private enum PipelineStep: CaseIterable {
         case download
