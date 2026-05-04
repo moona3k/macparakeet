@@ -113,11 +113,12 @@ struct TranscriptTextView: NSViewRepresentable {
         var previousSource = previousSource
         var isFirstLine = isFirstInDocument
 
-        let bodyFont = NSFont.systemFont(ofSize: 13, weight: .regular)
+        let bodyFontSize: CGFloat = 14
+        let bodyFont = NSFont.systemFont(ofSize: bodyFontSize, weight: .regular)
         let serifFont: NSFont = {
             let descriptor = NSFontDescriptor.preferredFontDescriptor(forTextStyle: .body)
                 .withDesign(.serif) ?? NSFontDescriptor.preferredFontDescriptor(forTextStyle: .body)
-            return NSFont(descriptor: descriptor, size: 13) ?? bodyFont
+            return NSFont(descriptor: descriptor, size: bodyFontSize) ?? bodyFont
         }()
 
         let speakerFont = NSFont.systemFont(ofSize: 11, weight: .medium)
