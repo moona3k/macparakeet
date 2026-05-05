@@ -86,10 +86,41 @@ because no recording source remains.
 
 - Should the first fix only preserve mic recording, or also try to restart
   ScreenCaptureKit after display topology changes?
-- How should the UI communicate "system audio stopped, mic recording continues"
-  without alarming the user mid-meeting?
 - Should final metadata explicitly record source interruptions so Library export
   and debugging can explain partial system audio?
+
+## Follow-Up UX
+
+The live UI should use a subtle warning, not a modal alert:
+
+```text
+System audio stopped. Microphone recording continues.
+
+[Send Diagnostic Report]
+
+Sends a redacted audio diagnostic log excerpt.
+No audio or transcript is included.
+```
+
+The report button should reuse the existing feedback path:
+
+```text
+Interruption UI
+        |
+        v
+FeedbackService /api/feedback
+        |
+        v
+Server creates GitHub issue with bot account
+```
+
+The client should send structured diagnostics to the backend rather than open
+GitHub directly. That keeps the user action to one click, avoids exposing logs
+in a public issue form, and lets the server decide how to file or route the
+report. The diagnostic payload should include a redacted, capped excerpt of
+`dictation-audio.log`, the capture mode, interrupted source, ScreenCaptureKit
+error code, app version, macOS version, and timestamp. It must not include
+audio or transcript content.
 
 ## PR Scope
 
