@@ -72,7 +72,7 @@ ScreenCaptureKit system audio stops
 System source marked unavailable
         |
         +--> system level goes to 0
-        +--> warning is logged / telemetry is sent
+        +--> warning and diagnostic line are logged
         +--> mic capture continues
         |
         v
@@ -98,7 +98,7 @@ System audio stopped. Microphone recording continues.
 
 [Send Diagnostic Report]
 
-Sends a redacted audio diagnostic log excerpt.
+Sends a redacted audio diagnostic log.
 No audio or transcript is included.
 ```
 

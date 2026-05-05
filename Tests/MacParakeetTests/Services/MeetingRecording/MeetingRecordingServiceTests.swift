@@ -433,10 +433,11 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         try await service.startRecording()
 
+        let firstSystemHostTime = AVAudioTime.hostTime(forSeconds: 100.0)
         let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
         await captureService.yield(.systemBuffer(
             systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+            AVAudioTime(hostTime: firstSystemHostTime)
         ))
         try await waitForSystemLevel(service) { $0 > 0 }
 
@@ -451,6 +452,12 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertEqual(modeAfterSystemInterruption, .full)
         XCTAssertEqual(stopCallCountBeforeManualStop, 0)
 
+        let lateSystemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.75))
+        await captureService.yield(.systemBuffer(
+            lateSystemBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 102.0))
+        ))
+
         let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
         await captureService.yield(.microphoneBuffer(
             microphoneBuffer,
@@ -462,6 +469,7 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         XCTAssertNotNil(output.sourceAlignment.microphone)
         XCTAssertNotNil(output.sourceAlignment.system)
+        XCTAssertEqual(output.sourceAlignment.system?.lastHostTime, firstSystemHostTime)
     }
 
     func testStopRecordingPreservesCrossStreamHostTimeOffsetsInSourceAlignment() async throws {
