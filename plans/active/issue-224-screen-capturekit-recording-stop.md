@@ -117,10 +117,17 @@ Server creates GitHub issue with bot account
 The client should send structured diagnostics to the backend rather than open
 GitHub directly. That keeps the user action to one click, avoids exposing logs
 in a public issue form, and lets the server decide how to file or route the
-report. The diagnostic payload should include a redacted, capped excerpt of
-`dictation-audio.log`, the capture mode, interrupted source, ScreenCaptureKit
-error code, app version, macOS version, and timestamp. It must not include
-audio or transcript content.
+report.
+
+Prefer a generous capped log payload over a narrow snippet. The audio
+diagnostic log is already designed to be shared: paths and URLs are sanitized,
+individual error details are capped, and microphone IDs, UIDs, and names are
+omitted. If the payload fits the backend limit, send the current
+`dictation-audio.log`; otherwise send a capped recent tail with enough lead-up
+context to diagnose display/audio state changes. Include structured context
+such as capture mode, interrupted source, ScreenCaptureKit error code, app
+version, macOS version, and timestamp. Do not include audio or transcript
+content.
 
 ## PR Scope
 
