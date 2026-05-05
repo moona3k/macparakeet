@@ -91,10 +91,14 @@ because no recording source remains.
 - Should final metadata explicitly record source interruptions so Library export
   and debugging can explain partial system audio?
 
-## Draft PR Scope
+## PR Scope
 
-This draft PR is an investigation and decision point, not a finished runtime
-fix. A proper implementation PR should add tests for:
+This PR implements the first safety fix: system-audio failure during
+`Microphone + System Audio` becomes source-specific, so the microphone keeps
+recording. A later PR can decide whether to restart ScreenCaptureKit after
+display topology changes.
+
+Coverage should verify:
 
 - system-audio failure during `Microphone + System Audio` keeps mic recording
   alive

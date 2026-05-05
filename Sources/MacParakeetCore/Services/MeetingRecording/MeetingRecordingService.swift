@@ -111,6 +111,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var transcriptAssembler = MeetingTranscriptAssembler()
     private var isTranscriptionLagging = false
     private var captureFailed = false
+    private var interruptedSources: Set<AudioSource> = []
     private var sourceCaptureMetrics: [AudioSource: SourceCaptureMetrics] = [:]
     private var latestLevels = MeetingAudioLevels()
     private var recentSystemRms: Float = 0
@@ -249,6 +250,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             transcriptAssembler.reset()
             isTranscriptionLagging = false
             captureFailed = false
+            interruptedSources = []
             sourceCaptureMetrics = [:]
             recentSystemRms = 0
             recentProcessedMicRms = 0
@@ -578,7 +580,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 await failCapture(error)
             }
         case .systemBuffer(let buffer, let time):
-            guard !captureFailed else { return }
+            guard !captureFailed, !interruptedSources.contains(.system) else { return }
             do {
                 recordCaptureMetrics(for: .system, time: time)
                 try writer?.write(buffer, source: .system)
@@ -594,9 +596,30 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             } catch {
                 await failCapture(error)
             }
+        case .sourceInterrupted(let source, let error):
+            guard !captureFailed else { return }
+            await handleSourceInterruption(source: source, error: error)
         case .error(let error):
             guard !captureFailed else { return }
             await failCapture(error)
+        }
+    }
+
+    private func handleSourceInterruption(source: AudioSource, error: Error) async {
+        guard !interruptedSources.contains(source) else { return }
+        interruptedSources.insert(source)
+        logger.warning("meeting_capture_source_interrupted source=\(source.rawValue, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+        AudioCaptureDiagnostics.append(
+            "meeting_capture_source_interrupted source=\(source.rawValue) \(AudioCaptureDiagnostics.errorFields(error))"
+        )
+
+        switch source {
+        case .microphone:
+            await failCapture(error)
+        case .system:
+            latestLevels.system = 0
+            recentSystemRms = 0
+            latestSystemSignalAt = nil
         }
     }
 
@@ -911,6 +934,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         micConditioner = PassthroughMicConditioner()
         latestLevels = MeetingAudioLevels()
         sourceCaptureMetrics = [:]
+        interruptedSources = []
         recentSystemRms = 0
         recentProcessedMicRms = 0
         latestSystemSignalAt = nil

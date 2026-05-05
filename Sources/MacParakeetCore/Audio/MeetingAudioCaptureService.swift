@@ -5,6 +5,7 @@ import OSLog
 public enum MeetingAudioCaptureEvent: Sendable {
     case microphoneBuffer(AVAudioPCMBuffer, AVAudioTime)
     case systemBuffer(AVAudioPCMBuffer, AVAudioTime)
+    case sourceInterrupted(source: AudioSource, error: MeetingAudioError)
     case error(MeetingAudioError)
 }
 
@@ -140,6 +141,11 @@ public actor MeetingAudioCaptureService {
         eventSink.setHandler(handler)
         var microphoneStartReport: MeetingMicrophoneCaptureStartReport?
         var attemptedMicrophoneStart = false
+        let systemAudioFailureEvent: @Sendable (MeetingAudioError) -> MeetingAudioCaptureEvent = { error in
+            sourceMode.capturesMicrophone
+                ? .sourceInterrupted(source: .system, error: error)
+                : .error(error)
+        }
 
         do {
             if sourceMode.capturesMicrophone {
@@ -173,7 +179,7 @@ public actor MeetingAudioCaptureService {
                         Logger(subsystem: "com.macparakeet.core", category: "MeetingAudioCaptureService")
                             .warning("deepCopyBuffer nil for system capture: format=\(buffer.format.commonFormat.rawValue) rate=\(buffer.format.sampleRate) ch=\(buffer.format.channelCount) interleaved=\(buffer.format.isInterleaved) frames=\(buffer.frameLength)")
                         self?.eventSink.emit(
-                            .error(
+                            systemAudioFailureEvent(
                                 .captureRuntimeFailure(
                                     "system buffer copy failed (format=\(buffer.format.commonFormat.rawValue) rate=\(buffer.format.sampleRate) channels=\(buffer.format.channelCount))"
                                 )
@@ -184,7 +190,7 @@ public actor MeetingAudioCaptureService {
                     self?.eventSink.emit(.systemBuffer(copy, time))
                 },
                 onStall: { [weak self] error in
-                    self?.eventSink.emit(.error(error))
+                    self?.eventSink.emit(systemAudioFailureEvent(error))
                 }
             )
         } catch {

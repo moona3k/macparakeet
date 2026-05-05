@@ -421,6 +421,49 @@ final class MeetingRecordingServiceTests: XCTestCase {
         await service.cancelRecording()
     }
 
+    func testSystemSourceInterruptionKeepsMicrophoneRecordingAlive() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient
+        )
+
+        try await service.startRecording()
+
+        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
+        await captureService.yield(.systemBuffer(
+            systemBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        try await waitForSystemLevel(service) { $0 > 0 }
+
+        await captureService.yield(.sourceInterrupted(
+            source: .system,
+            error: .captureRuntimeFailure("system audio stream stopped: Failed to find any displays or windows to capture")
+        ))
+        try await waitForSystemLevel(service) { $0 == 0 }
+
+        let modeAfterSystemInterruption = await service.captureMode
+        let stopCallCountBeforeManualStop = await captureService.stopCallCount
+        XCTAssertEqual(modeAfterSystemInterruption, .full)
+        XCTAssertEqual(stopCallCountBeforeManualStop, 0)
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 101.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertNotNil(output.sourceAlignment.microphone)
+        XCTAssertNotNil(output.sourceAlignment.system)
+    }
+
     func testStopRecordingPreservesCrossStreamHostTimeOffsetsInSourceAlignment() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let audioConverter = MockMeetingAudioFileConverter()
@@ -927,6 +970,21 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
     }
 
+    private func waitForSystemLevel(
+        _ service: MeetingRecordingService,
+        timeout: Duration = .seconds(1),
+        _ predicate: @escaping (Float) -> Bool
+    ) async throws {
+        let startedAt = ContinuousClock.now
+        while !predicate(await service.systemLevel) {
+            if startedAt.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for system level predicate")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func makeMonoFloatBuffer(frameCount: Int, sampleValue: Float) -> AVAudioPCMBuffer? {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -1149,6 +1207,7 @@ private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
     private var stream: AsyncStream<MeetingAudioCaptureEvent>?
     private let startReport: MeetingAudioCaptureStartReport
     private(set) var startCallCount = 0
+    private(set) var stopCallCount = 0
     private(set) var requestedSourceModes: [MeetingAudioSourceMode?] = []
 
     init(
@@ -1182,6 +1241,7 @@ private actor MockMeetingAudioCaptureService: MeetingAudioCapturing {
     }
 
     func stop() async {
+        stopCallCount += 1
         continuation?.finish()
         continuation = nil
         stream = nil

@@ -364,7 +364,15 @@ extension SystemAudioStream: SCStreamOutput, SCStreamDelegate {
         AudioCaptureDiagnostics.append(
             "system_audio_stream_stopped_with_error \(AudioCaptureDiagnostics.errorFields(error))"
         )
-        let observer = watchdogLock.withLock { stallObserver }
+        let observer = watchdogLock.withLock { () -> StallObserver? in
+            guard !hasReportedStall else { return nil }
+            hasReportedStall = true
+            watchdogWorkItem?.cancel()
+            watchdogWorkItem = nil
+            heartbeatTimer?.cancel()
+            heartbeatTimer = nil
+            return stallObserver
+        }
         observer?(.captureRuntimeFailure("system audio stream stopped: \(error.localizedDescription)"))
     }
 }
