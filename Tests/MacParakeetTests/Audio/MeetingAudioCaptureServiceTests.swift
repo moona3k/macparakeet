@@ -310,12 +310,41 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         }
     }
 
-    func testEmitsRuntimeErrorEventWhenSystemCaptureStallsMidSession() async throws {
+    func testEmitsSourceInterruptedWhenSystemCaptureStallsInMicrophoneAndSystemMode() async throws {
         let microphone = MockMeetingMicrophoneCapture()
         let systemCapture = MockMeetingSystemAudioCapture()
         let service = MeetingAudioCaptureService(
             microphoneCapture: microphone,
             systemAudioCaptureFactory: { systemCapture }
+        )
+
+        let events = await service.events
+        _ = try await service.start()
+        defer { Task { await service.stop() } }
+
+        systemCapture.emitStall(.captureRuntimeFailure("system audio stream stopped delivering buffers (gap 6.0s)"))
+
+        var iterator = events.makeAsyncIterator()
+        let emitted = await iterator.next()
+        guard case let .sourceInterrupted(source, error)? = emitted else {
+            XCTFail("Expected .sourceInterrupted event, got \(String(describing: emitted))")
+            return
+        }
+        XCTAssertEqual(source, .system)
+        guard case .captureRuntimeFailure(let message) = error else {
+            XCTFail("Expected captureRuntimeFailure, got \(error)")
+            return
+        }
+        XCTAssertTrue(message.contains("stopped delivering buffers"))
+    }
+
+    func testEmitsRuntimeErrorWhenSystemCaptureStallsInSystemOnlyMode() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemCapture = MockMeetingSystemAudioCapture()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { systemCapture },
+            sourceModeProvider: { .systemOnly }
         )
 
         let events = await service.events
@@ -492,6 +521,8 @@ private actor CapturedMeetingCaptureEvents {
             microphoneBufferCount += 1
         case .systemBuffer:
             systemBufferCount += 1
+        case .sourceInterrupted:
+            break
         case .error:
             break
         }
