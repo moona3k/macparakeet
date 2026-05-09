@@ -83,7 +83,7 @@ public final class SettingsViewModel {
         didSet {
             hotkeyTrigger.save(to: defaults)
             NotificationCenter.default.post(name: .macParakeetHotkeyTriggerDidChange, object: nil)
-            Telemetry.send(.hotkeyCustomized)
+            Telemetry.send(hotkeyTrigger.customizedEvent(surface: .dictation))
         }
     }
     public var meetingHotkeyTrigger: HotkeyTrigger {
@@ -93,7 +93,7 @@ public final class SettingsViewModel {
                 name: .macParakeetMeetingHotkeyTriggerDidChange,
                 object: nil
             )
-            Telemetry.send(.settingChanged(setting: .meetingHotkey))
+            Telemetry.send(meetingHotkeyTrigger.customizedEvent(surface: .meeting))
         }
     }
     public var fileTranscriptionHotkeyTrigger: HotkeyTrigger {
@@ -103,7 +103,7 @@ public final class SettingsViewModel {
                 name: .macParakeetFileTranscriptionHotkeyTriggerDidChange,
                 object: nil
             )
-            Telemetry.send(.settingChanged(setting: .fileTranscriptionHotkey))
+            Telemetry.send(fileTranscriptionHotkeyTrigger.customizedEvent(surface: .fileTranscription))
         }
     }
     public var youtubeTranscriptionHotkeyTrigger: HotkeyTrigger {
@@ -113,7 +113,7 @@ public final class SettingsViewModel {
                 name: .macParakeetYouTubeTranscriptionHotkeyTriggerDidChange,
                 object: nil
             )
-            Telemetry.send(.settingChanged(setting: .youtubeTranscriptionHotkey))
+            Telemetry.send(youtubeTranscriptionHotkeyTrigger.customizedEvent(surface: .youtubeTranscription))
         }
     }
     public var silenceAutoStop: Bool {

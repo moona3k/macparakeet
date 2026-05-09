@@ -349,6 +349,53 @@ public struct HotkeyTrigger: Sendable {
     }
 }
 
+// MARK: - Telemetry payload
+
+extension HotkeyTrigger {
+    /// Maps `kind` to its telemetry counterpart. Kept inline here so callers
+    /// don't have to translate by hand at every emit site.
+    public var telemetryKind: TelemetryHotkeyKind {
+        switch kind {
+        case .disabled: return .disabled
+        case .modifier: return .modifier
+        case .keyCode:  return .keyCode
+        case .chord:    return .chord
+        }
+    }
+
+    /// Modifier name to send for `.modifier` triggers. Includes the
+    /// left/right side prefix when a side-specific modifier is configured —
+    /// that's the bit Logitech/SteerMouse compat conversations actually
+    /// hinge on. Returns nil for non-modifier kinds.
+    public var telemetryModifier: String? {
+        guard kind == .modifier else { return nil }
+        if let mkc = modifierKeyCode, let info = Self.modifierKeyCodeInfo[mkc] {
+            return "\(info.side.lowercased())_\(info.modifier)"
+        }
+        return modifierName
+    }
+
+    /// Sorted modifier list for `.chord` triggers (e.g. ["control","command"]).
+    /// Order matches the canonical macOS modifier ordering used in displayName.
+    public var telemetryChordModifiers: [String]? {
+        guard kind == .chord else { return nil }
+        guard let modifiers = chordModifiers else { return nil }
+        return Self.modifierOrder.filter { modifiers.contains($0) }
+    }
+
+    /// Builds the `.hotkeyCustomized` event spec for this trigger. Pulled into
+    /// a single helper so each settings call site stays a one-liner and the
+    /// (surface, kind, modifier, chord) projection can't drift between sites.
+    public func customizedEvent(surface: TelemetryHotkeySurface) -> TelemetryEventSpec {
+        .hotkeyCustomized(
+            surface: surface,
+            kind: telemetryKind,
+            modifier: telemetryModifier,
+            chordModifiers: telemetryChordModifiers
+        )
+    }
+}
+
 // MARK: - Equatable (canonical identity only)
 
 extension HotkeyTrigger: Equatable {

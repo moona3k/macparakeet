@@ -239,7 +239,7 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
         if process.terminationStatus != 0 {
             stderrHandle.synchronizeFile()
             let stderrStr = (try? String(contentsOf: stderrURL, encoding: .utf8)) ?? "Unknown error"
-            throw AudioProcessorError.conversionFailed(stderrStr)
+            throw AudioProcessorError.conversionFailed(Self.tailForError(stderrStr))
         }
 
         succeeded = true
@@ -287,10 +287,24 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
         if process.terminationStatus != 0 {
             stderrHandle.synchronizeFile()
             let stderrStr = (try? String(contentsOf: stderrURL, encoding: .utf8)) ?? "Unknown error"
-            throw AudioProcessorError.conversionFailed(stderrStr)
+            throw AudioProcessorError.conversionFailed(Self.tailForError(stderrStr))
         }
 
         succeeded = true
+    }
+
+    /// FFmpeg writes a long startup banner ("ffmpeg version X... configuration:
+    /// --prefix=... --enable-...") before the actual error message. The
+    /// telemetry path truncates `error_detail` to ~512 chars from the front,
+    /// so the banner used to crowd out the real failure reason. Keep the tail
+    /// instead — `dyld` / "Library not loaded" / "No such file" / etc. are all
+    /// emitted at the end of stderr, so this preserves diagnostics for the
+    /// fallback-path check at the call site too.
+    static func tailForError(_ stderr: String, limit: Int = 480) -> String {
+        let trimmed = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return "Unknown error" }
+        if trimmed.count <= limit { return trimmed }
+        return "...\(trimmed.suffix(limit))"
     }
 
     private func ensureTempDir() throws -> URL {

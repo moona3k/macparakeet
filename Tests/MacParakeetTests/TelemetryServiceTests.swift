@@ -975,7 +975,7 @@ final class TelemetryServiceTests: XCTestCase {
             .historySearched,
             .historyReplayed,
             .copyToClipboard(source: .transcription),
-            .hotkeyCustomized,
+            .hotkeyCustomized(surface: .dictation, kind: .modifier, modifier: "fn", chordModifiers: nil),
             .processingModeChanged(mode: "precise"),
             .customWordAdded,
             .customWordDeleted,

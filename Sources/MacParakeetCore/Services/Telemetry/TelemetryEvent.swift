@@ -203,6 +203,27 @@ public enum TelemetryPermission: String, Sendable, Equatable {
     case calendar
 }
 
+/// Which capture surface a hotkey customization applies to. Lets us answer
+/// product questions like "do meeting hotkeys get customized as often as
+/// dictation?" and "which surface is most likely to land on a chord vs a
+/// single-key trigger?".
+public enum TelemetryHotkeySurface: String, Sendable, Equatable {
+    case dictation
+    case meeting
+    case fileTranscription = "file_transcription"
+    case youtubeTranscription = "youtube_transcription"
+}
+
+/// Mirrors `HotkeyTrigger.Kind` for telemetry. Kept separate so changes to the
+/// runtime model (e.g., the proposed modifier-only chord in #234) can land
+/// without forcing every prior value through a schema migration.
+public enum TelemetryHotkeyKind: String, Sendable, Equatable {
+    case disabled
+    case modifier
+    case keyCode = "key_code"
+    case chord
+}
+
 public enum TelemetrySettingName: String, Sendable, Equatable {
     case saveHistory = "save_history"
     case audioRetention = "audio_retention"
@@ -338,7 +359,12 @@ public enum TelemetryEventSpec: Sendable {
     case historySearched
     case historyReplayed
     case copyToClipboard(source: TelemetryCopySource)
-    case hotkeyCustomized
+    case hotkeyCustomized(
+        surface: TelemetryHotkeySurface,
+        kind: TelemetryHotkeyKind,
+        modifier: String? = nil,
+        chordModifiers: [String]? = nil
+    )
     case processingModeChanged(mode: String)
     case customWordAdded
     case customWordDeleted
@@ -596,7 +622,6 @@ extension TelemetryEventSpec {
         case .appLaunched,
              .historySearched,
              .historyReplayed,
-             .hotkeyCustomized,
              .customWordAdded,
              .customWordDeleted,
              .snippetAdded,
@@ -616,6 +641,13 @@ extension TelemetryEventSpec {
              .restoreAttempted,
              .restoreSucceeded:
             return nil
+        case .hotkeyCustomized(let surface, let kind, let modifier, let chordModifiers):
+            return Self.compactProps(
+                ("surface", surface.rawValue),
+                ("kind", kind.rawValue),
+                ("modifier", modifier),
+                ("chord_modifiers", chordModifiers.flatMap { $0.isEmpty ? nil : $0.joined(separator: "+") })
+            )
         case .appQuit(let sessionDurationSeconds):
             return ["session_duration_seconds": Self.format(sessionDurationSeconds)]
         case .dictationStarted(let trigger, let mode):
@@ -1197,7 +1229,7 @@ public enum TelemetryImplementedContract {
         .historySearched: [],
         .historyReplayed: [],
         .copyToClipboard: ["source"],
-        .hotkeyCustomized: [],
+        .hotkeyCustomized: ["surface", "kind"],
         .processingModeChanged: ["mode"],
         .customWordAdded: [],
         .customWordDeleted: [],
