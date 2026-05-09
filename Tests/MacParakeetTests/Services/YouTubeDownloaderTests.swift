@@ -48,6 +48,55 @@ final class YouTubeDownloaderTests: XCTestCase {
         XCTAssertNil(YouTubeDownloader.parseDownloadProgressPercent(from: "some random log line"))
     }
 
+    func testDownloadAudioArgumentsUseCompatibilitySelector() {
+        let args = YouTubeDownloader.downloadAudioArguments(
+            ffmpegDir: "/opt/macparakeet/bin",
+            outputTemplate: "/tmp/video.%(ext)s",
+            url: "https://www.youtube.com/watch?v=abc",
+            quality: .compatibility
+        )
+
+        XCTAssertEqual(formatSelector(in: args), "bestaudio[ext=m4a]/bestaudio/best")
+        XCTAssertEqual(args, [
+            "--ffmpeg-location", "/opt/macparakeet/bin",
+            "-f", "bestaudio[ext=m4a]/bestaudio/best",
+            "--no-playlist",
+            "--retries", "3",
+            "--concurrent-fragments", "4",
+            "--newline",
+            "-o", "/tmp/video.%(ext)s",
+            "--", "https://www.youtube.com/watch?v=abc",
+        ])
+    }
+
+    func testDownloadAudioArgumentsUseBestAvailableSelector() {
+        let args = YouTubeDownloader.downloadAudioArguments(
+            ffmpegDir: "/opt/macparakeet/bin",
+            outputTemplate: "/tmp/video.%(ext)s",
+            url: "https://www.youtube.com/watch?v=abc",
+            quality: .bestAvailable
+        )
+
+        XCTAssertEqual(formatSelector(in: args), "bestaudio/best")
+    }
+
+    func testDownloadAudioArgumentsIncludeJavaScriptRuntimeArgsBeforeFFmpeg() {
+        let args = YouTubeDownloader.downloadAudioArguments(
+            ffmpegDir: "/opt/macparakeet/bin",
+            outputTemplate: "/tmp/video.%(ext)s",
+            url: "https://www.youtube.com/watch?v=abc",
+            quality: .compatibility,
+            javaScriptRuntimeArguments: ["--js-runtimes", "node:/opt/homebrew/bin/node"]
+        )
+
+        XCTAssertEqual(Array(args.prefix(4)), [
+            "--no-js-runtimes",
+            "--js-runtimes",
+            "node:/opt/homebrew/bin/node",
+            "--ffmpeg-location",
+        ])
+    }
+
     func testSelectDownloadedAudioFileIgnoresYtDlpPartialArtifacts() {
         let uuid = UUID().uuidString
 
@@ -153,5 +202,13 @@ final class YouTubeDownloaderTests: XCTestCase {
         XCTAssertFalse(YouTubeDownloader.isPyInstallerLibraryValidationError(
             YouTubeDownloadError.ytDlpNotFound
         ))
+    }
+
+    private func formatSelector(in args: [String]) -> String? {
+        guard let index = args.firstIndex(of: "-f"),
+              args.indices.contains(args.index(after: index)) else {
+            return nil
+        }
+        return args[args.index(after: index)]
     }
 }

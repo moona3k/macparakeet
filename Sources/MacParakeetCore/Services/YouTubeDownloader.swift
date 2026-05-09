@@ -72,9 +72,14 @@ public actor YouTubeDownloader {
     }
 
     private let binaryBootstrap: BinaryBootstrap
+    private let audioQuality: @Sendable () -> YouTubeAudioQuality
 
-    public init(binaryBootstrap: BinaryBootstrap = BinaryBootstrap()) {
+    public init(
+        binaryBootstrap: BinaryBootstrap = BinaryBootstrap(),
+        audioQuality: @escaping @Sendable () -> YouTubeAudioQuality = { .compatibility }
+    ) {
         self.binaryBootstrap = binaryBootstrap
+        self.audioQuality = audioQuality
     }
 
     /// Download audio from a YouTube URL.
@@ -239,21 +244,13 @@ public actor YouTubeDownloader {
         env["PATH"] = Self.extendedPATH()
         process.environment = env
 
-        var args: [String] = []
-        let jsRuntimeArgs = javaScriptRuntimeArguments()
-        if !jsRuntimeArgs.isEmpty {
-            args += ["--no-js-runtimes"] + jsRuntimeArgs
-        }
-        args += ["--ffmpeg-location", ffmpegDir]
-        args += [
-            "-f", "bestaudio[ext=m4a]/bestaudio/best",
-            "--no-playlist",
-            "--retries", "3",
-            "--concurrent-fragments", "4",
-            "--newline",
-            "-o", outputTemplate,
-            "--", url,
-        ]
+        let args = Self.downloadAudioArguments(
+            ffmpegDir: ffmpegDir,
+            outputTemplate: outputTemplate,
+            url: url,
+            quality: audioQuality(),
+            javaScriptRuntimeArguments: javaScriptRuntimeArguments()
+        )
         process.arguments = args
 
         // yt-dlp sends [download] progress lines to stdout (not stderr).
@@ -368,6 +365,30 @@ public actor YouTubeDownloader {
         for file in files where file.lastPathComponent.hasPrefix(uuid) {
             try? fm.removeItem(at: file)
         }
+    }
+
+    nonisolated static func downloadAudioArguments(
+        ffmpegDir: String,
+        outputTemplate: String,
+        url: String,
+        quality: YouTubeAudioQuality,
+        javaScriptRuntimeArguments: [String] = []
+    ) -> [String] {
+        var args: [String] = []
+        if !javaScriptRuntimeArguments.isEmpty {
+            args += ["--no-js-runtimes"] + javaScriptRuntimeArguments
+        }
+        args += ["--ffmpeg-location", ffmpegDir]
+        args += [
+            "-f", quality.ytDlpFormatSelector,
+            "--no-playlist",
+            "--retries", "3",
+            "--concurrent-fragments", "4",
+            "--newline",
+            "-o", outputTemplate,
+            "--", url,
+        ]
+        return args
     }
 
     nonisolated static func selectDownloadedAudioFile(from fileNames: [String], uuid: String) -> String? {

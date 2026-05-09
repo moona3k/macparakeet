@@ -159,6 +159,14 @@ public enum SettingsSearchIndex {
             cardAnchor: "transcription"
         ),
         SettingsSearchEntry(
+            id: "transcription.youtube.audio.quality",
+            tab: .modes,
+            title: "YouTube audio quality",
+            subtitle: "in Transcription",
+            keywords: ["youtube", "audio", "quality", "best available", "compatibility", "opus", "m4a"],
+            cardAnchor: "transcription"
+        ),
+        SettingsSearchEntry(
             id: "transcription.diarization",
             tab: .modes,
             title: "Speaker detection",

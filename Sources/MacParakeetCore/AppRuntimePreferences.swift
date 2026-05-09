@@ -6,11 +6,52 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var shouldSaveAudioRecordings: Bool { get }
     var shouldSaveDictationHistory: Bool { get }
     var shouldSaveTranscriptionAudio: Bool { get }
+    var youtubeAudioQuality: YouTubeAudioQuality { get }
     var shouldDiarize: Bool { get }
     var aiFormatterEnabled: Bool { get }
     var aiFormatterPrompt: String { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
+}
+
+public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equatable {
+    case compatibility
+    case bestAvailable = "best_available"
+
+    public var displayTitle: String {
+        switch self {
+        case .compatibility:
+            return "Compatibility"
+        case .bestAvailable:
+            return "Best available"
+        }
+    }
+
+    public var detail: String {
+        switch self {
+        case .compatibility:
+            return "Prefer m4a audio for broad compatibility. Matches previous MacParakeet downloads."
+        case .bestAvailable:
+            return "Prefer the highest-quality audio stream YouTube exposes, often Opus/WebM."
+        }
+    }
+
+    public var ytDlpFormatSelector: String {
+        switch self {
+        case .compatibility:
+            return "bestaudio[ext=m4a]/bestaudio/best"
+        case .bestAvailable:
+            return "bestaudio/best"
+        }
+    }
+
+    public static func current(defaults: UserDefaults = .standard) -> YouTubeAudioQuality {
+        guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey),
+              let quality = YouTubeAudioQuality(rawValue: raw) else {
+            return .compatibility
+        }
+        return quality
+    }
 }
 
 public enum MeetingAudioSourceMode: String, CaseIterable, Hashable, Sendable, Equatable {
@@ -58,6 +99,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let saveDictationHistoryKey = "saveDictationHistory"
     public static let saveAudioRecordingsKey = "saveAudioRecordings"
     public static let saveTranscriptionAudioKey = "saveTranscriptionAudio"
+    public static let youtubeAudioQualityKey = "youtubeAudioQuality"
     public static let speakerDiarizationKey = "speakerDiarization"
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
@@ -92,6 +134,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var shouldSaveTranscriptionAudio: Bool {
         defaults.object(forKey: Self.saveTranscriptionAudioKey) as? Bool ?? true
+    }
+
+    public var youtubeAudioQuality: YouTubeAudioQuality {
+        YouTubeAudioQuality.current(defaults: defaults)
     }
 
     public var shouldDiarize: Bool {

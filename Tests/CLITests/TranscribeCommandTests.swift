@@ -24,6 +24,32 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(mode, .clean)
     }
 
+    func testResolveYouTubeAudioQualityUsesCompatibilityForAppDefaultWhenUnset() {
+        let quality = TranscribeCommand.resolveYouTubeAudioQuality(.appDefault, storedQuality: nil)
+        XCTAssertEqual(quality, .compatibility)
+    }
+
+    func testResolveYouTubeAudioQualityUsesCompatibilityForAppDefaultWhenStoredQualityInvalid() {
+        let quality = TranscribeCommand.resolveYouTubeAudioQuality(.appDefault, storedQuality: "not-a-quality")
+        XCTAssertEqual(quality, .compatibility)
+    }
+
+    func testResolveYouTubeAudioQualityUsesStoredQualityForAppDefaultWhenValid() {
+        let quality = TranscribeCommand.resolveYouTubeAudioQuality(
+            .appDefault,
+            storedQuality: YouTubeAudioQuality.bestAvailable.rawValue
+        )
+        XCTAssertEqual(quality, .bestAvailable)
+    }
+
+    func testResolveYouTubeAudioQualityRespectsExplicitQuality() {
+        let quality = TranscribeCommand.resolveYouTubeAudioQuality(
+            .bestAvailable,
+            storedQuality: YouTubeAudioQuality.compatibility.rawValue
+        )
+        XCTAssertEqual(quality, .bestAvailable)
+    }
+
     func testParsesWhisperEngineAndLanguage() throws {
         let command = try TranscribeCommand.parse([
             "sample.wav",
@@ -35,10 +61,20 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(command.language, "ko")
     }
 
+    func testParsesYouTubeAudioQuality() throws {
+        let command = try TranscribeCommand.parse([
+            "https://www.youtube.com/watch?v=abc",
+            "--youtube-audio-quality", "best-available",
+        ])
+
+        XCTAssertEqual(command.youtubeAudioQuality, .bestAvailable)
+    }
+
     func testParakeetRemainsDefaultEngine() throws {
         let command = try TranscribeCommand.parse(["sample.wav"])
         XCTAssertEqual(command.engine, .parakeet)
         XCTAssertNil(command.language)
+        XCTAssertEqual(command.youtubeAudioQuality, .appDefault)
     }
 
     func testLocalFileURLExpandsTilde() {

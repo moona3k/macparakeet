@@ -97,6 +97,9 @@ YouTube URL → yt-dlp (audio only) → downloaded audio file → FFmpeg → 16k
 ```
 
 - `yt-dlp` is used with `--no-playlist` for single-video processing
+- YouTube audio quality is configurable:
+  - **Compatibility** (default): `bestaudio[ext=m4a]/bestaudio/best`, matching prior releases
+  - **Best available**: `bestaudio/best`, allowing higher-quality streams such as Opus/WebM when YouTube offers them
 - Download progress is parsed from yt-dlp output and surfaced as percent updates
 - Downloaded files are written to:
 

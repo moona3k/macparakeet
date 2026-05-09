@@ -80,6 +80,12 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- `transcribe --youtube-audio-quality app-default|compatibility|best-available`
+  lets callers choose between the app default, the historical m4a-first
+  selector, and yt-dlp's best available audio stream for YouTube URLs.
+
 ## [2.0.0] -- 2026-05-03
 
 ### Added — `quick-prompts`
