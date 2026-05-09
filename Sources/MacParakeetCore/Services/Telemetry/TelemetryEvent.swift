@@ -217,6 +217,11 @@ public enum TelemetryHotkeySurface: String, Sendable, Equatable {
 /// Mirrors `HotkeyTrigger.Kind` for telemetry. Kept separate so changes to the
 /// runtime model (e.g., the proposed modifier-only chord in #234) can land
 /// without forcing every prior value through a schema migration.
+///
+/// We deliberately track structural category only — see
+/// `docs/telemetry.md` item 10: "track boolean, not which key." `kind` is
+/// one step up from a boolean (4 categories of binding pattern); it does
+/// not reveal the actual modifier or keycode the user picked.
 public enum TelemetryHotkeyKind: String, Sendable, Equatable {
     case disabled
     case modifier
@@ -361,9 +366,7 @@ public enum TelemetryEventSpec: Sendable {
     case copyToClipboard(source: TelemetryCopySource)
     case hotkeyCustomized(
         surface: TelemetryHotkeySurface,
-        kind: TelemetryHotkeyKind,
-        modifier: String? = nil,
-        chordModifiers: [String]? = nil
+        kind: TelemetryHotkeyKind
     )
     case processingModeChanged(mode: String)
     case customWordAdded
@@ -641,12 +644,10 @@ extension TelemetryEventSpec {
              .restoreAttempted,
              .restoreSucceeded:
             return nil
-        case .hotkeyCustomized(let surface, let kind, let modifier, let chordModifiers):
+        case .hotkeyCustomized(let surface, let kind):
             return Self.compactProps(
                 ("surface", surface.rawValue),
-                ("kind", kind.rawValue),
-                ("modifier", modifier),
-                ("chord_modifiers", chordModifiers.flatMap { $0.isEmpty ? nil : $0.joined(separator: "+") })
+                ("kind", kind.rawValue)
             )
         case .appQuit(let sessionDurationSeconds):
             return ["session_duration_seconds": Self.format(sessionDurationSeconds)]
