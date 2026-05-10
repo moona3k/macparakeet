@@ -374,11 +374,10 @@ public actor YouTubeDownloader {
         quality: YouTubeAudioQuality,
         javaScriptRuntimeArguments: [String] = []
     ) -> [String] {
-        var args: [String] = []
-        if !javaScriptRuntimeArguments.isEmpty {
-            args += ["--no-js-runtimes"] + javaScriptRuntimeArguments
-        }
-        args += ["--ffmpeg-location", ffmpegDir]
+        var args = commonYtDlpArguments(
+            ffmpegDir: ffmpegDir,
+            javaScriptRuntimeArguments: javaScriptRuntimeArguments
+        )
         args += [
             "-f", quality.ytDlpFormatSelector,
             "--no-playlist",
@@ -388,6 +387,18 @@ public actor YouTubeDownloader {
             "-o", outputTemplate,
             "--", url,
         ]
+        return args
+    }
+
+    nonisolated static func commonYtDlpArguments(
+        ffmpegDir: String,
+        javaScriptRuntimeArguments: [String] = []
+    ) -> [String] {
+        var args: [String] = []
+        if !javaScriptRuntimeArguments.isEmpty {
+            args += ["--no-js-runtimes"] + javaScriptRuntimeArguments
+        }
+        args += ["--ffmpeg-location", ffmpegDir]
         return args
     }
 
@@ -637,15 +648,10 @@ public actor YouTubeDownloader {
         env["PATH"] = Self.extendedPATH()
         process.environment = env
 
-        var fullArgs = arguments
-        let jsRuntimeArgs = javaScriptRuntimeArguments()
-        if !jsRuntimeArgs.isEmpty {
-            fullArgs = ["--no-js-runtimes"] + jsRuntimeArgs + fullArgs
-        }
-        let ffmpegDir = try ffmpegDirectory()
-        fullArgs = ["--ffmpeg-location", ffmpegDir] + fullArgs
-
-        process.arguments = fullArgs
+        process.arguments = Self.commonYtDlpArguments(
+            ffmpegDir: try ffmpegDirectory(),
+            javaScriptRuntimeArguments: javaScriptRuntimeArguments()
+        ) + arguments
         process.standardOutput = captureStdout ? stdoutHandle : FileHandle.nullDevice
         process.standardError = stderrHandle
 

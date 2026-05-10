@@ -97,6 +97,22 @@ final class YouTubeDownloaderTests: XCTestCase {
         ])
     }
 
+    func testCommonYtDlpArgumentsShareJavaScriptRuntimeAndFFmpegPrefix() {
+        XCTAssertEqual(
+            YouTubeDownloader.commonYtDlpArguments(
+                ffmpegDir: "/opt/macparakeet/bin",
+                javaScriptRuntimeArguments: ["--js-runtimes", "node:/opt/homebrew/bin/node"]
+            ),
+            [
+                "--no-js-runtimes",
+                "--js-runtimes",
+                "node:/opt/homebrew/bin/node",
+                "--ffmpeg-location",
+                "/opt/macparakeet/bin",
+            ]
+        )
+    }
+
     func testSelectDownloadedAudioFileIgnoresYtDlpPartialArtifacts() {
         let uuid = UUID().uuidString
 
