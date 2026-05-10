@@ -301,10 +301,29 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
     /// emitted at the end of stderr, so this preserves diagnostics for the
     /// fallback-path check at the call site too.
     static func tailForError(_ stderr: String, limit: Int = 480) -> String {
-        let trimmed = stderr.trimmingCharacters(in: .whitespacesAndNewlines)
-        if trimmed.isEmpty { return "Unknown error" }
-        if trimmed.count <= limit { return trimmed }
-        return "...\(trimmed.suffix(limit))"
+        guard limit > 0 else { return "Unknown error" }
+
+        let whitespace = CharacterSet.whitespacesAndNewlines
+        let isMeaningful: (Character) -> Bool = { character in
+            !character.unicodeScalars.allSatisfy { whitespace.contains($0) }
+        }
+
+        guard let start = stderr.firstIndex(where: isMeaningful),
+              let end = stderr.lastIndex(where: isMeaningful)
+        else {
+            return "Unknown error"
+        }
+
+        let trimmed = stderr[start...end]
+        guard let suffixStart = trimmed.index(
+            trimmed.endIndex,
+            offsetBy: -limit,
+            limitedBy: trimmed.startIndex
+        ), suffixStart != trimmed.startIndex else {
+            return String(trimmed)
+        }
+
+        return "...\(trimmed[suffixStart...])"
     }
 
     private func ensureTempDir() throws -> URL {

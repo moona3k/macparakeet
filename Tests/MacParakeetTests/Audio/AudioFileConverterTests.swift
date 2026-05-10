@@ -119,6 +119,36 @@ final class AudioFileConverterTests: XCTestCase {
         XCTAssertTrue(filterArg.contains("normalize=0"))
     }
 
+    func testTailForErrorKeepsFailureReasonFromEnd() {
+        let stderr = """
+        ffmpeg version 8.1 Copyright ...
+          configuration: --prefix=/opt/homebrew --enable-libx264 --enable-libx265
+        Input #0, mov,mp4,m4a,3gp,3g2,mj2, from '/tmp/input.mp4':
+        Error opening input file /tmp/input.mp4.
+        Error opening input files: No such file or directory
+        """
+
+        let tail = AudioFileConverter.tailForError(stderr, limit: 90)
+
+        XCTAssertTrue(tail.hasPrefix("..."))
+        XCTAssertTrue(tail.contains("Error opening input files"))
+        XCTAssertTrue(tail.contains("No such file or directory"))
+        XCTAssertFalse(tail.contains("ffmpeg version"))
+    }
+
+    func testTailForErrorTrimsWithoutLosingErrorBeforeTrailingWhitespace() {
+        let stderr = "ffmpeg banner\nactual failure reason" + String(repeating: "\n ", count: 100)
+
+        let tail = AudioFileConverter.tailForError(stderr, limit: 64)
+
+        XCTAssertEqual(tail, "ffmpeg banner\nactual failure reason")
+    }
+
+    func testTailForErrorEmptyInputUsesUnknownError() {
+        XCTAssertEqual(AudioFileConverter.tailForError(" \n\t "), "Unknown error")
+        XCTAssertEqual(AudioFileConverter.tailForError("actual error", limit: 0), "Unknown error")
+    }
+
     func testConvertUnsupportedFormat() async {
         let converter = AudioFileConverter()
         let url = URL(fileURLWithPath: "/tmp/test.txt")

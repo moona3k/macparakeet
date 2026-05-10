@@ -634,4 +634,33 @@ final class HotkeyTriggerTests: XCTestCase {
         let right = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
         XCTAssertNotEqual(left, right)
     }
+
+    // MARK: - Telemetry
+
+    func testTelemetryKindMapsOnlyStructuralTriggerKind() {
+        XCTAssertEqual(HotkeyTrigger.disabled.telemetryKind, .disabled)
+        XCTAssertEqual(HotkeyTrigger.option.telemetryKind, .modifier)
+        XCTAssertEqual(HotkeyTrigger.fromKeyCode(119).telemetryKind, .keyCode)
+        XCTAssertEqual(HotkeyTrigger.chord(modifiers: ["command", "shift"], keyCode: 25).telemetryKind, .chord)
+    }
+
+    func testCustomizedEventDoesNotExposeSpecificKeySelection() {
+        let event = HotkeyTrigger.chord(modifiers: ["command", "shift"], keyCode: 25)
+            .customizedEvent(surface: .meeting)
+        let payload = TelemetryEvent(
+            spec: event,
+            appVer: "0.6.3",
+            osVer: "15.4",
+            locale: "en-US",
+            chip: "Apple M4",
+            session: "session"
+        )
+
+        XCTAssertEqual(payload.event, TelemetryEventName.hotkeyCustomized.rawValue)
+        XCTAssertEqual(payload.props?["surface"], "meeting")
+        XCTAssertEqual(payload.props?["kind"], "chord")
+        XCTAssertNil(payload.props?["modifier"])
+        XCTAssertNil(payload.props?["key_code"])
+        XCTAssertNil(payload.props?["chord_modifiers"])
+    }
 }
