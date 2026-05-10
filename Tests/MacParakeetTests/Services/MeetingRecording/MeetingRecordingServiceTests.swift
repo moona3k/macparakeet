@@ -50,6 +50,36 @@ final class MeetingRecordingServiceTests: XCTestCase {
         await service.cancelRecording()
     }
 
+    func testStartRecordingCleansUpWhenSpeechEngineLeaseFails() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let lockStore = RecordingLockFileStore()
+        let sttClient = LeasingMeetingSTTClient(
+            selection: SpeechEngineSelection(engine: .whisper, language: "KO"),
+            beginSessionError: TestError.speechEngineLeaseFailed
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: sttClient,
+            lockFileStore: lockStore
+        )
+        let entriesBefore = meetingRecordingDirectoryEntryNames()
+
+        do {
+            try await service.startRecording()
+            XCTFail("Expected speech engine lease failure")
+        } catch TestError.speechEngineLeaseFailed {
+            let startCallCount = await captureService.startCallCount
+            let activeLeaseCount = await sttClient.activeLeaseCount
+            XCTAssertEqual(startCallCount, 0)
+            XCTAssertEqual(activeLeaseCount, 0)
+            XCTAssertTrue(lockStore.writes.isEmpty)
+            XCTAssertEqual(meetingRecordingDirectoryEntryNames(), entriesBefore)
+            let isRecording = await service.isRecording
+            XCTAssertFalse(isRecording)
+        }
+    }
+
     func testCancelDuringAsyncStartMakesInFlightStartThrow() async throws {
         let captureService = BlockingStartMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()
@@ -993,6 +1023,13 @@ final class MeetingRecordingServiceTests: XCTestCase {
         }
     }
 
+    private func meetingRecordingDirectoryEntryNames() -> Set<String> {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: AppPaths.meetingRecordingsDir) else {
+            return []
+        }
+        return Set(names)
+    }
+
     private func makeMonoFloatBuffer(frameCount: Int, sampleValue: Float) -> AVAudioPCMBuffer? {
         guard let format = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -1329,6 +1366,7 @@ private actor BlockingStartMeetingAudioCaptureService: MeetingAudioCapturing {
 
 private enum TestError: Error {
     case lockWriteFailed
+    case speechEngineLeaseFailed
 }
 
 private final class RecordingLockFileStore: MeetingRecordingLockFileStoring, @unchecked Sendable {
@@ -1671,18 +1709,23 @@ private actor CountingMeetingSTTClient: STTClientProtocol {
 
 private actor LeasingMeetingSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, SpeechEngineSessionManaging {
     private let selection: SpeechEngineSelection
+    private let beginSessionError: Error?
     private var activeLeases: Set<UUID> = []
     private(set) var routedSelections: [SpeechEngineSelection] = []
 
-    init(selection: SpeechEngineSelection) {
+    init(selection: SpeechEngineSelection, beginSessionError: Error? = nil) {
         self.selection = selection
+        self.beginSessionError = beginSessionError
     }
 
     var activeLeaseCount: Int {
         activeLeases.count
     }
 
-    func beginSpeechEngineSession() async -> SpeechEngineLease {
+    func beginSpeechEngineSession() async throws -> SpeechEngineLease {
+        if let beginSessionError {
+            throw beginSessionError
+        }
         let lease = SpeechEngineLease(selection: selection)
         activeLeases.insert(lease.id)
         return lease

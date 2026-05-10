@@ -156,7 +156,7 @@ final class STTSchedulerTests: XCTestCase {
         let runtime = MockSTTRuntime()
         let scheduler = STTScheduler(runtimeProvider: runtime)
 
-        let lease = await scheduler.beginSpeechEngineSession()
+        let lease = try await scheduler.beginSpeechEngineSession()
         do {
             try await scheduler.setSpeechEngine(.whisper)
             XCTFail("Expected engine switch to fail while a speech engine session is active")
@@ -170,7 +170,47 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
-    func testSpeechEngineSessionWaitsForInFlightEngineSwitch() async throws {
+    func testClearModelCacheSkipsWhileSessionLeaseIsActive() async throws {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let lease = try await scheduler.beginSpeechEngineSession()
+
+        await scheduler.clearModelCache()
+        var counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.clearModelCache, 0)
+
+        await scheduler.endSpeechEngineSession(lease)
+        await scheduler.clearModelCache()
+
+        counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.clearModelCache, 1)
+    }
+
+    func testClearModelCacheSkipsWhileSpeechEngineSessionIsStarting() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextCurrentSpeechEngineSelection()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let leaseTask = Task {
+            try await scheduler.beginSpeechEngineSession()
+        }
+        try await waitForCurrentSpeechEngineSelection(runtime: runtime, count: 1)
+
+        await scheduler.clearModelCache()
+        var counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.clearModelCache, 0)
+
+        await runtime.releaseCurrentSpeechEngineSelection()
+        let lease = try await leaseTask.value
+        await scheduler.endSpeechEngineSession(lease)
+
+        await scheduler.clearModelCache()
+        counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.clearModelCache, 1)
+    }
+
+    func testSpeechEngineSessionFailsWhileInFlightEngineSwitchIsActive() async throws {
         let runtime = MockSTTRuntime()
         await runtime.blockNextSpeechEngineSwitch()
         let scheduler = STTScheduler(runtimeProvider: runtime)
@@ -180,17 +220,73 @@ final class STTSchedulerTests: XCTestCase {
         }
         try await waitForSpeechEngineSwitch(runtime: runtime, count: 1)
 
-        let leaseTask = Task {
-            await scheduler.beginSpeechEngineSession()
+        do {
+            _ = try await scheduler.beginSpeechEngineSession()
+            XCTFail("Expected speech engine session to fail while an engine switch is active")
+        } catch let error as STTError {
+            XCTAssertEqual(error.localizedDescription, STTError.engineBusy.localizedDescription)
         }
-        try await Task.sleep(for: .milliseconds(50))
+
         await runtime.releaseSpeechEngineSwitch()
-
-        let lease = await leaseTask.value
-        XCTAssertEqual(lease.selection, SpeechEngineSelection(engine: .whisper))
-
-        await scheduler.endSpeechEngineSession(lease)
         _ = try await switchTask.value
+    }
+
+    func testSpeechEngineSessionFailsWhileCancelledRuntimeJobDrains() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockIgnoringCancellation(path: "slow-cancel")
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .seconds(1)
+        )
+
+        let activeTask = Task {
+            try await scheduler.transcribe(audioPath: "slow-cancel", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        activeTask.cancel()
+        do {
+            _ = try await scheduler.beginSpeechEngineSession()
+            XCTFail("Expected speech engine session to fail while a cancelled runtime task is draining")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .unavailable)
+        }
+
+        await runtime.release(path: "slow-cancel")
+        do {
+            _ = try await value(activeTask)
+            XCTFail("Expected active job cancellation to throw")
+        } catch is CancellationError {
+            // Expected.
+        }
+    }
+
+    func testCancelledSpeechEngineSessionStartReleasesReservation() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextCurrentSpeechEngineSelection()
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .seconds(1)
+        )
+
+        let leaseTask = Task {
+            try await scheduler.beginSpeechEngineSession()
+        }
+        try await waitForCurrentSpeechEngineSelection(runtime: runtime, count: 1)
+
+        leaseTask.cancel()
+        do {
+            _ = try await value(leaseTask)
+            XCTFail("Expected speech engine session start cancellation to throw")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        await scheduler.clearModelCache()
+        let counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.clearModelCache, 1)
+
+        await runtime.releaseCurrentSpeechEngineSelection()
     }
 
     func testCancelledSpeechEngineSwitchRestoresSchedulerAvailability() async throws {
@@ -216,12 +312,116 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(count, 2)
     }
 
-    func testSpeechEngineSessionLeaseUsesRuntimeSelection() async {
+    func testCancelledSpeechEngineSwitchReturnsWhenRuntimeIgnoresCancellation() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextSpeechEngineSwitchIgnoringCancellation()
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .milliseconds(50)
+        )
+
+        let switchTask = Task {
+            try await scheduler.setSpeechEngine(.whisper)
+        }
+        try await waitForSpeechEngineSwitch(runtime: runtime, count: 1)
+
+        switchTask.cancel()
+        do {
+            try await value(switchTask)
+            XCTFail("Expected cancelled engine switch to throw")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "after-wedged-cancelled-switch", job: .dictation)
+            XCTFail("Expected scheduler to reject jobs after wedged engine switch cancellation")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .runtimeUnhealthy)
+        }
+
+        await runtime.releaseSpeechEngineSwitch()
+    }
+
+    func testShutdownCancelsInFlightSpeechEngineSwitchBeforeRuntimeShutdown() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextSpeechEngineSwitch()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let switchTask = Task {
+            try await scheduler.setSpeechEngine(.whisper)
+        }
+        try await waitForSpeechEngineSwitch(runtime: runtime, count: 1)
+
+        await scheduler.shutdown()
+
+        do {
+            try await value(switchTask)
+            XCTFail("Expected shutdown to cancel in-flight engine switch")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        let counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.shutdown, 1)
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "after-shutdown", job: .dictation)
+            XCTFail("Expected shutdown to keep scheduler closed after an in-flight engine switch")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .unavailable)
+        }
+    }
+
+    func testShutdownReturnsWhenInFlightSpeechEngineSwitchIgnoresCancellation() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextSpeechEngineSwitchIgnoringCancellation()
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .milliseconds(50)
+        )
+
+        let switchTask = Task {
+            try await scheduler.setSpeechEngine(.whisper)
+        }
+        try await waitForSpeechEngineSwitch(runtime: runtime, count: 1)
+
+        let shutdownFinished = expectation(description: "shutdown returns")
+        let shutdownTask = Task {
+            await scheduler.shutdown()
+            shutdownFinished.fulfill()
+        }
+
+        await fulfillment(of: [shutdownFinished], timeout: 1.0)
+
+        let counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.shutdown, 0)
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "after-wedged-switch", job: .dictation)
+            XCTFail("Expected scheduler to reject new jobs after wedged engine switch")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .runtimeUnhealthy)
+        }
+
+        await runtime.releaseSpeechEngineSwitch()
+        do {
+            try await value(switchTask)
+            XCTFail("Expected wedged engine switch to throw after shutdown marks runtime unhealthy")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .runtimeUnhealthy)
+        } catch is CancellationError {
+            // Expected.
+        }
+        await shutdownTask.value
+    }
+
+    func testSpeechEngineSessionLeaseUsesRuntimeSelection() async throws {
         let runtime = MockSTTRuntime()
         await runtime.setCurrentSelection(SpeechEngineSelection(engine: .whisper, language: "KO"))
         let scheduler = STTScheduler(runtimeProvider: runtime)
 
-        let lease = await scheduler.beginSpeechEngineSession()
+        let lease = try await scheduler.beginSpeechEngineSession()
 
         XCTAssertEqual(lease.selection, SpeechEngineSelection(engine: .whisper, language: "ko"))
     }
@@ -451,6 +651,377 @@ final class STTSchedulerTests: XCTestCase {
         _ = try await blockerTask.value
     }
 
+    func testActiveJobCancellationReturnsWhenRuntimeIgnoresCancellation() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockIgnoringCancellation(path: "stuck")
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .milliseconds(50)
+        )
+
+        let activeTask = Task {
+            try await scheduler.transcribe(audioPath: "stuck", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        let cancelled = expectation(description: "cancelled active job returns")
+        let recorder = AsyncResultRecorder<STTResult>()
+        let observerTask = Task {
+            do {
+                let value = try await activeTask.value
+                await recorder.record(.success(value))
+            } catch {
+                await recorder.record(.failure(error))
+            }
+            cancelled.fulfill()
+        }
+
+        activeTask.cancel()
+        await fulfillment(of: [cancelled], timeout: 1.0)
+
+        switch await recorder.result {
+        case .failure(let error):
+            XCTAssertTrue(error is CancellationError)
+        case .success:
+            XCTFail("Expected cancelled active job to throw CancellationError")
+        case nil:
+            XCTFail("Expected cancelled active job result")
+        }
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "after-wedge", job: .dictation)
+            XCTFail("Expected scheduler to reject new jobs after runtime watchdog timeout")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .runtimeUnhealthy)
+        }
+
+        await runtime.release(path: "stuck")
+        observerTask.cancel()
+    }
+
+    func testActiveJobCancellationWinsWhenRuntimeReturnsSuccessBeforeWatchdog() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockIgnoringCancellationAndSucceed(path: "returns")
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .seconds(1)
+        )
+
+        let activeTask = Task {
+            try await scheduler.transcribe(audioPath: "returns", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        activeTask.cancel()
+        await runtime.release(path: "returns")
+
+        do {
+            _ = try await value(activeTask)
+            XCTFail("Expected caller cancellation to win over a late successful runtime result")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        let result = try await scheduler.transcribe(audioPath: "after-cancel", job: .dictation)
+        XCTAssertEqual(result.text, "dictation:after-cancel")
+    }
+
+    func testActiveJobCancellationRejectsNewJobsUntilRuntimeReturns() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockIgnoringCancellation(path: "slow-cancel")
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .seconds(1)
+        )
+
+        let activeTask = Task {
+            try await scheduler.transcribe(audioPath: "slow-cancel", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        activeTask.cancel()
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "during-cancel", job: .dictation)
+            XCTFail("Expected scheduler to reject new jobs while a cancelled runtime task is draining")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .unavailable)
+        }
+
+        await runtime.release(path: "slow-cancel")
+        do {
+            _ = try await value(activeTask)
+            XCTFail("Expected active job cancellation to throw")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        let result = try await scheduler.transcribe(audioPath: "after-cancel-drained", job: .dictation)
+        XCTAssertEqual(result.text, "dictation:after-cancel-drained")
+    }
+
+    func testRuntimeUnhealthyPreservesCancellationForAllCancelledActiveSlots() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockIgnoringCancellation(path: "background-stuck")
+        await runtime.blockIgnoringCancellation(path: "dictation-stuck")
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .milliseconds(50)
+        )
+
+        let backgroundTask = Task {
+            try await scheduler.transcribe(audioPath: "background-stuck", job: .fileTranscription)
+        }
+        let dictationTask = Task {
+            try await scheduler.transcribe(audioPath: "dictation-stuck", job: .dictation)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 2)
+
+        backgroundTask.cancel()
+        dictationTask.cancel()
+
+        do {
+            _ = try await value(backgroundTask)
+            XCTFail("Expected cancelled background job to throw")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        do {
+            _ = try await value(dictationTask)
+            XCTFail("Expected cancelled dictation job to throw")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "after-two-slot-wedge", job: .dictation)
+            XCTFail("Expected scheduler to reject new jobs after runtime watchdog timeout")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .runtimeUnhealthy)
+        }
+
+        await runtime.release(path: "background-stuck")
+        await runtime.release(path: "dictation-stuck")
+    }
+
+    func testClearModelCacheReturnsWhenActiveRuntimeIgnoresCancellation() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockIgnoringCancellation(path: "stuck")
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .milliseconds(50)
+        )
+
+        let activeTask = Task {
+            try await scheduler.transcribe(audioPath: "stuck", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        let clearFinished = expectation(description: "clear model cache returns")
+        let clearTask = Task {
+            await scheduler.clearModelCache()
+            clearFinished.fulfill()
+        }
+
+        await fulfillment(of: [clearFinished], timeout: 1.0)
+
+        do {
+            _ = try await value(activeTask)
+            XCTFail("Expected active job to be cancelled by cache clear")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        let counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.clearModelCache, 0)
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "after-wedge", job: .dictation)
+            XCTFail("Expected scheduler to reject new jobs after runtime watchdog timeout")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .runtimeUnhealthy)
+        }
+
+        await runtime.release(path: "stuck")
+        clearTask.cancel()
+    }
+
+    func testClearModelCacheRejectsJobsUntilRuntimeCacheClearFinishes() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextClearModelCache()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let clearTask = Task {
+            await scheduler.clearModelCache()
+        }
+        try await waitForClearModelCacheStarted(runtime: runtime)
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "during-clear", job: .dictation)
+            XCTFail("Expected scheduler to reject jobs while runtime cache clear is in progress")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .unavailable)
+        }
+
+        await runtime.releaseClearModelCache()
+        await clearTask.value
+
+        let result = try await scheduler.transcribe(audioPath: "after-clear", job: .dictation)
+        XCTAssertEqual(result.text, "dictation:after-clear")
+    }
+
+    func testClearModelCacheRejectsSpeechEngineSessionUntilRuntimeCacheClearFinishes() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextClearModelCache()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let clearTask = Task {
+            await scheduler.clearModelCache()
+        }
+        try await waitForClearModelCacheStarted(runtime: runtime)
+
+        do {
+            _ = try await scheduler.beginSpeechEngineSession()
+            XCTFail("Expected scheduler to reject speech engine sessions during cache clear")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .unavailable)
+        }
+
+        await runtime.releaseClearModelCache()
+        await clearTask.value
+
+        let lease = try await scheduler.beginSpeechEngineSession()
+        await scheduler.endSpeechEngineSession(lease)
+    }
+
+    func testClearModelCacheSkipsWhileInFlightEngineSwitchIsActive() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextSpeechEngineSwitch()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let switchTask = Task {
+            try await scheduler.setSpeechEngine(.whisper)
+        }
+        try await waitForSpeechEngineSwitch(runtime: runtime, count: 1)
+
+        await scheduler.clearModelCache()
+        var counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.clearModelCache, 0)
+
+        await runtime.releaseSpeechEngineSwitch()
+        _ = try await switchTask.value
+
+        await scheduler.clearModelCache()
+        counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.clearModelCache, 1)
+
+        let result = try await scheduler.transcribe(audioPath: "after-clear-switch", job: .dictation)
+        XCTAssertEqual(result.text, "dictation:after-clear-switch")
+    }
+
+    func testClearModelCacheReturnsWhenRuntimeCacheClearHangs() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextClearModelCache()
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .milliseconds(50)
+        )
+
+        let clearFinished = expectation(description: "clear model cache returns")
+        let clearTask = Task {
+            await scheduler.clearModelCache()
+            clearFinished.fulfill()
+        }
+
+        await fulfillment(of: [clearFinished], timeout: 1.0)
+
+        let counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.clearModelCache, 1)
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "after-stuck-cache-clear", job: .dictation)
+            XCTFail("Expected scheduler to reject jobs after runtime cache clear timeout")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .runtimeUnhealthy)
+        }
+
+        await runtime.releaseClearModelCache()
+        await clearTask.value
+    }
+
+    func testShutdownReturnsWhenActiveRuntimeIgnoresCancellation() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockIgnoringCancellation(path: "stuck")
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .milliseconds(50)
+        )
+
+        let activeTask = Task {
+            try await scheduler.transcribe(audioPath: "stuck", job: .meetingLiveChunk)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        let shutdownFinished = expectation(description: "shutdown returns")
+        let shutdownTask = Task {
+            await scheduler.shutdown()
+            shutdownFinished.fulfill()
+        }
+
+        await fulfillment(of: [shutdownFinished], timeout: 1.0)
+
+        do {
+            _ = try await value(activeTask)
+            XCTFail("Expected active job to be cancelled by shutdown")
+        } catch is CancellationError {
+            // Expected.
+        }
+
+        let counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.shutdown, 0)
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "after-wedge", job: .dictation)
+            XCTFail("Expected scheduler to reject new jobs after runtime watchdog timeout")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .runtimeUnhealthy)
+        }
+
+        await runtime.release(path: "stuck")
+        shutdownTask.cancel()
+    }
+
+    func testShutdownReturnsWhenRuntimeShutdownHangs() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextShutdown()
+        let scheduler = STTScheduler(
+            runtimeProvider: runtime,
+            runningJobCancellationTimeout: .milliseconds(50)
+        )
+
+        let shutdownFinished = expectation(description: "shutdown returns")
+        let shutdownTask = Task {
+            await scheduler.shutdown()
+            shutdownFinished.fulfill()
+        }
+
+        await fulfillment(of: [shutdownFinished], timeout: 1.0)
+
+        let counts = await runtime.lifecycleCounts()
+        XCTAssertEqual(counts.shutdown, 1)
+
+        do {
+            _ = try await scheduler.transcribe(audioPath: "after-stuck-shutdown", job: .dictation)
+            XCTFail("Expected scheduler to reject jobs after runtime shutdown timeout")
+        } catch let error as STTSchedulerError {
+            XCTAssertEqual(error, .runtimeUnhealthy)
+        }
+
+        await runtime.releaseShutdown()
+        await shutdownTask.value
+    }
+
     private func waitForStartedPaths(
         runtime: MockSTTRuntime,
         count: Int,
@@ -481,6 +1052,35 @@ final class STTSchedulerTests: XCTestCase {
         }
     }
 
+    private func waitForCurrentSpeechEngineSelection(
+        runtime: MockSTTRuntime,
+        count: Int,
+        timeout: Duration = .seconds(2)
+    ) async throws {
+        let start = ContinuousClock.now
+        while await runtime.currentSpeechEngineSelectionCallCount < count {
+            if start.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for \(count) speech engine selection reads")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
+    private func waitForClearModelCacheStarted(
+        runtime: MockSTTRuntime,
+        timeout: Duration = .seconds(2)
+    ) async throws {
+        let start = ContinuousClock.now
+        while await runtime.lifecycleCounts().clearModelCache < 1 {
+            if start.duration(to: .now) > timeout {
+                XCTFail("Timed out waiting for clearModelCache to start")
+                return
+            }
+            try await Task.sleep(for: .milliseconds(20))
+        }
+    }
+
     private func value<T>(
         _ task: Task<T, any Error>,
         timeout: Duration = .seconds(1)
@@ -503,8 +1103,18 @@ private enum STTSchedulerTestError: Error {
     case timeout
 }
 
+private actor AsyncResultRecorder<Value: Sendable> {
+    private(set) var result: Result<Value, Error>?
+
+    func record(_ result: Result<Value, Error>) {
+        self.result = result
+    }
+}
+
 private actor MockSTTRuntime: STTRuntimeProtocol {
     private var blockedPaths: Set<String> = []
+    private var cancellationIgnoringPaths: Set<String> = []
+    private var cancellationIgnoringSuccessPaths: Set<String> = []
     private var waitingContinuations: [String: CheckedContinuation<Void, any Error>] = [:]
     private var progressScripts: [String: [Int]] = [:]
     private var started: [String] = []
@@ -515,9 +1125,17 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private(set) var clearModelCacheCallCount = 0
     private(set) var shutdownCallCount = 0
     private(set) var setSpeechEngineCallCount = 0
+    private(set) var currentSpeechEngineSelectionCallCount = 0
     private var selection = SpeechEngineSelection(engine: .parakeet)
     private var ready = false
+    private var shouldBlockNextClearModelCache = false
+    private var clearModelCacheContinuation: CheckedContinuation<Void, Never>?
+    private var shouldBlockNextShutdown = false
+    private var shutdownContinuation: CheckedContinuation<Void, Never>?
+    private var shouldBlockNextCurrentSpeechEngineSelection = false
+    private var currentSpeechEngineSelectionContinuation: CheckedContinuation<Void, Never>?
     private var shouldBlockNextSpeechEngineSwitch = false
+    private var shouldIgnoreNextSpeechEngineSwitchCancellation = false
     private var speechEngineSwitchContinuation: CheckedContinuation<Void, Never>?
 
     func transcribe(
@@ -526,6 +1144,8 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         onProgress: (@Sendable (Int, Int) -> Void)?
     ) async throws -> STTResult {
         started.append(audioPath)
+        let ignoresCancellation = cancellationIgnoringPaths.contains(audioPath)
+        let skipsCancellationCheck = cancellationIgnoringSuccessPaths.contains(audioPath)
 
         if let script = progressScripts[audioPath] {
             for progress in script {
@@ -533,7 +1153,11 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             }
         }
 
-        if blockedPaths.contains(audioPath) {
+        if ignoresCancellation {
+            try await withCheckedThrowingContinuation { continuation in
+                waitingContinuations[audioPath] = continuation
+            }
+        } else if blockedPaths.contains(audioPath) {
             try await withTaskCancellationHandler {
                 try await withCheckedThrowingContinuation { continuation in
                     waitingContinuations[audioPath] = continuation
@@ -543,7 +1167,9 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
             }
         }
 
-        try Task.checkCancellation()
+        if !skipsCancellationCheck {
+            try Task.checkCancellation()
+        }
         return STTResult(text: "\(job):\(audioPath)", words: [])
     }
 
@@ -582,10 +1208,22 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
 
     func shutdown() async {
         shutdownCallCount += 1
+        if shouldBlockNextShutdown {
+            shouldBlockNextShutdown = false
+            await withCheckedContinuation { continuation in
+                shutdownContinuation = continuation
+            }
+        }
     }
 
     func clearModelCache() async {
         clearModelCacheCallCount += 1
+        if shouldBlockNextClearModelCache {
+            shouldBlockNextClearModelCache = false
+            await withCheckedContinuation { continuation in
+                clearModelCacheContinuation = continuation
+            }
+        }
         ready = false
     }
 
@@ -593,13 +1231,21 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         setSpeechEngineCallCount += 1
         if shouldBlockNextSpeechEngineSwitch {
             shouldBlockNextSpeechEngineSwitch = false
-            await withTaskCancellationHandler {
+            let ignoresCancellation = shouldIgnoreNextSpeechEngineSwitchCancellation
+            shouldIgnoreNextSpeechEngineSwitchCancellation = false
+            if ignoresCancellation {
                 await withCheckedContinuation { continuation in
                     speechEngineSwitchContinuation = continuation
                 }
-            } onCancel: {
-                Task {
-                    await self.releaseSpeechEngineSwitch()
+            } else {
+                await withTaskCancellationHandler {
+                    await withCheckedContinuation { continuation in
+                        speechEngineSwitchContinuation = continuation
+                    }
+                } onCancel: {
+                    Task {
+                        await self.releaseSpeechEngineSwitch()
+                    }
                 }
             }
             try Task.checkCancellation()
@@ -609,7 +1255,14 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     }
 
     func currentSpeechEngineSelection() async -> SpeechEngineSelection {
-        selection
+        currentSpeechEngineSelectionCallCount += 1
+        if shouldBlockNextCurrentSpeechEngineSelection {
+            shouldBlockNextCurrentSpeechEngineSelection = false
+            await withCheckedContinuation { continuation in
+                currentSpeechEngineSelectionContinuation = continuation
+            }
+        }
+        return selection
     }
 
     func setCurrentSelection(_ selection: SpeechEngineSelection) {
@@ -618,6 +1271,11 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
 
     func blockNextSpeechEngineSwitch() {
         shouldBlockNextSpeechEngineSwitch = true
+    }
+
+    func blockNextSpeechEngineSwitchIgnoringCancellation() {
+        shouldBlockNextSpeechEngineSwitch = true
+        shouldIgnoreNextSpeechEngineSwitchCancellation = true
     }
 
     func releaseSpeechEngineSwitch() {
@@ -629,8 +1287,46 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         blockedPaths.insert(path)
     }
 
+    func blockIgnoringCancellation(path: String) {
+        cancellationIgnoringPaths.insert(path)
+    }
+
+    func blockIgnoringCancellationAndSucceed(path: String) {
+        cancellationIgnoringPaths.insert(path)
+        cancellationIgnoringSuccessPaths.insert(path)
+    }
+
+    func blockNextClearModelCache() {
+        shouldBlockNextClearModelCache = true
+    }
+
+    func releaseClearModelCache() {
+        clearModelCacheContinuation?.resume()
+        clearModelCacheContinuation = nil
+    }
+
+    func blockNextShutdown() {
+        shouldBlockNextShutdown = true
+    }
+
+    func releaseShutdown() {
+        shutdownContinuation?.resume()
+        shutdownContinuation = nil
+    }
+
+    func blockNextCurrentSpeechEngineSelection() {
+        shouldBlockNextCurrentSpeechEngineSelection = true
+    }
+
+    func releaseCurrentSpeechEngineSelection() {
+        currentSpeechEngineSelectionContinuation?.resume()
+        currentSpeechEngineSelectionContinuation = nil
+    }
+
     func release(path: String) {
         blockedPaths.remove(path)
+        cancellationIgnoringPaths.remove(path)
+        cancellationIgnoringSuccessPaths.remove(path)
         waitingContinuations.removeValue(forKey: path)?.resume(returning: ())
     }
 

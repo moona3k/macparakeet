@@ -204,32 +204,34 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
         let folderURL = URL(fileURLWithPath: AppPaths.meetingRecordingsDir, isDirectory: true)
             .appendingPathComponent(sessionID.uuidString, isDirectory: true)
-        let writer = try MeetingAudioStorageWriter(folderURL: folderURL)
-        let chunkFolderURL = folderURL.appendingPathComponent("chunks", isDirectory: true)
-        try fileManager.createDirectory(at: chunkFolderURL, withIntermediateDirectories: true)
-        // Single timestamp shared between displayName fallback and
-        // startedAt — back-to-back `Date()` calls would only diverge if
-        // the clock ticked over a minute boundary between them, which is
-        // vanishingly rare but trivially avoidable.
-        let now = Date()
-        let speechEngineLease = await speechEngineSessionManager?.beginSpeechEngineSession()
-        currentSpeechEngineLease = speechEngineLease
-        let speechEngine = speechEngineLease?.selection ?? SpeechEngineSelection(engine: .parakeet)
-        let session = Session(
-            id: sessionID,
-            displayName: Self.resolveDisplayName(title: title, fallbackDate: now),
-            startedAt: now,
-            folderURL: folderURL,
-            chunkFolderURL: chunkFolderURL,
-            microphoneAudioURL: writer.microphoneAudioURL,
-            systemAudioURL: writer.systemAudioURL,
-            mixedAudioURL: writer.mixedAudioURL,
-            speechEngine: speechEngine
-        )
-        self.writer = writer
-        self.currentSession = session
 
         do {
+            let speechEngineLease = try await speechEngineSessionManager?.beginSpeechEngineSession()
+            currentSpeechEngineLease = speechEngineLease
+            let speechEngine = speechEngineLease?.selection ?? SpeechEngineSelection(engine: .parakeet)
+
+            let writer = try MeetingAudioStorageWriter(folderURL: folderURL)
+            self.writer = writer
+            let chunkFolderURL = folderURL.appendingPathComponent("chunks", isDirectory: true)
+            try fileManager.createDirectory(at: chunkFolderURL, withIntermediateDirectories: true)
+            // Single timestamp shared between displayName fallback and
+            // startedAt — back-to-back `Date()` calls would only diverge if
+            // the clock ticked over a minute boundary between them, which is
+            // vanishingly rare but trivially avoidable.
+            let now = Date()
+            let session = Session(
+                id: sessionID,
+                displayName: Self.resolveDisplayName(title: title, fallbackDate: now),
+                startedAt: now,
+                folderURL: folderURL,
+                chunkFolderURL: chunkFolderURL,
+                microphoneAudioURL: writer.microphoneAudioURL,
+                systemAudioURL: writer.systemAudioURL,
+                mixedAudioURL: writer.mixedAudioURL,
+                speechEngine: speechEngine
+            )
+            self.currentSession = session
+
             let initialLock = MeetingRecordingLockFile(
                 sessionId: session.id,
                 startedAt: session.startedAt,

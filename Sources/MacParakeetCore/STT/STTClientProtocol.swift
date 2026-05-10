@@ -49,7 +49,7 @@ public protocol SpeechEngineSwitching: Sendable {
 }
 
 public protocol SpeechEngineSessionManaging: Sendable {
-    func beginSpeechEngineSession() async -> SpeechEngineLease
+    func beginSpeechEngineSession() async throws -> SpeechEngineLease
     func endSpeechEngineSession(_ lease: SpeechEngineLease) async
 }
 
