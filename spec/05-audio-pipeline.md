@@ -97,6 +97,9 @@ YouTube URL → yt-dlp (audio only) → downloaded audio file → FFmpeg → 16k
 ```
 
 - `yt-dlp` is used with `--no-playlist` for single-video processing
+- YouTube audio quality is configurable:
+  - **M4A** (default): `bestaudio[ext=m4a]/bestaudio/best`, preferring Apple-friendly saved audio files while falling back when m4a is unavailable
+  - **Best available**: `bestaudio/best`, allowing higher-quality source streams such as Opus/WebM when YouTube offers them. Transcription still converts the downloaded file to WAV before STT, but retained downloads may be less predictable for Apple playback and sharing workflows.
 - Download progress is parsed from yt-dlp output and surfaced as percent updates
 - Downloaded files are written to:
 

@@ -15,6 +15,12 @@ enum DownloadedAudioPolicy: String, ExpressibleByArgument {
     case delete
 }
 
+enum YouTubeAudioQualityOption: String, ExpressibleByArgument {
+    case appDefault = "app-default"
+    case m4a
+    case bestAvailable = "best-available"
+}
+
 enum TranscribeOutputFormat: String, ExpressibleByArgument, CaseIterable, Sendable {
     case text
     case json
@@ -59,6 +65,9 @@ struct TranscribeCommand: AsyncParsableCommand {
     @Option(help: "Downloaded YouTube audio retention: app-default, keep, delete.")
     var downloadedAudio: DownloadedAudioPolicy = .appDefault
 
+    @Option(help: "YouTube audio quality: app-default, m4a, best-available.")
+    var youtubeAudioQuality: YouTubeAudioQualityOption = .appDefault
+
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
@@ -76,6 +85,24 @@ struct TranscribeCommand: AsyncParsableCommand {
             return .clean
         case .appDefault:
             return Dictation.ProcessingMode(rawValue: storedMode ?? Dictation.ProcessingMode.raw.rawValue) ?? .raw
+        }
+    }
+
+    static func resolveYouTubeAudioQuality(
+        _ quality: YouTubeAudioQualityOption,
+        storedQuality: String?
+    ) -> YouTubeAudioQuality {
+        switch quality {
+        case .bestAvailable:
+            return .bestAvailable
+        case .m4a:
+            return .m4a
+        case .appDefault:
+            guard let storedQuality,
+                  let quality = YouTubeAudioQuality(rawValue: storedQuality) else {
+                return .m4a
+            }
+            return quality
         }
     }
 
@@ -115,7 +142,13 @@ struct TranscribeCommand: AsyncParsableCommand {
                     sttTranscriber = createdWhisperEngine
                 }
                 let audioProcessor = AudioProcessor()
-                let youtubeDownloader = YouTubeDownloader()
+                let youtubeDownloader = YouTubeDownloader(audioQuality: {
+                    let defaults = macParakeetAppDefaults()
+                    return Self.resolveYouTubeAudioQuality(
+                        self.youtubeAudioQuality,
+                        storedQuality: defaults.string(forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
+                    )
+                })
                 let entitlementsService = enforceEntitlements ? makeEntitlementsService() : nil
 
                 if let entitlementsService {
@@ -133,7 +166,10 @@ struct TranscribeCommand: AsyncParsableCommand {
                     snippetRepo: snippetRepo,
                     processingMode: {
                         let defaults = macParakeetAppDefaults()
-                        return Self.resolveProcessingMode(self.mode, storedMode: defaults.string(forKey: "processingMode"))
+                        return Self.resolveProcessingMode(
+                            self.mode,
+                            storedMode: defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
+                        )
                     },
                     shouldKeepDownloadedAudio: {
                         switch self.downloadedAudio {
@@ -143,7 +179,7 @@ struct TranscribeCommand: AsyncParsableCommand {
                             return false
                         case .appDefault:
                             let defaults = macParakeetAppDefaults()
-                            return defaults.object(forKey: "saveTranscriptionAudio") as? Bool ?? true
+                            return defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
                         }
                     },
                     youtubeDownloader: youtubeDownloader,

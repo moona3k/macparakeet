@@ -72,9 +72,14 @@ public actor YouTubeDownloader {
     }
 
     private let binaryBootstrap: BinaryBootstrap
+    private let audioQuality: @Sendable () -> YouTubeAudioQuality
 
-    public init(binaryBootstrap: BinaryBootstrap = BinaryBootstrap()) {
+    public init(
+        binaryBootstrap: BinaryBootstrap = BinaryBootstrap(),
+        audioQuality: @escaping @Sendable () -> YouTubeAudioQuality = { .m4a }
+    ) {
         self.binaryBootstrap = binaryBootstrap
+        self.audioQuality = audioQuality
     }
 
     /// Download audio from a YouTube URL.
@@ -239,21 +244,13 @@ public actor YouTubeDownloader {
         env["PATH"] = Self.extendedPATH()
         process.environment = env
 
-        var args: [String] = []
-        let jsRuntimeArgs = javaScriptRuntimeArguments()
-        if !jsRuntimeArgs.isEmpty {
-            args += ["--no-js-runtimes"] + jsRuntimeArgs
-        }
-        args += ["--ffmpeg-location", ffmpegDir]
-        args += [
-            "-f", "bestaudio[ext=m4a]/bestaudio/best",
-            "--no-playlist",
-            "--retries", "3",
-            "--concurrent-fragments", "4",
-            "--newline",
-            "-o", outputTemplate,
-            "--", url,
-        ]
+        let args = Self.downloadAudioArguments(
+            ffmpegDir: ffmpegDir,
+            outputTemplate: outputTemplate,
+            url: url,
+            quality: audioQuality(),
+            javaScriptRuntimeArguments: javaScriptRuntimeArguments()
+        )
         process.arguments = args
 
         // yt-dlp sends [download] progress lines to stdout (not stderr).
@@ -370,18 +367,56 @@ public actor YouTubeDownloader {
         }
     }
 
+    nonisolated static func downloadAudioArguments(
+        ffmpegDir: String,
+        outputTemplate: String,
+        url: String,
+        quality: YouTubeAudioQuality,
+        javaScriptRuntimeArguments: [String] = []
+    ) -> [String] {
+        var args = commonYtDlpArguments(
+            ffmpegDir: ffmpegDir,
+            javaScriptRuntimeArguments: javaScriptRuntimeArguments
+        )
+        args += [
+            "-f", quality.ytDlpFormatSelector,
+            "--no-playlist",
+            "--retries", "3",
+            "--concurrent-fragments", "4",
+            "--newline",
+            "-o", outputTemplate,
+            "--", url,
+        ]
+        return args
+    }
+
+    nonisolated static func commonYtDlpArguments(
+        ffmpegDir: String,
+        javaScriptRuntimeArguments: [String] = []
+    ) -> [String] {
+        var args: [String] = []
+        if !javaScriptRuntimeArguments.isEmpty {
+            args += ["--no-js-runtimes"] + javaScriptRuntimeArguments
+        }
+        args += ["--ffmpeg-location", ffmpegDir]
+        return args
+    }
+
     nonisolated static func selectDownloadedAudioFile(from fileNames: [String], uuid: String) -> String? {
         let candidates = fileNames
             .filter { $0.hasPrefix(uuid) }
             .filter { !isYtDlpTemporaryArtifact($0) }
 
-        if let audioCandidate = candidates.first(where: {
-            audioFileExtensions.contains(URL(fileURLWithPath: $0).pathExtension.lowercased())
-        }) {
+        if let audioCandidate = candidates.first(where: { isSupportedDownloadedAudioFile($0) }) {
             return audioCandidate
         }
 
         return nil
+    }
+
+    private nonisolated static func isSupportedDownloadedAudioFile(_ fileName: String) -> Bool {
+        let ext = URL(fileURLWithPath: fileName).pathExtension.lowercased()
+        return audioFileExtensions.contains(ext) && AudioFileConverter.isSupported(extension: ext)
     }
 
     private nonisolated static func isYtDlpTemporaryArtifact(_ fileName: String) -> Bool {
@@ -616,15 +651,10 @@ public actor YouTubeDownloader {
         env["PATH"] = Self.extendedPATH()
         process.environment = env
 
-        var fullArgs = arguments
-        let jsRuntimeArgs = javaScriptRuntimeArguments()
-        if !jsRuntimeArgs.isEmpty {
-            fullArgs = ["--no-js-runtimes"] + jsRuntimeArgs + fullArgs
-        }
-        let ffmpegDir = try ffmpegDirectory()
-        fullArgs = ["--ffmpeg-location", ffmpegDir] + fullArgs
-
-        process.arguments = fullArgs
+        process.arguments = Self.commonYtDlpArguments(
+            ffmpegDir: try ffmpegDirectory(),
+            javaScriptRuntimeArguments: javaScriptRuntimeArguments()
+        ) + arguments
         process.standardOutput = captureStdout ? stdoutHandle : FileHandle.nullDevice
         process.standardError = stderrHandle
 

@@ -716,6 +716,24 @@ struct SettingsView: View {
 
                 Divider()
 
+                HStack(alignment: .center) {
+                    rowText(
+                        title: "YouTube audio quality",
+                        detail: viewModel.youtubeAudioQuality.detail
+                    )
+                    Spacer(minLength: DesignSystem.Spacing.md)
+                    Picker("YouTube audio quality", selection: $viewModel.youtubeAudioQuality) {
+                        ForEach(YouTubeAudioQuality.allCases, id: \.self) { quality in
+                            Text(quality.displayTitle).tag(quality)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.menu)
+                    .frame(minWidth: 170, idealWidth: 210, maxWidth: 260)
+                }
+
+                Divider()
+
                 settingsToggleRow(
                     title: "Speaker detection",
                     detail: "Optional. Adds speaker labels when audio is clear; leave off if labels are unreliable.",

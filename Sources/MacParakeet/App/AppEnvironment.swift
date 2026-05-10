@@ -144,7 +144,10 @@ final class AppEnvironment {
         }
 
         let binaryBootstrap = BinaryBootstrap()
-        youtubeDownloader = YouTubeDownloader(binaryBootstrap: binaryBootstrap)
+        youtubeDownloader = YouTubeDownloader(
+            binaryBootstrap: binaryBootstrap,
+            audioQuality: { [runtimePreferences] in runtimePreferences.youtubeAudioQuality }
+        )
         Task.detached(priority: .utility) {
             await binaryBootstrap.autoUpdateYtDlpIfNeeded()
         }
