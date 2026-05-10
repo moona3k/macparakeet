@@ -3,97 +3,120 @@ import Foundation
 import os
 
 enum ChildProcessWaiter {
-    private enum Outcome: Sendable {
+    private enum WaitEvent: Sendable {
         case exited
         case timedOut
+        case cancelled
+    }
+
+    private struct WaitState {
+        var outcome: WaitEvent?
+        var continuation: CheckedContinuation<WaitEvent, Never>?
+    }
+
+    private final class ExitWaiter: @unchecked Sendable {
+        private let state = OSAllocatedUnfairLock(initialState: WaitState())
+
+        func install(_ continuation: CheckedContinuation<WaitEvent, Never>) -> WaitEvent? {
+            state.withLock { state in
+                if let outcome = state.outcome {
+                    return outcome
+                }
+                state.continuation = continuation
+                return nil
+            }
+        }
+
+        func resume(_ outcome: WaitEvent, process: Process) {
+            let result = state.withLock { state -> (completed: Bool, continuation: CheckedContinuation<WaitEvent, Never>?) in
+                guard state.outcome == nil else { return (false, nil) }
+                state.outcome = outcome
+                let continuation = state.continuation
+                state.continuation = nil
+                return (true, continuation)
+            }
+            guard result.completed else { return }
+            process.terminationHandler = nil
+            result.continuation?.resume(returning: outcome)
+        }
     }
 
     static func waitUntilExit(
         _ process: Process,
         timeout: TimeInterval,
         killGracePeriod: TimeInterval = 2,
+        killConfirmationTimeout: TimeInterval = 5,
         timeoutError: @autoclosure @escaping @Sendable () -> Error
     ) async throws {
-        do {
-            try await withTaskCancellationHandler {
-                try await waitUntilExitBody(
-                    process,
-                    timeout: timeout,
-                    killGracePeriod: killGracePeriod,
-                    timeoutError: timeoutError
-                )
-            } onCancel: {
-                terminate(process, killGracePeriod: killGracePeriod)
-            }
-        } catch is CancellationError {
+        let firstEvent = await awaitProcessEvent(
+            process,
+            timeout: timeout,
+            resumeOnCancellation: true
+        )
+
+        switch firstEvent {
+        case .exited:
+            try Task.checkCancellation()
+        case .timedOut:
             terminate(process, killGracePeriod: killGracePeriod)
-            await awaitProcessTermination(process)
+            _ = await awaitProcessEvent(
+                process,
+                timeout: killGracePeriod + killConfirmationTimeout,
+                resumeOnCancellation: false
+            )
+            throw timeoutError()
+        case .cancelled:
+            terminate(process, killGracePeriod: killGracePeriod)
+            _ = await awaitProcessEvent(
+                process,
+                timeout: killGracePeriod + killConfirmationTimeout,
+                resumeOnCancellation: false
+            )
             throw CancellationError()
         }
-
-        try Task.checkCancellation()
     }
 
-    private static func waitUntilExitBody(
+    private static func awaitProcessEvent(
         _ process: Process,
         timeout: TimeInterval,
-        killGracePeriod: TimeInterval,
-        timeoutError: @escaping @Sendable () -> Error
-    ) async throws {
-        try await withThrowingTaskGroup(of: Outcome.self) { group in
-            group.addTask {
-                await awaitProcessTermination(process)
-                return .exited
-            }
-            group.addTask {
-                try await Task.sleep(nanoseconds: nanoseconds(for: timeout))
-                return .timedOut
-            }
+        resumeOnCancellation: Bool
+    ) async -> WaitEvent {
+        let waiter = ExitWaiter()
+        let operation = {
+            await withCheckedContinuation { (continuation: CheckedContinuation<WaitEvent, Never>) in
+                process.terminationHandler = { _ in
+                    waiter.resume(.exited, process: process)
+                }
 
-            guard let first = try await group.next() else { return }
-            switch first {
-            case .exited:
-                group.cancelAll()
-                return
-            case .timedOut:
-                terminate(process, killGracePeriod: killGracePeriod)
-                while let outcome = try await group.next() {
-                    if case .exited = outcome {
-                        group.cancelAll()
-                        throw timeoutError()
+                if let outcome = waiter.install(continuation) {
+                    process.terminationHandler = nil
+                    continuation.resume(returning: outcome)
+                    return
+                }
+
+                if timeout <= 0 {
+                    waiter.resume(.timedOut, process: process)
+                } else {
+                    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + timeout) {
+                        waiter.resume(.timedOut, process: process)
                     }
                 }
-                throw timeoutError()
-            }
-        }
-    }
 
-    private static func awaitProcessTermination(_ process: Process) async {
-        let resumed = OSAllocatedUnfairLock(initialState: false)
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            process.terminationHandler = { _ in
-                let shouldResume = resumed.withLock { done -> Bool in
-                    guard !done else { return false }
-                    done = true
-                    return true
-                }
-                if shouldResume {
-                    continuation.resume()
-                }
-            }
-
-            if !process.isRunning {
-                let shouldResume = resumed.withLock { done -> Bool in
-                    guard !done else { return false }
-                    done = true
-                    return true
-                }
-                if shouldResume {
-                    process.terminationHandler = nil
-                    continuation.resume()
+                if !process.isRunning {
+                    waiter.resume(.exited, process: process)
                 }
             }
         }
+
+        if resumeOnCancellation {
+            return await withTaskCancellationHandler {
+                await operation()
+            } onCancel: {
+                waiter.resume(.cancelled, process: process)
+            }
+        }
+
+        return await operation()
     }
 
     private static func terminate(_ process: Process, killGracePeriod: TimeInterval) {
@@ -105,12 +128,5 @@ enum ChildProcessWaiter {
             guard stuckProcess.isRunning else { return }
             kill(stuckProcess.processIdentifier, SIGKILL)
         }
-    }
-
-    private static func nanoseconds(for seconds: TimeInterval) -> UInt64 {
-        guard seconds > 0 else { return 0 }
-        let nanoseconds = seconds * 1_000_000_000
-        guard nanoseconds < Double(UInt64.max) else { return UInt64.max }
-        return UInt64(nanoseconds)
     }
 }
