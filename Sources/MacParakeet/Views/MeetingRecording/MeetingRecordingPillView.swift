@@ -71,7 +71,13 @@ struct MeetingRecordingPillView: View {
         switch viewModel.state {
         case .idle:
             EmptyView()
-        case .recording:
+        case .recording, .paused:
+            // Paused shares the recording pill structure (rosette + capsule
+            // + hover badge) but renders the rosette dimmed with a pause
+            // glyph, and the hover badge swaps the red recording dot for a
+            // pause symbol. Sharing the structure means the pill doesn't
+            // resize between states — pause stays in the same spot, just
+            // visually quieter.
             sacredRecordingPill
         case .completing:
             completingPill
@@ -149,11 +155,32 @@ struct MeetingRecordingPillView: View {
     }
 
     private var sacredRecordingPill: some View {
-        VStack(spacing: 0) {
-            MerkabaPillIcon(
-                isAnimating: true,
-                audioLevel: max(viewModel.micLevel, viewModel.systemLevel)
-            )
+        let isPaused = viewModel.isPaused
+        return VStack(spacing: 0) {
+            ZStack {
+                MerkabaPillIcon(
+                    isAnimating: !isPaused,
+                    audioLevel: isPaused ? 0 : max(viewModel.micLevel, viewModel.systemLevel)
+                )
+                .opacity(isPaused ? 0.45 : 1.0)
+                .animation(.easeInOut(duration: 0.25), value: isPaused)
+
+                if isPaused {
+                    // Two parallel bars in the rosette center — the universal
+                    // "paused" affordance. Doesn't replace the rosette
+                    // (continuity with recording state) but signals "frozen"
+                    // on top of the dimmed mark.
+                    HStack(spacing: 3) {
+                        Capsule()
+                            .fill(DesignSystem.Colors.meetingPillText)
+                            .frame(width: 3, height: 11)
+                        Capsule()
+                            .fill(DesignSystem.Colors.meetingPillText)
+                            .frame(width: 3, height: 11)
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.8)))
+                }
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
@@ -182,10 +209,16 @@ struct MeetingRecordingPillView: View {
         .overlay(alignment: .top) {
             if isHovered && viewModel.elapsedSeconds > 0 {
                 HStack(spacing: 5) {
-                    Circle()
-                        .fill(DesignSystem.Colors.recordingRed)
-                        .frame(width: 5, height: 5)
-                        .shadow(color: .red.opacity(0.5), radius: 3)
+                    if isPaused {
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 8, weight: .bold))
+                            .foregroundStyle(.white.opacity(0.85))
+                    } else {
+                        Circle()
+                            .fill(DesignSystem.Colors.recordingRed)
+                            .frame(width: 5, height: 5)
+                            .shadow(color: .red.opacity(0.5), radius: 3)
+                    }
 
                     Text(viewModel.formattedElapsed)
                         .font(.system(size: 11, weight: .semibold).monospacedDigit())
@@ -210,9 +243,16 @@ struct MeetingRecordingPillView: View {
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Recording meeting, \(viewModel.formattedElapsed) elapsed")
+        .accessibilityLabel(
+            isPaused
+                ? "Meeting recording paused, \(viewModel.formattedElapsed) elapsed"
+                : "Recording meeting, \(viewModel.formattedElapsed) elapsed"
+        )
         .accessibilityAction {
             onTap?()
+        }
+        .accessibilityAction(named: Text(isPaused ? "Resume recording" : "Pause recording")) {
+            viewModel.onPauseToggle?()
         }
         .accessibilityAction(named: Text("End and transcribe")) {
             viewModel.onStop?()

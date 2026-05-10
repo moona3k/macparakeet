@@ -41,11 +41,18 @@ private class PillMenuDelegate: NSObject {
     let onStop: () -> Void
     let onOpen: () -> Void
     let onCancel: () -> Void
+    let onPauseToggle: () -> Void
 
-    init(onStop: @escaping () -> Void, onOpen: @escaping () -> Void, onCancel: @escaping () -> Void) {
+    init(
+        onStop: @escaping () -> Void,
+        onOpen: @escaping () -> Void,
+        onCancel: @escaping () -> Void,
+        onPauseToggle: @escaping () -> Void
+    ) {
         self.onStop = onStop
         self.onOpen = onOpen
         self.onCancel = onCancel
+        self.onPauseToggle = onPauseToggle
     }
 
     @objc func menuAction(_ sender: NSMenuItem) {
@@ -53,6 +60,7 @@ private class PillMenuDelegate: NSObject {
         case "stop": onStop()
         case "open": onOpen()
         case "cancel": onCancel()
+        case "pauseToggle": onPauseToggle()
         default: break
         }
     }
@@ -66,6 +74,7 @@ final class MeetingRecordingPillController {
     var onStopRecording: (() -> Void)?
     var onOpenApp: (() -> Void)?
     var onCancelRecording: (() -> Void)?
+    var onPauseToggle: (() -> Void)?
 
     init(viewModel: MeetingRecordingPillViewModel) {
         self.pillViewModel = viewModel
@@ -148,20 +157,45 @@ final class MeetingRecordingPillController {
             },
             onCancel: { [weak self] in
                 Task { @MainActor [weak self] in self?.onCancelRecording?() }
+            },
+            onPauseToggle: { [weak self] in
+                Task { @MainActor [weak self] in self?.onPauseToggle?() }
             }
         )
 
-        // Listening header — organic language matching the flower metaphor
+        // Listening / Paused header — organic language matching the flower
+        // metaphor; reflects the live state so the menu reads honestly when
+        // opened mid-pause (issue #235).
+        let isPaused = pillViewModel.isPaused
         let elapsed = pillViewModel.formattedElapsed
-        let headerItem = NSMenuItem(title: "Listening — \(elapsed)", action: nil, keyEquivalent: "")
+        let headerTitle = isPaused ? "Paused — \(elapsed)" : "Listening — \(elapsed)"
+        let headerSymbol = isPaused ? "pause.circle" : "leaf"
+        let headerItem = NSMenuItem(title: headerTitle, action: nil, keyEquivalent: "")
         headerItem.isEnabled = false
-        if let headerImage = NSImage(systemSymbolName: "leaf", accessibilityDescription: nil) {
+        if let headerImage = NSImage(systemSymbolName: headerSymbol, accessibilityDescription: nil) {
             headerItem.image = headerImage.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
             headerItem.image?.isTemplate = true
         }
         menu.addItem(headerItem)
 
         menu.addItem(.separator())
+
+        // Pause / Resume — issue #235. Sits above End & Transcribe so the
+        // flow is "pause → think → resume" without leaving the menu.
+        if pillViewModel.canTogglePause {
+            let pauseItem = NSMenuItem(
+                title: isPaused ? "Resume Recording" : "Pause Recording",
+                action: #selector(PillMenuDelegate.menuAction(_:)),
+                keyEquivalent: ""
+            )
+            pauseItem.representedObject = "pauseToggle"
+            pauseItem.target = delegate
+            if let pauseImage = NSImage(systemSymbolName: isPaused ? "play.fill" : "pause.fill", accessibilityDescription: nil) {
+                pauseItem.image = pauseImage.withSymbolConfiguration(.init(pointSize: 13, weight: .medium))
+                pauseItem.image?.isTemplate = true
+            }
+            menu.addItem(pauseItem)
+        }
 
         // End & Transcribe — the flower completes its cycle
         let stopItem = NSMenuItem(title: "End & Transcribe", action: #selector(PillMenuDelegate.menuAction(_:)), keyEquivalent: "")

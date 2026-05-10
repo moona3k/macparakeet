@@ -57,6 +57,7 @@ struct MainWindowView: View {
     let meetingPillViewModel: MeetingRecordingPillViewModel
     let updater: SPUUpdater
     let onRecordMeeting: () -> Void
+    let onPauseToggleMeeting: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -98,6 +99,7 @@ struct MainWindowView: View {
                             meetingPermissionState: meetingPermissionState,
                             showingProgressDetail: $state.showingProgressDetail,
                             onRecordMeeting: onRecordMeeting,
+                            onPauseToggleMeeting: onPauseToggleMeeting,
                             onRefreshPermissions: settingsViewModel.refreshPermissions
                         )
                     case .library:

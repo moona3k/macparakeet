@@ -230,6 +230,12 @@ struct MeetingRecordingPanelView: View {
                         .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.8))
                 }
 
+                if viewModel.canTogglePause {
+                    PauseResumeButton(isPaused: viewModel.isPaused) {
+                        viewModel.onPauseToggle?()
+                    }
+                }
+
                 if viewModel.canStop {
                     StopRecordingButton {
                         viewModel.onStop?()
@@ -338,8 +344,13 @@ struct MeetingRecordingPanelView: View {
     private var statusDot: some View {
         switch viewModel.state {
         case .hidden, .recording:
+            // While paused, the dot reads "frozen": tertiary-text color, no
+            // animation. Mirrors the pill rosette dimming so the panel and
+            // pill convey the same state at a glance (issue #235).
             Circle()
-                .fill(DesignSystem.Colors.successGreen)
+                .fill(viewModel.isPaused
+                    ? DesignSystem.Colors.textTertiary
+                    : DesignSystem.Colors.successGreen)
                 .frame(width: 8, height: 8)
         case .transcribing:
             ProgressView()

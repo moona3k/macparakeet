@@ -105,3 +105,53 @@ struct StopRecordingButton: View {
         }
     }
 }
+
+// MARK: - Pause / Resume Button
+
+/// Pill-shaped pause/resume toggle for the meeting panel header (issue #235).
+/// Same vertical footprint as `StopRecordingButton` so pause + stop sit side
+/// by side without reflowing the row. Single-click toggle (no countdown
+/// confirmation — pausing is recoverable, unlike stop).
+struct PauseResumeButton: View {
+    var isPaused: Bool
+    var onToggle: () -> Void
+
+    @State private var isHovered = false
+
+    private static let trackHeight: CGFloat = 31
+
+    var body: some View {
+        Button(action: onToggle) {
+            Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(
+                    isHovered
+                        ? DesignSystem.Colors.textPrimary
+                        : DesignSystem.Colors.textTertiary
+                )
+                .frame(width: 13, height: 13)
+                .padding(9)
+                .background(
+                    Circle()
+                        .fill(isHovered ? DesignSystem.Colors.surfaceElevated : DesignSystem.Colors.surfaceElevated.opacity(0.6))
+                        .overlay(
+                            Circle()
+                                .stroke(
+                                    isHovered ? DesignSystem.Colors.border.opacity(0.7) : .clear,
+                                    lineWidth: 0.5
+                                )
+                        )
+                )
+                .scaleEffect(isHovered ? 1.06 : 1.0)
+                .animation(.easeOut(duration: 0.15), value: isHovered)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
+        .frame(height: Self.trackHeight)
+        .accessibilityLabel(isPaused ? "Resume recording" : "Pause recording")
+        .help(isPaused ? "Resume recording" : "Pause recording")
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+}

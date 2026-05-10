@@ -23,6 +23,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
     private let meetingPillViewModel: MeetingRecordingPillViewModel
     private let updaterController: SPUStandardUpdaterController
     private let onRecordMeeting: () -> Void
+    private let onPauseToggleMeeting: (() -> Void)?
     private let onQuit: () -> Void
     private let isOnboardingVisible: () -> Bool
 
@@ -46,6 +47,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         meetingPillViewModel: MeetingRecordingPillViewModel,
         updaterController: SPUStandardUpdaterController,
         onRecordMeeting: @escaping () -> Void,
+        onPauseToggleMeeting: (() -> Void)? = nil,
         onQuit: @escaping () -> Void,
         isOnboardingVisible: @escaping () -> Bool
     ) {
@@ -66,6 +68,7 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         self.meetingPillViewModel = meetingPillViewModel
         self.updaterController = updaterController
         self.onRecordMeeting = onRecordMeeting
+        self.onPauseToggleMeeting = onPauseToggleMeeting
         self.onQuit = onQuit
         self.isOnboardingVisible = isOnboardingVisible
     }
@@ -172,7 +175,8 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
             libraryViewModel: libraryViewModel,
             meetingPillViewModel: meetingPillViewModel,
             updater: updaterController.updater,
-            onRecordMeeting: onRecordMeeting
+            onRecordMeeting: onRecordMeeting,
+            onPauseToggleMeeting: onPauseToggleMeeting
         )
 
         let window = NSWindow(

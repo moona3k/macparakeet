@@ -298,4 +298,54 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
             "Strictly bound to streaming — the dot vanishes the instant streaming ends so it can't decay into a stale notification badge"
         )
     }
+
+    // MARK: - Pause / resume (issue #235)
+
+    func testStatusTitleReflectsPausedState() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        XCTAssertEqual(viewModel.statusTitle, "Recording")
+
+        viewModel.isPaused = true
+        XCTAssertEqual(viewModel.statusTitle, "Paused")
+
+        viewModel.isPaused = false
+        XCTAssertEqual(viewModel.statusTitle, "Recording")
+    }
+
+    func testCanTogglePauseTracksRecordingPanelState() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        XCTAssertFalse(viewModel.canTogglePause, "No toggle from .hidden")
+
+        viewModel.state = .recording
+        XCTAssertTrue(viewModel.canTogglePause)
+
+        viewModel.state = .transcribing
+        XCTAssertFalse(viewModel.canTogglePause)
+
+        viewModel.state = .error("boom")
+        XCTAssertFalse(viewModel.canTogglePause)
+    }
+
+    func testShowsAudioLevelsHidesWhilePaused() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        XCTAssertTrue(viewModel.showsAudioLevels)
+
+        viewModel.isPaused = true
+        XCTAssertFalse(
+            viewModel.showsAudioLevels,
+            "While paused, levels are zeroed by the service — orb would render flat. Fall back to status dot instead."
+        )
+    }
+
+    func testResetClearsPausedFlag() {
+        let viewModel = MeetingRecordingPanelViewModel()
+        viewModel.state = .recording
+        viewModel.isPaused = true
+
+        viewModel.reset()
+
+        XCTAssertFalse(viewModel.isPaused)
+    }
 }

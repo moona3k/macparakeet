@@ -12,6 +12,7 @@ struct TranscribeView: View {
     var meetingPermissionState: MeetingRecordingTile.PermissionState = .ready(capturesMicrophone: true)
     @Binding var showingProgressDetail: Bool
     var onRecordMeeting: () -> Void
+    var onPauseToggleMeeting: (() -> Void)? = nil
     var onRefreshPermissions: () -> Void = {}
     @State private var showCancelConfirmation = false
     @State private var aiFormatterWarningMessage: String?
@@ -130,7 +131,8 @@ struct TranscribeView: View {
                         MeetingRecordingTile(
                             viewModel: meetingPillViewModel,
                             permissionState: meetingPermissionState,
-                            onTap: onRecordMeeting
+                            onTap: onRecordMeeting,
+                            onPauseToggle: onPauseToggleMeeting
                         )
                         .padding(.horizontal, DesignSystem.Spacing.xl)
                     }

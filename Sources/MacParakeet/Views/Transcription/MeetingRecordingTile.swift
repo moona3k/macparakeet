@@ -68,6 +68,11 @@ struct MeetingRecordingTile: View {
     @Bindable var viewModel: MeetingRecordingPillViewModel
     var permissionState: PermissionState = .ready(capturesMicrophone: true)
     var onTap: () -> Void
+    /// Optional pause/resume handler (issue #235). When `nil` the tile
+    /// renders no pause control — keeps existing call sites that don't
+    /// support pause working unchanged. The Transcribe-tab call site wires
+    /// this through to `MeetingRecordingFlowCoordinator.togglePause()`.
+    var onPauseToggle: (() -> Void)? = nil
 
     var body: some View {
         tileSurface
@@ -103,6 +108,8 @@ struct MeetingRecordingTile: View {
         switch viewModel.state {
         case .recording:
             return DesignSystem.Colors.recordingRed.opacity(0.30)
+        case .paused:
+            return DesignSystem.Colors.border.opacity(0.85)
         case .error:
             return DesignSystem.Colors.warningAmber.opacity(0.35)
         default:
@@ -117,7 +124,7 @@ struct MeetingRecordingTile: View {
         switch viewModel.state {
         case .idle:
             idleContent
-        case .recording:
+        case .recording, .paused:
             recordingContent
         case .completing, .transcribing:
             transcribingContent
@@ -154,16 +161,25 @@ struct MeetingRecordingTile: View {
     }
 
     private var recordingContent: some View {
-        HStack(spacing: DesignSystem.Spacing.md) {
+        let isPaused = viewModel.isPaused
+        return HStack(spacing: DesignSystem.Spacing.md) {
             SacredFlowerTile(
-                isAnimating: true,
-                audioLevel: max(viewModel.micLevel, viewModel.systemLevel)
+                isAnimating: !isPaused,
+                audioLevel: isPaused ? 0 : max(viewModel.micLevel, viewModel.systemLevel)
             )
+            .opacity(isPaused ? 0.55 : 1.0)
+            .animation(.easeInOut(duration: 0.25), value: isPaused)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    BreathingDot()
-                    Text("Recording")
+                    if isPaused {
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(DesignSystem.Colors.textTertiary)
+                    } else {
+                        BreathingDot()
+                    }
+                    Text(isPaused ? "Paused" : "Recording")
                         .font(DesignSystem.Typography.sectionTitle)
                         .foregroundStyle(DesignSystem.Colors.textPrimary)
                 }
@@ -176,7 +192,12 @@ struct MeetingRecordingTile: View {
 
             Spacer()
 
-            stopButton
+            HStack(spacing: 8) {
+                if let onPauseToggle, viewModel.canTogglePause {
+                    TilePauseResumeButton(isPaused: isPaused, onToggle: onPauseToggle)
+                }
+                stopButton
+            }
         }
     }
 
@@ -317,6 +338,8 @@ struct MeetingRecordingTile: View {
             return permissionState.isReady ? "Record meeting" : "\(permissionState.title): \(permissionState.detail)"
         case .recording:
             return "Recording meeting, \(viewModel.formattedElapsed) elapsed"
+        case .paused:
+            return "Meeting recording paused, \(viewModel.formattedElapsed) elapsed"
         case .completing, .transcribing:
             return "Transcribing meeting"
         case .completed:
@@ -330,6 +353,54 @@ struct MeetingRecordingTile: View {
         // Tile body is informational; Start / Stop buttons carry the
         // action hints themselves.
         ""
+    }
+}
+
+// MARK: - Pause / Resume button (issue #235)
+
+/// Tile-styled pause/resume button. Single-click toggle (no countdown — pause
+/// is recoverable). Sits to the left of the red Stop pill so the row reads
+/// "pause | stop" — the recoverable action first, the destructive action
+/// last. Outline-style (not filled) to keep stop the visual emphasis.
+private struct TilePauseResumeButton: View {
+    var isPaused: Bool
+    var onToggle: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: onToggle) {
+            HStack(spacing: 6) {
+                Image(systemName: isPaused ? "play.fill" : "pause.fill")
+                    .font(.system(size: 9, weight: .bold))
+                Text(isPaused ? "Resume" : "Pause")
+                    .font(DesignSystem.Typography.caption.weight(.semibold))
+            }
+            .foregroundStyle(
+                isHovered
+                    ? DesignSystem.Colors.textPrimary
+                    : DesignSystem.Colors.textSecondary
+            )
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule()
+                    .fill(isHovered
+                        ? DesignSystem.Colors.surfaceElevated
+                        : DesignSystem.Colors.surfaceElevated.opacity(0.7))
+                    .overlay(
+                        Capsule()
+                            .stroke(DesignSystem.Colors.border.opacity(isHovered ? 1.0 : 0.7), lineWidth: 0.6)
+                    )
+            )
+            .scaleEffect(isHovered ? 1.03 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
+            .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(isPaused ? "Resume recording" : "Pause recording")
+        .accessibilityLabel(isPaused ? "Resume recording" : "Pause recording")
     }
 }
 

@@ -1579,6 +1579,24 @@ Meeting transcription uses the current speech engine captured at recording start
 - [x] `statusMessage` for `.error` reads `<technical detail>\n\nIf any audio was captured it's in your Library, where you can retry transcription or export the audio.`
 - [x] Empty/whitespace-only error strings fall back to "An unexpected error occurred." instead of producing a leading newline
 
+### F42: Meeting Recording Pause / Resume
+
+> Status: **IMPLEMENTED**
+
+**What:** Pause and resume an in-flight meeting recording without ending the session, per [issue #235](https://github.com/moona3k/macparakeet/issues/235). Resumed audio appends gap-free into the same `.m4a` file so the user can re-transcribe the recording later with another model. The elapsed timer freezes during pause; the persisted `MeetingRecordingOutput.durationSeconds` reflects time actually recording, not wallclock since start.
+
+**Acceptance criteria:**
+- [x] `MeetingRecordingService.pauseRecording()` / `resumeRecording()` are idempotent no-ops when no session is active or already in the requested state
+- [x] `CaptureMode` gains `.paused`; `MeetingRecordingPillViewModel.PillState` gains `.paused` (sub-state of recording — flow state machine unchanged)
+- [x] Audio buffers received while paused are dropped at the top of `handleCaptureEvent`; mic + ScreenCaptureKit subscriptions stay live so resume is instant
+- [x] `MeetingAudioStorageWriter` PTS counter is preserved across pause; the resumed audio appends with a continuous timeline (pauses are invisible in playback)
+- [x] `accumulatedPausedDuration` is subtracted from both live `elapsedSeconds` and persisted `durationSeconds`; stopping while paused settles the in-flight pause first
+- [x] `CaptureOrchestrator.reset()` is called on pause so pre-pause partial joiner / chunker state doesn't bridge into post-resume samples
+- [x] Mic + system level metrics zero on pause so the orb / pill rosette read silent immediately, not over the EMA decay window
+- [x] Pause/resume reachable from the floating pill's right-click menu, the Meeting Panel header (next to Stop), and the Transcribe-tab Meeting Recording tile
+- [x] Pill rosette dims and shows pause bars while paused; panel header swaps "Recording" for "Paused" and hides the dual-audio orb
+- [x] Capture-failure detection (USB mic unplug, etc.) fires when `pillViewModel.state` is `.recording` *or* `.paused`, so a failure during pause still routes to the existing stop+transcribe error path
+
 ### F41: Ask Quick Prompts
 
 > Status: **IMPLEMENTED**

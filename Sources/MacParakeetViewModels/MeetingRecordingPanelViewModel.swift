@@ -40,6 +40,12 @@ public final class MeetingRecordingPanelViewModel {
     public var elapsedSeconds: Int = 0
     public var micLevel: Float = 0
     public var systemLevel: Float = 0
+    /// Mirrors `MeetingRecordingService.isPaused` (issue #235). Toggled by
+    /// the flow coordinator's pill polling task. Drives the header status
+    /// label ("Recording" → "Paused"), the Pause/Resume button label, and
+    /// the audio-level orb (which hides while paused since both levels are
+    /// zeroed by the service).
+    public var isPaused: Bool = false
     public var previewLines: [MeetingRecordingPreviewLine] = []
     public var isTranscriptionLagging: Bool = false
     public private(set) var liveTranscriptStatus: LiveTranscriptStatus = .listening
@@ -51,6 +57,7 @@ public final class MeetingRecordingPanelViewModel {
     public let notesViewModel: MeetingNotesViewModel = MeetingNotesViewModel()
     public let quickPromptsViewModel: QuickPromptsViewModel = QuickPromptsViewModel()
     public var onStop: (() -> Void)?
+    public var onPauseToggle: (() -> Void)?
     public var onClose: (() -> Void)?
 
     private var copiedResetTask: Task<Void, Never>?
@@ -128,6 +135,7 @@ public final class MeetingRecordingPanelViewModel {
         elapsedSeconds = 0
         micLevel = 0
         systemLevel = 0
+        isPaused = false
         previewLines = []
         previewLineWordCounts = []
         wordCount = 0
@@ -152,10 +160,16 @@ public final class MeetingRecordingPanelViewModel {
         return false
     }
 
+    /// Header Pause/Resume button is only meaningful while the meeting is
+    /// in `.recording` panel state. Hidden during transcribing / error.
+    public var canTogglePause: Bool {
+        canStop
+    }
+
     public var statusTitle: String {
         switch state {
         case .hidden, .recording:
-            return "Recording"
+            return isPaused ? "Paused" : "Recording"
         case .transcribing:
             return "Transcribing"
         case .error:
@@ -208,7 +222,10 @@ public final class MeetingRecordingPanelViewModel {
     }
 
     public var showsAudioLevels: Bool {
-        state == .recording
+        // While paused, mic + system are both zeroed by the service; the orb
+        // would render as a flat dot pretending to listen. Fall back to the
+        // simple status indicator instead so the paused state reads honestly.
+        state == .recording && !isPaused
     }
 
     public func updateLiveTranscriptStatus(_ status: LiveTranscriptStatus) {

@@ -227,6 +227,11 @@ REQ-MEET-010:
   version: v0.6
   status: implemented
 
+REQ-MEET-011:
+  description: An in-flight meeting recording can be paused and resumed without ending the session; resumed audio appends gap-free into the same .m4a file and the persisted durationSeconds excludes paused time
+  version: v0.6
+  status: implemented
+
 # --- v0.6 Multilingual Speech Recognition ---
 
 REQ-STT-002:

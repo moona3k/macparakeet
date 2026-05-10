@@ -5,6 +5,7 @@
 > Related: ADR-001 (Parakeet STT), ADR-007 (FluidAudio CoreML), ADR-010 (speaker diarization), ADR-021 (WhisperKit optional STT), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
 > Amended: 2026-04-10 (historical: meeting mic echo mitigation via joined software AEC + observability hardening)
 > Amended: 2026-04-29 (replace Core Audio process taps with ScreenCaptureKit audio so VPIO can remain enabled on the meeting mic path)
+> Amended: 2026-05-09 (pause/resume for active recordings — [issue #235](https://github.com/moona3k/macparakeet/issues/235))
 
 ## Context
 
@@ -121,6 +122,18 @@ Core Audio process taps were the original choice because they provide audio-only
 ### Why a separate coordinator (not extending DictationFlowCoordinator)?
 
 Dictation has complex paste/cancel/undo behavior that meeting recording doesn't need. Meeting recording has permission checks and long-form timer states that dictation doesn't have. Sharing a coordinator would mean each mode carries the other's complexity. Two simple coordinators are better than one complex one.
+
+### 11. Pause / resume for active recordings (2026-05-09 amendment)
+
+[Issue #235](https://github.com/moona3k/macparakeet/issues/235) requested a pause button on meeting recording so users can stop and resume capture without splitting the session into multiple files. The shipped behavior:
+
+- **Buffer-discard, not capture-teardown.** Pause sets an actor-isolated flag on `MeetingRecordingService`; incoming `microphoneBuffer` / `systemBuffer` events are dropped at the top of `handleCaptureEvent`. The OS-level mic + ScreenCaptureKit streams stay subscribed, so resume is instant and there is no mic/system desync from asymmetric teardown latency.
+- **Audio file is gap-free.** `MeetingAudioStorageWriter`'s monotonic PTS counter is preserved across the pause window — no zero-fill, no pause marker. The final `.m4a` plays back as continuous audio (the user's stated downstream is re-transcribing the file with another model). Pauses are invisible in playback.
+- **Elapsed timer is pause-aware.** `MeetingRecordingService` tracks `accumulatedPausedDuration` + an in-flight `pausedAt`; both `elapsedSeconds` (live) and `MeetingRecordingOutput.durationSeconds` (persisted) subtract paused time. Stopping while paused settles the in-flight pause into the total before computing the duration.
+- **Capture-orchestrator reset on pause.** `CaptureOrchestrator.reset()` is called on pause so any pre-pause partial samples sitting in the pair joiner / chunker queues don't bridge into post-resume samples. The audio file is unaffected (the storage writer is independent of the chunker); only the live transcript loses any in-flight unfinalized chunk.
+- **Pause is a sub-state of recording, not a flow state.** `MeetingRecordingFlowStateMachine` is unchanged. `CaptureMode` gains a `.paused` value; `MeetingRecordingPillViewModel.PillState` gains `.paused`. The flow coordinator's polling task reconciles the pill VM state from the service. The existing `captureMode == .stopped` failure path is widened to fire when `pillViewModel.state` is `.recording` *or* `.paused` so a USB mic unplug during pause still surfaces.
+- **UI surfaces.** Pause/resume is reachable from three places: the floating pill's right-click menu, a button in the Meeting Panel header alongside Stop, and a button in the Transcribe-tab Meeting Recording tile. The pill rosette dims and shows pause bars while paused; the panel header swaps the live "Recording" label for "Paused" and hides the dual-audio orb (zeroed levels would render as a flat dot pretending to listen).
+- **No telemetry, no hotkey, no lock-file changes in v1.** Telemetry needs the website allowlist updated in lockstep; punted to a follow-up PR. The lock file's `state` enum is not extended (`.paused` would only matter if recovery wanted to resume; today recovery always finalizes whatever is on disk, which is correct because the audio file already reflects everything captured before pause).
 
 ## Consequences
 

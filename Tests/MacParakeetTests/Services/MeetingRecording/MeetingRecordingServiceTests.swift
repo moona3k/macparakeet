@@ -1146,6 +1146,231 @@ final class MeetingRecordingServiceTests: XCTestCase {
 
         await service.completeTranscription(for: output)
     }
+
+    // MARK: - Pause / Resume (issue #235)
+
+    func testPauseRecordingSetsCaptureModeToPausedAndZeroesLevels() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        defer {
+            Task { await service.cancelRecording() }
+        }
+
+        // Push a buffer so levels are non-zero pre-pause.
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.5))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 1.0))
+        ))
+        // Yield so the actor processes the buffer before pause.
+        try await Task.sleep(for: .milliseconds(20))
+
+        await service.pauseRecording()
+
+        let captureMode = await service.captureMode
+        let isPaused = await service.isPaused
+        let micLevel = await service.micLevel
+        let systemLevel = await service.systemLevel
+        XCTAssertEqual(captureMode, .paused)
+        XCTAssertTrue(isPaused)
+        XCTAssertEqual(micLevel, 0)
+        XCTAssertEqual(systemLevel, 0)
+    }
+
+    func testResumeRecordingClearsPausedStateAndCaptureModeReturnsToFull() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        defer {
+            Task { await service.cancelRecording() }
+        }
+
+        await service.pauseRecording()
+        await service.resumeRecording()
+
+        let captureMode = await service.captureMode
+        let isPaused = await service.isPaused
+        XCTAssertEqual(captureMode, .full)
+        XCTAssertFalse(isPaused)
+    }
+
+    func testPauseAndResumeAreNoOpsWhenNotRecording() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        // No active session — both calls must be safe no-ops.
+        await service.pauseRecording()
+        await service.resumeRecording()
+
+        let isRecording = await service.isRecording
+        let isPaused = await service.isPaused
+        let captureMode = await service.captureMode
+        XCTAssertFalse(isRecording)
+        XCTAssertFalse(isPaused)
+        XCTAssertEqual(captureMode, .stopped)
+    }
+
+    func testRedundantPauseAndResumeAreIdempotent() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        defer {
+            Task { await service.cancelRecording() }
+        }
+
+        await service.pauseRecording()
+        await service.pauseRecording() // redundant — must not double-account
+        let pausedAfterDoublePause = await service.isPaused
+        XCTAssertTrue(pausedAfterDoublePause)
+
+        await service.resumeRecording()
+        await service.resumeRecording() // redundant — must not flip back to paused
+        let pausedAfterDoubleResume = await service.isPaused
+        XCTAssertFalse(pausedAfterDoubleResume)
+    }
+
+    func testStopRecordingDurationExcludesPausedTime() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        // Yield so the actor's processingTask drains the buffer to disk
+        // before pause flips the discard flag. Without this, the buffer can
+        // sit in the events mailbox behind the pause call and stop fails
+        // with `noAudioCaptured` on a clean session folder.
+        try await Task.sleep(for: .milliseconds(50))
+
+        // Hold the recording in pause for 500ms so the accumulated paused
+        // duration is comfortably measurable even under CI load. Tighter
+        // budgets (200ms) flake on busy machines because Task.sleep can
+        // wake slightly early and the actor mailbox order around start
+        // adds ~50ms of pre-pause "active" time.
+        let startedAt = Date()
+        await service.pauseRecording()
+        try await Task.sleep(for: .milliseconds(500))
+        await service.resumeRecording()
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        let stoppedAt = Date()
+        let totalWallclock = stoppedAt.timeIntervalSince(startedAt)
+
+        XCTAssertLessThan(
+            output.durationSeconds,
+            totalWallclock,
+            "Paused interval must be subtracted from the persisted duration"
+        )
+        // The pause was 500ms — assert at least 300ms was carved out
+        // (gives 200ms of headroom for scheduler jitter on top of the
+        // expected 200ms gap).
+        XCTAssertLessThan(
+            output.durationSeconds,
+            totalWallclock - 0.3
+        )
+
+        await service.completeTranscription(for: output)
+    }
+
+    func testStopRecordingWhilePausedSettlesOngoingPauseIntoDuration() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        // Same actor-mailbox ordering caveat as the resume sibling test.
+        try await Task.sleep(for: .milliseconds(50))
+
+        let startedAt = Date()
+        await service.pauseRecording()
+        try await Task.sleep(for: .milliseconds(500))
+        // Stop without resuming — the in-flight pause must still be
+        // subtracted from the persisted duration.
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+        let stoppedAt = Date()
+        let totalWallclock = stoppedAt.timeIntervalSince(startedAt)
+
+        XCTAssertLessThan(
+            output.durationSeconds,
+            totalWallclock - 0.3,
+            "Stopping while paused must still subtract the in-flight pause interval"
+        )
+
+        await service.completeTranscription(for: output)
+    }
+
+    func testBuffersDuringPauseAreDiscardedAndDoNotProduceTranscriptUpdates() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        defer {
+            Task { await service.cancelRecording() }
+        }
+
+        await service.pauseRecording()
+
+        // Push a non-trivial buffer while paused — service must drop it
+        // without updating levels and without forwarding to the chunker.
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 4_800, sampleValue: 0.6))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 2.0))
+        ))
+        // Give the actor a chance to process the buffer.
+        try await Task.sleep(for: .milliseconds(50))
+
+        let micLevel = await service.micLevel
+        XCTAssertEqual(micLevel, 0, "Pause must zero levels and discard incoming mic buffers")
+    }
 }
 
 private actor BlockingEventsMeetingAudioCaptureService: MeetingAudioCapturing {

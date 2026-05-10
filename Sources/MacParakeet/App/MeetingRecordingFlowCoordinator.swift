@@ -131,6 +131,32 @@ final class MeetingRecordingFlowCoordinator {
     /// doesn't suppress the *next* meeting's auto-stop.
     var onAutoStartFailed: (() -> Void)?
 
+    /// Pause / resume the in-flight recording (issue #235). Routed through
+    /// the flow coordinator (not directly from the UI to the service) so the
+    /// pillViewModel state flips immediately — the polling task reconciles
+    /// from the service the next tick, but a 150ms wait would feel laggy on
+    /// a button press. No-op when the pill VM is not in a state where
+    /// pause/resume is meaningful.
+    func togglePause() {
+        guard pillViewModel.canTogglePause else { return }
+        let wantPause = !pillViewModel.isPaused
+        // Optimistic UI update so the button label flips on click; the
+        // polling task reconciles next tick if the service rejects (e.g.,
+        // capture failed mid-tap).
+        pillViewModel.state = wantPause ? .paused : .recording
+        panelViewModel?.isPaused = wantPause
+        // Don't reuse `actionTask` — that's owned by start / stop / cancel.
+        // Pause/resume are fast, idempotent, and shouldn't be cancellable
+        // by an in-flight stop.
+        Task { @MainActor [meetingRecordingService] in
+            if wantPause {
+                await meetingRecordingService.pauseRecording()
+            } else {
+                await meetingRecordingService.resumeRecording()
+            }
+        }
+    }
+
     func toggleRecording(trigger: TelemetryMeetingRecordingTrigger = .manual) {
         switch stateMachine.state {
         case .idle:
@@ -294,6 +320,7 @@ final class MeetingRecordingFlowCoordinator {
         case .showRecordingPill:
             let vm = pillViewModel
             vm.onStop = { [weak self] in self?.toggleRecording() }
+            vm.onPauseToggle = { [weak self] in self?.togglePause() }
             vm.elapsedSeconds = 0
             vm.micLevel = 0
             vm.systemLevel = 0
@@ -303,9 +330,11 @@ final class MeetingRecordingFlowCoordinator {
             panelVM.elapsedSeconds = 0
             panelVM.micLevel = 0
             panelVM.systemLevel = 0
+            panelVM.isPaused = false
             panelVM.updateLiveTranscriptStatus(.startingAudio)
             panelVM.updatePreviewLines([], isTranscriptionLagging: false)
             panelVM.onStop = { [weak self] in self?.toggleRecording() }
+            panelVM.onPauseToggle = { [weak self] in self?.togglePause() }
             panelVM.onClose = { [weak self] in self?.hideMeetingPanel() }
             // Configure live Ask: in-memory mode (no transcriptionId/conversationRepo).
             // Promotion to a persisted ChatConversation happens in .navigateToTranscription.
@@ -344,6 +373,9 @@ final class MeetingRecordingFlowCoordinator {
             }
             pillController?.onCancelRecording = { [weak self] in
                 self?.confirmAndCancelRecording()
+            }
+            pillController?.onPauseToggle = { [weak self] in
+                self?.togglePause()
             }
             if panelController == nil {
                 let controller = MeetingRecordingPanelController(viewModel: panelVM)
@@ -566,6 +598,7 @@ final class MeetingRecordingFlowCoordinator {
             // on the VM are owned by the flow coordinator and re-bound on
             // the next `.showRecordingPill` action.
             pillViewModel.onStop = nil
+            pillViewModel.onPauseToggle = nil
             pillViewModel.onCompletionAnimationFinished = nil
             pillViewModel.elapsedSeconds = 0
             pillViewModel.micLevel = 0
@@ -684,18 +717,33 @@ final class MeetingRecordingFlowCoordinator {
                 panelViewModel?.elapsedSeconds = elapsedSeconds
                 panelViewModel?.micLevel = micLevel
                 panelViewModel?.systemLevel = systemLevel
+                // Pause/resume reconciliation (issue #235). The user-facing
+                // toggle does an optimistic flip; this poll is the
+                // authoritative source if the optimistic flip diverged from
+                // the service (e.g., capture failed before the service saw
+                // the pause call). Only flip pillViewModel.state between
+                // .recording and .paused — never override .completing /
+                // .transcribing / .completed / .error from here.
+                let serviceIsPaused = (captureMode == .paused)
+                if pillViewModel.state == .recording, serviceIsPaused {
+                    pillViewModel.state = .paused
+                } else if pillViewModel.state == .paused, !serviceIsPaused, captureMode == .full {
+                    pillViewModel.state = .recording
+                }
+                panelViewModel?.isPaused = serviceIsPaused
                 if captureMode == .stopped,
                    stateMachine.state == .recording,
-                   pillViewModel.state == .recording {
+                   pillViewModel.state == .recording || pillViewModel.state == .paused {
                     // Audio capture stopped while the state machine still
                     // expects a live recording — typically because
                     // `MeetingRecordingService.failCapture` ran (mic unplug,
-                    // writer error, OS audio routing change). Without this
-                    // signal the pill keeps animating "recording" with a
-                    // ticking timer while no audio is actually being
-                    // captured. Surface it through the state machine so the
-                    // existing stop+transcribe path saves whatever made it
-                    // to disk.
+                    // writer error, OS audio routing change). Could also
+                    // fire while paused if a USB mic is unplugged mid-pause.
+                    // Without this signal the pill keeps showing the paused
+                    // glyph or "recording" with a ticking timer while no
+                    // audio is actually being captured. Surface it through
+                    // the state machine so the existing stop+transcribe
+                    // path saves whatever made it to disk.
                     pillViewModel.micLevel = 0
                     pillViewModel.systemLevel = 0
                     panelViewModel?.micLevel = 0
