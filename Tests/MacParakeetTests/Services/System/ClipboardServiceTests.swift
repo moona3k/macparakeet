@@ -19,6 +19,13 @@ final class ClipboardServiceTests: XCTestCase {
         )
     }
 
+    func testTargetApplicationUnavailableHasActionableDescription() {
+        XCTAssertEqual(
+            ClipboardServiceError.targetApplicationUnavailable.errorDescription,
+            "Paste automation unavailable (target app is no longer running)."
+        )
+    }
+
     func testPasteTextWriteFailureRestoresClipboardAndDoesNotPostPaste() async throws {
         let pasteboard = makeScratchPasteboard()
         defer { pasteboard.releaseGlobally() }
@@ -72,6 +79,46 @@ final class ClipboardServiceTests: XCTestCase {
         try await waitForPasteboardString("original", on: pasteboard)
 
         XCTAssertEqual(pasteboard.string(forType: .string), "original")
+    }
+
+    func testPasteTextPostsPasteToTargetProcess() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        let target = ClipboardPasteTarget(processIdentifier: 12345, bundleIdentifier: "com.example.Editor")
+        var pasteTargets: [ClipboardPasteTarget?] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(
+                onPasteTarget: { target in
+                    pasteTargets.append(target)
+                }
+            ),
+            clipboardRestoreDelay: Self.shortRestoreDelay
+        )
+
+        try await service.pasteText("dictation", target: target)
+
+        XCTAssertEqual(pasteTargets, [target])
+    }
+
+    func testTargetedProtocolDefaultsPreserveLegacyConformers() async throws {
+        let legacyService = LegacyClipboardService()
+        let service: ClipboardServiceProtocol = legacyService
+        let target = ClipboardPasteTarget(processIdentifier: 12345, bundleIdentifier: "com.example.Editor")
+
+        try await service.pasteText("dictation", target: target)
+        let fired = try await service.pasteTextWithAction(
+            "send it",
+            postPasteAction: .returnKey,
+            target: target
+        )
+
+        let snapshot = await legacyService.snapshot()
+        XCTAssertEqual(snapshot.pastedTexts, ["dictation", "send it"])
+        XCTAssertEqual(snapshot.postPasteActions, [.returnKey])
+        XCTAssertTrue(fired)
     }
 
     func testOverlappingPasteTextRestoresPreExistingClipboard() async throws {
@@ -152,6 +199,46 @@ final class ClipboardServiceTests: XCTestCase {
         XCTAssertTrue(fired)
         XCTAssertEqual(pastedStrings, ["dictation"])
         XCTAssertEqual(keystrokes, [KeyAction.returnKey.keyCode])
+
+        try await waitForPasteboardString("original", on: pasteboard)
+    }
+
+    func testPasteTextWithActionPostsPasteAndKeystrokeToTargetProcess() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        let target = ClipboardPasteTarget(processIdentifier: 12345, bundleIdentifier: "com.example.Editor")
+        var pastedStrings: [String] = []
+        var pasteTargets: [ClipboardPasteTarget?] = []
+        var keystrokes: [UInt16] = []
+        var keystrokeTargets: [ClipboardPasteTarget?] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(
+                onPasteTarget: { target in
+                    pastedStrings.append(pasteboard.string(forType: .string) ?? "")
+                    pasteTargets.append(target)
+                },
+                onKeystrokeTarget: { keyCode, target in
+                    keystrokes.append(keyCode)
+                    keystrokeTargets.append(target)
+                }
+            ),
+            clipboardRestoreDelay: Self.shortRestoreDelay
+        )
+
+        let fired = try await service.pasteTextWithAction(
+            "dictation",
+            postPasteAction: .returnKey,
+            target: target
+        )
+
+        XCTAssertTrue(fired)
+        XCTAssertEqual(pastedStrings, ["dictation"])
+        XCTAssertEqual(pasteTargets, [target])
+        XCTAssertEqual(keystrokes, [KeyAction.returnKey.keyCode])
+        XCTAssertEqual(keystrokeTargets, [target])
 
         try await waitForPasteboardString("original", on: pasteboard)
     }
@@ -302,22 +389,55 @@ final class ClipboardServiceTests: XCTestCase {
 
 @MainActor
 private final class RecordingClipboardEventPosting: ClipboardEventPosting {
-    private let onPaste: @MainActor () throws -> Void
-    private let onKeystroke: @MainActor (UInt16) throws -> Void
+    private let onPaste: @MainActor (ClipboardPasteTarget?) throws -> Void
+    private let onKeystroke: @MainActor (UInt16, ClipboardPasteTarget?) throws -> Void
 
     init(
         onPaste: @escaping @MainActor () throws -> Void = {},
         onKeystroke: @escaping @MainActor (UInt16) throws -> Void = { _ in }
     ) {
-        self.onPaste = onPaste
-        self.onKeystroke = onKeystroke
+        self.onPaste = { _ in try onPaste() }
+        self.onKeystroke = { keyCode, _ in try onKeystroke(keyCode) }
     }
 
-    func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver) throws {
-        try onPaste()
+    init(
+        onPasteTarget: @escaping @MainActor (ClipboardPasteTarget?) throws -> Void,
+        onKeystrokeTarget: @escaping @MainActor (UInt16, ClipboardPasteTarget?) throws -> Void = { _, _ in }
+    ) {
+        self.onPaste = onPasteTarget
+        self.onKeystroke = onKeystrokeTarget
     }
 
-    func simulateKeystroke(_ keyCode: UInt16) throws {
-        try onKeystroke(keyCode)
+    func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver, target: ClipboardPasteTarget?) throws {
+        try onPaste(target)
+    }
+
+    func simulateKeystroke(_ keyCode: UInt16, target: ClipboardPasteTarget?) throws {
+        try onKeystroke(keyCode, target)
+    }
+}
+
+private actor LegacyClipboardService: ClipboardServiceProtocol {
+    private var pastedTexts: [String] = []
+    private var postPasteActions: [KeyAction?] = []
+    private var copiedTexts: [String] = []
+
+    func pasteText(_ text: String) async throws {
+        pastedTexts.append(text)
+    }
+
+    func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool {
+        pastedTexts.append(text)
+        postPasteActions.append(postPasteAction)
+        return postPasteAction != nil
+    }
+
+    func copyToClipboard(_ text: String) async -> Bool {
+        copiedTexts.append(text)
+        return true
+    }
+
+    func snapshot() -> (pastedTexts: [String], postPasteActions: [KeyAction?], copiedTexts: [String]) {
+        (pastedTexts, postPasteActions, copiedTexts)
     }
 }
