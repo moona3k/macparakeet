@@ -120,7 +120,7 @@ struct MeetingTranscriptNoiseFilter {
 
             let candidate = normalizedTokens[startIndex..<endIndex]
             let range = startIndex..<endIndex
-            if candidate.elementsEqual(run.map(Optional.some)),
+            if candidate.elementsEqual(run, by: { $0 == $1 }),
                shouldDropWhisperSubtitleArtifactRun(words: words, range: range) {
                 return startIndex..<endIndex
             }

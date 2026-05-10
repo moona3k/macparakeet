@@ -32,7 +32,8 @@ struct MeetingTranscriptFinalizer {
         }
 
         var removedWhisperArtifactWordCount = 0
-        let shiftedWordsBySource: [AudioSource: [WordTimestamp]] = Dictionary(uniqueKeysWithValues: normalized.map { sourceTranscript in
+        var shiftedWordsBySource: [AudioSource: [WordTimestamp]] = [:]
+        for sourceTranscript in normalized {
             let words = shiftedWords(
                 for: sourceTranscript.result,
                 source: sourceTranscript.source,
@@ -47,11 +48,8 @@ struct MeetingTranscriptFinalizer {
                 cleanedWords = words
             }
 
-            return (
-                sourceTranscript.source,
-                cleanedWords
-            )
-        })
+            shiftedWordsBySource[sourceTranscript.source, default: []].append(contentsOf: cleanedWords)
+        }
 
         let systemWords = shiftedWordsBySource[.system] ?? []
         let microphoneCleanup = MeetingTranscriptNoiseFilter.cleanFinalMicrophoneWords(
