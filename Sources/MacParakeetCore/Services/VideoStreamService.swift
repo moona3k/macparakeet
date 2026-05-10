@@ -1,4 +1,3 @@
-import Darwin
 import Foundation
 import os
 
@@ -96,49 +95,17 @@ public final class VideoStreamService: Sendable {
         // pipe buffer), so reading after termination cannot deadlock. If we ever
         // wrap a yt-dlp invocation that produces large output, switch to
         // incremental drain via `FileHandle.bytes`.
-        let result: (stdout: Data, stderr: Data) = try await withThrowingTaskGroup(of: ProcessOutcome.self) { group in
-            defer {
-                group.cancelAll()
-                if process.isRunning {
-                    process.terminate()
-                    // SIGKILL fallback if SIGTERM doesn't take. Holding `process`
-                    // strongly via the closure keeps it alive until the dispatch
-                    // fires, even if every other reference has been released.
-                    let stuckProcess = process
-                    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 2) {
-                        guard stuckProcess.isRunning else { return }
-                        kill(stuckProcess.processIdentifier, SIGKILL)
-                    }
-                }
-            }
-
-            group.addTask {
-                // Wait for process to exit (terminationHandler fires when SIGTERM
-                // or natural exit completes), then drain pipes synchronously —
-                // they're at EOF, so the reads return immediately.
-                await Self.awaitProcessTermination(process)
-                let stdoutData = (try? stdoutPipe.fileHandleForReading.readToEnd()) ?? Data()
-                let stderrData = (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
-                return .completed(stdout: stdoutData, stderr: stderrData)
-            }
-
-            group.addTask {
-                try await Task.sleep(for: .seconds(Self.extractionTimeout))
-                throw VideoStreamError.extractionFailed(
-                    "Stream extraction timed out after \(Int(Self.extractionTimeout))s"
-                )
-            }
-
-            // First task to complete wins — either extraction finishes or timeout fires.
-            // The timeout task throws; the completion task returns `.completed`.
-            let outcome = try await group.next()!
-            guard case .completed(let stdout, let stderr) = outcome else {
-                // Unreachable — only the completion task returns a value, and it
-                // always returns `.completed`. The timeout task throws.
-                throw VideoStreamError.extractionFailed("Internal error: unexpected outcome")
-            }
-            return (stdout: stdout, stderr: stderr)
-        }
+        try await ChildProcessWaiter.waitUntilExit(
+            process,
+            timeout: Self.extractionTimeout,
+            timeoutError: VideoStreamError.extractionFailed(
+                "Stream extraction timed out after \(Int(Self.extractionTimeout))s"
+            )
+        )
+        let result = (
+            stdout: (try? stdoutPipe.fileHandleForReading.readToEnd()) ?? Data(),
+            stderr: (try? stderrPipe.fileHandleForReading.readToEnd()) ?? Data()
+        )
 
         let elapsed = ContinuousClock.now - startTime
         logger.notice("video_stream_yt_dlp_finished elapsed=\(String(describing: elapsed), privacy: .public) exit=\(process.terminationStatus, privacy: .public)")
@@ -169,34 +136,6 @@ public final class VideoStreamService: Sendable {
 
     private static func sanitizedYtDlpMessage(_ raw: String) -> String {
         String(TelemetryErrorClassifier.sanitize(raw).prefix(512))
-    }
-
-    private enum ProcessOutcome: Sendable {
-        case completed(stdout: Data, stderr: Data)
-    }
-
-    /// Resume-once wrapper around `Process.terminationHandler`. Resumes
-    /// immediately if the process has already exited by the time the handler
-    /// is wired, and never double-resumes if the handler fires concurrently.
-    private static func awaitProcessTermination(_ process: Process) async {
-        let resumed = OSAllocatedUnfairLock(initialState: false)
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            process.terminationHandler = { _ in
-                let already = resumed.withLock { flag -> Bool in
-                    let was = flag; flag = true; return was
-                }
-                if !already { continuation.resume() }
-            }
-            if !process.isRunning {
-                let already = resumed.withLock { flag -> Bool in
-                    let was = flag; flag = true; return was
-                }
-                if !already {
-                    process.terminationHandler = nil
-                    continuation.resume()
-                }
-            }
-        }
     }
 
     private func resolveYtDlpPath() throws -> String {

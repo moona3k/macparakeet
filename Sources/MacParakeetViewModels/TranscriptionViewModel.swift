@@ -438,9 +438,14 @@ public final class TranscriptionViewModel {
         }
 
         do {
-            try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
             let deleted = try repo.delete(id: transcription.id)
             guard deleted else { return }
+            do {
+                try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
+            } catch {
+                logger.warning("Deleted transcription but failed to remove owned assets: \(error.localizedDescription, privacy: .private)")
+                errorMessage = "Deleted transcription, but failed to remove stored audio: \(error.localizedDescription)"
+            }
             Telemetry.send(.transcriptionDeleted)
             if currentTranscription?.id == transcription.id {
                 currentTranscription = nil

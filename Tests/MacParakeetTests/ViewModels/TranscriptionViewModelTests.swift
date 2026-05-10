@@ -454,7 +454,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
     }
 
-    func testDeleteYouTubeTranscriptionRemovesStoredAudioBeforeRepoDelete() throws {
+    func testDeleteFailureKeepsStoredAudioFile() throws {
         try AppPaths.ensureDirectories()
         let audioURL = URL(fileURLWithPath: AppPaths.youtubeDownloadsDir, isDirectory: true)
             .appendingPathComponent("yt-audio-\(UUID().uuidString).m4a")
@@ -476,7 +476,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         viewModel.configure(transcriptionService: mockService, transcriptionRepo: mockRepo)
         viewModel.deleteTranscription(t)
 
-        XCTAssertFalse(FileManager.default.fileExists(atPath: audioURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: audioURL.path))
         XCTAssertEqual(viewModel.transcriptions.count, 1)
         XCTAssertNotNil(viewModel.errorMessage)
     }

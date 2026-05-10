@@ -90,6 +90,27 @@ final class YouTubeDownloaderTests: XCTestCase {
         ))
     }
 
+    func testRemoveDownloadArtifactsDeletesOnlyMatchingFiles() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-ytdlp-cleanup-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let uuid = UUID().uuidString
+        let matchingAudio = directory.appendingPathComponent("\(uuid).m4a")
+        let matchingPartial = directory.appendingPathComponent("\(uuid).m4a.part")
+        let unrelated = directory.appendingPathComponent("\(UUID().uuidString).m4a")
+        try Data("audio".utf8).write(to: matchingAudio)
+        try Data("partial".utf8).write(to: matchingPartial)
+        try Data("other".utf8).write(to: unrelated)
+
+        YouTubeDownloader.removeDownloadArtifacts(in: directory, uuid: uuid)
+
+        XCTAssertFalse(FileManager.default.fileExists(atPath: matchingAudio.path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: matchingPartial.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: unrelated.path))
+    }
+
     // MARK: - DownloadResult Metadata Fields
 
     func testDownloadResultWithVideoMetadata() {

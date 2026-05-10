@@ -302,10 +302,14 @@ struct DeleteTranscriptionSubcommand: ParsableCommand {
         let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
 
         let transcription = try findTranscription(id: id, repo: repo)
-        try TranscriptionAssetCleanup.removeOwnedAssets(for: transcription)
         let deleted = try repo.delete(id: transcription.id)
         guard deleted else {
             throw CLILookupError.notFound("No transcription matching '\(id)'")
+        }
+        do {
+            try TranscriptionAssetCleanup.removeOwnedAssets(for: transcription)
+        } catch {
+            fputs("Warning: deleted database row but could not remove stored audio: \(error.localizedDescription)\n", stderr)
         }
         print("Deleted transcription: \"\(transcription.fileName)\"")
     }

@@ -180,9 +180,14 @@ public final class TranscriptionLibraryViewModel {
     public func deleteTranscription(_ transcription: Transcription) {
         do {
             errorMessage = nil
-            try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
             let deleted = try transcriptionRepo?.delete(id: transcription.id) ?? false
             guard deleted else { return }
+            do {
+                try TranscriptionDeletionCleanup.removeOwnedAssets(for: transcription)
+            } catch {
+                logger.warning("Deleted transcription but failed to remove owned assets: \(error.localizedDescription, privacy: .private)")
+                errorMessage = "Deleted transcription, but failed to remove stored audio: \(error.localizedDescription)"
+            }
             transcriptions.removeAll { $0.id == transcription.id }
             Telemetry.send(.transcriptionDeleted)
         } catch {

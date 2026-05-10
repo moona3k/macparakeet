@@ -67,6 +67,24 @@ private actor FailingYouTubeDownloader: YouTubeDownloading {
     }
 }
 
+private final class SaveFailingTranscriptionRepository: TranscriptionRepositoryProtocol, @unchecked Sendable {
+    private let error: Error
+
+    init(error: Error) {
+        self.error = error
+    }
+
+    func save(_ transcription: Transcription) throws {
+        throw error
+    }
+
+    func fetch(id: UUID) throws -> Transcription? { nil }
+    func fetchAll(limit: Int?) throws -> [Transcription] { [] }
+    func delete(id: UUID) throws -> Bool { false }
+    func deleteAll() throws {}
+    func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws {}
+}
+
 private struct StubMediaMetadataExtractor: MediaMetadataExtracting {
     let metadata: MediaMetadata
 
@@ -588,6 +606,36 @@ final class TranscriptionServiceTests: XCTestCase {
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: downloadedURL.path))
         XCTAssertNil(result.filePath)
+    }
+
+    func testTranscribeURLDeletesDownloadedAudioWhenPersistenceFails() async throws {
+        struct SaveError: Error {}
+
+        let downloadedURL = try makeTempDownloadedAudio()
+        defer { try? FileManager.default.removeItem(at: downloadedURL) }
+
+        let downloader = MockYouTubeDownloader(result: YouTubeDownloader.DownloadResult(
+            audioFileURL: downloadedURL,
+            title: "Video",
+            durationSeconds: 120
+        ))
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: SaveFailingTranscriptionRepository(error: SaveError()),
+            shouldKeepDownloadedAudio: { true },
+            youtubeDownloader: downloader
+        )
+
+        do {
+            _ = try await service.transcribeURL(urlString: "https://youtu.be/dQw4w9WgXcQ")
+            XCTFail("Expected save failure")
+        } catch is SaveError {
+            XCTAssertFalse(FileManager.default.fileExists(atPath: downloadedURL.path))
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testTranscribeURLForwardsDownloadProgressToPhaseCallback() async throws {

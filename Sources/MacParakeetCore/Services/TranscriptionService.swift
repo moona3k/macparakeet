@@ -496,6 +496,13 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
 
             try await assertCanTranscribeOrEmitPreflight(operation)
 
+            var unownedDownloadedAudioURL: URL?
+            defer {
+                if let unownedDownloadedAudioURL {
+                    try? FileManager.default.removeItem(at: unownedDownloadedAudioURL)
+                }
+            }
+
             let downloadResult: YouTubeDownloader.DownloadResult
             do {
                 onProgress?(.downloading(percent: 0))
@@ -530,6 +537,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 }
                 throw error
             }
+            unownedDownloadedAudioURL = downloadResult.audioFileURL
             onProgress?(.downloading(percent: 100))
             do {
                 try Task.checkCancellation()
@@ -586,6 +594,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             if downloadResult.thumbnailURL == nil {
                 await cacheEmbeddedArtworkIfPresent(embeddedMetadata, for: transcription.id)
             }
+            if keepDownloadedAudio {
+                unownedDownloadedAudioURL = nil
+            }
             Telemetry.send(.transcriptionStarted(
                 source: .youtube,
                 audioDurationSeconds: downloadResult.durationSeconds.map(Double.init)
@@ -606,6 +617,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             }
 
             onProgress?(.transcribing(percent: 0))
+            if !keepDownloadedAudio {
+                unownedDownloadedAudioURL = nil
+            }
             return try await transcribeAudio(
                 fileURL: downloadResult.audioFileURL,
                 source: .youtube,

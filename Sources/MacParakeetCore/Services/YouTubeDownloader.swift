@@ -226,6 +226,12 @@ public actor YouTubeDownloader {
 
         let uuid = UUID().uuidString
         let outputTemplate = "\(tempDir)/\(uuid).%(ext)s"
+        var succeeded = false
+        defer {
+            if !succeeded {
+                Self.removeDownloadArtifacts(in: URL(fileURLWithPath: tempDir, isDirectory: true), uuid: uuid)
+            }
+        }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: ytDlpPath)
@@ -308,7 +314,11 @@ public actor YouTubeDownloader {
         }
 
         try process.run()
-        try await waitForProcess(process, timeout: Self.downloadTimeout)
+        try await ChildProcessWaiter.waitUntilExit(
+            process,
+            timeout: Self.downloadTimeout,
+            timeoutError: YouTubeDownloadError.timedOut
+        )
 
         // Drain remaining data from both pipes
         let stdoutTail = stdoutHandle.readDataToEndOfFile()
@@ -342,7 +352,22 @@ public actor YouTubeDownloader {
             throw YouTubeDownloadError.downloadFailed("Downloaded file not found")
         }
 
+        succeeded = true
         return URL(fileURLWithPath: "\(tempDir)/\(downloadedFile)")
+    }
+
+    nonisolated static func removeDownloadArtifacts(in directory: URL, uuid: String) {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        ) else {
+            return
+        }
+
+        for file in files where file.lastPathComponent.hasPrefix(uuid) {
+            try? fm.removeItem(at: file)
+        }
     }
 
     nonisolated static func selectDownloadedAudioFile(from fileNames: [String], uuid: String) -> String? {
@@ -604,7 +629,11 @@ public actor YouTubeDownloader {
         process.standardError = stderrHandle
 
         try process.run()
-        try await waitForProcess(process, timeout: 30)
+        try await ChildProcessWaiter.waitUntilExit(
+            process,
+            timeout: 30,
+            timeoutError: YouTubeDownloadError.timedOut
+        )
 
         stderrHandle.synchronizeFile()
         stdoutHandle?.synchronizeFile()
@@ -619,51 +648,6 @@ public actor YouTubeDownloader {
         )
     }
 
-    private func waitForProcess(_ process: Process, timeout: TimeInterval) async throws {
-        let resumed = OSAllocatedUnfairLock(initialState: false)
-        try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                process.terminationHandler = { _ in
-                    let shouldResume = resumed.withLock { done -> Bool in
-                        guard !done else { return false }
-                        done = true
-                        return true
-                    }
-                    if shouldResume {
-                        continuation.resume()
-                    }
-                }
-
-                DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
-                    let shouldResume = resumed.withLock { done -> Bool in
-                        guard !done else { return false }
-                        done = true
-                        return true
-                    }
-                    if shouldResume {
-                        process.terminate()
-                        continuation.resume(throwing: YouTubeDownloadError.timedOut)
-                    }
-                }
-
-                // Handle race: process may have exited before terminationHandler was set
-                if !process.isRunning {
-                    let shouldResume = resumed.withLock { done -> Bool in
-                        guard !done else { return false }
-                        done = true
-                        return true
-                    }
-                    if shouldResume {
-                        continuation.resume()
-                    }
-                }
-            }
-        } onCancel: {
-            process.terminate()
-        }
-
-        try Task.checkCancellation()
-    }
 }
 
 extension YouTubeDownloader: YouTubeDownloading {}
