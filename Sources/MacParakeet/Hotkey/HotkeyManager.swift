@@ -722,6 +722,12 @@ public final class HotkeyManager {
         switch trigger.kind {
         case .modifier:
             let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+            if let targetKeyCode = trigger.modifierKeyCode {
+                return ModifierKeyMatcher.sideSpecificModifierIsPressed(
+                    flags: currentFlags,
+                    keyCode: targetKeyCode
+                )
+            }
             return ModifierKeyMatcher.modifierIsPressed(trigger: trigger, flags: currentFlags)
         case .keyCode:
             return triggerKeyPressed
@@ -731,7 +737,10 @@ public final class HotkeyManager {
             return currentFlags.rawValue & requiredChordFlags == requiredChordFlags
         case .modifierChord:
             let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
-            return ModifierKeyMatcher.modifierChordMatches(trigger: trigger, flags: currentFlags)
+            return ModifierKeyMatcher.modifierChordRequiredComponentsArePressed(
+                trigger: trigger,
+                flags: currentFlags
+            )
         case .disabled:
             return false
         }
@@ -749,6 +758,9 @@ public final class HotkeyManager {
         switch trigger.kind {
         case .modifier:
             targetModifierGestureIsActive = triggerPressed
+            if triggerPressed, recoveredTriggerIsContaminated(flags: flags) {
+                bareTap = false
+            }
             if !triggerPressed {
                 bareTap = true
             }
@@ -761,11 +773,38 @@ public final class HotkeyManager {
         case .modifierChord:
             modifierChordGestureIsActive = triggerPressed
             modifierChordBlockedUntilRelease = !triggerPressed && modifierChordRequiredWasPressed
+            if triggerPressed, recoveredTriggerIsContaminated(flags: flags) {
+                bareTap = false
+            }
             if !triggerPressed {
                 bareTap = true
             }
         default:
             break
+        }
+    }
+
+    private func recoveredTriggerIsContaminated(flags: CGEventFlags? = nil) -> Bool {
+        let currentFlags = flags ?? CGEventSource.flagsState(.combinedSessionState)
+
+        switch trigger.kind {
+        case .modifier:
+            guard let mask = targetMask else { return false }
+            let activeTrackedModifiers = currentFlags.intersection(ModifierKeyMatcher.trackedModifierMasks)
+            if !activeTrackedModifiers.subtracting(mask).isEmpty {
+                return true
+            }
+            if let targetKeyCode = trigger.modifierKeyCode {
+                return ModifierKeyMatcher.oppositeSideModifierIsPressed(
+                    flags: currentFlags,
+                    keyCode: targetKeyCode
+                )
+            }
+            return false
+        case .modifierChord:
+            return !ModifierKeyMatcher.modifierChordMatches(trigger: trigger, flags: currentFlags)
+        default:
+            return false
         }
     }
 

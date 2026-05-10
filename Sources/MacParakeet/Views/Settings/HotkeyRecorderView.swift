@@ -83,12 +83,10 @@ struct HotkeyRecorderView: View {
                 }
                 .disabled(trigger == defaultTrigger)
 
-                if !trigger.isDisabled {
-                    Divider()
+                Divider()
 
-                    Button("Record Specific Modifier Side") {
-                        startRecording(modifierCaptureMode: .sideSpecific)
-                    }
+                Button("Record Specific Modifier Side") {
+                    startRecording(modifierCaptureMode: .sideSpecific)
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -96,7 +94,7 @@ struct HotkeyRecorderView: View {
             }
             .menuStyle(.borderlessButton)
             .help(trigger.isDisabled
-                ? "Hotkey options, including restoring the default shortcut."
+                ? "Hotkey options, including restoring the default shortcut or recording a specific modifier key."
                 : "Advanced hotkey options, including resetting to default or recording a specific modifier key.")
         }
     }

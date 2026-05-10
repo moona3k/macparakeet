@@ -790,7 +790,7 @@ struct SettingsView: View {
             return "Disabled — conflicts with dictation hotkey."
         }
         if AppFeatures.meetingRecordingEnabled, trigger.overlaps(with: viewModel.meetingHotkeyTrigger) {
-            return "Disabled - conflicts with meeting recording hotkey."
+            return "Disabled — conflicts with meeting recording hotkey."
         }
         if trigger.overlaps(with: otherTranscription) {
             return "Disabled — conflicts with \(otherTranscriptionName) hotkey."
@@ -832,10 +832,10 @@ struct SettingsView: View {
             return "Disabled — conflicts with meeting recording hotkey."
         }
         if trigger.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
-            return "Disabled - conflicts with file transcription hotkey."
+            return "Disabled — conflicts with file transcription hotkey."
         }
         if trigger.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
-            return "Disabled - conflicts with YouTube transcription hotkey."
+            return "Disabled — conflicts with YouTube transcription hotkey."
         }
         return nil
     }
@@ -843,13 +843,13 @@ struct SettingsView: View {
     private func meetingHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
         guard !trigger.isDisabled else { return nil }
         if trigger.overlaps(with: viewModel.hotkeyTrigger) {
-            return "Disabled - conflicts with dictation hotkey."
+            return "Disabled — conflicts with dictation hotkey."
         }
         if trigger.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
-            return "Disabled - conflicts with file transcription hotkey."
+            return "Disabled — conflicts with file transcription hotkey."
         }
         if trigger.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
-            return "Disabled - conflicts with YouTube transcription hotkey."
+            return "Disabled — conflicts with YouTube transcription hotkey."
         }
         return nil
     }

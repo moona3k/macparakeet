@@ -105,6 +105,83 @@ final class HotkeyManagerTests: XCTestCase {
         )
     }
 
+    func testTapRecoveryDuringActiveHoldWithAdditionalModifierCancelsOnRelease() {
+        let manager = HotkeyManager(trigger: .fn)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskSecondaryFn],
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(
+            manager.startupDebounceElapsedForTesting(),
+            [.startRecording(mode: .holdToTalk)]
+        )
+        XCTAssertEqual(manager.holdWindowElapsedForTesting(), [])
+
+        XCTAssertEqual(
+            manager.recoverFromDisabledTapForTesting(
+                flags: [.maskSecondaryFn, .maskControl],
+                timestampMs: 1_200
+            ),
+            []
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskControl],
+                timestampMs: 1_300
+            ),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .cancelRecording,
+            ]
+        )
+    }
+
+    func testTapRecoveryDuringSideSpecificHoldWithOppositeSideCancelsOnRelease() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
+        let manager = HotkeyManager(trigger: trigger)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: sideSpecificFlags(
+                CGEventFlags.maskAlternate.rawValue,
+                rightOptionMask
+            ),
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(
+            manager.startupDebounceElapsedForTesting(),
+            [.startRecording(mode: .holdToTalk)]
+        )
+        XCTAssertEqual(manager.holdWindowElapsedForTesting(), [])
+
+        XCTAssertEqual(
+            manager.recoverFromDisabledTapForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskAlternate.rawValue,
+                    leftOptionMask,
+                    rightOptionMask
+                ),
+                timestampMs: 1_200
+            ),
+            []
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskAlternate.rawValue,
+                    leftOptionMask
+                ),
+                timestampMs: 1_300
+            ),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .cancelRecording,
+            ]
+        )
+    }
+
     func testTapRecoveryDuringActiveHoldToTalkStopsIfReleaseWasMissed() {
         let manager = HotkeyManager(trigger: .fn)
 
@@ -989,6 +1066,56 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertEqual(
             manager.modifierChordFlagsChangedOutputsForTesting(flags: [], timestampMs: 1_050),
             []
+        )
+    }
+
+    func testTapRecoveryDuringSideSpecificModifierChordHoldWithOppositeSideCancelsOnRelease() {
+        let trigger = HotkeyTrigger.modifierChord(
+            components: [
+                .init(modifierName: "option", keyCode: 61),
+                .init(modifierName: "command", keyCode: 54),
+            ]
+        )
+        let manager = HotkeyManager(trigger: trigger)
+
+        _ = manager.modifierChordFlagsChangedOutputsForTesting(
+            flags: sideSpecificFlags(
+                CGEventFlags.maskAlternate.rawValue,
+                CGEventFlags.maskCommand.rawValue,
+                rightOptionMask,
+                rightCommandMask
+            ),
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(
+            manager.startupDebounceElapsedForTesting(),
+            [.startRecording(mode: .holdToTalk)]
+        )
+        XCTAssertEqual(manager.holdWindowElapsedForTesting(), [])
+
+        XCTAssertEqual(
+            manager.recoverFromDisabledTapForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskAlternate.rawValue,
+                    CGEventFlags.maskCommand.rawValue,
+                    leftOptionMask,
+                    rightOptionMask,
+                    rightCommandMask
+                ),
+                timestampMs: 1_200
+            ),
+            []
+        )
+        XCTAssertEqual(
+            manager.modifierChordFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_300
+            ),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .cancelRecording,
+            ]
         )
     }
 }
