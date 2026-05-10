@@ -99,8 +99,6 @@ final class DictationFlowCoordinator {
     private var currentDictation: Dictation?
     /// Ephemeral post-paste action from the text processing pipeline (e.g., simulate Return key).
     private var pendingPostPasteAction: KeyAction?
-    /// App captured when dictation starts, so paste delivery is not dependent on later focus churn.
-    private var pasteTargetForCurrentDictation: ClipboardPasteTarget?
     /// Error from the most recent entitlements check failure, consumed by presentEntitlementsAlert effect.
     private var lastEntitlementsError: Error?
     private var readyPillDismissDelayMs: Int {
@@ -210,9 +208,6 @@ final class DictationFlowCoordinator {
         trigger: TelemetryDictationTrigger = .hotkey
     ) {
         currentTrigger = trigger
-        if Self.shouldCapturePasteTarget(for: stateMachine.state) {
-            pasteTargetForCurrentDictation = Self.currentPasteTarget()
-        }
         sendEvent(.startRequested(mode: mode))
     }
 
@@ -425,7 +420,6 @@ final class DictationFlowCoordinator {
                 return
             }
             let transcript = dictation.cleanTranscript ?? dictation.rawTranscript
-            let pasteTarget = pasteTargetForCurrentDictation
             actionTask = Task { @MainActor in
                 // Brief pause so user sees the checkmark before paste
                 try? await Task.sleep(for: .milliseconds(200))
@@ -433,26 +427,26 @@ final class DictationFlowCoordinator {
 
                 let action = self.pendingPostPasteAction
                 self.pendingPostPasteAction = nil
+                let pastedToAppAtDispatch = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
 
                 do {
                     if let action {
                         // Action mode: no trailing space, action replaces the space role
                         let keystrokeFired = try await self.clipboardService.pasteTextWithAction(
                             transcript,
-                            postPasteAction: action,
-                            target: pasteTarget
+                            postPasteAction: action
                         )
                         if keystrokeFired {
                             Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
                         }
                     } else {
                         // Normal mode: trailing space as before
-                        try await self.clipboardService.pasteText(transcript + " ", target: pasteTarget)
+                        try await self.clipboardService.pasteText(transcript + " ")
                     }
                     guard !Task.isCancelled else { return }
 
                     // Save pastedToApp metadata
-                    if let pastedToApp = pasteTarget?.bundleIdentifier ?? NSWorkspace.shared.frontmostApplication?.bundleIdentifier {
+                    if let pastedToApp = pastedToAppAtDispatch {
                         self.currentDictation?.pastedToApp = pastedToApp
                         self.currentDictation?.updatedAt = Date()
                         if let d = self.currentDictation {
@@ -510,7 +504,6 @@ final class DictationFlowCoordinator {
             onHistoryReload()
             currentDictation = nil
             pendingPostPasteAction = nil
-            pasteTargetForCurrentDictation = nil
 
         // MARK: App integration
 
@@ -595,7 +588,6 @@ final class DictationFlowCoordinator {
             actionTask?.cancel()
             actionTask = nil
             pendingPostPasteAction = nil
-            pasteTargetForCurrentDictation = nil
         }
     }
 
@@ -620,27 +612,6 @@ final class DictationFlowCoordinator {
         case .escape: return .escape
         case .ui: return .ui
         }
-    }
-
-    private static func shouldCapturePasteTarget(for state: DictationFlowState) -> Bool {
-        switch state {
-        case .idle, .ready, .recording, .pendingStop:
-            return true
-        case .checkingEntitlements, .startingService, .processing, .cancelCountdown, .finishing:
-            return false
-        }
-    }
-
-    private static func currentPasteTarget() -> ClipboardPasteTarget? {
-        guard let app = NSWorkspace.shared.frontmostApplication else { return nil }
-        guard !app.isTerminated else { return nil }
-        guard app.processIdentifier != ProcessInfo.processInfo.processIdentifier else { return nil }
-        guard app.bundleIdentifier != Bundle.main.bundleIdentifier else { return nil }
-
-        return ClipboardPasteTarget(
-            processIdentifier: app.processIdentifier,
-            bundleIdentifier: app.bundleIdentifier
-        )
     }
 
     private func startRecordingTask(

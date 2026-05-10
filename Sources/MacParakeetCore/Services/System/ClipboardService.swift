@@ -3,35 +3,12 @@ import Carbon
 import Foundation
 import OSLog
 
-public struct ClipboardPasteTarget: Sendable, Equatable {
-    public let processIdentifier: Int32
-    public let bundleIdentifier: String?
-
-    public init(processIdentifier: Int32, bundleIdentifier: String? = nil) {
-        self.processIdentifier = processIdentifier
-        self.bundleIdentifier = bundleIdentifier
-    }
-}
-
 public protocol ClipboardServiceProtocol: Sendable {
     func pasteText(_ text: String) async throws
-    func pasteText(_ text: String, target: ClipboardPasteTarget?) async throws
     /// Paste text then simulate a keystroke. Returns `true` if the keystroke was actually fired.
     func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool
-    func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?, target: ClipboardPasteTarget?) async throws -> Bool
     @discardableResult
     func copyToClipboard(_ text: String) async -> Bool
-}
-
-public extension ClipboardServiceProtocol {
-    func pasteText(_ text: String, target: ClipboardPasteTarget?) async throws {
-        try await pasteText(text)
-    }
-
-    /// Paste text then simulate a keystroke. Returns `true` if the keystroke was actually fired.
-    func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?, target: ClipboardPasteTarget?) async throws -> Bool {
-        try await pasteTextWithAction(text, postPasteAction: postPasteAction)
-    }
 }
 
 public enum ClipboardServiceError: LocalizedError {
@@ -39,7 +16,6 @@ public enum ClipboardServiceError: LocalizedError {
     case eventSourceUnavailable
     case eventCreationFailed
     case pasteboardWriteFailed
-    case targetApplicationUnavailable
 
     public var errorDescription: String? {
         switch self {
@@ -51,22 +27,20 @@ public enum ClipboardServiceError: LocalizedError {
             return "Paste automation unavailable (could not create keyboard events)."
         case .pasteboardWriteFailed:
             return "Paste automation unavailable (could not write transcript to the clipboard)."
-        case .targetApplicationUnavailable:
-            return "Paste automation unavailable (target app is no longer running)."
         }
     }
 }
 
 protocol ClipboardEventPosting {
     @MainActor
-    func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver, target: ClipboardPasteTarget?) throws
+    func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver) throws
     @MainActor
-    func simulateKeystroke(_ keyCode: UInt16, target: ClipboardPasteTarget?) throws
+    func simulateKeystroke(_ keyCode: UInt16) throws
 }
 
 struct CGClipboardEventPosting: ClipboardEventPosting {
     @MainActor
-    func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver, target: ClipboardPasteTarget?) throws {
+    func simulatePaste(using pasteShortcutKeyResolver: PasteShortcutKeyResolver) throws {
         guard AXIsProcessTrusted() else {
             throw ClipboardServiceError.accessibilityPermissionRequired
         }
@@ -86,11 +60,12 @@ struct CGClipboardEventPosting: ClipboardEventPosting {
         keyDown.flags = .maskCommand
         keyUp.flags = .maskCommand
 
-        try post(keyDown: keyDown, keyUp: keyUp, target: target)
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
     }
 
     @MainActor
-    func simulateKeystroke(_ keyCode: UInt16, target: ClipboardPasteTarget?) throws {
+    func simulateKeystroke(_ keyCode: UInt16) throws {
         guard AXIsProcessTrusted() else {
             throw ClipboardServiceError.accessibilityPermissionRequired
         }
@@ -107,29 +82,8 @@ struct CGClipboardEventPosting: ClipboardEventPosting {
         keyDown.flags = []
         keyUp.flags = []
 
-        try post(keyDown: keyDown, keyUp: keyUp, target: target)
-    }
-
-    @MainActor
-    private func post(keyDown: CGEvent, keyUp: CGEvent, target: ClipboardPasteTarget?) throws {
-        guard let target, target.processIdentifier > 0 else {
-            keyDown.post(tap: .cghidEventTap)
-            keyUp.post(tap: .cghidEventTap)
-            return
-        }
-
-        let processIdentifier = pid_t(target.processIdentifier)
-        guard let app = NSRunningApplication(processIdentifier: processIdentifier), !app.isTerminated else {
-            throw ClipboardServiceError.targetApplicationUnavailable
-        }
-        if let expectedBundleIdentifier = target.bundleIdentifier,
-           app.bundleIdentifier != expectedBundleIdentifier {
-            throw ClipboardServiceError.targetApplicationUnavailable
-        }
-
-        _ = app.activate(options: [.activateAllWindows])
-        keyDown.postToPid(processIdentifier)
-        keyUp.postToPid(processIdentifier)
+        keyDown.post(tap: .cghidEventTap)
+        keyUp.post(tap: .cghidEventTap)
     }
 }
 
@@ -298,10 +252,6 @@ public final class ClipboardService: ClipboardServiceProtocol {
     /// 3. Simulating Cmd+V
     /// 4. Restoring original clipboard after a delay long enough for slow paste targets
     public func pasteText(_ text: String) async throws {
-        try await pasteText(text, target: nil)
-    }
-
-    public func pasteText(_ text: String, target: ClipboardPasteTarget?) async throws {
         let restoreDelay = clipboardRestoreDelay
 
         // 1. Save current clipboard contents
@@ -333,7 +283,7 @@ public final class ClipboardService: ClipboardServiceProtocol {
         )
 
         // 3. Simulate Cmd+V
-        try eventPosting.simulatePaste(using: pasteShortcutKeyResolver, target: target)
+        try eventPosting.simulatePaste(using: pasteShortcutKeyResolver)
     }
 
     /// Copy text to clipboard without paste simulation
@@ -360,31 +310,26 @@ public final class ClipboardService: ClipboardServiceProtocol {
 
     @discardableResult
     public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool {
-        try await pasteTextWithAction(text, postPasteAction: postPasteAction, target: nil)
-    }
-
-    @discardableResult
-    public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?, target: ClipboardPasteTarget?) async throws -> Bool {
         guard let action = postPasteAction else {
-            try await pasteText(text, target: target)
+            try await pasteText(text)
             return false
         }
 
         // If text is empty (trigger was entire dictation), skip paste — just fire keystroke
         if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            try eventPosting.simulateKeystroke(action.keyCode, target: target)
+            try eventPosting.simulateKeystroke(action.keyCode)
             return true
         }
 
         // Paste text (no trailing space — action replaces the role of the space)
-        try await pasteText(text, target: target)
+        try await pasteText(text)
 
         // After paste succeeds, the keystroke phase is entirely non-fatal.
         // Task.sleep can throw CancellationError — catch it alongside keystroke errors
         // so cancellation during the 200ms delay doesn't surface as a paste failure.
         do {
             try await Task.sleep(for: .milliseconds(200))
-            try eventPosting.simulateKeystroke(action.keyCode, target: target)
+            try eventPosting.simulateKeystroke(action.keyCode)
             return true
         } catch is CancellationError {
             logger.notice("Post-paste keystroke skipped (task cancelled after paste succeeded)")
