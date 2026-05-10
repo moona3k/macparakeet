@@ -277,7 +277,7 @@ events remain useful for diarization-specific timing and failure analysis.
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `hotkey_customized` | — | Do people change the default hotkey? (not which key) |
+| `hotkey_customized` | `surface` (`dictation`, `meeting`, `file_transcription`, `youtube_transcription`), `kind` (`disabled`, `modifier`, `key_code`, `chord`) | Which capture surface gets its hotkey customized, and is the binding a single modifier vs a full chord vs a key? (still **not** which specific key — see Q&A item 10) |
 | `processing_mode_changed` | `mode` (raw, clean) | Is the clean pipeline valued? |
 | `custom_word_added` | — | Are custom words used? (NOT the word itself) |
 | `custom_word_deleted` | — | Are custom words removed often? |
@@ -286,7 +286,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `prompt_created` | — | Are custom prompt templates used? |
 | `prompt_updated` | — | Are custom prompts actively maintained? |
 | `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
-| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, speaker_diarization, auto_save, meeting_auto_save, meeting_hotkey, file_transcription_hotkey, youtube_transcription_hotkey, microphone_selection, meeting_audio_source_mode, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_auto_stop_enabled, calendar_included_calendars) | Which settings get toggled? |
+| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, speaker_diarization, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_auto_stop_enabled, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
@@ -666,7 +666,7 @@ External AI review of the telemetry design. Each point was evaluated and accepte
 | 7 | Missing model download cancellation visibility — onboarding funnel gap | Covered by canonical `model_operation` events with `action`, `outcome`, `stage`, model/engine dimensions, and duration. A separate `model_download_cancelled` event was intentionally not kept because it duplicates and blurs warm-up vs download cancellation. |
 | 8 | Missing LLM failure telemetry — need provider-level failure rates | Added `llm_prompt_result_failed`, `llm_chat_failed`, and formatter failure events with provider + error props. |
 | 9 | Cut `dictation_private` — sensitive signal, user explicitly wanted privacy | Removed. |
-| 10 | Cut `hotkey_changed.key` value — track boolean, not which key | Changed to `hotkey_customized` with no props. |
+| 10 | Cut `hotkey_changed.key` value — track boolean, not which key | Changed to `hotkey_customized`. The 2026-05-09 review found props were emitting NULL on every event so we couldn't tell hotkey customization apart by capture surface. Now emits `surface` (which feature) + `kind` (structural category: disabled / modifier / key_code / chord). The original "not which key" commitment still holds — we never emit the specific modifier name or keyCode value. |
 | 11 | Cut `pill_hidden` as separate event — redundant with `setting_changed` | Merged into `setting_changed` with `setting: "hide_pill"`. |
 | 12 | `error_occurred` needs allowlist — generic catch-all becomes junk | Added note: controlled allowlist of `domain` + `code`, no free-form text. |
 | 13 | Flush immediately for critical events (opt-out, onboarding, licensing) | Updated batching strategy with immediate flush list. |

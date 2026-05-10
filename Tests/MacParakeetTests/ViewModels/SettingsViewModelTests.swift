@@ -3,6 +3,37 @@ import CoreAudio
 @testable import MacParakeetCore
 @testable import MacParakeetViewModels
 
+private final class SettingsTelemetrySpy: TelemetryServiceProtocol, @unchecked Sendable {
+    private let lock = NSLock()
+    private var events: [TelemetryEventSpec] = []
+
+    func send(_ event: TelemetryEventSpec) {
+        lock.lock()
+        events.append(event)
+        lock.unlock()
+    }
+
+    func sendAndFlush(_ event: TelemetryEventSpec) async -> Bool {
+        send(event)
+        return true
+    }
+
+    func clearQueue() {
+        lock.lock()
+        events.removeAll()
+        lock.unlock()
+    }
+
+    func flush() async {}
+    func flushForTermination() {}
+
+    func snapshot() -> [TelemetryEventSpec] {
+        lock.lock()
+        defer { lock.unlock() }
+        return events
+    }
+}
+
 @MainActor
 final class SettingsViewModelTests: XCTestCase {
     var viewModel: SettingsViewModel!
@@ -61,6 +92,8 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     override func tearDown() {
+        Telemetry.configure(NoOpTelemetryService())
+
         // Clean up the test UserDefaults suite
         if let testDefaultsSuiteName {
             testDefaults.removePersistentDomain(forName: testDefaultsSuiteName)
@@ -491,6 +524,38 @@ final class SettingsViewModelTests: XCTestCase {
         )
         viewModel.youtubeTranscriptionHotkeyTrigger = .chord(modifiers: ["control", "shift"], keyCode: 16)
         wait(for: [expectation], timeout: 1.0)
+    }
+
+    func testHotkeyChangesEmitHotkeyCustomizedTelemetryBySurface() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.hotkeyTrigger = .option
+        viewModel.meetingHotkeyTrigger = .chord(modifiers: ["control", "option"], keyCode: 46)
+        viewModel.fileTranscriptionHotkeyTrigger = .disabled
+        viewModel.youtubeTranscriptionHotkeyTrigger = .fromKeyCode(16)
+
+        let events = telemetry.snapshot()
+        let hotkeyEvents = events.compactMap { event -> String? in
+            guard case .hotkeyCustomized(let surface, let kind) = event else { return nil }
+            return "\(surface.rawValue):\(kind.rawValue)"
+        }
+        let hotkeySettingEvents = events.filter { event in
+            guard case .settingChanged(let setting) = event else { return false }
+            return [
+                .meetingHotkey,
+                .fileTranscriptionHotkey,
+                .youtubeTranscriptionHotkey,
+            ].contains(setting)
+        }
+
+        XCTAssertEqual(hotkeyEvents, [
+            "dictation:modifier",
+            "meeting:chord",
+            "file_transcription:disabled",
+            "youtube_transcription:key_code",
+        ])
+        XCTAssertTrue(hotkeySettingEvents.isEmpty)
     }
 
     func testTranscriptionHotkeysLoadFromUserDefaults() {

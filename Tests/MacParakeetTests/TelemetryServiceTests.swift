@@ -792,6 +792,30 @@ final class TelemetryServiceTests: XCTestCase {
         }
     }
 
+    func testHotkeyCustomizedPropsUseStructuralCategoriesOnly() {
+        let cases: [(TelemetryHotkeySurface, TelemetryHotkeyKind, String, String)] = [
+            (.dictation, .disabled, "dictation", "disabled"),
+            (.meeting, .modifier, "meeting", "modifier"),
+            (.fileTranscription, .keyCode, "file_transcription", "key_code"),
+            (.youtubeTranscription, .chord, "youtube_transcription", "chord"),
+        ]
+
+        for (surface, kind, expectedSurface, expectedKind) in cases {
+            let event = TelemetryEvent(
+                spec: .hotkeyCustomized(surface: surface, kind: kind),
+                appVer: "0.6.3",
+                osVer: "15.4",
+                locale: "en-US",
+                chip: "Apple M4",
+                session: "session"
+            )
+
+            XCTAssertEqual(event.props?["surface"], expectedSurface)
+            XCTAssertEqual(event.props?["kind"], expectedKind)
+            XCTAssertEqual(Set(event.props?.keys ?? Dictionary<String, String>().keys), ["surface", "kind"])
+        }
+    }
+
     // MARK: - Session UUID
 
     func testSessionIdIsPerInstance() async {
@@ -975,7 +999,7 @@ final class TelemetryServiceTests: XCTestCase {
             .historySearched,
             .historyReplayed,
             .copyToClipboard(source: .transcription),
-            .hotkeyCustomized,
+            .hotkeyCustomized(surface: .dictation, kind: .modifier),
             .processingModeChanged(mode: "precise"),
             .customWordAdded,
             .customWordDeleted,

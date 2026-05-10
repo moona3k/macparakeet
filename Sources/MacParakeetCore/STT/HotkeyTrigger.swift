@@ -349,6 +349,32 @@ public struct HotkeyTrigger: Sendable {
     }
 }
 
+// MARK: - Telemetry payload
+
+extension HotkeyTrigger {
+    /// Maps `kind` to its telemetry counterpart. Kept inline here so callers
+    /// don't have to translate by hand at every emit site.
+    ///
+    /// We deliberately stop at the kind boundary — `docs/telemetry.md`
+    /// item 10 commits to "track boolean, not which key." Reading the
+    /// specific modifier name or keyCode out of `self` for telemetry
+    /// would cross that line.
+    public var telemetryKind: TelemetryHotkeyKind {
+        switch kind {
+        case .disabled: return .disabled
+        case .modifier: return .modifier
+        case .keyCode:  return .keyCode
+        case .chord:    return .chord
+        }
+    }
+
+    /// Builds the `.hotkeyCustomized` event spec for this trigger. Pulled
+    /// into a single helper so each settings call site stays a one-liner.
+    public func customizedEvent(surface: TelemetryHotkeySurface) -> TelemetryEventSpec {
+        .hotkeyCustomized(surface: surface, kind: telemetryKind)
+    }
+}
+
 // MARK: - Equatable (canonical identity only)
 
 extension HotkeyTrigger: Equatable {

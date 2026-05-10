@@ -239,7 +239,7 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
         if process.terminationStatus != 0 {
             stderrHandle.synchronizeFile()
             let stderrStr = (try? String(contentsOf: stderrURL, encoding: .utf8)) ?? "Unknown error"
-            throw AudioProcessorError.conversionFailed(stderrStr)
+            throw AudioProcessorError.conversionFailed(Self.tailForError(stderrStr))
         }
 
         succeeded = true
@@ -287,10 +287,43 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
         if process.terminationStatus != 0 {
             stderrHandle.synchronizeFile()
             let stderrStr = (try? String(contentsOf: stderrURL, encoding: .utf8)) ?? "Unknown error"
-            throw AudioProcessorError.conversionFailed(stderrStr)
+            throw AudioProcessorError.conversionFailed(Self.tailForError(stderrStr))
         }
 
         succeeded = true
+    }
+
+    /// FFmpeg writes a long startup banner ("ffmpeg version X... configuration:
+    /// --prefix=... --enable-...") before the actual error message. The
+    /// telemetry path truncates `error_detail` to ~512 chars from the front,
+    /// so the banner used to crowd out the real failure reason. Keep the tail
+    /// instead — `dyld` / "Library not loaded" / "No such file" / etc. are all
+    /// emitted at the end of stderr, so this preserves diagnostics for the
+    /// fallback-path check at the call site too.
+    static func tailForError(_ stderr: String, limit: Int = 480) -> String {
+        guard limit > 0 else { return "Unknown error" }
+
+        let whitespace = CharacterSet.whitespacesAndNewlines
+        let isMeaningful: (Character) -> Bool = { character in
+            !character.unicodeScalars.allSatisfy { whitespace.contains($0) }
+        }
+
+        guard let start = stderr.firstIndex(where: isMeaningful),
+              let end = stderr.lastIndex(where: isMeaningful)
+        else {
+            return "Unknown error"
+        }
+
+        let trimmed = stderr[start...end]
+        guard let suffixStart = trimmed.index(
+            trimmed.endIndex,
+            offsetBy: -limit,
+            limitedBy: trimmed.startIndex
+        ), suffixStart != trimmed.startIndex else {
+            return String(trimmed)
+        }
+
+        return "...\(trimmed[suffixStart...])"
     }
 
     private func ensureTempDir() throws -> URL {
