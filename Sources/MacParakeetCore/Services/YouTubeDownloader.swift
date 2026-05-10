@@ -76,7 +76,7 @@ public actor YouTubeDownloader {
 
     public init(
         binaryBootstrap: BinaryBootstrap = BinaryBootstrap(),
-        audioQuality: @escaping @Sendable () -> YouTubeAudioQuality = { .compatibility }
+        audioQuality: @escaping @Sendable () -> YouTubeAudioQuality = { .m4a }
     ) {
         self.binaryBootstrap = binaryBootstrap
         self.audioQuality = audioQuality
@@ -407,13 +407,16 @@ public actor YouTubeDownloader {
             .filter { $0.hasPrefix(uuid) }
             .filter { !isYtDlpTemporaryArtifact($0) }
 
-        if let audioCandidate = candidates.first(where: {
-            audioFileExtensions.contains(URL(fileURLWithPath: $0).pathExtension.lowercased())
-        }) {
+        if let audioCandidate = candidates.first(where: { isSupportedDownloadedAudioFile($0) }) {
             return audioCandidate
         }
 
         return nil
+    }
+
+    private nonisolated static func isSupportedDownloadedAudioFile(_ fileName: String) -> Bool {
+        let ext = URL(fileURLWithPath: fileName).pathExtension.lowercased()
+        return audioFileExtensions.contains(ext) && AudioFileConverter.isSupported(extension: ext)
     }
 
     private nonisolated static func isYtDlpTemporaryArtifact(_ fileName: String) -> Bool {

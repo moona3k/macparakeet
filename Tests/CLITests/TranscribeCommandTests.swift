@@ -24,14 +24,14 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(mode, .clean)
     }
 
-    func testResolveYouTubeAudioQualityUsesCompatibilityForAppDefaultWhenUnset() {
+    func testResolveYouTubeAudioQualityUsesM4AForAppDefaultWhenUnset() {
         let quality = TranscribeCommand.resolveYouTubeAudioQuality(.appDefault, storedQuality: nil)
-        XCTAssertEqual(quality, .compatibility)
+        XCTAssertEqual(quality, .m4a)
     }
 
-    func testResolveYouTubeAudioQualityUsesCompatibilityForAppDefaultWhenStoredQualityInvalid() {
+    func testResolveYouTubeAudioQualityUsesM4AForAppDefaultWhenStoredQualityInvalid() {
         let quality = TranscribeCommand.resolveYouTubeAudioQuality(.appDefault, storedQuality: "not-a-quality")
-        XCTAssertEqual(quality, .compatibility)
+        XCTAssertEqual(quality, .m4a)
     }
 
     func testResolveYouTubeAudioQualityUsesStoredQualityForAppDefaultWhenValid() {
@@ -45,7 +45,7 @@ final class TranscribeCommandTests: XCTestCase {
     func testResolveYouTubeAudioQualityRespectsExplicitQuality() {
         let quality = TranscribeCommand.resolveYouTubeAudioQuality(
             .bestAvailable,
-            storedQuality: YouTubeAudioQuality.compatibility.rawValue
+            storedQuality: YouTubeAudioQuality.m4a.rawValue
         )
         XCTAssertEqual(quality, .bestAvailable)
     }

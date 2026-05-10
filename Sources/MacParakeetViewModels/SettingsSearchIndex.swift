@@ -163,7 +163,7 @@ public enum SettingsSearchIndex {
             tab: .modes,
             title: "YouTube audio quality",
             subtitle: "in Transcription",
-            keywords: ["youtube", "audio", "quality", "best available", "compatibility", "opus", "m4a"],
+            keywords: ["youtube", "audio", "quality", "m4a", "best available", "opus", "webm"],
             cardAnchor: "transcription"
         ),
         SettingsSearchEntry(

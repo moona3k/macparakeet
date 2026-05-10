@@ -17,7 +17,7 @@ enum DownloadedAudioPolicy: String, ExpressibleByArgument {
 
 enum YouTubeAudioQualityOption: String, ExpressibleByArgument {
     case appDefault = "app-default"
-    case compatibility
+    case m4a
     case bestAvailable = "best-available"
 }
 
@@ -65,7 +65,7 @@ struct TranscribeCommand: AsyncParsableCommand {
     @Option(help: "Downloaded YouTube audio retention: app-default, keep, delete.")
     var downloadedAudio: DownloadedAudioPolicy = .appDefault
 
-    @Option(help: "YouTube audio quality: app-default, compatibility, best-available.")
+    @Option(help: "YouTube audio quality: app-default, m4a, best-available.")
     var youtubeAudioQuality: YouTubeAudioQualityOption = .appDefault
 
     @Option(help: "Path to SQLite database file (defaults to the app database).")
@@ -93,12 +93,16 @@ struct TranscribeCommand: AsyncParsableCommand {
         storedQuality: String?
     ) -> YouTubeAudioQuality {
         switch quality {
-        case .compatibility:
-            return .compatibility
         case .bestAvailable:
             return .bestAvailable
+        case .m4a:
+            return .m4a
         case .appDefault:
-            return storedQuality.flatMap(YouTubeAudioQuality.init(rawValue:)) ?? .compatibility
+            guard let storedQuality,
+                  let quality = YouTubeAudioQuality(rawValue: storedQuality) else {
+                return .m4a
+            }
+            return quality
         }
     }
 

@@ -15,13 +15,13 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
 }
 
 public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equatable {
-    case compatibility
+    case m4a
     case bestAvailable = "best_available"
 
     public var displayTitle: String {
         switch self {
-        case .compatibility:
-            return "Compatibility"
+        case .m4a:
+            return "M4A"
         case .bestAvailable:
             return "Best available"
         }
@@ -29,16 +29,16 @@ public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equat
 
     public var detail: String {
         switch self {
-        case .compatibility:
-            return "Prefer m4a audio for broad compatibility. Matches previous MacParakeet downloads."
+        case .m4a:
+            return "Download an Apple-friendly m4a file for reliable playback and sharing. Falls back if m4a is unavailable."
         case .bestAvailable:
-            return "Prefer the highest-quality audio stream YouTube exposes, often Opus/WebM."
+            return "Use YouTube's highest-quality audio stream. May save WebM/Opus files; transcription still converts them to WAV."
         }
     }
 
     public var ytDlpFormatSelector: String {
         switch self {
-        case .compatibility:
+        case .m4a:
             return "bestaudio[ext=m4a]/bestaudio/best"
         case .bestAvailable:
             return "bestaudio/best"
@@ -48,7 +48,7 @@ public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equat
     public static func current(defaults: UserDefaults = .standard) -> YouTubeAudioQuality {
         guard let raw = defaults.string(forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey),
               let quality = YouTubeAudioQuality(rawValue: raw) else {
-            return .compatibility
+            return .m4a
         }
         return quality
     }

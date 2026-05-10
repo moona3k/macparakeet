@@ -48,12 +48,12 @@ final class YouTubeDownloaderTests: XCTestCase {
         XCTAssertNil(YouTubeDownloader.parseDownloadProgressPercent(from: "some random log line"))
     }
 
-    func testDownloadAudioArgumentsUseCompatibilitySelector() {
+    func testDownloadAudioArgumentsUseM4ASelector() {
         let args = YouTubeDownloader.downloadAudioArguments(
             ffmpegDir: "/opt/macparakeet/bin",
             outputTemplate: "/tmp/video.%(ext)s",
             url: "https://www.youtube.com/watch?v=abc",
-            quality: .compatibility
+            quality: .m4a
         )
 
         XCTAssertEqual(formatSelector(in: args), "bestaudio[ext=m4a]/bestaudio/best")
@@ -85,7 +85,7 @@ final class YouTubeDownloaderTests: XCTestCase {
             ffmpegDir: "/opt/macparakeet/bin",
             outputTemplate: "/tmp/video.%(ext)s",
             url: "https://www.youtube.com/watch?v=abc",
-            quality: .compatibility,
+            quality: .m4a,
             javaScriptRuntimeArguments: ["--js-runtimes", "node:/opt/homebrew/bin/node"]
         )
 
@@ -128,6 +128,27 @@ final class YouTubeDownloaderTests: XCTestCase {
             ),
             "\(uuid).m4a"
         )
+    }
+
+    func testSelectDownloadedAudioFileAcceptsWebMForBestAvailableDownloads() {
+        let uuid = UUID().uuidString
+
+        XCTAssertEqual(
+            YouTubeDownloader.selectDownloadedAudioFile(
+                from: ["\(uuid).webm"],
+                uuid: uuid
+            ),
+            "\(uuid).webm"
+        )
+    }
+
+    func testSelectDownloadedAudioFileIgnoresUnsupportedAudioContainers() {
+        let uuid = UUID().uuidString
+
+        XCTAssertNil(YouTubeDownloader.selectDownloadedAudioFile(
+            from: ["\(uuid).mka"],
+            uuid: uuid
+        ))
     }
 
     func testSelectDownloadedAudioFileReturnsNilWhenOnlyPartialArtifactsExist() {
