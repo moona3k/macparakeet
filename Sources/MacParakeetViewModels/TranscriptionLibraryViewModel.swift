@@ -15,11 +15,7 @@ public enum TranscriptionLibraryScope: Sendable {
     case meetings
 }
 
-public enum LibrarySortOrder: Sendable {
-    case dateDescending
-    case dateAscending
-    case titleAscending
-}
+public typealias LibrarySortOrder = TranscriptionLibrarySortOrder
 
 /// Date-based bucket used to group meeting/library rows under headers like
 /// "Today", "Yesterday", "Previous 7 Days". Computed against the user's
@@ -64,19 +60,26 @@ public enum TranscriptionDateGroup: Hashable, Sendable {
 @MainActor @Observable
 public final class TranscriptionLibraryViewModel {
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptionLibrary")
-    public var transcriptions: [Transcription] = [] { didSet { recomputeFiltered() } }
-    public var filter: LibraryFilter = .all { didSet { recomputeFiltered() } }
-    public var searchText: String = "" { didSet { recomputeFiltered() } }
-    public var sortOrder: LibrarySortOrder = .dateDescending { didSet { recomputeFiltered() } }
+    public private(set) var transcriptions: [Transcription] = []
+    public var filter: LibraryFilter = .all { didSet { reloadAfterStateChange() } }
+    public var searchText: String = "" { didSet { debounceSearchReload() } }
+    public var sortOrder: LibrarySortOrder = .dateDescending { didSet { reloadAfterStateChange() } }
     public private(set) var filteredTranscriptions: [Transcription] = []
     public private(set) var groupedTranscriptions: [(group: TranscriptionDateGroup, items: [Transcription])] = []
+    public private(set) var hasMore = false
+    public private(set) var isLoading = false
     public var errorMessage: String?
+    public var pageSize = 100
+    public var searchDebounceInterval: Duration = .milliseconds(300)
 
     /// Override for tests; production code uses `Date()`.
     public var nowProvider: @Sendable () -> Date = { Date() }
     public var calendar: Calendar = .autoupdatingCurrent
 
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
+    private var loadTask: Task<Void, Never>?
+    private var searchDebounceTask: Task<Void, Never>?
+    private var loadGeneration = 0
     public let scope: TranscriptionLibraryScope
 
     public init(scope: TranscriptionLibraryScope = .all) {
@@ -85,37 +88,6 @@ public final class TranscriptionLibraryViewModel {
 
     public func configure(transcriptionRepo: TranscriptionRepositoryProtocol) {
         self.transcriptionRepo = transcriptionRepo
-    }
-
-    private func recomputeFiltered() {
-        var result = transcriptions.filter { matchesScope($0) }
-
-        switch filter {
-        case .all: break
-        case .youtube: result = result.filter { $0.sourceType == .youtube }
-        case .local: result = result.filter { $0.sourceType == .file }
-        case .meeting: result = result.filter { $0.sourceType == .meeting }
-        case .favorites: result = result.filter(\.isFavorite)
-        }
-
-        if !searchText.isEmpty {
-            let query = searchText.lowercased()
-            result = result.filter { t in
-                t.fileName.lowercased().contains(query)
-                    || (t.rawTranscript?.lowercased().contains(query) ?? false)
-                    || (t.cleanTranscript?.lowercased().contains(query) ?? false)
-                    || (t.channelName?.lowercased().contains(query) ?? false)
-            }
-        }
-
-        switch sortOrder {
-        case .dateDescending: result.sort { $0.createdAt > $1.createdAt }
-        case .dateAscending: result.sort { $0.createdAt < $1.createdAt }
-        case .titleAscending: result.sort { $0.fileName.localizedCaseInsensitiveCompare($1.fileName) == .orderedAscending }
-        }
-
-        filteredTranscriptions = result
-        groupedTranscriptions = groupByDate(result)
     }
 
     private func groupByDate(_ items: [Transcription]) -> [(group: TranscriptionDateGroup, items: [Transcription])] {
@@ -143,23 +115,17 @@ public final class TranscriptionLibraryViewModel {
             .map { group in (group: group, items: bucketed[group] ?? []) }
     }
 
-    private func matchesScope(_ transcription: Transcription) -> Bool {
-        switch scope {
-        case .all:
-            return true
-        case .meetings:
-            return transcription.sourceType == .meeting
-        }
+    @discardableResult
+    public func loadTranscriptions() -> Task<Void, Never> {
+        searchDebounceTask?.cancel()
+        searchDebounceTask = nil
+        return loadPage(offset: 0, append: false)
     }
 
-    public func loadTranscriptions() {
-        do {
-            transcriptions = (try transcriptionRepo?.fetchAll(limit: nil) ?? [])
-                .filter { $0.status != .processing }
-        } catch {
-            logger.error("Failed to load transcriptions: \(error.localizedDescription)")
-            transcriptions = []
-        }
+    @discardableResult
+    public func loadMoreTranscriptions() -> Task<Void, Never>? {
+        guard hasMore, !isLoading else { return nil }
+        return loadPage(offset: transcriptions.count, append: true)
     }
 
     public func toggleFavorite(_ transcription: Transcription) {
@@ -168,7 +134,12 @@ public final class TranscriptionLibraryViewModel {
             errorMessage = nil
             try transcriptionRepo?.updateFavorite(id: transcription.id, isFavorite: newValue)
             if let idx = transcriptions.firstIndex(where: { $0.id == transcription.id }) {
-                transcriptions[idx].isFavorite = newValue
+                if filter == .favorites && !newValue {
+                    transcriptions.remove(at: idx)
+                } else {
+                    transcriptions[idx].isFavorite = newValue
+                }
+                publishLoadedItems(transcriptions, hasMore: hasMore)
             }
             Telemetry.send(.transcriptionFavorited(isFavorite: newValue))
         } catch {
@@ -189,10 +160,120 @@ public final class TranscriptionLibraryViewModel {
                 errorMessage = "Deleted transcription, but failed to remove stored audio: \(error.localizedDescription)"
             }
             transcriptions.removeAll { $0.id == transcription.id }
+            publishLoadedItems(transcriptions, hasMore: hasMore)
             Telemetry.send(.transcriptionDeleted)
         } catch {
             logger.error("Failed to delete transcription: \(error.localizedDescription, privacy: .private)")
             errorMessage = "Failed to delete transcription: \(error.localizedDescription)"
         }
+    }
+
+    private func reloadAfterStateChange() {
+        searchDebounceTask?.cancel()
+        searchDebounceTask = nil
+        loadTranscriptions()
+    }
+
+    private func debounceSearchReload() {
+        searchDebounceTask?.cancel()
+        searchDebounceTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            if self.searchDebounceInterval > .zero {
+                try? await Task.sleep(for: self.searchDebounceInterval)
+            }
+            guard !Task.isCancelled else { return }
+            self.searchDebounceTask = nil
+            self.loadPage(offset: 0, append: false)
+        }
+    }
+
+    @discardableResult
+    private func loadPage(offset: Int, append: Bool) -> Task<Void, Never> {
+        loadTask?.cancel()
+        loadGeneration += 1
+        let generation = loadGeneration
+
+        guard let repo = transcriptionRepo else {
+            isLoading = false
+            publishLoadedItems([], hasMore: false)
+            return Task {}
+        }
+        guard let query = makeQuery(offset: offset) else {
+            isLoading = false
+            publishLoadedItems([], hasMore: false)
+            return Task {}
+        }
+
+        isLoading = true
+        errorMessage = nil
+
+        let task = Task { @MainActor [weak self, repo, query] in
+            do {
+                let page = try await Task.detached(priority: .userInitiated) {
+                    try repo.fetchLibraryPage(query: query)
+                }.value
+                guard let self, !Task.isCancelled, self.loadGeneration == generation else { return }
+                let items = append ? self.transcriptions + page.items : page.items
+                self.publishLoadedItems(items, hasMore: page.hasMore)
+                self.isLoading = false
+            } catch {
+                guard let self, !Task.isCancelled, self.loadGeneration == generation else { return }
+                self.logger.error("Failed to load transcriptions: \(error.localizedDescription, privacy: .private)")
+                self.publishLoadedItems([], hasMore: false)
+                self.isLoading = false
+                self.errorMessage = "Failed to load transcriptions: \(error.localizedDescription)"
+            }
+        }
+        loadTask = task
+        return task
+    }
+
+    private func makeQuery(offset: Int) -> TranscriptionLibraryQuery? {
+        let sourceType: Transcription.SourceType?
+        let favoritesOnly: Bool
+
+        switch (scope, filter) {
+        case (.all, .all):
+            sourceType = nil
+            favoritesOnly = false
+        case (.all, .youtube):
+            sourceType = .youtube
+            favoritesOnly = false
+        case (.all, .local):
+            sourceType = .file
+            favoritesOnly = false
+        case (.all, .meeting):
+            sourceType = .meeting
+            favoritesOnly = false
+        case (.all, .favorites):
+            sourceType = nil
+            favoritesOnly = true
+        case (.meetings, .all), (.meetings, .meeting):
+            sourceType = .meeting
+            favoritesOnly = false
+        case (.meetings, .favorites):
+            sourceType = .meeting
+            favoritesOnly = true
+        case (.meetings, .youtube), (.meetings, .local):
+            return nil
+        }
+
+        let trimmedSearch = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        return TranscriptionLibraryQuery(
+            sourceType: sourceType,
+            favoritesOnly: favoritesOnly,
+            searchText: trimmedSearch.isEmpty ? nil : trimmedSearch,
+            sortOrder: sortOrder,
+            limit: pageSize,
+            offset: offset,
+            includeProcessing: false
+        )
+    }
+
+    private func publishLoadedItems(_ items: [Transcription], hasMore: Bool) {
+        transcriptions = items
+        filteredTranscriptions = items
+        groupedTranscriptions = groupByDate(items)
+        self.hasMore = hasMore
     }
 }

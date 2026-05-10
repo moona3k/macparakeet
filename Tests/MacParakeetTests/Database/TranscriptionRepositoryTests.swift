@@ -292,6 +292,163 @@ final class TranscriptionRepositoryTests: XCTestCase {
         XCTAssertEqual(transcriptResults.count, 1)
     }
 
+    // MARK: - Library Queries
+
+    func testFetchLibraryPageExcludesProcessingButIncludesTerminalRowsByDefault() throws {
+        try repo.save(Transcription(fileName: "done.mp3", status: .completed))
+        try repo.save(Transcription(fileName: "working.mp3", status: .processing))
+        try repo.save(Transcription(fileName: "cancelled.mp3", status: .cancelled))
+        try repo.save(Transcription(fileName: "failed.mp3", status: .error))
+
+        let page = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(limit: 10))
+
+        XCTAssertEqual(Set(page.items.map(\.fileName)), ["done.mp3", "cancelled.mp3", "failed.mp3"])
+    }
+
+    func testFetchLibraryPageCanIncludeProcessingRows() throws {
+        try repo.save(Transcription(fileName: "done.mp3", status: .completed))
+        try repo.save(Transcription(fileName: "working.mp3", status: .processing))
+
+        let page = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
+            limit: 10,
+            includeProcessing: true
+        ))
+
+        XCTAssertEqual(Set(page.items.map(\.fileName)), ["done.mp3", "working.mp3"])
+    }
+
+    func testFetchLibraryPageFiltersBySourceType() throws {
+        let local = Transcription(fileName: "local.mp3", status: .completed, sourceType: .file)
+        let youtube = Transcription(fileName: "video.mp3", status: .completed, sourceType: .youtube)
+        let meeting = Transcription(fileName: "meeting.m4a", status: .completed, sourceType: .meeting)
+        try repo.save(local)
+        try repo.save(youtube)
+        try repo.save(meeting)
+
+        let page = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
+            sourceType: .meeting,
+            limit: 10
+        ))
+
+        XCTAssertEqual(page.items.map(\.id), [meeting.id])
+    }
+
+    func testFetchLibraryPageFiltersFavoritesAndComposesWithSourceType() throws {
+        let meetingFavorite = Transcription(
+            fileName: "fav meeting.m4a",
+            status: .completed,
+            isFavorite: true,
+            sourceType: .meeting
+        )
+        let fileFavorite = Transcription(
+            fileName: "fav file.mp3",
+            status: .completed,
+            isFavorite: true,
+            sourceType: .file
+        )
+        let meetingNormal = Transcription(
+            fileName: "normal meeting.m4a",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try repo.save(meetingFavorite)
+        try repo.save(fileFavorite)
+        try repo.save(meetingNormal)
+
+        let page = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
+            sourceType: .meeting,
+            favoritesOnly: true,
+            limit: 10
+        ))
+
+        XCTAssertEqual(page.items.map(\.id), [meetingFavorite.id])
+    }
+
+    func testFetchLibraryPageSearchesTitleTranscriptAndChannelName() throws {
+        let title = Transcription(fileName: "Design Notes", status: .completed)
+        let raw = Transcription(fileName: "raw.mp3", rawTranscript: "Budget review", status: .completed)
+        let clean = Transcription(fileName: "clean.mp3", cleanTranscript: "Launch proposal", status: .completed)
+        let channel = Transcription(fileName: "video.mp3", status: .completed, channelName: "Swift Talks")
+        let other = Transcription(fileName: "other.mp3", rawTranscript: "Unrelated", status: .completed)
+        try repo.save(title)
+        try repo.save(raw)
+        try repo.save(clean)
+        try repo.save(channel)
+        try repo.save(other)
+
+        XCTAssertEqual(
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "design", limit: 10)).items.map(\.id),
+            [title.id]
+        )
+        XCTAssertEqual(
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "budget", limit: 10)).items.map(\.id),
+            [raw.id]
+        )
+        XCTAssertEqual(
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "proposal", limit: 10)).items.map(\.id),
+            [clean.id]
+        )
+        XCTAssertEqual(
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(searchText: "swift", limit: 10)).items.map(\.id),
+            [channel.id]
+        )
+    }
+
+    func testFetchLibraryPageSortsByDateAndTitle() throws {
+        let older = Transcription(
+            createdAt: Date(timeIntervalSinceReferenceDate: 100),
+            fileName: "Banana.mp3",
+            status: .completed,
+            updatedAt: Date(timeIntervalSinceReferenceDate: 100)
+        )
+        let newer = Transcription(
+            createdAt: Date(timeIntervalSinceReferenceDate: 200),
+            fileName: "Apple.mp3",
+            status: .completed,
+            updatedAt: Date(timeIntervalSinceReferenceDate: 200)
+        )
+        try repo.save(older)
+        try repo.save(newer)
+
+        XCTAssertEqual(
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(sortOrder: .dateDescending, limit: 10)).items.map(\.id),
+            [newer.id, older.id]
+        )
+        XCTAssertEqual(
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(sortOrder: .dateAscending, limit: 10)).items.map(\.id),
+            [older.id, newer.id]
+        )
+        XCTAssertEqual(
+            try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(sortOrder: .titleAscending, limit: 10)).items.map(\.id),
+            [newer.id, older.id]
+        )
+    }
+
+    func testFetchLibraryPageSupportsLimitOffsetAndHasMore() throws {
+        var inserted: [Transcription] = []
+        for i in 0..<5 {
+            let transcription = Transcription(
+                createdAt: Date(timeIntervalSinceReferenceDate: TimeInterval(i)),
+                fileName: "file-\(i).mp3",
+                status: .completed,
+                updatedAt: Date(timeIntervalSinceReferenceDate: TimeInterval(i))
+            )
+            inserted.append(transcription)
+            try repo.save(transcription)
+        }
+
+        let first = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(limit: 2, offset: 0))
+        let second = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(limit: 2, offset: 2))
+        let final = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(limit: 2, offset: 4))
+
+        XCTAssertEqual(first.items.map(\.id), [inserted[4].id, inserted[3].id])
+        XCTAssertTrue(first.hasMore)
+        XCTAssertEqual(second.items.map(\.id), [inserted[2].id, inserted[1].id])
+        XCTAssertTrue(second.hasMore)
+        XCTAssertEqual(final.items.map(\.id), [inserted[0].id])
+        XCTAssertFalse(final.hasMore)
+    }
+
     // MARK: - Status Transitions
 
     func testUpdateStatus() throws {

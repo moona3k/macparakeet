@@ -37,7 +37,11 @@ struct MeetingsCommand: AsyncParsableCommand {
         func run() async throws {
             try emitJSONOrRethrow(json: json) {
                 let repo = try makeTranscriptionRepository(database: database)
-                let meetings = try repo.fetchBySourceType(.meeting, limit: limit)
+                let meetings = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
+                    sourceType: .meeting,
+                    limit: limit,
+                    includeProcessing: true
+                )).items
                     .map(MeetingListItem.init)
 
                 if json {

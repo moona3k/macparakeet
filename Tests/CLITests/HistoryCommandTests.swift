@@ -191,6 +191,49 @@ final class HistoryCommandTests: XCTestCase {
         XCTAssertEqual(results.first?.id, t1.id)
     }
 
+    func testSearchTranscriptionsCommandSearchesChannelName() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+
+        let t1 = Transcription(fileName: "video.mp3", status: .completed, channelName: "Swift Talks")
+        let t2 = Transcription(fileName: "other.mp3", status: .completed, channelName: "Other Channel")
+        try repo.save(t1)
+        try repo.save(t2)
+
+        let command = try SearchTranscriptionsSubcommand.parse([
+            "swift",
+            "--database", dbURL.path,
+        ])
+        let output = try captureStandardOutput {
+            try command.run()
+        }
+
+        XCTAssertTrue(output.contains("video.mp3"))
+        XCTAssertFalse(output.contains("other.mp3"))
+    }
+
+    func testSearchTranscriptionsCommandEmptyQueryReturnsNoRows() throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let repo = TranscriptionRepository(dbQueue: db.dbQueue)
+
+        try repo.save(Transcription(fileName: "video.mp3", status: .completed))
+
+        let command = try SearchTranscriptionsSubcommand.parse([
+            "   ",
+            "--database", dbURL.path,
+        ])
+        let output = try captureStandardOutput {
+            try command.run()
+        }
+
+        XCTAssertTrue(output.contains("No transcriptions matching"))
+        XCTAssertFalse(output.contains("video.mp3"))
+    }
+
     func testSearchTranscriptionsRespectsLimit() throws {
         let db = try DatabaseManager()
         let repo = TranscriptionRepository(dbQueue: db.dbQueue)

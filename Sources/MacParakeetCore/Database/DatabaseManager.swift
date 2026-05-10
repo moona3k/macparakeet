@@ -592,6 +592,21 @@ public final class DatabaseManager: Sendable {
             )
         }
 
+        migrator.registerMigration("v0.10-transcription-library-indexes") { db in
+            try db.execute(sql: """
+                CREATE INDEX IF NOT EXISTS idx_transcriptions_source_type_created_at
+                ON transcriptions(sourceType, createdAt)
+            """)
+            try db.execute(sql: """
+                CREATE INDEX IF NOT EXISTS idx_transcriptions_favorite_created_at
+                ON transcriptions(isFavorite, createdAt)
+            """)
+            try db.execute(sql: """
+                CREATE INDEX IF NOT EXISTS idx_transcriptions_status_created_at
+                ON transcriptions(status, createdAt)
+            """)
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()

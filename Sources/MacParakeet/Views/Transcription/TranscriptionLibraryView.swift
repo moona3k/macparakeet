@@ -83,13 +83,15 @@ struct TranscriptionLibraryView: View {
                     .padding(.bottom, DesignSystem.Spacing.sm)
             }
 
-            // Content — date-grouped list for Meetings filter, thumbnail grid otherwise.
+            // Content — date-grouped list for meetings, thumbnail grid otherwise.
             // Reason: meetings have no thumbnail-worthy visual asset, so a list with
             // preview text + speaker count is denser and more useful than a wall of
             // waveform placeholders.
-            if viewModel.filteredTranscriptions.isEmpty {
+            if viewModel.isLoading && viewModel.filteredTranscriptions.isEmpty {
+                loadingState
+            } else if viewModel.filteredTranscriptions.isEmpty {
                 emptyState
-            } else if viewModel.filter == .meeting {
+            } else if isMeetingListMode {
                 meetingsList
             } else {
                 thumbnailGrid
@@ -124,20 +126,23 @@ struct TranscriptionLibraryView: View {
 
     private var thumbnailGrid: some View {
         ScrollView {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: DesignSystem.Layout.thumbnailCardMinWidth), spacing: DesignSystem.Spacing.md)],
-                spacing: DesignSystem.Spacing.md
-            ) {
-                ForEach(viewModel.filteredTranscriptions) { transcription in
-                    TranscriptionThumbnailCard(transcription: transcription, searchText: viewModel.searchText) {
-                        onSelect(transcription)
-                    } menuContent: {
-                        libraryMenuItems(for: transcription)
-                    }
-                    .contextMenu {
-                        libraryMenuItems(for: transcription)
+            VStack(spacing: DesignSystem.Spacing.md) {
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: DesignSystem.Layout.thumbnailCardMinWidth), spacing: DesignSystem.Spacing.md)],
+                    spacing: DesignSystem.Spacing.md
+                ) {
+                    ForEach(viewModel.filteredTranscriptions) { transcription in
+                        TranscriptionThumbnailCard(transcription: transcription, searchText: viewModel.searchText) {
+                            onSelect(transcription)
+                        } menuContent: {
+                            libraryMenuItems(for: transcription)
+                        }
+                        .contextMenu {
+                            libraryMenuItems(for: transcription)
+                        }
                     }
                 }
+                loadMoreFooter
             }
             .padding(.horizontal, DesignSystem.Spacing.lg)
             .padding(.bottom, DesignSystem.Spacing.lg)
@@ -161,6 +166,9 @@ struct TranscriptionLibraryView: View {
                         }
                     }
                 }
+                loadMoreFooter
+                    .padding(.horizontal, DesignSystem.Spacing.lg)
+                    .padding(.top, DesignSystem.Spacing.md)
             }
             .padding(.bottom, DesignSystem.Spacing.lg)
         }
@@ -214,17 +222,52 @@ struct TranscriptionLibraryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    private var loadingState: some View {
+        VStack {
+            Spacer()
+            ProgressView()
+                .controlSize(.small)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var loadMoreFooter: some View {
+        if viewModel.hasMore {
+            HStack {
+                Spacer()
+                Button {
+                    viewModel.loadMoreTranscriptions()
+                } label: {
+                    Text(viewModel.isLoading ? "Loading..." : "Load More")
+                }
+                .parakeetAction(.secondary)
+                .disabled(viewModel.isLoading)
+                Spacer()
+            }
+        } else if viewModel.isLoading {
+            ProgressView()
+                .controlSize(.small)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var isMeetingListMode: Bool {
+        viewModel.scope == .meetings || viewModel.filter == .meeting
+    }
+
     private var emptyStateIcon: String {
         if !viewModel.searchText.isEmpty { return "magnifyingglass" }
-        return viewModel.filter == .meeting ? "waveform.badge.mic" : "square.grid.2x2"
+        return isMeetingListMode ? "waveform.badge.mic" : "square.grid.2x2"
     }
 
     private var emptyStateTitle: String {
-        viewModel.filter == .meeting ? "No meetings recorded yet" : emptyTitle
+        isMeetingListMode ? "No meetings recorded yet" : emptyTitle
     }
 
     private var emptyStateMessage: String {
-        viewModel.filter == .meeting
+        isMeetingListMode
             ? "Press Record Meeting on the Transcribe tab to capture system audio and transcribe locally."
             : emptyMessage
     }

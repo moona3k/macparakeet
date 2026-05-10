@@ -92,7 +92,10 @@ struct TranscriptionsSubcommand: ParsableCommand {
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-            let transcriptions = try repo.fetchAll(limit: limit)
+            let transcriptions = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
+                limit: limit,
+                includeProcessing: true
+            )).items
 
             if json {
                 try printJSON(transcriptions)
@@ -199,7 +202,14 @@ struct SearchTranscriptionsSubcommand: ParsableCommand {
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-            let results = try repo.search(query: query, limit: limit)
+            let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+            let results = trimmedQuery.isEmpty
+                ? []
+                : try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
+                    searchText: trimmedQuery,
+                    limit: limit,
+                    includeProcessing: true
+                )).items
 
             if json {
                 try printJSON(results)
@@ -332,7 +342,11 @@ struct FavoritesSubcommand: ParsableCommand {
             try AppPaths.ensureDirectories()
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-            let favorites = try repo.fetchFavorites()
+            let favorites = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
+                favoritesOnly: true,
+                limit: Int.max,
+                includeProcessing: true
+            )).items
 
             if json {
                 try printJSON(favorites)

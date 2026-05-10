@@ -145,6 +145,9 @@ final class DatabaseManagerTests: XCTestCase {
 
             let transcriptionIndexes = try db.indexes(on: "transcriptions")
             XCTAssertTrue(transcriptionIndexes.contains { $0.name == "idx_transcriptions_created_at" })
+            XCTAssertTrue(transcriptionIndexes.contains { $0.name == "idx_transcriptions_source_type_created_at" })
+            XCTAssertTrue(transcriptionIndexes.contains { $0.name == "idx_transcriptions_favorite_created_at" })
+            XCTAssertTrue(transcriptionIndexes.contains { $0.name == "idx_transcriptions_status_created_at" })
 
             let promptIndexes = try db.indexes(on: "prompts")
             XCTAssertTrue(promptIndexes.contains { $0.name == "idx_prompts_name" })

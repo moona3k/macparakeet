@@ -123,6 +123,9 @@ CREATE TABLE transcriptions (
 );
 
 CREATE INDEX idx_transcriptions_created_at ON transcriptions(createdAt);
+CREATE INDEX idx_transcriptions_source_type_created_at ON transcriptions(sourceType, createdAt);
+CREATE INDEX idx_transcriptions_favorite_created_at ON transcriptions(isFavorite, createdAt);
+CREATE INDEX idx_transcriptions_status_created_at ON transcriptions(status, createdAt);
 ```
 
 **Notes:**

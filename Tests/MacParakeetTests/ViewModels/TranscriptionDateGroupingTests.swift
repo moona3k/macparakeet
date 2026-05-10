@@ -56,7 +56,7 @@ final class TranscriptionDateGroupingTests: XCTestCase {
 
     // MARK: - View model integration
 
-    func testViewModelGroupsAcrossDateBuckets() throws {
+    func testViewModelGroupsAcrossDateBuckets() async throws {
         let manager = try DatabaseManager()
         let repo = TranscriptionRepository(dbQueue: manager.dbQueue)
         let now = date(2026, 4, 28, 15)
@@ -71,7 +71,7 @@ final class TranscriptionDateGroupingTests: XCTestCase {
         try repo.save(Transcription(createdAt: date(2026, 4, 10, 10), fileName: "earlier_month.m4a", status: .completed))
         try repo.save(Transcription(createdAt: date(2026, 1, 12, 10), fileName: "january.m4a", status: .completed))
 
-        vm.loadTranscriptions()
+        await vm.loadTranscriptions().value
 
         let groups = vm.groupedTranscriptions.map(\.group)
         XCTAssertEqual(groups, [
@@ -84,7 +84,7 @@ final class TranscriptionDateGroupingTests: XCTestCase {
         XCTAssertEqual(vm.groupedTranscriptions.map { $0.items.count }, [1, 1, 1, 1, 1])
     }
 
-    func testGroupingDoesNotFragmentUnderTitleSort() throws {
+    func testGroupingDoesNotFragmentUnderTitleSort() async throws {
         let manager = try DatabaseManager()
         let repo = TranscriptionRepository(dbQueue: manager.dbQueue)
         let now = date(2026, 4, 28, 15)
@@ -101,7 +101,7 @@ final class TranscriptionDateGroupingTests: XCTestCase {
         try repo.save(Transcription(createdAt: date(2026, 4, 11, 10), fileName: "Cherry", status: .completed))
 
         vm.sortOrder = .titleAscending
-        vm.loadTranscriptions()
+        await vm.loadTranscriptions().value
 
         let groups = vm.groupedTranscriptions.map(\.group)
         XCTAssertEqual(groups, [.previous30Days, .month(year: 2026, month: 1)])
@@ -120,7 +120,7 @@ final class TranscriptionDateGroupingTests: XCTestCase {
         XCTAssertEqual(bucket, .previous30Days)
     }
 
-    func testEmptyGroupsAreOmitted() throws {
+    func testEmptyGroupsAreOmitted() async throws {
         let manager = try DatabaseManager()
         let repo = TranscriptionRepository(dbQueue: manager.dbQueue)
         let now = date(2026, 4, 28, 15)
@@ -130,7 +130,7 @@ final class TranscriptionDateGroupingTests: XCTestCase {
         vm.nowProvider = { now }
 
         try repo.save(Transcription(createdAt: date(2026, 4, 28, 10), fileName: "today.m4a", status: .completed))
-        vm.loadTranscriptions()
+        await vm.loadTranscriptions().value
 
         XCTAssertEqual(vm.groupedTranscriptions.count, 1)
         XCTAssertEqual(vm.groupedTranscriptions.first?.group, .today)

@@ -5,6 +5,7 @@ public protocol TranscriptionRepositoryProtocol: Sendable {
     func save(_ transcription: Transcription) throws
     func fetch(id: UUID) throws -> Transcription?
     func fetchAll(limit: Int?) throws -> [Transcription]
+    func fetchLibraryPage(query: TranscriptionLibraryQuery) throws -> TranscriptionLibraryPage
     func fetchByFilePath(_ filePath: String, sourceType: Transcription.SourceType?) throws -> [Transcription]
     func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription?
     func count() throws -> Int
@@ -34,6 +35,51 @@ extension TranscriptionRepositoryProtocol {
     public func fetchCompletedByVideoID(_ videoID: String) throws -> Transcription? { nil }
     public func count() throws -> Int { try fetchAll(limit: nil).count }
     public func search(query: String, limit: Int?) throws -> [Transcription] { [] }
+    public func fetchLibraryPage(query: TranscriptionLibraryQuery) throws -> TranscriptionLibraryPage {
+        var results = try fetchAll(limit: nil)
+
+        if !query.includeProcessing {
+            results = results.filter { $0.status != .processing }
+        }
+        if let sourceType = query.sourceType {
+            results = results.filter { $0.sourceType == sourceType }
+        }
+        if query.favoritesOnly {
+            results = results.filter(\.isFavorite)
+        }
+        if let searchText = query.searchText?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !searchText.isEmpty {
+            let lowered = searchText.lowercased()
+            results = results.filter { transcription in
+                transcription.fileName.lowercased().contains(lowered)
+                    || (transcription.rawTranscript?.lowercased().contains(lowered) ?? false)
+                    || (transcription.cleanTranscript?.lowercased().contains(lowered) ?? false)
+                    || (transcription.channelName?.lowercased().contains(lowered) ?? false)
+            }
+        }
+
+        switch query.sortOrder {
+        case .dateDescending:
+            results.sort { $0.createdAt > $1.createdAt }
+        case .dateAscending:
+            results.sort { $0.createdAt < $1.createdAt }
+        case .titleAscending:
+            results.sort {
+                $0.fileName.localizedCaseInsensitiveCompare($1.fileName) == .orderedAscending
+            }
+        }
+
+        let limit = max(0, query.limit)
+        let offset = max(0, query.offset)
+        guard offset < results.count else {
+            return TranscriptionLibraryPage(items: [], hasMore: false)
+        }
+        let end = min(results.count, offset + limit)
+        return TranscriptionLibraryPage(
+            items: Array(results[offset..<end]),
+            hasMore: results.count > end
+        )
+    }
     public func clearStoredAudioPathsForURLTranscriptions() throws {}
     public func updateFileName(id: UUID, fileName: String) throws {}
     public func updateChatMessages(id: UUID, chatMessages: [ChatMessage]?) throws {}
@@ -69,6 +115,60 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol {
                 request = request.limit(limit)
             }
             return try request.fetchAll(db)
+        }
+    }
+
+    public func fetchLibraryPage(query: TranscriptionLibraryQuery) throws -> TranscriptionLibraryPage {
+        try dbQueue.read { db in
+            let limit = max(0, query.limit)
+            let offset = max(0, query.offset)
+            let fetchLimit = limit == Int.max ? Int.max : limit + 1
+            var whereClauses: [String] = []
+            var arguments: [any DatabaseValueConvertible] = []
+
+            if !query.includeProcessing {
+                whereClauses.append("status != ?")
+                arguments.append(Transcription.TranscriptionStatus.processing.rawValue)
+            }
+            if let sourceType = query.sourceType {
+                whereClauses.append("sourceType = ?")
+                arguments.append(sourceType.rawValue)
+            }
+            if query.favoritesOnly {
+                whereClauses.append("isFavorite = 1")
+            }
+            if let searchText = query.searchText?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !searchText.isEmpty {
+                let pattern = "%\(escapedLikePattern(searchText))%"
+                whereClauses.append("""
+                    (
+                        fileName LIKE ? ESCAPE '\\'
+                        OR rawTranscript LIKE ? ESCAPE '\\'
+                        OR cleanTranscript LIKE ? ESCAPE '\\'
+                        OR channelName LIKE ? ESCAPE '\\'
+                    )
+                    """)
+                arguments.append(contentsOf: [pattern, pattern, pattern, pattern])
+            }
+
+            var sql = "SELECT * FROM transcriptions"
+            if !whereClauses.isEmpty {
+                sql += " WHERE " + whereClauses.joined(separator: " AND ")
+            }
+            sql += " ORDER BY \(Self.libraryOrderClause(for: query.sortOrder))"
+            sql += " LIMIT ? OFFSET ?"
+            arguments.append(fetchLimit)
+            arguments.append(offset)
+
+            let fetched = try Transcription.fetchAll(
+                db,
+                sql: sql,
+                arguments: StatementArguments(arguments)
+            )
+            return TranscriptionLibraryPage(
+                items: limit == 0 ? [] : Array(fetched.prefix(limit)),
+                hasMore: fetched.count > limit
+            )
         }
     }
 
@@ -307,6 +407,17 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol {
                 .filter(Transcription.Columns.isFavorite == true)
                 .order(Transcription.Columns.createdAt.desc)
                 .fetchAll(db)
+        }
+    }
+
+    private static func libraryOrderClause(for sortOrder: TranscriptionLibrarySortOrder) -> String {
+        switch sortOrder {
+        case .dateDescending:
+            return "createdAt DESC"
+        case .dateAscending:
+            return "createdAt ASC"
+        case .titleAscending:
+            return "fileName COLLATE NOCASE ASC, createdAt DESC"
         }
     }
 }
