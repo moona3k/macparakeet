@@ -26,6 +26,7 @@ Programmatic verification performed:
 - Focused first-dictation persistence tests: `swift test --filter DictationServiceTests` PASS, 13 tests.
 - Focused telemetry serialization/contract tests: `swift test --filter TelemetryServiceTests` PASS, 41 tests.
 - Swift 6 language-mode build without WhisperKit: `MACPARAKEET_SKIP_WHISPERKIT=1 swift build --build-path .build-swift6-no-whisper -Xswiftc -swift-version -Xswiftc 6` PASS.
+- CI-style parallel suite: `swift test --parallel` PASS, 2424 XCTest tests plus 16 Swift Testing tests.
 - Final full suite after cleanup: `swift test` PASS, 2424 XCTest tests, 10 skipped, plus 16 Swift Testing tests.
 
 Instrumented app verification performed with `scripts/dev/run_app.sh`:

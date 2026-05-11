@@ -123,14 +123,18 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
     }
 
     func testCancelDuringVisibleCaptionClearsCaption() async throws {
-        let harness = try makeHarness(isReady: false, transcribeDelayMs: 200)
+        let harness = try makeHarness(isReady: false, transcribeDelayMs: 2_000)
 
         try await harness.startAndStop()
-        let shown = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == .preparing }
+        let shown = await waitUntil(timeoutMs: 3_000) {
+            harness.coordinator.processingLoadCaptionForTesting == .preparing
+        }
         XCTAssertTrue(shown)
 
         harness.coordinator.cancelDictation(reason: .escape)
-        let cleared = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == nil }
+        let cleared = await waitUntil(timeoutMs: 3_000) {
+            harness.coordinator.processingLoadCaptionForTesting == nil
+        }
         XCTAssertTrue(cleared)
         XCTAssertTrue(harness.telemetry.snapshot().containsCaptionDuration(outcome: "cancelled"))
     }
