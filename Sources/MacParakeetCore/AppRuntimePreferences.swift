@@ -12,6 +12,8 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var aiFormatterPrompt: String { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
+    var hasCompletedFirstDictation: Bool { get }
+    func markFirstDictationCompleted()
 }
 
 public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equatable {
@@ -105,6 +107,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
+    public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
 
     private let defaults: UserDefaults
 
@@ -159,5 +162,14 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var meetingAudioSourceMode: MeetingAudioSourceMode {
         MeetingAudioSourceMode.current(defaults: defaults)
+    }
+
+    public var hasCompletedFirstDictation: Bool {
+        defaults.bool(forKey: Self.hasCompletedFirstDictationKey)
+    }
+
+    public func markFirstDictationCompleted() {
+        guard !hasCompletedFirstDictation else { return }
+        defaults.set(true, forKey: Self.hasCompletedFirstDictationKey)
     }
 }

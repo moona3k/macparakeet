@@ -254,6 +254,56 @@ final class DictationServiceTests: XCTestCase {
         XCTAssertEqual(operation["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
     }
 
+    func testFirstDictationFlagFlipsAfterSuccessfulSave() async throws {
+        let defaults = UserDefaults(suiteName: "dictation-first-success-\(UUID().uuidString)")!
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertFalse(preferences.hasCompletedFirstDictation)
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            markFirstDictationCompleted: {
+                preferences.markFirstDictationCompleted()
+            }
+        )
+        await mockSTT.configureSequence(results: [
+            STTResult(text: "first saved dictation"),
+            STTResult(text: "second saved dictation"),
+        ])
+
+        try await service.startRecording()
+        _ = try await service.stopRecording()
+        XCTAssertTrue(preferences.hasCompletedFirstDictation)
+
+        try await service.startRecording()
+        _ = try await service.stopRecording()
+        XCTAssertTrue(preferences.hasCompletedFirstDictation)
+    }
+
+    func testFirstDictationFlagDoesNotFlipOnFailedDictation() async throws {
+        let defaults = UserDefaults(suiteName: "dictation-first-failure-\(UUID().uuidString)")!
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+
+        service = DictationService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            dictationRepo: dictationRepo,
+            markFirstDictationCompleted: {
+                preferences.markFirstDictationCompleted()
+            }
+        )
+        await mockSTT.configure(error: STTError.transcriptionFailed("model load failed"))
+
+        try await service.startRecording()
+        do {
+            _ = try await service.stopRecording()
+            XCTFail("Expected failed dictation to throw")
+        } catch {
+            XCTAssertFalse(preferences.hasCompletedFirstDictation)
+        }
+    }
+
     func testStopRecordingAppliesAIFormatterAsFinalStep() async throws {
         await mockSTT.configure(result: STTResult(text: "hello world"))
         let mockLLMService = MockLLMService()

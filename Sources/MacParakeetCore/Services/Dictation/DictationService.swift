@@ -58,6 +58,7 @@ public actor DictationService: DictationServiceProtocol {
     private let llmService: LLMServiceProtocol?
     private let shouldUseAIFormatter: @Sendable () -> Bool
     private let aiFormatterPromptTemplate: @Sendable () -> String
+    private let markFirstDictationCompleted: (@Sendable () -> Void)?
     private let cancelWindow: Duration
 
     private var _state: DictationState = .idle
@@ -95,6 +96,7 @@ public actor DictationService: DictationServiceProtocol {
         llmService: LLMServiceProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
+        markFirstDictationCompleted: (@Sendable () -> Void)? = nil,
         cancelWindow: Duration = .seconds(5)
     ) {
         self.audioProcessor = audioProcessor
@@ -111,6 +113,7 @@ public actor DictationService: DictationServiceProtocol {
         self.llmService = llmService
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
         self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
+        self.markFirstDictationCompleted = markFirstDictationCompleted
         self.cancelWindow = cancelWindow
     }
 
@@ -628,6 +631,7 @@ public actor DictationService: DictationServiceProtocol {
             privateCopy.cleanTranscript = nil
             try dictationRepo.save(privateCopy)
         }
+        markFirstDictationCompleted?()
 
         if !expandedSnippetIDs.isEmpty {
             try? snippetRepo?.incrementUseCount(ids: refinement.expandedSnippetIDs)

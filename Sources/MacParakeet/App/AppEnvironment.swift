@@ -188,7 +188,10 @@ final class AppEnvironment {
             processingMode: processingModeClosure,
             llmService: llmService,
             shouldUseAIFormatter: aiFormatterEnabledClosure,
-            aiFormatterPromptTemplate: aiFormatterPromptClosure
+            aiFormatterPromptTemplate: aiFormatterPromptClosure,
+            markFirstDictationCompleted: { [runtimePreferences] in
+                runtimePreferences.markFirstDictationCompleted()
+            }
         )
 
         let telemetry = TelemetryService()
