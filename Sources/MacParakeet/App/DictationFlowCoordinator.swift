@@ -682,7 +682,7 @@ final class DictationFlowCoordinator {
 
             let grace = DispatchWorkItem { [weak self] in
                 Task { @MainActor in
-                    self?.fireCaption(generation: generation)
+                    await self?.fireCaption(generation: generation)
                 }
             }
             self.captionGraceTimer = grace
@@ -693,7 +693,11 @@ final class DictationFlowCoordinator {
         }
     }
 
-    private func fireCaption(generation: Int) {
+    private func fireCaption(generation: Int) async {
+        guard captionGeneration == generation else { return }
+        guard overlayViewModel?.processingLoadCaption == nil else { return }
+        guard let state = overlayViewModel?.state, case .processing = state else { return }
+        guard await !sttRuntime.isReady() else { return }
         guard captionGeneration == generation else { return }
         guard overlayViewModel?.processingLoadCaption == nil else { return }
         guard let state = overlayViewModel?.state, case .processing = state else { return }

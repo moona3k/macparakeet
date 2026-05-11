@@ -44,6 +44,31 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertFalse(harness.telemetry.snapshot().containsCaptionShown)
     }
 
+    func testRuntimeReadyBeforeGraceSuppressesCaption() async throws {
+        let harness = try makeHarness(
+            isReady: false,
+            transcribeDelayMs: 140,
+            timing: DictationProcessingLoadCaptionTiming(
+                graceMs: 80,
+                escalationMs: 160,
+                failureDisplayMs: 40
+            )
+        )
+
+        harness.coordinator.startDictation(mode: .persistent, trigger: .hotkey)
+        let started = await waitUntil { harness.coordinator.overlayStateForTesting?.isRecordingForTest == true }
+        XCTAssertTrue(started)
+        harness.coordinator.stopDictation()
+        let processing = await waitUntil { harness.coordinator.overlayStateForTesting?.isProcessingForTest == true }
+        XCTAssertTrue(processing)
+
+        await harness.stt.setReady(true)
+        try await Task.sleep(for: .milliseconds(120))
+
+        XCTAssertNil(harness.coordinator.processingLoadCaptionForTesting)
+        XCTAssertFalse(harness.telemetry.snapshot().containsCaptionShown)
+    }
+
     func testFirstInstallShowsPreparingThenClearsOnSuccess() async throws {
         let harness = try makeHarness(isReady: false, transcribeDelayMs: 90, hasCompletedFirstDictation: false)
 

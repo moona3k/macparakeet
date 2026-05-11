@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var environmentSetupTask: Task<Void, Never>?
     private var meetingQuitTask: Task<Void, Never>?
     private var speechPreWarmTask: Task<Void, Never>?
+    // Let first paint and onboarding routing settle before starting CoreML cache work.
     private let preWarmDeferralMs: Int = 1500
 
     // MARK: - View Models
@@ -381,11 +382,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let deferralMs = preWarmDeferralMs
         let onboardingCompletedKey = OnboardingViewModel.onboardingCompletedKey
 
-        speechPreWarmTask = Task.detached(priority: .utility) { [weak self, sttRuntime] in
+        speechPreWarmTask = Task(priority: .utility) { @MainActor [weak self, sttRuntime] in
             defer {
-                Task { @MainActor in
-                    self?.speechPreWarmTask = nil
-                }
+                self?.speechPreWarmTask = nil
             }
 
             try? await Task.sleep(for: .milliseconds(deferralMs))

@@ -719,10 +719,10 @@ extension TelemetryEventSpec {
                 ("cancel_reason", cancelReason?.rawValue)
             ), device)
         case .dictationFirstLoadCaptionShown(let firstInstall):
-            return ["firstInstall": Self.boolString(firstInstall)]
+            return ["first_install": Self.boolString(firstInstall)]
         case .dictationFirstLoadCaptionDuration(let durationMs, let outcome):
             return [
-                "durationMs": "\(durationMs)",
+                "duration_ms": "\(durationMs)",
                 "outcome": outcome,
             ]
         case .transcriptionStarted(let source, let audioDurationSeconds):
@@ -1233,8 +1233,8 @@ public enum TelemetryImplementedContract {
         .dictationEmpty: [],
         .dictationFailed: ["error_type"],
         .dictationOperation: ["operation_id", "outcome"],
-        .dictationFirstLoadCaptionShown: ["firstInstall"],
-        .dictationFirstLoadCaptionDuration: ["durationMs", "outcome"],
+        .dictationFirstLoadCaptionShown: ["first_install"],
+        .dictationFirstLoadCaptionDuration: ["duration_ms", "outcome"],
         .transcriptionStarted: ["source"],
         .transcriptionCompleted: ["source", "word_count", "diarization_requested", "diarization_applied"],
         .transcriptionCancelled: ["source", "stage"],

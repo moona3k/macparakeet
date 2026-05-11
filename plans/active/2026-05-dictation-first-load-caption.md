@@ -22,10 +22,11 @@ Decisions made during implementation:
 Programmatic verification performed:
 
 - Baseline `swift test` before code changes: PASS, 2412 XCTest tests, 10 skipped, 0 failures.
-- Focused caption coordinator tests: `swift test --filter DictationFlowCoordinatorLoadCaptionTests` PASS, 8 tests.
+- Focused caption coordinator tests: `swift test --filter DictationFlowCoordinatorLoadCaptionTests` PASS, 9 tests.
 - Focused first-dictation persistence tests: `swift test --filter DictationServiceTests` PASS, 13 tests.
-- Focused telemetry serialization/contract tests: `swift test --filter TelemetryServiceTests` PASS, 40 tests.
-- Final full suite after cleanup: `swift test` PASS, 2422 XCTest tests, 10 skipped, plus 16 Swift Testing tests.
+- Focused telemetry serialization/contract tests: `swift test --filter TelemetryServiceTests` PASS, 41 tests.
+- Swift 6 language-mode build without WhisperKit: `MACPARAKEET_SKIP_WHISPERKIT=1 swift build --build-path .build-swift6-no-whisper -Xswiftc -swift-version -Xswiftc 6` PASS.
+- Final full suite after cleanup: `swift test` PASS, 2424 XCTest tests, 10 skipped, plus 16 Swift Testing tests.
 
 Instrumented app verification performed with `scripts/dev/run_app.sh`:
 
@@ -109,9 +110,9 @@ Keeping them in separate visual regions preserves the distinction. The floating 
 
 Without grace, every cold start where the user dictated for 2s would briefly flash the caption even when the pre-warm finished 50ms before processing entry. 600ms means the caption is reserved for "this is actually taking a while" — never a flash on the warm path. Tuned for human-perceptible "noticing a wait" threshold (~500–800ms range; 600ms is the midpoint).
 
-### Why a `wasModelReadyAtEntry` snapshot instead of polling?
+### Why a readiness snapshot plus grace-boundary recheck instead of polling?
 
-We snapshot once on `.processing` entry. If model wasn't ready then, show the caption for the full `.processing` duration. We don't poll `isReady()` during the load because:
+We snapshot once on `.processing` entry to decide whether to arm the grace timer. At the 600ms grace boundary, we perform one final readiness check so AC3 stays true: if pre-warm lost at entry but finished before the grace expired, the caption never flashes. After the caption appears, we do not poll `isReady()` during the load because:
 
 1. The caption should display for the *entire* model-load period, even if the load finishes 200ms before transcription completes. Hiding it mid-`.processing` would create a confusing flicker.
 2. Polling adds complexity (timer, cancellation, race with `.processing` exit) for no UX gain.
@@ -345,8 +346,8 @@ public func markFirstDictationCompleted() {
 
 Add to `Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift`:
 
-- **`dictationFirstLoadCaptionShown`** — payload: `firstInstall: Bool`. Fired when the caption fades in.
-- **`dictationFirstLoadCaptionDuration`** — payload: `durationMs: Int`, `outcome: "success" | "noSpeech" | "failure" | "cancelled"`. Fired when caption fades out.
+- **`dictationFirstLoadCaptionShown`** — payload: `first_install: Bool`. Fired when the caption fades in.
+- **`dictationFirstLoadCaptionDuration`** — payload: `duration_ms: Int`, `outcome: "success" | "noSpeech" | "failure" | "cancelled"`. Fired when caption fades out.
 
 **Two-repo change required:** Add both event names to `ALLOWED_EVENTS` in `macparakeet-website/functions/api/telemetry.ts` **BEFORE** the app build ships. Per `memory/feedback_telemetry_allowlist.md`, the Worker rejects the entire batch if any event is unknown, silently dropping valid co-batched events. Verify with curl after deploy.
 
@@ -380,7 +381,7 @@ VoiceOver: caption text announced on appear via `accessibilityLabel`. No live re
 - **AC10.** `accessibilityReduceMotion`: caption cross-fades only, no offset animation.
 - **AC11.** `hasCompletedFirstDictation` flips from `false` to `true` exactly once, on the first successful dictation; remains `true` thereafter. Cancelled / failed dictations do not flip the flag.
 - **AC12.** No regression in any existing dictation flow (cancellation, mode switches, paste, history, ready-pill auto-dismiss, command mode, formatting mode, no-speech outcome).
-- **AC13.** Telemetry events fire correctly: `caption_shown` once on appear, `caption_duration` once on dismiss with accurate `durationMs` and `outcome`.
+- **AC13.** Telemetry events fire correctly: `caption_shown` once on appear, `caption_duration` once on dismiss with accurate `duration_ms` and `outcome`.
 
 ## Test plan
 
@@ -418,8 +419,8 @@ Once the allowlist update lands and a build ships, query D1 (per `reference_clou
 ```sql
 SELECT
     COUNT(*) AS caption_shown_count,
-    AVG(json_extract(payload, '$.durationMs')) AS avg_duration_ms,
-    SUM(CASE WHEN json_extract(payload, '$.firstInstall') = 1 THEN 1 ELSE 0 END) AS first_install_shown,
+    AVG(json_extract(payload, '$.duration_ms')) AS avg_duration_ms,
+    SUM(CASE WHEN json_extract(payload, '$.first_install') = 1 THEN 1 ELSE 0 END) AS first_install_shown,
     SUM(CASE WHEN json_extract(payload, '$.outcome') = 'failure' THEN 1 ELSE 0 END) AS failure_count
 FROM events
 WHERE name IN ('dictation_first_load_caption_shown', 'dictation_first_load_caption_duration')
