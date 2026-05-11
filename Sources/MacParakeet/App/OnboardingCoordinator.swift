@@ -8,6 +8,7 @@ final class OnboardingCoordinator {
     private let onRefreshHotkeys: () -> Void
     private let onOpenMainWindow: () -> Void
     private let onOpenSettings: () -> Void
+    private let onCompleted: () -> Void
 
     private var reopenOnNextActivate = false
 
@@ -15,12 +16,14 @@ final class OnboardingCoordinator {
         onboardingWindowController: OnboardingWindowController,
         onRefreshHotkeys: @escaping () -> Void,
         onOpenMainWindow: @escaping () -> Void,
-        onOpenSettings: @escaping () -> Void
+        onOpenSettings: @escaping () -> Void,
+        onCompleted: @escaping () -> Void = {}
     ) {
         self.onboardingWindowController = onboardingWindowController
         self.onRefreshHotkeys = onRefreshHotkeys
         self.onOpenMainWindow = onOpenMainWindow
         self.onOpenSettings = onOpenSettings
+        self.onCompleted = onCompleted
     }
 
     var isVisible: Bool {
@@ -68,6 +71,7 @@ final class OnboardingCoordinator {
             onFinish: { [weak self] in
                 self?.reopenOnNextActivate = false
                 self?.onRefreshHotkeys()
+                self?.onCompleted()
                 Task {
                     await entitlementsService.bootstrapTrialIfNeeded()
                 }
