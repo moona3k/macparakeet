@@ -996,6 +996,12 @@ final class TelemetryServiceTests: XCTestCase {
                 defaultPromptUsed: false,
                 inputTruncated: true
             ),
+            .llmProviderUnavailable(
+                provider: "ollama",
+                errorType: "LLMError.connectionFailed",
+                feature: .formatter,
+                source: .dictation
+            ),
             .llmOperation(
                 operationID: "op-llm",
                 feature: "chat",

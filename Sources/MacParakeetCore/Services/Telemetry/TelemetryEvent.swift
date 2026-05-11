@@ -28,6 +28,7 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case llmTransformFailed = "llm_transform_failed"
     case llmFormatterUsed = "llm_formatter_used"
     case llmFormatterFailed = "llm_formatter_failed"
+    case llmProviderUnavailable = "llm_provider_unavailable"
     case llmOperation = "llm_operation"
     case historySearched = "history_searched"
     case historyReplayed = "history_replayed"
@@ -175,6 +176,17 @@ public enum TelemetryCopySource: String, Sendable, Equatable {
 public enum TelemetryFormatterSource: String, Sendable, Equatable {
     case dictation
     case transcription
+}
+
+/// Which LLM call site produced a `llm_provider_unavailable` event. Lets a
+/// single event cover all the LLM entry points while still answering
+/// "which feature was the user trying to use when their provider wasn't
+/// reachable?" without minting four near-identical event names.
+public enum TelemetryLLMFeature: String, Sendable, Equatable {
+    case formatter
+    case promptResult = "prompt_result"
+    case chat
+    case transform
 }
 
 /// Why a meeting recording started. Lets us distinguish manual user action
@@ -353,6 +365,18 @@ public enum TelemetryEventSpec: Sendable {
         errorType: String,
         defaultPromptUsed: Bool,
         inputTruncated: Bool
+    )
+    /// User-environment state, not an app failure: the configured LLM
+    /// provider can't be reached (server not running, model name out of
+    /// date, API key invalid, CLI tool missing). Emitted *instead of*
+    /// `llm*Failed` for these cases so the `*_failed` buckets reflect
+    /// things actually worth investigating, while this event tracks
+    /// how many users have drifted-config installs.
+    case llmProviderUnavailable(
+        provider: String,
+        errorType: String,
+        feature: TelemetryLLMFeature,
+        source: TelemetryFormatterSource? = nil
     )
     case llmOperation(
         operationID: String,
@@ -569,6 +593,7 @@ extension TelemetryEventSpec {
         case .llmTransformFailed: return .llmTransformFailed
         case .llmFormatterUsed: return .llmFormatterUsed
         case .llmFormatterFailed: return .llmFormatterFailed
+        case .llmProviderUnavailable: return .llmProviderUnavailable
         case .llmOperation: return .llmOperation
         case .historySearched: return .historySearched
         case .historyReplayed: return .historyReplayed
@@ -869,6 +894,14 @@ extension TelemetryEventSpec {
                 "default_prompt_used": Self.boolString(defaultPromptUsed),
                 "input_truncated": Self.boolString(inputTruncated),
             ]
+        case .llmProviderUnavailable(let provider, let errorType, let feature, let source):
+            var props: [String: String] = [
+                "provider": provider,
+                "error_type": errorType,
+                "feature": feature.rawValue,
+            ]
+            if let source { props["source"] = source.rawValue }
+            return props
         case .llmOperation(
             let operationID,
             let operationContext,
@@ -1252,6 +1285,7 @@ public enum TelemetryImplementedContract {
         .llmTransformFailed: ["provider", "error_type"],
         .llmFormatterUsed: ["provider", "source", "duration_seconds", "input_chars", "output_chars", "default_prompt_used", "input_truncated"],
         .llmFormatterFailed: ["provider", "source", "duration_seconds", "error_type", "default_prompt_used", "input_truncated"],
+        .llmProviderUnavailable: ["provider", "error_type", "feature"],
         .llmOperation: ["operation_id", "feature", "provider", "streaming", "outcome", "duration_seconds"],
         .historySearched: [],
         .historyReplayed: [],
