@@ -42,11 +42,24 @@ import { fileURLToPath } from 'node:url';
 import { KokoroTTS } from 'kokoro-js';
 import { SCRIPT } from '../src/content/script.js';
 
+// Mirror of kokoro-js's internal voice union (`keyof typeof VOICES`). Not
+// exported by the package, so re-declared here for type safety. Keep in
+// sync with the catalog in the script header.
+type KokoroVoice =
+  | 'af_alloy' | 'af_aoede' | 'af_bella' | 'af_heart' | 'af_jessica'
+  | 'af_kore' | 'af_nicole' | 'af_nova' | 'af_river' | 'af_sarah' | 'af_sky'
+  | 'am_adam' | 'am_echo' | 'am_eric' | 'am_fenrir' | 'am_liam'
+  | 'am_michael' | 'am_onyx' | 'am_puck' | 'am_santa'
+  | 'bf_alice' | 'bf_emma' | 'bf_isabella' | 'bf_lily'
+  | 'bm_daniel' | 'bm_fable' | 'bm_george' | 'bm_lewis';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const MODEL_ID = 'onnx-community/Kokoro-82M-v1.0-ONNX';
-const VOICE = process.env.KOKORO_VOICE ?? 'af_bella';
+// VoiceId is a string-literal union exported by kokoro-js. Env values are
+// trusted to match (validated against the catalog in the script header).
+const VOICE = (process.env.KOKORO_VOICE ?? 'af_bella') as KokoroVoice;
 // q8 = 8-bit quantized: good quality, ~80MB model, fast on CPU.
 // Use "fp32" for absolute maximum quality (slower, larger).
 const DTYPE = (process.env.KOKORO_DTYPE ?? 'q8') as 'fp32' | 'fp16' | 'q8' | 'q4' | 'q4f16';

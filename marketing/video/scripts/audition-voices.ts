@@ -24,6 +24,16 @@ import { fileURLToPath } from 'node:url';
 import { KokoroTTS } from 'kokoro-js';
 import { SCRIPT } from '../src/content/script.js';
 
+// Mirror of kokoro-js's internal voice union. Not exported by the
+// package, so re-declared here for type safety.
+type KokoroVoice =
+  | 'af_alloy' | 'af_aoede' | 'af_bella' | 'af_heart' | 'af_jessica'
+  | 'af_kore' | 'af_nicole' | 'af_nova' | 'af_river' | 'af_sarah' | 'af_sky'
+  | 'am_adam' | 'am_echo' | 'am_eric' | 'am_fenrir' | 'am_liam'
+  | 'am_michael' | 'am_onyx' | 'am_puck' | 'am_santa'
+  | 'bf_alice' | 'bf_emma' | 'bf_isabella' | 'bf_lily'
+  | 'bm_daniel' | 'bm_fable' | 'bm_george' | 'bm_lewis';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -33,7 +43,7 @@ const OUT_DIR = path.resolve(__dirname, '../public/audio/audition');
 
 // Curated shortlist — voices that lean calm/professional/warm.
 // Mixes male/female, American/British so you can pick the best fit.
-const SHORTLIST: Array<{ id: string; note: string }> = [
+const SHORTLIST: Array<{ id: KokoroVoice; note: string }> = [
   { id: 'af_bella', note: 'American Female · warm · default recommendation' },
   { id: 'af_heart', note: 'American Female · soft · the "literary narrator" voice' },
   { id: 'af_sarah', note: 'American Female · calm · clear diction' },
