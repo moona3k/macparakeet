@@ -122,6 +122,22 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertTrue(harness.telemetry.snapshot().containsCaptionDuration(outcome: "failure"))
     }
 
+    func testNoSpeechDismissesCaptionWithSnakeCaseOutcome() async throws {
+        let harness = try makeHarness(
+            isReady: false,
+            transcribeDelayMs: 140,
+            transcribeError: DictationServiceError.emptyTranscript
+        )
+
+        try await harness.startAndStop()
+        let shown = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == .preparing }
+        XCTAssertTrue(shown)
+        let cleared = await waitUntil { harness.coordinator.processingLoadCaptionForTesting == nil }
+        XCTAssertTrue(cleared)
+
+        XCTAssertTrue(harness.telemetry.snapshot().containsCaptionDuration(outcome: "no_speech"))
+    }
+
     func testCancelDuringVisibleCaptionClearsCaption() async throws {
         let harness = try makeHarness(isReady: false, transcribeDelayMs: 2_000)
 

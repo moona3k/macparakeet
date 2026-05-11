@@ -22,12 +22,13 @@ Decisions made during implementation:
 Programmatic verification performed:
 
 - Baseline `swift test` before code changes: PASS, 2412 XCTest tests, 10 skipped, 0 failures.
-- Focused caption coordinator tests: `swift test --filter DictationFlowCoordinatorLoadCaptionTests` PASS, 9 tests.
+- Focused caption coordinator tests: `swift test --filter DictationFlowCoordinatorLoadCaptionTests` PASS, 10 tests.
+- Focused caption coordinator tests under parallel scheduling: `swift test --parallel --filter DictationFlowCoordinatorLoadCaptionTests` PASS, 10 tests.
 - Focused first-dictation persistence tests: `swift test --filter DictationServiceTests` PASS, 13 tests.
 - Focused telemetry serialization/contract tests: `swift test --filter TelemetryServiceTests` PASS, 41 tests.
 - Swift 6 language-mode build without WhisperKit: `MACPARAKEET_SKIP_WHISPERKIT=1 swift build --build-path .build-swift6-no-whisper -Xswiftc -swift-version -Xswiftc 6` PASS.
 - CI-style parallel suite: `swift test --parallel` PASS, 2424 XCTest tests plus 16 Swift Testing tests.
-- Final full suite after cleanup: `swift test` PASS, 2424 XCTest tests, 10 skipped, plus 16 Swift Testing tests.
+- Final full suite after cleanup: `swift test` PASS, 2425 XCTest tests, 10 skipped, plus 16 Swift Testing tests.
 
 Instrumented app verification performed with `scripts/dev/run_app.sh`:
 
@@ -348,7 +349,7 @@ public func markFirstDictationCompleted() {
 Add to `Sources/MacParakeetCore/Services/Telemetry/TelemetryEvent.swift`:
 
 - **`dictationFirstLoadCaptionShown`** — payload: `first_install: Bool`. Fired when the caption fades in.
-- **`dictationFirstLoadCaptionDuration`** — payload: `duration_ms: Int`, `outcome: "success" | "noSpeech" | "failure" | "cancelled"`. Fired when caption fades out.
+- **`dictationFirstLoadCaptionDuration`** — payload: `duration_ms: Int`, `outcome: "success" | "no_speech" | "failure" | "cancelled"`. Fired when caption fades out.
 
 **Two-repo change required:** Add both event names to `ALLOWED_EVENTS` in `macparakeet-website/functions/api/telemetry.ts` **BEFORE** the app build ships. Per `memory/feedback_telemetry_allowlist.md`, the Worker rejects the entire batch if any event is unknown, silently dropping valid co-batched events. Verify with curl after deploy.
 
@@ -421,7 +422,7 @@ Once the allowlist update lands and a build ships, query D1 (per `reference_clou
 SELECT
     COUNT(*) AS caption_shown_count,
     AVG(json_extract(payload, '$.duration_ms')) AS avg_duration_ms,
-    SUM(CASE WHEN json_extract(payload, '$.first_install') = 1 THEN 1 ELSE 0 END) AS first_install_shown,
+    SUM(CASE WHEN json_extract(payload, '$.first_install') = 'true' THEN 1 ELSE 0 END) AS first_install_shown,
     SUM(CASE WHEN json_extract(payload, '$.outcome') = 'failure' THEN 1 ELSE 0 END) AS failure_count
 FROM events
 WHERE name IN ('dictation_first_load_caption_shown', 'dictation_first_load_caption_duration')

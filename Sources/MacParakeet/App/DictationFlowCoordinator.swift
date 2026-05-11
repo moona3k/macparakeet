@@ -30,7 +30,7 @@ private enum ProcessingLoadCaptionOutcome {
     var telemetryValue: String {
         switch self {
         case .success: return "success"
-        case .noSpeech: return "noSpeech"
+        case .noSpeech: return "no_speech"
         case .failure: return "failure"
         case .cancelled: return "cancelled"
         }
