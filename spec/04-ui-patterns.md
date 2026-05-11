@@ -304,7 +304,7 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 
 ```
 ┌──────────────────────────────────────────┐
-│  [merkaba]  Processing...               │
+│                [merkaba]                 │
 └──────────────────────────────────────────┘
 
 - [merkaba]: Sacred geometry spinner — two counter-rotating equilateral triangles
@@ -313,8 +313,32 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
   - 6 vertex dots: 2.5pt core (white 80%) + 7pt blur glow, pulsing 0.6→1.0 over 1.5s
   - Center nexus: 3pt core (white 90%) + 10pt blur glow, pulsing 0.3→0.7 over 2s
   - Faint outer guide ring: white 8%, 0.5pt stroke
-- "Processing..." label
+- Non-command processing uses the spinner alone unless the transient
+  `"Still transcribing..."` hint is active after a repeated hotkey press.
+  Command processing keeps spinner + "Applying command...".
 - Cross-fades in from recording state via `.opacity` transition
+
+**First-load caption.** If `.processing` is entered while the speech engine is
+not ready, the coordinator arms a 600ms grace timer. If `.processing` is still
+active after the grace, a compact floating capsule appears above the pill in
+the same overlay panel; the pill remains bottom-anchored and its geometry does
+not shift. The caption is separate from the inline `"Still transcribing..."`
+hint so passive engine state and user-triggered processing feedback can
+coexist.
+
+- Copy: `Preparing speech engine…`
+- First-ever install escalation: after 4s, add subcopy
+  `First-time setup — this happens once`
+- Subsequent cold launches never show subcopy
+- Failure: `Couldn't load speech engine.` in `recordingRed`, then the normal
+  error card appears after the brief failure caption
+- Styling: `pillBackground.opacity(0.55)` fill,
+  `pillBorder.opacity(0.6)` 0.5pt stroke, 8pt radius, 11pt rounded medium
+  title, 9.5pt rounded regular subcopy
+- Motion: 220ms ease-in-out opacity + 4pt upward offset; Reduce Motion uses
+  opacity only
+- Telemetry: one `dictation_first_load_caption_shown` event on appear and one
+  `dictation_first_load_caption_duration` event on dismiss
 ```
 
 **4. Formatting (AI Formatter refinement)**

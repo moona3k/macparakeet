@@ -8,6 +8,38 @@
 >
 > Related ADRs: ADR-001 (Parakeet STT), ADR-005 (onboarding), ADR-016 (centralized STT runtime). No new ADR — implementation polish, not an architectural shift.
 
+## Implementation status
+
+Implemented on `feat/dictation-first-load-caption`; keep this plan active until the user verifies a real build and moves it to `plans/completed/`.
+
+Decisions made during implementation:
+
+- Pre-warm wiring lives in `AppDelegate`, scheduled after environment setup and again from `OnboardingCoordinator`'s completion callback. It is gated by `OnboardingViewModel.onboardingCompletedKey`, then calls the existing idempotent `STTRuntime.backgroundWarmUp()`.
+- Caption spacing is an effective 6pt above the pill (4pt stack spacing plus 2pt caption bottom padding). The pill remains the bottom-anchored element.
+- Animation timing stays at 220ms ease-in-out, with an opacity-only transition when Reduce Motion is enabled.
+- Subcopy escalation stays at 4s, scoped to `hasCompletedFirstDictation == false`.
+
+Programmatic verification performed:
+
+- Baseline `swift test` before code changes: PASS, 2412 XCTest tests, 10 skipped, 0 failures.
+- Focused caption coordinator tests: `swift test --filter DictationFlowCoordinatorLoadCaptionTests` PASS, 8 tests.
+- Focused first-dictation persistence tests: `swift test --filter DictationServiceTests` PASS, 13 tests.
+- Focused telemetry serialization/contract tests: `swift test --filter TelemetryServiceTests` PASS, 40 tests.
+- Final full suite after cleanup: `swift test` PASS, 2422 XCTest tests, 10 skipped, plus 16 Swift Testing tests.
+
+Instrumented app verification performed with `scripts/dev/run_app.sh`:
+
+- Normal launch with prior successful dictation: deferred pre-warm won; a short push-to-talk dictation entered processing without showing the first-load caption.
+- Forced slow STT load: first-install state showed `Preparing speech engine…`, then the first-time setup subcopy; subsequent cold-launch state showed only the main copy.
+- Forced STT initialization failure: caption switched to the red `Couldn't load speech engine.` variant before the existing overlay error card appeared.
+- Reduce Motion enabled: caption used the code path for opacity-only transition, with no slide offset.
+- Screenshot-based geometry checks confirmed the pill's bottom-of-screen position did not shift when the caption appeared or disappeared.
+
+Remaining human QA focus:
+
+- Subjective animation feel on a physical display, especially the 6pt spacing and 220ms curve.
+- Deployment order for the sibling website telemetry allowlist before any build containing these events ships.
+
 ## TL;DR
 
 On the very first dictation after each cold app launch, the Parakeet model has not yet been loaded into memory, so the `.processing` spinner spins silently for ~5–15s (longer on a truly-first install) before the first transcript appears. Every subsequent dictation drops to ~500ms. This contradicts the "fast and snappy" brand promise and is the dominant first-impression friction.

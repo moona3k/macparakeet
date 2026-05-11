@@ -128,6 +128,11 @@ REQ-DICT-005:
   version: v0.5
   status: implemented
 
+REQ-DICT-006:
+  description: First dictation after cold speech-engine load shows a graceful processing caption while launch pre-warm reduces normal exposure
+  version: v0.6
+  status: implemented
+
 REQ-DATA-003:
   description: Multi-conversation chat per transcription
   version: v0.5

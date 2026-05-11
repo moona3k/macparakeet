@@ -48,6 +48,7 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 | Requirement | Source Files | Test Files |
 |------------|-------------|------------|
 | REQ-DICT-005 | `MacParakeetCore/Database/DictationRepository.swift` | `DictationRepositoryTests.swift` |
+| REQ-DICT-006 | `MacParakeet/App/AppDelegate.swift`, `MacParakeet/App/OnboardingCoordinator.swift`, `MacParakeet/App/DictationFlowCoordinator.swift`, `MacParakeet/Views/Dictation/DictationOverlayController.swift`, `MacParakeet/Views/Dictation/DictationOverlayView.swift`, `MacParakeet/Views/Dictation/LoadingCaptionView.swift`, `MacParakeetCore/AppRuntimePreferences.swift`, `MacParakeetCore/Services/Dictation/DictationService.swift`, `MacParakeetCore/Services/Telemetry/TelemetryEvent.swift` | `DictationFlowCoordinatorLoadCaptionTests.swift`, `DictationServiceTests.swift`, `TelemetryServiceTests.swift` |
 | REQ-DATA-003 | `MacParakeetCore/Database/ChatConversationRepository.swift`, `MacParakeetCore/Models/ChatConversation.swift` | `ChatConversationRepositoryTests.swift`, `TranscriptChatViewModelTests.swift` |
 | REQ-YT-002 | `MacParakeetCore/Database/TranscriptionRepository.swift` | `TranscriptionRepositoryTests.swift` |
 | REQ-TRANS-003 | `MacParakeetCore/Services/MediaMetadataExtractor.swift`, `MacParakeetCore/Services/TranscriptionService.swift`, `MacParakeetCore/Services/ThumbnailCacheService.swift` | `MediaMetadataExtractorTests.swift`, `TranscriptionServiceTests.swift`, `ThumbnailCacheServiceTests.swift` |
