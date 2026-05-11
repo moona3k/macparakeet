@@ -1,4 +1,3 @@
-import MacParakeetCore
 import SwiftUI
 
 struct LoadingCaptionView: View {

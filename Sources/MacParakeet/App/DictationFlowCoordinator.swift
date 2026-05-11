@@ -132,6 +132,7 @@ final class DictationFlowCoordinator {
     private var captionEscalationTimer: DispatchWorkItem?
     private var captionFailureDismissTask: Task<Void, Never>?
     private var captionShownAt: Date?
+    private var captionGeneration = 0
 
     // MARK: - Flow Context (not state machine concerns)
 
@@ -663,6 +664,8 @@ final class DictationFlowCoordinator {
     }
 
     private func armProcessingLoadCaption() {
+        captionGeneration += 1
+        let generation = captionGeneration
         captionGraceTimer?.cancel()
         captionEscalationTimer?.cancel()
         captionFailureDismissTask?.cancel()
@@ -674,10 +677,12 @@ final class DictationFlowCoordinator {
         Task { @MainActor [weak self] in
             guard let self else { return }
             guard await !self.sttRuntime.isReady() else { return }
+            guard self.captionGeneration == generation else { return }
+            guard let state = self.overlayViewModel?.state, case .processing = state else { return }
 
             let grace = DispatchWorkItem { [weak self] in
                 Task { @MainActor in
-                    self?.fireCaption()
+                    self?.fireCaption(generation: generation)
                 }
             }
             self.captionGraceTimer = grace
@@ -688,7 +693,8 @@ final class DictationFlowCoordinator {
         }
     }
 
-    private func fireCaption() {
+    private func fireCaption(generation: Int) {
+        guard captionGeneration == generation else { return }
         guard overlayViewModel?.processingLoadCaption == nil else { return }
         guard let state = overlayViewModel?.state, case .processing = state else { return }
 
@@ -700,6 +706,7 @@ final class DictationFlowCoordinator {
         guard firstInstall else { return }
         let escalation = DispatchWorkItem { [weak self] in
             Task { @MainActor in
+                guard self?.captionGeneration == generation else { return }
                 guard self?.overlayViewModel?.processingLoadCaption == .preparing else { return }
                 self?.overlayViewModel?.processingLoadCaption = .preparingExtended
             }
@@ -712,6 +719,7 @@ final class DictationFlowCoordinator {
     }
 
     private func dismissCaption(outcome: ProcessingLoadCaptionOutcome) {
+        captionGeneration += 1
         captionGraceTimer?.cancel()
         captionEscalationTimer?.cancel()
         captionFailureDismissTask?.cancel()
