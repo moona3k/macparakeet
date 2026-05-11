@@ -795,6 +795,7 @@ final class TelemetryServiceTests: XCTestCase {
     func testHotkeyCustomizedPropsUseStructuralCategoriesOnly() {
         let cases: [(TelemetryHotkeySurface, TelemetryHotkeyKind, String, String)] = [
             (.dictation, .disabled, "dictation", "disabled"),
+            (.pushToTalk, .modifier, "push_to_talk", "modifier"),
             (.meeting, .modifier, "meeting", "modifier"),
             (.fileTranscription, .keyCode, "file_transcription", "key_code"),
             (.youtubeTranscription, .chord, "youtube_transcription", "chord"),

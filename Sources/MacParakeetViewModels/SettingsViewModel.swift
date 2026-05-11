@@ -86,6 +86,16 @@ public final class SettingsViewModel {
             Telemetry.send(hotkeyTrigger.customizedEvent(surface: .dictation))
         }
     }
+    public var pushToTalkHotkeyTrigger: HotkeyTrigger {
+        didSet {
+            pushToTalkHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+            NotificationCenter.default.post(
+                name: .macParakeetPushToTalkHotkeyTriggerDidChange,
+                object: nil
+            )
+            Telemetry.send(pushToTalkHotkeyTrigger.customizedEvent(surface: .pushToTalk))
+        }
+    }
     public var meetingHotkeyTrigger: HotkeyTrigger {
         didSet {
             meetingHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
@@ -453,6 +463,12 @@ public final class SettingsViewModel {
         showIdlePill = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey) as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
         hotkeyTrigger = HotkeyTrigger.current(defaults: defaults)
+        let shouldPersistPushToTalkMigration = defaults.object(forKey: HotkeyTrigger.pushToTalkDefaultsKey) == nil
+        let resolvedPushToTalkHotkeyTrigger = Self.resolvePushToTalkHotkeyTrigger(defaults: defaults)
+        pushToTalkHotkeyTrigger = resolvedPushToTalkHotkeyTrigger
+        if shouldPersistPushToTalkMigration {
+            resolvedPushToTalkHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+        }
         meetingHotkeyTrigger = Self.resolveMeetingHotkeyTrigger(defaults: defaults)
         fileTranscriptionHotkeyTrigger = Self.resolveTranscriptionHotkeyTrigger(
             defaults: defaults,
@@ -642,6 +658,17 @@ public final class SettingsViewModel {
             defaults: defaults,
             defaultsKey: HotkeyTrigger.meetingDefaultsKey,
             fallback: .defaultMeetingRecording
+        )
+    }
+
+    private static func resolvePushToTalkHotkeyTrigger(defaults: UserDefaults) -> HotkeyTrigger {
+        guard defaults.object(forKey: HotkeyTrigger.pushToTalkDefaultsKey) != nil else {
+            return HotkeyTrigger.current(defaults: defaults, fallback: .defaultPushToTalk)
+        }
+        return HotkeyTrigger.current(
+            defaults: defaults,
+            defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+            fallback: .defaultPushToTalk
         )
     }
 

@@ -488,6 +488,15 @@ final class SettingsViewModelTests: XCTestCase {
         wait(for: [expectation], timeout: 1.0)
     }
 
+    func testPushToTalkHotkeyPostsNotificationOnChange() {
+        let expectation = expectation(
+            forNotification: Notification.Name("macparakeet.pushToTalkHotkeyTriggerDidChange"),
+            object: nil
+        )
+        viewModel.pushToTalkHotkeyTrigger = .control
+        wait(for: [expectation], timeout: 1.0)
+    }
+
     // MARK: - File/YouTube Transcription Hotkeys
 
     func testTranscriptionHotkeysDefaultToDisabled() {
@@ -546,6 +555,7 @@ final class SettingsViewModelTests: XCTestCase {
         Telemetry.configure(telemetry)
 
         viewModel.hotkeyTrigger = .option
+        viewModel.pushToTalkHotkeyTrigger = .control
         viewModel.meetingHotkeyTrigger = .chord(modifiers: ["control", "option"], keyCode: 46)
         viewModel.fileTranscriptionHotkeyTrigger = .disabled
         viewModel.youtubeTranscriptionHotkeyTrigger = .fromKeyCode(16)
@@ -566,6 +576,7 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertEqual(hotkeyEvents, [
             "dictation:modifier",
+            "push_to_talk:modifier",
             "meeting:chord",
             "file_transcription:disabled",
             "youtube_transcription:key_code",
@@ -1010,6 +1021,10 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.hotkeyTrigger, .fn)
     }
 
+    func testPushToTalkHotkeyTriggerDefaultsToFn() {
+        XCTAssertEqual(viewModel.pushToTalkHotkeyTrigger, .fn)
+    }
+
     func testHotkeyTriggerPersistsKeyCode() {
         let endKey = HotkeyTrigger.fromKeyCode(119)
         viewModel.hotkeyTrigger = endKey
@@ -1024,6 +1039,46 @@ final class SettingsViewModelTests: XCTestCase {
 
         let vm2 = SettingsViewModel(defaults: testDefaults)
         XCTAssertEqual(vm2.hotkeyTrigger, .control)
+    }
+
+    func testPushToTalkHotkeyTriggerPersistsToDedicatedDefaultsKey() {
+        viewModel.pushToTalkHotkeyTrigger = .control
+
+        let vm2 = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(vm2.pushToTalkHotkeyTrigger, .control)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .control
+        )
+    }
+
+    func testPushToTalkHotkeyTriggerMigratesFromLegacyDictationHotkey() {
+        let legacyTrigger = HotkeyTrigger.fromKeyCode(119)
+        testDefaults.removeObject(forKey: HotkeyTrigger.pushToTalkDefaultsKey)
+        legacyTrigger.save(to: testDefaults)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, legacyTrigger)
+
+        vm.hotkeyTrigger = .control
+        let vm2 = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(vm2.pushToTalkHotkeyTrigger, legacyTrigger)
+    }
+
+    func testPushToTalkDedicatedDefaultsKeyWinsOverLegacyDictationHotkey() {
+        let dedicatedTrigger = HotkeyTrigger.fromKeyCode(119)
+        testDefaults.set("option", forKey: HotkeyTrigger.defaultsKey)
+        dedicatedTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .option)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, dedicatedTrigger)
     }
 
     func testHotkeyTriggerBackwardCompatibleWithLegacyString() {

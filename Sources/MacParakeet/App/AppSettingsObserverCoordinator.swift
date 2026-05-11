@@ -6,6 +6,7 @@ final class AppSettingsObserverCoordinator {
     private let onOpenOnboarding: () -> Void
     private let onOpenSettings: () -> Void
     private let onHotkeyTriggerChanged: () -> Void
+    private let onPushToTalkHotkeyTriggerChanged: () -> Void
     private let onMeetingHotkeyTriggerChanged: () -> Void
     private let onFileTranscriptionHotkeyTriggerChanged: () -> Void
     private let onYouTubeTranscriptionHotkeyTriggerChanged: () -> Void
@@ -15,6 +16,7 @@ final class AppSettingsObserverCoordinator {
     private var onboardingObserver: Any?
     private var settingsObserver: Any?
     private var hotkeyTriggerObserver: Any?
+    private var pushToTalkHotkeyTriggerObserver: Any?
     private var meetingHotkeyTriggerObserver: Any?
     private var fileTranscriptionHotkeyTriggerObserver: Any?
     private var youtubeTranscriptionHotkeyTriggerObserver: Any?
@@ -26,6 +28,7 @@ final class AppSettingsObserverCoordinator {
         onOpenOnboarding: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
         onHotkeyTriggerChanged: @escaping () -> Void,
+        onPushToTalkHotkeyTriggerChanged: @escaping () -> Void,
         onMeetingHotkeyTriggerChanged: @escaping () -> Void,
         onFileTranscriptionHotkeyTriggerChanged: @escaping () -> Void,
         onYouTubeTranscriptionHotkeyTriggerChanged: @escaping () -> Void,
@@ -36,6 +39,7 @@ final class AppSettingsObserverCoordinator {
         self.onOpenOnboarding = onOpenOnboarding
         self.onOpenSettings = onOpenSettings
         self.onHotkeyTriggerChanged = onHotkeyTriggerChanged
+        self.onPushToTalkHotkeyTriggerChanged = onPushToTalkHotkeyTriggerChanged
         self.onMeetingHotkeyTriggerChanged = onMeetingHotkeyTriggerChanged
         self.onFileTranscriptionHotkeyTriggerChanged = onFileTranscriptionHotkeyTriggerChanged
         self.onYouTubeTranscriptionHotkeyTriggerChanged = onYouTubeTranscriptionHotkeyTriggerChanged
@@ -73,6 +77,16 @@ final class AppSettingsObserverCoordinator {
         ) { [weak self] _ in
             Task { @MainActor in
                 self?.onHotkeyTriggerChanged()
+            }
+        }
+
+        pushToTalkHotkeyTriggerObserver = notificationCenter.addObserver(
+            forName: .macParakeetPushToTalkHotkeyTriggerDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.onPushToTalkHotkeyTriggerChanged()
             }
         }
 
@@ -139,6 +153,10 @@ final class AppSettingsObserverCoordinator {
         if let hotkeyTriggerObserver {
             notificationCenter.removeObserver(hotkeyTriggerObserver)
             self.hotkeyTriggerObserver = nil
+        }
+        if let pushToTalkHotkeyTriggerObserver {
+            notificationCenter.removeObserver(pushToTalkHotkeyTriggerObserver)
+            self.pushToTalkHotkeyTriggerObserver = nil
         }
         if let meetingHotkeyTriggerObserver {
             notificationCenter.removeObserver(meetingHotkeyTriggerObserver)

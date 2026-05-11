@@ -158,7 +158,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.appEnvironment
         },
         hotkeyMenuTitleProvider: { [weak self] in
-            self?.hotkeyMenuTitle ?? AppHotkeyCoordinator.menuTitle(for: HotkeyTrigger.current)
+            self?.hotkeyMenuTitle ?? AppHotkeyCoordinator.menuTitle(handsFree: .defaultDictation, pushToTalk: .defaultPushToTalk)
         },
         meetingHotkeyTriggerProvider: { [weak self] in
             self?.settingsViewModel.meetingHotkeyTrigger ?? .defaultMeetingRecording
@@ -198,6 +198,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.windowCoordinator.openMainWindowToSettings()
         },
         onHotkeyTriggerChanged: { [weak self] in
+            self?.handleHotkeyTriggerChange()
+        },
+        onPushToTalkHotkeyTriggerChanged: { [weak self] in
             self?.handleHotkeyTriggerChange()
         },
         onMeetingHotkeyTriggerChanged: { [weak self] in
@@ -459,7 +462,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var hotkeyMenuTitle: String {
         hotkeyCoordinator?.hotkeyMenuTitle
-            ?? AppHotkeyCoordinator.menuTitle(for: HotkeyTrigger.current)
+            ?? AppHotkeyCoordinator.menuTitle(
+                handsFree: settingsViewModel.hotkeyTrigger,
+                pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger
+            )
     }
 
     // MARK: - Menu Bar Icon State

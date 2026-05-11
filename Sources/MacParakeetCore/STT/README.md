@@ -32,11 +32,12 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   shape as the Parakeet path.
 
 **Hotkey state (lives here for testability)**
-- `FnKeyStateMachine.swift` — pure state machine for the Fn-key
-  gesture (double-tap → persistent, hold → push-to-talk, Esc → cancel
-  window).
+- `FnKeyStateMachine.swift` — pure state machine for combined
+  dictation gestures (double-tap → persistent, hold → push-to-talk,
+  Esc → cancel window).
 - `HotkeyGestureController.swift` — wraps the state machine for the
-  app's hotkey driver.
+  app's hotkey driver and scopes behavior to combined, hands-free-only,
+  or push-to-talk-only roles.
 - `HotkeyTrigger.swift` — value types describing trigger kinds.
 - `KeyCodeNames.swift` — display strings for keys.
 - `OnboardingProgressParser.swift` — parses FluidAudio model-download
@@ -96,11 +97,11 @@ manager.initialize() }`, and don't reach into `STTRuntime`'s
 private state. Warm-up happens automatically (background or
 explicit); use `STTRuntime.observeWarmUpProgress()` to surface UI.
 
-**Hotkey state is pure and testable.** `FnKeyStateMachine` takes
-abstract up/down events with timestamps and emits actions. Don't
-add CGEvent or NSEvent imports here — that machinery lives in the
-GUI target's `Hotkey/` folder and translates real events into the
-state machine's input shape.
+**Hotkey state is pure and testable.** `FnKeyStateMachine` and
+`HotkeyGestureController` take abstract gesture events with timestamps
+and emit actions. Don't add CGEvent or NSEvent imports here — that
+machinery lives in the GUI target's `Hotkey/` folder and translates
+real events into the controller's input shape.
 
 ## How to verify a change
 

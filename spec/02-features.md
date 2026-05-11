@@ -154,8 +154,9 @@ Both modes coexist with no configuration required. The 400ms threshold distingui
 - Bare-tap filtering (modifiers only): if a regular key is pressed while the modifier is held (e.g., Ctrl+C), the release is not counted as a tap — prevents keyboard shortcuts from triggering dictation
 - Gesture interruption: if a non-Escape key is pressed during `waitingForSecondTap`, the state machine resets — prevents double-tap detection across typing
 - Chord validation: Escape blocked for all kinds. Modifier+key chords containing Command warn about system shortcut conflicts (Cmd+Tab, Cmd+Space, Cmd+Q/W/H/M). Fn is bare-modifier-only — not allowed in chords.
-- On key-down: schedule a 400ms `DispatchWorkItem`. If a second tap arrives before it fires, enter double-tap (persistent mode). If the timer fires with the key still held, enter hold-mode and begin recording.
-- On key-up: if hold timer still pending, cancel it (was a quick tap). If recording in hold-mode, auto-stop and process.
+- Combined-trigger key-down: schedule startup debounce and a 400ms hold window. A second tap inside the window enters hands-free persistent mode; holding past the window confirms push-to-talk.
+- Dedicated push-to-talk key-down: schedule only the startup debounce, then start hold-to-talk because there is no double-tap ambiguity.
+- On key-up: quick taps discard any provisional capture for combined/double-tap detection; dedicated push-to-talk releases after startup debounce stop and process.
 - Escape is permanently reserved for cancel-dictation and cannot be assigned as hotkey
 - Requires Accessibility permission (prompted on first activation).
 - Stop orchestration is state-driven (proceed, defer-until-recording, reject-not-recording) to avoid first-start races when stop arrives before `startRecording()` fully transitions to `.recording`.

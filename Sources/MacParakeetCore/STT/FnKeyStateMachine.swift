@@ -206,6 +206,12 @@ public final class FnKeyStateMachine {
         }
     }
 
+    /// Block this trigger until the owning flow explicitly resets it.
+    public func blockUntilReset() {
+        state = .cancelWindow
+        hasActiveProvisionalRecording = false
+    }
+
     /// Resume recording after undo — sets the state machine to the active recording mode
     /// so Fn key gestures work correctly.
     public func resumeRecording(mode: RecordingMode) {

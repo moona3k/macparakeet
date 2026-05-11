@@ -88,6 +88,30 @@ final class HotkeyGestureControllerTests: XCTestCase {
         )
     }
 
+    func testInterruptionDuringConfirmedHoldCancelsRecordingImmediately() {
+        let controller = HotkeyGestureController()
+        _ = controller.triggerPressed(timestampMs: 1_000)
+        _ = controller.holdWindowElapsed()
+
+        let outputs = controller.interrupted()
+
+        XCTAssertEqual(
+            outputs,
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .cancelRecording,
+            ]
+        )
+        XCTAssertEqual(
+            controller.triggerReleased(timestampMs: 1_500),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+    }
+
     func testEscapeWhileIdleDelegatesToIdleHandler() {
         let controller = HotkeyGestureController()
 
@@ -148,6 +172,171 @@ final class HotkeyGestureControllerTests: XCTestCase {
             [
                 .scheduleStartupDebounce(milliseconds: 50),
                 .scheduleHoldWindow(milliseconds: 50),
+            ]
+        )
+    }
+
+    func testDoubleTapOnlyDoesNotStartHoldToTalk() {
+        let controller = HotkeyGestureController(mode: .doubleTapOnly)
+
+        XCTAssertEqual(controller.triggerPressed(timestampMs: 1_000), [])
+        XCTAssertEqual(controller.startupDebounceElapsed(), [])
+        XCTAssertEqual(controller.holdWindowElapsed(), [])
+        XCTAssertEqual(
+            controller.triggerReleased(timestampMs: 1_050),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .showReadyForSecondTap,
+            ]
+        )
+        XCTAssertEqual(
+            controller.triggerPressed(timestampMs: 1_200),
+            [.startRecording(mode: .persistent)]
+        )
+    }
+
+    func testHoldOnlyStartsAfterStartupAndStopsOnRelease() {
+        let controller = HotkeyGestureController(mode: .holdOnly)
+
+        XCTAssertEqual(
+            controller.triggerPressed(timestampMs: 1_000),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(
+            controller.startupDebounceElapsed(),
+            [.startRecording(mode: .holdToTalk)]
+        )
+        XCTAssertEqual(
+            controller.triggerReleased(timestampMs: 1_300),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .stopRecording,
+            ]
+        )
+    }
+
+    func testHoldOnlyQuickReleaseDoesNotShowSecondTapReadyState() {
+        let controller = HotkeyGestureController(mode: .holdOnly)
+
+        _ = controller.triggerPressed(timestampMs: 1_000)
+
+        XCTAssertEqual(
+            controller.triggerReleased(timestampMs: 1_050),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+    }
+
+    func testNotifyCancelledByUIBlocksDoubleTapOnlyUntilReset() {
+        let controller = HotkeyGestureController(mode: .doubleTapOnly)
+
+        controller.notifyCancelledByUI()
+
+        XCTAssertEqual(controller.triggerPressed(timestampMs: 1_000), [])
+        XCTAssertEqual(
+            controller.triggerReleased(timestampMs: 1_050),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+
+        controller.reset()
+
+        _ = controller.triggerPressed(timestampMs: 1_100)
+        XCTAssertEqual(
+            controller.triggerReleased(timestampMs: 1_150),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .showReadyForSecondTap,
+            ]
+        )
+    }
+
+    func testNotifyCancelledByUIBlocksHoldOnlyUntilReset() {
+        let controller = HotkeyGestureController(mode: .holdOnly)
+
+        controller.notifyCancelledByUI()
+
+        XCTAssertEqual(controller.triggerPressed(timestampMs: 1_000), [])
+        XCTAssertEqual(
+            controller.triggerReleased(timestampMs: 1_050),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+
+        controller.reset()
+
+        XCTAssertEqual(
+            controller.triggerPressed(timestampMs: 1_100),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+    }
+
+    func testHoldOnlyEscapeDuringCancelWindowConfirmsAndUnblocks() {
+        let controller = HotkeyGestureController(mode: .holdOnly)
+        _ = controller.triggerPressed(timestampMs: 1_000)
+        _ = controller.startupDebounceElapsed()
+
+        XCTAssertEqual(
+            controller.escapePressed(),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .cancelRecording,
+            ]
+        )
+        XCTAssertEqual(
+            controller.escapePressed(),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .cancelRecording,
+            ]
+        )
+        XCTAssertEqual(
+            controller.triggerPressed(timestampMs: 1_200),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+    }
+
+    func testSuppressedControllerIgnoresGesturesUntilReset() {
+        let controller = HotkeyGestureController(mode: .holdOnly)
+
+        controller.suppressUntilReset()
+
+        XCTAssertEqual(controller.triggerPressed(timestampMs: 1_000), [])
+        XCTAssertEqual(controller.startupDebounceElapsed(), [])
+        XCTAssertEqual(controller.escapePressed(), [])
+        XCTAssertEqual(controller.triggerReleased(timestampMs: 1_200), [])
+
+        controller.reset()
+
+        XCTAssertEqual(
+            controller.triggerPressed(timestampMs: 1_300),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+    }
+
+    func testCancelWindowNotificationOverridesSuppression() {
+        let controller = HotkeyGestureController(mode: .holdOnly)
+
+        controller.suppressUntilReset()
+        controller.notifyCancelledByUI()
+
+        XCTAssertEqual(
+            controller.escapePressed(),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+                .cancelRecording,
             ]
         )
     }

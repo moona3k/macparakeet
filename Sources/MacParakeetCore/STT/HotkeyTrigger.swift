@@ -323,6 +323,7 @@ public struct HotkeyTrigger: Sendable {
     // MARK: - Default Triggers
 
     public static let defaultDictation: HotkeyTrigger = .fn
+    public static let defaultPushToTalk: HotkeyTrigger = .fn
     public static let defaultMeetingRecording: HotkeyTrigger = .chord(modifiers: ["command", "shift"], keyCode: 46)
 
     // MARK: - Factory
@@ -579,6 +580,7 @@ public struct HotkeyTrigger: Sendable {
     // MARK: - Persistence
 
     public static let defaultsKey = "hotkeyTrigger"
+    public static let pushToTalkDefaultsKey = "pushToTalkHotkeyTrigger"
     public static let meetingDefaultsKey = "meetingHotkeyTrigger"
     public static let fileTranscriptionDefaultsKey = "fileTranscriptionHotkeyTrigger"
     public static let youtubeTranscriptionDefaultsKey = "youtubeTranscriptionHotkeyTrigger"

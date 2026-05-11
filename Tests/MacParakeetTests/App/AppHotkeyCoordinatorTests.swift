@@ -30,7 +30,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             onToggleMeetingRecording: {},
             onTriggerFileTranscription: {},
             onTriggerYouTubeTranscription: {},
-            onPrimaryHotkeyManagerChanged: { _ in },
+            onDictationHotkeyManagersChanged: { _ in },
             onAnyHotkeyEnabled: onAnyHotkeyEnabled,
             onHotkeyUnavailable: onHotkeyUnavailable,
             onHotkeyConflict: onHotkeyConflict
@@ -63,5 +63,95 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         XCTAssertEqual(reportedConflicts, [conflictingTrigger])
         XCTAssertEqual(enabledCount, 0)
         XCTAssertEqual(unavailableCount, 0)
+    }
+
+    func testMenuTitleDescribesSharedDictationTrigger() {
+        XCTAssertEqual(
+            AppHotkeyCoordinator.menuTitle(handsFree: .fn, pushToTalk: .fn),
+            "Dictation: Fn (hold or double-tap)"
+        )
+    }
+
+    func testMenuTitleDescribesDistinctDictationTriggers() {
+        XCTAssertEqual(
+            AppHotkeyCoordinator.menuTitle(handsFree: .control, pushToTalk: .option),
+            "Dictation: Hold Option / Double-tap Control"
+        )
+    }
+
+    func testDictationHotkeyPlanUsesOneCombinedManagerForSharedTrigger() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .fn,
+            pushToTalk: .fn
+        )
+
+        XCTAssertEqual(
+            plan,
+            AppHotkeyCoordinator.DictationHotkeyPlan(
+                specs: [
+                    .init(trigger: .fn, gestureMode: .doubleTapAndHold),
+                ],
+                conflict: nil
+            )
+        )
+    }
+
+    func testDictationHotkeyPlanUsesSeparateManagersForDistinctTriggers() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control,
+            pushToTalk: .option
+        )
+
+        XCTAssertEqual(
+            plan,
+            AppHotkeyCoordinator.DictationHotkeyPlan(
+                specs: [
+                    .init(trigger: .control, gestureMode: .doubleTapOnly),
+                    .init(trigger: .option, gestureMode: .holdOnly),
+                ],
+                conflict: nil
+            )
+        )
+    }
+
+    func testDictationHotkeyPlanKeepsHandsFreeOnlyWhenTriggersOverlapButDiffer() {
+        let pushToTalk = HotkeyTrigger.modifierChord(modifiers: ["control", "option"])
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control,
+            pushToTalk: pushToTalk
+        )
+
+        XCTAssertEqual(
+            plan,
+            AppHotkeyCoordinator.DictationHotkeyPlan(
+                specs: [
+                    .init(trigger: .control, gestureMode: .doubleTapOnly),
+                ],
+                conflict: .init(trigger: pushToTalk, conflicts: [.control])
+            )
+        )
+    }
+
+    func testDictationHotkeyPlanHandlesDisabledRoles() {
+        XCTAssertEqual(
+            AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: .disabled,
+                pushToTalk: .option
+            ),
+            AppHotkeyCoordinator.DictationHotkeyPlan(
+                specs: [
+                    .init(trigger: .option, gestureMode: .holdOnly),
+                ],
+                conflict: nil
+            )
+        )
+
+        XCTAssertEqual(
+            AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: .disabled,
+                pushToTalk: .disabled
+            ),
+            AppHotkeyCoordinator.DictationHotkeyPlan(specs: [], conflict: nil)
+        )
     }
 }

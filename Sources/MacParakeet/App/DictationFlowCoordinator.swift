@@ -60,8 +60,8 @@ final class DictationFlowCoordinator {
         }
     }
 
-    /// Set after init; updated when hotkey manager is recreated
-    var hotkeyManager: HotkeyManager?
+    /// Set after init; updated when dictation hotkey managers are recreated.
+    var hotkeyManagers: [HotkeyManager] = []
 
     // MARK: - Dependencies
 
@@ -102,7 +102,7 @@ final class DictationFlowCoordinator {
     /// Error from the most recent entitlements check failure, consumed by presentEntitlementsAlert effect.
     private var lastEntitlementsError: Error?
     private var readyPillDismissDelayMs: Int {
-        (hotkeyManager?.tapThresholdMs ?? FnKeyStateMachine.defaultTapThresholdMs) * 2
+        (hotkeyManagers.first?.tapThresholdMs ?? FnKeyStateMachine.defaultTapThresholdMs) * 2
     }
 
     // MARK: - Init
@@ -516,10 +516,10 @@ final class DictationFlowCoordinator {
             onMenuBarIconUpdate(iconState)
 
         case .resetHotkeyStateMachine:
-            hotkeyManager?.resetToIdle()
+            hotkeyManagers.forEach { $0.resetToIdle() }
 
         case .notifyHotkeyCancelledByUI:
-            hotkeyManager?.notifyCancelledByUI()
+            hotkeyManagers.forEach { $0.notifyCancelledByUI() }
 
         case .presentEntitlementsAlert:
             if let error = lastEntitlementsError {

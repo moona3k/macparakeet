@@ -211,6 +211,7 @@ public enum TelemetryPermission: String, Sendable, Equatable {
 /// single-key trigger?".
 public enum TelemetryHotkeySurface: String, Sendable, Equatable {
     case dictation
+    case pushToTalk = "push_to_talk"
     case meeting
     case fileTranscription = "file_transcription"
     case youtubeTranscription = "youtube_transcription"

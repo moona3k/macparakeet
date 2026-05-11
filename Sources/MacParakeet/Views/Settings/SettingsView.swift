@@ -480,18 +480,43 @@ struct SettingsView: View {
     private var dictationCard: some View {
         settingsCard(
             title: "Dictation",
-            subtitle: "Global hotkey and silence behavior.",
+            subtitle: "Global shortcuts and silence behavior.",
             icon: "waveform"
         ) {
             VStack(spacing: DesignSystem.Spacing.md) {
                 HStack(alignment: .center) {
                     rowText(
-                        title: "Hotkey",
-                        detail: "System-wide key used to start and stop dictation."
+                        title: "Push to talk",
+                        detail: "Hold to dictate, release to stop."
                     )
                     Spacer(minLength: DesignSystem.Spacing.md)
                     VStack(alignment: .trailing, spacing: 4) {
-                        HotkeyRecorderView(trigger: $viewModel.hotkeyTrigger) { candidate in
+                        HotkeyRecorderView(
+                            trigger: $viewModel.pushToTalkHotkeyTrigger,
+                            defaultTrigger: .defaultPushToTalk
+                        ) { candidate in
+                            pushToTalkHotkeyValidation(for: candidate)
+                        }
+
+                        if let conflict = pushToTalkHotkeyConflictMessage(for: viewModel.pushToTalkHotkeyTrigger) {
+                            hotkeyConflictText(conflict)
+                        }
+                    }
+                }
+
+                Divider()
+
+                HStack(alignment: .center) {
+                    rowText(
+                        title: "Hands-free mode",
+                        detail: "Double-tap to start; tap again to stop."
+                    )
+                    Spacer(minLength: DesignSystem.Spacing.md)
+                    VStack(alignment: .trailing, spacing: 4) {
+                        HotkeyRecorderView(
+                            trigger: $viewModel.hotkeyTrigger,
+                            defaultTrigger: .defaultDictation
+                        ) { candidate in
                             dictationHotkeyValidation(for: candidate)
                         }
 
@@ -501,7 +526,7 @@ struct SettingsView: View {
                     }
                 }
 
-                if !viewModel.hotkeyTrigger.isDisabled {
+                if !viewModel.hotkeyTrigger.isDisabled || !viewModel.pushToTalkHotkeyTrigger.isDisabled {
                     Divider()
 
                     dictationModeGuide
@@ -775,7 +800,8 @@ struct SettingsView: View {
                     defaultTrigger: .disabled
                 ) { candidate in
                     guard !candidate.isDisabled else { return .allowed }
-                    if candidate.overlaps(with: viewModel.hotkeyTrigger) {
+                    if candidate.overlaps(with: viewModel.hotkeyTrigger)
+                        || candidate.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
                         return .blocked("Already used by dictation.")
                     }
                     if AppFeatures.meetingRecordingEnabled, candidate.overlaps(with: viewModel.meetingHotkeyTrigger) {
@@ -804,7 +830,8 @@ struct SettingsView: View {
         otherTranscriptionName: String
     ) -> String? {
         guard !trigger.isDisabled else { return nil }
-        if trigger.overlaps(with: viewModel.hotkeyTrigger) {
+        if trigger.overlaps(with: viewModel.hotkeyTrigger)
+            || trigger.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
             return "Disabled — conflicts with dictation hotkey."
         }
         if AppFeatures.meetingRecordingEnabled, trigger.overlaps(with: viewModel.meetingHotkeyTrigger) {
@@ -818,6 +845,28 @@ struct SettingsView: View {
 
     private func dictationHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
         guard !candidate.isDisabled else { return .allowed }
+        if candidate != viewModel.pushToTalkHotkeyTrigger,
+           candidate.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
+            return .blocked("Overlaps with push to talk.")
+        }
+        if AppFeatures.meetingRecordingEnabled, candidate.overlaps(with: viewModel.meetingHotkeyTrigger) {
+            return .blocked("Already used by meeting recording.")
+        }
+        if candidate.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
+            return .blocked("Already used by file transcription.")
+        }
+        if candidate.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
+            return .blocked("Already used by YouTube transcription.")
+        }
+        return .allowed
+    }
+
+    private func pushToTalkHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
+        guard !candidate.isDisabled else { return .allowed }
+        if candidate != viewModel.hotkeyTrigger,
+           candidate.overlaps(with: viewModel.hotkeyTrigger) {
+            return .blocked("Overlaps with hands-free mode.")
+        }
         if AppFeatures.meetingRecordingEnabled, candidate.overlaps(with: viewModel.meetingHotkeyTrigger) {
             return .blocked("Already used by meeting recording.")
         }
@@ -832,7 +881,8 @@ struct SettingsView: View {
 
     private func meetingHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
         guard !candidate.isDisabled else { return .allowed }
-        if candidate.overlaps(with: viewModel.hotkeyTrigger) {
+        if candidate.overlaps(with: viewModel.hotkeyTrigger)
+            || candidate.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
             return .blocked("Already used by dictation.")
         }
         if candidate.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
@@ -846,6 +896,28 @@ struct SettingsView: View {
 
     private func dictationHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
         guard !trigger.isDisabled else { return nil }
+        if trigger != viewModel.pushToTalkHotkeyTrigger,
+           trigger.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
+            return "Disabled — overlaps with push to talk."
+        }
+        if AppFeatures.meetingRecordingEnabled, trigger.overlaps(with: viewModel.meetingHotkeyTrigger) {
+            return "Disabled — conflicts with meeting recording hotkey."
+        }
+        if trigger.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
+            return "Disabled — conflicts with file transcription hotkey."
+        }
+        if trigger.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
+            return "Disabled — conflicts with YouTube transcription hotkey."
+        }
+        return nil
+    }
+
+    private func pushToTalkHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
+        guard !trigger.isDisabled else { return nil }
+        if trigger != viewModel.hotkeyTrigger,
+           trigger.overlaps(with: viewModel.hotkeyTrigger) {
+            return "Disabled — overlaps with hands-free mode."
+        }
         if AppFeatures.meetingRecordingEnabled, trigger.overlaps(with: viewModel.meetingHotkeyTrigger) {
             return "Disabled — conflicts with meeting recording hotkey."
         }
@@ -860,7 +932,8 @@ struct SettingsView: View {
 
     private func meetingHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
         guard !trigger.isDisabled else { return nil }
-        if trigger.overlaps(with: viewModel.hotkeyTrigger) {
+        if trigger.overlaps(with: viewModel.hotkeyTrigger)
+            || trigger.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
             return "Disabled — conflicts with dictation hotkey."
         }
         if trigger.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
@@ -1798,22 +1871,28 @@ struct SettingsView: View {
 
     private var dictationModeGuide: some View {
         VStack(spacing: 0) {
-            modeShortcutRow(
-                keys: [viewModel.hotkeyTrigger.shortSymbol, viewModel.hotkeyTrigger.shortSymbol],
-                separator: "·",
-                action: "Persistent dictation",
-                detail: "Tap again to stop"
-            )
+            if !viewModel.pushToTalkHotkeyTrigger.isDisabled {
+                modeShortcutRow(
+                    keys: [viewModel.pushToTalkHotkeyTrigger.shortSymbol],
+                    separator: nil,
+                    action: "Push to talk",
+                    detail: "Release to stop"
+                )
+            }
 
-            Divider()
-                .padding(.leading, 88)
+            if !viewModel.pushToTalkHotkeyTrigger.isDisabled && !viewModel.hotkeyTrigger.isDisabled {
+                Divider()
+                    .padding(.leading, 88)
+            }
 
-            modeShortcutRow(
-                keys: [viewModel.hotkeyTrigger.shortSymbol],
-                separator: nil,
-                action: "Push-to-talk",
-                detail: "Release to stop"
-            )
+            if !viewModel.hotkeyTrigger.isDisabled {
+                modeShortcutRow(
+                    keys: [viewModel.hotkeyTrigger.shortSymbol, viewModel.hotkeyTrigger.shortSymbol],
+                    separator: "·",
+                    action: "Hands-free mode",
+                    detail: "Tap again to stop"
+                )
+            }
         }
         .padding(DesignSystem.Spacing.sm)
         .background(

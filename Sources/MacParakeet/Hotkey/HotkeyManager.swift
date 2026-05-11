@@ -58,10 +58,14 @@ public final class HotkeyManager {
 
     public init(
         trigger: HotkeyTrigger = .fn,
+        gestureMode: HotkeyGestureController.Mode = .doubleTapAndHold,
         tapThresholdMs: Int = FnKeyStateMachine.defaultTapThresholdMs
     ) {
         self.trigger = trigger
-        self.gestureController = HotkeyGestureController(tapThresholdMs: tapThresholdMs)
+        self.gestureController = HotkeyGestureController(
+            mode: gestureMode,
+            tapThresholdMs: tapThresholdMs
+        )
         self.tapThresholdMs = self.gestureController.tapThresholdMs
         self.targetMask = trigger.kind == .modifier ? ModifierKeyMatcher.mask(for: trigger.modifierName) : nil
         self.requiredChordFlags = trigger.chordEventFlags
@@ -400,6 +404,24 @@ public final class HotkeyManager {
         return decision
     }
 
+    func keyCodeEventDecisionForTesting(
+        type: CGEventType,
+        keyCode: UInt16,
+        timestampMs: UInt64
+    ) -> (outputs: [HotkeyGestureController.Output], shouldSwallow: Bool) {
+        guard let triggerCode = trigger.keyCode else {
+            return ([], false)
+        }
+        let decision = keyCodeEventDecision(
+            type: type,
+            keyCode: keyCode,
+            triggerCode: triggerCode,
+            timestampMs: timestampMs
+        )
+        rememberRecordingState(for: decision.outputs)
+        return decision
+    }
+
     func modifierChordFlagsChangedOutputsForTesting(
         flags: CGEventFlags,
         timestampMs: UInt64
@@ -427,39 +449,51 @@ public final class HotkeyManager {
 
         let timestampMs = UInt64(event.timestamp / 1_000_000)
         let keyCode = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+        let decision = keyCodeEventDecision(
+            type: type,
+            keyCode: keyCode,
+            triggerCode: triggerCode,
+            timestampMs: timestampMs
+        )
+        handleOutputs(decision.outputs)
 
+        return decision.shouldSwallow ? nil : Unmanaged.passUnretained(event)
+    }
+
+    private func keyCodeEventDecision(
+        type: CGEventType,
+        keyCode: UInt16,
+        triggerCode: UInt16,
+        timestampMs: UInt64
+    ) -> (outputs: [HotkeyGestureController.Output], shouldSwallow: Bool) {
         if type == .keyDown {
             if keyCode == triggerCode {
                 // Edge detection: ignore key-repeat (macOS sends repeated keyDown for held keys)
                 guard !triggerKeyIsPressed else {
-                    return nil // Swallow repeated keyDown
+                    return ([], true)
                 }
                 triggerKeyIsPressed = true
 
-                handleOutputs(gestureController.triggerPressed(timestampMs: timestampMs))
-
-                return nil // Swallow the trigger key event
+                return (gestureController.triggerPressed(timestampMs: timestampMs), true)
             } else if keyCode == 53 { // Escape
-                handleOutputs(gestureController.escapePressed())
+                return (gestureController.escapePressed(), false)
             } else {
                 // Gesture interruption: if waiting for second tap, a regular key press
                 // means the user is typing, not double-tapping the hotkey
-                handleOutputs(gestureController.interrupted())
+                return (gestureController.interrupted(), false)
             }
         } else if type == .keyUp {
             if keyCode == triggerCode {
                 guard triggerKeyIsPressed else {
-                    return nil // Swallow stale keyUp
+                    return ([], true)
                 }
                 triggerKeyIsPressed = false
-                handleOutputs(gestureController.triggerReleased(timestampMs: timestampMs))
-
-                return nil // Swallow the trigger key event
+                return (gestureController.triggerReleased(timestampMs: timestampMs), true)
             }
         }
         // flagsChanged events are ignored for keyCode triggers
 
-        return Unmanaged.passUnretained(event)
+        return ([], false)
     }
 
     // MARK: - Chord Trigger Path
@@ -627,6 +661,13 @@ public final class HotkeyManager {
     /// Blocks hotkey during the cancel countdown window.
     public func notifyCancelledByUI() {
         gestureController.notifyCancelledByUI()
+        activeRecordingMode = nil
+    }
+
+    public func suppressUntilReset() {
+        cancelStartupTimer()
+        cancelHoldTimer()
+        gestureController.suppressUntilReset()
         activeRecordingMode = nil
     }
 

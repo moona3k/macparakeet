@@ -270,15 +270,15 @@ final class AppEnvironmentConfigurer {
             onToggleMeetingRecording: callbacks.onToggleMeetingRecordingFromHotkey,
             onTriggerFileTranscription: callbacks.onTriggerFileTranscriptionFromHotkey,
             onTriggerYouTubeTranscription: callbacks.onTriggerYouTubeTranscriptionFromHotkey,
-            onPrimaryHotkeyManagerChanged: { manager in
-                coordinatorRefs.dictation?.hotkeyManager = manager
+            onDictationHotkeyManagersChanged: { managers in
+                coordinatorRefs.dictation?.hotkeyManagers = managers
             },
             onAnyHotkeyEnabled: callbacks.onHotkeyBecameAvailable,
             onHotkeyUnavailable: callbacks.onHotkeyUnavailable,
             onHotkeyConflict: callbacks.onHotkeyConflict
         )
 
-        hotkeyCoordinator.setupPrimaryHotkey()
+        hotkeyCoordinator.setupDictationHotkeys()
         hotkeyCoordinator.setupMeetingHotkey()
         hotkeyCoordinator.setupFileTranscriptionHotkey()
         hotkeyCoordinator.setupYouTubeTranscriptionHotkey()

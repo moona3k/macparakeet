@@ -16,6 +16,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         var onboardingCount = 0
         var settingsCount = 0
         var hotkeyTriggerCount = 0
+        var pushToTalkHotkeyTriggerCount = 0
         var meetingHotkeyTriggerCount = 0
         var fileTranscriptionHotkeyTriggerCount = 0
         var youtubeTranscriptionHotkeyTriggerCount = 0
@@ -35,6 +36,10 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
             },
             onHotkeyTriggerChanged: { [unowned self] in
                 self.hotkeyTriggerCount += 1
+                self.onCallback?()
+            },
+            onPushToTalkHotkeyTriggerChanged: { [unowned self] in
+                self.pushToTalkHotkeyTriggerCount += 1
                 self.onCallback?()
             },
             onMeetingHotkeyTriggerChanged: { [unowned self] in
@@ -65,13 +70,14 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
     func test_startObserving_routesEachNotificationToItsCallback() async {
         let fx = Fixture()
         let callbacks = expectation(description: "all callbacks fire")
-        callbacks.expectedFulfillmentCount = 8
+        callbacks.expectedFulfillmentCount = 9
         fx.onCallback = { callbacks.fulfill() }
         fx.coordinator.startObserving()
 
         fx.center.post(name: .macParakeetOpenOnboarding, object: nil)
         fx.center.post(name: .macParakeetOpenSettings, object: nil)
         fx.center.post(name: .macParakeetHotkeyTriggerDidChange, object: nil)
+        fx.center.post(name: .macParakeetPushToTalkHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetMeetingHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetFileTranscriptionHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetYouTubeTranscriptionHotkeyTriggerDidChange, object: nil)
@@ -83,6 +89,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         XCTAssertEqual(fx.onboardingCount, 1)
         XCTAssertEqual(fx.settingsCount, 1)
         XCTAssertEqual(fx.hotkeyTriggerCount, 1)
+        XCTAssertEqual(fx.pushToTalkHotkeyTriggerCount, 1)
         XCTAssertEqual(fx.meetingHotkeyTriggerCount, 1)
         XCTAssertEqual(fx.fileTranscriptionHotkeyTriggerCount, 1)
         XCTAssertEqual(fx.youtubeTranscriptionHotkeyTriggerCount, 1)
@@ -101,6 +108,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         fx.center.post(name: .macParakeetOpenOnboarding, object: nil)
         fx.center.post(name: .macParakeetOpenSettings, object: nil)
         fx.center.post(name: .macParakeetHotkeyTriggerDidChange, object: nil)
+        fx.center.post(name: .macParakeetPushToTalkHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetMeetingHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetFileTranscriptionHotkeyTriggerDidChange, object: nil)
         fx.center.post(name: .macParakeetYouTubeTranscriptionHotkeyTriggerDidChange, object: nil)
@@ -112,6 +120,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         XCTAssertEqual(fx.onboardingCount, 0)
         XCTAssertEqual(fx.settingsCount, 0)
         XCTAssertEqual(fx.hotkeyTriggerCount, 0)
+        XCTAssertEqual(fx.pushToTalkHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.meetingHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.fileTranscriptionHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.youtubeTranscriptionHotkeyTriggerCount, 0)
@@ -171,6 +180,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         XCTAssertEqual(fx.onboardingCount, 1)
         XCTAssertEqual(fx.settingsCount, 0)
         XCTAssertEqual(fx.hotkeyTriggerCount, 0)
+        XCTAssertEqual(fx.pushToTalkHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.meetingHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.fileTranscriptionHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.youtubeTranscriptionHotkeyTriggerCount, 0)
