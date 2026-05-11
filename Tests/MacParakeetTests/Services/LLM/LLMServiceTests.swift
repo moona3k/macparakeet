@@ -15,6 +15,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
     var streamTokens: [String]?
     var testConnectionError: Error?
     var testConnectionDelayNs: UInt64 = 0
+    var chatCompletionError: Error?
 
     func chatCompletion(
         messages: [ChatMessage],
@@ -24,6 +25,7 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         capturedMessages = messages
         capturedContext = context
         capturedOptions = options
+        if let chatCompletionError { throw chatCompletionError }
         return ChatCompletionResponse(
             content: responseContent,
             reasoningContent: responseReasoningContent,
@@ -41,6 +43,11 @@ final class MockLLMClient: LLMClientProtocol, @unchecked Sendable {
         capturedMessages = messages
         capturedContext = context
         capturedOptions = options
+        if let chatCompletionError {
+            return AsyncThrowingStream { continuation in
+                continuation.finish(throwing: chatCompletionError)
+            }
+        }
         let tokens = streamTokens ?? [responseContent]
         return AsyncThrowingStream { continuation in
             for token in tokens {
@@ -962,6 +969,287 @@ final class LLMServiceTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    // MARK: - Provider-Unavailable Routing
+    //
+    // Persistent user-environment errors (Ollama down, model name typo,
+    // missing CLI, bad API key) are emitted as `llm_provider_unavailable`
+    // instead of `llm_*_failed`. The `*_failed` buckets should reflect real
+    // failures worth investigating, not "this user's Ollama isn't running."
+
+    func testFormatTranscriptEmitsProviderUnavailableOnConnectionFailed() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = LLMProviderConfig(
+            id: .ollama,
+            baseURL: URL(string: "http://localhost:11434/v1")!,
+            apiKey: nil,
+            modelName: "llama3:8b",
+            isLocal: true
+        )
+        mockClient.chatCompletionError = LLMError.connectionFailed("refused")
+
+        do {
+            _ = try await service.formatTranscript(
+                transcript: "hello",
+                promptTemplate: AIFormatter.defaultPromptTemplate,
+                source: .dictation,
+                defaultPromptUsed: true
+            )
+            XCTFail("Expected throw")
+        } catch {}
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains { event in
+            if case .llmProviderUnavailable(let provider, let errorType, let feature, let source) = event {
+                return provider == "ollama"
+                    && errorType == "LLMError.connectionFailed"
+                    && feature == .formatter
+                    && source == .dictation
+            }
+            return false
+        }, "Expected llmProviderUnavailable in: \(events)")
+        XCTAssertFalse(events.contains { event in
+            if case .llmFormatterFailed = event { return true }
+            return false
+        }, "Expected NO llmFormatterFailed (user-config errors should not pollute the failure bucket)")
+    }
+
+    func testFormatTranscriptStillEmitsFormatterFailedOnRealFailure() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = LLMProviderConfig(
+            id: .lmstudio,
+            baseURL: URL(string: "http://localhost:1234/v1")!,
+            apiKey: nil,
+            modelName: "qwen3.5-4b-mlx",
+            isLocal: true
+        )
+        mockClient.responseContent = "ignored"
+        mockClient.responseFinishReason = "length"
+
+        do {
+            _ = try await service.formatTranscript(
+                transcript: "hello",
+                promptTemplate: AIFormatter.defaultPromptTemplate,
+                source: .dictation,
+                defaultPromptUsed: true
+            )
+            XCTFail("Expected throw")
+        } catch {}
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains { event in
+            if case .llmFormatterFailed = event { return true }
+            return false
+        }, "Real formatter failures (truncation, etc.) should still emit llmFormatterFailed")
+        XCTAssertFalse(events.contains { event in
+            if case .llmProviderUnavailable = event { return true }
+            return false
+        })
+    }
+
+    func testGeneratePromptResultEmitsProviderUnavailableOnModelNotFound() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = LLMProviderConfig(
+            id: .ollama,
+            baseURL: URL(string: "http://localhost:11434/v1")!,
+            apiKey: nil,
+            modelName: "missing-model",
+            isLocal: true
+        )
+        mockClient.chatCompletionError = LLMError.modelNotFound("missing-model")
+
+        do {
+            _ = try await service.generatePromptResult(transcript: "hi", systemPrompt: nil)
+            XCTFail("Expected throw")
+        } catch {}
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains { event in
+            if case .llmProviderUnavailable(let provider, let errorType, let feature, _) = event {
+                return provider == "ollama"
+                    && errorType == "LLMError.modelNotFound"
+                    && feature == .promptResult
+            }
+            return false
+        })
+        XCTAssertFalse(events.contains { event in
+            if case .llmPromptResultFailed = event { return true }
+            return false
+        })
+    }
+
+    func testChatEmitsProviderUnavailableOnCLIError() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = LLMProviderConfig(
+            id: .localCLI,
+            baseURL: URL(string: "file:///usr/local/bin/llm")!,
+            apiKey: nil,
+            modelName: "claude",
+            isLocal: false
+        )
+        mockClient.chatCompletionError = LLMError.cliError("not found")
+
+        do {
+            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [])
+            XCTFail("Expected throw")
+        } catch {}
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains { event in
+            if case .llmProviderUnavailable(let provider, let errorType, let feature, _) = event {
+                return provider == "localCLI"
+                    && errorType == "LLMError.cliError"
+                    && feature == .chat
+            }
+            return false
+        })
+        XCTAssertFalse(events.contains { event in
+            if case .llmChatFailed = event { return true }
+            return false
+        })
+    }
+
+    func testTransformEmitsProviderUnavailableOnAuthFailed() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = .anthropic(apiKey: "bad-key")
+        mockClient.chatCompletionError = LLMError.authenticationFailed(nil)
+
+        do {
+            _ = try await service.transform(text: "T", prompt: "P")
+            XCTFail("Expected throw")
+        } catch {}
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains { event in
+            if case .llmProviderUnavailable(let provider, let errorType, let feature, _) = event {
+                return provider == "anthropic"
+                    && errorType == "LLMError.authenticationFailed"
+                    && feature == .transform
+            }
+            return false
+        })
+        XCTAssertFalse(events.contains { event in
+            if case .llmTransformFailed = event { return true }
+            return false
+        })
+    }
+
+    func testStreamingPromptResultEmitsProviderUnavailableOnConnectionFailed() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = LLMProviderConfig(
+            id: .ollama,
+            baseURL: URL(string: "http://localhost:11434/v1")!,
+            apiKey: nil,
+            modelName: "llama3:8b",
+            isLocal: true
+        )
+        mockClient.chatCompletionError = LLMError.connectionFailed("refused")
+        let stream = service.generatePromptResultStream(transcript: "hi", systemPrompt: nil)
+
+        do {
+            for try await _ in stream {}
+            XCTFail("Expected throw")
+        } catch {}
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains { event in
+            if case .llmProviderUnavailable(let provider, _, let feature, _) = event {
+                return provider == "ollama" && feature == .promptResult
+            }
+            return false
+        })
+        XCTAssertFalse(events.contains { event in
+            if case .llmPromptResultFailed = event { return true }
+            return false
+        })
+    }
+
+    func testStreamingChatEmitsProviderUnavailableOnModelNotFound() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = LLMProviderConfig(
+            id: .ollama,
+            baseURL: URL(string: "http://localhost:11434/v1")!,
+            apiKey: nil,
+            modelName: "missing",
+            isLocal: true
+        )
+        mockClient.chatCompletionError = LLMError.modelNotFound("missing")
+        let stream = service.chatStream(question: "Q", transcript: "T", userNotes: nil, history: [])
+
+        do {
+            for try await _ in stream {}
+            XCTFail("Expected throw")
+        } catch {}
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains { event in
+            if case .llmProviderUnavailable(let provider, _, let feature, _) = event {
+                return provider == "ollama" && feature == .chat
+            }
+            return false
+        })
+        XCTAssertFalse(events.contains { event in
+            if case .llmChatFailed = event { return true }
+            return false
+        })
+    }
+
+    func testStreamingTransformEmitsProviderUnavailableOnAuthFailed() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = .anthropic(apiKey: "bad-key")
+        mockClient.chatCompletionError = LLMError.authenticationFailed(nil)
+        let stream = service.transformStream(text: "T", prompt: "P")
+
+        do {
+            for try await _ in stream {}
+            XCTFail("Expected throw")
+        } catch {}
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains { event in
+            if case .llmProviderUnavailable(let provider, _, let feature, _) = event {
+                return provider == "anthropic" && feature == .transform
+            }
+            return false
+        })
+        XCTAssertFalse(events.contains { event in
+            if case .llmTransformFailed = event { return true }
+            return false
+        })
+    }
+
+    func testProviderErrorStillRoutedToLegacyFailedBucket() async {
+        let telemetry = LLMTelemetrySpy()
+        Telemetry.configure(telemetry)
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+        // providerError indicates an API-side failure with a message; the
+        // user's environment is fine. This should stay in llm_chat_failed,
+        // not get reclassified as user-config drift.
+        mockClient.chatCompletionError = LLMError.providerError("500 Internal")
+
+        do {
+            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [])
+            XCTFail("Expected throw")
+        } catch {}
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains { event in
+            if case .llmChatFailed = event { return true }
+            return false
+        })
+        XCTAssertFalse(events.contains { event in
+            if case .llmProviderUnavailable = event { return true }
+            return false
+        })
     }
 
     // MARK: - Model Selection

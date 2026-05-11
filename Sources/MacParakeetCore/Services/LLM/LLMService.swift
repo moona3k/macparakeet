@@ -186,8 +186,17 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     messageCount: messages.count
                 )
             } else {
+                let kind = Self.errorType(for: error)
                 // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
-                Telemetry.send(.llmPromptResultFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+                if Self.isProviderUnavailable(error) {
+                    Telemetry.send(.llmProviderUnavailable(
+                        provider: config.id.rawValue,
+                        errorType: kind,
+                        feature: .promptResult
+                    ))
+                } else {
+                    Telemetry.send(.llmPromptResultFailed(provider: config.id.rawValue, errorType: kind))
+                }
                 sendLLMOperation(
                     operationID: operationID,
                     feature: "prompt_result",
@@ -199,7 +208,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     inputTruncated: transcript.count > budget,
                     promptDefaultUsed: promptDefaultUsed,
                     messageCount: messages.count,
-                    errorType: Self.errorType(for: error)
+                    errorType: kind
                 )
             }
             throw error
@@ -251,8 +260,17 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     messageCount: history.count + 1
                 )
             } else {
+                let kind = Self.errorType(for: error)
                 // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
-                Telemetry.send(.llmChatFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+                if Self.isProviderUnavailable(error) {
+                    Telemetry.send(.llmProviderUnavailable(
+                        provider: config.id.rawValue,
+                        errorType: kind,
+                        feature: .chat
+                    ))
+                } else {
+                    Telemetry.send(.llmChatFailed(provider: config.id.rawValue, errorType: kind))
+                }
                 sendLLMOperation(
                     operationID: operationID,
                     feature: "chat",
@@ -263,7 +281,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     inputChars: question.count + transcript.count,
                     inputTruncated: transcript.count > budget,
                     messageCount: history.count + 1,
-                    errorType: Self.errorType(for: error)
+                    errorType: kind
                 )
             }
             throw error
@@ -319,8 +337,17 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     messageCount: messages.count
                 )
             } else {
+                let kind = Self.errorType(for: error)
                 // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
-                Telemetry.send(.llmTransformFailed(provider: config.id.rawValue, errorType: Self.errorType(for: error)))
+                if Self.isProviderUnavailable(error) {
+                    Telemetry.send(.llmProviderUnavailable(
+                        provider: config.id.rawValue,
+                        errorType: kind,
+                        feature: .transform
+                    ))
+                } else {
+                    Telemetry.send(.llmTransformFailed(provider: config.id.rawValue, errorType: kind))
+                }
                 sendLLMOperation(
                     operationID: operationID,
                     feature: "transform",
@@ -331,7 +358,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     inputChars: text.count + prompt.count,
                     inputTruncated: text.count > budget,
                     messageCount: messages.count,
-                    errorType: Self.errorType(for: error)
+                    errorType: kind
                 )
             }
             throw error
@@ -449,15 +476,25 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     messageCount: 2
                 )
             } else {
+                let kind = Self.errorType(for: error)
                 // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
-                Telemetry.send(.llmFormatterFailed(
-                    provider: config.id.rawValue,
-                    source: source,
-                    durationSeconds: Date().timeIntervalSince(startedAt),
-                    errorType: Self.errorType(for: error),
-                    defaultPromptUsed: defaultPromptUsed,
-                    inputTruncated: inputTruncated
-                ))
+                if Self.isProviderUnavailable(error) {
+                    Telemetry.send(.llmProviderUnavailable(
+                        provider: config.id.rawValue,
+                        errorType: kind,
+                        feature: .formatter,
+                        source: source
+                    ))
+                } else {
+                    Telemetry.send(.llmFormatterFailed(
+                        provider: config.id.rawValue,
+                        source: source,
+                        durationSeconds: Date().timeIntervalSince(startedAt),
+                        errorType: kind,
+                        defaultPromptUsed: defaultPromptUsed,
+                        inputTruncated: inputTruncated
+                    ))
+                }
                 sendLLMOperation(
                     operationID: operationID,
                     feature: "formatter_\(source.rawValue)",
@@ -469,7 +506,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     inputTruncated: inputTruncated,
                     promptDefaultUsed: defaultPromptUsed,
                     messageCount: 2,
-                    errorType: Self.errorType(for: error)
+                    errorType: kind
                 )
             }
             throw error
@@ -537,11 +574,20 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     continuation.finish()
                 } catch {
                     if !(error is CancellationError) {
+                        let kind = Self.errorType(for: error)
                         // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
-                        Telemetry.send(.llmPromptResultFailed(
-                            provider: provider,
-                            errorType: Self.errorType(for: error)
-                        ))
+                        if Self.isProviderUnavailable(error) {
+                            Telemetry.send(.llmProviderUnavailable(
+                                provider: provider,
+                                errorType: kind,
+                                feature: .promptResult
+                            ))
+                        } else {
+                            Telemetry.send(.llmPromptResultFailed(
+                                provider: provider,
+                                errorType: kind
+                            ))
+                        }
                     }
                     if provider != "unknown" {
                         self.sendLLMOperation(
@@ -618,11 +664,20 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     continuation.finish()
                 } catch {
                     if !(error is CancellationError) {
+                        let kind = Self.errorType(for: error)
                         // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
-                        Telemetry.send(.llmChatFailed(
-                            provider: provider,
-                            errorType: Self.errorType(for: error)
-                        ))
+                        if Self.isProviderUnavailable(error) {
+                            Telemetry.send(.llmProviderUnavailable(
+                                provider: provider,
+                                errorType: kind,
+                                feature: .chat
+                            ))
+                        } else {
+                            Telemetry.send(.llmChatFailed(
+                                provider: provider,
+                                errorType: kind
+                            ))
+                        }
                     }
                     if provider != "unknown" {
                         self.sendLLMOperation(
@@ -702,11 +757,20 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     continuation.finish()
                 } catch {
                     if !(error is CancellationError) {
+                        let kind = Self.errorType(for: error)
                         // No errorDetail for LLM errors — API responses may echo user transcript/prompt content
-                        Telemetry.send(.llmTransformFailed(
-                            provider: provider,
-                            errorType: Self.errorType(for: error)
-                        ))
+                        if Self.isProviderUnavailable(error) {
+                            Telemetry.send(.llmProviderUnavailable(
+                                provider: provider,
+                                errorType: kind,
+                                feature: .transform
+                            ))
+                        } else {
+                            Telemetry.send(.llmTransformFailed(
+                                provider: provider,
+                                errorType: kind
+                            ))
+                        }
                     }
                     if provider != "unknown" {
                         self.sendLLMOperation(
@@ -806,6 +870,23 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     private static func operationErrorType(for error: Error) -> String? {
         error is CancellationError ? nil : errorType(for: error)
+    }
+
+    /// True if `error` represents a drifted user environment rather than an
+    /// app/provider failure: the local LLM stopped running, the configured
+    /// model name no longer exists, a CLI tool is missing, or an API key is
+    /// invalid. These should be tagged as `llm_provider_unavailable` so the
+    /// `llm_*_failed` dashboards reflect failures actually worth
+    /// investigating, not "your Ollama isn't running."
+    private static func isProviderUnavailable(_ error: Error) -> Bool {
+        guard let llmError = error as? LLMError else { return false }
+        switch llmError {
+        case .connectionFailed, .modelNotFound, .cliError, .authenticationFailed:
+            return true
+        case .notConfigured, .rateLimited, .contextTooLong, .formatterTruncated,
+             .formatterEmptyResponse, .providerError, .streamingError, .invalidResponse:
+            return false
+        }
     }
 
     private static func outcomeForLLMSetupError(_ error: Error) -> ObservabilityOutcome {
