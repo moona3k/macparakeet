@@ -206,6 +206,8 @@ final class AppEnvironmentConfigurer {
             entitlementsService: env.entitlementsService,
             dictationRepo: env.dictationRepo,
             settingsViewModel: settingsViewModel,
+            sttRuntime: env.sttRuntime,
+            runtimePreferences: env.runtimePreferences,
             shouldSuppressIdlePill: {
                 coordinatorRefs.meeting?.isMeetingRecordingActive == true
             },

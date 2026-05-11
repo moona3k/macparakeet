@@ -3,6 +3,40 @@ import OSLog
 import MacParakeetCore
 import MacParakeetViewModels
 
+struct DictationProcessingLoadCaptionTiming: Sendable {
+    static let production = DictationProcessingLoadCaptionTiming(
+        graceMs: 600,
+        escalationMs: 4000,
+        failureDisplayMs: 2000
+    )
+
+    let graceMs: Int
+    let escalationMs: Int
+    let failureDisplayMs: Int
+}
+
+protocol DictationSTTReadinessChecking: Sendable {
+    func isReady() async -> Bool
+}
+
+extension STTRuntime: DictationSTTReadinessChecking {}
+
+private enum ProcessingLoadCaptionOutcome {
+    case success
+    case noSpeech
+    case failure
+    case cancelled
+
+    var telemetryValue: String {
+        switch self {
+        case .success: return "success"
+        case .noSpeech: return "noSpeech"
+        case .failure: return "failure"
+        case .cancelled: return "cancelled"
+        }
+    }
+}
+
 @MainActor
 final class DictationFlowCoordinator {
     private static let silenceAutoStopThreshold: Float = 0.03
@@ -70,6 +104,10 @@ final class DictationFlowCoordinator {
     private let entitlementsService: EntitlementsService
     private let dictationRepo: DictationRepository
     private let settingsViewModel: SettingsViewModel
+    private let sttRuntime: any DictationSTTReadinessChecking
+    private let runtimePreferences: AppRuntimePreferencesProtocol
+    private let captionTiming: DictationProcessingLoadCaptionTiming
+    private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onHistoryReload: () -> Void
@@ -82,7 +120,7 @@ final class DictationFlowCoordinator {
 
     // MARK: - UI Resources (managed by effect executor)
 
-    private var overlayController: DictationOverlayController?
+    private var overlayController: (any DictationOverlayControlling)?
     private var overlayViewModel: DictationOverlayViewModel?
     private var idlePillController: IdlePillController?
     private var readyDismissTimer: DispatchWorkItem?
@@ -90,6 +128,10 @@ final class DictationFlowCoordinator {
     private var actionTask: Task<Void, Never>?
     private var cancelCountdownTask: Task<Void, Never>?
     private var displayDismissTask: Task<Void, Never>?
+    private var captionGraceTimer: DispatchWorkItem?
+    private var captionEscalationTimer: DispatchWorkItem?
+    private var captionFailureDismissTask: Task<Void, Never>?
+    private var captionShownAt: Date?
 
     // MARK: - Flow Context (not state machine concerns)
 
@@ -113,6 +155,12 @@ final class DictationFlowCoordinator {
         entitlementsService: EntitlementsService,
         dictationRepo: DictationRepository,
         settingsViewModel: SettingsViewModel,
+        sttRuntime: any DictationSTTReadinessChecking,
+        runtimePreferences: AppRuntimePreferencesProtocol,
+        captionTiming: DictationProcessingLoadCaptionTiming = .production,
+        overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
+            DictationOverlayController(viewModel: $0)
+        },
         shouldSuppressIdlePill: @escaping () -> Bool = { false },
         onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void,
         onHistoryReload: @escaping () -> Void,
@@ -123,6 +171,10 @@ final class DictationFlowCoordinator {
         self.entitlementsService = entitlementsService
         self.dictationRepo = dictationRepo
         self.settingsViewModel = settingsViewModel
+        self.sttRuntime = sttRuntime
+        self.runtimePreferences = runtimePreferences
+        self.captionTiming = captionTiming
+        self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onHistoryReload = onHistoryReload
@@ -166,6 +218,7 @@ final class DictationFlowCoordinator {
     private func promoteOverlayToFormatting() {
         guard let vm = overlayViewModel else { return }
         if case .processing = vm.state {
+            dismissCaption(outcome: .success)
             vm.isHovered = false
             vm.hoverTooltip = nil
             vm.state = .formatting
@@ -281,7 +334,7 @@ final class DictationFlowCoordinator {
             vm.state = .ready
             overlayViewModel = vm
 
-            let controller = DictationOverlayController(viewModel: vm)
+            let controller = overlayControllerFactory(vm)
             controller.show()
             overlayController = controller
 
@@ -309,13 +362,14 @@ final class DictationFlowCoordinator {
                 vm.onDismiss = { [weak self] in self?.sendEvent(.dismissRequested) }
                 overlayViewModel = vm
 
-                let controller = DictationOverlayController(viewModel: vm)
+                let controller = overlayControllerFactory(vm)
                 controller.show()
                 overlayController = controller
             }
             vm.recordingMode = mode
             vm.processingMessage = nil
             vm.busyProcessingMessage = nil
+            vm.processingLoadCaption = nil
             vm.state = .recording
             vm.startTimer()
 
@@ -323,7 +377,9 @@ final class DictationFlowCoordinator {
             overlayViewModel?.stopTimer()
             overlayViewModel?.processingMessage = nil
             overlayViewModel?.busyProcessingMessage = nil
+            overlayViewModel?.processingLoadCaption = nil
             overlayViewModel?.state = .processing
+            armProcessingLoadCaption()
 
         case .showBusyProcessingHint:
             overlayViewModel?.showBusyProcessingHint()
@@ -334,20 +390,24 @@ final class DictationFlowCoordinator {
             overlayViewModel?.state = .cancelled(timeRemaining: 5.0)
 
         case .showSuccess:
+            dismissCaption(outcome: .success)
             overlayViewModel?.state = .success
 
         case .showNoSpeech:
+            dismissCaption(outcome: .noSpeech)
             overlayViewModel?.state = .noSpeech
 
         case .showError(let message):
-            overlayViewModel?.state = .error(message)
+            showErrorAfterCaptionFailureIfNeeded(message: message)
 
         case .hideOverlay:
+            dismissCaption(outcome: .cancelled)
             overlayController?.hide()
             overlayController = nil
             overlayViewModel = nil
 
         case .dismissReadyPill:
+            dismissCaption(outcome: .cancelled)
             overlayController?.hide()
             overlayController = nil
             overlayViewModel = nil
@@ -577,6 +637,7 @@ final class DictationFlowCoordinator {
             cancelCountdownTask = nil
             displayDismissTask?.cancel()
             displayDismissTask = nil
+            dismissCaption(outcome: .cancelled)
 
         // MARK: Task management
 
@@ -592,6 +653,105 @@ final class DictationFlowCoordinator {
     }
 
     // MARK: - Private Helpers
+
+    var processingLoadCaptionForTesting: DictationOverlayViewModel.ProcessingLoadCaption? {
+        overlayViewModel?.processingLoadCaption
+    }
+
+    var overlayStateForTesting: DictationOverlayViewModel.OverlayState? {
+        overlayViewModel?.state
+    }
+
+    private func armProcessingLoadCaption() {
+        captionGraceTimer?.cancel()
+        captionEscalationTimer?.cancel()
+        captionFailureDismissTask?.cancel()
+        captionGraceTimer = nil
+        captionEscalationTimer = nil
+        captionFailureDismissTask = nil
+        captionShownAt = nil
+
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            guard await !self.sttRuntime.isReady() else { return }
+
+            let grace = DispatchWorkItem { [weak self] in
+                Task { @MainActor in
+                    self?.fireCaption()
+                }
+            }
+            self.captionGraceTimer = grace
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + .milliseconds(self.captionTiming.graceMs),
+                execute: grace
+            )
+        }
+    }
+
+    private func fireCaption() {
+        guard overlayViewModel?.processingLoadCaption == nil else { return }
+        guard let state = overlayViewModel?.state, case .processing = state else { return }
+
+        let firstInstall = !runtimePreferences.hasCompletedFirstDictation
+        overlayViewModel?.processingLoadCaption = .preparing
+        captionShownAt = Date()
+        Telemetry.send(.dictationFirstLoadCaptionShown(firstInstall: firstInstall))
+
+        guard firstInstall else { return }
+        let escalation = DispatchWorkItem { [weak self] in
+            Task { @MainActor in
+                guard self?.overlayViewModel?.processingLoadCaption == .preparing else { return }
+                self?.overlayViewModel?.processingLoadCaption = .preparingExtended
+            }
+        }
+        captionEscalationTimer = escalation
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + .milliseconds(captionTiming.escalationMs),
+            execute: escalation
+        )
+    }
+
+    private func dismissCaption(outcome: ProcessingLoadCaptionOutcome) {
+        captionGraceTimer?.cancel()
+        captionEscalationTimer?.cancel()
+        captionFailureDismissTask?.cancel()
+        captionGraceTimer = nil
+        captionEscalationTimer = nil
+        captionFailureDismissTask = nil
+
+        if let shownAt = captionShownAt {
+            let durationMs = max(0, Int(Date().timeIntervalSince(shownAt) * 1000))
+            Telemetry.send(.dictationFirstLoadCaptionDuration(
+                durationMs: durationMs,
+                outcome: outcome.telemetryValue
+            ))
+            captionShownAt = nil
+        }
+        overlayViewModel?.processingLoadCaption = nil
+    }
+
+    private func showErrorAfterCaptionFailureIfNeeded(message: String) {
+        captionGraceTimer?.cancel()
+        captionEscalationTimer?.cancel()
+        captionGraceTimer = nil
+        captionEscalationTimer = nil
+
+        switch overlayViewModel?.processingLoadCaption {
+        case .preparing, .preparingExtended:
+            overlayViewModel?.processingLoadCaption = .failed
+            captionFailureDismissTask?.cancel()
+            captionFailureDismissTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                try? await Task.sleep(for: .milliseconds(self.captionTiming.failureDisplayMs))
+                guard !Task.isCancelled else { return }
+                self.dismissCaption(outcome: .failure)
+                self.overlayViewModel?.state = .error(message)
+            }
+        default:
+            dismissCaption(outcome: .failure)
+            overlayViewModel?.state = .error(message)
+        }
+    }
 
     /// Whether the error represents "no speech" (empty transcript or recording too short).
     private func isNoSpeechError(_ error: Error) -> Bool {
