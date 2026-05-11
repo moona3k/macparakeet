@@ -207,7 +207,10 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         // The SettingsViewModel observer in AppDelegate calls
         // refreshAllHotkeys / refreshMeetingHotkey when the user records a
         // new trigger. That call would race resume() and double-restart the
-        // taps — guarded by `suspendCount == 0`. This test pins the guard.
+        // taps — guarded by `suspendCount == 0`. This test pins both halves:
+        // refresh* short-circuits during suspension (no conflict reports
+        // appear), and resume() actually rebuilds from current settings
+        // (the same conflict is reported exactly once after resume).
         let viewModel = makeViewModel()
         var conflictReports = 0
         let coordinator = makeCoordinator(
@@ -228,12 +231,9 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         coordinator.refreshMeetingHotkey()
         coordinator.refreshFileTranscriptionHotkey()
         coordinator.refreshYouTubeTranscriptionHotkey()
-
-        // None of the refreshers should have reported a conflict, because
-        // they should have short-circuited before reaching the conflict
-        // detection inside setupMeetingHotkey.
-        XCTAssertEqual(conflictReports, 0)
+        XCTAssertEqual(conflictReports, 0, "refresh* must short-circuit while suspended")
 
         coordinator.resume()
+        XCTAssertEqual(conflictReports, 1, "resume() must rebuild taps from current settings")
     }
 }

@@ -16,10 +16,11 @@ struct HotkeyRecorderView: View {
     @Binding var trigger: HotkeyTrigger
     var defaultTrigger: HotkeyTrigger = .fn
     var additionalValidation: ((HotkeyTrigger) -> HotkeyTrigger.ValidationResult)? = nil
-    /// Called with `true` when an event monitor is attached and `false` when
-    /// it is torn down. Settings wires this to `AppHotkeyCoordinator.suspend`
-    /// / `resume` so the global CGEvent taps don't swallow the keyDown the
-    /// user is trying to record.
+    /// Called with `true` when the user enters recording mode (just before
+    /// the local NSEvent monitor is attached) and `false` when the matching
+    /// recording session ends. Settings wires this to
+    /// `AppHotkeyCoordinator.suspend` / `resume` so global CGEvent taps
+    /// don't swallow the keyDown the user is trying to record.
     var onRecordingStateChanged: ((Bool) -> Void)? = nil
     @State private var isRecording = false
     @State private var validationMessage: String?
