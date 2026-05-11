@@ -213,6 +213,7 @@ private struct NoSpeechLightDrift: View {
 /// The dictation overlay — compact dark capsule during dictation, wider card for errors.
 struct DictationOverlayView: View {
     @Bindable var viewModel: DictationOverlayViewModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Drives the no-speech pill's circle → oval width expansion. Starts `false`
     /// so the pill begins at 46×46 (matching the processing spinner), then flips
@@ -239,10 +240,17 @@ struct DictationOverlayView: View {
                 .frame(height: 36)
 
             // Content with state-appropriate shape
+            if let caption = viewModel.processingLoadCaption {
+                LoadingCaptionView(caption: caption)
+                    .transition(LoadingCaptionView.transition(reduceMotion: reduceMotion))
+                    .padding(.bottom, 2)
+            }
+
             overlayContent
         }
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .animation(.easeInOut(duration: 0.22), value: viewModel.processingLoadCaption)
         .onChange(of: viewModel.pillStateKey) { _, newKey in
             handlePillStateChange(to: newKey)
         }

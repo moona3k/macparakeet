@@ -47,12 +47,19 @@ private final class ClickablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
 }
 
+@MainActor
+protocol DictationOverlayControlling: AnyObject {
+    func show()
+    func hide()
+    func resignKeyWindow()
+}
+
 // MARK: - Overlay Controller
 
 /// Manages the floating dictation overlay panel.
 /// Non-activating NSPanel that never steals focus from the active app.
 @MainActor
-final class DictationOverlayController {
+final class DictationOverlayController: DictationOverlayControlling {
     private var panel: NSPanel?
     private var hostingView: NSHostingView<DictationOverlayView>?
     private var trackingView: MouseTrackingView?
@@ -197,6 +204,12 @@ final class DictationOverlayViewModel {
         case error(String)
     }
 
+    enum ProcessingLoadCaption: Equatable {
+        case preparing
+        case preparingExtended
+        case failed
+    }
+
     var state: OverlayState = .recording
     var sessionKind: SessionKind = .dictation
     var recordingMode: FnKeyStateMachine.RecordingMode = .persistent
@@ -206,6 +219,7 @@ final class DictationOverlayViewModel {
     var hoverTooltip: String?
     var processingMessage: String?
     var busyProcessingMessage: String?
+    var processingLoadCaption: ProcessingLoadCaption?
     var commandPromptText: String = "Speak your command..."
     var commandSelectedText: String = ""
 
