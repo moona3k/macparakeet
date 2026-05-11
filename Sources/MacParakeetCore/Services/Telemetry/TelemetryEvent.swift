@@ -9,6 +9,8 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case dictationEmpty = "dictation_empty"
     case dictationFailed = "dictation_failed"
     case dictationOperation = "dictation_operation"
+    case dictationFirstLoadCaptionShown = "dictation_first_load_caption_shown"
+    case dictationFirstLoadCaptionDuration = "dictation_first_load_caption_duration"
     case transcriptionStarted = "transcription_started"
     case transcriptionCompleted = "transcription_completed"
     case transcriptionCancelled = "transcription_cancelled"
@@ -282,6 +284,8 @@ public enum TelemetryEventSpec: Sendable {
         engineVariant: String? = nil,
         device: RecordingDeviceInfo? = nil
     )
+    case dictationFirstLoadCaptionShown(firstInstall: Bool)
+    case dictationFirstLoadCaptionDuration(durationMs: Int, outcome: String)
     case transcriptionStarted(source: TelemetryTranscriptionSource, audioDurationSeconds: Double?)
     case transcriptionCompleted(
         source: TelemetryTranscriptionSource,
@@ -546,6 +550,8 @@ extension TelemetryEventSpec {
         case .dictationEmpty: return .dictationEmpty
         case .dictationFailed: return .dictationFailed
         case .dictationOperation: return .dictationOperation
+        case .dictationFirstLoadCaptionShown: return .dictationFirstLoadCaptionShown
+        case .dictationFirstLoadCaptionDuration: return .dictationFirstLoadCaptionDuration
         case .transcriptionStarted: return .transcriptionStarted
         case .transcriptionCompleted: return .transcriptionCompleted
         case .transcriptionCancelled: return .transcriptionCancelled
@@ -712,6 +718,13 @@ extension TelemetryEventSpec {
                 ("error_type", errorType),
                 ("cancel_reason", cancelReason?.rawValue)
             ), device)
+        case .dictationFirstLoadCaptionShown(let firstInstall):
+            return ["firstInstall": Self.boolString(firstInstall)]
+        case .dictationFirstLoadCaptionDuration(let durationMs, let outcome):
+            return [
+                "durationMs": "\(durationMs)",
+                "outcome": outcome,
+            ]
         case .transcriptionStarted(let source, let audioDurationSeconds):
             return Self.compactProps(
                 ("source", source.rawValue),
@@ -1220,6 +1233,8 @@ public enum TelemetryImplementedContract {
         .dictationEmpty: [],
         .dictationFailed: ["error_type"],
         .dictationOperation: ["operation_id", "outcome"],
+        .dictationFirstLoadCaptionShown: ["firstInstall"],
+        .dictationFirstLoadCaptionDuration: ["durationMs", "outcome"],
         .transcriptionStarted: ["source"],
         .transcriptionCompleted: ["source", "word_count", "diarization_requested", "diarization_applied"],
         .transcriptionCancelled: ["source", "stage"],

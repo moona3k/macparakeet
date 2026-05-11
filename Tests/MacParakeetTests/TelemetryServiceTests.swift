@@ -930,6 +930,8 @@ final class TelemetryServiceTests: XCTestCase {
                 wordCount: 84,
                 errorType: nil
             ),
+            .dictationFirstLoadCaptionShown(firstInstall: true),
+            .dictationFirstLoadCaptionDuration(durationMs: 8200, outcome: "success"),
             .transcriptionStarted(source: .file, audioDurationSeconds: 30.0),
             .transcriptionCompleted(
                 source: .dragDrop,
