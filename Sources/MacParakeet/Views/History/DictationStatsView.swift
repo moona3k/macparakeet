@@ -662,41 +662,48 @@ private struct TopAppRow: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
         .background(
-            // Bumped from opacity 0.05 → 0.10 so the hover state is actually
-            // perceptible in dark mode. The brand accent at low opacity
-            // reinforces "this is interactive" without claiming it's a
-            // primary surface.
             RoundedRectangle(cornerRadius: 8)
                 .fill(
                     isHovered
-                        ? DesignSystem.Colors.accent.opacity(0.08)
+                        ? DesignSystem.Colors.accent.opacity(0.10)
                         : Color.clear
                 )
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .strokeBorder(
-                    isHovered ? DesignSystem.Colors.accent.opacity(0.18) : Color.clear,
+                    isHovered ? DesignSystem.Colors.accent.opacity(0.25) : Color.clear,
                     lineWidth: 0.5
                 )
         )
-        .help(detailTooltip(resolved: resolved))
+        // Instant detail popover anchored to the row's top edge. Mirrors the
+        // heatmap's hover pattern — no system-tooltip delay, no system arrow,
+        // matches the brand's typographic chrome.
+        .overlay(alignment: .topLeading) {
+            if isHovered {
+                TopAppHoverDetail(entry: entry, resolved: resolved)
+                    .fixedSize()
+                    .offset(x: 36, y: -56)
+                    .allowsHitTesting(false)
+                    .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottomLeading)))
+            }
+        }
+        // CRITICAL: without this, SwiftUI's hit-walk only registers hover on
+        // the row's actual child glyphs (Text, Image, Capsule) — the padding
+        // zones and gaps between children pass the cursor through, so
+        // `.onHover` only fires intermittently and `.help` doesn't attach to
+        // a stable region. `Rectangle()` forces the entire padded frame to
+        // be the hit area.
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(accessibilityLabel(resolved: resolved))
         .animation(.easeOut(duration: 0.15), value: isHovered)
         .onHover { isHovered = $0 }
     }
 
-    /// Tooltip body surfaced on hover. The row visually shows app name + bar
-    /// + percent; this fills in the numbers a curious user would actually
-    /// want to know — exact dictation count, total words spoken, and an
-    /// average so they can compare apps at different scales.
-    private func detailTooltip(resolved: String) -> String {
+    private func accessibilityLabel(resolved: String) -> String {
         let dictationsLabel = "\(entry.count) dictation\(entry.count == 1 ? "" : "s")"
-        let wordsLabel = "\(entry.words.compactFormatted) word\(entry.words == 1 ? "" : "s")"
-        guard entry.count > 0 else {
-            return "\(resolved) — \(dictationsLabel)"
-        }
-        let avg = Int((Double(entry.words) / Double(entry.count)).rounded())
-        return "\(resolved) — \(dictationsLabel) · \(wordsLabel) · avg \(avg) words/dictation"
+        return "\(resolved), \(dictationsLabel), \(formatPercent(percentOfTotal)) of total"
     }
 
     private func formatPercent(_ value: Double) -> String {
@@ -726,6 +733,48 @@ private struct TopAppRow: View {
                     .foregroundStyle(DesignSystem.Colors.accent)
             }
         }
+    }
+}
+
+// MARK: - Top App Hover Detail
+
+/// Instant-appearing popover surfaced when hovering an app row. Mirrors
+/// `HeatmapTooltipView`'s chrome (regularMaterial + thin border + shadow,
+/// rounded-design typography) so the two hover surfaces feel like one
+/// design system.
+private struct TopAppHoverDetail: View {
+    let entry: DictationHistoryViewModel.TopAppEntry
+    let resolved: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(resolved)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.primary)
+            Text(detail)
+                .font(.system(size: 11, weight: .regular, design: .rounded))
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 8, x: 0, y: 4)
+    }
+
+    private var detail: String {
+        let dictationsLabel = "\(entry.count) dictation\(entry.count == 1 ? "" : "s")"
+        let wordsLabel = "\(entry.words.compactFormatted) word\(entry.words == 1 ? "" : "s")"
+        guard entry.count > 0 else { return dictationsLabel }
+        let avg = Int((Double(entry.words) / Double(entry.count)).rounded())
+        return "\(dictationsLabel) · \(wordsLabel) · avg \(avg)/each"
     }
 }
 
