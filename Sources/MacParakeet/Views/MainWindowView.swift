@@ -152,56 +152,12 @@ struct MainWindowView: View {
                         TransformsView(
                             viewModel: transformsViewModel,
                             llmConfiguredAction: { state.selectedItem = .settings },
-                            onEdit: { state.editingTransform = $0 },
-                            onCreate: { state.isCreatingTransform = true },
+                            reservedHotkeys: transformReservedHotkeys,
+                            onShortcutRecordingStateChanged: onHotkeyRecordingStateChanged,
                             onBindingsChanged: {
                                 NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
                             }
                         )
-                        .sheet(isPresented: $state.isCreatingTransform) {
-                            TransformEditorSheet(
-                                viewModel: TransformEditorViewModel(mode: .create),
-                                existingTransforms: transformsViewModel.transforms,
-                                dictationHotkeys: [
-                                    settingsViewModel.hotkeyTrigger,
-                                    settingsViewModel.pushToTalkHotkeyTrigger,
-                                ],
-                                meetingHotkey: settingsViewModel.meetingHotkeyTrigger,
-                                onShortcutRecordingStateChanged: onHotkeyRecordingStateChanged,
-                                onSave: { prompt in
-                                    if transformsViewModel.save(prompt) {
-                                        state.isCreatingTransform = false
-                                        NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
-                                    }
-                                },
-                                onCancel: { state.isCreatingTransform = false },
-                                onReset: nil
-                            )
-                        }
-                        .sheet(item: $state.editingTransform) { transform in
-                            TransformEditorSheet(
-                                viewModel: TransformEditorViewModel(mode: .edit(transform)),
-                                existingTransforms: transformsViewModel.transforms,
-                                dictationHotkeys: [
-                                    settingsViewModel.hotkeyTrigger,
-                                    settingsViewModel.pushToTalkHotkeyTrigger,
-                                ],
-                                meetingHotkey: settingsViewModel.meetingHotkeyTrigger,
-                                onShortcutRecordingStateChanged: onHotkeyRecordingStateChanged,
-                                onSave: { prompt in
-                                    if transformsViewModel.save(prompt) {
-                                        state.editingTransform = nil
-                                        NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
-                                    }
-                                },
-                                onCancel: { state.editingTransform = nil },
-                                onReset: transform.isBuiltIn ? {
-                                    transformsViewModel.resetBuiltIn(transform)
-                                    state.editingTransform = nil
-                                    NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
-                                } : nil
-                            )
-                        }
                     case .vocabulary:
                         VocabularyView(
                             settingsViewModel: settingsViewModel,
@@ -256,6 +212,16 @@ struct MainWindowView: View {
             screenRecordingGranted: settingsViewModel.screenRecordingGranted,
             sourceMode: settingsViewModel.meetingAudioSourceMode
         )
+    }
+
+    private var transformReservedHotkeys: [TransformShortcutReservedHotkey] {
+        [
+            TransformShortcutReservedHotkey(name: "Dictation", trigger: settingsViewModel.hotkeyTrigger),
+            TransformShortcutReservedHotkey(name: "Push-to-talk", trigger: settingsViewModel.pushToTalkHotkeyTrigger),
+            TransformShortcutReservedHotkey(name: "Meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger),
+            TransformShortcutReservedHotkey(name: "File transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(name: "YouTube transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+        ].filter { !$0.trigger.isDisabled }
     }
 
     private var globalTranscriptionBottomBar: some View {

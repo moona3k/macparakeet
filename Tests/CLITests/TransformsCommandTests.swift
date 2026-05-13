@@ -185,6 +185,36 @@ final class TransformsCommandTests: XCTestCase {
         XCTAssertNil(object["outputText"])
     }
 
+    func testAssembledTransformPromptUsesProfileAndWritingSamples() throws {
+        let manager = try DatabaseManager()
+        let promptRepo = PromptRepository(dbQueue: manager.dbQueue)
+        let profileRepo = TransformProfileRepository(dbQueue: manager.dbQueue)
+        let writingSampleRepo = WritingSampleRepository(dbQueue: manager.dbQueue)
+        let polish = try XCTUnwrap(try promptRepo.fetchVisible(category: .transform).first { $0.name == "Polish" })
+        var profile = TransformProfile.defaultProfile(for: polish)
+        profile.customInstructions = "Keep it direct."
+        profile.useWritingSamples = true
+        try profileRepo.save(profile)
+        try writingSampleRepo.save(
+            WritingSample(
+                title: "Launch note",
+                text: "This is a realistic writing sample with enough substance to show cadence, directness, and personal phrasing.",
+                wordCount: 15
+            )
+        )
+
+        let assembled = try assembledTransformPrompt(
+            transform: polish,
+            profileRepo: profileRepo,
+            writingSampleRepo: writingSampleRepo
+        )
+
+        XCTAssertTrue(assembled.contains("User-selected rules:"))
+        XCTAssertTrue(assembled.contains("Additional user instructions:\nKeep it direct."))
+        XCTAssertTrue(assembled.contains("Voice reference samples:"))
+        XCTAssertTrue(assembled.contains("Sample 1"), assembled)
+    }
+
     // MARK: - End-to-end: create + list + show + delete against a real DB
 
     func testCreateListShowDeleteRoundTrip() throws {

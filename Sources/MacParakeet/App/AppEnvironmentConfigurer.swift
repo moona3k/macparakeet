@@ -130,8 +130,10 @@ final class AppEnvironmentConfigurer {
         promptsViewModel.configure(repo: env.promptRepo)
         transformsViewModel.configure(
             repo: env.promptRepo,
+            profileRepo: env.transformProfileRepo,
             historyRepo: env.transformHistoryRepo,
             clipboardService: env.clipboardService,
+            writingSampleRepo: env.writingSampleRepo,
             hasLLMProvider: hasLLMConfig
         )
         llmSettingsViewModel.configure(

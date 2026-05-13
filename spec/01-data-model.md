@@ -38,12 +38,20 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 │ transform_history│   v0.14 — Local-only Transform input/output history
 └──────────────────┘
 
+┌──────────────────┐       ┌──────────────────┐
+│transform_profiles│──FK──▶│     prompts      │  v0.15 — Transform workbench settings
+└──────────────────┘       └──────────────────┘
+
+┌──────────────────┐
+│ writing_samples  │   v0.15 — Local-only Transform voice references
+└──────────────────┘
+
 ┌──────────────────┐
 │  quick_prompts   │   v0.10 migration — v0.6 Live Ask shortcut pills
 └──────────────────┘
 ```
 
-Tables are self-contained domains with two exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete. The Swift model for `summaries` is `PromptResult`; the table name is retained for migration compatibility.
+Tables are self-contained domains with three exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete, and `transform_profiles` has a one-to-one foreign key to `prompts`. The Swift model for `summaries` is `PromptResult`; the table name is retained for migration compatibility.
 
 ---
 
@@ -326,6 +334,56 @@ CREATE INDEX idx_transform_history_transform_id ON transform_history(transformId
 - No foreign key to `prompts`: deleting a custom Transform should not delete the user's local run history.
 - History content never leaves the device through telemetry. Telemetry for Transforms continues to exclude input/output text.
 - The UI reads a recent window for performance, but the table is not automatically pruned.
+
+---
+
+### `transform_profiles` (v0.15)
+
+Stores workbench settings for each Transform: enabled structured rules, custom
+instructions, and whether writing samples should be attached when assembling the
+effective prompt.
+
+```sql
+CREATE TABLE transform_profiles (
+    promptId           TEXT PRIMARY KEY
+        REFERENCES prompts(id) ON DELETE CASCADE,
+    enabledRuleIDsJSON TEXT NOT NULL DEFAULT '[]',       -- JSON array of TransformRule IDs
+    customInstructions TEXT,                             -- Optional user instruction suffix
+    useWritingSamples  INTEGER NOT NULL DEFAULT 0,       -- Include local samples when assembling
+    createdAt          TEXT NOT NULL,
+    updatedAt          TEXT NOT NULL
+);
+```
+
+**Notes:**
+- `promptId` is a one-to-one FK to `prompts`; deleting a Transform deletes its profile.
+- Profiles do not snapshot prompt content. The effective prompt is assembled at run time from the current prompt row, enabled rules, custom instructions, and optional writing samples.
+- Missing profiles fall back to `TransformProfile.defaultProfile(for:)` so built-ins and legacy rows remain usable.
+
+---
+
+### `writing_samples` (v0.15)
+
+Stores local-only examples of the user's writing style. These samples are never
+used unless a Transform profile has `useWritingSamples = true`.
+
+```sql
+CREATE TABLE writing_samples (
+    id        TEXT PRIMARY KEY,                          -- UUID string
+    title     TEXT NOT NULL,
+    text      TEXT NOT NULL,
+    wordCount INTEGER NOT NULL DEFAULT 0,
+    createdAt TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+);
+
+CREATE INDEX idx_writing_samples_updated_at ON writing_samples(updatedAt);
+```
+
+**Notes:**
+- Samples are local user data. They are only sent to the configured LLM provider as part of a user-triggered Transform run when voice matching is enabled.
+- Prompt assembly currently includes up to the first three non-empty samples, ordered by `updatedAt DESC`.
+- The workbench requires at least 50 words before saving a sample.
 
 ---
 
@@ -685,6 +743,48 @@ extension TransformHistoryEntry: FetchableRecord, PersistableRecord {
 }
 ```
 
+### TransformProfile
+
+```swift
+import Foundation
+import GRDB
+
+struct TransformProfile: Codable, Identifiable, Sendable {
+    var promptId: UUID
+    var enabledRuleIDsJSON: String
+    var customInstructions: String?
+    var useWritingSamples: Bool
+    var createdAt: Date
+    var updatedAt: Date
+
+    var id: UUID { promptId }
+}
+
+extension TransformProfile: FetchableRecord, PersistableRecord {
+    static let databaseTableName = "transform_profiles"
+}
+```
+
+### WritingSample
+
+```swift
+import Foundation
+import GRDB
+
+struct WritingSample: Codable, Identifiable, Sendable {
+    var id: UUID
+    var title: String
+    var text: String
+    var wordCount: Int
+    var createdAt: Date
+    var updatedAt: Date
+}
+
+extension WritingSample: FetchableRecord, PersistableRecord {
+    static let databaseTableName = "writing_samples"
+}
+```
+
 ### QuickPrompt
 
 ```swift
@@ -920,6 +1020,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.12 — dictations.displayRawTranscript
 // v0.13 — prompts.keyboardShortcut and prompts.runningLabel
 // v0.14 — transform_history
+// v0.15 — transform_profiles and writing_samples
 ```
 
 ### Migration Rules
@@ -973,6 +1074,8 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `prompts.keyboardShortcut` | v0.13 | Transform hotkey binding JSON |
 | `prompts.runningLabel` | v0.13 | Transform progress-pill label override |
 | `transform_history` | v0.14 | Local-only Transform input/output history |
+| `transform_profiles` | v0.15 | Per-Transform workbench rules/custom instructions/settings |
+| `writing_samples` | v0.15 | Local-only writing-style samples for Transform prompt assembly |
 
 ### Tables NOT Planned (YAGNI)
 
@@ -1054,4 +1157,4 @@ let processing = try dbQueue.read { db in
 
 ---
 
-*Last updated: 2026-04-04*
+*Last updated: 2026-05-13*

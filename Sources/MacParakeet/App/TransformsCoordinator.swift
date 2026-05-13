@@ -23,7 +23,9 @@ import OSLog
 final class TransformsCoordinator {
     private let llmServiceProvider: () -> LLMServiceProtocol?
     private let promptRepository: PromptRepositoryProtocol
+    private let profileRepository: TransformProfileRepositoryProtocol
     private let historyRepository: TransformHistoryRepositoryProtocol
+    private let writingSampleRepository: WritingSampleRepositoryProtocol
     private let logger = Logger(subsystem: "com.macparakeet", category: "TransformsCoordinator")
 
     private var registry: TransformsHotkeyRegistry?
@@ -47,11 +49,15 @@ final class TransformsCoordinator {
     init(
         llmServiceProvider: @escaping () -> LLMServiceProtocol?,
         promptRepository: PromptRepositoryProtocol,
-        historyRepository: TransformHistoryRepositoryProtocol
+        profileRepository: TransformProfileRepositoryProtocol,
+        historyRepository: TransformHistoryRepositoryProtocol,
+        writingSampleRepository: WritingSampleRepositoryProtocol
     ) {
         self.llmServiceProvider = llmServiceProvider
         self.promptRepository = promptRepository
+        self.profileRepository = profileRepository
         self.historyRepository = historyRepository
+        self.writingSampleRepository = writingSampleRepository
     }
 
     // MARK: - Lifecycle
@@ -185,7 +191,7 @@ final class TransformsCoordinator {
 
         panelController?.show(label: prompt.derivedRunningLabel)
 
-        let promptBody = prompt.content
+        let promptBody = assembledPrompt(for: prompt)
         let runningTransformName = prompt.name
 
         let telemetryName = TelemetryTransformName(
@@ -287,6 +293,21 @@ final class TransformsCoordinator {
             NotificationCenter.default.post(name: .transformHistoryChanged, object: nil)
         } catch {
             logger.error("transforms: failed to save local history: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func assembledPrompt(for prompt: Prompt) -> String {
+        do {
+            let profile = try profileRepository.fetch(promptId: prompt.id) ?? .defaultProfile(for: prompt)
+            let samples = profile.useWritingSamples ? try writingSampleRepository.fetchAll() : []
+            return TransformPromptAssembler.assemble(
+                prompt: prompt,
+                profile: profile,
+                writingSamples: samples
+            )
+        } catch {
+            logger.error("transforms: failed to assemble profile prompt, falling back to base prompt: \(error.localizedDescription, privacy: .public)")
+            return prompt.content
         }
     }
 }

@@ -299,6 +299,7 @@ enum CLIErrorType {
                  .duplicateShortcut,
                  .shortcutConflictsWithDictation,
                  .shortcutConflictsWithMeeting,
+                 .shortcutConflictsWithAppHotkey,
                  .deleteBuiltIn:
                 return validation
             }
