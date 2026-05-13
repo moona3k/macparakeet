@@ -12,23 +12,20 @@ extension TransformsHotkeyCollisionChecker: TransformShortcutCollisionChecking {
         candidate: KeyboardShortcut,
         existing: [UUID: KeyboardShortcut],
         excludingPromptID: UUID?,
-        dictationHotkeys: [HotkeyTrigger],
-        meetingHotkey: HotkeyTrigger?
+        reservedHotkeys: [TransformShortcutReservedHotkey]
     ) -> TransformShortcutCollision? {
         let result: TransformsHotkeyCollision? = self.check(
             candidate: candidate,
             existing: existing,
             excludingPromptID: excludingPromptID,
-            dictationHotkeys: dictationHotkeys,
-            meetingHotkey: meetingHotkey
+            reservedHotkeys: reservedHotkeys
         )
         switch result {
         case nil: return nil
         case .missingModifier: return .missingModifier
         case .macOSDeadKey: return .macOSDeadKey
         case .duplicateTransform(let id): return .duplicateTransform(otherPromptID: id)
-        case .dictationHotkey: return .dictationHotkey
-        case .meetingHotkey: return .meetingHotkey
+        case .reservedHotkey(let name, let shortcut): return .reservedHotkey(name: name, shortcut: shortcut)
         }
     }
 }

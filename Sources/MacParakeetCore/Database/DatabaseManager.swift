@@ -715,6 +715,34 @@ public final class DatabaseManager: Sendable {
             )
         }
 
+        // v0.15 — Transform Workbench profiles and writing samples. Profiles
+        // hold structured controls for each Transform; writing samples are
+        // local-only voice references that can be attached to assembled prompts
+        // when a user explicitly enables them.
+        migrator.registerMigration("v0.15-transform-workbench") { db in
+            try db.create(table: "transform_profiles") { t in
+                t.column("promptId", .text).primaryKey()
+                t.column("enabledRuleIDsJSON", .text).notNull().defaults(to: "[]")
+                t.column("customInstructions", .text)
+                t.column("useWritingSamples", .boolean).notNull().defaults(to: false)
+                t.column("createdAt", .text).notNull()
+                t.column("updatedAt", .text).notNull()
+            }
+            try db.create(table: "writing_samples") { t in
+                t.column("id", .text).primaryKey()
+                t.column("title", .text).notNull()
+                t.column("text", .text).notNull()
+                t.column("wordCount", .integer).notNull().defaults(to: 0)
+                t.column("createdAt", .text).notNull()
+                t.column("updatedAt", .text).notNull()
+            }
+            try db.create(
+                index: "idx_writing_samples_updated_at",
+                on: "writing_samples",
+                columns: ["updatedAt"]
+            )
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()

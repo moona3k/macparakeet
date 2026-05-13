@@ -7,17 +7,14 @@ final class TransformEditorViewModelTests: XCTestCase {
 
     private final class StubCollisionChecker: TransformShortcutCollisionChecking {
         var result: TransformShortcutCollision?
-        var receivedDictationHotkeys: [HotkeyTrigger]?
-        var receivedMeetingHotkey: HotkeyTrigger?
+        var receivedReservedHotkeys: [TransformShortcutReservedHotkey]?
         func checkForEditor(
             candidate: KeyboardShortcut,
             existing: [UUID: KeyboardShortcut],
             excludingPromptID: UUID?,
-            dictationHotkeys: [HotkeyTrigger],
-            meetingHotkey: HotkeyTrigger?
+            reservedHotkeys: [TransformShortcutReservedHotkey]
         ) -> TransformShortcutCollision? {
-            receivedDictationHotkeys = dictationHotkeys
-            receivedMeetingHotkey = meetingHotkey
+            receivedReservedHotkeys = reservedHotkeys
             return result
         }
     }
@@ -72,8 +69,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.content = "Some body."
         vm.validate(
             existingTransforms: [],
-            dictationHotkeys: [],
-            meetingHotkey: nil,
+            reservedHotkeys: [],
             collisionChecker: StubCollisionChecker()
         )
         XCTAssertNotNil(vm.nameError)
@@ -85,8 +81,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.name = "Sharpen"
         vm.validate(
             existingTransforms: [],
-            dictationHotkeys: [],
-            meetingHotkey: nil,
+            reservedHotkeys: [],
             collisionChecker: StubCollisionChecker()
         )
         XCTAssertNotNil(vm.contentError)
@@ -105,8 +100,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.content = "Body"
         vm.validate(
             existingTransforms: [other],
-            dictationHotkeys: [],
-            meetingHotkey: nil,
+            reservedHotkeys: [],
             collisionChecker: StubCollisionChecker()
         )
         XCTAssertNotNil(vm.nameError)
@@ -123,8 +117,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         let vm = TransformEditorViewModel(mode: .edit(prompt))
         vm.validate(
             existingTransforms: [prompt],
-            dictationHotkeys: [],
-            meetingHotkey: nil,
+            reservedHotkeys: [],
             collisionChecker: StubCollisionChecker()
         )
         XCTAssertNil(vm.nameError, "Editing the same Transform with its existing name should not read as duplicate.")
@@ -140,8 +133,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.shortcut = KeyboardShortcut(modifiers: 0, keyCode: 0x12, keyLabel: "1")
         vm.validate(
             existingTransforms: [],
-            dictationHotkeys: [],
-            meetingHotkey: nil,
+            reservedHotkeys: [],
             collisionChecker: stub
         )
         XCTAssertNotNil(vm.shortcutError)
@@ -155,15 +147,18 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.name = "Sharpen"
         vm.content = "Body"
         vm.shortcut = opt1
+        let reserved = [
+            TransformShortcutReservedHotkey(name: "Dictation", trigger: .fn),
+            TransformShortcutReservedHotkey(name: "Push-to-talk", trigger: .option),
+            TransformShortcutReservedHotkey(name: "Meeting recording", trigger: .defaultMeetingRecording),
+        ]
         vm.validate(
             existingTransforms: [],
-            dictationHotkeys: [.fn, .option],
-            meetingHotkey: .defaultMeetingRecording,
+            reservedHotkeys: reserved,
             collisionChecker: stub
         )
 
-        XCTAssertEqual(stub.receivedDictationHotkeys, [.fn, .option])
-        XCTAssertEqual(stub.receivedMeetingHotkey, .defaultMeetingRecording)
+        XCTAssertEqual(stub.receivedReservedHotkeys, reserved)
     }
 
     func testNilShortcutIsValidDormantState() {
@@ -173,8 +168,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.shortcut = nil
         vm.validate(
             existingTransforms: [],
-            dictationHotkeys: [],
-            meetingHotkey: nil,
+            reservedHotkeys: [],
             collisionChecker: StubCollisionChecker()
         )
         XCTAssertNil(vm.shortcutError)
@@ -190,8 +184,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.content = ""
         vm.validate(
             existingTransforms: [],
-            dictationHotkeys: [],
-            meetingHotkey: nil,
+            reservedHotkeys: [],
             collisionChecker: StubCollisionChecker()
         )
         XCTAssertNil(vm.buildSavable())
@@ -205,8 +198,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.shortcut = opt1
         vm.validate(
             existingTransforms: [],
-            dictationHotkeys: [],
-            meetingHotkey: nil,
+            reservedHotkeys: [],
             collisionChecker: StubCollisionChecker()
         )
         let saved = vm.buildSavable()
@@ -235,8 +227,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.content = "New body"
         vm.validate(
             existingTransforms: [],
-            dictationHotkeys: [],
-            meetingHotkey: nil,
+            reservedHotkeys: [],
             collisionChecker: StubCollisionChecker()
         )
         let saved = vm.buildSavable()
@@ -253,8 +244,7 @@ final class TransformEditorViewModelTests: XCTestCase {
         vm.runningLabel = "   " // whitespace only
         vm.validate(
             existingTransforms: [],
-            dictationHotkeys: [],
-            meetingHotkey: nil,
+            reservedHotkeys: [],
             collisionChecker: StubCollisionChecker()
         )
         XCTAssertNil(vm.buildSavable()?.runningLabel, "Whitespace-only running label normalizes to nil.")

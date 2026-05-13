@@ -22,7 +22,9 @@ process.
   - `TextSnippetRepository.swift` — snippets (text + action).
   - `PromptRepository.swift` — prompt-library entries.
   - `PromptResultRepository.swift` — saved prompt outputs.
+  - `TransformProfileRepository.swift` — structured Transform rules and workbench settings.
   - `TransformHistoryRepository.swift` — local-only Transform input/output history.
+  - `WritingSampleRepository.swift` — local-only writing samples used by Transform voice matching.
   - `QuickPromptRepository.swift` — quick-prompt entries (Ask tab).
   - `ChatConversationRepository.swift` — multi-turn chat history.
 

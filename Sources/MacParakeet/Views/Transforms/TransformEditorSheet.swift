@@ -15,8 +15,7 @@ import MacParakeetViewModels
 struct TransformEditorSheet: View {
     @Bindable var viewModel: TransformEditorViewModel
     let existingTransforms: [Prompt]
-    let dictationHotkeys: [HotkeyTrigger]
-    let meetingHotkey: HotkeyTrigger?
+    let reservedHotkeys: [TransformShortcutReservedHotkey]
     let onShortcutRecordingStateChanged: (Bool) -> Void
     let onSave: (Prompt) -> Void
     let onCancel: () -> Void
@@ -206,8 +205,7 @@ struct TransformEditorSheet: View {
     private func revalidate() {
         viewModel.validate(
             existingTransforms: existingTransforms,
-            dictationHotkeys: dictationHotkeys,
-            meetingHotkey: meetingHotkey,
+            reservedHotkeys: reservedHotkeys,
             collisionChecker: collisionChecker
         )
     }
