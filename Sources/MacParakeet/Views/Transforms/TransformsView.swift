@@ -95,17 +95,17 @@ struct TransformsView: View {
         } message: { sample in
             Text("“\(sample.title)” will no longer be used as a voice reference.")
         }
-        .alert("Clear Transform history?", isPresented: $viewModel.isConfirmingClearHistory) {
-            Button("Clear History", role: .destructive) {
+        .alert("Clear this Transform's history?", isPresented: $viewModel.isConfirmingClearHistory) {
+            Button("Clear Runs", role: .destructive) {
                 Task {
-                    await viewModel.clearHistory()
+                    await viewModel.clearSelectedHistory()
                 }
             }
             Button("Cancel", role: .cancel) {
                 viewModel.isConfirmingClearHistory = false
             }
         } message: {
-            Text("This removes every saved Transform input and output from this Mac.")
+            Text("This removes the saved inputs and outputs for the selected Transform from this Mac.")
         }
     }
 
@@ -151,11 +151,12 @@ struct TransformsView: View {
                 viewModel.reseedMissingBuiltIns()
                 onBindingsChanged()
             } label: {
-                Label("Restore defaults", systemImage: "arrow.counterclockwise")
+                Label("Restore missing defaults", systemImage: "arrow.counterclockwise")
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .parakeetAction(.subtle)
             .controlSize(.small)
+            .help("Recreate any built-in Transforms that are missing")
         }
         .padding(.horizontal, DesignSystem.Spacing.lg)
         .padding(.bottom, DesignSystem.Spacing.lg)
@@ -285,9 +286,9 @@ struct TransformsView: View {
                         .disabled(!canSaveDraft)
                     }
 
-                    Text(viewModel.isCreatingDraft ? "Not saved yet" : "Saved locally")
+                    Text(draftStatusText)
                         .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .foregroundStyle(viewModel.isDraftDirty ? DesignSystem.Colors.warningAmber : DesignSystem.Colors.textTertiary)
                 }
             }
         }
@@ -484,7 +485,7 @@ struct TransformsView: View {
                         Button(role: .destructive) {
                             viewModel.isConfirmingClearHistory = true
                         } label: {
-                            Label("Clear All", systemImage: "trash")
+                            Label("Clear Runs", systemImage: "trash")
                         }
                         .parakeetAction(.subtle)
                         .controlSize(.small)
@@ -519,6 +520,13 @@ struct TransformsView: View {
             && viewModel.nameError == nil
             && viewModel.contentError == nil
             && viewModel.shortcutError == nil
+    }
+
+    private var draftStatusText: String {
+        if viewModel.isCreatingDraft {
+            return "Not saved yet"
+        }
+        return viewModel.isDraftDirty ? "Unsaved changes" : "Saved locally"
     }
 
     private func revalidate() {
@@ -695,6 +703,10 @@ private struct WritingSampleRow: View {
 private struct WritingSampleEditor: View {
     @Bindable var viewModel: TransformsViewModel
 
+    private var wordCount: Int {
+        WritingSample.countWords(in: viewModel.writingSampleText)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             TextField("Sample title", text: $viewModel.writingSampleTitle)
@@ -732,9 +744,9 @@ private struct WritingSampleEditor: View {
                 }
 
             HStack {
-                Text("\(WritingSample.countWords(in: viewModel.writingSampleText)) words")
+                Text("\(wordCount)/\(TransformsViewModel.minimumWritingSampleWords) words")
                     .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    .foregroundStyle(wordCount >= TransformsViewModel.minimumWritingSampleWords ? DesignSystem.Colors.textSecondary : DesignSystem.Colors.textTertiary)
                 Spacer()
                 Button("Cancel") {
                     viewModel.isAddingWritingSample = false
@@ -747,6 +759,7 @@ private struct WritingSampleEditor: View {
                     _ = viewModel.saveWritingSample()
                 }
                 .parakeetAction(.primary)
+                .disabled(wordCount < TransformsViewModel.minimumWritingSampleWords)
             }
         }
         .padding(DesignSystem.Spacing.md)

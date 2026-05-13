@@ -9,6 +9,7 @@ public protocol TransformHistoryRepositoryProtocol: Sendable {
     func fetch(idPrefix: String) throws -> [TransformHistoryEntry]
     func count() throws -> Int
     func delete(id: UUID) throws -> Bool
+    func deleteAll(transformId: UUID) throws
     func deleteAll() throws
 }
 
@@ -81,6 +82,14 @@ public final class TransformHistoryRepository: TransformHistoryRepositoryProtoco
     public func delete(id: UUID) throws -> Bool {
         try dbQueue.write { db in
             try TransformHistoryEntry.deleteOne(db, key: id)
+        }
+    }
+
+    public func deleteAll(transformId: UUID) throws {
+        _ = try dbQueue.write { db in
+            try TransformHistoryEntry
+                .filter(TransformHistoryEntry.Columns.transformId == transformId)
+                .deleteAll(db)
         }
     }
 

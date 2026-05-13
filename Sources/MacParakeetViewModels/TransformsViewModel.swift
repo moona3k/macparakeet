@@ -320,6 +320,27 @@ public final class TransformsViewModel {
         }
     }
 
+    public func clearSelectedHistory() async {
+        guard let historyRepo else { return }
+        guard let selectedTransformID else {
+            isConfirmingClearHistory = false
+            return
+        }
+        do {
+            let snapshot = try await Self.deleteHistoryForTransformAndFetchSnapshot(
+                repo: historyRepo,
+                transformId: selectedTransformID,
+                limit: Self.historyFetchLimit
+            )
+            history = snapshot.entries
+            totalHistoryCount = snapshot.totalCount
+            isConfirmingClearHistory = false
+            historyErrorMessage = nil
+        } catch {
+            historyErrorMessage = error.localizedDescription
+        }
+    }
+
     public func copyOutputToClipboard(_ entry: TransformHistoryEntry) async {
         guard let clipboardService else {
             historyErrorMessage = "Clipboard service is unavailable."
@@ -359,6 +380,19 @@ public final class TransformsViewModel {
     ) async throws -> (entries: [TransformHistoryEntry], totalCount: Int) {
         try await Task.detached(priority: .userInitiated) {
             _ = try repo.delete(id: id)
+            let entries = try repo.fetchRecent(limit: limit)
+            let totalCount = try repo.count()
+            return (entries, totalCount)
+        }.value
+    }
+
+    private static func deleteHistoryForTransformAndFetchSnapshot(
+        repo: TransformHistoryRepositoryProtocol,
+        transformId: UUID,
+        limit: Int
+    ) async throws -> (entries: [TransformHistoryEntry], totalCount: Int) {
+        try await Task.detached(priority: .userInitiated) {
+            try repo.deleteAll(transformId: transformId)
             let entries = try repo.fetchRecent(limit: limit)
             let totalCount = try repo.count()
             return (entries, totalCount)
@@ -511,6 +545,23 @@ public final class TransformsViewModel {
             && nameError == nil
             && contentError == nil
             && shortcutError == nil
+    }
+
+    public var isDraftDirty: Bool {
+        guard !isCreatingDraft, let prompt = selectedTransform else { return false }
+
+        let normalizedContent = draftContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedRunningLabel = draftRunningLabel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let normalizedInstructions = draftCustomInstructions.trimmingCharacters(in: .whitespacesAndNewlines)
+        let profile = profiles[prompt.id] ?? .defaultProfile(for: prompt)
+
+        return normalizedDraftName != prompt.name
+            || normalizedContent != prompt.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            || normalizedRunningLabel != (prompt.runningLabel ?? "")
+            || draftShortcut != prompt.shortcut
+            || draftEnabledRuleIDs != profile.enabledRuleIDs
+            || normalizedInstructions != (profile.customInstructions ?? "")
+            || draftUseWritingSamples != profile.useWritingSamples
     }
 
     public var customTransforms: [Prompt] {

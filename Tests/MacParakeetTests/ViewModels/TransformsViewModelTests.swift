@@ -123,6 +123,39 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertTrue(saved.useWritingSamples)
     }
 
+    func testDraftDirtyTracksPromptAndProfileChanges() throws {
+        let polish = viewModel.transforms.first(where: { $0.name == "Polish" })!
+        viewModel.selectTransform(polish)
+
+        XCTAssertFalse(viewModel.isDraftDirty)
+
+        viewModel.draftCustomInstructions = "Keep it direct."
+        XCTAssertTrue(viewModel.isDraftDirty)
+
+        XCTAssertTrue(
+            viewModel.saveDraft(
+                reservedHotkeys: [],
+                collisionChecker: StubCollisionChecker()
+            )
+        )
+        XCTAssertFalse(viewModel.isDraftDirty)
+
+        viewModel.draftName = "Polish better"
+        XCTAssertTrue(viewModel.isDraftDirty)
+    }
+
+    func testDraftDirtyComparesDecodedShortcutValue() throws {
+        var polish = viewModel.transforms.first(where: { $0.name == "Polish" })!
+        polish.keyboardShortcut = #"{"keyLabel":"1","modifiers":524288,"keyCode":18}"#
+        try repo.save(polish)
+        viewModel.load()
+        let reloaded = viewModel.transforms.first(where: { $0.name == "Polish" })!
+
+        viewModel.selectTransform(reloaded)
+
+        XCTAssertFalse(viewModel.isDraftDirty)
+    }
+
     func testDeleteCustomTransformRemovesRow() {
         let prompt = Prompt(
             id: UUID(),
@@ -342,6 +375,50 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.history.isEmpty)
         XCTAssertEqual(viewModel.totalHistoryCount, 0)
         XCTAssertEqual(try historyRepo.count(), 0)
+    }
+
+    func testClearSelectedHistoryPreservesOtherTransforms() async throws {
+        let polish = viewModel.transforms.first(where: { $0.name == "Polish" })!
+        let distill = viewModel.transforms.first(where: { $0.name == "Distill" })!
+        for index in 0..<205 {
+            try historyRepo.save(
+                TransformHistoryEntry(
+                    transformId: polish.id,
+                    transformName: "Polish",
+                    inputText: "rough \(index)",
+                    outputText: "polished \(index)",
+                    capturePath: "ax",
+                    replacementPath: "ax",
+                    llmElapsedMs: 1,
+                    totalElapsedMs: 2,
+                    createdAt: Date(timeIntervalSince1970: TimeInterval(index)),
+                    updatedAt: Date(timeIntervalSince1970: TimeInterval(index))
+                )
+            )
+        }
+        try historyRepo.save(
+            TransformHistoryEntry(
+                transformId: distill.id,
+                transformName: "Distill",
+                inputText: "long",
+                outputText: "short",
+                capturePath: "clipboard",
+                replacementPath: "clipboardPaste",
+                llmElapsedMs: 3,
+                totalElapsedMs: 4,
+                createdAt: Date(timeIntervalSince1970: 1_000),
+                updatedAt: Date(timeIntervalSince1970: 1_000)
+            )
+        )
+        viewModel.selectTransform(polish)
+        await viewModel.loadHistory()
+
+        await viewModel.clearSelectedHistory()
+
+        XCTAssertTrue(viewModel.selectedHistory.isEmpty)
+        XCTAssertEqual(viewModel.history.map(\.transformName), ["Distill"])
+        XCTAssertEqual(viewModel.totalHistoryCount, 1)
+        XCTAssertEqual(try historyRepo.count(), 1)
     }
 
     func testCopyHistoryOutputUsesInjectedClipboardService() async {
