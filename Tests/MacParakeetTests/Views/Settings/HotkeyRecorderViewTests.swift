@@ -147,4 +147,34 @@ final class HotkeyRecorderViewTests: XCTestCase {
             "⇧⌘M"
         )
     }
+
+    func testTransformShortcutRecorderUsesEscapeToCancelRecording() throws {
+        let escape = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "\u{1b}",
+            charactersIgnoringModifiers: "\u{1b}",
+            isARepeat: false,
+            keyCode: 0x35
+        ))
+        let one = try XCTUnwrap(NSEvent.keyEvent(
+            with: .keyDown,
+            location: .zero,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            characters: "1",
+            charactersIgnoringModifiers: "1",
+            isARepeat: false,
+            keyCode: 0x12
+        ))
+
+        XCTAssertTrue(ShortcutRecorderField.shouldCancelRecording(escape))
+        XCTAssertFalse(ShortcutRecorderField.shouldCancelRecording(one))
+    }
 }

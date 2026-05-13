@@ -136,18 +136,22 @@ final class TransformsCoordinator {
         guard let registry else { return }
         let prompts: [Prompt]
         do {
-            prompts = try promptRepository.fetchVisible(category: .transform)
+            prompts = try promptRepository
+                .fetchVisible(category: .transform)
+                .sorted(by: { lhs, rhs in
+                    if lhs.sortOrder != rhs.sortOrder { return lhs.sortOrder < rhs.sortOrder }
+                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+                })
         } catch {
             logger.error("transforms: fetchVisible failed: \(error.localizedDescription, privacy: .public)")
             return
         }
 
-        promptIndex = Dictionary(uniqueKeysWithValues: prompts.map { ($0.id, $0) })
-
         let bindings = Self.validatedBindings(
             for: prompts,
             reservedHotkeys: reservedHotkeysProvider()
         )
+        promptIndex = Dictionary(uniqueKeysWithValues: prompts.map { ($0.id, $0) })
         activeBindingIDs = Set(bindings.keys)
         registry.replaceBindings(bindings)
     }
@@ -157,6 +161,7 @@ final class TransformsCoordinator {
         reservedHotkeys: [TransformShortcutReservedHotkey]
     ) -> [UUID: KeyboardShortcut] {
         let collisionChecker = TransformsHotkeyCollisionChecker()
+        let activeReservedHotkeys = reservedHotkeys.filter { !$0.trigger.isDisabled }
         var bindings: [UUID: KeyboardShortcut] = [:]
         for prompt in prompts {
             guard let shortcut = prompt.shortcut else { continue }
@@ -164,7 +169,7 @@ final class TransformsCoordinator {
                 candidate: shortcut,
                 existing: bindings,
                 excludingPromptID: nil,
-                reservedHotkeys: reservedHotkeys
+                reservedHotkeys: activeReservedHotkeys
             ) == nil else {
                 continue
             }

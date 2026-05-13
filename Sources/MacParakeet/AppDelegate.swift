@@ -509,6 +509,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         transformsCoordinator?.reloadBindings()
         menuBarCoordinator.refreshHotkeyTitle()
         menuBarCoordinator.refreshMeetingHotkeyShortcut()
+        NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
     }
 
     /// Any auxiliary hotkey change refreshes all three auxiliary hotkeys so a
@@ -533,6 +534,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         transformsCoordinator?.reloadBindings()
         menuBarCoordinator.refreshMeetingHotkeyShortcut()
         menuBarCoordinator.refreshTranscriptionHotkeyShortcuts()
+        NotificationCenter.default.post(name: .transformsBindingsChanged, object: nil)
+    }
+
+    private var transformReservedHotkeys: [TransformShortcutReservedHotkey] {
+        [
+            TransformShortcutReservedHotkey(name: "Dictation", trigger: settingsViewModel.hotkeyTrigger),
+            TransformShortcutReservedHotkey(name: "Push-to-talk", trigger: settingsViewModel.pushToTalkHotkeyTrigger),
+            TransformShortcutReservedHotkey(name: "Meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger),
+            TransformShortcutReservedHotkey(name: "File transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
+            TransformShortcutReservedHotkey(name: "YouTube transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
+        ].filter { !$0.trigger.isDisabled }
     }
 
     private func triggerFileTranscriptionFromHotkey() {
@@ -559,16 +571,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 handsFree: settingsViewModel.hotkeyTrigger,
                 pushToTalk: settingsViewModel.pushToTalkHotkeyTrigger
             )
-    }
-
-    private var transformReservedHotkeys: [TransformShortcutReservedHotkey] {
-        [
-            TransformShortcutReservedHotkey(name: "Dictation", trigger: settingsViewModel.hotkeyTrigger),
-            TransformShortcutReservedHotkey(name: "Push-to-talk", trigger: settingsViewModel.pushToTalkHotkeyTrigger),
-            TransformShortcutReservedHotkey(name: "Meeting recording", trigger: settingsViewModel.meetingHotkeyTrigger),
-            TransformShortcutReservedHotkey(name: "File transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
-            TransformShortcutReservedHotkey(name: "YouTube transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
-        ].filter { !$0.trigger.isDisabled }
     }
 
     // MARK: - Menu Bar Icon State

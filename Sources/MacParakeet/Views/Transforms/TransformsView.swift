@@ -14,7 +14,14 @@ struct TransformsView: View {
 
     @State private var isRecordingShortcut = false
     @State private var showBuiltInPrompt = false
+    @State private var pendingDraftNavigation: PendingDraftNavigation?
     private let collisionChecker = TransformsHotkeyCollisionChecker()
+
+    private enum PendingDraftNavigation {
+        case select(Prompt)
+        case create
+        case cancelCreate
+    }
 
     var body: some View {
         HStack(spacing: 0) {
@@ -57,7 +64,7 @@ struct TransformsView: View {
                 viewModel.pendingDeleteTransform = nil
             }
         } message: { transform in
-            Text("“\(transform.name)” will be removed. Its local history stays available.")
+            Text("“\(transform.name)” and its local run history will be removed.")
         }
         .alert(
             "Delete history item?",
@@ -108,6 +115,22 @@ struct TransformsView: View {
         } message: {
             Text("This removes the saved inputs and outputs for the selected Transform from this Mac.")
         }
+        .alert(
+            "Discard unsaved changes?",
+            isPresented: Binding(
+                get: { pendingDraftNavigation != nil },
+                set: { if !$0 { pendingDraftNavigation = nil } }
+            )
+        ) {
+            Button("Discard Changes", role: .destructive) {
+                performPendingDraftNavigation()
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDraftNavigation = nil
+            }
+        } message: {
+            Text("Your current Transform edits have not been saved.")
+        }
     }
 
     private var sidebar: some View {
@@ -134,8 +157,7 @@ struct TransformsView: View {
                     }
 
                     Button {
-                        showBuiltInPrompt = true
-                        viewModel.startCreatingTransform()
+                        requestDraftNavigation(.create)
                     } label: {
                         Label("Create Transform", systemImage: "plus")
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -196,10 +218,9 @@ struct TransformsView: View {
                     TransformListRow(
                         transform: transform,
                         isSelected: viewModel.selectedTransformID == transform.id && !viewModel.isCreatingDraft,
-                        historyCount: viewModel.selectedTransformID == transform.id ? viewModel.selectedHistoryTotalCount : viewModel.history.filter { $0.transformId == transform.id }.count,
+                        historyCount: viewModel.historyCountsByTransformID[transform.id] ?? 0,
                         action: {
-                            showBuiltInPrompt = false
-                            viewModel.selectTransform(transform)
+                            requestDraftNavigation(.select(transform))
                         }
                     )
                 }
@@ -245,6 +266,8 @@ struct TransformsView: View {
                     if let error = viewModel.nameError {
                         InlineValidation(message: error)
                     }
+
+                    runningLabelField
                 }
 
                 Spacer(minLength: DesignSystem.Spacing.lg)
@@ -253,14 +276,16 @@ struct TransformsView: View {
                     HStack(spacing: DesignSystem.Spacing.sm) {
                         if viewModel.isCreatingDraft {
                             Button("Cancel") {
-                                viewModel.cancelCreate()
+                                requestDraftNavigation(.cancelCreate)
                             }
                             .parakeetAction(.secondary)
                         } else if let selected = viewModel.selectedTransform {
                             if selected.isBuiltIn {
                                 Button {
-                                    viewModel.resetBuiltIn(selected)
-                                    onBindingsChanged()
+                                    if viewModel.resetBuiltIn(selected) {
+                                        revalidate()
+                                        onBindingsChanged()
+                                    }
                                 } label: {
                                     Label("Reset", systemImage: "arrow.counterclockwise")
                                 }
@@ -317,6 +342,32 @@ struct TransformsView: View {
         }
     }
 
+    private var runningLabelField: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Progress label")
+                .font(DesignSystem.Typography.micro)
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+            TextField("Transforming...", text: $viewModel.draftRunningLabel)
+                .textFieldStyle(.plain)
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .padding(.horizontal, DesignSystem.Spacing.md)
+                .padding(.vertical, DesignSystem.Spacing.sm)
+                .background(DesignSystem.Colors.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(DesignSystem.Colors.border, lineWidth: 0.5)
+                }
+                .accessibilityLabel("Transform progress label")
+            Text("Shown in the floating pill while this Transform runs.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+        }
+        .frame(maxWidth: 360, alignment: .leading)
+        .padding(.top, DesignSystem.Spacing.sm)
+    }
+
     private var rulesSection: some View {
         WorkbenchSection(title: "Rules", subtitle: "Shape the behavior without editing the full prompt.") {
             VStack(spacing: 0) {
@@ -345,7 +396,10 @@ struct TransformsView: View {
     private var writingSamplesSection: some View {
         WorkbenchSection(title: "Writing samples", subtitle: "Optional local examples for matching your voice.") {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                Toggle(isOn: $viewModel.draftUseWritingSamples) {
+                Toggle(isOn: Binding(
+                    get: { viewModel.draftUseWritingSamples && viewModel.canUseWritingSamples },
+                    set: { viewModel.setDraftUseWritingSamples($0) }
+                )) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Match my writing style")
                             .font(DesignSystem.Typography.body.weight(.semibold))
@@ -538,6 +592,38 @@ struct TransformsView: View {
             collisionChecker: collisionChecker
         )
     }
+
+    private func requestDraftNavigation(_ navigation: PendingDraftNavigation) {
+        if case .select(let prompt) = navigation,
+           viewModel.selectedTransformID == prompt.id,
+           !viewModel.isCreatingDraft {
+            return
+        }
+        guard viewModel.hasUnsavedDraft else {
+            performDraftNavigation(navigation)
+            return
+        }
+        pendingDraftNavigation = navigation
+    }
+
+    private func performPendingDraftNavigation() {
+        guard let navigation = pendingDraftNavigation else { return }
+        pendingDraftNavigation = nil
+        performDraftNavigation(navigation)
+    }
+
+    private func performDraftNavigation(_ navigation: PendingDraftNavigation) {
+        switch navigation {
+        case .select(let prompt):
+            showBuiltInPrompt = false
+            viewModel.selectTransform(prompt)
+        case .create:
+            showBuiltInPrompt = true
+            viewModel.startCreatingTransform()
+        case .cancelCreate:
+            viewModel.cancelCreate()
+        }
+    }
 }
 
 private struct TransformListRow: View {
@@ -696,7 +782,7 @@ private struct WritingSampleRow: View {
             .buttonStyle(.plain)
             .foregroundStyle(DesignSystem.Colors.textSecondary)
             .help("Delete writing sample")
-            .accessibilityLabel("Delete writing sample")
+            .accessibilityLabel("Delete writing sample \(sample.title)")
         }
         .padding(DesignSystem.Spacing.md)
         .background(DesignSystem.Colors.surface)
@@ -826,7 +912,7 @@ private struct TransformHistoryRow: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                 .help("Copy transformed text")
-                .accessibilityLabel("Copy transformed text")
+                .accessibilityLabel("Copy \(entry.transformName) output from \(entry.sourceAppDisplayName)")
 
                 Button(role: .destructive, action: onDelete) {
                     Image(systemName: "trash")
@@ -834,7 +920,7 @@ private struct TransformHistoryRow: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                 .help("Delete history item")
-                .accessibilityLabel("Delete history item")
+                .accessibilityLabel("Delete \(entry.transformName) history item from \(entry.sourceAppDisplayName)")
             }
 
             Text(entry.outputText)

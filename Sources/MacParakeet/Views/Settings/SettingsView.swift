@@ -19,6 +19,7 @@ struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @Bindable var llmSettingsViewModel: LLMSettingsViewModel
     let updater: SPUUpdater
+    let transformHotkeys: [TransformShortcutReservedHotkey]
     /// Fired by each `HotkeyRecorderView` when it starts/stops capturing
     /// keystrokes. Wired up to `AppHotkeyCoordinator.suspend` / `resume` so
     /// active global taps don't swallow the keyDown the user is recording.
@@ -42,11 +43,13 @@ struct SettingsView: View {
         viewModel: SettingsViewModel,
         llmSettingsViewModel: LLMSettingsViewModel,
         updater: SPUUpdater,
+        transformHotkeys: [TransformShortcutReservedHotkey] = [],
         onHotkeyRecordingStateChanged: @escaping (Bool) -> Void
     ) {
         self.viewModel = viewModel
         self.llmSettingsViewModel = llmSettingsViewModel
         self.updater = updater
+        self.transformHotkeys = transformHotkeys
         self.onHotkeyRecordingStateChanged = onHotkeyRecordingStateChanged
         self._automaticallyChecksForUpdates = State(initialValue: updater.automaticallyChecksForUpdates)
         self._automaticallyDownloadsUpdates = State(initialValue: updater.automaticallyDownloadsUpdates)
@@ -855,6 +858,12 @@ struct SettingsView: View {
                                 trigger: otherTranscriptionTrigger
                             ))
                         }
+                        if let conflict = transformHotkeyConflict(for: candidate) {
+                            return .blocked(SettingsHotkeyConflictMessage.blocked(
+                                conflictingWith: conflict.name,
+                                trigger: conflict.trigger
+                            ))
+                        }
                         return .allowed
                     },
                     onRecordingStateChanged: onHotkeyRecordingStateChanged
@@ -901,6 +910,12 @@ struct SettingsView: View {
                 trigger: otherTranscription
             )
         }
+        if let conflict = transformHotkeyConflict(for: trigger) {
+            return SettingsHotkeyConflictMessage.disabled(
+                conflictingWith: conflict.name,
+                trigger: conflict.trigger
+            )
+        }
         return nil
     }
 
@@ -929,6 +944,12 @@ struct SettingsView: View {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "YouTube transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
+            ))
+        }
+        if let conflict = transformHotkeyConflict(for: candidate) {
+            return .blocked(SettingsHotkeyConflictMessage.blocked(
+                conflictingWith: conflict.name,
+                trigger: conflict.trigger
             ))
         }
         return .allowed
@@ -961,6 +982,12 @@ struct SettingsView: View {
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             ))
         }
+        if let conflict = transformHotkeyConflict(for: candidate) {
+            return .blocked(SettingsHotkeyConflictMessage.blocked(
+                conflictingWith: conflict.name,
+                trigger: conflict.trigger
+            ))
+        }
         return .allowed
     }
 
@@ -988,6 +1015,12 @@ struct SettingsView: View {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "YouTube transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
+            ))
+        }
+        if let conflict = transformHotkeyConflict(for: candidate) {
+            return .blocked(SettingsHotkeyConflictMessage.blocked(
+                conflictingWith: conflict.name,
+                trigger: conflict.trigger
             ))
         }
         return .allowed
@@ -1020,6 +1053,12 @@ struct SettingsView: View {
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             )
         }
+        if let conflict = transformHotkeyConflict(for: trigger) {
+            return SettingsHotkeyConflictMessage.disabled(
+                conflictingWith: conflict.name,
+                trigger: conflict.trigger
+            )
+        }
         return nil
     }
 
@@ -1048,6 +1087,12 @@ struct SettingsView: View {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "YouTube transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
+            )
+        }
+        if let conflict = transformHotkeyConflict(for: trigger) {
+            return SettingsHotkeyConflictMessage.disabled(
+                conflictingWith: conflict.name,
+                trigger: conflict.trigger
             )
         }
         return nil
@@ -1079,7 +1124,20 @@ struct SettingsView: View {
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             )
         }
+        if let conflict = transformHotkeyConflict(for: trigger) {
+            return SettingsHotkeyConflictMessage.disabled(
+                conflictingWith: conflict.name,
+                trigger: conflict.trigger
+            )
+        }
         return nil
+    }
+
+    private func transformHotkeyConflict(for trigger: HotkeyTrigger) -> TransformShortcutReservedHotkey? {
+        guard AppFeatures.transformsEnabled, !trigger.isDisabled else { return nil }
+        return transformHotkeys.first { conflict in
+            trigger.overlaps(with: conflict.trigger)
+        }
     }
 
     private func transcriptionHotkeyConflictText(_ message: String) -> some View {

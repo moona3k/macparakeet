@@ -101,10 +101,13 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(fresh.draftEnabledRuleIDs, ["polish.tone"])
         XCTAssertEqual(fresh.draftCustomInstructions, "Use contractions.")
         XCTAssertTrue(fresh.draftUseWritingSamples)
+        XCTAssertFalse(fresh.isDraftDirty)
     }
 
     func testSaveDraftPersistsProfileSettings() throws {
         let polish = viewModel.transforms.first(where: { $0.name == "Polish" })!
+        try writingSampleRepo.save(WritingSample(title: "Sample", text: (1...50).map { "word\($0)" }.joined(separator: " ")))
+        viewModel.loadWritingSamples()
         viewModel.selectTransform(polish)
         viewModel.draftEnabledRuleIDs = ["polish.concise", "polish.tone"]
         viewModel.draftCustomInstructions = "Keep the user's punctuation style."
@@ -166,11 +169,22 @@ final class TransformsViewModelTests: XCTestCase {
             sortOrder: 201
         )
         viewModel.save(prompt)
+        try? historyRepo.save(TransformHistoryEntry(
+            transformId: prompt.id,
+            transformName: prompt.name,
+            inputText: "rough",
+            outputText: "sharp",
+            capturePath: "ax",
+            replacementPath: "ax",
+            llmElapsedMs: 1,
+            totalElapsedMs: 2
+        ))
         XCTAssertEqual(viewModel.transforms.count, 4)
 
         XCTAssertTrue(viewModel.delete(prompt))
         XCTAssertEqual(viewModel.transforms.count, 3)
         XCTAssertFalse(viewModel.transforms.contains(where: { $0.id == prompt.id }))
+        XCTAssertEqual(try? historyRepo.count(transformId: prompt.id), 0)
     }
 
     func testDeleteBuiltInIsRejected() {
@@ -382,6 +396,8 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.history.contains(where: { $0.transformId == polish.id }))
         XCTAssertEqual(viewModel.selectedHistory.map(\.inputText), ["old polish"])
         XCTAssertEqual(viewModel.selectedHistoryTotalCount, 1)
+        XCTAssertEqual(viewModel.historyCountsByTransformID[polish.id], 1)
+        XCTAssertEqual(viewModel.historyCountsByTransformID[distill.id], TransformsViewModel.historyFetchLimit)
     }
 
     func testDeleteAndClearHistory() async throws {
@@ -508,5 +524,62 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.writingSamples.map(\.id), [saved.id])
         XCTAssertFalse(viewModel.isAddingWritingSample)
         XCTAssertNil(viewModel.writingSampleErrorMessage)
+    }
+
+    func testSavingDraftDoesNotPersistWritingSamplePreferenceWithoutSamples() throws {
+        let polish = viewModel.transforms.first(where: { $0.name == "Polish" })!
+        viewModel.selectTransform(polish)
+        viewModel.draftUseWritingSamples = true
+
+        XCTAssertTrue(
+            viewModel.saveDraft(
+                reservedHotkeys: [],
+                collisionChecker: StubCollisionChecker()
+            )
+        )
+
+        let saved = try XCTUnwrap(profileRepo.fetch(promptId: polish.id))
+        XCTAssertFalse(saved.useWritingSamples)
+        XCTAssertFalse(viewModel.draftUseWritingSamples)
+    }
+
+    func testTurningOnWritingSamplesWithoutSamplesStartsSampleEditor() {
+        XCTAssertTrue(viewModel.writingSamples.isEmpty)
+
+        viewModel.setDraftUseWritingSamples(true)
+
+        XCTAssertFalse(viewModel.draftUseWritingSamples)
+        XCTAssertTrue(viewModel.isAddingWritingSample)
+    }
+
+    func testDeletingLastWritingSampleDisablesDraftWritingSamples() throws {
+        let sample = WritingSample(
+            title: "Launch email",
+            text: (1...50).map { "word\($0)" }.joined(separator: " ")
+        )
+        try writingSampleRepo.save(sample)
+        viewModel.loadWritingSamples()
+        viewModel.draftUseWritingSamples = true
+
+        viewModel.deleteWritingSample(sample)
+
+        XCTAssertTrue(viewModel.writingSamples.isEmpty)
+        XCTAssertFalse(viewModel.draftUseWritingSamples)
+    }
+
+    func testHasUnsavedDraftCoversCreatingAndEditingStates() {
+        XCTAssertFalse(viewModel.hasUnsavedDraft)
+
+        viewModel.startCreatingTransform()
+        XCTAssertFalse(viewModel.hasUnsavedDraft)
+
+        viewModel.draftName = "Boss Mode"
+        XCTAssertTrue(viewModel.hasUnsavedDraft)
+
+        viewModel.cancelCreate()
+        XCTAssertFalse(viewModel.hasUnsavedDraft)
+
+        viewModel.draftCustomInstructions = "Be crisp."
+        XCTAssertTrue(viewModel.hasUnsavedDraft)
     }
 }

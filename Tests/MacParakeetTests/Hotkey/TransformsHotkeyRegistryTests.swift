@@ -65,6 +65,29 @@ final class TransformsHotkeyRegistryTests: XCTestCase {
         XCTAssertTrue(registry.isEmpty)
     }
 
+    func testDuplicateRegistrationKeepsFirstBinding() throws {
+        let registry = TransformsHotkeyRegistry()
+        let first = UUID()
+        let second = UUID()
+        let opt1 = KeyboardShortcut(
+            modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+            keyCode: 0x12,
+            keyLabel: "1"
+        )
+
+        registry.register(promptID: first, shortcut: opt1)
+        registry.register(promptID: second, shortcut: opt1)
+
+        var triggeredIDs: [UUID] = []
+        registry.onTrigger = { triggeredIDs.append($0) }
+
+        let keyDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 0x12, keyDown: true))
+        keyDown.flags = .maskAlternate
+
+        XCTAssertNil(registry.handleEvent(type: .keyDown, event: keyDown))
+        XCTAssertEqual(triggeredIDs, [first])
+    }
+
     func testReplaceBindingsRebuildsTableFromScratch() {
         let registry = TransformsHotkeyRegistry()
         let a = UUID()
@@ -159,6 +182,36 @@ final class TransformsHotkeyRegistryTests: XCTestCase {
 
         let unrelatedKeyUp = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 0x13, keyDown: false))
         XCTAssertNotNil(registry.handleEvent(type: .keyUp, event: unrelatedKeyUp))
+    }
+
+    func testTapDisabledRecoveryClearsPressedKeys() throws {
+        let registry = TransformsHotkeyRegistry()
+        let id = UUID()
+        registry.register(
+            promptID: id,
+            shortcut: KeyboardShortcut(
+                modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+                keyCode: 0x12,
+                keyLabel: "1"
+            )
+        )
+
+        var triggeredIDs: [UUID] = []
+        registry.onTrigger = { triggeredIDs.append($0) }
+
+        let keyDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 0x12, keyDown: true))
+        keyDown.flags = .maskAlternate
+
+        XCTAssertNil(registry.handleEvent(type: .keyDown, event: keyDown))
+        XCTAssertEqual(triggeredIDs, [id])
+
+        _ = registry.handleEvent(type: .tapDisabledByTimeout, event: keyDown)
+
+        let recoveredKeyDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 0x12, keyDown: true))
+        recoveredKeyDown.flags = .maskAlternate
+
+        XCTAssertNil(registry.handleEvent(type: .keyDown, event: recoveredKeyDown))
+        XCTAssertEqual(triggeredIDs, [id, id])
     }
 
     // MARK: - Collision detection

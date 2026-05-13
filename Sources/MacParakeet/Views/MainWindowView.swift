@@ -172,6 +172,7 @@ struct MainWindowView: View {
                             viewModel: settingsViewModel,
                             llmSettingsViewModel: llmSettingsViewModel,
                             updater: updater,
+                            transformHotkeys: settingsReservedTransformHotkeys,
                             onHotkeyRecordingStateChanged: onHotkeyRecordingStateChanged
                         )
                     case .discover:
@@ -222,6 +223,16 @@ struct MainWindowView: View {
             TransformShortcutReservedHotkey(name: "File transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(name: "YouTube transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
         ].filter { !$0.trigger.isDisabled }
+    }
+
+    private var settingsReservedTransformHotkeys: [TransformShortcutReservedHotkey] {
+        transformsViewModel.transforms.compactMap { transform in
+            guard let shortcut = transform.shortcut else { return nil }
+            return TransformShortcutReservedHotkey(
+                name: "Transform \(transform.name)",
+                trigger: shortcut.hotkeyTrigger
+            )
+        }
     }
 
     private var globalTranscriptionBottomBar: some View {
