@@ -155,11 +155,19 @@ final class SelectionReplacementServiceTests: XCTestCase {
             in: .clipboard(
                 text: "raw",
                 savedClipboard: snapshot,
-                target: SelectionCaptureTarget(processIdentifier: 1234)
+                target: SelectionCaptureTarget(
+                    processIdentifier: 1234,
+                    bundleIdentifier: "com.example.Source"
+                )
             )
         )
 
-        XCTAssertEqual(backend.activatedProcessIdentifiers(), [1234])
+        XCTAssertEqual(backend.activatedTargets(), [
+            SelectionCaptureTarget(
+                processIdentifier: 1234,
+                bundleIdentifier: "com.example.Source"
+            )
+        ])
         XCTAssertEqual(backend.cmdVPostCount(), 1)
     }
 
@@ -178,7 +186,10 @@ final class SelectionReplacementServiceTests: XCTestCase {
                 in: .clipboard(
                     text: "raw",
                     savedClipboard: snapshot,
-                    target: SelectionCaptureTarget(processIdentifier: 1234)
+                    target: SelectionCaptureTarget(
+                        processIdentifier: 1234,
+                        bundleIdentifier: "com.example.Source"
+                    )
                 )
             )
             XCTFail("Expected targetActivationFailed")
@@ -207,7 +218,7 @@ final class FakeSelectionReplacementBackend: SelectionReplacementBackend, @unche
     private struct State {
         var axTexts: [String] = []
         var clipboardTexts: [String] = []
-        var activatedProcessIdentifiers: [pid_t] = []
+        var activatedTargets: [SelectionCaptureTarget] = []
         var cmdVPosts: Int = 0
         var restoreSnapshots: [PasteboardSnapshot] = []
         /// Simulated pasteboard changeCount. Bumped on `writePasteboardString`
@@ -256,8 +267,8 @@ final class FakeSelectionReplacementBackend: SelectionReplacementBackend, @unche
     }
 
     @MainActor
-    func activateApplication(processIdentifier: pid_t) -> Bool {
-        lock.withLock { $0.activatedProcessIdentifiers.append(processIdentifier) }
+    func activateApplication(target: SelectionCaptureTarget) -> Bool {
+        lock.withLock { $0.activatedTargets.append(target) }
         return targetActivationSucceeds
     }
 
@@ -307,8 +318,8 @@ final class FakeSelectionReplacementBackend: SelectionReplacementBackend, @unche
         lock.withLock { $0.cmdVPosts }
     }
 
-    func activatedProcessIdentifiers() -> [pid_t] {
-        lock.withLock { $0.activatedProcessIdentifiers }
+    func activatedTargets() -> [SelectionCaptureTarget] {
+        lock.withLock { $0.activatedTargets }
     }
 
     func restoreCount() -> Int {

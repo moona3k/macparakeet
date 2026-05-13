@@ -58,7 +58,7 @@ protocol SelectionReplacementBackend: Sendable {
     func writePasteboardString(_ text: String) -> Bool
 
     @MainActor
-    func activateApplication(processIdentifier: pid_t) -> Bool
+    func activateApplication(target: SelectionCaptureTarget) -> Bool
 
     @MainActor
     func postCmdV() throws
@@ -182,7 +182,7 @@ public actor SelectionReplacementService {
         }
 
         if let target {
-            let didActivate = await activateApplicationOnMain(target.processIdentifier)
+            let didActivate = await activateApplicationOnMain(target)
             guard didActivate else {
                 await restoreIfSafe(snapshot, ourChangeCount: ourChangeCount)
                 throw SelectionReplacementError.targetActivationFailed
@@ -214,8 +214,8 @@ public actor SelectionReplacementService {
     }
 
     @MainActor
-    private func activateApplicationOnMain(_ processIdentifier: pid_t) -> Bool {
-        backend.activateApplication(processIdentifier: processIdentifier)
+    private func activateApplicationOnMain(_ target: SelectionCaptureTarget) -> Bool {
+        backend.activateApplication(target: target)
     }
 
     @MainActor
@@ -312,8 +312,10 @@ struct SystemSelectionReplacementBackend: SelectionReplacementBackend, @unchecke
     }
 
     @MainActor
-    func activateApplication(processIdentifier: pid_t) -> Bool {
-        guard let app = NSRunningApplication(processIdentifier: processIdentifier) else {
+    func activateApplication(target: SelectionCaptureTarget) -> Bool {
+        guard let app = NSRunningApplication(processIdentifier: target.processIdentifier),
+              app.bundleIdentifier == target.bundleIdentifier
+        else {
             return false
         }
         return app.activate()

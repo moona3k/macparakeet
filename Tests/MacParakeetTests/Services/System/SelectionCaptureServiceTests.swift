@@ -32,6 +32,7 @@ final class SelectionCaptureServiceTests: XCTestCase {
         case .ax(let text, _, let target):
             XCTAssertEqual(text, "Hello world")
             XCTAssertEqual(target?.processIdentifier, 1234)
+            XCTAssertEqual(target?.bundleIdentifier, "com.example.Source")
         default:
             XCTFail("Expected .ax, got \(result.pathTag)")
         }
@@ -60,6 +61,7 @@ final class SelectionCaptureServiceTests: XCTestCase {
             XCTAssertEqual(snapshot.originalChangeCount, 1)
             XCTAssertEqual(snapshot.temporaryChangeCount, 2)
             XCTAssertEqual(target?.processIdentifier, 1234)
+            XCTAssertEqual(target?.bundleIdentifier, "com.example.Source")
         default:
             XCTFail("Expected .clipboard, got \(result.pathTag)")
         }
@@ -210,7 +212,12 @@ final class FakeSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sen
     func selectedText(of element: AXUIElement) -> String? { selectedTextValue }
 
     @MainActor
-    func frontmostApplicationProcessIdentifier() -> pid_t? { 1234 }
+    func frontmostApplicationTarget() -> SelectionCaptureTarget? {
+        SelectionCaptureTarget(
+            processIdentifier: 1234,
+            bundleIdentifier: "com.example.Source"
+        )
+    }
 
     @MainActor
     func snapshotPasteboard() -> PasteboardSnapshot {

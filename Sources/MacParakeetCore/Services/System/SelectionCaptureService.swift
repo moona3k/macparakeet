@@ -89,9 +89,11 @@ public struct AXFocusedElement: @unchecked Sendable {
 /// The app that owned the selection when the Transform was triggered.
 public struct SelectionCaptureTarget: Sendable, Equatable {
     public let processIdentifier: pid_t
+    public let bundleIdentifier: String
 
-    public init(processIdentifier: pid_t) {
+    public init(processIdentifier: pid_t, bundleIdentifier: String) {
         self.processIdentifier = processIdentifier
+        self.bundleIdentifier = bundleIdentifier
     }
 }
 
@@ -136,7 +138,7 @@ protocol SelectionCaptureBackend: Sendable {
     func selectedText(of element: AXUIElement) -> String?
 
     @MainActor
-    func frontmostApplicationProcessIdentifier() -> pid_t?
+    func frontmostApplicationTarget() -> SelectionCaptureTarget?
 
     /// Snapshot the pasteboard and return the saved items + the changeCount at
     /// snapshot time (so the poll loop can detect the Cmd+C-triggered change).
@@ -286,7 +288,7 @@ public actor SelectionCaptureService {
 
     @MainActor
     private func captureTargetOnMain() -> SelectionCaptureTarget? {
-        backend.frontmostApplicationProcessIdentifier().map(SelectionCaptureTarget.init(processIdentifier:))
+        backend.frontmostApplicationTarget()
     }
 
     @MainActor
@@ -363,8 +365,16 @@ struct SystemSelectionCaptureBackend: SelectionCaptureBackend, @unchecked Sendab
     }
 
     @MainActor
-    func frontmostApplicationProcessIdentifier() -> pid_t? {
-        NSWorkspace.shared.frontmostApplication?.processIdentifier
+    func frontmostApplicationTarget() -> SelectionCaptureTarget? {
+        guard let app = NSWorkspace.shared.frontmostApplication,
+              let bundleIdentifier = app.bundleIdentifier
+        else {
+            return nil
+        }
+        return SelectionCaptureTarget(
+            processIdentifier: app.processIdentifier,
+            bundleIdentifier: bundleIdentifier
+        )
     }
 
     @MainActor
