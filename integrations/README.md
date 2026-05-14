@@ -124,6 +124,17 @@ the latest managed helper binary.
 macparakeet-cli transcribe /path/to/audio.mp3 --format json
 ```
 
+For shell pipelines where stdout should contain only transcript text:
+
+```bash
+macparakeet-cli transcribe /path/to/audio.mp3 --format transcript
+macparakeet-cli transcribe /path/to/audio.mp3 --format transcript --no-history | pbcopy
+```
+
+`--no-history` avoids retaining the completed transcription in the shared
+MacParakeet history. For YouTube inputs, downloaded audio is temporary when
+`--no-history` is set.
+
 Parakeet is the default engine for compatibility with existing scripts. Use
 Whisper per invocation for Korean or other non-Parakeet languages:
 
@@ -131,6 +142,14 @@ Whisper requires a local model download before first use:
 
 ```bash
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
+```
+
+Agents can inspect and switch the shared default speech model:
+
+```bash
+macparakeet-cli models list --json
+macparakeet-cli models select parakeet --json
+macparakeet-cli models select whisper-large-v3-v20240930-turbo-632MB --json
 ```
 
 ```bash
@@ -315,7 +334,10 @@ user wants YouTube transcription, run
 
 ```bash
 macparakeet-cli transcribe "<path-or-youtube-url>" --format json
+macparakeet-cli transcribe "<path-or-youtube-url>" --format transcript --no-history
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
+macparakeet-cli models list --json
+macparakeet-cli models select parakeet --json
 macparakeet-cli transcribe "<path-or-youtube-url>" --engine whisper --language ko --format json
 macparakeet-cli transcribe "<path-or-youtube-url>" \
   --engine app-default \

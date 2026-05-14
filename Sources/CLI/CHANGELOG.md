@@ -156,6 +156,19 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Added
 
+- `transcribe --format transcript` prints only the final transcript text to
+  stdout, with progress/status still isolated on stderr. This keeps the
+  existing human `--format text` view intact while giving shell pipelines a
+  clean `pbcopy`, `grep`, `tee`, or local-LLM input mode.
+- `transcribe --no-history` runs file/URL transcription without saving a
+  completed transcription row to MacParakeet history. For YouTube inputs,
+  downloaded audio is treated as temporary even when the shared app default is
+  to retain transcription audio.
+- `models list` and `models select <id>` provide user-facing aliases over the
+  shared speech-engine defaults. `models list` shows Parakeet plus the
+  configured WhisperKit variant with installed/selected state; `models select`
+  writes the same default that `config set speech-engine` writes, and validates
+  Whisper model availability before switching.
 - `transcribe --engine app-default` resolves the speech engine and Whisper
   language from the same saved defaults used by the GUI, while preserving
   Parakeet as the no-flag CLI default.

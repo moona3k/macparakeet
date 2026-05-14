@@ -547,6 +547,14 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
         fatalError("Not used")
     }
 
+    func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        fatalError("Not used")
+    }
+
     func transcribeMeeting(
         recording: MeetingRecordingOutput,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
@@ -583,6 +591,13 @@ private final class RecoveryMockTranscriptionService: TranscriptionServiceProtoc
     }
 
     func transcribeURL(
+        urlString: String,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription {
+        fatalError("Not used")
+    }
+
+    func transcribeURLTransient(
         urlString: String,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription {

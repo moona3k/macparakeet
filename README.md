@@ -113,13 +113,20 @@ The dev script creates a signed `.app` bundle so macOS grants mic and accessibil
 
 ```bash
 swift run macparakeet-cli transcribe /path/to/audio.mp3
+swift run macparakeet-cli transcribe /path/to/audio.mp3 --format transcript --no-history
 swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
+swift run macparakeet-cli models list
+swift run macparakeet-cli models select parakeet
 swift run macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --format json
 swift run macparakeet-cli models status
 swift run macparakeet-cli history
 ```
 
-The Whisper CLI commands above require a downloaded local WhisperKit model.
+Use `--format transcript` for transcript-only stdout in shell pipelines. Add
+`--no-history` when you want a one-off transcription without saving a completed
+row to MacParakeet history. `models list` and `models select` inspect or update
+the shared speech default used by the app and `--engine app-default`. The
+Whisper CLI commands above require a downloaded local WhisperKit model.
 
 ## Tech stack
 
