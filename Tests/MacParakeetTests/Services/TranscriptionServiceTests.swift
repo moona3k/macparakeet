@@ -215,6 +215,32 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(props["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
     }
 
+    func testTranscribeTransientFileDoesNotPersistCompletedRow() async throws {
+        await mockSTT.configure(result: STTResult(text: "private transcript"))
+
+        let result = try await service.transcribeTransient(fileURL: URL(fileURLWithPath: "/tmp/private.mp3"))
+
+        XCTAssertEqual(result.rawTranscript, "private transcript")
+        XCTAssertEqual(result.status, .completed)
+        XCTAssertNil(try transcriptionRepo.fetch(id: result.id))
+        XCTAssertTrue(try transcriptionRepo.fetchAll(limit: nil).isEmpty)
+    }
+
+    func testTranscribeTransientFileDoesNotPersistFailureRow() async throws {
+        await mockSTT.configure(error: STTError.transcriptionFailed("Model error"))
+
+        do {
+            _ = try await service.transcribeTransient(fileURL: URL(fileURLWithPath: "/tmp/private.mp3"))
+            XCTFail("Expected transient transcription to throw")
+        } catch let error as STTError {
+            guard case .transcriptionFailed = error else {
+                return XCTFail("Unexpected STT error: \(error)")
+            }
+        }
+
+        XCTAssertTrue(try transcriptionRepo.fetchAll(limit: nil).isEmpty)
+    }
+
     func testTranscribeFileDurationUsesMaximumWordEnd() async throws {
         await mockSTT.configure(result: STTResult(
             text: "out of order",
@@ -606,6 +632,35 @@ final class TranscriptionServiceTests: XCTestCase {
 
         XCTAssertFalse(FileManager.default.fileExists(atPath: downloadedURL.path))
         XCTAssertNil(result.filePath)
+    }
+
+    func testTranscribeURLTransientDeletesDownloadedAudioAndDoesNotPersist() async throws {
+        let downloadedURL = try makeTempDownloadedAudio()
+        defer { try? FileManager.default.removeItem(at: downloadedURL) }
+
+        let downloader = MockYouTubeDownloader(result: YouTubeDownloader.DownloadResult(
+            audioFileURL: downloadedURL,
+            title: "Video",
+            durationSeconds: 120
+        ))
+
+        await mockSTT.configure(result: STTResult(text: "Downloaded transcript"))
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            shouldKeepDownloadedAudio: { true },
+            youtubeDownloader: downloader
+        )
+
+        let result = try await service.transcribeURLTransient(urlString: "https://youtu.be/dQw4w9WgXcQ")
+
+        XCTAssertEqual(result.rawTranscript, "Downloaded transcript")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: downloadedURL.path))
+        XCTAssertNil(result.filePath)
+        XCTAssertNil(try transcriptionRepo.fetch(id: result.id))
+        XCTAssertTrue(try transcriptionRepo.fetchAll(limit: nil).isEmpty)
     }
 
     func testTranscribeURLDeletesDownloadedAudioWhenPersistenceFails() async throws {

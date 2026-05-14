@@ -343,6 +343,14 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
         )
     }
 
+    func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await transcribe(fileURL: fileURL, source: source, onProgress: onProgress)
+    }
+
     func transcribeMeeting(
         recording: MeetingRecordingOutput,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
@@ -415,6 +423,13 @@ actor MockTranscriptionService: SpeechEngineOverrideTranscriptionService {
             status: .completed,
             sourceURL: urlString
         )
+    }
+
+    func transcribeURLTransient(
+        urlString: String,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await transcribeURL(urlString: urlString, onProgress: onProgress)
     }
 }
 

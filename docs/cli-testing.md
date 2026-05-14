@@ -25,6 +25,7 @@ This script builds the latest debug binary, stops stale `/Applications`/`dist` a
 ```
 macparakeet-cli
 ├── transcribe <input> [options]         Transcribe a file or YouTube URL
+│   ├── --format text|transcript|json [--no-history]
 │   └── --engine app-default|parakeet|whisper [--language <code>]
 │       --speaker-detection app-default|on|off
 │       --youtube-audio-quality app-default|m4a|best-available
@@ -47,6 +48,8 @@ macparakeet-cli
 ├── health [--repair-models] [--repair-binaries] [--json]
 │                                         System health and model/helper status
 ├── models                               Speech model lifecycle
+│   ├── list [--json]                    List selectable speech models
+│   ├── select <model-id> [--json]       Set shared app/CLI speech default
 │   ├── status [--json]                  Show model status
 │   ├── download <model-id>              Download explicit model (Whisper)
 │   ├── warm-up [--attempts]             Warm up speech model
@@ -217,7 +220,35 @@ swift run macparakeet-cli transcribe "<FILE>"
 
 # JSON output (full Transcription object)
 swift run macparakeet-cli transcribe "<FILE>" --format json
+
+# Transcript-only stdout for pipes
+swift run macparakeet-cli transcribe "<FILE>" --format transcript
+
+# Transient transcription: no completed row in Library/history
+swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" --format transcript --no-history
 ```
+
+`--format transcript` prints only `cleanTranscript` when present, otherwise
+`rawTranscript`. Status and progress messages stay on stderr, so stdout can be
+piped directly into `pbcopy`, `grep`, `tee`, or a local LLM command.
+
+`--no-history` uses the same transcription pipeline without retaining a completed
+history row. For YouTube inputs, downloaded audio is temporary regardless of
+the shared audio-retention default.
+
+## Model Selection
+
+```bash
+swift run macparakeet-cli models list
+swift run macparakeet-cli models list --json
+swift run macparakeet-cli models select parakeet
+swift run macparakeet-cli models select whisper-large-v3-v20240930-turbo-632MB
+```
+
+`models list` reports the selectable speech engines MacParakeet exposes today:
+Parakeet and the configured WhisperKit variant. `models select` writes the same
+shared default used by the GUI and `transcribe --engine app-default`; Whisper
+selection requires the local Whisper model to be downloaded first.
 
 ## Retained Entitlements Parity
 

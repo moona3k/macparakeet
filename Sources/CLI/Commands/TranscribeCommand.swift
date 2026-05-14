@@ -23,6 +23,7 @@ enum YouTubeAudioQualityOption: String, ExpressibleByArgument {
 
 enum TranscribeOutputFormat: String, ExpressibleByArgument, CaseIterable, Sendable {
     case text
+    case transcript
     case json
 }
 
@@ -57,7 +58,7 @@ struct TranscribeCommand: AsyncParsableCommand {
     @Argument(help: "Path to audio/video file or YouTube URL to transcribe.")
     var input: String
 
-    @Option(name: .shortAndLong, help: "Output format: text, json.")
+    @Option(name: .shortAndLong, help: "Output format: text, transcript, json.")
     var format: TranscribeOutputFormat = .text
 
     @Option(help: "Processing mode: raw, clean, app-default.")
@@ -86,6 +87,15 @@ struct TranscribeCommand: AsyncParsableCommand {
 
     @Flag(help: "Run retained entitlement checks before transcribing. Current free builds remain unlocked.")
     var enforceEntitlements: Bool = false
+
+    @Flag(name: .long, help: "Do not save the completed transcription to MacParakeet history. YouTube audio is temporary.")
+    var noHistory: Bool = false
+
+    func validate() throws {
+        if noHistory && downloadedAudio == .keep {
+            throw ValidationError("--no-history cannot be combined with --downloaded-audio keep.")
+        }
+    }
 
     static func resolveProcessingMode(_ mode: TranscribeMode, storedMode: String?) -> Dictation.ProcessingMode {
         switch mode {
@@ -198,7 +208,7 @@ struct TranscribeCommand: AsyncParsableCommand {
                     self.youtubeAudioQuality,
                     storedQuality: defaults.string(forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
                 )
-                let shouldKeepDownloadedAudio: Bool = switch self.downloadedAudio {
+                let configuredShouldKeepDownloadedAudio: Bool = switch self.downloadedAudio {
                 case .keep:
                     true
                 case .delete:
@@ -206,6 +216,7 @@ struct TranscribeCommand: AsyncParsableCommand {
                 case .appDefault:
                     defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
                 }
+                let shouldKeepDownloadedAudio = self.noHistory ? false : configuredShouldKeepDownloadedAudio
                 let sttTranscriber: STTTranscribing
                 switch speechEngine.engine {
                 case .parakeet:
@@ -262,7 +273,7 @@ struct TranscribeCommand: AsyncParsableCommand {
                         }
                     }
 
-                    result = try await service.transcribeURL(urlString: trimmedInput) { progress in
+                    let progressHandler: @Sendable (TranscriptionProgress) -> Void = { progress in
                         switch progress {
                         case .converting: printProgressLine("Converting audio...")
                         case .downloading(let pct): printProgressLine("Downloading audio... \(pct)%")
@@ -270,6 +281,17 @@ struct TranscribeCommand: AsyncParsableCommand {
                         case .identifyingSpeakers: printProgressLine("Identifying speakers...")
                         case .finalizing: printProgressLine("Finalizing...")
                         }
+                    }
+                    if self.noHistory {
+                        result = try await service.transcribeURLTransient(
+                            urlString: trimmedInput,
+                            onProgress: progressHandler
+                        )
+                    } else {
+                        result = try await service.transcribeURL(
+                            urlString: trimmedInput,
+                            onProgress: progressHandler
+                        )
                     }
                 } else {
                     let url = Self.localFileURL(for: trimmedInput)
@@ -284,12 +306,18 @@ struct TranscribeCommand: AsyncParsableCommand {
                     }
 
                     printErr("Transcribing \(url.lastPathComponent) with \(speechEngine.engine.rawValue)...")
-                    result = try await service.transcribe(fileURL: url)
+                    if self.noHistory {
+                        result = try await service.transcribeTransient(fileURL: url)
+                    } else {
+                        result = try await service.transcribe(fileURL: url)
+                    }
                 }
 
                 switch format {
                 case .json:
                     try printJSON(result)
+                case .transcript:
+                    printTranscript(result)
                 case .text:
                     printText(result)
                 }
@@ -402,6 +430,20 @@ struct TranscribeCommand: AsyncParsableCommand {
                 print("[\(start)-\(end)] \(w.word) (\(String(format: "%.0f", w.confidence * 100))%)\(speaker)")
             }
         }
+    }
+
+    static func transcriptOutput(for t: Transcription) -> String {
+        for candidate in [t.cleanTranscript, t.rawTranscript] {
+            let trimmed = candidate?.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let trimmed, !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return ""
+    }
+
+    private func printTranscript(_ t: Transcription) {
+        print(Self.transcriptOutput(for: t))
     }
 }
 

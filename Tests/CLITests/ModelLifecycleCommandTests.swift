@@ -34,6 +34,107 @@ final class ModelLifecycleCommandTests: XCTestCase {
         }
     }
 
+    func testLoadSelectableSpeechModelsReflectsSharedDefaults() throws {
+        let suiteName = "com.macparakeet.tests.cli.models.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        SpeechEnginePreference.whisper.save(to: defaults)
+        SpeechEnginePreference.saveWhisperDefaultLanguage("KO_kr", defaults: defaults)
+        SpeechEnginePreference.saveWhisperModelVariant(
+            "large-v3-v20240930_turbo_632MB",
+            defaults: defaults
+        )
+
+        let models = loadSelectableSpeechModels(
+            defaults: defaults,
+            isParakeetModelCached: { false },
+            isWhisperModelDownloaded: { $0 == "large-v3-v20240930_turbo_632MB" }
+        )
+
+        XCTAssertEqual(models.count, 2)
+        XCTAssertEqual(models[0], SelectableSpeechModel(
+            id: "parakeet",
+            name: "Parakeet TDT 0.6B v3",
+            engine: "parakeet",
+            variant: nil,
+            size: "6 GB",
+            installed: false,
+            selected: false,
+            language: nil
+        ))
+        XCTAssertEqual(models[1], SelectableSpeechModel(
+            id: "whisper-large-v3-v20240930-turbo-632MB",
+            name: "Whisper Large v3 Turbo",
+            engine: "whisper",
+            variant: "large-v3-v20240930_turbo_632MB",
+            size: "632 MB",
+            installed: true,
+            selected: true,
+            language: "ko"
+        ))
+    }
+
+    func testResolveSelectableSpeechModelAcceptsEngineAndWhisperIDs() throws {
+        let suiteName = "com.macparakeet.tests.cli.model-select.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        SpeechEnginePreference.saveWhisperModelVariant(
+            "large-v3-v20240930_turbo_632MB",
+            defaults: defaults
+        )
+
+        XCTAssertEqual(
+            try resolveSelectableSpeechModel("parakeet", defaults: defaults),
+            SelectableSpeechModelSelection(engine: .parakeet, whisperVariant: nil)
+        )
+        XCTAssertEqual(
+            try resolveSelectableSpeechModel("whisper", defaults: defaults),
+            SelectableSpeechModelSelection(
+                engine: .whisper,
+                whisperVariant: "large-v3-v20240930_turbo_632MB"
+            )
+        )
+        XCTAssertEqual(
+            try resolveSelectableSpeechModel("whisper-large-v3-v20240930-turbo-632MB", defaults: defaults),
+            SelectableSpeechModelSelection(
+                engine: .whisper,
+                whisperVariant: "large-v3-v20240930_turbo_632MB"
+            )
+        )
+        XCTAssertEqual(
+            try resolveSelectableSpeechModel("Whisper-large-v3-v20240930-turbo-632MB", defaults: defaults),
+            SelectableSpeechModelSelection(
+                engine: .whisper,
+                whisperVariant: "large-v3-v20240930_turbo_632MB"
+            )
+        )
+        XCTAssertEqual(
+            try resolveSelectableSpeechModel("whisper:large-v3-v20240930_turbo_632MB", defaults: defaults),
+            SelectableSpeechModelSelection(
+                engine: .whisper,
+                whisperVariant: "large-v3-v20240930_turbo_632MB"
+            )
+        )
+    }
+
+    func testResolveSelectableSpeechModelRejectsUnknownID() {
+        XCTAssertThrowsError(try resolveSelectableSpeechModel("tiny")) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+        XCTAssertThrowsError(try resolveSelectableSpeechModel("parakeet:large")) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+        XCTAssertThrowsError(try resolveSelectableSpeechModel("whisper-")) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+        XCTAssertThrowsError(try resolveSelectableSpeechModel("whisper:")) { error in
+            XCTAssertTrue(error is ValidationError)
+        }
+    }
+
     func testWarmUpRetriesConfiguredAttempts() async {
         let stt = StubSTTClient()
         let diarization = StubDiarizationService()

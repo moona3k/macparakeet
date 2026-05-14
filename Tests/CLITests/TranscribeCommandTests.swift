@@ -167,6 +167,27 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertEqual(command.youtubeAudioQuality, .bestAvailable)
     }
 
+    func testParsesTranscriptFormatAndNoHistory() throws {
+        let command = try TranscribeCommand.parse([
+            "sample.wav",
+            "--format", "transcript",
+            "--no-history",
+        ])
+
+        XCTAssertEqual(command.format, .transcript)
+        XCTAssertTrue(command.noHistory)
+    }
+
+    func testNoHistoryRejectsRetainedDownloadedAudio() throws {
+        XCTAssertThrowsError(try TranscribeCommand.parse([
+            "sample.wav",
+            "--no-history",
+            "--downloaded-audio", "keep",
+        ])) { error in
+            XCTAssertTrue(String(describing: error).contains("--no-history cannot be combined"))
+        }
+    }
+
     func testParakeetRemainsDefaultEngine() throws {
         let command = try TranscribeCommand.parse(["sample.wav"])
         XCTAssertEqual(command.engine, .parakeet)
@@ -181,6 +202,28 @@ final class TranscribeCommandTests: XCTestCase {
             url.path,
             FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("sample.wav").path
         )
+    }
+
+    func testTranscriptOutputPrefersCleanTranscriptAndTrims() {
+        let transcription = Transcription(
+            fileName: "sample.wav",
+            rawTranscript: " raw text ",
+            cleanTranscript: " clean text ",
+            status: .completed
+        )
+
+        XCTAssertEqual(TranscribeCommand.transcriptOutput(for: transcription), "clean text")
+    }
+
+    func testTranscriptOutputFallsBackToRawTranscript() {
+        let transcription = Transcription(
+            fileName: "sample.wav",
+            rawTranscript: " raw text ",
+            cleanTranscript: "   ",
+            status: .completed
+        )
+
+        XCTAssertEqual(TranscribeCommand.transcriptOutput(for: transcription), "raw text")
     }
 
     func testJSONFormatEmitsFailureEnvelopeForMissingFile() async throws {

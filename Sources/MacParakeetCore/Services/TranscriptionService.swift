@@ -7,6 +7,11 @@ public protocol TranscriptionServiceProtocol: Sendable {
         source: TelemetryTranscriptionSource,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription
+    func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)?
+    ) async throws -> Transcription
     func transcribeMeeting(
         recording: MeetingRecordingOutput,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
@@ -23,6 +28,7 @@ public protocol TranscriptionServiceProtocol: Sendable {
         onProgress: (@Sendable (TranscriptionProgress) -> Void)?
     ) async throws -> Transcription
     func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)?) async throws -> Transcription
+    func transcribeURLTransient(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)?) async throws -> Transcription
 }
 
 public protocol SpeechEngineOverrideTranscriptionService: TranscriptionServiceProtocol {
@@ -53,8 +59,23 @@ extension TranscriptionServiceProtocol {
         try await transcribe(fileURL: fileURL, source: source, onProgress: nil)
     }
 
+    public func transcribeTransient(fileURL: URL) async throws -> Transcription {
+        try await transcribeTransient(fileURL: fileURL, source: .file, onProgress: nil)
+    }
+
+    public func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource
+    ) async throws -> Transcription {
+        try await transcribeTransient(fileURL: fileURL, source: source, onProgress: nil)
+    }
+
     public func transcribeURL(urlString: String) async throws -> Transcription {
         try await transcribeURL(urlString: urlString, onProgress: nil)
+    }
+
+    public func transcribeURLTransient(urlString: String) async throws -> Transcription {
+        try await transcribeURLTransient(urlString: urlString, onProgress: nil)
     }
 
     public func transcribeMeeting(recording: MeetingRecordingOutput) async throws -> Transcription {
@@ -221,6 +242,33 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         source: TelemetryTranscriptionSource = .file,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            persistResult: true,
+            onProgress: onProgress
+        )
+    }
+
+    public func transcribeTransient(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource = .file,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
+        try await transcribe(
+            fileURL: fileURL,
+            source: source,
+            persistResult: false,
+            onProgress: onProgress
+        )
+    }
+
+    private func transcribe(
+        fileURL: URL,
+        source: TelemetryTranscriptionSource,
+        persistResult: Bool,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
         let sourceType: Transcription.SourceType = switch source {
         case .youtube:
             .youtube
@@ -236,6 +284,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             source: source,
             sttJob: .fileTranscription,
             sourceType: sourceType,
+            persistResult: persistResult,
             onProgress: onProgress
         )
     }
@@ -403,6 +452,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         source: TelemetryTranscriptionSource,
         sttJob: STTJobKind,
         sourceType: Transcription.SourceType,
+        persistResult: Bool = true,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
     ) async throws -> Transcription {
         let embeddedMetadata = sourceType == .file
@@ -437,22 +487,24 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 videoDescription: embeddedMetadata.description,
                 sourceType: sourceType
             )
-            do {
-                try transcriptionRepo.save(transcription)
-            } catch {
-                sendTranscriptionOperation(
-                    operation,
-                    outcome: .failure,
-                    stage: .persistence,
-                    errorType: Self.errorType(for: error)
-                )
-                throw error
+            if persistResult {
+                do {
+                    try transcriptionRepo.save(transcription)
+                } catch {
+                    sendTranscriptionOperation(
+                        operation,
+                        outcome: .failure,
+                        stage: .persistence,
+                        errorType: Self.errorType(for: error)
+                    )
+                    throw error
+                }
+                await cacheEmbeddedArtworkIfPresent(embeddedMetadata, for: transcription.id)
             }
-            await cacheEmbeddedArtworkIfPresent(embeddedMetadata, for: transcription.id)
             Telemetry.send(.transcriptionStarted(source: source, audioDurationSeconds: nil))
 
             // Extract a representative frame when no embedded artwork was available.
-            if embeddedMetadata.artworkData == nil, Self.isVideoFile(fileURL) {
+            if persistResult, embeddedMetadata.artworkData == nil, Self.isVideoFile(fileURL) {
                 let transcriptionId = transcription.id
                 let path = fileURL.path
                 let logger = self.logger
@@ -473,12 +525,33 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 transcription: &transcription,
                 operation: operation,
                 tempFiles: [],
+                persistResult: persistResult,
                 onProgress: onProgress
             )
         }
     }
 
     public func transcribeURL(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws -> Transcription {
+        try await transcribeURL(
+            urlString: urlString,
+            persistResult: true,
+            onProgress: onProgress
+        )
+    }
+
+    public func transcribeURLTransient(urlString: String, onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil) async throws -> Transcription {
+        try await transcribeURL(
+            urlString: urlString,
+            persistResult: false,
+            onProgress: onProgress
+        )
+    }
+
+    private func transcribeURL(
+        urlString: String,
+        persistResult: Bool,
+        onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
+    ) async throws -> Transcription {
         let operation = TranscriptionOperationContext(
             source: .youtube,
             inputKind: .youtube,
@@ -559,6 +632,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 throw error
             }
             let keepDownloadedAudio = shouldKeepDownloadedAudio()
+                && persistResult
             let embeddedMetadata = await mediaMetadataExtractor.metadata(for: downloadResult.audioFileURL)
             let title = Self.firstNonEmpty(
                 downloadResult.title == "Untitled" ? nil : downloadResult.title,
@@ -582,19 +656,21 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 videoDescription: videoDescription,
                 sourceType: .youtube
             )
-            do {
-                try transcriptionRepo.save(transcription)
-            } catch {
-                sendTranscriptionOperation(
-                    operation,
-                    outcome: .failure,
-                    stage: .persistence,
-                    audioDurationSeconds: downloadResult.durationSeconds.map(Double.init),
-                    errorType: Self.errorType(for: error)
-                )
-                throw error
+            if persistResult {
+                do {
+                    try transcriptionRepo.save(transcription)
+                } catch {
+                    sendTranscriptionOperation(
+                        operation,
+                        outcome: .failure,
+                        stage: .persistence,
+                        audioDurationSeconds: downloadResult.durationSeconds.map(Double.init),
+                        errorType: Self.errorType(for: error)
+                    )
+                    throw error
+                }
             }
-            if downloadResult.thumbnailURL == nil {
+            if persistResult, downloadResult.thumbnailURL == nil {
                 await cacheEmbeddedArtworkIfPresent(embeddedMetadata, for: transcription.id)
             }
             if keepDownloadedAudio {
@@ -606,7 +682,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             ))
 
             // Cache YouTube thumbnail locally (non-blocking)
-            if let thumbURL = downloadResult.thumbnailURL {
+            if persistResult, let thumbURL = downloadResult.thumbnailURL {
                 let transcriptionId = transcription.id
                 let logger = self.logger
                 let thumbnailCache = self.thumbnailCache
@@ -631,6 +707,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 operation: operation,
                 tempFiles: [downloadResult.audioFileURL],
                 cleanUpDownloadedFiles: !keepDownloadedAudio,
+                persistResult: persistResult,
                 onProgress: onProgress
             )
 
@@ -988,6 +1065,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         operation: TranscriptionOperationContext,
         tempFiles: [URL],
         cleanUpDownloadedFiles: Bool = true,
+        persistResult: Bool = true,
         persistFailureStatus: Bool = true,
         speechEngine: SpeechEngineSelection? = nil,
         onProgress: (@Sendable (TranscriptionProgress) -> Void)? = nil
@@ -1087,7 +1165,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 rawText: result.text,
                 processingStartedAt: processingStartedAt,
                 diarizationRequested: diarizationRequested,
-                diarizationApplied: diarizationApplied
+                diarizationApplied: diarizationApplied,
+                persistResult: persistResult
             )
 
             try? FileManager.default.removeItem(at: wavURL)
@@ -1141,7 +1220,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 )
             }
 
-            if persistFailureStatus {
+            if persistResult && persistFailureStatus {
                 let txID = transcription.id
                 if error is CancellationError {
                     do {
@@ -1217,7 +1296,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         rawText: String,
         processingStartedAt: Date,
         diarizationRequested: Bool,
-        diarizationApplied: Bool
+        diarizationApplied: Bool,
+        persistResult: Bool = true
     ) async throws -> Transcription {
         let mode = processingMode()
         var customWords: [CustomWord] = []
@@ -1239,7 +1319,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         let formattedTranscript = try await formatTranscriptIfNeeded(baseText)
         transcription.cleanTranscript = formattedTranscript ?? refinement.text
 
-        if !refinement.expandedSnippetIDs.isEmpty {
+        if persistResult, !refinement.expandedSnippetIDs.isEmpty {
             try? snippetRepo?.incrementUseCount(ids: refinement.expandedSnippetIDs)
         }
 
@@ -1252,7 +1332,9 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
 
         transcription.status = .completed
         transcription.updatedAt = Date()
-        try transcriptionRepo.save(transcription)
+        if persistResult {
+            try transcriptionRepo.save(transcription)
+        }
 
         let outputText = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
         let wordCount = outputText.split(whereSeparator: \.isWhitespace).count

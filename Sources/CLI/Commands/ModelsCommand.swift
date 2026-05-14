@@ -8,6 +8,8 @@ struct ModelsCommand: AsyncParsableCommand {
         commandName: "models",
         abstract: "Inspect and manage the local speech and speaker models.",
         subcommands: [
+            List.self,
+            Select.self,
             Status.self,
             Download.self,
             WarmUp.self,
@@ -18,6 +20,75 @@ struct ModelsCommand: AsyncParsableCommand {
 }
 
 extension ModelsCommand {
+    struct List: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "list",
+            abstract: "List selectable speech models."
+        )
+
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
+        func run() throws {
+            try emitJSONOrRethrow(json: json) {
+                let models = loadSelectableSpeechModels()
+                if json {
+                    try printJSON(models)
+                } else {
+                    printSelectableSpeechModels(models)
+                }
+            }
+        }
+    }
+
+    struct Select: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "select",
+            abstract: "Set the shared app/CLI default speech model."
+        )
+
+        @Argument(help: "Model ID from `models list`.")
+        var id: String
+
+        @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+        var json: Bool = false
+
+        func run() throws {
+            try emitJSONOrRethrow(json: json) {
+                let defaults = macParakeetAppDefaults()
+                let selection = try resolveSelectableSpeechModel(id, defaults: defaults)
+                if let whisperVariant = selection.whisperVariant,
+                   !WhisperEngine.isModelDownloaded(model: whisperVariant) {
+                    throw ValidationError(
+                        "Whisper model is not downloaded. Run `macparakeet-cli models download \(whisperModelID(for: whisperVariant))` first."
+                    )
+                }
+
+                selection.engine.save(to: defaults)
+                if let whisperVariant = selection.whisperVariant {
+                    SpeechEnginePreference.saveWhisperModelVariant(whisperVariant, defaults: defaults)
+                }
+
+                let selected = loadSelectableSpeechModels(defaults: defaults).first { $0.selected }
+                    ?? SelectableSpeechModel(
+                        id: selection.engine.rawValue,
+                        name: selection.engine.displayName,
+                        engine: selection.engine.rawValue,
+                        variant: selection.whisperVariant,
+                        size: nil,
+                        installed: true,
+                        selected: true,
+                        language: nil
+                    )
+                if json {
+                    try printJSON(selected)
+                } else {
+                    print("Selected: \(selected.id) (\(selected.name))")
+                }
+            }
+        }
+    }
+
     struct Status: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "status",
@@ -252,6 +323,129 @@ func printSpeechStackStatus(_ status: SpeechStackStatus, includeHeader: Bool = t
     print("  Whisper model variant: \(status.whisperModelVariant)")
     print("  Whisper model downloaded: \(status.whisperModelDownloaded ? "Yes" : "No")")
     print("  Status: \(status.summary)")
+}
+
+struct SelectableSpeechModel: Encodable, Equatable {
+    let id: String
+    let name: String
+    let engine: String
+    let variant: String?
+    let size: String?
+    let installed: Bool
+    let selected: Bool
+    let language: String?
+}
+
+struct SelectableSpeechModelSelection: Equatable {
+    let engine: SpeechEnginePreference
+    let whisperVariant: String?
+}
+
+func loadSelectableSpeechModels(
+    defaults: UserDefaults = macParakeetAppDefaults(),
+    isParakeetModelCached: @escaping () -> Bool = { STTClient.isModelCached() },
+    isWhisperModelDownloaded: @escaping (String) -> Bool = { WhisperEngine.isModelDownloaded(model: $0) }
+) -> [SelectableSpeechModel] {
+    let currentEngine = SpeechEnginePreference.current(defaults: defaults)
+    let whisperVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+    let whisperLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
+
+    return [
+        SelectableSpeechModel(
+            id: SpeechEnginePreference.parakeet.rawValue,
+            name: "Parakeet TDT 0.6B v3",
+            engine: SpeechEnginePreference.parakeet.rawValue,
+            variant: nil,
+            size: "6 GB",
+            installed: isParakeetModelCached(),
+            selected: currentEngine == .parakeet,
+            language: nil
+        ),
+        SelectableSpeechModel(
+            id: whisperModelID(for: whisperVariant),
+            name: "Whisper \(SpeechEnginePreference.friendlyVariantName(whisperVariant))",
+            engine: SpeechEnginePreference.whisper.rawValue,
+            variant: whisperVariant,
+            size: whisperModelSizeLabel(for: whisperVariant),
+            installed: isWhisperModelDownloaded(whisperVariant),
+            selected: currentEngine == .whisper,
+            language: whisperLanguage ?? WhisperLanguageCatalog.autoCode
+        ),
+    ]
+}
+
+func resolveSelectableSpeechModel(
+    _ id: String,
+    defaults: UserDefaults = macParakeetAppDefaults()
+) throws -> SelectableSpeechModelSelection {
+    let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+    let lowered = trimmed.lowercased()
+    guard !trimmed.isEmpty else {
+        throw ValidationError("Model ID cannot be empty.")
+    }
+
+    if lowered == SpeechEnginePreference.parakeet.rawValue {
+        return SelectableSpeechModelSelection(engine: .parakeet, whisperVariant: nil)
+    }
+
+    if lowered == "whisper" {
+        return SelectableSpeechModelSelection(
+            engine: .whisper,
+            whisperVariant: SpeechEnginePreference.whisperModelVariant(defaults: defaults)
+        )
+    }
+
+    let variantInput: String?
+    if lowered.hasPrefix("whisper:") {
+        variantInput = String(trimmed.dropFirst("whisper:".count))
+    } else if lowered.hasPrefix("whisper-") {
+        variantInput = String(trimmed.dropFirst("whisper-".count))
+    } else {
+        variantInput = nil
+    }
+
+    guard let variantInput,
+          !variantInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+        throw ValidationError("Unknown model ID: '\(id)'. Run `macparakeet-cli models list` for valid IDs.")
+    }
+
+    return SelectableSpeechModelSelection(
+        engine: .whisper,
+        whisperVariant: WhisperEngine.normalizeModelVariant(variantInput)
+    )
+}
+
+func whisperModelID(for variant: String) -> String {
+    "whisper-\(variant.replacingOccurrences(of: "_turbo_", with: "-turbo-").replacingOccurrences(of: "_", with: "-"))"
+}
+
+func whisperModelSizeLabel(for variant: String) -> String? {
+    let tokens = variant.split(separator: "_")
+    guard let last = tokens.last else { return nil }
+    let raw = String(last)
+    let lowered = raw.lowercased()
+    if lowered.hasSuffix("mb") {
+        return "\(raw.dropLast(2)) MB"
+    }
+    if lowered.hasSuffix("gb") {
+        return "\(raw.dropLast(2)) GB"
+    }
+    return nil
+}
+
+func printSelectableSpeechModels(_ models: [SelectableSpeechModel]) {
+    print("\(paddedModelColumn("ID", width: 44)) \(paddedModelColumn("NAME", width: 28)) \(paddedModelColumn("SIZE", width: 10)) INSTALLED")
+    for model in models {
+        let marker = model.selected ? "*" : " "
+        let size = model.size ?? "-"
+        let installed = model.installed ? "yes" : "no"
+        print("\(marker) \(paddedModelColumn(model.id, width: 42)) \(paddedModelColumn(model.name, width: 28)) \(paddedModelColumn(size, width: 10)) \(installed)")
+    }
+}
+
+private func paddedModelColumn(_ value: String, width: Int) -> String {
+    let padding = max(0, width - value.count)
+    return value + String(repeating: " ", count: padding)
 }
 
 func prepareSpeechStack(
