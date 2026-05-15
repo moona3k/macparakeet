@@ -91,8 +91,8 @@ enum TranscriptResultActions {
         switch format {
         case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL, options: options)
         case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)
-        case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
-        case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
+        case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL, config: options.subtitleConfig)
+        case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL, config: options.subtitleConfig)
         case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
         case .pdf: try exportService.exportToPDF(transcription: transcription, url: fileURL)
         case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)

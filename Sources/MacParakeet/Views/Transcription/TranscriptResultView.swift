@@ -2609,6 +2609,99 @@ struct TranscriptResultView: View {
                     .disabled(!selectedExportFormat.supportsTranscriptOptions)
             }
 
+            if selectedExportFormat == .srt || selectedExportFormat == .vtt {
+                Divider()
+
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    Text("Subtitle Layout")
+                        .font(DesignSystem.Typography.caption.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+
+                    HStack {
+                        Text("Words per cue")
+                            .font(DesignSystem.Typography.caption)
+                        Spacer()
+                        Text("\(transcriptExportOptions.subtitleConfig.maxWordsPerCue)")
+                            .font(DesignSystem.Typography.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                        Stepper("") {
+                            transcriptExportOptions.subtitleConfig.maxWordsPerCue += 1
+                        } onDecrement: {
+                            transcriptExportOptions.subtitleConfig.maxWordsPerCue = max(1, transcriptExportOptions.subtitleConfig.maxWordsPerCue - 1)
+                        }
+                        .labelsHidden()
+                        .controlSize(.small)
+                    }
+
+                    HStack {
+                        Text("Chars per line")
+                            .font(DesignSystem.Typography.caption)
+                        Spacer()
+                        Text("\(transcriptExportOptions.subtitleConfig.maxCharsPerLine)")
+                            .font(DesignSystem.Typography.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                        Stepper("") {
+                            transcriptExportOptions.subtitleConfig.maxCharsPerLine += 2
+                        } onDecrement: {
+                            transcriptExportOptions.subtitleConfig.maxCharsPerLine = max(10, transcriptExportOptions.subtitleConfig.maxCharsPerLine - 2)
+                        }
+                        .labelsHidden()
+                        .controlSize(.small)
+                    }
+
+                    HStack {
+                        Text("Lines per cue")
+                            .font(DesignSystem.Typography.caption)
+                        Spacer()
+                        Text("\(transcriptExportOptions.subtitleConfig.maxLinesPerCue)")
+                            .font(DesignSystem.Typography.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                        Stepper("") {
+                            transcriptExportOptions.subtitleConfig.maxLinesPerCue += 1
+                        } onDecrement: {
+                            transcriptExportOptions.subtitleConfig.maxLinesPerCue = max(1, transcriptExportOptions.subtitleConfig.maxLinesPerCue - 1)
+                        }
+                        .labelsHidden()
+                        .controlSize(.small)
+                    }
+
+                    HStack {
+                        Text("Max duration (s)")
+                            .font(DesignSystem.Typography.caption)
+                        Spacer()
+                        Text("\(transcriptExportOptions.subtitleConfig.maxDurationMs / 1000)")
+                            .font(DesignSystem.Typography.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                        Stepper("") {
+                            transcriptExportOptions.subtitleConfig.maxDurationMs += 1000
+                        } onDecrement: {
+                            transcriptExportOptions.subtitleConfig.maxDurationMs = max(1000, transcriptExportOptions.subtitleConfig.maxDurationMs - 1000)
+                        }
+                        .labelsHidden()
+                        .controlSize(.small)
+                    }
+
+                    HStack {
+                        Text("Gap threshold (ms)")
+                            .font(DesignSystem.Typography.caption)
+                        Spacer()
+                        Text("\(transcriptExportOptions.subtitleConfig.gapThresholdMs)")
+                            .font(DesignSystem.Typography.caption.monospaced())
+                            .foregroundStyle(.secondary)
+                        Stepper("") {
+                            transcriptExportOptions.subtitleConfig.gapThresholdMs += 100
+                        } onDecrement: {
+                            transcriptExportOptions.subtitleConfig.gapThresholdMs = max(100, transcriptExportOptions.subtitleConfig.gapThresholdMs - 100)
+                        }
+                        .labelsHidden()
+                        .controlSize(.small)
+                    }
+
+                    Toggle("Break on punctuation", isOn: $transcriptExportOptions.subtitleConfig.breakOnPunctuation)
+                        .font(DesignSystem.Typography.caption)
+                }
+            }
+
             Divider()
 
             HStack {
