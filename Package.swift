@@ -16,9 +16,9 @@ let packageDependencies: [Package.Dependency] = [
     .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.0")
 ] + (skipWhisperKit ? [] : [
     // WhisperKit for multilingual STT fallback (Korean + 95 other languages).
-    // Argmax is not Swift 6 language-mode clean yet, so CI can omit this package
+    // Upgraded to v1.0.0 for Swift 6 compat and bug fixes, so CI can omit this package
     // only for the first-party Swift 6 syntax/concurrency compile check.
-    .package(url: "https://github.com/argmaxinc/argmax-oss-swift", exact: "0.18.0")
+    .package(url: "https://github.com/argmaxinc/argmax-oss-swift", exact: "1.0.0")
 ])
 
 let coreDependencies: [Target.Dependency] = [

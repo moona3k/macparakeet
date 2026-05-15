@@ -370,9 +370,6 @@ public actor WhisperEngine: STTTranscribing {
         return DecodingOptions(
             language: resolvedLanguage,
             temperature: Float(tuning.temperature),
-            temperatureIncrementOnFallback: Float(tuning.temperatureIncrementOnFallback),
-            temperatureFallbackCount: tuning.temperatureFallbackCount,
-            sampleLength: tuning.sampleLength,
             topK: tuning.topK,
             usePrefillPrompt: resolvedLanguage != nil,
             detectLanguage: resolvedLanguage == nil,
@@ -388,7 +385,7 @@ public actor WhisperEngine: STTTranscribing {
         audioPath: String,
         requestedLanguage: String?,
         tuning: WhisperEngineTuning,
-        callback: TranscriptionCallback
+        callback: @escaping TranscriptionCallback
     ) async throws -> TranscriptionResult {
         let result = try await transcribeWithWhisperKit(
             whisperKit,
@@ -413,7 +410,7 @@ public actor WhisperEngine: STTTranscribing {
         _ whisperKit: WhisperKit,
         audioPaths: [String],
         decodeOptions: DecodingOptions,
-        callback: TranscriptionCallback
+        callback: @escaping TranscriptionCallback
     ) async throws -> TranscriptionResult {
         let results = await whisperKit.transcribeWithResults(
             audioPaths: audioPaths,
