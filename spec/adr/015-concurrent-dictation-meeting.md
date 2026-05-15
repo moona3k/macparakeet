@@ -7,6 +7,7 @@
 > Amendment note (2026-04-10): meeting mic capture remains raw at device tap time; echo mitigation is applied in meeting-only joined software-AEC processing while dictation remains raw. Concurrency isolation remains unchanged.
 > Amendment note (2026-04-29, superseded 2026-04-30): meeting system audio moved from Core Audio process taps to ScreenCaptureKit audio, and meeting mic capture now prefers VPIO. Dictation remained raw on its independent `AVAudioEngine` until the shared-engine amendment below replaced that topology.
 > Amendment note (2026-04-30): the original "independent AVAudioEngine instances" decision was incompatible with VPIO. coreaudiod attaches the VPAU aggregate device to the **process**, not the engine, so once meeting recording engaged VPIO, every other `AVAudioEngine` in the process inherited the multi-channel duplex layout — and dictation read silence on channel 0 of the wrong layout. Section 1 is rewritten below to describe the shared-engine architecture that ships in v0.6 (PR #189). The rest of the ADR (STT scheduler, menu bar priority, UI layers, hotkey, audio semantics) is unchanged.
+> Amendment note (2026-05-14): shipped meeting mic capture returns to raw by default after live-call testing showed VPIO can muffle the user's outgoing mic for other participants. The shared-engine architecture and VPIO arbitration remain for explicit VPIO experiments.
 
 ## Context
 
@@ -27,14 +28,14 @@ Microphone capture is owned by a process-wide `SharedMicrophoneStream`. Both flo
 | Flow | Audio Source | Subscription |
 |------|--------------|--------------|
 | Dictation | `SharedMicrophoneStream` | `subscribe(wantsVPIO: false)` |
-| Meeting (mic) | `SharedMicrophoneStream` | `subscribe(wantsVPIO: true)` (VPIO preferred, raw fallback) |
+| Meeting (mic) | `SharedMicrophoneStream` | `subscribe(wantsVPIO: false)` by default; explicit VPIO requests still use shared arbitration |
 | Meeting (system) | `SystemAudioStream` (ScreenCaptureKit `SCStream`) | independent of mic engine |
 
 The shared stream owns one `AVAudioEngine`, manages VPIO engagement, fans buffers out to all subscribers, and tears down only when the last subscriber leaves. Subscribers receive the same buffer; both flows' downstream copies are isolated.
 
 **Why a shared engine is required (not optional):**
 
-macOS Voice Processing I/O (VPIO) provides built-in echo cancellation, noise suppression, and AGC, which we want for meeting recording. VPIO is engaged by enabling voice processing on an `AVAudioEngine`'s input node, which causes `coreaudiod` to attach a VPAU aggregate device (`CADefaultDeviceAggregate-<pid>-N`) to the **process**. The aggregate then routes audio for every `AVAudioEngine` in the process — including a separately-allocated dictation engine, whose `inputNode.outputFormat(forBus: 0)` queries return the VPAU's multi-channel duplex layout (typically `ch=9`) instead of the raw mic format. Channel 0 carries the post-AEC processed mono; the rest are reference / loopback channels. A dictation engine that doesn't know about the duplex layout reads channel 0 of *something else* (or applies default channel reduction and dilutes the AEC), which manifests as silent transcripts during meetings.
+macOS Voice Processing I/O (VPIO) provides built-in echo cancellation, noise suppression, and AGC, and remains useful for explicit experiments. VPIO is engaged by enabling voice processing on an `AVAudioEngine`'s input node, which causes `coreaudiod` to attach a VPAU aggregate device (`CADefaultDeviceAggregate-<pid>-N`) to the **process**. The aggregate then routes audio for every `AVAudioEngine` in the process — including a separately-allocated dictation engine, whose `inputNode.outputFormat(forBus: 0)` queries return the VPAU's multi-channel duplex layout (typically `ch=9`) instead of the raw mic format. Channel 0 carries the post-AEC processed mono; the rest are reference / loopback channels. A dictation engine that doesn't know about the duplex layout reads channel 0 of *something else* (or applies default channel reduction and dilutes the AEC), which manifests as silent transcripts during meetings.
 
 Two independent `AVAudioEngine` instances cannot escape this — VPIO state is process-scoped, not engine-scoped. The shared-engine design accepts this and exploits it: subscribers explicitly request VPIO or raw, the stream resolves the engine's actual mode (sticky once engaged, deferred when a non-VPIO subscriber blocks), and every subscriber that consumes audio while VPIO is engaged extracts channel 0 as mono. See `Sources/MacParakeetCore/Audio/SharedMicrophoneStream.swift` and `extractChannelZero(from:)` in `AudioRecorder.swift` for the implementation.
 

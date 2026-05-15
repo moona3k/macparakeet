@@ -188,7 +188,7 @@ REQ-UI-005:
 # --- v0.6 Meeting Recording Hardening ---
 
 REQ-MEET-001:
-  description: Meeting live mic processing prefers macOS VPIO hardware AEC while preserving paired mic/system frame alignment
+  description: Meeting live mic processing captures raw mic audio by default while preserving paired mic/system frame alignment and retaining explicit VPIO plumbing
   version: v0.6
   status: implemented
 

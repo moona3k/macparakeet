@@ -289,9 +289,9 @@ YouTube (v0.4+):
                                                                                                         → Merge word timestamps + speaker segments
 
 Meeting live preview (v0.6):
-  MicrophoneCapture (VPIO preferred)/SystemAudioStream
+  MicrophoneCapture (raw default)/SystemAudioStream
     → CaptureOrchestrator (paired frames + bounded lag + chunking)
-    → MicConditioner (pass-through; mic AEC handled upstream by VPIO when available)
+    → MicConditioner (pass-through; no capture-time AEC by default)
     → dominant-system live guard (skip clearly system-dominant mic chunks for live preview only)
     → LiveChunkTranscriber (queueing + ordering + cancellation)
     → STTScheduler.transcribe(audioPath:, job: .meetingLiveChunk, speechEngine: meetingLease.selection, onProgress:)

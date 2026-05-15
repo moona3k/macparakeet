@@ -194,7 +194,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Batch transcription after recording stops (local STT using the pinned engine)
 - [x] Meeting recordings get prompt library, multi-summary, chat, and export automatically
 - [x] Live transcript preview via AudioChunker (chunked transcription during recording)
-- [x] Joined mic/system frame pairing with VPIO-preferred meeting mic capture
+- [x] Joined mic/system frame pairing with raw meeting mic capture by default
 - [x] Dominant-system suppression gate for live mic chunk transcription while preserving recorded mic audio
 - [x] Joiner overflow diagnostics + sync-lag observability for long-running capture sessions
 - [x] Dual-source final meeting artifact keeps mic/system channel separation (stereo when both are present)

@@ -130,7 +130,7 @@ The diagram below shows the ADR-015/ADR-016 architecture. Dictation and meeting 
 ```
 
 - **Shared microphone engine** — dictation and meeting mic capture subscribe to one process-wide `SharedMicrophoneStream`; downstream feature pipelines stay independent after copying buffers.
-- **Meeting mic processing** — meeting mic capture prefers macOS VPIO for hardware echo cancellation; dictation subscribes as non-VPIO and extracts channel 0 so VPIO duplex layouts still produce the post-AEC mono stream.
+- **Meeting mic processing** — meeting mic capture ships as raw mic capture by default to avoid degrading the live call mic heard by other participants; VPIO remains explicit opt-in plumbing, and consumers extract channel 0 if VPIO is engaged.
 - **No mutual exclusion** — dictation and meeting recording can both be active.
 - **Centralized STT ownership** — one runtime owner manages lifecycle, warm-up, shutdown, and Parakeet/Whisper dispatch.
 - **Explicit scheduling** — the STT stack uses a reserved dictation slot plus a shared background slot; within the background slot, finalize beats live preview, and file transcription waits.

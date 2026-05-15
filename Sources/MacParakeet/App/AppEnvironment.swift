@@ -67,12 +67,10 @@ final class AppEnvironment {
             whisperModelVariant: SpeechEnginePreference.whisperModelVariant()
         )
         sttScheduler = STTScheduler(runtime: sttRuntime)
-        // Mic capture is routed through Apple's Voice Processing I/O
-        // (built-in AEC + NS + AGC). If VPIO can't engage on a given device,
-        // capture falls back to raw mic with no AEC — `configureMicConditioner`
-        // logs a warning so the case shows up in telemetry. Flip to `.raw` here
-        // only as a last-resort kill switch.
-        let meetingMicProcessingMode: MeetingMicProcessingMode = .vpioPreferred
+        // Ship raw meeting mic capture by default. VPIO remains available for
+        // explicit experiments, but enabling it during live calls can degrade
+        // the outgoing mic heard by other participants.
+        let meetingMicProcessingMode: MeetingMicProcessingMode = .raw
         // Build the device-attempt chain lazily on each engine start so a
         // user changing their mic in Settings between meetings sees the new
         // selection.
