@@ -97,11 +97,13 @@ public actor STTRuntime: STTRuntimeProtocol {
         language: String?,
         onProgress: (@Sendable (Int, Int) -> Void)?
     ) async throws -> STTResult {
+        let tuning = SpeechEnginePreference.whisperTuning()
         let engine = whisperEngine ?? WhisperEngine(model: whisperModelVariant)
         whisperEngine = engine
         return try await engine.transcribe(
             audioURL: URL(fileURLWithPath: audioPath),
             language: language,
+            tuning: tuning,
             onProgress: onProgress
         )
     }

@@ -263,6 +263,18 @@ public final class SettingsViewModel {
             SpeechEnginePreference.saveWhisperDefaultLanguage(whisperDefaultLanguage, defaults: defaults)
         }
     }
+
+    // MARK: - Whisper Engine Tuning
+    public var whisperTuning: WhisperEngineTuning {
+        didSet {
+            SpeechEnginePreference.saveWhisperTuning(whisperTuning, defaults: defaults)
+        }
+    }
+
+    public func resetWhisperTuning() {
+        whisperTuning = WhisperEngineTuning.default
+    }
+
     public var speechEngineSwitching = false
     public var speechEngineError: String?
     public var whisperModelStatus: LocalModelStatus = .unknown
@@ -495,6 +507,7 @@ public final class SettingsViewModel {
         speakerDiarization = defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? false
         speechEnginePreference = SpeechEnginePreference.current(defaults: defaults)
         whisperDefaultLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto"
+        whisperTuning = SpeechEnginePreference.whisperTuning(defaults: defaults)
         // Ensure auto-save folders are configured before reading paths.
         // Idempotent: existing user-chosen folders are preserved; only
         // unset bookmarks get the default. This guarantees the read

@@ -259,6 +259,7 @@ struct SettingsView: View {
         scrollableTabBody {
             engineSelectorCard.id("engine.selector")
             engineLanguageCard.id("engine.language")
+            engineTuningCard.id("engine.tuning")
             enginesModelsCard.id("engine.models")
         }
     }
@@ -1550,6 +1551,132 @@ struct SettingsView: View {
         }
     }
 
+    @ViewBuilder
+    private var engineTuningCard: some View {
+        if viewModel.speechEnginePreference == .whisper {
+            SettingsCard(
+                title: "Whisper Tuning",
+                subtitle: "Fine-tune decoding behaviour for accuracy vs. speed trade-offs.",
+                icon: "slider.horizontal.3"
+            ) {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                    tuningSliderRow(
+                        title: "Temperature",
+                        detail: "0.0 = deterministic. Higher = more randomness.",
+                        value: .init(
+                            get: { viewModel.whisperTuning.temperature },
+                            set: { viewModel.whisperTuning.temperature = $0 }
+                        ),
+                        range: 0.0...1.0,
+                        step: 0.1,
+                        format: { String(format: "%.1f", $0) }
+                    )
+
+                    Divider()
+
+                    tuningSliderRow(
+                        title: "Top-k",
+                        detail: "Lower = more conservative sampling. Default 5.",
+                        value: $viewModel.whisperTuning.topK,
+                        range: 1...20,
+                        step: 1,
+                        format: { "\($0)" }
+                    )
+
+                    Divider()
+
+                    tuningSliderRow(
+                        title: "Sample length",
+                        detail: "Max tokens per chunk. Default 224.",
+                        value: $viewModel.whisperTuning.sampleLength,
+                        range: 50...448,
+                        step: 16,
+                        format: { "\($0)" }
+                    )
+
+                    Divider()
+
+                    tuningSliderRow(
+                        title: "Temperature increment",
+                        detail: "Amount to raise temperature on each fallback retry.",
+                        value: .init(
+                            get: { viewModel.whisperTuning.temperatureIncrementOnFallback },
+                            set: { viewModel.whisperTuning.temperatureIncrementOnFallback = $0 }
+                        ),
+                        range: 0.0...1.0,
+                        step: 0.1,
+                        format: { String(format: "%.1f", $0) }
+                    )
+
+                    Divider()
+
+                    tuningSliderRow(
+                        title: "Fallback count",
+                        detail: "Max retries with increased temperature. Default 5.",
+                        value: $viewModel.whisperTuning.temperatureFallbackCount,
+                        range: 0...10,
+                        step: 1,
+                        format: { "\($0)" }
+                    )
+
+                    Divider()
+
+                    tuningSliderRow(
+                        title: "Log-prob threshold",
+                        detail: "Filters low-confidence tokens. -1.0 = permissive, -0.5 = strict.",
+                        value: .init(
+                            get: { viewModel.whisperTuning.logProbThreshold },
+                            set: { viewModel.whisperTuning.logProbThreshold = $0 }
+                        ),
+                        range: -2.0...0.0,
+                        step: 0.1,
+                        format: { String(format: "%.1f", $0) }
+                    )
+
+                    Divider()
+
+                    tuningSliderRow(
+                        title: "No-speech threshold",
+                        detail: "Segments below this are treated as silence.",
+                        value: .init(
+                            get: { viewModel.whisperTuning.noSpeechThreshold },
+                            set: { viewModel.whisperTuning.noSpeechThreshold = $0 }
+                        ),
+                        range: 0.0...1.0,
+                        step: 0.1,
+                        format: { String(format: "%.1f", $0) }
+                    )
+
+                    Divider()
+
+                    tuningSliderRow(
+                        title: "Compression ratio",
+                        detail: "Detects repetitive/garbled output. Default 2.4.",
+                        value: .init(
+                            get: { viewModel.whisperTuning.compressionRatioThreshold },
+                            set: { viewModel.whisperTuning.compressionRatioThreshold = $0 }
+                        ),
+                        range: 0.5...5.0,
+                        step: 0.1,
+                        format: { String(format: "%.1f", $0) }
+                    )
+
+                    Divider()
+
+                    HStack {
+                        Spacer()
+                        Button("Reset to defaults") {
+                            viewModel.resetWhisperTuning()
+                        }
+                        .parakeetAction(.secondary)
+                        Spacer()
+                    }
+                }
+            }
+            .transition(.opacity)
+        }
+    }
+
     /// Status chip rolls up the worst severity across both engines via
     /// `SettingsStatusRules.localModelsCardStatus`. Inline action button
     /// only renders for actionable states; Repair / Re-download for healthy
@@ -1962,6 +2089,65 @@ struct SettingsView: View {
         @ViewBuilder content: @escaping () -> Content
     ) -> some View {
         SettingsCard(title: title, subtitle: subtitle, icon: icon, content: content)
+    }
+
+    private func tuningSliderRow(
+        title: String,
+        detail: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double.Stride,
+        format: @escaping (Double) -> String
+    ) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(DesignSystem.Typography.body)
+                Text(detail)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(format(value.wrappedValue))
+                    .font(DesignSystem.Typography.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 60, alignment: .trailing)
+                Slider(value: value, in: range, step: step)
+                    .frame(width: 140)
+            }
+        }
+    }
+
+    private func tuningSliderRow(
+        title: String,
+        detail: String,
+        value: Binding<Int>,
+        range: ClosedRange<Int>,
+        step: Int,
+        format: @escaping (Int) -> String
+    ) -> some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(DesignSystem.Typography.body)
+                Text(detail)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(format(value.wrappedValue))
+                    .font(DesignSystem.Typography.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                    .frame(minWidth: 60, alignment: .trailing)
+                Slider(value: .init(
+                    get: { Double(value.wrappedValue) },
+                    set: { value.wrappedValue = Int($0.rounded()) }
+                ), in: Double(range.lowerBound)...Double(range.upperBound), step: Double(step))
+                    .frame(width: 140)
+            }
+        }
     }
 
     private func settingsToggleRow(

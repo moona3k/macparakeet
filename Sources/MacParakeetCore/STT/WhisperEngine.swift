@@ -201,6 +201,7 @@ public actor WhisperEngine: STTTranscribing {
         try await transcribe(
             audioURL: URL(fileURLWithPath: audioPath),
             language: defaultLanguage,
+            tuning: SpeechEnginePreference.whisperTuning(),
             onProgress: onProgress
         )
     }
@@ -208,6 +209,7 @@ public actor WhisperEngine: STTTranscribing {
     public func transcribe(
         audioURL: URL,
         language: String?,
+        tuning: WhisperEngineTuning = SpeechEnginePreference.whisperTuning(),
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
         try await transcriptionPermit.wait()
@@ -216,6 +218,7 @@ public actor WhisperEngine: STTTranscribing {
         return try await transcribeLocked(
             audioURL: audioURL,
             language: language,
+            tuning: tuning,
             onProgress: onProgress
         )
     }
@@ -223,6 +226,7 @@ public actor WhisperEngine: STTTranscribing {
     private func transcribeLocked(
         audioURL: URL,
         language: String?,
+        tuning: WhisperEngineTuning = SpeechEnginePreference.whisperTuning(),
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
         #if canImport(WhisperKit)
@@ -243,6 +247,7 @@ public actor WhisperEngine: STTTranscribing {
                 whisperKit,
                 audioPath: audioURL.path,
                 requestedLanguage: requestedLanguage,
+                tuning: tuning,
                 callback: callback
             )
 
@@ -357,13 +362,24 @@ public actor WhisperEngine: STTTranscribing {
     }
 
     #if canImport(WhisperKit)
-    static func makeDecodingOptions(language: String?) -> DecodingOptions {
+    static func makeDecodingOptions(
+        language: String?,
+        tuning: WhisperEngineTuning = SpeechEnginePreference.whisperTuning()
+    ) -> DecodingOptions {
         let resolvedLanguage = SpeechEnginePreference.normalizeLanguage(language)
         return DecodingOptions(
             language: resolvedLanguage,
+            temperature: Float(tuning.temperature),
+            temperatureIncrementOnFallback: Float(tuning.temperatureIncrementOnFallback),
+            temperatureFallbackCount: tuning.temperatureFallbackCount,
+            sampleLength: tuning.sampleLength,
+            topK: tuning.topK,
             usePrefillPrompt: resolvedLanguage != nil,
             detectLanguage: resolvedLanguage == nil,
-            wordTimestamps: true
+            wordTimestamps: true,
+            compressionRatioThreshold: Float(tuning.compressionRatioThreshold),
+            logProbThreshold: Float(tuning.logProbThreshold),
+            noSpeechThreshold: Float(tuning.noSpeechThreshold)
         )
     }
 
@@ -371,12 +387,13 @@ public actor WhisperEngine: STTTranscribing {
         _ whisperKit: WhisperKit,
         audioPath: String,
         requestedLanguage: String?,
+        tuning: WhisperEngineTuning,
         callback: TranscriptionCallback
     ) async throws -> TranscriptionResult {
         let result = try await transcribeWithWhisperKit(
             whisperKit,
             audioPaths: [audioPath],
-            decodeOptions: makeDecodingOptions(language: requestedLanguage),
+            decodeOptions: makeDecodingOptions(language: requestedLanguage, tuning: tuning),
             callback: callback
         )
 
@@ -387,7 +404,7 @@ public actor WhisperEngine: STTTranscribing {
         return try await transcribeWithWhisperKit(
             whisperKit,
             audioPaths: [audioPath],
-            decodeOptions: makeDecodingOptions(language: nil),
+            decodeOptions: makeDecodingOptions(language: nil, tuning: tuning),
             callback: callback
         )
     }

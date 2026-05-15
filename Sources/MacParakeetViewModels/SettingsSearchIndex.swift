@@ -222,6 +222,15 @@ public enum SettingsSearchIndex {
             cardAnchor: "engine.selector"
         ),
         SettingsSearchEntry(
+            id: "engine.tuning",
+            tab: .engine,
+            title: "Whisper Tuning",
+            subtitle: "Decoding parameters for accuracy vs. speed trade-offs.",
+            keywords: ["tuning", "temperature", "topk", "accuracy", "decoding", "whisper", "config", "threshold"],
+            // Anchored to selector because tuning card only renders for Whisper.
+            cardAnchor: "engine.selector"
+        ),
+        SettingsSearchEntry(
             id: "engine.models",
             tab: .engine,
             title: "Local Models",

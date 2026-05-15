@@ -147,3 +147,17 @@ public struct SpeechEngineLease: Equatable, Sendable {
         self.selection = selection
     }
 }
+
+// MARK: - Whisper Engine Tuning convenience
+
+extension SpeechEnginePreference {
+    /// Returns the current Whisper engine tuning from UserDefaults.
+    public static func whisperTuning(defaults: UserDefaults = .standard) -> WhisperEngineTuning {
+        WhisperEngineTuning.current(defaults: defaults)
+    }
+
+    /// Persists a Whisper engine tuning to UserDefaults.
+    public static func saveWhisperTuning(_ tuning: WhisperEngineTuning, defaults: UserDefaults = .standard) {
+        tuning.save(to: defaults)
+    }
+}
