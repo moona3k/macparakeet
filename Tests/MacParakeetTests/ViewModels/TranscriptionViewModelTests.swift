@@ -1669,11 +1669,11 @@ final class TranscriptionViewModelTests: XCTestCase {
                        "Retranscribe must not invoke the LLM service via auto-run")
     }
 
-    func testFreshTranscribeStillFiresAutoRunPrompts() async throws {
-        let longTranscript = String(repeating: "Long transcript ", count: 50)
+    func testFreshTranscribeStillFiresAutoRunPromptsForShortTranscript() async throws {
+        let shortTranscript = "brief but important"
         let result = Transcription(
             fileName: "audio.mp3",
-            rawTranscript: longTranscript,
+            rawTranscript: shortTranscript,
             status: .completed
         )
         await mockService.configure(result: result)

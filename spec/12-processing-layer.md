@@ -190,7 +190,7 @@ You are a helpful assistant that processes transcripts. Follow the user's instru
 
 Prompt cards may be marked `isAutoRun = true` in the prompt library.
 
-- When a new transcription finishes and `llmAvailable && transcript.count > 500`, the app auto-generates summaries for every prompt card with `isAutoRun = true`.
+- When a new transcription finishes and `llmAvailable && transcript` is not empty/whitespace-only, the app auto-generates summaries for every prompt card with `isAutoRun = true`.
 - Multiple auto-run prompt cards are allowed.
 - Zero auto-run prompt cards is a valid configuration. In that state, transcription and chat still work, and users generate prompt tabs manually from the summary UI.
 - Auto-run prompt cards are forced visible while auto-run is enabled.
