@@ -793,6 +793,84 @@ public final class DatabaseManager: Sendable {
             )
         }
 
+        // v0.18 — Local LLM run metadata. This table intentionally stores
+        // operational metadata only; transcript/prompt/chat body content stays
+        // in feature-owned tables such as summaries, chat_conversations, and
+        // transform_history.
+        migrator.registerMigration("v0.18-llm-runs") { db in
+            try db.create(table: "llm_runs") { t in
+                t.column("id", .text).primaryKey()
+                t.column("operationID", .text)
+                t.column("feature", .text).notNull()
+                t.column("status", .text).notNull()
+                t.column("dictationId", .text)
+                    .references("dictations", onDelete: .cascade)
+                t.column("transcriptionId", .text)
+                    .references("transcriptions", onDelete: .cascade)
+                t.column("promptResultId", .text)
+                    .references("summaries", onDelete: .cascade)
+                t.column("chatConversationId", .text)
+                    .references("chat_conversations", onDelete: .cascade)
+                t.column("transformHistoryId", .text)
+                    .references("transform_history", onDelete: .cascade)
+                t.column("provider", .text)
+                t.column("model", .text)
+                t.column("errorType", .text)
+                t.column("promptTokens", .integer)
+                t.column("completionTokens", .integer)
+                t.column("totalTokens", .integer)
+                t.column("latencyMs", .integer)
+                t.column("inputChars", .integer).notNull().defaults(to: 0)
+                t.column("outputChars", .integer)
+                t.column("stopReason", .text)
+                t.column("inputTruncated", .boolean).notNull().defaults(to: false)
+                t.column("defaultPromptUsed", .boolean)
+                t.column("messageCount", .integer)
+                t.column("createdAt", .text).notNull()
+                t.column("updatedAt", .text).notNull()
+            }
+            try db.create(
+                index: "idx_llm_runs_feature_created_at",
+                on: "llm_runs",
+                columns: ["feature", "createdAt"]
+            )
+            try db.create(
+                index: "idx_llm_runs_provider_model_created_at",
+                on: "llm_runs",
+                columns: ["provider", "model", "createdAt"]
+            )
+            try db.create(
+                index: "idx_llm_runs_status_created_at",
+                on: "llm_runs",
+                columns: ["status", "createdAt"]
+            )
+            try db.create(
+                index: "idx_llm_runs_dictation_id",
+                on: "llm_runs",
+                columns: ["dictationId"]
+            )
+            try db.create(
+                index: "idx_llm_runs_transcription_id",
+                on: "llm_runs",
+                columns: ["transcriptionId"]
+            )
+            try db.create(
+                index: "idx_llm_runs_prompt_result_id",
+                on: "llm_runs",
+                columns: ["promptResultId"]
+            )
+            try db.create(
+                index: "idx_llm_runs_chat_conversation_id",
+                on: "llm_runs",
+                columns: ["chatConversationId"]
+            )
+            try db.create(
+                index: "idx_llm_runs_transform_history_id",
+                on: "llm_runs",
+                columns: ["transformHistoryId"]
+            )
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()

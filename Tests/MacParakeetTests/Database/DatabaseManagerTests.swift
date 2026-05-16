@@ -319,6 +319,7 @@ final class DatabaseManagerTests: XCTestCase {
                 )
             """)
             try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
             // Pre-seed prompts table with all auto-run flags off — simulating
             // a user who has explicitly disabled every auto-run prompt.
             try db.execute(sql: """
@@ -466,6 +467,7 @@ final class DatabaseManagerTests: XCTestCase {
                 )
             """)
             try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
             try db.execute(sql: """
                 CREATE TABLE prompts (
                     id TEXT PRIMARY KEY,
@@ -594,6 +596,7 @@ final class DatabaseManagerTests: XCTestCase {
                 )
             """)
             try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
             try db.execute(sql: """
                 CREATE TABLE prompts (
                     id TEXT PRIMARY KEY,
@@ -725,6 +728,7 @@ final class DatabaseManagerTests: XCTestCase {
 
             // dictations table is required by the v0.7.4 lifetime stats backfill.
             try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
 
             try db.execute(sql: """
                 CREATE TABLE text_snippets (
@@ -831,6 +835,7 @@ final class DatabaseManagerTests: XCTestCase {
 
             // dictations table is required by the v0.7.4 lifetime stats backfill.
             try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
 
             try db.execute(
                 sql: """
@@ -1021,6 +1026,23 @@ final class DatabaseManagerTests: XCTestCase {
                 hidden INTEGER NOT NULL DEFAULT 0,
                 wordCount INTEGER NOT NULL DEFAULT 0
             )
+        """)
+    }
+
+    static func createV05ChatConversationsTable(db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE chat_conversations (
+                id TEXT PRIMARY KEY,
+                transcriptionId TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,
+                title TEXT NOT NULL DEFAULT '',
+                messages TEXT,
+                createdAt TEXT NOT NULL,
+                updatedAt TEXT NOT NULL
+            )
+        """)
+        try db.execute(sql: """
+            CREATE INDEX idx_chat_conversations_transcription_id
+            ON chat_conversations(transcriptionId)
         """)
     }
 

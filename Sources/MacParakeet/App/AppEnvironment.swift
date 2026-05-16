@@ -12,6 +12,7 @@ final class AppEnvironment {
     let chatConversationRepo: ChatConversationRepository
     let promptRepo: PromptRepository
     let promptResultRepo: PromptResultRepository
+    let llmRunRepo: LLMRunRepository
     let transformHistoryRepo: TransformHistoryRepository
     let quickPromptRepo: QuickPromptRepository
     let sttRuntime: STTRuntime
@@ -49,6 +50,7 @@ final class AppEnvironment {
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
         promptRepo = PromptRepository(dbQueue: databaseManager.dbQueue)
         promptResultRepo = PromptResultRepository(dbQueue: databaseManager.dbQueue)
+        llmRunRepo = LLMRunRepository(dbQueue: databaseManager.dbQueue)
         transformHistoryRepo = TransformHistoryRepository(dbQueue: databaseManager.dbQueue)
         quickPromptRepo = QuickPromptRepository(dbQueue: databaseManager.dbQueue)
 
@@ -187,6 +189,7 @@ final class AppEnvironment {
             voiceReturnTrigger: voiceReturnTriggerClosure,
             processingMode: processingModeClosure,
             llmService: llmService,
+            llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: aiFormatterEnabledClosure,
             aiFormatterPromptTemplate: aiFormatterPromptClosure,
             markFirstDictationCompleted: { [runtimePreferences] in
@@ -211,6 +214,7 @@ final class AppEnvironment {
             snippetRepo: snippetRepo,
             processingMode: processingModeClosure,
             llmService: llmService,
+            llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: aiFormatterEnabledClosure,
             aiFormatterPromptTemplate: aiFormatterPromptClosure,
             shouldKeepDownloadedAudio: { [runtimePreferences] in runtimePreferences.shouldSaveTranscriptionAudio },

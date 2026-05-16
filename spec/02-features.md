@@ -837,6 +837,8 @@ Important constraints:
 - formatter runs for dictation and file/YouTube transcription flows; meeting transcripts currently use deterministic cleanup only (see `TelemetryFormatterSource` — `.dictation` and `.transcription` are the only emitter sources wired today)
 - formatter falls back to deterministic cleanup if the provider errors or times out
 - formatter prompt is user-editable in AI settings
+- persisted formatter runs record metadata in `llm_runs` (source row, feature, status, provider/model, latency, token usage when available, character counts, and error type); transcript text, prompts, and formatter output are not duplicated into the ledger
+- private/no-history dictations and transient transcriptions do not create `llm_runs` rows
 
 **Acceptance criteria:**
 - [x] Formatter can be enabled or disabled independently of Raw/Clean mode
@@ -846,6 +848,7 @@ Important constraints:
 - [x] Formatter uses the configured provider or local CLI through shared LLM infrastructure
 - [x] Formatter prompt is editable and resettable from settings
 - [x] Graceful fallback to deterministic cleanup if formatting fails
+- [x] Persisted formatter runs write local metadata-only `llm_runs` records linked to the saved source row
 
 ---
 
@@ -1071,6 +1074,7 @@ Overlay shows selected text preview (truncated) so the user confirms the right t
 - Context is bounded before prompt submission
 - Conversations are persisted per transcript through `ChatConversationRepository`
 - Model/provider selection comes from the shared LLM settings/config store
+- `llm_runs` recording for chat is deferred until streaming calls expose a terminal metadata envelope; chat content remains in `chat_conversations`
 
 **Acceptance criteria:**
 - [x] Transcript detail shows chat panel UI
@@ -1494,6 +1498,10 @@ Prompt library and multi-summary system. Users control how AI processes transcri
 > Status: **IMPLEMENTED ON CURRENT BRANCH**
 
 **What:** Multiple summaries per transcript, each from a different prompt. Summaries are tab-based, with pending generations appearing immediately.
+
+Prompt result content and prompt snapshots live in `summaries`. `llm_runs`
+recording for prompt results is deferred until the streaming generation path
+exposes a terminal provider/model/token metadata envelope.
 
 **Acceptance criteria:**
 - [x] User can select a prompt from the generation popover

@@ -360,6 +360,17 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
     func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String { "" }
     func transform(text: String, prompt: String) async throws -> String { "" }
     func formatTranscript(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> String { "" }
+    func formatTranscriptDetailed(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> LLMFormatterResult {
+        LLMFormatterResult(
+            result: LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0),
+            operationID: "mock",
+            inputChars: transcript.count,
+            outputChars: 0,
+            inputTruncated: false,
+            defaultPromptUsed: defaultPromptUsed,
+            messageCount: 2
+        )
+    }
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { $0.finish() }
     }

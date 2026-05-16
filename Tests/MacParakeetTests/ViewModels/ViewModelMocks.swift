@@ -523,6 +523,11 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var summarizeResult = "Mock summary"
     var chatResult = "Mock chat response"
     var formatTranscriptResult = "Mock formatted transcript"
+    var formatTranscriptProvider = "mock"
+    var formatTranscriptModel = "mock-model"
+    var formatTranscriptUsage: LLMUsage?
+    var formatTranscriptStopReason: String?
+    var formatTranscriptLatencyMs = 0
     var streamTokens: [String] = ["Hello", " world"]
     var streamDelayNs: UInt64 = 0
     var errorToThrow: Error?
@@ -578,13 +583,42 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         source: TelemetryFormatterSource,
         defaultPromptUsed: Bool
     ) async throws -> String {
+        try await formatTranscriptDetailed(
+            transcript: transcript,
+            promptTemplate: promptTemplate,
+            source: source,
+            defaultPromptUsed: defaultPromptUsed
+        ).output
+    }
+
+    func formatTranscriptDetailed(
+        transcript: String,
+        promptTemplate: String,
+        source: TelemetryFormatterSource,
+        defaultPromptUsed: Bool
+    ) async throws -> LLMFormatterResult {
         formatTranscriptCallCount += 1
         lastFormattedTranscript = transcript
         lastFormatterPromptTemplate = promptTemplate
         lastFormatterSource = source
         lastFormatterDefaultPromptUsed = defaultPromptUsed
         if let error = errorToThrow { throw error }
-        return formatTranscriptResult
+        return LLMFormatterResult(
+            result: LLMResult(
+                output: formatTranscriptResult,
+                provider: formatTranscriptProvider,
+                model: formatTranscriptModel,
+                usage: formatTranscriptUsage,
+                stopReason: formatTranscriptStopReason,
+                latencyMs: formatTranscriptLatencyMs
+            ),
+            operationID: "mock-format-operation",
+            inputChars: transcript.count,
+            outputChars: formatTranscriptResult.count,
+            inputTruncated: false,
+            defaultPromptUsed: defaultPromptUsed,
+            messageCount: 2
+        )
     }
 
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {

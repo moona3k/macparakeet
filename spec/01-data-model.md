@@ -37,9 +37,14 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
 ┌──────────────────┐
 │  quick_prompts   │   v0.10 migration — v0.6 Live Ask shortcut pills
 └──────────────────┘
+
+┌──────────────────┐
+│     llm_runs     │   v0.18 — Local LLM run metadata ledger
+└──────────────────┘   FK -> dictations / transcriptions / summaries /
+                       chat_conversations / transform_history
 ```
 
-Tables are self-contained domains with two exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete. The Swift model for `summaries` is `PromptResult`; the table name is retained for migration compatibility.
+Tables are self-contained domains with three exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete, and `llm_runs` has optional foreign keys back to the feature-owned source rows that triggered each LLM call. The Swift model for `summaries` is `PromptResult`; the table name is retained for migration compatibility.
 
 ---
 
@@ -321,6 +326,61 @@ CREATE INDEX idx_quick_prompts_pinned_sort ON quick_prompts(isPinned, sortOrder)
 - `isPinned` controls the after-response strip; the strip is a horizontal `ScrollView` with edge-fade affordance and renders all visible pinned rows by `sortOrder` — pinning is unbounded.
 - Hidden rows are never pinned. Repository writes normalize hidden+pinned rows to hidden+unpinned; hiding a pinned row auto-unpins it, and pinning a hidden row auto-shows it.
 - The CLI backup/share format is `QuickPromptBundle` with `schema: "macparakeet.quick_prompts"` and `version: 1`; each prompt carries `isPinned: Bool`.
+
+---
+
+### `llm_runs` (v0.18)
+
+Stores local metadata for persisted LLM operations. This table is for later
+local analytics, diagnostics, and feature-linked run history; it deliberately
+does **not** duplicate transcript text, prompt templates, chat messages,
+transform input/output, audio paths, or other user content. Those payloads
+remain in their feature-owned tables.
+
+```sql
+CREATE TABLE llm_runs (
+    id                    TEXT PRIMARY KEY,                 -- UUID string
+    operationID           TEXT,                              -- Observability operation id, when available
+    feature               TEXT NOT NULL,                     -- formatter_dictation, formatter_transcription, prompt_result, chat, transform
+    status                TEXT NOT NULL,                     -- succeeded, failed, cancelled
+    dictationId           TEXT REFERENCES dictations(id) ON DELETE CASCADE,
+    transcriptionId       TEXT REFERENCES transcriptions(id) ON DELETE CASCADE,
+    promptResultId        TEXT REFERENCES summaries(id) ON DELETE CASCADE,
+    chatConversationId    TEXT REFERENCES chat_conversations(id) ON DELETE CASCADE,
+    transformHistoryId    TEXT REFERENCES transform_history(id) ON DELETE CASCADE,
+    provider              TEXT,                              -- openai, anthropic, ollama, lmstudio, local_cli, etc.
+    model                 TEXT,                              -- provider-reported model name
+    errorType             TEXT,                              -- bucketed error type for failures
+    promptTokens          INTEGER,                           -- nullable; provider-dependent
+    completionTokens      INTEGER,                           -- nullable; provider-dependent
+    totalTokens           INTEGER,                           -- nullable; provider-dependent
+    latencyMs             INTEGER,                           -- request duration
+    inputChars            INTEGER NOT NULL DEFAULT 0,         -- character count only, never input content
+    outputChars           INTEGER,                           -- character count only, never output content
+    stopReason            TEXT,                              -- provider finish/stop reason
+    inputTruncated        INTEGER NOT NULL DEFAULT 0,         -- true if context was truncated before send
+    defaultPromptUsed     INTEGER,                           -- nullable for non-prompted/non-formatter calls
+    messageCount          INTEGER,                           -- number of chat messages sent
+    createdAt             TEXT NOT NULL,                     -- ISO 8601 timestamp
+    updatedAt             TEXT NOT NULL                      -- ISO 8601 timestamp
+);
+
+CREATE INDEX idx_llm_runs_feature_created_at ON llm_runs(feature, createdAt);
+CREATE INDEX idx_llm_runs_provider_model_created_at ON llm_runs(provider, model, createdAt);
+CREATE INDEX idx_llm_runs_status_created_at ON llm_runs(status, createdAt);
+CREATE INDEX idx_llm_runs_dictation_id ON llm_runs(dictationId);
+CREATE INDEX idx_llm_runs_transcription_id ON llm_runs(transcriptionId);
+CREATE INDEX idx_llm_runs_prompt_result_id ON llm_runs(promptResultId);
+CREATE INDEX idx_llm_runs_chat_conversation_id ON llm_runs(chatConversationId);
+CREATE INDEX idx_llm_runs_transform_history_id ON llm_runs(transformHistoryId);
+```
+
+**Notes:**
+- `llm_runs` is metadata-only. Queryable counts, latency, provider/model, token usage, status, and source links belong here; full prompts and outputs do not.
+- Source columns are optional because not every future LLM operation will have every source row. At least one source link should be present for persisted product runs.
+- Formatter writes are the first producer. Prompt result, chat, and transform rows should be added only after their streaming app APIs expose a terminal metadata envelope.
+- Private/no-history dictations and transient transcriptions do not create formatter run rows because there is no durable user-visible source row to link.
+- Deleting a source row cascades associated run metadata.
 
 ---
 
@@ -646,6 +706,58 @@ extension QuickPrompt: FetchableRecord, PersistableRecord {
 }
 ```
 
+### LLMRun
+
+```swift
+import Foundation
+import GRDB
+
+struct LLMRun: Codable, Identifiable, Sendable {
+    var id: UUID
+    var operationID: String?
+    var feature: Feature
+    var status: Status
+    var dictationId: UUID?
+    var transcriptionId: UUID?
+    var promptResultId: UUID?
+    var chatConversationId: UUID?
+    var transformHistoryId: UUID?
+    var provider: String?
+    var model: String?
+    var errorType: String?
+    var promptTokens: Int?
+    var completionTokens: Int?
+    var totalTokens: Int?
+    var latencyMs: Int?
+    var inputChars: Int
+    var outputChars: Int?
+    var stopReason: String?
+    var inputTruncated: Bool
+    var defaultPromptUsed: Bool?
+    var messageCount: Int?
+    var createdAt: Date
+    var updatedAt: Date
+
+    enum Feature: String, Codable, Sendable {
+        case formatterDictation = "formatter_dictation"
+        case formatterTranscription = "formatter_transcription"
+        case promptResult = "prompt_result"
+        case chat
+        case transform
+    }
+
+    enum Status: String, Codable, Sendable {
+        case succeeded
+        case failed
+        case cancelled
+    }
+}
+
+extension LLMRun: FetchableRecord, PersistableRecord {
+    static let databaseTableName = "llm_runs"
+}
+```
+
 ---
 
 ## Migration Strategy
@@ -860,6 +972,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 // v0.15 — transform_profiles and writing_samples (removed by v0.16 before merge)
 // v0.16 — drop abandoned Transform Workbench tables
 // v0.17 — recreate transform_history (workbench tables stay dropped)
+// v0.18 — llm_runs metadata ledger
 ```
 
 ### Migration Rules
@@ -911,6 +1024,7 @@ migrator.registerMigration("v0.7-prompts-and-summaries") { db in
 | `idx_transcriptions_source_type_created_at` / `idx_transcriptions_favorite_created_at` / `idx_transcriptions_status_created_at` | v0.10 | Library filter/sort indexes for source type, favorites, and status |
 | `transform_history` | v0.14 (re-created v0.17) | Local Transform run history (input/output/source app/timings). Dropped by v0.16 along with the workbench tables, then recreated standalone in v0.17 once history was restored without the workbench. |
 | ~~`transform_profiles`~~ / ~~`writing_samples`~~ | ~~v0.15~~ | ~~Transform Workbench tables~~ (dropped in v0.16; workbench feature removed) |
+| `llm_runs` | v0.18 | Local metadata ledger for persisted LLM operations. Stores source links, feature/status, provider/model, latency, token counts, character counts, and errors; never stores prompt/input/output content. |
 
 ### Tables NOT Planned (YAGNI)
 
@@ -919,7 +1033,7 @@ These might be needed someday but are explicitly deferred:
 - **`settings`** -- Use `UserDefaults` / plist. No need for a settings table.
 - **`exports`** -- Track via `exportPath` on `transcriptions`. No separate table.
 - **`speakers`** -- Speaker labels and per-word speaker IDs live as JSON on `transcriptions` (v0.4 diarization). No separate table needed — speaker identity is per-transcription, not cross-file. Revisit only if cross-file speaker recognition is added.
-- **`usage_stats`** -- Derive from existing tables via queries. No separate tracking table.
+- **`usage_stats`** -- Derive aggregate usage from existing tables and `llm_runs` queries. No separate aggregate tracking table.
 
 ---
 
@@ -992,4 +1106,4 @@ let processing = try dbQueue.read { db in
 
 ---
 
-*Last updated: 2026-05-13*
+*Last updated: 2026-05-16*

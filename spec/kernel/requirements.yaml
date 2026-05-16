@@ -121,6 +121,11 @@ REQ-LLM-002:
   version: cli-1.2.0
   status: implemented
 
+REQ-LLM-003:
+  description: Persisted LLM operations record local metadata-only run rows with source links, provider/model, status, latency, token usage when available, and no prompt/input/output content duplication
+  version: v0.18
+  status: implemented
+
 # --- v0.5 Data & Reliability ---
 
 REQ-DICT-005:
