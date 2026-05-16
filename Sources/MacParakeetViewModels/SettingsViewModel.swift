@@ -1451,11 +1451,15 @@ public final class SettingsViewModel {
 
     public func clearTransformHistory() {
         guard let repo = transformHistoryRepo else { return }
-        do {
-            try repo.deleteAll()
-            onTransformHistoryChanged?()
-        } catch {
-            logger.error("Failed to clear transform history error=\(error.localizedDescription, privacy: .public)")
+        Task { @MainActor [repo, weak self] in
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try repo.deleteAll()
+                }.value
+                self?.onTransformHistoryChanged?()
+            } catch {
+                self?.logger.error("Failed to clear transform history error=\(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 

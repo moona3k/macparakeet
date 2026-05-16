@@ -295,10 +295,10 @@ final class MockTransformHistoryRepository: TransformHistoryRepositoryProtocol, 
     }
 
     func deleteAll() throws {
+        deleteAllCalled = true
         if let deleteAllError {
             throw deleteAllError
         }
-        deleteAllCalled = true
         entries.removeAll()
     }
 }

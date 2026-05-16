@@ -300,9 +300,9 @@ public final class TransformsViewModel {
         copiedResetTask?.cancel()
         copiedHistoryEntryID = entry.id
         copiedHistoryTarget = target
-        copiedResetTask = Task {
+        copiedResetTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1.5))
-            guard !Task.isCancelled else { return }
+            guard let self, !Task.isCancelled else { return }
             self.copiedHistoryEntryID = nil
             self.copiedHistoryTarget = nil
         }

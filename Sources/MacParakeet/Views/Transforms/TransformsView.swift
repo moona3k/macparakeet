@@ -346,7 +346,7 @@ struct TransformsView: View {
                     }
                 }
 
-                if viewModel.totalHistoryCount > viewModel.history.count {
+                if !isHistoryFiltering && viewModel.totalHistoryCount > viewModel.history.count {
                     Text("Showing the most recent \(viewModel.history.count) of \(viewModel.totalHistoryCount) saved runs.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
@@ -769,9 +769,7 @@ private extension TransformHistoryEntry {
             sourceAppDisplayName,
             sourceAppBundleID ?? "",
             inputText,
-            outputText,
-            capturePath,
-            replacementPath
+            outputText
         ].joined(separator: "\n")
 
         return terms.allSatisfy { searchableText.localizedCaseInsensitiveContains($0) }
