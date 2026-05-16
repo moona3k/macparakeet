@@ -59,7 +59,7 @@ Feature-owned persistence
 LLMRunRecorder
   |
   |-- copies metadata only
-  |-- links to the source row when one exists
+  |-- links to the persisted source row
   |-- never duplicates transcript/chat/prompt body text
   |
   v
@@ -135,4 +135,5 @@ local queries.
 - No full prompt/input/output text is duplicated into `llm_runs`.
 - Private/no-history dictations do not create formatter run rows.
 - Transient transcriptions do not create formatter run rows.
+- Every persisted run row has at least one source-row link.
 - Deleting a source row cascades its associated run metadata.

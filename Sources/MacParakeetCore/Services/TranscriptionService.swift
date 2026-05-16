@@ -1357,7 +1357,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         transcription.updatedAt = Date()
         if persistResult {
             try transcriptionRepo.save(transcription)
-            llmRunRecorder.record(formatterOutcome.run)
+            await llmRunRecorder.record(formatterOutcome.run)
         }
 
         let outputText = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""

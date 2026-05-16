@@ -3,7 +3,7 @@ import MacParakeetViewModels
 
 @MainActor
 final class AppSettingsObserverCoordinator {
-    static let settingsTabUserInfoKey = "settingsTab"
+    nonisolated static let settingsTabUserInfoKey = "settingsTab"
 
     private let notificationCenter: NotificationCenter
     private let onOpenOnboarding: () -> Void
@@ -68,8 +68,9 @@ final class AppSettingsObserverCoordinator {
             object: nil,
             queue: .main
         ) { [weak self] notification in
+            let tab = Self.settingsTab(from: notification)
             Task { @MainActor in
-                self?.onOpenSettings(Self.settingsTab(from: notification))
+                self?.onOpenSettings(tab)
             }
         }
 
@@ -144,7 +145,7 @@ final class AppSettingsObserverCoordinator {
         }
     }
 
-    private static func settingsTab(from notification: Notification) -> SettingsTab? {
+    nonisolated private static func settingsTab(from notification: Notification) -> SettingsTab? {
         guard let raw = notification.userInfo?[settingsTabUserInfoKey] as? String else {
             return nil
         }

@@ -2,7 +2,7 @@ import Foundation
 import GRDB
 
 public protocol LLMRunRepositoryProtocol: Sendable {
-    func save(_ run: LLMRun) throws
+    func save(_ run: LLMRun) async throws
     func fetchRecent(limit: Int) throws -> [LLMRun]
     func fetchForDictation(id: UUID) throws -> [LLMRun]
     func fetchForTranscription(id: UUID) throws -> [LLMRun]
@@ -13,6 +13,12 @@ public protocol LLMRunRepositoryProtocol: Sendable {
     func deleteAll() throws
 }
 
+public extension LLMRunRepositoryProtocol {
+    func fetchRecent() throws -> [LLMRun] {
+        try fetchRecent(limit: 200)
+    }
+}
+
 public final class LLMRunRepository: LLMRunRepositoryProtocol {
     private let dbQueue: DatabaseQueue
 
@@ -20,8 +26,8 @@ public final class LLMRunRepository: LLMRunRepositoryProtocol {
         self.dbQueue = dbQueue
     }
 
-    public func save(_ run: LLMRun) throws {
-        try dbQueue.write { db in
+    public func save(_ run: LLMRun) async throws {
+        try await dbQueue.write { db in
             try run.save(db)
         }
     }

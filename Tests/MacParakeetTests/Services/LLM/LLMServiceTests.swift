@@ -516,6 +516,24 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(result.messageCount, 2)
     }
 
+    func testFormatTranscriptDetailedSubtractsPromptOverheadFromTranscriptBudget() async throws {
+        mockConfigStore.config = .ollama(model: "llama3.2")
+        let transcript = "SENTINEL_TRANSCRIPT"
+        let longPromptTemplate = String(repeating: "instruction ", count: 9_000)
+            + AIFormatter.transcriptPlaceholder
+
+        let result = try await service.formatTranscriptDetailed(
+            transcript: transcript,
+            promptTemplate: longPromptTemplate,
+            source: .dictation,
+            defaultPromptUsed: false
+        )
+
+        XCTAssertTrue(result.inputTruncated)
+        XCTAssertEqual(mockClient.capturedMessages.count, 2)
+        XCTAssertFalse(mockClient.capturedMessages[1].content.contains(transcript))
+    }
+
     // MARK: - Transform
 
     func testTransformAssemblesCorrectPrompt() async throws {

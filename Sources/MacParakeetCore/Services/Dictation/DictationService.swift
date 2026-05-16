@@ -641,7 +641,7 @@ public actor DictationService: DictationServiceProtocol {
 
         if saveHistory {
             try dictationRepo.save(dictation)
-            llmRunRecorder.record(formatterOutcome.run)
+            await llmRunRecorder.record(formatterOutcome.run)
         } else {
             var privateCopy = dictation
             privateCopy.rawTranscript = ""

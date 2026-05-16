@@ -409,13 +409,15 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         )
         let config = context.providerConfig
         let budget = contextBudget(for: config)
-        // Compare original transcript length against budget rather than the
-        // output of `truncateMiddle`, which can be longer than the original
-        // (the truncation marker adds ~32 chars) for inputs that only
-        // slightly exceed the budget. What we actually care about is "did
-        // we have to drop content to fit," which this expresses directly.
-        let inputTruncated = transcript.count > budget
-        let truncated = Self.truncateMiddle(transcript, limit: budget)
+        let promptOverhead = Prompts.formatter.count
+            + AIFormatter.renderPrompt(template: promptTemplate, transcript: "").count
+        let transcriptBudget = max(0, budget - promptOverhead)
+        // Compare original transcript length against the transcript-specific
+        // budget. The request also includes formatter instructions and the
+        // rendered template, so the transcript cannot consume the whole model
+        // context by itself.
+        let inputTruncated = transcript.count > transcriptBudget
+        let truncated = Self.truncateMiddle(transcript, limit: transcriptBudget)
         let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: truncated)
         let messages = [
             ChatMessage(role: .system, content: Prompts.formatter),

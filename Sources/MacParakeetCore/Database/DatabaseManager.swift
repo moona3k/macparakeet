@@ -828,6 +828,13 @@ public final class DatabaseManager: Sendable {
                 t.column("messageCount", .integer)
                 t.column("createdAt", .text).notNull()
                 t.column("updatedAt", .text).notNull()
+                t.check(sql: """
+                    dictationId IS NOT NULL
+                    OR transcriptionId IS NOT NULL
+                    OR promptResultId IS NOT NULL
+                    OR chatConversationId IS NOT NULL
+                    OR transformHistoryId IS NOT NULL
+                    """)
             }
             try db.create(
                 index: "idx_llm_runs_feature_created_at",

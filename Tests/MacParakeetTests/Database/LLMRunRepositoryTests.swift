@@ -14,10 +14,16 @@ final class LLMRunRepositoryTests: XCTestCase {
         transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
     }
 
-    func testSaveAndFetchRecentOrdersNewestFirst() throws {
+    func testSaveAndFetchRecentOrdersNewestFirst() async throws {
+        let dictation = Dictation(durationMs: 1000, rawTranscript: "older")
+        let transcription = Transcription(fileName: "newer.wav", status: .completed)
+        try dictationRepo.save(dictation)
+        try transcriptionRepo.save(transcription)
+
         let older = LLMRun(
             feature: .formatterDictation,
             status: .succeeded,
+            source: LLMRunSource(dictationId: dictation.id),
             provider: "ollama",
             model: "qwen3",
             latencyMs: 120,
@@ -27,8 +33,9 @@ final class LLMRunRepositoryTests: XCTestCase {
             updatedAt: Date(timeIntervalSince1970: 10)
         )
         let newer = LLMRun(
-            feature: .chat,
+            feature: .formatterTranscription,
             status: .failed,
+            source: LLMRunSource(transcriptionId: transcription.id),
             provider: "openai",
             model: "gpt-5.1",
             errorType: "rate_limit",
@@ -37,19 +44,38 @@ final class LLMRunRepositoryTests: XCTestCase {
             updatedAt: Date(timeIntervalSince1970: 20)
         )
 
-        try repo.save(older)
-        try repo.save(newer)
+        try await repo.save(older)
+        try await repo.save(newer)
 
         let runs = try repo.fetchRecent(limit: 10)
         XCTAssertEqual(runs.map(\.id), [newer.id, older.id])
-        XCTAssertEqual(runs.first?.feature, .chat)
+        XCTAssertEqual(runs.first?.feature, .formatterTranscription)
         XCTAssertEqual(runs.first?.status, .failed)
         XCTAssertEqual(runs.first?.errorType, "rate_limit")
     }
 
-    func testFetchForDictationUsesSourceLink() throws {
+    func testSaveWithoutSourceFailsIntegrityCheck() async throws {
+        let run = LLMRun(
+            feature: .chat,
+            status: .succeeded,
+            provider: "openai",
+            model: "gpt",
+            inputChars: 5
+        )
+
+        do {
+            try await repo.save(run)
+            XCTFail("Expected llm_runs source-link check to reject unlinked rows")
+        } catch {
+            // Expected.
+        }
+    }
+
+    func testFetchForDictationUsesSourceLink() async throws {
         let dictation = Dictation(durationMs: 1000, rawTranscript: "hello")
+        let transcription = Transcription(fileName: "unrelated.wav", status: .completed)
         try dictationRepo.save(dictation)
+        try transcriptionRepo.save(transcription)
 
         let linked = LLMRun(
             feature: .formatterDictation,
@@ -60,22 +86,23 @@ final class LLMRunRepositoryTests: XCTestCase {
             inputChars: 5
         )
         let unrelated = LLMRun(
-            feature: .chat,
+            feature: .formatterTranscription,
             status: .succeeded,
+            source: LLMRunSource(transcriptionId: transcription.id),
             provider: "openai",
             model: "gpt",
             inputChars: 5
         )
-        try repo.save(linked)
-        try repo.save(unrelated)
+        try await repo.save(linked)
+        try await repo.save(unrelated)
 
         XCTAssertEqual(try repo.fetchForDictation(id: dictation.id).map(\.id), [linked.id])
     }
 
-    func testDeletingDictationCascadesRuns() throws {
+    func testDeletingDictationCascadesRuns() async throws {
         let dictation = Dictation(durationMs: 1000, rawTranscript: "hello")
         try dictationRepo.save(dictation)
-        try repo.save(LLMRun(
+        try await repo.save(LLMRun(
             feature: .formatterDictation,
             status: .succeeded,
             source: LLMRunSource(dictationId: dictation.id),
@@ -90,10 +117,10 @@ final class LLMRunRepositoryTests: XCTestCase {
         XCTAssertEqual(try repo.count(), 0)
     }
 
-    func testDeletingTranscriptionCascadesRuns() throws {
+    func testDeletingTranscriptionCascadesRuns() async throws {
         let transcription = Transcription(fileName: "sample.wav", status: .completed)
         try transcriptionRepo.save(transcription)
-        try repo.save(LLMRun(
+        try await repo.save(LLMRun(
             feature: .formatterTranscription,
             status: .succeeded,
             source: LLMRunSource(transcriptionId: transcription.id),

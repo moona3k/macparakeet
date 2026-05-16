@@ -44,7 +44,7 @@ MacParakeet uses **SQLite via GRDB** for all persistent storage. Single database
                        chat_conversations / transform_history
 ```
 
-Tables are self-contained domains with three exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete, and `llm_runs` has optional foreign keys back to the feature-owned source rows that triggered each LLM call. The Swift model for `summaries` is `PromptResult`; the table name is retained for migration compatibility.
+Tables are self-contained domains with three exceptions: `chat_conversations` and `summaries` have foreign keys to `transcriptions` with cascading delete, and `llm_runs` has nullable foreign-key columns back to the feature-owned source rows that triggered each LLM call. At least one `llm_runs` source link is required. The Swift model for `summaries` is `PromptResult`; the table name is retained for migration compatibility.
 
 ---
 
@@ -362,7 +362,14 @@ CREATE TABLE llm_runs (
     defaultPromptUsed     INTEGER,                           -- nullable for non-prompted/non-formatter calls
     messageCount          INTEGER,                           -- number of chat messages sent
     createdAt             TEXT NOT NULL,                     -- ISO 8601 timestamp
-    updatedAt             TEXT NOT NULL                      -- ISO 8601 timestamp
+    updatedAt             TEXT NOT NULL,                     -- ISO 8601 timestamp
+    CHECK (
+        dictationId IS NOT NULL
+        OR transcriptionId IS NOT NULL
+        OR promptResultId IS NOT NULL
+        OR chatConversationId IS NOT NULL
+        OR transformHistoryId IS NOT NULL
+    )
 );
 
 CREATE INDEX idx_llm_runs_feature_created_at ON llm_runs(feature, createdAt);
@@ -377,7 +384,7 @@ CREATE INDEX idx_llm_runs_transform_history_id ON llm_runs(transformHistoryId);
 
 **Notes:**
 - `llm_runs` is metadata-only. Queryable counts, latency, provider/model, token usage, status, and source links belong here; full prompts and outputs do not.
-- Source columns are optional because not every future LLM operation will have every source row. At least one source link should be present for persisted product runs.
+- Source columns are nullable because each run links to one feature-owned source type, but at least one source link is required for every persisted ledger row.
 - Formatter writes are the first producer. Prompt result, chat, and transform rows should be added only after their streaming app APIs expose a terminal metadata envelope.
 - Private/no-history dictations and transient transcriptions do not create formatter run rows because there is no durable user-visible source row to link.
 - Deleting a source row cascades associated run metadata.
