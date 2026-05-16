@@ -109,6 +109,14 @@ public final class LLMSettingsViewModel {
         return .setUpNeeded
     }
 
+    public var hasUnsavedChanges: Bool {
+        draftConfigurationSnapshot() != savedConfigurationSnapshot()
+    }
+
+    public var connectionSuccessMessage: String {
+        hasUnsavedChanges ? "Connected. Save to use this AI option." : "Connected"
+    }
+
     public var requiresAPIKey: Bool {
         draft.requiresAPIKey
     }
@@ -288,6 +296,17 @@ public final class LLMSettingsViewModel {
     private var cliConfigStore: LocalCLIConfigStore?
     private let defaults: UserDefaults
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "LLMSettingsViewModel")
+
+    private enum ConfigurationSnapshot: Equatable {
+        case none
+        case provider(
+            id: LLMProviderID,
+            baseURL: String,
+            modelName: String,
+            apiKey: String?,
+            localCLIConfig: LocalCLIConfig?
+        )
+    }
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -605,6 +624,50 @@ public final class LLMSettingsViewModel {
             return discoveredModels.first ?? Self.defaultModelName(for: providerID)
         }
         return Self.defaultModelName(for: providerID)
+    }
+
+    private func draftConfigurationSnapshot() -> ConfigurationSnapshot {
+        guard let providerID = draft.providerID else { return .none }
+
+        if providerID == .localCLI {
+            return .provider(
+                id: providerID,
+                baseURL: Self.defaultBaseURL(for: providerID),
+                modelName: "cli",
+                apiKey: nil,
+                localCLIConfig: LocalCLIConfig(
+                    commandTemplate: draft.trimmedCommandTemplate,
+                    timeoutSeconds: draft.cliTimeoutSeconds
+                )
+            )
+        }
+
+        return .provider(
+            id: providerID,
+            baseURL: draftBaseURL(for: providerID),
+            modelName: draft.effectiveModelName,
+            apiKey: providerID.supportsAPIKey ? draft.trimmedAPIKey : nil,
+            localCLIConfig: nil
+        )
+    }
+
+    private func savedConfigurationSnapshot() -> ConfigurationSnapshot {
+        guard let configStore, let config = try? configStore.loadConfig() else { return .none }
+        return .provider(
+            id: config.id,
+            baseURL: config.baseURL.absoluteString,
+            modelName: config.modelName,
+            apiKey: config.id.supportsAPIKey ? (config.apiKey ?? "") : nil,
+            localCLIConfig: config.id == .localCLI ? cliConfigStore?.load() : nil
+        )
+    }
+
+    private func draftBaseURL(for providerID: LLMProviderID) -> String {
+        let override = draft.trimmedBaseURLOverride
+        guard !override.isEmpty else {
+            return Self.defaultBaseURL(for: providerID)
+        }
+        return URL(string: override)?.absoluteString ?? override
     }
 
     private nonisolated static func usesDiscoveredModelList(_ providerID: LLMProviderID) -> Bool {
