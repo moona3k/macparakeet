@@ -372,16 +372,13 @@ final class MeetingRecordingServiceTests: XCTestCase {
         )
 
         try await service.startRecording()
-        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
-        await captureService.yield(.microphoneBuffer(
-            microphoneBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
-        await captureService.yield(.systemBuffer(
-            systemBuffer,
-            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
-        ))
+        for offset in 0..<5 {
+            let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
+            let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
+            let time = AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0 + Double(offset)))
+            await captureService.yield(.microphoneBuffer(microphoneBuffer, time))
+            await captureService.yield(.systemBuffer(systemBuffer, time))
+        }
 
         let output = try await service.stopRecording()
         defer { try? FileManager.default.removeItem(at: output.folderURL) }
