@@ -1,6 +1,20 @@
 import Foundation
 import MacParakeetCore
 
+public enum TransformHistoryCopyTarget: Sendable, Equatable {
+    case input
+    case output
+
+    public var statusLabel: String {
+        switch self {
+        case .input:
+            return "Copied original"
+        case .output:
+            return "Copied output"
+        }
+    }
+}
+
 /// Drives the **Transforms** tab list (ADR-022). Owns the user-visible
 /// ordered set of `.transform` prompts plus the "no LLM provider" state
 /// surfaced in the hero card.
@@ -30,6 +44,7 @@ public final class TransformsViewModel {
     public var pendingDeleteHistoryEntry: TransformHistoryEntry?
     public var isConfirmingClearHistory: Bool = false
     public var copiedHistoryEntryID: UUID?
+    public var copiedHistoryTarget: TransformHistoryCopyTarget?
 
     /// True when the user has at least one LLM provider configured. Drives
     /// the calm "Configure in Settings" hero state.
@@ -251,25 +266,45 @@ public final class TransformsViewModel {
             && activeHistoryMutationCount == 0
     }
 
-    /// Copy a prior run's output back to the clipboard, with a brief
-    /// "copied" affordance keyed by entry ID so the UI can show a check
-    /// next to the right row.
+    /// Copy a prior run's output back to the clipboard.
     public func copyOutputToClipboard(_ entry: TransformHistoryEntry) async {
+        await copyHistoryTextToClipboard(entry, target: .output)
+    }
+
+    /// Copy a prior run's original selected text back to the clipboard.
+    public func copyInputToClipboard(_ entry: TransformHistoryEntry) async {
+        await copyHistoryTextToClipboard(entry, target: .input)
+    }
+
+    /// Copy a prior run's text back to the clipboard, with a brief affordance
+    /// keyed by entry ID and text target so the UI can show precise feedback.
+    public func copyHistoryTextToClipboard(
+        _ entry: TransformHistoryEntry,
+        target: TransformHistoryCopyTarget
+    ) async {
         guard let clipboardService else {
             historyErrorMessage = "Clipboard service is unavailable."
             return
         }
-        guard await clipboardService.copyToClipboard(entry.outputText) else {
-            historyErrorMessage = "Could not copy transformed text to the clipboard."
+        let text = switch target {
+        case .input:
+            entry.inputText
+        case .output:
+            entry.outputText
+        }
+        guard await clipboardService.copyToClipboard(text) else {
+            historyErrorMessage = "Could not copy text to the clipboard."
             return
         }
         historyErrorMessage = nil
         copiedResetTask?.cancel()
         copiedHistoryEntryID = entry.id
+        copiedHistoryTarget = target
         copiedResetTask = Task {
             try? await Task.sleep(for: .seconds(1.5))
             guard !Task.isCancelled else { return }
             self.copiedHistoryEntryID = nil
+            self.copiedHistoryTarget = nil
         }
     }
 

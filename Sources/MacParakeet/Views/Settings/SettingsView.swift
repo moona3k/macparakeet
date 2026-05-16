@@ -1394,6 +1394,21 @@ struct SettingsView: View {
                     Divider()
 
                     resetActionRow(
+                        title: "Transform history",
+                        detail: "Saved Transform runs only. Transform definitions and shortcuts stay.",
+                        action: ResetDestructiveAction(
+                            buttonTitle: "Clear…",
+                            accessibilityLabel: "Clear Transform history",
+                            confirmationTitle: "Clear Transform History?",
+                            confirmationMessage: "This will delete all saved Transform runs. Transform definitions and shortcuts are not affected. This cannot be undone.",
+                            confirmButtonLabel: "Clear History",
+                            perform: viewModel.clearTransformHistory
+                        )
+                    )
+
+                    Divider()
+
+                    resetActionRow(
                         title: "Downloaded YouTube audio",
                         detail: "Saved audio files only. Transcriptions stay; audio detaches.",
                         action: ResetDestructiveAction(

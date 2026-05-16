@@ -335,7 +335,7 @@ public enum SettingsSearchIndex {
             subtitle: "Destructive — clear history, reset stats.",
             keywords: [
                 "reset", "clear", "delete", "destructive", "wipe",
-                "lifetime stats", "clear all dictations", "clear youtube"
+                "lifetime stats", "clear all dictations", "clear transform history", "clear youtube"
             ],
             cardAnchor: "system.reset"
         )

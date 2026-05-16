@@ -776,6 +776,28 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(mockRepo.dictations.isEmpty, "no dictation rows survive Clear All")
     }
 
+    // MARK: - Clear Transform History
+
+    func testClearTransformHistoryCallsRepoAndNotifies() {
+        let transformHistoryRepo = MockTransformHistoryRepository()
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            transformHistoryRepo: transformHistoryRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        var stateChangedFireCount = 0
+        viewModel.onTransformHistoryChanged = { stateChangedFireCount += 1 }
+
+        viewModel.clearTransformHistory()
+
+        XCTAssertTrue(transformHistoryRepo.deleteAllCalled)
+        XCTAssertEqual(stateChangedFireCount, 1)
+    }
+
     // MARK: - Reset Lifetime Stats (#124)
 
     func testResetLifetimeStatsCallsRepo() {

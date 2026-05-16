@@ -104,6 +104,7 @@ final class AppEnvironmentConfigurer {
             permissionService: env.permissionService,
             dictationRepo: env.dictationRepo,
             transcriptionRepo: env.transcriptionRepo,
+            transformHistoryRepo: env.transformHistoryRepo,
             entitlementsService: env.entitlementsService,
             launchAtLoginService: env.launchAtLoginService,
             checkoutURL: env.checkoutURL,
@@ -141,6 +142,11 @@ final class AppEnvironmentConfigurer {
 
         settingsViewModel.onDictationStateChanged = { [weak self] in
             self?.historyViewModel.loadDictations()
+        }
+        settingsViewModel.onTransformHistoryChanged = { [weak self] in
+            Task {
+                await self?.transformsViewModel.loadHistory()
+            }
         }
 
         llmSettingsViewModel.onConfigurationChanged = { [weak self] in

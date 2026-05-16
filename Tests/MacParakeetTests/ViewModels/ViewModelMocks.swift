@@ -246,6 +246,63 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     }
 }
 
+// MARK: - MockTransformHistoryRepository
+
+final class MockTransformHistoryRepository: TransformHistoryRepositoryProtocol, @unchecked Sendable {
+    var entries: [TransformHistoryEntry] = []
+    var deleteAllCalled = false
+    var deleteAllError: Error?
+
+    func save(_ entry: TransformHistoryEntry) throws {
+        if let index = entries.firstIndex(where: { $0.id == entry.id }) {
+            entries[index] = entry
+        } else {
+            entries.append(entry)
+        }
+    }
+
+    func fetchAll() throws -> [TransformHistoryEntry] {
+        entries.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func fetchRecent(limit: Int) throws -> [TransformHistoryEntry] {
+        Array(try fetchAll().prefix(max(0, limit)))
+    }
+
+    func fetchRecentWithCount(limit: Int) throws -> (entries: [TransformHistoryEntry], totalCount: Int) {
+        (try fetchRecent(limit: limit), entries.count)
+    }
+
+    func fetch(id: UUID) throws -> TransformHistoryEntry? {
+        entries.first { $0.id == id }
+    }
+
+    func fetch(idPrefix: String) throws -> [TransformHistoryEntry] {
+        let normalizedPrefix = idPrefix.lowercased().replacingOccurrences(of: "-", with: "")
+        return try fetchAll().filter {
+            $0.id.uuidString.lowercased().replacingOccurrences(of: "-", with: "").hasPrefix(normalizedPrefix)
+        }
+    }
+
+    func count() throws -> Int {
+        entries.count
+    }
+
+    func delete(id: UUID) throws -> Bool {
+        let before = entries.count
+        entries.removeAll { $0.id == id }
+        return entries.count < before
+    }
+
+    func deleteAll() throws {
+        if let deleteAllError {
+            throw deleteAllError
+        }
+        deleteAllCalled = true
+        entries.removeAll()
+    }
+}
+
 // MARK: - MockLaunchAtLoginService
 
 final class MockLaunchAtLoginService: LaunchAtLoginControlling {

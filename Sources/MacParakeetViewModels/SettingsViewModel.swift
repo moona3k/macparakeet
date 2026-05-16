@@ -413,6 +413,7 @@ public final class SettingsViewModel {
     private var permissionService: PermissionServiceProtocol?
     private var dictationRepo: DictationRepositoryProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
+    private var transformHistoryRepo: TransformHistoryRepositoryProtocol?
     private var customWordRepo: CustomWordRepositoryProtocol?
     private var snippetRepo: TextSnippetRepositoryProtocol?
     private var entitlementsService: EntitlementsService?
@@ -690,6 +691,7 @@ public final class SettingsViewModel {
         permissionService: PermissionServiceProtocol,
         dictationRepo: DictationRepositoryProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
+        transformHistoryRepo: TransformHistoryRepositoryProtocol? = nil,
         entitlementsService: EntitlementsService,
         launchAtLoginService: LaunchAtLoginControlling? = nil,
         checkoutURL: URL?,
@@ -703,6 +705,7 @@ public final class SettingsViewModel {
         self.permissionService = permissionService
         self.dictationRepo = dictationRepo
         self.transcriptionRepo = transcriptionRepo
+        self.transformHistoryRepo = transformHistoryRepo
         self.entitlementsService = entitlementsService
         self.launchAtLoginService = launchAtLoginService
         self.checkoutURL = checkoutURL
@@ -1407,6 +1410,7 @@ public final class SettingsViewModel {
     /// Fired after a dictation-state change (rows deleted or lifetime counters reset)
     /// so other VMs (e.g. the history view) can reload their derived data.
     public var onDictationStateChanged: (() -> Void)?
+    public var onTransformHistoryChanged: (() -> Void)?
 
     public func clearAllDictations() {
         guard let repo = dictationRepo else { return }
@@ -1443,6 +1447,16 @@ public final class SettingsViewModel {
         }
         refreshStats()
         onDictationStateChanged?()
+    }
+
+    public func clearTransformHistory() {
+        guard let repo = transformHistoryRepo else { return }
+        do {
+            try repo.deleteAll()
+            onTransformHistoryChanged?()
+        } catch {
+            logger.error("Failed to clear transform history error=\(error.localizedDescription, privacy: .public)")
+        }
     }
 
     public func clearDownloadedYouTubeAudio() {

@@ -473,6 +473,28 @@ final class TransformsViewModelTests: XCTestCase {
 
         XCTAssertEqual(clipboardService.lastCopied, "polished")
         XCTAssertEqual(viewModel.copiedHistoryEntryID, entry.id)
+        XCTAssertEqual(viewModel.copiedHistoryTarget, .output)
+        XCTAssertEqual(viewModel.copiedHistoryTarget?.statusLabel, "Copied output")
+        XCTAssertNil(viewModel.historyErrorMessage)
+    }
+
+    func testCopyInputToClipboardWritesOriginalTextAndFlagsCopiedTarget() async throws {
+        let entry = TransformHistoryEntry(
+            transformName: "Polish",
+            inputText: "rough",
+            outputText: "polished",
+            capturePath: "ax",
+            replacementPath: "ax",
+            llmElapsedMs: 1,
+            totalElapsedMs: 2
+        )
+
+        await viewModel.copyInputToClipboard(entry)
+
+        XCTAssertEqual(clipboardService.lastCopied, "rough")
+        XCTAssertEqual(viewModel.copiedHistoryEntryID, entry.id)
+        XCTAssertEqual(viewModel.copiedHistoryTarget, .input)
+        XCTAssertEqual(viewModel.copiedHistoryTarget?.statusLabel, "Copied original")
         XCTAssertNil(viewModel.historyErrorMessage)
     }
 }
