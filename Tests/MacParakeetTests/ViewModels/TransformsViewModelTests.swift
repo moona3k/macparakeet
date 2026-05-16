@@ -474,7 +474,7 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(clipboardService.lastCopied, "polished")
         XCTAssertEqual(viewModel.copiedHistoryEntryID, entry.id)
         XCTAssertEqual(viewModel.copiedHistoryTarget, .output)
-        XCTAssertEqual(viewModel.copiedHistoryTarget?.statusLabel, "Copied output")
+        XCTAssertEqual(viewModel.copiedHistoryTarget?.statusLabel, "Copied result")
         XCTAssertNil(viewModel.historyErrorMessage)
     }
 

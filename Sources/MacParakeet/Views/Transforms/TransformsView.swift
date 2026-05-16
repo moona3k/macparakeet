@@ -116,18 +116,6 @@ struct TransformsView: View {
         } message: { entry in
             Text("The saved “\(entry.transformName)” input and output will be removed from local history.")
         }
-        .alert("Clear Transform history?", isPresented: $viewModel.isConfirmingClearHistory) {
-            Button("Clear History", role: .destructive) {
-                Task {
-                    await viewModel.clearHistory()
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                viewModel.isConfirmingClearHistory = false
-            }
-        } message: {
-            Text("All saved Transform runs will be removed from local history.")
-        }
     }
 
     // MARK: - Sections
@@ -300,15 +288,6 @@ struct TransformsView: View {
                         .background(Capsule().fill(DesignSystem.Colors.surfaceElevated))
                 }
                 Spacer()
-                if !viewModel.history.isEmpty {
-                    Button(role: .destructive) {
-                        viewModel.isConfirmingClearHistory = true
-                    } label: {
-                        Label("Clear", systemImage: "trash")
-                    }
-                    .parakeetAction(.subtle)
-                    .controlSize(.small)
-                }
             }
 
             if !viewModel.history.isEmpty {
@@ -529,11 +508,14 @@ private struct TransformHistoryRow: View {
 
     private var headerRow: some View {
         HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
-            Image(systemName: "wand.and.stars")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(DesignSystem.Colors.accent)
-                .frame(width: 26, height: 26)
-                .background(Circle().fill(DesignSystem.Colors.accentLight))
+            TransformSigilView(
+                data: .from(
+                    inputText: entry.inputText,
+                    outputText: entry.outputText,
+                    transformName: entry.transformName
+                ),
+                size: 32
+            )
 
             Text(entry.transformName)
                 .font(DesignSystem.Typography.caption.weight(.semibold))
@@ -563,18 +545,8 @@ private struct TransformHistoryRow: View {
 
             Spacer(minLength: DesignSystem.Spacing.sm)
 
-            if let copiedTarget {
-                Text(copiedTarget.statusLabel)
-                    .font(DesignSystem.Typography.micro)
-                    .foregroundStyle(DesignSystem.Colors.successGreen)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(DesignSystem.Colors.successGreen.opacity(0.12)))
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
-            }
-
             TransformHistoryTextButton(
-                title: copiedTarget == .output ? "Copied" : "Copy result",
+                title: copiedTarget == .output ? "Copied result" : "Copy result",
                 systemImage: copiedTarget == .output ? "checkmark" : "doc.on.doc",
                 color: copiedTarget == .output ? DesignSystem.Colors.successGreen : DesignSystem.Colors.textSecondary,
                 help: "Copy transformed result",
@@ -625,7 +597,7 @@ private struct TransformHistoryRow: View {
                         Spacer(minLength: DesignSystem.Spacing.sm)
 
                         TransformHistoryInlineCopyButton(
-                            title: copiedTarget == .input ? "Copied" : "Copy original",
+                            title: copiedTarget == .input ? "Copied original" : "Copy original",
                             systemImage: copiedTarget == .input ? "checkmark" : "doc.text",
                             color: copiedTarget == .input ? DesignSystem.Colors.successGreen : DesignSystem.Colors.textSecondary,
                             help: "Copy original text",

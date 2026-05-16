@@ -10,7 +10,7 @@ public enum TransformHistoryCopyTarget: Sendable, Equatable {
         case .input:
             return "Copied original"
         case .output:
-            return "Copied output"
+            return "Copied result"
         }
     }
 }
