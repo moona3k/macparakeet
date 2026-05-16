@@ -131,6 +131,20 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
+    func testSetSpeechEngineForwardsProgressWhenIdle() async throws {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+        let progressMessages = LockedStringRecorder()
+
+        try await scheduler.setSpeechEngine(.whisper) { message in
+            progressMessages.record(message)
+        }
+
+        let usedProgressOverload = await runtime.usedSpeechEngineProgressOverload
+        XCTAssertTrue(usedProgressOverload)
+        XCTAssertEqual(progressMessages.values, ["Mock loading Whisper"])
+    }
+
     func testSetSpeechEngineFailsWhileJobIsRunning() async throws {
         let runtime = MockSTTRuntime()
         await runtime.block(path: "active")
@@ -621,6 +635,23 @@ private enum STTSchedulerTestError: Error {
     case timeout
 }
 
+private final class LockedStringRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storage: [String] = []
+
+    var values: [String] {
+        lock.lock()
+        defer { lock.unlock() }
+        return storage
+    }
+
+    func record(_ value: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        storage.append(value)
+    }
+}
+
 private actor MockSTTRuntime: STTRuntimeProtocol {
     private var blockedPaths: Set<String> = []
     private var waitingContinuations: [String: CheckedContinuation<Void, any Error>] = [:]
@@ -633,6 +664,7 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
     private(set) var clearModelCacheCallCount = 0
     private(set) var shutdownCallCount = 0
     private(set) var setSpeechEngineCallCount = 0
+    private(set) var usedSpeechEngineProgressOverload = false
     private var selection = SpeechEngineSelection(engine: .parakeet)
     private var ready = false
     private var shouldBlockNextSpeechEngineSwitch = false
@@ -725,6 +757,15 @@ private actor MockSTTRuntime: STTRuntimeProtocol {
         }
         selection = SpeechEngineSelection(engine: preference)
         ready = false
+    }
+
+    func setSpeechEngine(
+        _ preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        usedSpeechEngineProgressOverload = true
+        onProgress?("Mock loading \(preference.displayName)")
+        try await setSpeechEngine(preference)
     }
 
     func currentSpeechEngineSelection() async -> SpeechEngineSelection {

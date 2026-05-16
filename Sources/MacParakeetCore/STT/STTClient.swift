@@ -69,6 +69,13 @@ public actor STTClient: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngin
         try await scheduler.setSpeechEngine(preference)
     }
 
+    public func setSpeechEngine(
+        _ preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        try await scheduler.setSpeechEngine(preference, onProgress: onProgress)
+    }
+
     public func beginSpeechEngineSession() async -> SpeechEngineLease {
         await scheduler.beginSpeechEngineSession()
     }

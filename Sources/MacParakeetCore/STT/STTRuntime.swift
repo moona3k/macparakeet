@@ -22,7 +22,21 @@ protocol STTRuntimeProtocol: Sendable {
     func shutdown() async
     func clearModelCache() async
     func setSpeechEngine(_ preference: SpeechEnginePreference) async throws
+    func setSpeechEngine(
+        _ preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws
     func currentSpeechEngineSelection() async -> SpeechEngineSelection
+}
+
+extension STTRuntimeProtocol {
+    func setSpeechEngine(
+        _ preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        onProgress?("Preparing \(preference.displayName)...")
+        try await setSpeechEngine(preference)
+    }
 }
 
 /// Sole owner of the shared Parakeet STT lifecycle.
@@ -31,6 +45,8 @@ protocol STTRuntimeProtocol: Sendable {
 /// one `AsrManager` per execution slot so dictation remains isolated from the
 /// shared background workload inside app-level scheduling.
 public actor STTRuntime: STTRuntimeProtocol {
+    private let logger = Logger(subsystem: "com.macparakeet.core", category: "STTRuntime")
+
     private var interactiveManager: AsrManager?
     private var backgroundManager: AsrManager?
     private var models: AsrModels?
@@ -338,6 +354,13 @@ public actor STTRuntime: STTRuntimeProtocol {
     }
 
     public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
+        try await setSpeechEngine(preference, onProgress: nil)
+    }
+
+    public func setSpeechEngine(
+        _ preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
         guard preference != speechEngine else {
             preference.save()
             return
@@ -351,17 +374,51 @@ public actor STTRuntime: STTRuntimeProtocol {
         setBackgroundWarmUpState(.idle)
 
         let previous = speechEngine
+        let startedAt = Date()
+        let targetVariant = telemetryEngineVariant(for: preference) ?? "none"
+        logger.notice("speech_engine_switch_start from=\(previous.rawValue, privacy: .public) to=\(preference.rawValue, privacy: .public) variant=\(targetVariant, privacy: .public)")
+        AudioCaptureDiagnostics.append(
+            "speech_engine_switch_start from=\(previous.rawValue) to=\(preference.rawValue) variant=\(targetVariant)"
+        )
+
+        do {
+            try await performSpeechEngineSwitch(
+                from: previous,
+                to: preference,
+                onProgress: onProgress
+            )
+            let duration = Observability.durationSeconds(since: startedAt)
+            logger.notice("speech_engine_switch_complete from=\(previous.rawValue, privacy: .public) to=\(preference.rawValue, privacy: .public) duration_s=\(duration, privacy: .public)")
+            AudioCaptureDiagnostics.append(
+                "speech_engine_switch_complete from=\(previous.rawValue) to=\(preference.rawValue) duration_s=\(Self.formatSeconds(duration))"
+            )
+        } catch {
+            let duration = Observability.durationSeconds(since: startedAt)
+            logger.error("speech_engine_switch_failed from=\(previous.rawValue, privacy: .public) to=\(preference.rawValue, privacy: .public) duration_s=\(duration, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+            AudioCaptureDiagnostics.append(
+                "speech_engine_switch_failed from=\(previous.rawValue) to=\(preference.rawValue) duration_s=\(Self.formatSeconds(duration)) \(AudioCaptureDiagnostics.errorFields(error))"
+            )
+            throw error
+        }
+    }
+
+    private func performSpeechEngineSwitch(
+        from previous: SpeechEnginePreference,
+        to preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
         var preparedWhisper: WhisperEngine?
 
         switch preference {
         case .parakeet:
+            onProgress?("Loading Parakeet model on Neural Engine...")
             try await ensureInitialized()
         case .whisper:
             let engine = whisperEngine ?? WhisperEngine(
                 model: whisperModelVariant,
                 language: SpeechEnginePreference.whisperDefaultLanguage()
             )
-            try await engine.prepare()
+            try await engine.prepare(onProgress: onProgress)
             preparedWhisper = engine
         }
 
@@ -373,12 +430,15 @@ public actor STTRuntime: STTRuntimeProtocol {
 
         switch previous {
         case .parakeet where preference != .parakeet:
+            onProgress?("Releasing Parakeet model...")
             await unloadParakeet()
         case .whisper where preference != .whisper:
+            onProgress?("Releasing Whisper model...")
             await unloadWhisper()
         default:
             break
         }
+        onProgress?("\(preference.displayName) is ready")
     }
 
     public func currentSpeechEngineSelection() async -> SpeechEngineSelection {
@@ -590,6 +650,10 @@ public actor STTRuntime: STTRuntimeProtocol {
         if let backgroundManager {
             await backgroundManager.cleanup()
         }
+    }
+
+    private nonisolated static func formatSeconds(_ value: Double) -> String {
+        String(format: "%.3f", value)
     }
 
     private func manager(for lane: STTRuntimeLane) -> AsrManager? {

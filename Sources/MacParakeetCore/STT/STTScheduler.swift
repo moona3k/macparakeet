@@ -175,6 +175,13 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     }
 
     public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
+        try await setSpeechEngine(preference, onProgress: nil)
+    }
+
+    public func setSpeechEngine(
+        _ preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
         guard acceptsNewJobs,
               activeSpeechEngineSessionIDs.isEmpty,
               !hasQueuedOrRunningJobs,
@@ -184,7 +191,7 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
 
         acceptsNewJobs = false
         let switchTask = Task {
-            try await runtime.setSpeechEngine(preference)
+            try await runtime.setSpeechEngine(preference, onProgress: onProgress)
         }
         speechEngineSwitchTask = switchTask
         defer {

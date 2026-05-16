@@ -264,6 +264,8 @@ public final class SettingsViewModel {
         }
     }
     public var speechEngineSwitching = false
+    public var speechEngineSwitchTarget: SpeechEnginePreference?
+    public var speechEngineSwitchDetail: String?
     public var speechEngineError: String?
     public var whisperModelStatus: LocalModelStatus = .unknown
     public var whisperModelStatusDetail: String = "Not checked yet."
@@ -982,18 +984,18 @@ public final class SettingsViewModel {
 
             if activeEngine == .parakeet, activeEngineIsLoaded {
                 self.parakeetStatus = .ready
-                self.parakeetStatusDetail = "Loaded in memory and ready."
+                self.parakeetStatusDetail = "Parakeet TDT 0.6B v3 · Loaded on Neural Engine."
             } else if modelDiskState.parakeetCached {
                 self.parakeetStatus = .notLoaded
-                self.parakeetStatusDetail = "Downloaded. Loads automatically when needed."
+                self.parakeetStatusDetail = "Parakeet TDT 0.6B v3 · Installed locally, loads when selected."
             } else {
                 self.parakeetStatus = .notDownloaded
-                self.parakeetStatusDetail = "Not downloaded yet."
+                self.parakeetStatusDetail = "Parakeet TDT 0.6B v3 · Needs model setup before use."
             }
 
             if activeEngine == .whisper, activeEngineIsLoaded {
                 self.whisperModelStatus = .ready
-                self.whisperModelStatusDetail = "Whisper \(self.whisperVariantFriendlyName) · Loaded in memory and ready."
+                self.whisperModelStatusDetail = "\(self.whisperVariantFriendlyName) · Loaded in memory."
             } else {
                 self.applyWhisperDownloadedStatus(modelDiskState.whisperDownloaded)
             }
@@ -1013,10 +1015,10 @@ public final class SettingsViewModel {
             // to `.ready` after asking the runtime if Whisper is the active
             // engine and currently loaded.
             whisperModelStatus = .notLoaded
-            whisperModelStatusDetail = "Whisper \(friendly) · Downloaded. Loads automatically when selected."
+            whisperModelStatusDetail = "\(friendly) · Installed locally, loads when selected."
         } else {
             whisperModelStatus = .notDownloaded
-            whisperModelStatusDetail = "Whisper \(friendly) · Not downloaded yet."
+            whisperModelStatusDetail = "\(friendly) · Needs download before use."
         }
     }
 
@@ -1027,6 +1029,7 @@ public final class SettingsViewModel {
     }
 
     public func downloadWhisperModel() {
+        guard !speechEngineSwitching else { return }
         guard !whisperDownloading else { return }
         // The user has taken the action that resolves any pending
         // "Whisper isn't ready" error, so clear it. Otherwise the red
@@ -1156,6 +1159,8 @@ public final class SettingsViewModel {
         }
 
         speechEngineSwitching = true
+        speechEngineSwitchTarget = preference
+        speechEngineSwitchDetail = Self.initialSpeechEngineSwitchDetail(for: preference)
         Task { @MainActor [weak self] in
             guard let self else { return }
             // `defer` fires even on cancellation or unexpected early exit, so
@@ -1163,11 +1168,17 @@ public final class SettingsViewModel {
             // "Switching..." state.
             defer {
                 self.speechEngineSwitching = false
+                self.speechEngineSwitchTarget = nil
+                self.speechEngineSwitchDetail = nil
                 self.refreshModelStatus()
             }
             do {
                 try await Observability.withOperationContext(operationContext) {
-                    try await speechEngineSwitcher.setSpeechEngine(preference)
+                    try await speechEngineSwitcher.setSpeechEngine(preference) { [weak self] message in
+                        Task { @MainActor [weak self] in
+                            self?.speechEngineSwitchDetail = message
+                        }
+                    }
                 }
                 preference.save(to: self.defaults)
                 Telemetry.send(.speechEngineSwitchOperation(
@@ -1216,6 +1227,7 @@ public final class SettingsViewModel {
 
     public func repairParakeetModel() {
         guard let sttClient else { return }
+        guard !speechEngineSwitching else { return }
         guard !parakeetRepairing else { return }
         speechEngineError = nil
         parakeetRepairing = true
@@ -1308,6 +1320,17 @@ public final class SettingsViewModel {
              .outOfMemory,
              .invalidResponse:
             return nil
+        }
+    }
+
+    private static func initialSpeechEngineSwitchDetail(
+        for preference: SpeechEnginePreference
+    ) -> String {
+        switch preference {
+        case .parakeet:
+            "Loading Parakeet model on Neural Engine..."
+        case .whisper:
+            "Loading Whisper model..."
         }
     }
 
