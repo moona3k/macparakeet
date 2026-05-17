@@ -238,7 +238,7 @@ Core may use AppKit for small macOS adapter services (for example pasteboard, Sy
 
 #### 2.1 DictationService
 
-**Responsibility:** Orchestrates the full dictation lifecycle: hotkey detection, audio capture, STT, text processing, and clipboard paste.
+**Responsibility:** Orchestrates the full dictation lifecycle: hotkey detection, audio capture, STT, text processing, and text insertion.
 
 **Key Types/Protocols:**
 ```swift
@@ -281,7 +281,7 @@ DictationService.stopRecording()
     │ ── Receives raw transcript
     │ ── Runs TextProcessingPipeline (if mode == .clean)
     │ ── Saves to DictationRepository
-    │ ── Pastes via NSPasteboard + CGEvent (Cmd+V)
+    │ ── Inserts via AX-focused text insertion, with NSPasteboard + CGEvent fallback
     │
     ▼
 DictationResult returned
