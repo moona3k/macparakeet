@@ -253,7 +253,7 @@ public final class ClipboardService: ClipboardServiceProtocol {
         pasteboard: NSPasteboard = .general,
         pasteShortcutKeyResolver: PasteShortcutKeyResolver = PasteShortcutKeyResolver(),
         eventPosting: ClipboardEventPosting = CGClipboardEventPosting(),
-        focusedTextInserter: ClipboardFocusedTextInserting? = nil,
+        focusedTextInserter: ClipboardFocusedTextInserting?,
         clipboardRestoreDelay: TimeInterval = ClipboardService.defaultClipboardRestoreDelay,
         restoreAttemptObserver: (@MainActor () -> Void)? = nil,
         pasteboardStringWriter: @escaping @MainActor (NSPasteboard, String) -> Bool = { pasteboard, text in

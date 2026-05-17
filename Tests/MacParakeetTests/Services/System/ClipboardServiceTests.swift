@@ -79,6 +79,7 @@ final class ClipboardServiceTests: XCTestCase {
             eventPosting: RecordingClipboardEventPosting {
                 pasteWasPosted = true
             },
+            focusedTextInserter: nil,
             clipboardRestoreDelay: Self.shortRestoreDelay,
             pasteboardStringWriter: { _, text in
                 attemptedWrites.append(text)
@@ -109,6 +110,7 @@ final class ClipboardServiceTests: XCTestCase {
             eventPosting: RecordingClipboardEventPosting {
                 pastedStrings.append(pasteboard.string(forType: .string) ?? "")
             },
+            focusedTextInserter: nil,
             clipboardRestoreDelay: Self.shortRestoreDelay
         )
 
@@ -133,6 +135,7 @@ final class ClipboardServiceTests: XCTestCase {
             eventPosting: RecordingClipboardEventPosting {
                 pastedStrings.append(pasteboard.string(forType: .string) ?? "")
             },
+            focusedTextInserter: nil,
             clipboardRestoreDelay: Self.shortRestoreDelay
         )
 
@@ -164,6 +167,7 @@ final class ClipboardServiceTests: XCTestCase {
                     keystrokes.append(keyCode)
                 }
             ),
+            focusedTextInserter: nil,
             clipboardRestoreDelay: Self.shortRestoreDelay
         )
 
@@ -192,6 +196,7 @@ final class ClipboardServiceTests: XCTestCase {
                     keystrokes.append(keyCode)
                 }
             ),
+            focusedTextInserter: nil,
             clipboardRestoreDelay: Self.shortRestoreDelay
         )
 
@@ -244,6 +249,7 @@ final class ClipboardServiceTests: XCTestCase {
         let service = ClipboardService(
             pasteboard: pasteboard,
             eventPosting: RecordingClipboardEventPosting(),
+            focusedTextInserter: nil,
             clipboardRestoreDelay: Self.shortRestoreDelay,
             restoreAttemptObserver: {
                 restoreAttempted.fulfill()
@@ -266,6 +272,7 @@ final class ClipboardServiceTests: XCTestCase {
         let service = ClipboardService(
             pasteboard: pasteboard,
             eventPosting: RecordingClipboardEventPosting(),
+            focusedTextInserter: nil,
             clipboardRestoreDelay: Self.shortRestoreDelay
         )
 
@@ -287,6 +294,7 @@ final class ClipboardServiceTests: XCTestCase {
         let service = ClipboardService(
             pasteboard: pasteboard,
             eventPosting: RecordingClipboardEventPosting(),
+            focusedTextInserter: nil,
             clipboardRestoreDelay: Self.shortRestoreDelay,
             restoreAttemptObserver: {
                 restoreAttempted.fulfill()
@@ -309,6 +317,7 @@ final class ClipboardServiceTests: XCTestCase {
         let service = ClipboardService(
             pasteboard: pasteboard,
             eventPosting: RecordingClipboardEventPosting(),
+            focusedTextInserter: nil,
             clipboardRestoreDelay: Self.shortRestoreDelay,
             pasteboardStringWriter: { _, _ in false }
         )
@@ -328,6 +337,7 @@ final class ClipboardServiceTests: XCTestCase {
         let service = ClipboardService(
             pasteboard: pasteboard,
             eventPosting: RecordingClipboardEventPosting(),
+            focusedTextInserter: nil,
             clipboardRestoreDelay: Self.shortRestoreDelay,
             pasteboardStringWriter: { pasteboard, text in
                 guard !failNextWrite else {
