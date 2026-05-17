@@ -32,7 +32,7 @@ REQ-DICT-002:
   status: implemented
 
 REQ-DICT-003:
-  description: Auto-paste transcribed text with clipboard save/restore
+  description: Auto-insert transcribed text with AX-first insertion and clipboard save/restore fallback
   version: v0.1
   status: implemented
 

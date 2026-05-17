@@ -195,8 +195,8 @@ Both modes coexist with no configuration required. The 400ms threshold distingui
 │    - (v0.2) Raw → clean pipeline → polished text                 │
 ├─────────────────────────────────────────────────────────────────┤
 │ 6. Result                                                        │
-│    - Auto-paste into target app (NSPasteboard + simulated Cmd+V) │
-│    - Previous clipboard contents saved and restored after paste  │
+│    - Auto-insert into target app (AX first, clipboard fallback)   │
+│    - Previous clipboard saved/restored only on fallback paste     │
 │    - Save to dictation history (database)                        │
 │    - Save audio file (if storage enabled)                        │
 │    - Overlay shows success checkmark, auto-dismisses             │
@@ -206,26 +206,21 @@ Both modes coexist with no configuration required. The 400ms threshold distingui
 **Text insertion:**
 
 ```swift
-// 1. Save current clipboard
-let savedContents = NSPasteboard.general.pasteboardItems
+// 1. Try direct AX insertion into the focused editable element.
+if focusedElement.setSelectedText(transcript) {
+    return
+}
 
-// 2. Set transcript
+// 2. Fallback for apps that do not support AX insertion:
+//    save current clipboard, set transcript, simulate Cmd+V.
+let savedContents = NSPasteboard.general.pasteboardItems
 NSPasteboard.general.clearContents()
 NSPasteboard.general.setString(transcript, forType: .string)
+simulateCommandV()
 
-// 3. Simulate Cmd+V
-let keyDown = CGEvent(keyboardEventSource: nil, virtualKey: 0x09, keyDown: true)
-keyDown?.flags = .maskCommand
-keyDown?.post(tap: .cghidEventTap)
-
-let keyUp = CGEvent(keyboardEventSource: nil, virtualKey: 0x09, keyDown: false)
-keyUp?.flags = .maskCommand
-keyUp?.post(tap: .cghidEventTap)
-
-// 4. Restore clipboard after short delay
-DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-    NSPasteboard.general.clearContents()
-    // Restore savedContents
+// 3. Restore clipboard after a short delay for slower paste targets.
+DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+    restore(savedContents)
 }
 ```
 
