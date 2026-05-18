@@ -371,6 +371,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         "in", "on", "at", "to", "of", "with", "from", "by"
     ]
 
+    // Coordinating conjunctions: prefer to START a new cue/line with these rather than
+    // end one with them. Breaking BEFORE a coordinator preserves the conjunction's link
+    // to the clause it introduces.
+    private static let coordinatingConjunctions: Set<String> = [
+        "and", "but", "or", "so", "yet", "nor"
+    ]
+
     // Hard caps used by bad-ender deferral. We are willing to push past the soft 12/7000
     // limits to avoid a bad ending, but not arbitrarily — these caps bound the overshoot.
     private static let hardWordCap = 14
@@ -380,11 +387,65 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     // balanced lines via wrapLongCues. Matches the common SRT/VTT safe width.
     private static let maxLineChars = 42
 
-    public func buildSubtitleCues(from words: [WordTimestamp]) -> [SubtitleCue] {
+    /// Normalises raw word tokens before cue building. Three cleanups:
+    /// 1. Strip leading/trailing whitespace from each word's text. Whisper/Parakeet emit
+    ///    tokens with a leading space (" Hello") which, when joined with " ", produce
+    ///    double-spaced output AND inflate character counts enough to trip the CPS guard.
+    /// 2. Merge tokens that begin with a hyphen ("-up", "-minute") into the preceding
+    ///    word. The transcription engine sometimes splits hyphenated compounds across
+    ///    tokens; treating them as a single word avoids cues like "warm" / "-up." pairs.
+    /// 3. Carry the previous word's speakerId forward when a token has none. Some engines
+    ///    intermittently drop speakerId mid-utterance, producing label-less cues
+    ///    downstream. Treat a missing id as continuation of the same speaker.
+    /// Empty tokens (after trimming) are dropped.
+    private func sanitizeWordTokens(_ words: [WordTimestamp]) -> [WordTimestamp] {
+        var result: [WordTimestamp] = []
+        result.reserveCapacity(words.count)
+        var lastSpeakerId: String? = nil
+        for w in words {
+            let trimmed = w.word.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.isEmpty { continue }
+            let resolvedSpeaker = w.speakerId ?? lastSpeakerId
+            // Hyphen-continuation: glue onto the previous token.
+            if trimmed.hasPrefix("-"), let prev = result.last {
+                result[result.count - 1] = WordTimestamp(
+                    word: prev.word + trimmed,
+                    startMs: prev.startMs,
+                    endMs: w.endMs,
+                    confidence: min(prev.confidence, w.confidence),
+                    speakerId: prev.speakerId
+                )
+                continue
+            }
+            result.append(WordTimestamp(
+                word: trimmed,
+                startMs: w.startMs,
+                endMs: w.endMs,
+                confidence: w.confidence,
+                speakerId: resolvedSpeaker
+            ))
+            if let s = resolvedSpeaker { lastSpeakerId = s }
+        }
+        return result
+    }
+
+    public func buildSubtitleCues(from rawWords: [WordTimestamp]) -> [SubtitleCue] {
+        guard !rawWords.isEmpty else { return [] }
+        // Sanitise tokens up front: strip surrounding whitespace (Whisper/Parakeet emit
+        // tokens like " Hello" with leading spaces) and merge hyphen-prefix continuations
+        // (" -up", " -minute") back onto the previous token. Without this, joining with
+        // " " produces double spaces and inflates character counts enough to trip the
+        // CPS guard on perfectly normal cues, causing spurious mid-sentence splits.
+        let words = sanitizeWordTokens(rawWords)
         guard !words.isEmpty else { return [] }
 
         var cues: [SubtitleCue] = []
+        // Track word strings + per-word start/end times in parallel so the look-back
+        // boundary search can produce a clean truncated cue and seed the leftover
+        // words into the next cue with correct timing.
         var currentWords: [String] = []
+        var currentStarts: [Int] = []
+        var currentEnds: [Int] = []
         var cueStartMs = words[0].startMs
         var cueEndMs = words[0].endMs
         var cueSpeakerId = words[0].speakerId
@@ -400,11 +461,15 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                     speakerId: cueSpeakerId
                 ))
                 currentWords = []
+                currentStarts = []
+                currentEnds = []
                 cueStartMs = word.startMs
                 cueSpeakerId = word.speakerId
             }
 
             currentWords.append(word.word)
+            currentStarts.append(word.startMs)
+            currentEnds.append(word.endMs)
             cueEndMs = word.endMs
 
             let isLast = i == words.count - 1
@@ -412,6 +477,17 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let hasLongGap = !isLast && (words[i + 1].startMs - word.endMs) > 800
             let tooManyWords = currentWords.count >= 12
             let tooLong = (cueEndMs - cueStartMs) > 7000
+
+            // Single-word imperative break: if this word ends a sentence AND the next
+            // word starts a new sentence (capital letter), allow flushing even at
+            // count == 1. Catches fitness cueing like "Squat. Up. Down." which would
+            // otherwise be merged because of the count >= 2 floor.
+            let nextStartsCapital = !isLast
+                && (words[i + 1].word.first?.isUppercase ?? false)
+            let sentenceBreak = endsWithPunctuation && (
+                currentWords.count >= 2
+                || (currentWords.count >= 1 && nextStartsCapital)
+            )
 
             // Break before a subordinating conjunction or relative pronoun that opens a
             // new dependent clause — but only after at least 4 words have accumulated so
@@ -421,12 +497,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 && Self.clauseStarters.contains(
                     words[i + 1].word.lowercased().trimmingCharacters(in: .punctuationCharacters))
 
-            // Bad-ender deferral: if this break is only fired by a soft size limit
-            // (word count or duration) and the current word is in badEnders, defer the
-            // break by one iteration so we don't leave a dangling conjunction/article/
-            // preposition at the end of the cue. Bounded by hard caps to avoid runaway.
-            let semanticTrigger = (endsWithPunctuation && currentWords.count >= 2)
-                || nextIsClauseStart
+            // Classify the trigger so we can decide whether to look back for a better
+            // boundary or defer for a bad-ender. Semantic and hard triggers fire as-is;
+            // soft triggers (word count / duration) get the look-back treatment.
+            let semanticTrigger = sentenceBreak || nextIsClauseStart
             let hardTrigger = isLast || hasLongGap
             let softTrigger = tooManyWords || tooLong
             let lastWordKey = word.word.lowercased().trimmingCharacters(in: .punctuationCharacters)
@@ -440,16 +514,45 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 && underHardCap
 
             if (isLast || semanticTrigger || hardTrigger || softTrigger) && !deferForBadEnder {
-                cues.append(SubtitleCue(
-                    startMs: cueStartMs,
-                    endMs: cueEndMs,
-                    text: currentWords.joined(separator: " "),
-                    speakerId: cueSpeakerId
-                ))
-                currentWords = []
-                if !isLast {
-                    cueStartMs = words[i + 1].startMs
-                    cueSpeakerId = words[i + 1].speakerId
+                // Look-back boundary search: only for pure soft triggers where no
+                // semantic/hard reason forces a break at the current word. If a comma,
+                // coordinating conjunction, or clause starter sits within the recent
+                // window, retroactively split there and seed the leftover into the next
+                // cue. Keeps long fitness sentences ("Keep your back straight, engage
+                // your core, and breathe out") from breaking mid-phrase.
+                let lookBack: Int? = (softTrigger && !semanticTrigger && !hardTrigger)
+                    ? findLookBackBoundary(words: currentWords)
+                    : nil
+
+                if let p = lookBack {
+                    // Flush [0...p] as the cue.
+                    let cueText = currentWords[0...p].joined(separator: " ")
+                    cues.append(SubtitleCue(
+                        startMs: cueStartMs,
+                        endMs: currentEnds[p],
+                        text: cueText,
+                        speakerId: cueSpeakerId
+                    ))
+                    // Leftover [(p+1)...] seeds the next cue.
+                    currentWords = Array(currentWords[(p + 1)...])
+                    currentStarts = Array(currentStarts[(p + 1)...])
+                    currentEnds = Array(currentEnds[(p + 1)...])
+                    cueStartMs = currentStarts.first ?? cueStartMs
+                    cueEndMs = currentEnds.last ?? cueEndMs
+                } else {
+                    cues.append(SubtitleCue(
+                        startMs: cueStartMs,
+                        endMs: cueEndMs,
+                        text: currentWords.joined(separator: " "),
+                        speakerId: cueSpeakerId
+                    ))
+                    currentWords = []
+                    currentStarts = []
+                    currentEnds = []
+                    if !isLast {
+                        cueStartMs = words[i + 1].startMs
+                        cueSpeakerId = words[i + 1].speakerId
+                    }
                 }
             }
         }
@@ -514,9 +617,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Score each candidate split index `i` (meaning words[0..<i] | words[i...]) and
     /// return the best one. Favours linguistic boundaries: real punctuation, clause
-    /// starters, capitalised words; penalises ending on conjunctions/articles. Distance
-    /// from midpoint is a small tiebreaker so two equally-good splits prefer the balanced
-    /// one. Falls back to the midpoint if no candidate scores above zero.
+    /// starters, coordinating conjunctions, capitalised words; penalises ending on
+    /// conjunctions/articles. Distance from midpoint is a small tiebreaker so two
+    /// equally-good splits prefer the balanced one. Falls back to the midpoint if no
+    /// candidate scores above zero.
     private func bestSplitIndex(in cueWords: [WordTimestamp]) -> Int {
         let mid = cueWords.count / 2
         var bestIdx = mid
@@ -532,6 +636,9 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             if let last = prevWord.last, ".!?".contains(last) { score += 3 }
             if let last = prevWord.last, ",;:".contains(last) { score += 2 }
             if Self.clauseStarters.contains(nextKey) { score += 2 }
+            // Coordinating conjunctions start a new clause cleanly — prefer to split
+            // immediately before them.
+            if Self.coordinatingConjunctions.contains(nextKey) { score += 2 }
             if let first = nextWord.first, first.isUppercase { score += 1 }
             if Self.badEnders.contains(prevKey) { score -= 2 }
             // Distance penalty: -1 per word away from midpoint (tiebreaker).
@@ -545,6 +652,42 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // If every candidate scored ≤ 0 purely from the distance penalty, fall back
         // to the midpoint — anything else is just a less-balanced version of the same.
         return bestScore > -cueWords.count ? bestIdx : mid
+    }
+
+    /// When a soft-limit break is about to fire, scan the recent `currentWords` for a
+    /// more natural boundary (comma/semicolon/colon, coordinating conjunction, or
+    /// clause starter) within the look-back window. Returns the index of the last word
+    /// to KEEP in the current cue, so caller flushes `[0...returned]` and re-seeds
+    /// `[(returned+1)...]` into the next cue. Returns nil if no scoring boundary exists.
+    /// Window size 6 catches typical fitness-style sentences with a comma 4-5 words
+    /// before the 12-word soft limit fires.
+    private func findLookBackBoundary(words: [String]) -> Int? {
+        let lastIdx = words.count - 1
+        // Need at least 2 words to have a meaningful split (1 in cue, 1 leftover).
+        guard lastIdx >= 1 else { return nil }
+        let windowStart = max(0, lastIdx - 6)
+
+        var bestIdx: Int? = nil
+        var bestScore = 0
+        // Candidate split-after positions p: flush [0...p], leftover [(p+1)...lastIdx].
+        // We don't allow p == lastIdx (no leftover) — that's just the default flush.
+        for p in windowStart..<lastIdx {
+            var score = 0
+            // Word at p ending with clause-level punctuation is the strongest signal.
+            if let last = words[p].last, ",;:".contains(last) { score += 3 }
+            let nextKey = words[p + 1]
+                .lowercased()
+                .trimmingCharacters(in: .punctuationCharacters)
+            // Break BEFORE a coordinator or clause starter so it leads the next cue.
+            if Self.coordinatingConjunctions.contains(nextKey) { score += 2 }
+            if Self.clauseStarters.contains(nextKey) { score += 2 }
+
+            if score > bestScore {
+                bestScore = score
+                bestIdx = p
+            }
+        }
+        return bestIdx
     }
 
     /// Wrap cues whose text exceeds maxLineChars into two balanced lines separated by `\n`.
@@ -576,6 +719,9 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 var score = -abs(firstLen - targetLen)
                 if let last = prevToken.last, ",;:".contains(last) { score += 4 }
                 if Self.clauseStarters.contains(nextKey) { score += 3 }
+                // Coordinating conjunctions (and/but/or) read more naturally at the
+                // start of line 2 than dangling at the end of line 1.
+                if Self.coordinatingConjunctions.contains(nextKey) { score += 3 }
                 // Discourage splits that leave one side wildly oversized.
                 if firstLen > Self.maxLineChars || secondLen > Self.maxLineChars { score -= 2 }
 

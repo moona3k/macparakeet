@@ -361,6 +361,103 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(lines.count, 2)
     }
 
+    func testBuildSubtitleCuesStripsLeadingWhitespaceFromTokens() {
+        // Whisper/Parakeet emit tokens with a leading space (" Hello"). Without
+        // sanitization, joining with " " produces "  Hello  world" (double spaces) and
+        // inflates the character count enough to trip the CPS guard on normal cues.
+        let words = [
+            WordTimestamp(word: " Hello", startMs: 0, endMs: 400, confidence: 0.95),
+            WordTimestamp(word: " world.", startMs: 400, endMs: 800, confidence: 0.95),
+        ]
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertEqual(cues.count, 1)
+        // No leading space, no double space
+        XCTAssertEqual(cues[0].text, "Hello world.")
+    }
+
+    func testBuildSubtitleCuesMergesHyphenContinuations() {
+        // Engines sometimes split "warm-up" as two tokens: "warm" + "-up".
+        let words = [
+            WordTimestamp(word: " The", startMs: 0, endMs: 200, confidence: 0.95),
+            WordTimestamp(word: " warm", startMs: 200, endMs: 500, confidence: 0.95),
+            WordTimestamp(word: " -up.", startMs: 500, endMs: 800, confidence: 0.95),
+        ]
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertEqual(cues.count, 1)
+        XCTAssertEqual(cues[0].text, "The warm-up.")
+    }
+
+    func testBuildSubtitleCuesCarriesForwardMissingSpeakerId() {
+        // If an engine drops the speakerId mid-utterance, treat the gap as continuation
+        // of the previous speaker rather than emitting a label-less cue.
+        let words = [
+            WordTimestamp(word: "Hello", startMs: 0, endMs: 300, confidence: 0.95, speakerId: "S1"),
+            WordTimestamp(word: "there", startMs: 300, endMs: 600, confidence: 0.95, speakerId: nil),
+            WordTimestamp(word: "friend.", startMs: 600, endMs: 900, confidence: 0.95, speakerId: nil),
+        ]
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertEqual(cues.count, 1)
+        XCTAssertEqual(cues[0].speakerId, "S1")
+    }
+
+    func testBuildSubtitleCuesLooksBackToCommaOnSoftLimit() {
+        // 14 words, comma after word 7 ("core,"). Without look-back the 12-word soft
+        // limit fires at word 12 ("you") and the cue ends mid-phrase. With look-back
+        // the boundary at the comma (position 6) wins and the cue ends cleanly there.
+        let strings = ["Keep", "your", "back", "straight,",
+                       "engage", "your", "core,",
+                       "and", "breathe", "out",
+                       "as", "you", "push", "up"]
+        let words = strings.enumerated().map { i, w in
+            WordTimestamp(word: w, startMs: i * 300, endMs: i * 300 + 250, confidence: 0.95)
+        }
+
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertGreaterThanOrEqual(cues.count, 2)
+        let firstFlat = cues[0].text.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        // First cue should end on a comma-terminated word, not mid-phrase like "you".
+        XCTAssertTrue(firstFlat.hasSuffix(",") || firstFlat.hasSuffix(".") || firstFlat.hasSuffix("!"),
+                      "Expected first cue to end on punctuation via look-back; got '\(firstFlat)'")
+    }
+
+    func testBuildSubtitleCuesSplitsConsecutiveSingleWordImperatives() {
+        // Fitness-style: "Squat. Up. Down." should become three cues, one per command.
+        let strings = ["Squat.", "Up.", "Down."]
+        let words = strings.enumerated().map { i, w in
+            WordTimestamp(word: w, startMs: i * 500, endMs: i * 500 + 400, confidence: 0.95)
+        }
+
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertEqual(cues.count, 3)
+        XCTAssertEqual(cues[0].text, "Squat.")
+        XCTAssertEqual(cues[1].text, "Up.")
+        XCTAssertEqual(cues[2].text, "Down.")
+    }
+
+    func testWrapLongCuePutsCoordinatingConjunctionOnLineTwo() {
+        // A single sentence with a coordinating "and" mid-way that exceeds the 42-char
+        // single-line budget. After wrapping, the second line should start with "and".
+        let strings = ["Keep", "your", "back", "straight",
+                       "and", "your", "core", "engaged."]
+        let words = strings.enumerated().map { i, w in
+            WordTimestamp(word: w, startMs: i * 300, endMs: i * 300 + 250, confidence: 0.95)
+        }
+
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertGreaterThanOrEqual(cues.count, 1)
+        // Find the cue containing both halves
+        guard let wrapped = cues.first(where: { $0.text.contains("\n") }) else {
+            XCTFail("Expected at least one wrapped cue")
+            return
+        }
+        let lines = wrapped.text.components(separatedBy: "\n")
+        XCTAssertEqual(lines.count, 2)
+        XCTAssertTrue(lines[1].hasPrefix("and"),
+                      "Expected second line to start with 'and', got '\(lines[1])'")
+    }
+
     func testCPSSplitPrefersPunctuationOverMidpoint() {
         // 8 short words packed into 1.5 seconds — easily over 25 CPS, with a comma
         // at index 3. The smart split should land after the comma rather than at
@@ -883,8 +980,12 @@ final class ExportServiceTests: XCTestCase {
         ]
 
         let srt = exportService.formatSRT(words: words, speakers: speakers)
-        XCTAssertTrue(srt.contains("Alice: Hello. Hi."))
-        XCTAssertTrue(srt.contains("Bob: Goodbye. Bye."))
+        // Single-word imperative breaks now split "Hello. Hi." into separate cues,
+        // so assert each piece appears with its speaker label rather than as merged text.
+        XCTAssertTrue(srt.contains("Alice: Hello."))
+        XCTAssertTrue(srt.contains("Alice: Hi."))
+        XCTAssertTrue(srt.contains("Bob: Goodbye."))
+        XCTAssertTrue(srt.contains("Bob: Bye."))
     }
 
     func testFormatVTTWithSpeakers() {
@@ -901,8 +1002,12 @@ final class ExportServiceTests: XCTestCase {
 
         let vtt = exportService.formatVTT(words: words, speakers: speakers)
         XCTAssertTrue(vtt.hasPrefix("WEBVTT\n"))
-        XCTAssertTrue(vtt.contains("<v Alice>Hello. Hi.</v>"))
-        XCTAssertTrue(vtt.contains("<v Bob>Goodbye. Bye.</v>"))
+        // Single-word imperative breaks split consecutive 1-word sentences into separate
+        // cues, so assert each piece is wrapped in a speaker tag.
+        XCTAssertTrue(vtt.contains("<v Alice>Hello.</v>"))
+        XCTAssertTrue(vtt.contains("<v Alice>Hi.</v>"))
+        XCTAssertTrue(vtt.contains("<v Bob>Goodbye.</v>"))
+        XCTAssertTrue(vtt.contains("<v Bob>Bye.</v>"))
     }
 
     func testCueSplitsOnSpeakerChange() {
@@ -976,7 +1081,10 @@ final class ExportServiceTests: XCTestCase {
 
         XCTAssertTrue(content.contains("Alice:"))
         XCTAssertTrue(content.contains("Bob:"))
-        XCTAssertTrue(content.contains("Hello. Hi."))
+        // Single-word imperative breaks split "Hello." and "Hi." into separate cues,
+        // so check both pieces appear under Alice's heading rather than as merged text.
+        XCTAssertTrue(content.contains("Hello."))
+        XCTAssertTrue(content.contains("Hi."))
         XCTAssertTrue(content.contains("Goodbye."))
     }
 
