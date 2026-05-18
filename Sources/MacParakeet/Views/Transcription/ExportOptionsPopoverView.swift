@@ -124,10 +124,9 @@ struct ExportOptionsPopoverView: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
-                if hasSpeakerLabelsForExport {
-                    Toggle("Include speaker names in captions", isOn: $transcriptExportOptions.includeSpeakerLabels)
-                        .font(DesignSystem.Typography.caption)
-                }
+                Toggle("Include speaker names in captions", isOn: $transcriptExportOptions.includeSpeakerLabels)
+                    .font(DesignSystem.Typography.caption)
+                    .disabled(!hasSpeakerLabelsForExport)
 
                 Divider()
                 SubtitleConfigSection(config: $transcriptExportOptions.subtitleConfig)
@@ -208,20 +207,6 @@ private struct SubtitleConfigSection: View {
                 .controlSize(.small)
             }
             .padding(.top, 4)
-
-            Divider()
-                .padding(.vertical, 4)
-
-            Text("Advanced")
-                .font(DesignSystem.Typography.caption.weight(.medium))
-                .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-            StableSlider(
-                title: "Maximum words per cue",
-                intValue: $config.maxWordsPerCue,
-                range: 1...50,
-                step: 1
-            )
 
             Toggle("Break on punctuation", isOn: $config.breakOnPunctuation)
                 .font(DesignSystem.Typography.caption)

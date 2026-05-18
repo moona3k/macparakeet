@@ -562,12 +562,14 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 && !currentWords.isEmpty
                 && word.speakerId != cueSpeakerId
 
-            // Check if adding this word would exceed line limits
+            // Check if adding this word would exceed the total cue character budget.
+            // maxCharsPerLine is interpreted as "max chars per cue total" so the
+            // user-facing slider controls the overall subtitle entry size.
             let prospectiveWords = currentWords + [word.word]
             let prospectiveText = prospectiveWords.joined(separator: " ")
-            let exceedsLines = linesNeeded(for: prospectiveText) > config.maxLinesPerCue
+            let exceedsTotalChars = prospectiveText.count > config.maxCharsPerLine
 
-            if speakerChanged || (!currentWords.isEmpty && exceedsLines) {
+            if speakerChanged || (!currentWords.isEmpty && exceedsTotalChars) {
                 flushCue()
                 cueStartMs = word.startMs
                 cueSpeakerId = word.speakerId
@@ -581,10 +583,9 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 ? (word.word.last.map { ".!?".contains($0) } ?? false)
                 : false
             let hasLongGap = !isLast && (words[i + 1].startMs - word.endMs) > config.gapThresholdMs
-            let tooManyWords = currentWords.count >= config.maxWordsPerCue
             let tooLong = (cueEndMs - cueStartMs) > config.maxDurationMs
 
-            if isLast || (endsWithPunctuation && currentWords.count >= 2) || hasLongGap || tooManyWords || tooLong {
+            if isLast || (endsWithPunctuation && currentWords.count >= 2) || hasLongGap || tooLong {
                 flushCue()
                 if !isLast {
                     cueStartMs = words[i + 1].startMs
@@ -596,22 +597,26 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return cues
     }
 
-    /// Wrap subtitle text so no line exceeds maxCharsPerLine.
+    /// Wrap subtitle text across up to maxLinesPerCue lines.
+    ///
+    /// maxCharsPerLine is treated as the *total* character budget for the cue,
+    /// so the wrap point is totalBudget / maxLinesPerCue to distribute evenly.
     private func wrapSubtitleText(_ text: String, config: SubtitleExportConfig) -> String {
+        let perLineBudget = max(10, config.maxCharsPerLine / max(1, config.maxLinesPerCue))
         let words = text.split(separator: " ")
         var lines: [String] = []
         var currentLine = ""
 
         for word in words {
             let candidate = currentLine.isEmpty ? String(word) : "\(currentLine) \(word)"
-            if candidate.count > config.maxCharsPerLine {
+            if candidate.count > perLineBudget {
                 if !currentLine.isEmpty {
                     lines.append(currentLine)
                 }
                 currentLine = String(word)
-                // If a single word exceeds the limit, truncate it
-                if currentLine.count > config.maxCharsPerLine {
-                    currentLine = String(currentLine.prefix(config.maxCharsPerLine))
+                // If a single word exceeds the per-line budget, truncate it
+                if currentLine.count > perLineBudget {
+                    currentLine = String(currentLine.prefix(perLineBudget))
                 }
             } else {
                 currentLine = candidate
