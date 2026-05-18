@@ -533,8 +533,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     }
 
     /// Groups word timestamps into subtitle cues using Apple's NaturalLanguage framework
-    /// for sentence and clause boundary detection. Respects timing constraints (max duration,
-    /// gap thresholds) while preferring linguistically natural break points.
+    /// for sentence boundary detection, falling back to simple word-based splitting for
+    /// sentences that exceed the character budget.
     public func buildSubtitleCues(
         from words: [WordTimestamp],
         config: SubtitleExportConfig = .default,
@@ -542,115 +542,110 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     ) -> [SubtitleCue] {
         guard !words.isEmpty else { return [] }
 
-        // Build full text and word-to-character mapping for NL framework lookups
+        // Build full text with word boundaries marked for easy lookup
         let fullText = words.map(\.word).joined(separator: " ")
-        var wordRanges: [Range<String.Index>] = []
-        var currentIdx = fullText.startIndex
-        for (i, word) in words.enumerated() {
-            let wordStart = currentIdx
-            let wordEnd = fullText.index(wordStart, offsetBy: word.word.count)
-            wordRanges.append(wordStart..<wordEnd)
-            if i < words.count - 1 {
-                currentIdx = fullText.index(wordEnd, offsetBy: 1) // skip space
-            }
-        }
+        guard !fullText.isEmpty else { return [] }
+
+        let wordOffsets = buildWordOffsets(words: words)
 
         // Step 1: Use NLTokenizer to find sentence boundaries
         let tokenizer = NLTokenizer(unit: .sentence)
         tokenizer.string = fullText
-        var sentenceBoundaries: [Int] = [] // word indices where sentences end
+
+        var sentenceRanges: [(startWord: Int, endWord: Int)] = []
         tokenizer.enumerateTokens(in: fullText.startIndex..<fullText.endIndex) { tokenRange, _ in
-            let endOffset = fullText.distance(from: fullText.startIndex, to: tokenRange.upperBound)
-            // Map character offset to word index
-            let wordIdx = wordRanges.firstIndex(where: { $0.upperBound >= fullText.index(fullText.startIndex, offsetBy: endOffset) }) ?? words.count - 1
-            sentenceBoundaries.append(min(wordIdx, words.count - 1))
+            let startChar = fullText.distance(from: fullText.startIndex, to: tokenRange.lowerBound)
+            let endChar = fullText.distance(from: fullText.startIndex, to: tokenRange.upperBound)
+
+            // Map character offsets to word indices
+            let startWord = self.wordIndexAtCharacter(offset: startChar, wordOffsets: wordOffsets)
+            let endWord = self.wordIndexAtCharacter(offset: max(0, endChar - 1), wordOffsets: wordOffsets)
+
+            sentenceRanges.append((startWord: startWord, endWord: min(endWord, words.count - 1)))
             return true
         }
 
-        // Step 2: For long sentences, find clause boundaries using NLTagger
+        // Step 2: Build split points from sentence boundaries
         var splitPoints = Set<Int>()
-        for sentenceEnd in sentenceBoundaries {
-            splitPoints.insert(sentenceEnd)
+        for range in sentenceRanges {
+            splitPoints.insert(range.endWord)
         }
 
-        // Find clause boundaries within long sentences
-        for (i, sentenceEnd) in sentenceBoundaries.enumerated() {
-            let sentenceStart = (i == 0) ? 0 : (sentenceBoundaries[i - 1] + 1)
+        // Step 3: For sentences that exceed budget, insert clause-level split points
+        for (i, range) in sentenceRanges.enumerated() {
+            let sentenceStart = range.startWord
+            let sentenceEnd = range.endWord
             let sentenceWords = Array(words[sentenceStart...sentenceEnd])
             let sentenceText = sentenceWords.map(\.word).joined(separator: " ")
 
-            // Only split sentences that exceed the character budget
             guard sentenceText.count > config.maxCharsPerLine else { continue }
 
-            // Use NLTagger to find natural clause boundaries
-            let tagger = NLTagger(tagSchemes: [.lexicalClass])
-            tagger.string = sentenceText
+            // Scan backward from the end of the sentence looking for natural break words
+            let minSegment = max(sentenceStart, sentenceStart + 2)
+            let searchStart = sentenceEnd
+            let searchEnd = sentenceStart + 2
 
-            var clauseBoundaries: [(wordOffset: Int, score: Int)] = []
-            let sentenceStartOffset = sentenceStart
+            var bestIdx = sentenceEnd
+            var bestScore = -1
 
-            tagger.enumerateTags(in: sentenceText.startIndex..<sentenceText.endIndex, unit: .word, scheme: .lexicalClass) { tag, tokenRange in
-                let tokenText = String(sentenceText[tokenRange])
-                let tokenLower = tokenText.lowercased()
-                let wordOffset = sentenceStartOffset + self.wordIndex(for: tokenRange, in: sentenceText, relativeTo: sentenceStartOffset, words: words)
+            for idx in stride(from: searchStart, through: searchEnd, by: -1) {
+                let segmentText = words[sentenceStart...idx].map(\.word).joined(separator: " ")
+                guard segmentText.count <= config.maxCharsPerLine else { continue }
 
+                let lastWord = words[idx].word.lowercased()
+                let nextWord = idx < words.count - 1 ? words[idx + 1].word.lowercased() : ""
                 var score = 0
-                if tag == .conjunction {
-                    // Strong boundary at conjunctions (and, but, or, etc.)
-                    if ["and", "but", "or", "so", "yet", "for", "nor", "then"].contains(tokenLower) {
-                        score = 80
-                    }
+
+                // Strong preference for punctuation endings
+                if lastWord.hasSuffix(",") || lastWord.hasSuffix(";") || lastWord.hasSuffix(":") {
+                    score += 100
                 }
-                if tag == .preposition {
-                    // Moderate boundary at prepositions (in, on, with, etc.)
-                    if ["in", "on", "at", "to", "of", "with", "from", "by", "as", "into"].contains(tokenLower) {
-                        score = 40
-                    }
+                if lastWord.last.map({ ".!?".contains($0) }) ?? false {
+                    score += 90
                 }
 
-                // Boost score if the word is followed by a comma in the original text
-                if wordOffset < words.count - 1 {
-                    let nextWord = words[wordOffset + 1].word
-                    if nextWord.hasPrefix(",") || nextWord.hasPrefix(";") {
-                        score += 30
-                    }
+                // Conjunctions / prepositions
+                if ["and", "but", "or", "so", "yet", "for", "nor", "then",
+                    "in", "on", "at", "to", "of", "with", "from", "by", "as",
+                    "into", "onto", "through", "over", "under", "around"].contains(lastWord) {
+                    score += 40
                 }
 
-                if score > 0 {
-                    clauseBoundaries.append((wordOffset: wordOffset, score: score))
+                // Articles
+                if ["the", "a", "an"].contains(lastWord) { score += 15 }
+
+                // Avoid orphaning the next word
+                if nextWord.hasPrefix(",") || nextWord.hasPrefix(";") { score -= 80 }
+
+                // Penalize very short segments
+                if idx - sentenceStart < 3 { score -= 30 }
+                if sentenceEnd - idx < 3 { score -= 30 }
+
+                if score > bestScore {
+                    bestScore = score
+                    bestIdx = idx
                 }
-                return true
             }
 
-            // Sort by score descending and select best splits that keep segments under budget
-            let sorted = clauseBoundaries.sorted { $0.score > $1.score }
-            var currentStart = sentenceStart
-            for boundary in sorted {
-                let segmentText = words[currentStart...boundary.wordOffset].map(\.word).joined(separator: " ")
-                if segmentText.count >= config.maxCharsPerLine * 8 / 10 {
-                    // This segment is getting long - split here
-                    splitPoints.insert(boundary.wordOffset)
-                    currentStart = boundary.wordOffset + 1
-                }
+            if bestIdx < sentenceEnd && bestIdx > sentenceStart {
+                splitPoints.insert(bestIdx)
             }
         }
 
-        // Step 3: Build cues from split points, respecting timing constraints
+        // Step 4: Build cues from split points, respecting timing constraints
         var cues: [MutableCue] = []
         var currentStart = 0
-        var sortedSplits = splitPoints.sorted()
+        let sortedSplits = splitPoints.sorted()
 
-        for var splitEnd in sortedSplits {
+        for splitEnd in sortedSplits {
             guard splitEnd >= currentStart else { continue }
 
-            var cueWords = Array(words[currentStart...splitEnd])
-            var cueTs = cueWords
-            var cueStartMs = words[currentStart].startMs
+            let cueStartMs = words[currentStart].startMs
             var cueEndMs = words[splitEnd].endMs
+            var actualEnd = splitEnd
 
             // Hard constraint: max duration
             if cueEndMs - cueStartMs > config.maxDurationMs {
-                // Find the farthest word that keeps us under maxDuration
                 var newEnd = currentStart
                 for j in currentStart...splitEnd {
                     if words[j].endMs - cueStartMs <= config.maxDurationMs {
@@ -660,20 +655,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                     }
                 }
                 if newEnd > currentStart {
-                    cueWords = Array(words[currentStart...newEnd])
+                    actualEnd = newEnd
                     cueEndMs = words[newEnd].endMs
-                    splitEnd = newEnd
                 }
             }
 
-            // Hard constraint: check gap threshold - if next word has a huge gap, end here
-            if splitEnd + 1 < words.count {
-                let gap = words[splitEnd + 1].startMs - cueEndMs
-                if gap > config.gapThresholdMs {
-                    // Natural gap - good place to end
-                }
-            }
-
+            let cueWords = Array(words[currentStart...actualEnd])
             cues.append(MutableCue(
                 startMs: cueStartMs,
                 endMs: cueEndMs,
@@ -682,7 +669,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 speakerId: words[currentStart].speakerId
             ))
 
-            currentStart = splitEnd + 1
+            currentStart = actualEnd + 1
         }
 
         // Add remaining words as final cue
@@ -697,7 +684,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             ))
         }
 
-        // Step 4: Post-process - merge tiny orphaned cues
+        // Step 5: Post-process - merge tiny orphaned cues
         cues = absorbTinyCues(cues, maxChars: config.maxCharsPerLine)
 
         return cues.map { cue in
@@ -710,16 +697,26 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
     }
 
-    /// Helper: map a character range in a substring back to a word index in the full word array
-    private func wordIndex(for range: Range<String.Index>, in text: String, relativeTo wordOffset: Int, words: [WordTimestamp]) -> Int {
-        let startOffset = text.distance(from: text.startIndex, to: range.lowerBound)
-        var charCount = 0
-        for (i, word) in words[wordOffset...].enumerated() {
-            let wordLen = word.word.count
-            if charCount + wordLen > startOffset {
+    /// Build a mapping from character offset to word index for the joined text.
+    private func buildWordOffsets(words: [WordTimestamp]) -> [Int] {
+        var offsets: [Int] = []
+        var currentOffset = 0
+        for (i, word) in words.enumerated() {
+            offsets.append(currentOffset)
+            currentOffset += word.word.count
+            if i < words.count - 1 {
+                currentOffset += 1 // space
+            }
+        }
+        return offsets
+    }
+
+    /// Map a character offset in the joined text to the word index that contains it.
+    private func wordIndexAtCharacter(offset: Int, wordOffsets: [Int]) -> Int {
+        for (i, wordOffset) in wordOffsets.enumerated().reversed() {
+            if offset >= wordOffset {
                 return i
             }
-            charCount += wordLen + 1 // +1 for space
         }
         return 0
     }
