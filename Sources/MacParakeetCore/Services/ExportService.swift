@@ -647,8 +647,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
             let combinedText = a.text + " " + b.text
             let combinedFits = combinedText.count <= maxChars + 10
-            let aIsShort = a.text.count < maxChars * 3 / 4
-            let bIsShort = b.text.count < maxChars * 3 / 4
+            let aIsShort = a.text.count < maxChars * 9 / 10
+            let bIsShort = b.text.count < maxChars * 9 / 10
 
             // Merge if both are short and the combined text still fits within budget
             if combinedFits && aIsShort && bIsShort {
@@ -689,11 +689,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                     maxChars: maxChars
                 )
 
-                // Only apply the re-split if it found a meaningfully better boundary
+                // Apply the re-split if it found a better boundary
                 let originalSplit = cue.words.count
                 if splitIdx > 0
                     && splitIdx < combinedWords.count
-                    && abs(splitIdx - originalSplit) >= 2 {
+                    && splitIdx != originalSplit {
 
                     let firstWords = Array(combinedWords[0..<splitIdx])
                     let firstTs = Array(combinedTs[0..<splitIdx])
