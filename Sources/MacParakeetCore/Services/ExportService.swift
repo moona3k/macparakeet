@@ -532,9 +532,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     }
 
     /// Groups word timestamps into subtitle cues suitable for SRT/VTT and overlay display.
-    /// Uses a two-pass approach: first pass greedily builds cues while respecting soft
-    /// natural boundaries (gaps, punctuation); second pass re-splits for character budget
-    /// using semantic-aware break-point selection so cues end at natural phrase endings.
+    ///
+    /// Three-phase pipeline:
+    ///   1. Greedy accumulation using speech-aligned boundaries (gaps, punctuation, duration).
+    ///   2. Proofread pass: evaluate every adjacent pair, re-split at natural phrase endings,
+    ///      merge unnecessarily fragmented cues, and absorb orphaned fragments.
+    ///   3. Smart text wrapping that prefers single-line cues when the text fits.
     public func buildSubtitleCues(
         from words: [WordTimestamp],
         config: SubtitleExportConfig = .default,
@@ -571,7 +574,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let prospectiveText = prospectiveWords.joined(separator: " ")
             let exceedsTotalChars = prospectiveText.count > config.maxCharsPerLine
 
-            // PHASE 1: hard limits (speaker change or absolute char budget exceeded)
+            // Hard break: speaker change or char budget exceeded
             if speakerChanged || (!currentWords.isEmpty && exceedsTotalChars) {
                 flushCue()
                 cueStartMs = word.startMs
@@ -591,7 +594,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let shouldBreakOnPunctuation = endsWithPunctuation
                 && currentWords.count >= config.minWordsBeforePunctuationBreak
 
-            // PHASE 2: soft breaks (punctuation, long gaps, max duration, end of stream)
+            // Soft break: punctuation, long gaps, max duration, end of stream
             if isLast || shouldBreakOnPunctuation || hasLongGap || tooLong {
                 flushCue()
                 if !isLast {
@@ -601,12 +604,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             }
         }
 
-        // PHASE 3: semantic re-split for cues that exceed the character budget.
-        // Instead of keeping whatever the greedy pass produced, find natural break points.
-        rawCues = semanticResplitCues(rawCues, maxChars: config.maxCharsPerLine)
-
-        // PHASE 4: merge orphaned tiny cues across boundaries.
-        rawCues = mergeTinyCues(rawCues, maxChars: config.maxCharsPerLine)
+        // PHASE 2: Proofread — fix unnatural boundaries, merge fragments, re-split overlong cues.
+        rawCues = proofreadCues(rawCues, config: config)
 
         // Wrap text for each cue
         return rawCues.map { cue in
@@ -619,133 +618,203 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
     }
 
-    /// Re-split any cue that exceeds the character budget by looking backward for the
-    /// most natural break point (comma, conjunction, preposition) rather than cutting
-    /// at whatever word happened to push the cue over the limit.
-    private func semanticResplitCues(_ cues: [MutableCue], maxChars: Int) -> [MutableCue] {
-        var result: [MutableCue] = []
+    // MARK: - Proofread Pass
 
-        for cue in cues {
-            guard cue.text.count > maxChars else {
-                result.append(cue)
+    /// Evaluate every adjacent cue pair and fix unnatural boundaries.
+    ///
+    /// A good subtitle boundary ends at a natural phrase break (comma, sentence end,
+    /// conjunction, preposition). A bad boundary splits mid-phrase (e.g. "our / bike,").
+    ///
+    /// Three passes:
+    ///   1. Merge unnecessarily split cues when the combined text fits.
+    ///   2. Re-split overlong or unnaturally split cues at better boundaries.
+    ///   3. Absorb orphaned tiny cues into neighbours.
+    private func proofreadCues(_ cues: [MutableCue], config: SubtitleExportConfig) -> [MutableCue] {
+        guard cues.count > 1 else { return cues }
+        let maxChars = config.maxCharsPerLine
+
+        var result = cues
+
+        // ── Pass 1: Merge adjacent short cues that were split unnecessarily ──
+        var i = 0
+        while i < result.count - 1 {
+            let a = result[i]
+            let b = result[i + 1]
+
+            // Skip if this is already a natural sentence boundary
+            let aEndsSentence = a.text.last.map { ".!?".contains($0) } ?? false
+            guard !aEndsSentence else { i += 1; continue }
+
+            let combinedText = a.text + " " + b.text
+            let combinedFits = combinedText.count <= maxChars + 10
+            let aIsShort = a.text.count < maxChars * 3 / 4
+            let bIsShort = b.text.count < maxChars * 3 / 4
+
+            // Merge if both are short and the combined text still fits within budget
+            if combinedFits && aIsShort && bIsShort {
+                result[i] = MutableCue(
+                    startMs: a.startMs,
+                    endMs: b.endMs,
+                    words: a.words + b.words,
+                    wordTimestamps: a.wordTimestamps + b.wordTimestamps,
+                    speakerId: a.speakerId
+                )
+                result.remove(at: i + 1)
                 continue
             }
 
-            var remaining = cue.words
-            var remainingTs = cue.wordTimestamps
-            var segmentStartMs = cue.startMs
+            i += 1
+        }
 
-            while !remaining.isEmpty {
-                // Find the longest prefix that fits within maxChars,
-                // preferring a natural break point at the end.
-                let splitIdx = bestSemanticSplit(
-                    words: remaining,
-                    timestamps: remainingTs,
-                    maxChars: maxChars,
-                    segmentStartMs: segmentStartMs
+        // ── Pass 2: Re-split cues with unnatural boundaries ──
+        var repassed: [MutableCue] = []
+        for (idx, cue) in result.enumerated() {
+            // Only re-split if this cue is reasonably short and the NEXT cue starts
+            // with a word that should have been in this cue (unnatural boundary).
+            let isLast = idx == result.count - 1
+            let shouldResplit = !isLast
+                && cue.text.count <= maxChars
+                && !isNaturalBoundary(cue)
+                && hasUnnaturalStart(result[idx + 1])
+
+            if shouldResplit {
+                let nextCue = result[idx + 1]
+                let combinedWords = cue.words + nextCue.words
+                let combinedTs = cue.wordTimestamps + nextCue.wordTimestamps
+                let combinedStartMs = cue.startMs
+                let combinedEndMs = nextCue.endMs
+
+                let splitIdx = bestProofreadSplit(
+                    words: combinedWords,
+                    maxChars: maxChars
                 )
 
-                let chunkWords = Array(remaining[0..<splitIdx])
-                let chunkTs = Array(remainingTs[0..<splitIdx])
-                let chunkEndMs = chunkTs.last?.endMs ?? segmentStartMs
+                // Only apply the re-split if it found a meaningfully better boundary
+                let originalSplit = cue.words.count
+                if splitIdx > 0
+                    && splitIdx < combinedWords.count
+                    && abs(splitIdx - originalSplit) >= 2 {
 
-                result.append(MutableCue(
-                    startMs: segmentStartMs,
-                    endMs: chunkEndMs,
-                    words: chunkWords,
-                    wordTimestamps: chunkTs,
-                    speakerId: cue.speakerId
-                ))
+                    let firstWords = Array(combinedWords[0..<splitIdx])
+                    let firstTs = Array(combinedTs[0..<splitIdx])
+                    let secondWords = Array(combinedWords[splitIdx...])
+                    let secondTs = Array(combinedTs[splitIdx...])
 
-                remaining = Array(remaining[splitIdx...])
-                remainingTs = Array(remainingTs[splitIdx...])
-                segmentStartMs = remainingTs.first?.startMs ?? chunkEndMs
+                    repassed.append(MutableCue(
+                        startMs: combinedStartMs,
+                        endMs: firstTs.last?.endMs ?? combinedStartMs,
+                        words: firstWords,
+                        wordTimestamps: firstTs,
+                        speakerId: cue.speakerId
+                    ))
+
+                    // Replace the next cue with the remainder
+                    if idx + 1 < result.count {
+                        result[idx + 1] = MutableCue(
+                            startMs: secondTs.first?.startMs ?? combinedEndMs,
+                            endMs: combinedEndMs,
+                            words: secondWords,
+                            wordTimestamps: secondTs,
+                            speakerId: nextCue.speakerId
+                        )
+                    }
+                    continue
+                }
             }
+
+            repassed.append(cue)
         }
+        result = repassed
+
+        // ── Pass 3: Absorb orphaned tiny cues ──
+        result = absorbTinyCues(result, maxChars: maxChars)
 
         return result
     }
 
-    /// Find the best split point within the remaining words.
-    /// Scans forward to find the longest prefix under maxChars, then looks backward
-    /// for a natural linguistic boundary. If none found, uses the last word that fits.
-    private func bestSemanticSplit(
-        words: [String],
-        timestamps: [WordTimestamp],
-        maxChars: Int,
-        segmentStartMs: Int
-    ) -> Int {
+    /// Returns true if the cue ends at a natural linguistic boundary.
+    private func isNaturalBoundary(_ cue: MutableCue) -> Bool {
+        guard let lastWord = cue.words.last?.lowercased() else { return false }
+        // Sentence-ending punctuation
+        if lastWord.last.map({ ".!?".contains($0) }) ?? false { return true }
+        // Comma or semicolon
+        if lastWord.hasSuffix(",") || lastWord.hasSuffix(";") { return true }
+        // Conjunctions / prepositions that accept a following clause
+        let naturalEnders = ["and", "but", "or", "so", "yet", "for", "nor",
+                               "then", "thus", "hence", "therefore", "however"]
+        if naturalEnders.contains(lastWord) { return true }
+        return false
+    }
+
+    /// Returns true if the cue starts with a word that grammatically belongs
+    /// to the previous cue (orphaned start).
+    private func hasUnnaturalStart(_ cue: MutableCue) -> Bool {
+        guard let firstWord = cue.words.first?.lowercased() else { return false }
+        // Cues should not start with words that are clearly continuations
+        let orphanedStarters = ["bike,", "and", "but", "or", "so", "yet", "also",
+                                "between", "among", "within", "inside", "outside"]
+        if orphanedStarters.contains(firstWord) { return true }
+        // Punctuation-heavy tokens that got separated
+        if firstWord.hasPrefix(",") || firstWord.hasPrefix(";") { return true }
+        return false
+    }
+
+    /// Find the best split point for a combined cue pair.
+    /// Looks backward from the maximum fitting prefix for natural boundaries.
+    private func bestProofreadSplit(words: [String], maxChars: Int) -> Int {
         guard !words.isEmpty else { return 0 }
 
-        // First find the farthest word we can include while staying under budget.
-        var lastFittingIdx = 0
-        for i in 1...words.count {
-            let prefix = words[0..<i].joined(separator: " ")
+        // Find the farthest word that still fits under the budget
+        var lastFitting = 0
+        for j in 1...words.count {
+            let prefix = words[0..<j].joined(separator: " ")
             if prefix.count <= maxChars {
-                lastFittingIdx = i
+                lastFitting = j
             } else {
                 break
             }
         }
 
-        // Safety: always include at least one word
-        if lastFittingIdx == 0 {
-            return 1
-        }
+        if lastFitting == 0 { return 1 }
+        if lastFitting == words.count { return words.count }
 
-        // If the entire remainder fits, take it all.
-        if lastFittingIdx == words.count {
-            return words.count
-        }
+        // Scan backward for the best natural boundary
+        let searchStart = min(lastFitting, words.count - 1)
+        let searchEnd = max(2, lastFitting - 8)
 
-        // Look backward from lastFittingIdx for a natural break point.
-        // We require the split to leave at least 2 words in the current segment
-        // and at least 2 words in the remaining segment (to avoid orphans).
-        let minRemainder = 2
-        let minSegment = 2
-        let searchStart = min(lastFittingIdx, words.count - minRemainder)
-        let searchEnd = max(minSegment, lastFittingIdx - 6)
-
-        var bestIdx = lastFittingIdx
+        var bestIdx = lastFitting
         var bestScore = -1
 
         for idx in stride(from: searchStart, through: searchEnd, by: -1) {
-            let segmentWords = words[0..<idx]
-            let segmentText = segmentWords.joined(separator: " ")
-            let nextWord = words[idx]
-
-            // Hard limit: segment must fit
+            let segmentText = words[0..<idx].joined(separator: " ")
             guard segmentText.count <= maxChars else { continue }
 
+            let lastWord = words[idx - 1].lowercased()
+            let nextWord = words[idx].lowercased()
             var score = 0
 
-            // Prefer breaks after words that end with natural punctuation
-            let lastWord = segmentWords.last?.lowercased() ?? ""
+            // Strong preference for comma / semicolon endings
             if lastWord.hasSuffix(",") || lastWord.hasSuffix(";") || lastWord.hasSuffix(":") {
                 score += 100
             }
-
-            // Prefer breaks after short prepositions / conjunctions
-            let boundaryWords = [
-                "and", "but", "or", "so", "yet", "for", "nor",
-                "in", "on", "at", "to", "of", "with", "from", "by", "as", "into", "onto"
-            ]
-            if boundaryWords.contains(lastWord) {
-                score += 50
+            // Sentence endings are excellent boundaries
+            if lastWord.last.map({ ".!?".contains($0) }) ?? false {
+                score += 90
             }
-
-            // Prefer breaks after articles (less ideal but acceptable)
-            if ["the", "a", "an"].contains(lastWord) {
-                score += 20
+            // Conjunctions / prepositions
+            if ["and", "but", "or", "so", "yet", "for", "nor", "then",
+                "in", "on", "at", "to", "of", "with", "from", "by", "as",
+                "into", "onto", "through", "over", "under", "around"].contains(lastWord) {
+                score += 40
             }
+            // Articles (acceptable but less ideal)
+            if ["the", "a", "an"].contains(lastWord) { score += 15 }
 
-            // Avoid splitting right before a comma that belongs to the next word
-            if nextWord.hasPrefix(",") || nextWord.hasPrefix(";") {
-                score -= 80
-            }
+            // Avoid starting the next cue with a comma
+            if nextWord.hasPrefix(",") || nextWord.hasPrefix(";") { score -= 80 }
 
-            // Penalize very short segments
-            if segmentWords.count < 3 { score -= 30 }
+            // Penalize very short resulting segments
+            if idx < 3 { score -= 30 }
             if words.count - idx < 3 { score -= 30 }
 
             if score > bestScore {
@@ -757,26 +826,25 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return bestIdx
     }
 
-    /// Post-process: merge cues that are too small with neighbours when possible.
-    private func mergeTinyCues(_ cues: [MutableCue], maxChars: Int) -> [MutableCue] {
+    /// Merge cues that are too small with neighbours when possible.
+    private func absorbTinyCues(_ cues: [MutableCue], maxChars: Int) -> [MutableCue] {
         guard cues.count > 1 else { return cues }
-
-        let minChars = 15
-        let minWords = 3
-        let tolerance = 10
+        let minChars = 12
+        let minWords = 2
+        let tolerance = 8
         let maxBudget = maxChars + tolerance
 
         var result = cues
 
-        // Forward pass: merge tiny cue with next cue
+        // Forward pass: absorb tiny cue into next cue
         var i = 0
         while i < result.count - 1 {
             let current = result[i]
             let isTiny = current.text.count < minChars || current.words.count < minWords
             if isTiny {
                 let next = result[i + 1]
-                let mergedText = current.text + " " + next.text
-                if mergedText.count <= maxBudget {
+                let merged = current.text + " " + next.text
+                if merged.count <= maxBudget {
                     result[i] = MutableCue(
                         startMs: current.startMs,
                         endMs: next.endMs,
@@ -791,15 +859,15 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             i += 1
         }
 
-        // Backward pass: merge tiny cue with previous cue
+        // Backward pass: absorb tiny cue into previous cue
         i = 1
         while i < result.count {
             let current = result[i]
             let isTiny = current.text.count < minChars || current.words.count < minWords
             if isTiny {
                 let prev = result[i - 1]
-                let mergedText = prev.text + " " + current.text
-                if mergedText.count <= maxBudget {
+                let merged = prev.text + " " + current.text
+                if merged.count <= maxBudget {
                     result[i - 1] = MutableCue(
                         startMs: prev.startMs,
                         endMs: current.endMs,
