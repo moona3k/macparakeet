@@ -1,7 +1,36 @@
 import Foundation
 import Security
 
+/// Simple KeyValueStore backed by UserDefaults. Not as secure as Keychain,
+/// but avoids keychain access prompts during dev builds. Use for personal/dev only.
+public final class UserDefaultsKeyValueStore: KeyValueStore {
+    private let suite: UserDefaults
+    private let prefix: String
+
+    public init(suite: UserDefaults = .standard, prefix: String = "MacParakeet") {
+        self.suite = suite
+        self.prefix = prefix
+    }
+
+    private func fullKey(_ key: String) -> String {
+        "\(prefix).\(key)"
+    }
+
+    public func getString(_ key: String) throws -> String? {
+        suite.string(forKey: fullKey(key))
+    }
+
+    public func setString(_ value: String, forKey key: String) throws {
+        suite.set(value, forKey: fullKey(key))
+    }
+
+    public func delete(_ key: String) throws {
+        suite.removeObject(forKey: fullKey(key))
+    }
+}
+
 public final class KeychainKeyValueStore: KeyValueStore {
+
     private let service: String
 
     public init(service: String) {

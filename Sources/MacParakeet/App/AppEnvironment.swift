@@ -134,10 +134,15 @@ final class AppEnvironment {
 
         let licensingConfig = LicensingConfig(checkoutURL: checkoutURL, expectedVariantID: expectedVariantID)
         let serviceName = Bundle.main.bundleIdentifier ?? "com.macparakeet"
-        let keychain = KeychainKeyValueStore(service: serviceName)
+        // Dev builds use UserDefaults to avoid repeated keychain access prompts
+        // after every ad-hoc re-signing. Production builds should use Keychain.
+        let isDevBuild = serviceName.contains("dev") || serviceName.contains("Dev")
+        let store: KeyValueStore = isDevBuild
+            ? UserDefaultsKeyValueStore(prefix: serviceName)
+            : KeychainKeyValueStore(service: serviceName)
         entitlementsService = EntitlementsService(
             config: licensingConfig,
-            store: keychain,
+            store: store,
             api: LemonSqueezyLicenseAPI()
         )
 

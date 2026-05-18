@@ -381,7 +381,10 @@ struct TranscribeCommand: AsyncParsableCommand {
 
         let config = LicensingConfig(checkoutURL: checkoutURL, expectedVariantID: expectedVariantID)
         let serviceName = Bundle.main.bundleIdentifier ?? "com.macparakeet"
-        let store = KeychainKeyValueStore(service: serviceName)
+        let isDevBuild = serviceName.contains("dev") || serviceName.contains("Dev")
+        let store: KeyValueStore = isDevBuild
+            ? UserDefaultsKeyValueStore(prefix: serviceName)
+            : KeychainKeyValueStore(service: serviceName)
         return EntitlementsService(config: config, store: store, api: LemonSqueezyLicenseAPI())
     }
 
