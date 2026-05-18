@@ -313,8 +313,73 @@ final class ExportServiceTests: XCTestCase {
 
         let cues = exportService.buildSubtitleCues(from: words)
         XCTAssertEqual(cues.count, 2)
-        XCTAssertEqual(cues[0].text.components(separatedBy: " ").count, 12)
-        XCTAssertEqual(cues[1].text.components(separatedBy: " ").count, 2)
+        // Count tokens by any whitespace — cue text may contain `\n` from line wrapping.
+        let firstTokens = cues[0].text.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+        let secondTokens = cues[1].text.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+        XCTAssertEqual(firstTokens.count, 12)
+        XCTAssertEqual(secondTokens.count, 2)
+    }
+
+    func testBuildSubtitleCuesDefersOnBadEnder() {
+        // 12 words where word11 is "and" — without deferral the cue would end on "and".
+        // The bad-ender check should defer the break so the cue ends on "stop" instead.
+        let strings = ["I", "walked", "to", "the", "store", "with",
+                       "my", "friend", "and", "had", "to", "and", "then", "stop"]
+        let words = strings.enumerated().map { i, w in
+            WordTimestamp(word: w, startMs: i * 300, endMs: i * 300 + 250, confidence: 0.95)
+        }
+
+        let cues = exportService.buildSubtitleCues(from: words)
+        // The first cue's last whitespace-separated token must not be a bad-ender.
+        let firstLastToken = cues[0].text
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .last!
+            .lowercased()
+        let badEnders: Set<String> = ["and", "but", "or", "the", "a", "an",
+                                      "in", "on", "at", "to", "of", "with", "from", "by"]
+        XCTAssertFalse(badEnders.contains(firstLastToken),
+                       "First cue ended on bad-ender '\(firstLastToken)'")
+    }
+
+    func testBuildSubtitleCuesWrapsLongCueInto2Lines() {
+        // A single long sentence that fits within the word/duration limits but exceeds
+        // the 42-char line budget should be wrapped into two lines separated by \n.
+        let strings = ["The", "quick", "brown", "fox", "jumped", "over",
+                       "the", "lazy", "dog", "near", "the", "river."]
+        let words = strings.enumerated().map { i, w in
+            WordTimestamp(word: w, startMs: i * 300, endMs: i * 300 + 250, confidence: 0.95)
+        }
+
+        let cues = exportService.buildSubtitleCues(from: words)
+        // First cue should be the full sentence, but text should contain a newline.
+        XCTAssertTrue(cues[0].text.contains("\n"),
+                      "Expected line wrap; got: '\(cues[0].text)'")
+        let lines = cues[0].text.components(separatedBy: "\n")
+        XCTAssertEqual(lines.count, 2)
+    }
+
+    func testCPSSplitPrefersPunctuationOverMidpoint() {
+        // 8 short words packed into 1.5 seconds — easily over 25 CPS, with a comma
+        // at index 3. The smart split should land after the comma rather than at
+        // the midpoint (index 4).
+        let strings = ["alpha", "beta", "gamma", "delta,", "epsilon", "zeta", "eta", "theta"]
+        let words = strings.enumerated().map { i, w in
+            WordTimestamp(word: w, startMs: i * 150, endMs: i * 150 + 100, confidence: 0.95)
+        }
+
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertGreaterThanOrEqual(cues.count, 2,
+                                    "Expected CPS guard to split fast cue into multiple cues")
+        // The first cue should end with the comma word; smart split favours
+        // comma-ending boundaries over the midpoint.
+        let firstText = cues[0].text.components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        XCTAssertTrue(firstText.hasSuffix("delta,"),
+                      "Expected smart split after 'delta,', got '\(firstText)'")
     }
 
     func testBuildSubtitleCuesEmpty() {

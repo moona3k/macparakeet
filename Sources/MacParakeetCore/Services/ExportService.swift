@@ -363,6 +363,23 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         "unless", "until", "though", "who", "which", "where", "when"
     ]
 
+    // Words that should not END a cue (conjunctions, articles, common prepositions).
+    // Leaving these as the last word produces a dangling cue that hurts readability.
+    private static let badEnders: Set<String> = [
+        "and", "but", "or", "so", "yet", "nor", "for",
+        "the", "a", "an",
+        "in", "on", "at", "to", "of", "with", "from", "by"
+    ]
+
+    // Hard caps used by bad-ender deferral. We are willing to push past the soft 12/7000
+    // limits to avoid a bad ending, but not arbitrarily — these caps bound the overshoot.
+    private static let hardWordCap = 14
+    private static let hardDurationMs = 8000
+
+    // Total character budget for a single-line cue. Cues beyond this are wrapped into two
+    // balanced lines via wrapLongCues. Matches the common SRT/VTT safe width.
+    private static let maxLineChars = 42
+
     public func buildSubtitleCues(from words: [WordTimestamp]) -> [SubtitleCue] {
         guard !words.isEmpty else { return [] }
 
@@ -404,7 +421,25 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 && Self.clauseStarters.contains(
                     words[i + 1].word.lowercased().trimmingCharacters(in: .punctuationCharacters))
 
-            if isLast || (endsWithPunctuation && currentWords.count >= 2) || hasLongGap || tooManyWords || tooLong || nextIsClauseStart {
+            // Bad-ender deferral: if this break is only fired by a soft size limit
+            // (word count or duration) and the current word is in badEnders, defer the
+            // break by one iteration so we don't leave a dangling conjunction/article/
+            // preposition at the end of the cue. Bounded by hard caps to avoid runaway.
+            let semanticTrigger = (endsWithPunctuation && currentWords.count >= 2)
+                || nextIsClauseStart
+            let hardTrigger = isLast || hasLongGap
+            let softTrigger = tooManyWords || tooLong
+            let lastWordKey = word.word.lowercased().trimmingCharacters(in: .punctuationCharacters)
+            let isBadEnder = Self.badEnders.contains(lastWordKey)
+            let underHardCap = currentWords.count < Self.hardWordCap
+                && (cueEndMs - cueStartMs) < Self.hardDurationMs
+            let deferForBadEnder = softTrigger
+                && !hardTrigger
+                && !semanticTrigger
+                && isBadEnder
+                && underHardCap
+
+            if (isLast || semanticTrigger || hardTrigger || softTrigger) && !deferForBadEnder {
                 cues.append(SubtitleCue(
                     startMs: cueStartMs,
                     endMs: cueEndMs,
@@ -419,16 +454,17 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             }
         }
 
-        // Enforce reading speed: split cues that exceed 17 CPS (Netflix/BBC standard).
-        return enforceReadingSpeed(cues, words: words)
+        // Enforce reading speed: split cues that exceed 25 CPS, then wrap long cues
+        // into two balanced lines for clean SRT/VTT display.
+        let paced = enforceReadingSpeed(cues, words: words)
+        return wrapLongCues(paced)
     }
 
     /// Split cues whose text/duration ratio exceeds maxCPS characters per second.
     /// 25 CPS is the safety threshold — the Netflix/BBC guideline is 17 CPS, but that
     /// standard is for display time compliance tools; 25 catches genuinely unreadable
-    /// cues without false-positiving on fast-but-readable speech.
-    /// Uses word timestamps to find a midpoint split. Cues that can't be cleanly
-    /// split (≤ 2 words) are left untouched.
+    /// cues without false-positiving on fast-but-readable speech. Cues that can't be
+    /// cleanly split (≤ 2 words) are left untouched.
     private func enforceReadingSpeed(_ cues: [SubtitleCue], words: [WordTimestamp], maxCPS: Double = 25.0) -> [SubtitleCue] {
         var result: [SubtitleCue] = []
         // Walk words with a single forward index — both cues and words are chronological,
@@ -455,10 +491,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             }
             guard cueWords.count > 2 else { result.append(cue); continue }
 
-            // Split at the midpoint word.
-            let mid = cueWords.count / 2
-            let firstHalf = cueWords[0..<mid]
-            let secondHalf = cueWords[mid...]
+            // Score every candidate split index and pick the linguistically best.
+            let splitIdx = bestSplitIndex(in: cueWords)
+            let firstHalf = cueWords[0..<splitIdx]
+            let secondHalf = cueWords[splitIdx...]
 
             result.append(SubtitleCue(
                 startMs: cue.startMs,
@@ -474,6 +510,90 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             ))
         }
         return result
+    }
+
+    /// Score each candidate split index `i` (meaning words[0..<i] | words[i...]) and
+    /// return the best one. Favours linguistic boundaries: real punctuation, clause
+    /// starters, capitalised words; penalises ending on conjunctions/articles. Distance
+    /// from midpoint is a small tiebreaker so two equally-good splits prefer the balanced
+    /// one. Falls back to the midpoint if no candidate scores above zero.
+    private func bestSplitIndex(in cueWords: [WordTimestamp]) -> Int {
+        let mid = cueWords.count / 2
+        var bestIdx = mid
+        var bestScore = Int.min
+        // Valid splits: 1...(count-1) so both halves have at least one word.
+        for i in 1..<cueWords.count {
+            let prevWord = cueWords[i - 1].word
+            let nextWord = cueWords[i].word
+            let prevKey = prevWord.lowercased().trimmingCharacters(in: .punctuationCharacters)
+            let nextKey = nextWord.lowercased().trimmingCharacters(in: .punctuationCharacters)
+
+            var score = 0
+            if let last = prevWord.last, ".!?".contains(last) { score += 3 }
+            if let last = prevWord.last, ",;:".contains(last) { score += 2 }
+            if Self.clauseStarters.contains(nextKey) { score += 2 }
+            if let first = nextWord.first, first.isUppercase { score += 1 }
+            if Self.badEnders.contains(prevKey) { score -= 2 }
+            // Distance penalty: -1 per word away from midpoint (tiebreaker).
+            score -= abs(i - mid)
+
+            if score > bestScore {
+                bestScore = score
+                bestIdx = i
+            }
+        }
+        // If every candidate scored ≤ 0 purely from the distance penalty, fall back
+        // to the midpoint — anything else is just a less-balanced version of the same.
+        return bestScore > -cueWords.count ? bestIdx : mid
+    }
+
+    /// Wrap cues whose text exceeds maxLineChars into two balanced lines separated by `\n`.
+    /// Picks the word boundary closest to the character midpoint, with a small bonus for
+    /// splits immediately after a comma or before a clause starter. Cues that fit on one
+    /// line pass through unchanged.
+    private func wrapLongCues(_ cues: [SubtitleCue]) -> [SubtitleCue] {
+        cues.map { cue in
+            guard cue.text.count > Self.maxLineChars else { return cue }
+            let tokens = cue.text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
+            guard tokens.count >= 2 else { return cue }
+
+            let totalLen = cue.text.count
+            let targetLen = totalLen / 2
+
+            // Build prefix character lengths so we can score each split point.
+            var prefixLen = 0
+            var bestIdx = tokens.count / 2
+            var bestScore = Int.min
+            for i in 1..<tokens.count {
+                prefixLen += tokens[i - 1].count + (i == 1 ? 0 : 1) // +1 for the joining space, except the first hop
+                let firstLen = prefixLen
+                let secondLen = totalLen - prefixLen - 1 // -1 for the space replaced by \n
+                let prevToken = tokens[i - 1]
+                let nextToken = tokens[i]
+                let nextKey = nextToken.lowercased().trimmingCharacters(in: .punctuationCharacters)
+
+                // Distance from target (lower is better).
+                var score = -abs(firstLen - targetLen)
+                if let last = prevToken.last, ",;:".contains(last) { score += 4 }
+                if Self.clauseStarters.contains(nextKey) { score += 3 }
+                // Discourage splits that leave one side wildly oversized.
+                if firstLen > Self.maxLineChars || secondLen > Self.maxLineChars { score -= 2 }
+
+                if score > bestScore {
+                    bestScore = score
+                    bestIdx = i
+                }
+            }
+
+            let firstLine = tokens[0..<bestIdx].joined(separator: " ")
+            let secondLine = tokens[bestIdx...].joined(separator: " ")
+            return SubtitleCue(
+                startMs: cue.startMs,
+                endMs: cue.endMs,
+                text: "\(firstLine)\n\(secondLine)",
+                speakerId: cue.speakerId
+            )
+        }
     }
 
     /// Resolve a speakerId to a display label using the speakers mapping.
