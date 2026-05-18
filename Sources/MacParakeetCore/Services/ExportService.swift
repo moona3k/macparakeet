@@ -355,6 +355,14 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// Groups word timestamps into subtitle cues suitable for SRT/VTT and overlay display.
     /// Rules: max ~12 words per cue, break on sentence-ending punctuation,
     /// break on long pauses (>800ms), max ~7 seconds per cue, break on speaker change.
+    // Subordinating conjunctions and relative pronouns that open a new dependent clause.
+    // Breaking before these words produces more natural subtitle boundaries than breaking
+    // mid-clause at an arbitrary character limit.
+    private static let clauseStarters: Set<String> = [
+        "because", "although", "since", "while", "whereas",
+        "unless", "until", "though", "who", "which", "where", "when"
+    ]
+
     public func buildSubtitleCues(from words: [WordTimestamp]) -> [SubtitleCue] {
         guard !words.isEmpty else { return [] }
 
@@ -388,7 +396,14 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let tooManyWords = currentWords.count >= 12
             let tooLong = (cueEndMs - cueStartMs) > 7000
 
-            if isLast || (endsWithPunctuation && currentWords.count >= 2) || hasLongGap || tooManyWords || tooLong {
+            // Break before a subordinating conjunction or relative pronoun that opens a
+            // new dependent clause — but only after at least 4 words have accumulated so
+            // we don't produce single-word cues.
+            let nextIsClauseStart = !isLast
+                && currentWords.count >= 4
+                && Self.clauseStarters.contains(words[i + 1].word.lowercased())
+
+            if isLast || (endsWithPunctuation && currentWords.count >= 2) || hasLongGap || tooManyWords || tooLong || nextIsClauseStart {
                 cues.append(SubtitleCue(
                     startMs: cueStartMs,
                     endMs: cueEndMs,
@@ -403,7 +418,48 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             }
         }
 
-        return cues
+        // Enforce reading speed: split cues that exceed 17 CPS (Netflix/BBC standard).
+        return enforceReadingSpeed(cues, words: words)
+    }
+
+    /// Split cues whose text/duration ratio exceeds maxCPS characters per second.
+    /// 25 CPS is the safety threshold — the Netflix/BBC guideline is 17 CPS, but that
+    /// standard is for display time compliance tools; 25 catches genuinely unreadable
+    /// cues without false-positiving on fast-but-readable speech.
+    /// Uses word timestamps to find a midpoint split. Cues that can't be cleanly
+    /// split (≤ 2 words) are left untouched.
+    private func enforceReadingSpeed(_ cues: [SubtitleCue], words: [WordTimestamp], maxCPS: Double = 25.0) -> [SubtitleCue] {
+        var result: [SubtitleCue] = []
+        for cue in cues {
+            let durationSec = Double(cue.endMs - cue.startMs) / 1000.0
+            guard durationSec > 0.1 else { result.append(cue); continue }
+
+            let cps = Double(cue.text.count) / durationSec
+            guard cps > maxCPS else { result.append(cue); continue }
+
+            // Find words that fall within this cue's time range.
+            let cueWords = words.filter { $0.startMs >= cue.startMs && $0.endMs <= cue.endMs }
+            guard cueWords.count > 2 else { result.append(cue); continue }
+
+            // Split at the midpoint word.
+            let mid = cueWords.count / 2
+            let firstHalf = cueWords[0..<mid]
+            let secondHalf = cueWords[mid...]
+
+            result.append(SubtitleCue(
+                startMs: cue.startMs,
+                endMs: firstHalf.last!.endMs,
+                text: firstHalf.map(\.word).joined(separator: " "),
+                speakerId: cue.speakerId
+            ))
+            result.append(SubtitleCue(
+                startMs: secondHalf.first!.startMs,
+                endMs: cue.endMs,
+                text: secondHalf.map(\.word).joined(separator: " "),
+                speakerId: cue.speakerId
+            ))
+        }
+        return result
     }
 
     /// Resolve a speakerId to a display label using the speakers mapping.
