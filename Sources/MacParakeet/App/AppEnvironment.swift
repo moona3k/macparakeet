@@ -136,7 +136,7 @@ final class AppEnvironment {
         let serviceName = Bundle.main.bundleIdentifier ?? "com.macparakeet"
         // Dev builds use UserDefaults to avoid repeated keychain access prompts
         // after every ad-hoc re-signing. Production builds should use Keychain.
-        let isDevBuild = serviceName.contains("dev") || serviceName.contains("Dev")
+        let isDevBuild = true // Personal build: always use UserDefaults
         let store: KeyValueStore = isDevBuild
             ? UserDefaultsKeyValueStore(prefix: serviceName)
             : KeychainKeyValueStore(service: serviceName)

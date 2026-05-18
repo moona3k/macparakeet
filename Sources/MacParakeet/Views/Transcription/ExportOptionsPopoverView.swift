@@ -222,6 +222,16 @@ private struct SubtitleConfigSection: View {
 
             Toggle("Balance line lengths", isOn: $config.preferBalancedLines)
                 .font(DesignSystem.Typography.caption)
+
+            Divider()
+                .padding(.vertical, 4)
+
+            Toggle("Use AI Refinement", isOn: $config.useLLMRefinement)
+                .font(DesignSystem.Typography.caption)
+            Text("Sends subtitle blocks to your configured LLM for context-aware boundary fixes. Slightly slower.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

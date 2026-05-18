@@ -65,6 +65,12 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
     /// Prefer balanced line lengths when wrapping across lines.
     public var preferBalancedLines: Bool
 
+    /// Whether to use LLM refinement for subtitle boundary quality.
+    public var useLLMRefinement: Bool
+    /// Maximum reading speed in characters per second. Cues exceeding this will be split.
+    /// Professional standard (Netflix, BBC): 17.0. Set to 0 to disable.
+    public var maxCPS: Double
+
     public init(
         maxWordsPerCue: Int = 12,
         maxCharsPerLine: Int = 42,
@@ -73,7 +79,9 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
         gapThresholdMs: Int = 800,
         breakOnPunctuation: Bool = true,
         minWordsBeforePunctuationBreak: Int = 4,
-        preferBalancedLines: Bool = true
+        preferBalancedLines: Bool = true,
+        useLLMRefinement: Bool = false,
+        maxCPS: Double = 17.0
     ) {
         self.maxWordsPerCue = max(1, maxWordsPerCue)
         self.maxCharsPerLine = max(10, maxCharsPerLine)
@@ -83,6 +91,8 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
         self.breakOnPunctuation = breakOnPunctuation
         self.minWordsBeforePunctuationBreak = max(1, minWordsBeforePunctuationBreak)
         self.preferBalancedLines = preferBalancedLines
+        self.useLLMRefinement = useLLMRefinement
+        self.maxCPS = max(0, maxCPS)
     }
 
     public static let `default` = SubtitleExportConfig()
@@ -221,6 +231,68 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             config: config,
             includeSpeakerLabels: includeSpeakerLabels
         ).write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// Async variant with optional LLM refinement.
+    public func exportToSRT(
+        transcription: Transcription,
+        url: URL,
+        config: SubtitleExportConfig = .default,
+        includeSpeakerLabels: Bool = false,
+        llmService: LLMServiceProtocol?
+    ) async throws {
+        if let text = editedTranscriptText(transcription: transcription) {
+            let duration = transcription.durationMs ?? 0
+            let srt = "1\n00:00:00,000 --> \(srtTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
+            try srt.write(to: url, atomically: true, encoding: .utf8)
+            return
+        }
+        guard let words = transcription.wordTimestamps, !words.isEmpty else {
+            let text = preferredText(transcription: transcription)
+            let duration = transcription.durationMs ?? 0
+            let srt = "1\n00:00:00,000 --> \(srtTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
+            try srt.write(to: url, atomically: true, encoding: .utf8)
+            return
+        }
+        let text = try await formatSRT(
+            words: words,
+            speakers: transcription.speakers,
+            config: config,
+            includeSpeakerLabels: includeSpeakerLabels,
+            llmService: llmService
+        )
+        try text.write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    /// Async variant with optional LLM refinement.
+    public func exportToVTT(
+        transcription: Transcription,
+        url: URL,
+        config: SubtitleExportConfig = .default,
+        includeSpeakerLabels: Bool = false,
+        llmService: LLMServiceProtocol?
+    ) async throws {
+        if let text = editedTranscriptText(transcription: transcription) {
+            let duration = transcription.durationMs ?? 0
+            let vtt = "WEBVTT\n\n\(vttTimestamp(ms: 0)) --> \(vttTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
+            try vtt.write(to: url, atomically: true, encoding: .utf8)
+            return
+        }
+        guard let words = transcription.wordTimestamps, !words.isEmpty else {
+            let text = preferredText(transcription: transcription)
+            let duration = transcription.durationMs ?? 0
+            let vtt = "WEBVTT\n\n\(vttTimestamp(ms: 0)) --> \(vttTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
+            try vtt.write(to: url, atomically: true, encoding: .utf8)
+            return
+        }
+        let text = try await formatVTT(
+            words: words,
+            speakers: transcription.speakers,
+            config: config,
+            includeSpeakerLabels: includeSpeakerLabels,
+            llmService: llmService
+        )
+        try text.write(to: url, atomically: true, encoding: .utf8)
     }
 
     /// Format a transcription as SRT, falling back to one full-transcript cue.
@@ -386,6 +458,67 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return lines.joined(separator: "\n")
     }
 
+    /// Async variant of formatSRT with optional LLM refinement.
+    public func formatSRT(
+        words: [WordTimestamp],
+        speakers: [SpeakerInfo]? = nil,
+        config: SubtitleExportConfig = .default,
+        includeSpeakerLabels: Bool = false,
+        llmService: LLMServiceProtocol?
+    ) async throws -> String {
+        var cues = buildSubtitleCues(
+            from: words,
+            config: config,
+            breakOnSpeakerChange: includeSpeakerLabels
+        )
+
+        if config.useLLMRefinement, let llmService = llmService {
+            let refiner = SubtitleLLMRefiner(llmService: llmService)
+            cues = try await refiner.refine(cues: cues, config: config)
+        }
+
+        var lines: [String] = []
+        for (i, cue) in cues.enumerated() {
+            lines.append("\(i + 1)")
+            lines.append("\(srtTimestamp(ms: cue.startMs)) --> \(srtTimestamp(ms: cue.endMs))")
+            lines.append(formattedCueText(cue, speakers: speakers, includeSpeakerLabels: includeSpeakerLabels))
+            lines.append("")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// Async variant of formatVTT with optional LLM refinement.
+    public func formatVTT(
+        words: [WordTimestamp],
+        speakers: [SpeakerInfo]? = nil,
+        config: SubtitleExportConfig = .default,
+        includeSpeakerLabels: Bool = false,
+        llmService: LLMServiceProtocol?
+    ) async throws -> String {
+        var cues = buildSubtitleCues(
+            from: words,
+            config: config,
+            breakOnSpeakerChange: includeSpeakerLabels
+        )
+
+        if config.useLLMRefinement, let llmService = llmService {
+            let refiner = SubtitleLLMRefiner(llmService: llmService)
+            cues = try await refiner.refine(cues: cues, config: config)
+        }
+
+        var lines: [String] = ["WEBVTT", ""]
+        for cue in cues {
+            lines.append("\(vttTimestamp(ms: cue.startMs)) --> \(vttTimestamp(ms: cue.endMs))")
+            if includeSpeakerLabels, let label = speakerLabel(for: cue.speakerId, in: speakers) {
+                lines.append("<v \(label)>\(cue.text)</v>")
+            } else {
+                lines.append(cue.text)
+            }
+            lines.append("")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// Format word timestamps as WebVTT subtitle string
     public func formatVTT(
         words: [WordTimestamp],
@@ -529,7 +662,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         var words: [String]
         var wordTimestamps: [WordTimestamp]
         var speakerId: String?
-        var text: String { words.joined(separator: " ") }
+        var forcedText: String? = nil
+        var text: String { forcedText ?? words.joined(separator: " ") }
     }
 
     /// Builds subtitle cues from word-level timestamps.
@@ -544,6 +678,38 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         breakOnSpeakerChange: Bool = false
     ) -> [SubtitleCue] {
         guard !words.isEmpty else { return [] }
+        
+        // Trim whitespace from word tokens (Whisper sometimes emits leading/trailing spaces)
+        let trimmedWords = words.map { w in
+            WordTimestamp(
+                word: w.word.trimmingCharacters(in: .whitespacesAndNewlines),
+                startMs: w.startMs,
+                endMs: w.endMs,
+                confidence: w.confidence,
+                speakerId: w.speakerId
+            )
+        }
+
+        // Merge hyphenated and apostrophe fragments (e.g. "warm" + "-up" → "warm-up")
+        var mergedWords: [WordTimestamp] = []
+        for word in trimmedWords {
+            if mergedWords.isEmpty {
+                mergedWords.append(word)
+            } else {
+                let last = mergedWords[mergedWords.count - 1]
+                if word.word.hasPrefix("-") || word.word.hasPrefix("–") || word.word.hasPrefix("—") || word.word.hasPrefix("'") || word.word.hasPrefix("’") {
+                    mergedWords[mergedWords.count - 1] = WordTimestamp(
+                        word: last.word + word.word,
+                        startMs: last.startMs,
+                        endMs: word.endMs,
+                        confidence: min(last.confidence, word.confidence),
+                        speakerId: last.speakerId
+                    )
+                } else {
+                    mergedWords.append(word)
+                }
+            }
+        }
 
         // Track word-level state
         var cues: [MutableCue] = []
@@ -564,10 +730,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             currentWords = []
         }
 
-        for i in 0..<words.count {
-            let word = words[i]
-            let isLast = i == words.count - 1
-            let hasNext = i < words.count - 1
+        for i in 0..<mergedWords.count {
+            let word = mergedWords[i]
+            let isLast = i == mergedWords.count - 1
+            let hasNext = i < mergedWords.count - 1
 
             // Check speaker change
             let speakerChanged = breakOnSpeakerChange
@@ -575,7 +741,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 && word.speakerId != currentSpeakerId
 
             // Check timing gap (next word starts much later)
-            let hasLongGap = hasNext && (words[i + 1].startMs - word.endMs) > config.gapThresholdMs
+            let hasLongGap = hasNext && (mergedWords[i + 1].startMs - word.endMs) > config.gapThresholdMs
 
             // Check duration limit
             let tooLong = word.endMs - currentStartMs > config.maxDurationMs
@@ -585,74 +751,167 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let prospectiveText = prospective.map(\.word).joined(separator: " ")
             let exceedsBudget = prospectiveText.count > config.maxCharsPerLine
 
+            // --- SENTENCE BOUNDARY DETECTION ---
+            // A sentence-ending punctuation mark (period, exclamation, question)
+            // followed by a capitalized word is ALWAYS a cue boundary.
+            let endsWithSentencePunctuation = config.breakOnPunctuation
+                && (word.word.last.map { ".!?".contains($0) } ?? false)
+            let nextWordIsSentenceStarter = hasNext
+                && isSentenceStarter(mergedWords[i + 1].word)
+            let isSentenceBoundary = endsWithSentencePunctuation
+                && nextWordIsSentenceStarter
+
             // PHASE 1: Hard limits — speaker change, gap, or duration exceeded
-            if speakerChanged || hasLongGap || tooLong {
-                // Must end the cue BEFORE this word
+            if speakerChanged || tooLong {
                 if !currentWords.isEmpty {
                     flushCue(endIndex: i - 1)
                 }
-                // Start fresh with this word
                 currentStartMs = word.startMs
                 currentSpeakerId = word.speakerId
                 currentWords = [word]
                 continue
             }
 
-            // PHASE 2: Budget exceeded — need to find best split point
-            if exceedsBudget && !currentWords.isEmpty {
-                // Current cue is full. Find the best boundary within it.
-                let bestSplit = findBestBoundary(
-                    words: currentWords,
-                    maxChars: config.maxCharsPerLine
-                )
-
-                if bestSplit > 0 && bestSplit < currentWords.count {
-                    // Split: first part becomes a cue, remainder stays for next
-                    let firstPart = Array(currentWords[0..<bestSplit])
-                    let secondPart = Array(currentWords[bestSplit...])
-
-                    cues.append(MutableCue(
-                        startMs: currentStartMs,
-                        endMs: firstPart.last?.endMs ?? word.endMs,
-                        words: firstPart.map(\.word),
-                        wordTimestamps: firstPart,
-                        speakerId: currentSpeakerId
-                    ))
-
-                    // Second part becomes the new current words
-                    currentWords = secondPart
-                    currentStartMs = secondPart.first?.startMs ?? word.startMs
-                } else {
-                    // No good split found — just flush what we have
-                    flushCue(endIndex: currentWords.count - 1)
-                }
-            }
-
-            // Add current word to the active cue
-            currentWords.append(word)
-
-            // PHASE 3: Soft breaks — punctuation that signals a natural end
-            let endsWithPunctuation = config.breakOnPunctuation
-                && (word.word.last.map { ".!?".contains($0) } ?? false)
-            let shouldBreakOnPunctuation = endsWithPunctuation
-                && currentWords.count >= config.minWordsBeforePunctuationBreak
-
-            if shouldBreakOnPunctuation {
+            // Long gap: the gap is AFTER this word, so this word belongs to the
+            // current cue. Append it, flush, then start the next cue at i+1.
+            if hasLongGap {
+                currentWords.append(word)
                 flushCue(endIndex: i)
                 if hasNext {
-                    currentStartMs = words[i + 1].startMs
-                    currentSpeakerId = words[i + 1].speakerId
+                    currentStartMs = mergedWords[i + 1].startMs
+                    currentSpeakerId = mergedWords[i + 1].speakerId
+                }
+                continue
+            }
+
+            // PHASE 2: Sentence boundary — flush before absorbing next sentence,
+            // but only if the cue fits within budget. If it exceeds budget, let
+            // PHASE 3 handle the split first.
+            if isSentenceBoundary && prospectiveText.count <= config.maxCharsPerLine {
+                currentWords.append(word)
+                flushCue(endIndex: i)
+                if hasNext {
+                    currentStartMs = mergedWords[i + 1].startMs
+                    currentSpeakerId = mergedWords[i + 1].speakerId
+                }
+                continue
+            }
+
+            // PHASE 2.5: Clause-start boundary — break before subordinating conjunctions
+            // and relative pronouns that introduce a new dependent clause, even without
+            // sentence-ending punctuation. Guards: breakOnPunctuation, min word count,
+            // and must fit within budget so Phase 3 can handle overflow separately.
+            let clauseStarters = Set(["because", "although", "since", "while", "whereas",
+                                      "unless", "until", "though", "who", "which", "where", "when"])
+            let nextIsClauseStart = hasNext
+                && clauseStarters.contains(
+                    mergedWords[i + 1].word.lowercased()
+                        .trimmingCharacters(in: .punctuationCharacters))
+            let shouldBreakForClause = config.breakOnPunctuation
+                && nextIsClauseStart
+                && currentWords.count >= config.minWordsBeforePunctuationBreak
+                && prospectiveText.count <= config.maxCharsPerLine
+
+            if shouldBreakForClause {
+                currentWords.append(word)
+                flushCue(endIndex: i)
+                if hasNext {
+                    currentStartMs = mergedWords[i + 1].startMs
+                    currentSpeakerId = mergedWords[i + 1].speakerId
+                }
+                continue
+            }
+
+            // PHASE 3: Budget exceeded — find best boundary including this word
+            if exceedsBudget && !currentWords.isEmpty {
+                // Look ahead: if a sentence boundary is within the next 2 words,
+                // allow a slight overflow (up to 20% over budget) to reach it naturally.
+                var nearSentenceBoundary = false
+                for offset in 1...2 {
+                    let peekIdx = i + offset
+                    guard peekIdx < mergedWords.count else { break }
+                    let peekWord = mergedWords[peekIdx]
+                    let hasNextPeek = peekIdx < mergedWords.count - 1
+                    let peekEndsSentence = config.breakOnPunctuation
+                        && (peekWord.word.last.map { ".!?".contains($0) } ?? false)
+                    let nextIsStarter = hasNextPeek
+                        && isSentenceStarter(mergedWords[peekIdx + 1].word)
+                    if peekEndsSentence && nextIsStarter {
+                        let extendedText = (prospective + mergedWords[(i + 1)...peekIdx]).map(\.word).joined(separator: " ")
+                        if extendedText.count <= config.maxCharsPerLine {
+                            nearSentenceBoundary = true
+                        }
+                        break
+                    }
+                }
+
+                if !nearSentenceBoundary {
+                    // Search backward for the best boundary in the FULL prospective cue
+                    let boundaryIndex = findBestBoundaryBackward(
+                        words: prospective,
+                        maxChars: config.maxCharsPerLine
+                    )
+
+                    if boundaryIndex >= 0 && boundaryIndex < prospective.count - 1 {
+                        // Everything before the boundary becomes a cue
+                        let cueWords = Array(prospective[0...boundaryIndex])
+                        cues.append(MutableCue(
+                            startMs: currentStartMs,
+                            endMs: cueWords.last?.endMs ?? word.endMs,
+                            words: cueWords.map(\.word),
+                            wordTimestamps: cueWords,
+                            speakerId: currentSpeakerId
+                        ))
+
+                        // Everything after the boundary stays as current words
+                        let remaining = Array(prospective[(boundaryIndex + 1)...])
+                        currentWords = remaining
+                        currentStartMs = remaining.first?.startMs ?? word.startMs
+                    } else {
+                        // No good split — flush what we have, keep current word for next
+                        flushCue(endIndex: currentWords.count - 1)
+                        currentWords = [word]
+                        currentStartMs = word.startMs
+                    }
+                    continue
+                }
+                // If near a sentence boundary, fall through to append word
+                // and let the sentence boundary phase catch it on the next iteration.
+            }
+
+            // PHASE 4: Clause-level punctuation (comma, semicolon) with min words guard
+            let endsWithClausePunctuation = config.breakOnPunctuation
+                && (word.word.last.map { ",;:".contains($0) } ?? false)
+            let shouldBreakOnClause = endsWithClausePunctuation
+                && currentWords.count >= config.minWordsBeforePunctuationBreak
+
+            if shouldBreakOnClause {
+            }
+
+            currentWords.append(word)
+
+            if shouldBreakOnClause {
+                flushCue(endIndex: i)
+                if hasNext {
+                    currentStartMs = mergedWords[i + 1].startMs
+                    currentSpeakerId = mergedWords[i + 1].speakerId
                 }
             }
 
-            // PHASE 4: End of stream
+            // PHASE 5: End of stream
             if isLast && !currentWords.isEmpty {
                 flushCue(endIndex: i)
             }
         }
 
         // Post-process: merge tiny orphaned cues
-        cues = mergeOrphanedCues(cues, maxChars: config.maxCharsPerLine)
+        cues = mergeOrphanedCues(cues, maxChars: config.maxCharsPerLine, gapThresholdMs: config.gapThresholdMs)
+        // Post-process: merge adjacent short cues into two-line blocks
+        cues = mergeAdjacentCuesForTwoLine(cues, maxChars: config.maxCharsPerLine, gapThresholdMs: config.gapThresholdMs)
+        // Post-process: split cues that exceed the maximum reading speed
+        if config.maxCPS > 0 {
+            cues = enforceReadingSpeed(cues, config: config)
+        }
 
         return cues.map { cue in
             SubtitleCue(
@@ -664,65 +923,282 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
     }
 
-    /// Find the best boundary to split a cue that has exceeded its character budget.
-    /// Looks backward from the end for punctuation, conjunctions, and prepositions.
-    /// Returns the index AFTER which to split (i.e., words[0..<split] is the first cue).
-    private func findBestBoundary(words: [WordTimestamp], maxChars: Int) -> Int {
-        guard words.count > 2 else { return words.count / 2 }
+    /// Detect if a word starts a new sentence (capitalized, or short pronouns).
+    private func isSentenceStarter(_ word: String) -> Bool {
+        guard let first = word.first else { return false }
+        let firstIsUppercase = first.isUppercase
+        let shortStarters = ["i", "we", "you", "they", "he", "she", "it", "the", "a", "an", "this", "that", "these", "those", "my", "our", "your", "their", "his", "her", "its", "go", "then", "thanks", "thank", "if", "and", "but", "or", "so", "yet", "now", "today", "let"]
+        let lower = word.lowercased()
+        return firstIsUppercase || shortStarters.contains(lower)
+    }
 
-        var bestIdx = 0
-        var bestScore = Int.min
+    /// Find the best boundary by scanning backward from the end of the words array.
+    /// Returns the index of the LAST word in the first segment (the cue to flush).
+    ///
+    /// Scoring philosophy: both resulting cues should feel like complete thoughts.
+    /// We heavily penalize boundaries that leave conjunctions, articles, determiners,
+    /// or prepositions dangling at the end of a cue, or that start the next cue
+    /// with those same orphaned words. True punctuation marks are the gold standard.
+    private func findBestBoundaryBackward(words: [WordTimestamp], maxChars: Int) -> Int {
+        guard words.count > 2 else { return 0 }
 
-        // Try each possible split point
-        for splitAfter in 1..<words.count {
-            let firstText = words[0..<splitAfter].map(\.word).joined(separator: " ")
-            let secondText = words[splitAfter...].map(\.word).joined(separator: " ")
+        let badEnders = Set([
+            "and", "but", "or", "so", "yet", "for", "nor", "then", "because", "although", "while", "whereas",
+            "the", "a", "an",
+            "my", "your", "his", "her", "its", "our", "their", "this", "that", "these", "those", "what", "which", "whose",
+            "some", "any", "each", "every", "either", "neither", "both", "all", "no", "another", "such", "only", "own", "same", "other", "few", "many", "much", "several", "most", "more", "less",
+            "in", "on", "at", "to", "of", "with", "from", "by", "as", "into", "onto", "about", "under", "over", "through", "during", "before", "after", "above", "below", "up", "down", "out", "off", "near", "like", "until", "since", "within", "without", "against", "among", "between", "toward", "towards",
+            "i", "we", "you", "they", "he", "she", "it", "me", "us", "him", "her", "them", "mine", "yours", "ours", "hers", "theirs"
+        ])
 
-            // Must fit within budget
+        let badStarters = Set([
+            "and", "but", "or", "so", "yet", "for", "nor", "then", "because", "although", "while", "whereas",
+            "the", "a", "an",
+            "in", "on", "at", "to", "of", "with", "from", "by", "as", "into", "onto", "about", "under", "over", "through", "during", "before", "after", "above", "below", "up", "down", "out", "off", "near", "like", "until", "since", "within", "without", "against", "among", "between", "toward", "towards"
+        ])
+
+        let clauseStarters = Set(["because", "although", "since", "while", "whereas",
+                                   "unless", "until", "though", "who", "which", "where", "when"])
+        var candidates: [(index: Int, score: Int)] = []
+
+        for splitIdx in stride(from: words.count - 2, through: 0, by: -1) {
+            let firstText = words[0...splitIdx].map(\.word).joined(separator: " ")
+            let secondText = words[(splitIdx + 1)...].map(\.word).joined(separator: " ")
+
             guard firstText.count <= maxChars && secondText.count <= maxChars else { continue }
 
-            let lastWord = words[splitAfter - 1].word.lowercased()
-            let nextWord = words[splitAfter].word.lowercased()
+            let lastWordRaw = words[splitIdx].word
+            let lastWord = lastWordRaw.lowercased().trimmingCharacters(in: .punctuationCharacters)
+            let nextWordRaw = words[splitIdx + 1].word
+            let nextWord = nextWordRaw.lowercased().trimmingCharacters(in: .punctuationCharacters)
             var score = 0
 
-            // Strong preference for punctuation
-            if lastWord.hasSuffix(",") || lastWord.hasSuffix(";") || lastWord.hasSuffix(":") {
-                score += 100
+            // Real punctuation bonuses
+            if words[splitIdx].word.last.map({ ".!?".contains($0) }) ?? false {
+                score += 300
             }
-            if lastWord.last.map({ ".!?".contains($0) }) ?? false {
-                score += 90
+            if words[splitIdx].word.hasSuffix(",") || words[splitIdx].word.hasSuffix(";") || words[splitIdx].word.hasSuffix(":") {
+                score += 150
             }
 
-            // Conjunctions / prepositions
-            if ["and", "but", "or", "so", "yet", "for", "nor", "then",
-                "in", "on", "at", "to", "of", "with", "from", "by", "as"].contains(lastWord) {
+            // Semantic completeness: noun/verb suffixes
+            let nounSuffixes = ["ing", "tion", "sion", "ment", "ness", "ity", "ty", "er", "or", "ist", "ism", "age", "ure", "ence", "ance", "ome", "ide", "ine", "ese"]
+            let verbSuffixes = ["ed", "en", "ize", "ise"]
+            if nounSuffixes.contains(where: { lastWord.hasSuffix($0) }) || verbSuffixes.contains(where: { lastWord.hasSuffix($0) }) {
+                score += 50
+            }
+            // Numbers
+            if lastWordRaw.rangeOfCharacter(from: .decimalDigits) != nil && lastWordRaw.last?.isNumber == true {
                 score += 40
             }
+            // Capitalized words (proper nouns, names) feel complete
+            if let first = lastWordRaw.first, first.isUppercase {
+                score += 60
+            }
 
-            // Articles
-            if ["the", "a", "an"].contains(lastWord) { score += 15 }
+            // Penalties for BAD boundary words
+            if badEnders.contains(lastWord) {
+                score -= 250
+            }
+            if lastWord.count == 1 {
+                score -= 150
+            }
+            // Penalty for splitting hyphenated compounds or phrasal units
+            if lastWordRaw.contains("-") && nextWordRaw.contains("-") {
+                score -= 100
+            }
 
-            // Avoid starting next cue with punctuation
-            if nextWord.hasPrefix(",") || nextWord.hasPrefix(";") { score -= 80 }
+            // Penalties for BAD starters
+            if badStarters.contains(nextWord) {
+                score -= 100
+            }
+            if nextWordRaw.hasPrefix(",") || nextWordRaw.hasPrefix(";") || nextWordRaw.hasPrefix(":") {
+                score -= 150
+            }
 
-            // Prefer roughly equal halves
-            let lenDiff = abs(firstText.count - secondText.count)
-            score -= lenDiff / 2
+            // Bonus for breaking before a clause-starting word. These words naturally
+            // open a dependent clause and make a clean subtitle entry point. The +175
+            // offsets the badStarters -100 penalty above and adds a net +75 preference.
+            if clauseStarters.contains(nextWord) {
+                score += 175
+            }
 
-            // Avoid very short second segments
-            if words.count - splitAfter < 2 { score -= 50 }
+            // Length sanity
+            let firstWordCount = splitIdx + 1
+            let secondWordCount = words.count - splitIdx - 1
+            if firstWordCount < 4 { score -= 100 }
+            else if firstWordCount < 6 { score -= 40 }
 
-            if score > bestScore {
-                bestScore = score
-                bestIdx = splitAfter
+            if secondWordCount < 4 { score -= 100 }
+            else if secondWordCount < 6 { score -= 40 }
+
+            // Number-range guard: don't split "between X and Y", "X to Y", "from X to Y"
+            let lowerWords = words.map { $0.word.lowercased() }
+            // Check if this split breaks a number range pattern
+            if splitIdx >= 1 && splitIdx + 1 < words.count {
+                let w0 = lowerWords[splitIdx - 1]
+                let w1 = lowerWords[splitIdx]
+                let w2 = lowerWords[splitIdx + 1]
+                let _ = (splitIdx + 2 < words.count) ? lowerWords[splitIdx + 2] : nil
+                // "between X and Y" → don't split at "and"
+                if w0 == "between" && w1 == "and" && w2.rangeOfCharacter(from: .decimalDigits) != nil {
+                    score -= 150
+                }
+                // "X to Y" or "from X to Y" → don't split at "to"
+                if w1 == "to" && w2.rangeOfCharacter(from: .decimalDigits) != nil {
+                    if w0.rangeOfCharacter(from: .decimalDigits) != nil || w0 == "from" {
+                        score -= 150
+                    }
+                }
+                // "X and Y" where both are numbers → don't split at "and"
+                if w1 == "and" && w0.rangeOfCharacter(from: .decimalDigits) != nil && w2.rangeOfCharacter(from: .decimalDigits) != nil {
+                    score -= 150
+                }
+            }
+
+            // Phrasal-verb guard: don't split verb + particle pairs
+            let particles = ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around", "through", "across", "along", "apart", "aside", "behind", "by", "forward", "into", "past", "to"]
+            if splitIdx >= 1 && splitIdx + 1 < words.count {
+                let boundaryWord = lowerWords[splitIdx]
+                let nextWord = lowerWords[splitIdx + 1]
+                // Common phrasal verbs: verb + particle
+                let commonPhrasalVerbs: [String: [String]] = [
+                    "welcome": ["in", "back"],
+                    "take": ["in", "on", "up", "down", "out", "off", "over", "away", "back"],
+                    "hold": ["on", "up", "down", "out", "off", "over", "back"],
+                    "bring": ["in", "on", "up", "down", "out", "off", "over", "back"],
+                    "get": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                    "go": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                    "come": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                    "turn": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                    "pick": ["up", "on", "out", "over"],
+                    "put": ["in", "on", "up", "down", "out", "off", "over", "away", "back"],
+                    "set": ["up", "down", "off", "out", "back"],
+                    "sit": ["in", "on", "up", "down", "out", "back"],
+                    "stand": ["in", "on", "up", "down", "out", "back"],
+                    "slow": ["down", "up"],
+                    "speed": ["up", "down"],
+                    "warm": ["up", "down"],
+                    "cool": ["down", "off"],
+                    "reach": ["out", "up", "down", "over"],
+                    "jump": ["in", "on", "up", "down", "out", "over"],
+                    "look": ["in", "on", "up", "down", "out", "over", "away", "back", "around"],
+                    "check": ["in", "on", "up", "out", "over"],
+                    "work": ["in", "on", "up", "out", "over", "through"],
+                    "move": ["in", "on", "up", "down", "out", "over", "away", "back", "around"],
+                    "pull": ["in", "on", "up", "down", "out", "off", "over", "away", "back"],
+                    "push": ["in", "on", "up", "down", "out", "off", "over", "through"],
+                    "run": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                    "walk": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                    "catch": ["up", "on", "out"],
+                    "cut": ["in", "down", "off", "out", "up"],
+                    "break": ["in", "down", "off", "out", "up"],
+                    "call": ["in", "on", "up", "out", "off", "back"],
+                    "fall": ["in", "down", "off", "out", "back", "behind"],
+                    "give": ["in", "up", "away", "back", "out"],
+                    "hand": ["in", "on", "over", "out", "back"],
+                    "keep": ["in", "on", "up", "down", "out", "off", "over", "away", "back"],
+                    "leave": ["in", "on", "out", "off", "over", "behind"],
+                    "let": ["in", "on", "up", "down", "out", "off", "over"],
+                    "make": ["out", "up", "over"],
+                    "pay": ["in", "on", "up", "out", "off", "back"],
+                    "play": ["in", "on", "up", "down", "out", "off", "over", "around"],
+                    "point": ["in", "on", "up", "down", "out", "off", "over", "at"],
+                    "show": ["in", "on", "up", "down", "out", "off", "over", "around"],
+                    "shut": ["in", "on", "up", "down", "out", "off", "over"],
+                    "speak": ["in", "on", "up", "down", "out", "off", "over", "about"],
+                    "start": ["in", "on", "up", "down", "out", "off", "over"],
+                    "stop": ["in", "on", "up", "down", "out", "off", "over"],
+                    "throw": ["in", "on", "up", "down", "out", "off", "over", "away", "back"],
+                    "try": ["in", "on", "up", "down", "out", "off", "over"],
+                    "use": ["in", "on", "up", "down", "out", "off", "over"],
+                    "watch": ["in", "on", "up", "down", "out", "off", "over"]
+                ]
+                if let allowedParticles = commonPhrasalVerbs[boundaryWord], allowedParticles.contains(nextWord) {
+                    score -= 100
+                }
+                // Generic particle after verb
+                if particles.contains(nextWord) {
+                    score -= 30
+                }
+            }
+
+            // Prefer balanced
+            let totalLen = firstText.count + secondText.count
+            let idealLen = totalLen / 2
+            let firstDiff = abs(firstText.count - idealLen)
+            let secondDiff = abs(secondText.count - idealLen)
+            score -= (firstDiff + secondDiff) / 2
+
+            candidates.append((splitIdx, score))
+        }
+
+        // Hard constraint: prefer boundaries that don't end with bad words
+        let goodCandidates = candidates.filter { idx, _ in
+            let lastWord = words[idx].word.lowercased().trimmingCharacters(in: .punctuationCharacters)
+            return !badEnders.contains(lastWord)
+        }
+
+        if let best = goodCandidates.max(by: { $0.score < $1.score }) {
+            return best.index
+        }
+
+        let fallback = candidates.max(by: { $0.score < $1.score })
+        print("[BOUNDARY] fallback=\(fallback?.index ?? 0) score=\(fallback?.score ?? 0) word=\(words[fallback?.index ?? 0].word)")
+        return fallback?.index ?? 0
+    }
+
+    /// Post-process: split cues whose reading speed exceeds config.maxCPS.
+    /// Uses the same boundary scorer as the main cue-building loop. If no clean
+    /// split exists (e.g. only 2 words), the cue is left untouched.
+    private func enforceReadingSpeed(_ cues: [MutableCue], config: SubtitleExportConfig) -> [MutableCue] {
+        var result: [MutableCue] = []
+
+        for cue in cues {
+            let durationSec = Double(cue.endMs - cue.startMs) / 1000.0
+            guard durationSec > 0.1 else {
+                result.append(cue)
+                continue
+            }
+
+            let cps = Double(cue.text.count) / durationSec
+            guard cps > config.maxCPS && cue.wordTimestamps.count > 2 else {
+                result.append(cue)
+                continue
+            }
+
+            let boundaryIndex = findBestBoundaryBackward(
+                words: cue.wordTimestamps,
+                maxChars: config.maxCharsPerLine
+            )
+
+            if boundaryIndex > 0 && boundaryIndex < cue.wordTimestamps.count - 1 {
+                let firstWords = Array(cue.wordTimestamps[0...boundaryIndex])
+                let secondWords = Array(cue.wordTimestamps[(boundaryIndex + 1)...])
+                result.append(MutableCue(
+                    startMs: cue.startMs,
+                    endMs: firstWords.last!.endMs,
+                    words: firstWords.map(\.word),
+                    wordTimestamps: firstWords,
+                    speakerId: cue.speakerId
+                ))
+                result.append(MutableCue(
+                    startMs: secondWords.first!.startMs,
+                    endMs: cue.endMs,
+                    words: secondWords.map(\.word),
+                    wordTimestamps: secondWords,
+                    speakerId: cue.speakerId
+                ))
+            } else {
+                result.append(cue)
             }
         }
 
-        return bestIdx
+        return result
     }
 
     /// Post-process: merge cues that are too small with neighbours when possible.
-    private func mergeOrphanedCues(_ cues: [MutableCue], maxChars: Int) -> [MutableCue] {
+    private func mergeOrphanedCues(_ cues: [MutableCue], maxChars: Int, gapThresholdMs: Int = 800) -> [MutableCue] {
         guard cues.count > 1 else { return cues }
 
         let minChars = 15
@@ -730,7 +1206,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         let tolerance = 10
         let maxBudget = maxChars + tolerance
 
+        func crossesLongGap(_ a: MutableCue, _ b: MutableCue) -> Bool {
+            (b.startMs - a.endMs) > gapThresholdMs
+        }
+
         var result = cues
+
 
         // Forward pass: absorb tiny cue into next cue
         var i = 0
@@ -740,7 +1221,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             if isTiny {
                 let next = result[i + 1]
                 let merged = current.text + " " + next.text
-                if merged.count <= maxBudget {
+                if merged.count <= maxBudget && !crossesLongGap(current, next) {
                     result[i] = MutableCue(
                         startMs: current.startMs,
                         endMs: next.endMs,
@@ -755,6 +1236,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             i += 1
         }
 
+
         // Backward pass: absorb tiny cue into previous cue
         i = 1
         while i < result.count {
@@ -763,7 +1245,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             if isTiny {
                 let prev = result[i - 1]
                 let merged = prev.text + " " + current.text
-                if merged.count <= maxBudget {
+                if merged.count <= maxBudget && !crossesLongGap(prev, current) {
                     result[i - 1] = MutableCue(
                         startMs: prev.startMs,
                         endMs: current.endMs,
@@ -778,6 +1260,116 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             i += 1
         }
 
+        return result
+    }
+
+    /// Post-process: merge adjacent short cues into two-line blocks when
+    /// the combined text fits within the total character budget.
+    private func mergeAdjacentCuesForTwoLine(_ cues: [MutableCue], maxChars: Int, gapThresholdMs: Int = 800) -> [MutableCue] {
+        guard cues.count > 1 else { return cues }
+        let tolerance = 8
+        var result = cues
+        var i = 0
+        while i < result.count - 1 {
+            let current = result[i]
+            let next = result[i + 1]
+            // Combined text with newline separator (pre-formatted 2-line)
+            let mergedText = current.text + "\n" + next.text
+            let mergedCount = mergedText.count
+            // Also accept a space-joined version for length check
+            let spaceMerged = current.text + " " + next.text
+            let spaceCount = spaceMerged.count
+
+            // Phrasal-verb bonus: if the boundary completes a phrasal verb,
+            // allow a slightly larger effective budget.
+            let phrasalBonus: Int
+            let commonPhrasalVerbs: [String: [String]] = [
+                "welcome": ["in", "back"],
+                "take": ["in", "on", "up", "down", "out", "off", "over", "away", "back"],
+                "hold": ["on", "up", "down", "out", "off", "over", "back"],
+                "bring": ["in", "on", "up", "down", "out", "off", "over", "back"],
+                "get": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                "go": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                "come": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                "turn": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                "pick": ["up", "on", "out", "over"],
+                "put": ["in", "on", "up", "down", "out", "off", "over", "away", "back"],
+                "set": ["up", "down", "off", "out", "back"],
+                "sit": ["in", "on", "up", "down", "out", "back"],
+                "stand": ["in", "on", "up", "down", "out", "back"],
+                "slow": ["down", "up"],
+                "speed": ["up", "down"],
+                "warm": ["up", "down"],
+                "cool": ["down", "off"],
+                "reach": ["out", "up", "down", "over"],
+                "jump": ["in", "on", "up", "down", "out", "over"],
+                "look": ["in", "on", "up", "down", "out", "over", "away", "back", "around"],
+                "check": ["in", "on", "up", "out", "over"],
+                "work": ["in", "on", "up", "out", "over", "through"],
+                "move": ["in", "on", "up", "down", "out", "over", "away", "back", "around"],
+                "pull": ["in", "on", "up", "down", "out", "off", "over", "away", "back"],
+                "push": ["in", "on", "up", "down", "out", "off", "over", "through"],
+                "run": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                "walk": ["in", "on", "up", "down", "out", "off", "over", "away", "back", "around"],
+                "catch": ["up", "on", "out"],
+                "cut": ["in", "down", "off", "out", "up"],
+                "break": ["in", "down", "off", "out", "up"],
+                "call": ["in", "on", "up", "out", "off", "back"],
+                "fall": ["in", "down", "off", "out", "back", "behind"],
+                "give": ["in", "up", "away", "back", "out"],
+                "hand": ["in", "on", "over", "out", "back"],
+                "keep": ["in", "on", "up", "down", "out", "off", "over", "away", "back"],
+                "leave": ["in", "on", "out", "off", "over", "behind"],
+                "let": ["in", "on", "up", "down", "out", "off", "over"],
+                "make": ["out", "up", "over"],
+                "pay": ["in", "on", "up", "out", "off", "back"],
+                "play": ["in", "on", "up", "down", "out", "off", "over", "around"],
+                "point": ["in", "on", "up", "down", "out", "off", "over", "at"],
+                "show": ["in", "on", "up", "down", "out", "off", "over", "around"],
+                "shut": ["in", "on", "up", "down", "out", "off", "over"],
+                "speak": ["in", "on", "up", "down", "out", "off", "over", "about"],
+                "start": ["in", "on", "up", "down", "out", "off", "over"],
+                "stop": ["in", "on", "up", "down", "out", "off", "over"],
+                "throw": ["in", "on", "up", "down", "out", "off", "over", "away", "back"],
+                "try": ["in", "on", "up", "down", "out", "off", "over"],
+                "use": ["in", "on", "up", "down", "out", "off", "over"],
+                "watch": ["in", "on", "up", "down", "out", "off", "over"]
+            ]
+            let lastWord = current.words.last?.lowercased() ?? ""
+            let firstWord = next.words.first?.lowercased() ?? ""
+            if let particles = commonPhrasalVerbs[lastWord], particles.contains(firstWord) {
+                phrasalBonus = 10
+            } else {
+                phrasalBonus = 0
+            }
+            // Strict budget for general merges; only phrasal-verb boundaries
+            // get the bonus tolerance.
+            let hasPhrasalBonus = phrasalBonus > 0
+            let effectiveMax = hasPhrasalBonus ? maxChars + tolerance + phrasalBonus : maxChars
+
+            // Merge if EITHER the 2-line pre-formatted OR space-joined fits in budget,
+            // and both individual cues are short enough to benefit from merging.
+            let crossesGap = (next.startMs - current.endMs) > gapThresholdMs
+            let shouldMerge = (mergedCount <= effectiveMax || spaceCount <= effectiveMax)
+                && current.text.count <= maxChars
+                && next.text.count <= maxChars
+                && current.words.count + next.words.count <= 20  // sanity cap
+                && !crossesGap
+            if shouldMerge {
+                result[i] = MutableCue(
+                    startMs: current.startMs,
+                    endMs: next.endMs,
+                    words: current.words + next.words,
+                    wordTimestamps: current.wordTimestamps + next.wordTimestamps,
+                    speakerId: current.speakerId
+                )
+                // Pre-format as two lines so wrapSubtitleText won't touch it
+                result[i].forcedText = mergedText
+                result.remove(at: i + 1)
+                continue
+            }
+            i += 1
+        }
         return result
     }
 
@@ -796,6 +1388,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// forced into multiple lines. Only cues that exceed the total budget are split,
     /// and the split targets roughly equal line lengths based on the actual text size.
     private func wrapSubtitleText(_ text: String, config: SubtitleExportConfig) -> String {
+        // If the text is already pre-formatted as multi-line, respect it.
+        if text.contains("\n") {
+            return text
+        }
+
         let words = text.split(separator: " ").map(String.init)
         guard !words.isEmpty else { return text }
 
@@ -816,18 +1413,18 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
         // For two-line cues, try balanced wrapping when enabled
         if config.maxLinesPerCue == 2 && config.preferBalancedLines && words.count > 1 {
-            if let balanced = wrapSubtitleTextBalanced(words: words, perLineBudget: targetLineLength) {
+            if let balanced = wrapSubtitleTextBalanced(words: words, perLineBudget: targetLineLength, maxLineLength: config.maxCharsPerLine) {
                 return balanced
             }
         }
 
         // Fallback: greedy line-by-line wrapping
-        return wrapSubtitleTextGreedy(words: words, perLineBudget: targetLineLength)
+        return wrapSubtitleTextGreedy(words: words, perLineBudget: targetLineLength, maxLines: config.maxLinesPerCue)
     }
 
     /// Greedy wrap: fill each line until the next word would exceed budget.
     /// Post-processes to avoid orphaned very-short final lines.
-    private func wrapSubtitleTextGreedy(words: [String], perLineBudget: Int) -> String {
+    private func wrapSubtitleTextGreedy(words: [String], perLineBudget: Int, maxLines: Int) -> String {
         var lines: [String] = []
         var currentLine = ""
 
@@ -870,7 +1467,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Balanced wrap for two-line cues. Tries all possible split points and
     /// scores them by line-length balance, natural phrasing, and orphan avoidance.
-    private func wrapSubtitleTextBalanced(words: [String], perLineBudget: Int) -> String? {
+    private func wrapSubtitleTextBalanced(words: [String], perLineBudget: Int, maxLineLength: Int) -> String? {
         var bestSplit = 0
         var bestScore = Int.min
 
@@ -879,7 +1476,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let line2 = words[splitAfter...].joined(separator: " ")
 
             // Hard constraint: neither line can exceed budget
-            guard line1.count <= perLineBudget && line2.count <= perLineBudget else { continue }
+            guard line1.count <= maxLineLength && line2.count <= maxLineLength else { continue }
 
             // Minimum line length: reject splits that leave a very short line
             guard line1.count >= 5 && line2.count >= 5 else { continue }

@@ -79,6 +79,7 @@ struct TranscriptResultView: View {
     @State private var exportConfirmation: ExportConfirmation?
     @State private var exportErrorMessage: String?
     @State private var showingExportOptions = false
+    @State private var isExporting = false
     @State private var selectedExportFormat: TranscriptExportFormat =
         TranscriptExportPreferences.loadLastFormat() ?? .srt
     @State private var transcriptExportOptions: TranscriptExportOptions =
@@ -571,6 +572,26 @@ struct TranscriptResultView: View {
         }
         .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
             exportConfirmationPopover(confirmation)
+        }
+        .overlay {
+            if isExporting {
+                ZStack {
+                    Color.black.opacity(0.35)
+                        .ignoresSafeArea()
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                            .tint(.white)
+                        Text("Exporting with AI Refinement...")
+                            .font(DesignSystem.Typography.body.weight(.medium))
+                            .foregroundStyle(.white)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 16)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(12)
+                }
+            }
         }
     }
 
@@ -2640,32 +2661,75 @@ struct TranscriptResultView: View {
     private func exportToDownloads(format: TranscriptExportFormat) {
         // Use the ViewModel's copy which reflects any in-flight renames
         let source = activeTranscription
-        do {
-            let fileURL = try TranscriptResultActions.exportTranscriptToDownloads(
-                transcription: source,
-                format: format,
-                options: resolvedTranscriptExportOptions
-            )
-            TranscriptExportPreferences.saveLastFormat(format)
-            TranscriptExportPreferences.saveOptions(transcriptExportOptions)
-            exportErrorMessage = nil
-            SoundManager.shared.play(.transcriptionComplete)
-            dismissTask?.cancel()
-            exportConfirmation = ExportConfirmation(
-                url: fileURL,
-                title: "Exported \(format.displayName)"
-            )
-            dismissTask = Task { @MainActor in
-                try? await Task.sleep(for: .seconds(5.0))
-                guard !Task.isCancelled else { return }
-                exportConfirmation = nil
+        let options = resolvedTranscriptExportOptions
+        isExporting = true
+        showingExportOptions = false
+
+        // Use async path for LLM-refined subtitle exports
+        if options.subtitleConfig.useLLMRefinement && (format == .srt || format == .vtt) {
+            Task { @MainActor in
+                defer { isExporting = false }
+                do {
+                    let fileURL = try await TranscriptResultActions.exportTranscriptToDownloadsAsync(
+                        transcription: source,
+                        format: format,
+                        options: options,
+                        llmService: promptResultsViewModel.llmService
+                    )
+                    TranscriptExportPreferences.saveLastFormat(format)
+                    TranscriptExportPreferences.saveOptions(transcriptExportOptions)
+                    exportErrorMessage = nil
+                    SoundManager.shared.play(.transcriptionComplete)
+                    dismissTask?.cancel()
+                    exportConfirmation = ExportConfirmation(
+                        url: fileURL,
+                        title: "Exported \(format.displayName)"
+                    )
+                    dismissTask = Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(5.0))
+                        guard !Task.isCancelled else { return }
+                        exportConfirmation = nil
+                    }
+                } catch let cocoaError as CocoaError where cocoaError.code == .fileNoSuchFile {
+                    exportErrorMessage = "Your Downloads folder could not be found."
+                    SoundManager.shared.play(.errorSoft)
+                } catch {
+                    exportErrorMessage = error.localizedDescription
+                    SoundManager.shared.play(.errorSoft)
+                }
             }
-        } catch let cocoaError as CocoaError where cocoaError.code == .fileNoSuchFile {
-            exportErrorMessage = "Your Downloads folder could not be found."
-            SoundManager.shared.play(.errorSoft)
-        } catch {
-            exportErrorMessage = error.localizedDescription
-            SoundManager.shared.play(.errorSoft)
+            return
+        }
+
+        Task { @MainActor in
+            defer { isExporting = false }
+            do {
+                let fileURL = try TranscriptResultActions.exportTranscriptToDownloads(
+                    transcription: source,
+                    format: format,
+                    options: options
+                )
+                TranscriptExportPreferences.saveLastFormat(format)
+                TranscriptExportPreferences.saveOptions(transcriptExportOptions)
+                exportErrorMessage = nil
+                SoundManager.shared.play(.transcriptionComplete)
+                dismissTask?.cancel()
+                exportConfirmation = ExportConfirmation(
+                    url: fileURL,
+                    title: "Exported \(format.displayName)"
+                )
+                dismissTask = Task { @MainActor in
+                    try? await Task.sleep(for: .seconds(5.0))
+                    guard !Task.isCancelled else { return }
+                    exportConfirmation = nil
+                }
+            } catch let cocoaError as CocoaError where cocoaError.code == .fileNoSuchFile {
+                exportErrorMessage = "Your Downloads folder could not be found."
+                SoundManager.shared.play(.errorSoft)
+            } catch {
+                exportErrorMessage = error.localizedDescription
+                SoundManager.shared.play(.errorSoft)
+            }
         }
     }
 

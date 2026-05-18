@@ -73,7 +73,7 @@ public final class PromptResultsViewModel {
     public var onDeletedPromptResult: ((UUID) -> Void)?
     public var shouldMarkPromptResultUnread: ((UUID) -> Bool)?
 
-    private var llmService: LLMServiceProtocol?
+    public var llmService: LLMServiceProtocol?
     private var promptRepo: PromptRepositoryProtocol?
     private var promptResultRepo: PromptResultRepositoryProtocol?
     /// Read-only access to the underlying transcription so prompt assembly

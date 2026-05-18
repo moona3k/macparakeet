@@ -155,6 +155,66 @@ enum TranscriptResultActions {
         return fileURL
     }
 
+    /// Async variant that supports LLM-powered subtitle refinement.
+    static func exportTranscriptToDownloadsAsync(
+        transcription: Transcription,
+        format: TranscriptExportFormat,
+        options: TranscriptExportOptions = .default,
+        llmService: LLMServiceProtocol?
+    ) async throws -> URL {
+        let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
+        let downloadsURL = try downloadsDirectory()
+        let fileURL = nextAvailableURL(in: downloadsURL, stem: stem, format: format)
+        let exportService = ExportService()
+
+        switch format {
+        case .txt:
+            try exportService.exportToTxt(transcription: transcription, url: fileURL, options: options)
+        case .md:
+            try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)
+        case .srt:
+            if options.subtitleConfig.useLLMRefinement, let llmService = llmService {
+                try await exportService.exportToSRT(
+                    transcription: transcription,
+                    url: fileURL,
+                    config: options.subtitleConfig,
+                    includeSpeakerLabels: options.includeSpeakerLabels,
+                    llmService: llmService
+                )
+            } else {
+                try exportService.exportToSRT(
+                    transcription: transcription,
+                    url: fileURL,
+                    config: options.subtitleConfig,
+                    includeSpeakerLabels: options.includeSpeakerLabels
+                )
+            }
+        case .vtt:
+            if options.subtitleConfig.useLLMRefinement, let llmService = llmService {
+                try await exportService.exportToVTT(
+                    transcription: transcription,
+                    url: fileURL,
+                    config: options.subtitleConfig,
+                    includeSpeakerLabels: options.includeSpeakerLabels,
+                    llmService: llmService
+                )
+            } else {
+                try exportService.exportToVTT(
+                    transcription: transcription,
+                    url: fileURL,
+                    config: options.subtitleConfig,
+                    includeSpeakerLabels: options.includeSpeakerLabels
+                )
+            }
+        case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
+        case .pdf: try exportService.exportToPDF(transcription: transcription, url: fileURL)
+        case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
+        }
+
+        Telemetry.send(.exportUsed(format: format.rawValue))
+        return fileURL
+    }
+
     private static func downloadsDirectory() throws -> URL {
         guard let url = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
             throw CocoaError(.fileNoSuchFile)
