@@ -71,6 +71,8 @@ struct AudioScrubberBar: View {
                 .font(.system(size: 11, weight: .medium).monospacedDigit())
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .frame(width: 42, alignment: .leading)
+
+            PlaybackSpeedMenu(viewModel: viewModel)
         }
         .padding(.horizontal, 16)
         .frame(height: DesignSystem.Layout.audioScrubberHeight)

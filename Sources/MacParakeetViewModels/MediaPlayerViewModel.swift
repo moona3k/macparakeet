@@ -19,12 +19,36 @@ public enum PlayerState: Equatable, Sendable {
     case unavailableOffline
 }
 
+public enum PlaybackRate: Sendable {
+    public static let defaultValue: Float = 1.0
+    public static let minimumValue: Float = 0.5
+    public static let maximumValue: Float = 2.0
+    public static let options: [Float] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
+
+    public static func normalized(_ rate: Float) -> Float {
+        guard rate.isFinite else { return defaultValue }
+        return min(max(rate, minimumValue), maximumValue)
+    }
+
+    public static func label(for rate: Float) -> String {
+        let hundredths = Int((Double(rate) * 100).rounded())
+        if hundredths % 100 == 0 {
+            return "\(hundredths / 100)x"
+        }
+        if hundredths % 10 == 0 {
+            return String(format: "%.1fx", Double(hundredths) / 100)
+        }
+        return String(format: "%.2fx", Double(hundredths) / 100)
+    }
+}
+
 // MARK: - MediaPlayerViewModel
 
 @MainActor @Observable
 public final class MediaPlayerViewModel {
     public var player: AVPlayer?
     public var isPlaying: Bool = false
+    public var playbackRate: Float
     public var currentTimeMs: Int = 0
     public var durationMs: Int = 0
     public var playerState: PlayerState = .idle
@@ -58,14 +82,19 @@ public final class MediaPlayerViewModel {
     private var playbackConversionTask: Task<Void, Never>?
     private let videoStreamService: VideoStreamService
     private let playbackConverter: YouTubeAudioPlaybackConverting
+    private let playbackRateDefaults: UserDefaults?
     private let logger = Logger(subsystem: "com.macparakeet", category: "MediaPlayer")
+    private static let playbackRateDefaultsKey = "MediaPlayerViewModel.playbackRate"
 
     public init(
         videoStreamService: VideoStreamService = VideoStreamService(),
-        playbackConverter: YouTubeAudioPlaybackConverting = YouTubeAudioPlaybackConverter()
+        playbackConverter: YouTubeAudioPlaybackConverting = YouTubeAudioPlaybackConverter(),
+        playbackRateDefaults: UserDefaults? = .standard
     ) {
         self.videoStreamService = videoStreamService
         self.playbackConverter = playbackConverter
+        self.playbackRateDefaults = playbackRateDefaults
+        self.playbackRate = Self.loadPlaybackRate(from: playbackRateDefaults)
     }
 
     // MARK: - Public API
@@ -258,9 +287,26 @@ public final class MediaPlayerViewModel {
         if player.timeControlStatus == .playing {
             player.pause()
         } else {
+            player.defaultRate = playbackRate
             player.play()
         }
         // isPlaying is updated by the KVO observer on timeControlStatus
+    }
+
+    public var playbackRateLabel: String {
+        PlaybackRate.label(for: playbackRate)
+    }
+
+    public func setPlaybackRate(_ rate: Float) {
+        let normalizedRate = PlaybackRate.normalized(rate)
+        playbackRate = normalizedRate
+        playbackRateDefaults?.set(Double(normalizedRate), forKey: Self.playbackRateDefaultsKey)
+
+        guard let player else { return }
+        player.defaultRate = normalizedRate
+        if player.timeControlStatus == .playing || isPlaying {
+            player.rate = normalizedRate
+        }
     }
 
     /// Load subtitle cues from word timestamps for overlay display.
@@ -338,6 +384,7 @@ public final class MediaPlayerViewModel {
                 seek(toMs: savedTimeMs)
             }
             if wasPlaying {
+                player?.defaultRate = playbackRate
                 player?.play()
             }
             logger.info("YouTube video player ready")
@@ -384,7 +431,9 @@ public final class MediaPlayerViewModel {
             NotificationCenter.default.removeObserver(endOfTrackObserver)
         }
 
+        item.audioTimePitchAlgorithm = .timeDomain
         let avPlayer = AVPlayer(playerItem: item)
+        avPlayer.defaultRate = playbackRate
         self.player = avPlayer
 
         // Observe playback time at 10Hz for smooth transcript sync + subtitle updates
@@ -479,5 +528,12 @@ public final class MediaPlayerViewModel {
             lastCueIndex = found
             currentSubtitleText = found >= 0 ? subtitleCues[found].text : nil
         }
+    }
+
+    private static func loadPlaybackRate(from defaults: UserDefaults?) -> Float {
+        guard let storedRate = defaults?.object(forKey: playbackRateDefaultsKey) as? NSNumber else {
+            return PlaybackRate.defaultValue
+        }
+        return PlaybackRate.normalized(storedRate.floatValue)
     }
 }

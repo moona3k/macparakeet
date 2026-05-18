@@ -62,6 +62,7 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 | REQ-PLAY-001 | `MacParakeetCore/Services/VideoStreamService.swift`, `MacParakeetViewModels/MediaPlayerViewModel.swift` | `VideoStreamServiceTests.swift`, `MediaPlayerViewModelTests.swift` |
 | REQ-PLAY-002 | `MacParakeet/Views/Components/AudioScrubberBar.swift`, `MacParakeetViewModels/MediaPlayerViewModel.swift` | `MediaPlayerViewModelTests.swift` |
 | REQ-PLAY-003 | `MacParakeet/Views/Transcription/TranscriptTimestampedContentView.swift`, `MacParakeetViewModels/MediaPlayerViewModel.swift` | `MediaPlayerViewModelTests.swift` |
+| REQ-PLAY-004 | `MacParakeet/Views/Components/PlaybackSpeedMenu.swift`, `MacParakeet/Views/Components/AudioScrubberBar.swift`, `MacParakeet/Views/Transcription/TranscriptionVideoPanel.swift`, `MacParakeetViewModels/MediaPlayerViewModel.swift` | `MediaPlayerViewModelTests.swift` |
 | REQ-UI-004 | `MacParakeet/Views/Transcription/TranscriptResultView.swift`, `MacParakeet/Views/Transcription/TranscriptionVideoPanel.swift` | (ViewModel tests) |
 | REQ-LIB-001 | `MacParakeet/Views/Transcription/TranscriptionLibraryView.swift` | `TranscriptionRepositoryTests.swift` |
 | REQ-UI-005 | `MacParakeet/Views/Transcription/TranscribeView.swift`, `MacParakeet/Views/Transcription/YouTubeInputPanelView.swift`, `MacParakeet/Views/Transcription/PortalDropZone.swift` | (ViewModel tests) |

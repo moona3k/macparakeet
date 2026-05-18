@@ -117,6 +117,73 @@ final class MediaPlayerViewModelTests: XCTestCase {
         XCTAssertEqual(vm.playerState, .idle)
     }
 
+    // MARK: - Playback Rate
+
+    @MainActor
+    func testPlaybackRateLabelsUseCompactMediaPlayerFormat() {
+        XCTAssertEqual(PlaybackRate.label(for: 0.5), "0.5x")
+        XCTAssertEqual(PlaybackRate.label(for: 1.0), "1x")
+        XCTAssertEqual(PlaybackRate.label(for: 1.25), "1.25x")
+        XCTAssertEqual(PlaybackRate.label(for: 1.5), "1.5x")
+        XCTAssertEqual(PlaybackRate.label(for: 2.0), "2x")
+    }
+
+    @MainActor
+    func testPlaybackRateOptionsUseStandardMediaPlayerPresets() {
+        XCTAssertEqual(PlaybackRate.options, [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0])
+    }
+
+    @MainActor
+    func testPlaybackRatePersistsAcrossViewModelInstances() {
+        let defaults = isolatedPlaybackDefaults()
+        let vm = MediaPlayerViewModel(playbackRateDefaults: defaults)
+
+        vm.setPlaybackRate(1.5)
+
+        let reloaded = MediaPlayerViewModel(playbackRateDefaults: defaults)
+        XCTAssertEqual(reloaded.playbackRate, 1.5, accuracy: 0.001)
+        XCTAssertEqual(reloaded.playbackRateLabel, "1.5x")
+    }
+
+    @MainActor
+    func testTogglePlayPauseUsesSelectedPlaybackRate() {
+        let vm = MediaPlayerViewModel(playbackRateDefaults: isolatedPlaybackDefaults())
+        let player = AVPlayer()
+        vm.player = player
+        vm.setPlaybackRate(1.5)
+
+        vm.togglePlayPause()
+
+        XCTAssertEqual(player.defaultRate, 1.5, accuracy: 0.001)
+        XCTAssertEqual(player.rate, 1.5, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testChangingPlaybackRateUpdatesActivePlayerRate() {
+        let vm = MediaPlayerViewModel(playbackRateDefaults: isolatedPlaybackDefaults())
+        let player = AVPlayer()
+        vm.player = player
+        vm.isPlaying = true
+
+        vm.setPlaybackRate(1.25)
+
+        XCTAssertEqual(player.defaultRate, 1.25, accuracy: 0.001)
+        XCTAssertEqual(player.rate, 1.25, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testCleanupPreservesPlaybackRatePreference() {
+        let vm = MediaPlayerViewModel(playbackRateDefaults: isolatedPlaybackDefaults())
+        vm.setPlaybackRate(1.5)
+        vm.player = AVPlayer()
+        vm.playerState = .ready
+
+        vm.cleanup()
+
+        XCTAssertEqual(vm.playbackRate, 1.5, accuracy: 0.001)
+        XCTAssertEqual(vm.playbackRateLabel, "1.5x")
+    }
+
     // MARK: - Lazy webm → m4a migration (issue #237 playback fix)
 
     @MainActor
@@ -293,6 +360,13 @@ final class MediaPlayerViewModelTests: XCTestCase {
         XCTAssertEqual(invocationCounter.value, 0,
                        "Cancelled conversion must not invoke the persist callback")
     }
+}
+
+private func isolatedPlaybackDefaults() -> UserDefaults {
+    let suiteName = "com.macparakeet.tests.playback-rate.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defaults.removePersistentDomain(forName: suiteName)
+    return defaults
 }
 
 /// Reference-type capture wrapper. Closures that have to mutate state can

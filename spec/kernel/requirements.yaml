@@ -176,6 +176,11 @@ REQ-PLAY-003:
   version: v0.5
   status: implemented
 
+REQ-PLAY-004:
+  description: Variable playback speed for audio and video transcript review
+  version: v0.6
+  status: implemented
+
 REQ-UI-004:
   description: Split-pane detail view (video left, content right)
   version: v0.5

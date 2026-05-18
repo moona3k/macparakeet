@@ -153,8 +153,9 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Thumbnail cache service (download YouTube thumbnails, embedded local artwork, FFmpeg frame extraction for local video)
 - [x] HLS streaming for YouTube video playback (yt-dlp URL extraction + AVPlayer)
 - [x] AVPlayer SwiftUI wrapper with subtitle overlay
-- [x] MediaPlayerViewModel (state machine, 10Hz time sync, seek, play/pause)
+- [x] MediaPlayerViewModel (state machine, 10Hz time sync, seek, play/pause, speed)
 - [x] Audio scrubber bar for audio-only files (44px horizontal bar)
+- [x] Compact playback speed menu for audio and video playback
 - [x] Playback mode auto-detection (video/audio/none)
 - [x] Split-pane detail view (video 40% left, tabbed content 60% right)
 - [x] Synced transcript highlighting during playback (binary search, auto-scroll)
