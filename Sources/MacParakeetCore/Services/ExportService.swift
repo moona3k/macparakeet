@@ -4,21 +4,49 @@ import AppKit
 @MainActor
 public protocol ExportServiceProtocol: Sendable {
     func exportToTxt(transcription: Transcription, url: URL) throws
-    func exportToSRT(transcription: Transcription, url: URL, config: SubtitleExportConfig) throws
-    func exportToVTT(transcription: Transcription, url: URL, config: SubtitleExportConfig) throws
+    func exportToSRT(
+        transcription: Transcription,
+        url: URL,
+        config: SubtitleExportConfig,
+        includeSpeakerLabels: Bool
+    ) throws
+    func exportToVTT(
+        transcription: Transcription,
+        url: URL,
+        config: SubtitleExportConfig,
+        includeSpeakerLabels: Bool
+    ) throws
     func exportToMarkdown(transcription: Transcription, url: URL) throws
     func exportToJSON(transcription: Transcription, url: URL) throws
     @MainActor func exportToPDF(transcription: Transcription, url: URL) throws
     @MainActor func exportToDocx(transcription: Transcription, url: URL) throws
-    func formatSRT(transcription: Transcription, config: SubtitleExportConfig) -> String
-    func formatVTT(transcription: Transcription, config: SubtitleExportConfig) -> String
-    func formatSRT(words: [WordTimestamp], speakers: [SpeakerInfo]?, config: SubtitleExportConfig) -> String
-    func formatVTT(words: [WordTimestamp], speakers: [SpeakerInfo]?, config: SubtitleExportConfig) -> String
+    func formatSRT(
+        transcription: Transcription,
+        config: SubtitleExportConfig,
+        includeSpeakerLabels: Bool
+    ) -> String
+    func formatVTT(
+        transcription: Transcription,
+        config: SubtitleExportConfig,
+        includeSpeakerLabels: Bool
+    ) -> String
+    func formatSRT(
+        words: [WordTimestamp],
+        speakers: [SpeakerInfo]?,
+        config: SubtitleExportConfig,
+        includeSpeakerLabels: Bool
+    ) -> String
+    func formatVTT(
+        words: [WordTimestamp],
+        speakers: [SpeakerInfo]?,
+        config: SubtitleExportConfig,
+        includeSpeakerLabels: Bool
+    ) -> String
     func formatMarkdown(transcription: Transcription) -> String
     func formatForClipboard(transcription: Transcription) -> String
 }
 
-public struct SubtitleExportConfig: Sendable, Equatable {
+public struct SubtitleExportConfig: Sendable, Equatable, Codable {
     /// Max words per subtitle cue.
     public var maxWordsPerCue: Int
     /// Max characters per line inside a cue.
@@ -59,7 +87,7 @@ public struct TranscriptExportOptions: Sendable, Equatable {
 
     public init(
         includeTimestamps: Bool = true,
-        includeSpeakerLabels: Bool = true,
+        includeSpeakerLabels: Bool = false,
         includeMetadata: Bool = true,
         subtitleConfig: SubtitleExportConfig = .default
     ) {
@@ -70,6 +98,53 @@ public struct TranscriptExportOptions: Sendable, Equatable {
     }
 
     public static let `default` = TranscriptExportOptions()
+}
+
+// MARK: - Codable (explicit to prevent RawRepresentable infinite recursion)
+//
+// Swift's auto-synthesized Codable for a type that is also RawRepresentable
+// encodes via `rawValue`. If `rawValue` calls JSONEncoder.encode(self), the
+// auto-synthesized encode(to:) calls rawValue again → infinite recursion →
+// stack overflow (SIGSEGV). Providing explicit Codable breaks the cycle.
+
+extension TranscriptExportOptions: Codable {
+    private enum CodingKeys: String, CodingKey {
+        case includeTimestamps, includeSpeakerLabels, includeMetadata, subtitleConfig
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        includeTimestamps = try container.decode(Bool.self, forKey: .includeTimestamps)
+        includeSpeakerLabels = try container.decode(Bool.self, forKey: .includeSpeakerLabels)
+        includeMetadata = try container.decode(Bool.self, forKey: .includeMetadata)
+        subtitleConfig = try container.decode(SubtitleExportConfig.self, forKey: .subtitleConfig)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(includeTimestamps, forKey: .includeTimestamps)
+        try container.encode(includeSpeakerLabels, forKey: .includeSpeakerLabels)
+        try container.encode(includeMetadata, forKey: .includeMetadata)
+        try container.encode(subtitleConfig, forKey: .subtitleConfig)
+    }
+}
+
+extension TranscriptExportOptions: RawRepresentable {
+    public init?(rawValue: String) {
+        guard let data = rawValue.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode(TranscriptExportOptions.self, from: data) else {
+            return nil
+        }
+        self = decoded
+    }
+
+    public var rawValue: String {
+        guard let data = try? JSONEncoder().encode(self),
+              let string = String(data: data, encoding: .utf8) else {
+            return ""
+        }
+        return string
+    }
 }
 
 /// Handles exporting transcriptions to files and clipboard.
@@ -115,22 +190,36 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     public func exportToSRT(
         transcription: Transcription,
         url: URL,
-        config: SubtitleExportConfig = .default
+        config: SubtitleExportConfig = .default,
+        includeSpeakerLabels: Bool = false
     ) throws {
-        try formatSRT(transcription: transcription, config: config).write(to: url, atomically: true, encoding: .utf8)
+        try formatSRT(
+            transcription: transcription,
+            config: config,
+            includeSpeakerLabels: includeSpeakerLabels
+        ).write(to: url, atomically: true, encoding: .utf8)
     }
 
     /// Export transcription as WebVTT subtitle file
     public func exportToVTT(
         transcription: Transcription,
         url: URL,
-        config: SubtitleExportConfig = .default
+        config: SubtitleExportConfig = .default,
+        includeSpeakerLabels: Bool = false
     ) throws {
-        try formatVTT(transcription: transcription, config: config).write(to: url, atomically: true, encoding: .utf8)
+        try formatVTT(
+            transcription: transcription,
+            config: config,
+            includeSpeakerLabels: includeSpeakerLabels
+        ).write(to: url, atomically: true, encoding: .utf8)
     }
 
     /// Format a transcription as SRT, falling back to one full-transcript cue.
-    public func formatSRT(transcription: Transcription, config: SubtitleExportConfig = .default) -> String {
+    public func formatSRT(
+        transcription: Transcription,
+        config: SubtitleExportConfig = .default,
+        includeSpeakerLabels: Bool = false
+    ) -> String {
         if let text = editedTranscriptText(transcription: transcription) {
             let duration = transcription.durationMs ?? 0
             return "1\n00:00:00,000 --> \(srtTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
@@ -141,11 +230,20 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let duration = transcription.durationMs ?? 0
             return "1\n00:00:00,000 --> \(srtTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
         }
-        return formatSRT(words: words, speakers: transcription.speakers, config: config)
+        return formatSRT(
+            words: words,
+            speakers: transcription.speakers,
+            config: config,
+            includeSpeakerLabels: includeSpeakerLabels
+        )
     }
 
     /// Format a transcription as WebVTT, falling back to one full-transcript cue.
-    public func formatVTT(transcription: Transcription, config: SubtitleExportConfig = .default) -> String {
+    public func formatVTT(
+        transcription: Transcription,
+        config: SubtitleExportConfig = .default,
+        includeSpeakerLabels: Bool = false
+    ) -> String {
         if let text = editedTranscriptText(transcription: transcription) {
             let duration = transcription.durationMs ?? 0
             return "WEBVTT\n\n\(vttTimestamp(ms: 0)) --> \(vttTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
@@ -156,7 +254,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let duration = transcription.durationMs ?? 0
             return "WEBVTT\n\n\(vttTimestamp(ms: 0)) --> \(vttTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
         }
-        return formatVTT(words: words, speakers: transcription.speakers, config: config)
+        return formatVTT(
+            words: words,
+            speakers: transcription.speakers,
+            config: config,
+            includeSpeakerLabels: includeSpeakerLabels
+        )
     }
 
     /// Export transcription as JSON file
@@ -256,18 +359,19 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     public func formatSRT(
         words: [WordTimestamp],
         speakers: [SpeakerInfo]? = nil,
-        config: SubtitleExportConfig = .default
+        config: SubtitleExportConfig = .default,
+        includeSpeakerLabels: Bool = false
     ) -> String {
-        let cues = buildSubtitleCues(from: words, config: config)
+        let cues = buildSubtitleCues(
+            from: words,
+            config: config,
+            breakOnSpeakerChange: includeSpeakerLabels
+        )
         var lines: [String] = []
         for (i, cue) in cues.enumerated() {
             lines.append("\(i + 1)")
             lines.append("\(srtTimestamp(ms: cue.startMs)) --> \(srtTimestamp(ms: cue.endMs))")
-            if let label = speakerLabel(for: cue.speakerId, in: speakers) {
-                lines.append("\(label): \(cue.text)")
-            } else {
-                lines.append(cue.text)
-            }
+            lines.append(formattedCueText(cue, speakers: speakers, includeSpeakerLabels: includeSpeakerLabels))
             lines.append("")
         }
         return lines.joined(separator: "\n")
@@ -277,13 +381,18 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     public func formatVTT(
         words: [WordTimestamp],
         speakers: [SpeakerInfo]? = nil,
-        config: SubtitleExportConfig = .default
+        config: SubtitleExportConfig = .default,
+        includeSpeakerLabels: Bool = false
     ) -> String {
-        let cues = buildSubtitleCues(from: words, config: config)
+        let cues = buildSubtitleCues(
+            from: words,
+            config: config,
+            breakOnSpeakerChange: includeSpeakerLabels
+        )
         var lines: [String] = ["WEBVTT", ""]
         for cue in cues {
             lines.append("\(vttTimestamp(ms: cue.startMs)) --> \(vttTimestamp(ms: cue.endMs))")
-            if let label = speakerLabel(for: cue.speakerId, in: speakers) {
+            if includeSpeakerLabels, let label = speakerLabel(for: cue.speakerId, in: speakers) {
                 lines.append("<v \(label)>\(cue.text)</v>")
             } else {
                 lines.append(cue.text)
@@ -407,7 +516,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// Groups word timestamps into subtitle cues suitable for SRT/VTT and overlay display.
     public func buildSubtitleCues(
         from words: [WordTimestamp],
-        config: SubtitleExportConfig = .default
+        config: SubtitleExportConfig = .default,
+        breakOnSpeakerChange: Bool = false
     ) -> [SubtitleCue] {
         guard !words.isEmpty else { return [] }
 
@@ -429,11 +539,35 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             ))
             currentWords = []
         }
+        
+        func linesNeeded(for text: String) -> Int {
+            let splitWords = text.split(separator: " ")
+            var lineCount = 1
+            var currentLineLength = 0
+            for word in splitWords {
+                let candidateLength = currentLineLength == 0 ? word.count : currentLineLength + 1 + word.count
+                if candidateLength > config.maxCharsPerLine {
+                    lineCount += 1
+                    currentLineLength = word.count
+                } else {
+                    currentLineLength = candidateLength
+                }
+            }
+            return lineCount
+        }
 
         for (i, word) in words.enumerated() {
-            // Break on speaker change before adding the word
-            let speakerChanged = !currentWords.isEmpty && word.speakerId != cueSpeakerId
-            if speakerChanged {
+            // Break on speaker change only when requested (e.g. captions with speaker names).
+            let speakerChanged = breakOnSpeakerChange
+                && !currentWords.isEmpty
+                && word.speakerId != cueSpeakerId
+
+            // Check if adding this word would exceed line limits
+            let prospectiveWords = currentWords + [word.word]
+            let prospectiveText = prospectiveWords.joined(separator: " ")
+            let exceedsLines = linesNeeded(for: prospectiveText) > config.maxLinesPerCue
+
+            if speakerChanged || (!currentWords.isEmpty && exceedsLines) {
                 flushCue()
                 cueStartMs = word.startMs
                 cueSpeakerId = word.speakerId
@@ -462,7 +596,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return cues
     }
 
-    /// Wrap subtitle text so no line exceeds maxCharsPerLine and no cue exceeds maxLinesPerCue.
+    /// Wrap subtitle text so no line exceeds maxCharsPerLine.
     private func wrapSubtitleText(_ text: String, config: SubtitleExportConfig) -> String {
         let words = text.split(separator: " ")
         var lines: [String] = []
@@ -482,18 +616,25 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             } else {
                 currentLine = candidate
             }
-
-            if lines.count + 1 >= config.maxLinesPerCue {
-                // Force a line break here; remaining words will form a new cue next pass
-                break
-            }
         }
 
-        if !currentLine.isEmpty && lines.count < config.maxLinesPerCue {
+        if !currentLine.isEmpty {
             lines.append(currentLine)
         }
 
         return lines.joined(separator: "\n")
+    }
+
+    private func formattedCueText(
+        _ cue: SubtitleCue,
+        speakers: [SpeakerInfo]?,
+        includeSpeakerLabels: Bool
+    ) -> String {
+        guard includeSpeakerLabels,
+              let label = speakerLabel(for: cue.speakerId, in: speakers) else {
+            return cue.text
+        }
+        return "\(label): \(cue.text)"
     }
 
     /// Resolve a speakerId to a display label using the speakers mapping.

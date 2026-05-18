@@ -99,8 +99,20 @@ public final class AutoSaveService {
             switch format {
             case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL)
             case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL)
-            case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL, config: .default)
-            case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL, config: .default)
+            case .srt:
+                try exportService.exportToSRT(
+                    transcription: transcription,
+                    url: fileURL,
+                    config: .default,
+                    includeSpeakerLabels: false
+                )
+            case .vtt:
+                try exportService.exportToVTT(
+                    transcription: transcription,
+                    url: fileURL,
+                    config: .default,
+                    includeSpeakerLabels: false
+                )
             case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
             }
 

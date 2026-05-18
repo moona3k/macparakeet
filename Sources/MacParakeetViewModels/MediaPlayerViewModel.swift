@@ -256,8 +256,16 @@ public final class MediaPlayerViewModel {
     }
 
     /// Load subtitle cues from word timestamps for overlay display.
-    public func loadSubtitleCues(from words: [WordTimestamp]) {
-        subtitleCues = ExportService().buildSubtitleCues(from: words)
+    public func loadSubtitleCues(
+        from words: [WordTimestamp],
+        config: SubtitleExportConfig = .default,
+        breakOnSpeakerChange: Bool = false
+    ) {
+        subtitleCues = ExportService().buildSubtitleCues(
+            from: words,
+            config: config,
+            breakOnSpeakerChange: breakOnSpeakerChange
+        )
         lastCueIndex = -1
         currentSubtitleText = nil
     }

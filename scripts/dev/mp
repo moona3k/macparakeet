@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+# MacParakeet dev helper — daily launcher for build / run / test / logs.
+#
+# Usage:
+#   ./scripts/dev/mp              # build, sign, launch MacParakeet-Dev
+#   ./scripts/dev/mp launch       # launch last dev build (no rebuild)
+#   ./scripts/dev/mp test         # run full test suite
+#   ./scripts/dev/mp test export  # run ExportServiceTests only
+#   ./scripts/dev/mp logs         # tail dev launch log
+#   ./scripts/dev/mp fresh        # reset onboarding/TCC + relaunch (permission testing)
+#   ./scripts/dev/mp path         # print dev .app path (for Dock / open -a)
+#
+# Optional shell alias (add to ~/.zshrc):
+#   alias mp='~/Documents/Codex/2026-05-14/id-like-to-make-a-copy/macparakeet/scripts/dev/mp'
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+DERIVED_DATA_DIR="$ROOT_DIR/.build/xcode-dev"
+APP_BUNDLE="$DERIVED_DATA_DIR/Build/Products/Debug/MacParakeet-Dev.app"
+LOG_FILE="${TMPDIR:-/tmp}/macparakeet-dev.log"
+
+cmd="${1:-run}"
+shift || true
+
+case "$cmd" in
+  run|"" )
+    exec "$ROOT_DIR/scripts/dev/run_app.sh"
+    ;;
+  launch|open)
+    if [[ ! -d "$APP_BUNDLE" ]]; then
+      echo "No dev build at: $APP_BUNDLE" >&2
+      echo "Run: $ROOT_DIR/scripts/dev/mp run" >&2
+      exit 1
+    fi
+    if [[ -f "$ROOT_DIR/Sources/MacParakeet/Views/Transcription/ExportOptionsPopoverView.swift" ]]; then
+      src_mtime="$(stat -f '%m' "$ROOT_DIR/Sources/MacParakeet/Views/Transcription/ExportOptionsPopoverView.swift" 2>/dev/null || stat -c '%Y' "$ROOT_DIR/Sources/MacParakeet/Views/Transcription/ExportOptionsPopoverView.swift")"
+      bin_mtime="$(stat -f '%m' "$APP_BUNDLE/Contents/MacOS/MacParakeet" 2>/dev/null || stat -c '%Y' "$APP_BUNDLE/Contents/MacOS/MacParakeet")"
+      if [[ "$src_mtime" -gt "$bin_mtime" ]]; then
+        echo "Source is newer than the dev build — run './scripts/dev/mp run' to rebuild." >&2
+        exit 1
+      fi
+    fi
+    open "$APP_BUNDLE"
+    echo "Launched: $APP_BUNDLE"
+    ;;
+  test)
+    cd "$ROOT_DIR"
+    if [[ "${1:-}" == "export" ]]; then
+      exec swift test --filter ExportServiceTests
+    fi
+    exec swift test
+    ;;
+  logs)
+    touch "$LOG_FILE"
+    exec tail -f "$LOG_FILE"
+    ;;
+  fresh)
+    exec "$ROOT_DIR/scripts/dev/reset_and_run_fresh.sh"
+    ;;
+  path)
+    echo "$APP_BUNDLE"
+    ;;
+  help|-h|--help)
+    sed -n '3,14p' "$0" | sed 's/^# \{0,1\}//'
+    ;;
+  *)
+    echo "Unknown command: $cmd (try: run, launch, test, logs, fresh, path)" >&2
+    exit 1
+    ;;
+esac

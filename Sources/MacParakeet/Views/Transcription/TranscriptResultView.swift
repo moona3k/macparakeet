@@ -79,8 +79,10 @@ struct TranscriptResultView: View {
     @State private var exportConfirmation: ExportConfirmation?
     @State private var exportErrorMessage: String?
     @State private var showingExportOptions = false
-    @State private var selectedExportFormat: TranscriptExportFormat = .txt
-    @State private var transcriptExportOptions = TranscriptExportOptions.default
+    @State private var selectedExportFormat: TranscriptExportFormat =
+        TranscriptExportPreferences.loadLastFormat() ?? .srt
+    @State private var transcriptExportOptions: TranscriptExportOptions =
+        TranscriptExportPreferences.loadOptions()
     @State private var copiedResetTask: Task<Void, Never>?
     @State private var resultCopiedResetTask: Task<Void, Never>?
     @State private var resultButtonCopiedResetTask: Task<Void, Never>?
@@ -148,9 +150,7 @@ struct TranscriptResultView: View {
                 } else {
                     await playerViewModel.prepare(for: transcription)
                 }
-                if let words = transcription.wordTimestamps, !words.isEmpty {
-                    playerViewModel.loadSubtitleCues(from: words)
-                }
+                reloadVideoSubtitleCues()
             }
             rebuildSegmentCache()
             viewModel.loadPersistedContent()
@@ -175,9 +175,7 @@ struct TranscriptResultView: View {
                 } else {
                     await playerViewModel.prepare(for: transcription)
                 }
-                if let words = transcription.wordTimestamps, !words.isEmpty {
-                    playerViewModel.loadSubtitleCues(from: words)
-                }
+                reloadVideoSubtitleCues()
             }
             rebuildSegmentCache()
             headerExpanded = false
@@ -208,6 +206,7 @@ struct TranscriptResultView: View {
         }
         .onChange(of: activeTranscription.wordTimestamps) {
             rebuildSegmentCache()
+            reloadVideoSubtitleCues()
         }
         .onChange(of: activeTranscription.diarizationSegments) {
             rebuildSegmentCache()
@@ -246,6 +245,16 @@ struct TranscriptResultView: View {
             }
         } message: {
             Text("This action cannot be undone.")
+        }
+        .onChange(of: showingExportOptions) { newValue in
+            if newValue {
+                if let lastFormat = TranscriptExportPreferences.loadLastFormat() {
+                    selectedExportFormat = lastFormat
+                }
+            } else {
+                TranscriptExportPreferences.saveOptions(transcriptExportOptions)
+                reloadVideoSubtitleCues()
+            }
         }
     }
 
@@ -446,7 +455,17 @@ struct TranscriptResultView: View {
             }
             .parakeetAction(.secondary)
             .popover(isPresented: $showingExportOptions, arrowEdge: .top) {
-                exportOptionsPopover
+                ExportOptionsPopoverView(
+                    transcriptExportOptions: $transcriptExportOptions,
+                    selectedExportFormat: $selectedExportFormat,
+                    showingExportOptions: $showingExportOptions,
+                    hasAlignedTimestampsForExport: hasAlignedTimestampsForExport,
+                    hasSpeakerLabelsForExport: hasSpeakerLabelsForExport,
+                    exportFormatOrder: exportFormatOrder,
+                    onExport: { format in
+                        exportToDownloads(format: format)
+                    }
+                )
             }
 
             if activeTranscription.sourceType == .meeting {
@@ -2524,201 +2543,20 @@ struct TranscriptResultView: View {
         return options
     }
 
+    private func reloadVideoSubtitleCues() {
+        guard let words = activeTranscription.wordTimestamps, !words.isEmpty else { return }
+        playerViewModel.loadSubtitleCues(
+            from: words,
+            config: transcriptExportOptions.subtitleConfig,
+            breakOnSpeakerChange: transcriptExportOptions.includeSpeakerLabels
+        )
+    }
+
     private var exportFormatOrder: [TranscriptExportFormat] {
         [.txt, .md, .srt, .vtt, .json, .pdf, .docx]
     }
 
-    private var exportOptionsPopover: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                Label("Export Transcript", systemImage: "arrow.down.doc")
-                    .font(DesignSystem.Typography.body.bold())
 
-                Spacer()
-
-                Button {
-                    showingExportOptions = false
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Close export options")
-            }
-
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                Text("Format")
-                    .font(DesignSystem.Typography.caption.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 104), spacing: 8)],
-                    alignment: .leading,
-                    spacing: 8
-                ) {
-                    ForEach(exportFormatOrder) { format in
-                        Button {
-                            selectedExportFormat = format
-                        } label: {
-                            HStack(spacing: 6) {
-                                Image(systemName: format.iconName)
-                                    .frame(width: 16)
-                                Text(format.shortName)
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.85)
-                                Spacer(minLength: 0)
-                            }
-                            .font(DesignSystem.Typography.caption)
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 7)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .fill(selectedExportFormat == format
-                                          ? DesignSystem.Colors.accent.opacity(0.14)
-                                          : DesignSystem.Colors.surface)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .strokeBorder(
-                                        selectedExportFormat == format
-                                        ? DesignSystem.Colors.accent.opacity(0.7)
-                                        : DesignSystem.Colors.border.opacity(0.7),
-                                        lineWidth: 1
-                                    )
-                            )
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-            }
-
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                Text("Options")
-                    .font(DesignSystem.Typography.caption.weight(.medium))
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-                Toggle("Include timestamps", isOn: $transcriptExportOptions.includeTimestamps)
-                    .disabled(!selectedExportFormat.supportsTranscriptOptions || !hasAlignedTimestampsForExport)
-
-                Toggle("Include speaker labels", isOn: $transcriptExportOptions.includeSpeakerLabels)
-                    .disabled(!selectedExportFormat.supportsTranscriptOptions || !hasSpeakerLabelsForExport)
-
-                Toggle("Include metadata", isOn: $transcriptExportOptions.includeMetadata)
-                    .disabled(!selectedExportFormat.supportsTranscriptOptions)
-            }
-
-            if selectedExportFormat == .srt || selectedExportFormat == .vtt {
-                Divider()
-
-                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                    Text("Subtitle Layout")
-                        .font(DesignSystem.Typography.caption.weight(.medium))
-                        .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-                    HStack {
-                        Text("Words per cue")
-                            .font(DesignSystem.Typography.caption)
-                        Spacer()
-                        Text("\(transcriptExportOptions.subtitleConfig.maxWordsPerCue)")
-                            .font(DesignSystem.Typography.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                        Stepper("") {
-                            transcriptExportOptions.subtitleConfig.maxWordsPerCue += 1
-                        } onDecrement: {
-                            transcriptExportOptions.subtitleConfig.maxWordsPerCue = max(1, transcriptExportOptions.subtitleConfig.maxWordsPerCue - 1)
-                        }
-                        .labelsHidden()
-                        .controlSize(.small)
-                    }
-
-                    HStack {
-                        Text("Chars per line")
-                            .font(DesignSystem.Typography.caption)
-                        Spacer()
-                        Text("\(transcriptExportOptions.subtitleConfig.maxCharsPerLine)")
-                            .font(DesignSystem.Typography.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                        Stepper("") {
-                            transcriptExportOptions.subtitleConfig.maxCharsPerLine += 2
-                        } onDecrement: {
-                            transcriptExportOptions.subtitleConfig.maxCharsPerLine = max(10, transcriptExportOptions.subtitleConfig.maxCharsPerLine - 2)
-                        }
-                        .labelsHidden()
-                        .controlSize(.small)
-                    }
-
-                    HStack {
-                        Text("Lines per cue")
-                            .font(DesignSystem.Typography.caption)
-                        Spacer()
-                        Text("\(transcriptExportOptions.subtitleConfig.maxLinesPerCue)")
-                            .font(DesignSystem.Typography.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                        Stepper("") {
-                            transcriptExportOptions.subtitleConfig.maxLinesPerCue += 1
-                        } onDecrement: {
-                            transcriptExportOptions.subtitleConfig.maxLinesPerCue = max(1, transcriptExportOptions.subtitleConfig.maxLinesPerCue - 1)
-                        }
-                        .labelsHidden()
-                        .controlSize(.small)
-                    }
-
-                    HStack {
-                        Text("Max duration (s)")
-                            .font(DesignSystem.Typography.caption)
-                        Spacer()
-                        Text("\(transcriptExportOptions.subtitleConfig.maxDurationMs / 1000)")
-                            .font(DesignSystem.Typography.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                        Stepper("") {
-                            transcriptExportOptions.subtitleConfig.maxDurationMs += 1000
-                        } onDecrement: {
-                            transcriptExportOptions.subtitleConfig.maxDurationMs = max(1000, transcriptExportOptions.subtitleConfig.maxDurationMs - 1000)
-                        }
-                        .labelsHidden()
-                        .controlSize(.small)
-                    }
-
-                    HStack {
-                        Text("Gap threshold (ms)")
-                            .font(DesignSystem.Typography.caption)
-                        Spacer()
-                        Text("\(transcriptExportOptions.subtitleConfig.gapThresholdMs)")
-                            .font(DesignSystem.Typography.caption.monospaced())
-                            .foregroundStyle(.secondary)
-                        Stepper("") {
-                            transcriptExportOptions.subtitleConfig.gapThresholdMs += 100
-                        } onDecrement: {
-                            transcriptExportOptions.subtitleConfig.gapThresholdMs = max(100, transcriptExportOptions.subtitleConfig.gapThresholdMs - 100)
-                        }
-                        .labelsHidden()
-                        .controlSize(.small)
-                    }
-
-                    Toggle("Break on punctuation", isOn: $transcriptExportOptions.subtitleConfig.breakOnPunctuation)
-                        .font(DesignSystem.Typography.caption)
-                }
-            }
-
-            Divider()
-
-            HStack {
-                Spacer()
-                Button {
-                    showingExportOptions = false
-                    exportToDownloads(format: selectedExportFormat)
-                } label: {
-                    Label("Export", systemImage: "arrow.down.doc")
-                }
-                .parakeetAction(.primaryProminent)
-                .keyboardShortcut(.defaultAction)
-            }
-        }
-        .padding(DesignSystem.Spacing.md)
-        .frame(width: 380)
-    }
 
     // MARK: - Export Confirmation Popover
 
@@ -2806,8 +2644,10 @@ struct TranscriptResultView: View {
             let fileURL = try TranscriptResultActions.exportTranscriptToDownloads(
                 transcription: source,
                 format: format,
-                options: format.supportsTranscriptOptions ? resolvedTranscriptExportOptions : .default
+                options: resolvedTranscriptExportOptions
             )
+            TranscriptExportPreferences.saveLastFormat(format)
+            TranscriptExportPreferences.saveOptions(transcriptExportOptions)
             exportErrorMessage = nil
             SoundManager.shared.play(.transcriptionComplete)
             dismissTask?.cancel()
@@ -3038,3 +2878,4 @@ private struct EngineBadge: View {
             )
     }
 }
+

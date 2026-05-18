@@ -46,6 +46,47 @@ enum TranscriptExportFormat: String, CaseIterable, Identifiable {
     var supportsTranscriptOptions: Bool {
         self == .txt || self == .md
     }
+
+    var isSubtitleFormat: Bool {
+        self == .srt || self == .vtt
+    }
+}
+
+/// Persisted export UI state (format + caption options).
+enum TranscriptExportPreferences {
+    private static let optionsKey = "transcriptExportOptions"
+    private static let optionsVersionKey = "transcriptExportOptionsVersion"
+    private static let lastFormatKey = "lastTranscriptExportFormat"
+    /// Bump when export defaults change so saved prefs migrate once.
+    private static let currentOptionsVersion = 2
+
+    static func loadOptions() -> TranscriptExportOptions {
+        if let string = UserDefaults.standard.string(forKey: optionsKey),
+           var options = TranscriptExportOptions(rawValue: string) {
+            if UserDefaults.standard.integer(forKey: optionsVersionKey) < currentOptionsVersion {
+                options.includeSpeakerLabels = false
+                saveOptions(options)
+                UserDefaults.standard.set(currentOptionsVersion, forKey: optionsVersionKey)
+            }
+            return options
+        }
+        UserDefaults.standard.set(currentOptionsVersion, forKey: optionsVersionKey)
+        return .default
+    }
+
+    static func saveOptions(_ options: TranscriptExportOptions) {
+        UserDefaults.standard.set(options.rawValue, forKey: optionsKey)
+        UserDefaults.standard.set(currentOptionsVersion, forKey: optionsVersionKey)
+    }
+
+    static func loadLastFormat() -> TranscriptExportFormat? {
+        guard let raw = UserDefaults.standard.string(forKey: lastFormatKey) else { return nil }
+        return TranscriptExportFormat(rawValue: raw)
+    }
+
+    static func saveLastFormat(_ format: TranscriptExportFormat) {
+        UserDefaults.standard.set(format.rawValue, forKey: lastFormatKey)
+    }
 }
 
 @MainActor
@@ -91,8 +132,20 @@ enum TranscriptResultActions {
         switch format {
         case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL, options: options)
         case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)
-        case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL, config: options.subtitleConfig)
-        case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL, config: options.subtitleConfig)
+        case .srt:
+            try exportService.exportToSRT(
+                transcription: transcription,
+                url: fileURL,
+                config: options.subtitleConfig,
+                includeSpeakerLabels: options.includeSpeakerLabels
+            )
+        case .vtt:
+            try exportService.exportToVTT(
+                transcription: transcription,
+                url: fileURL,
+                config: options.subtitleConfig,
+                includeSpeakerLabels: options.includeSpeakerLabels
+            )
         case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
         case .pdf: try exportService.exportToPDF(transcription: transcription, url: fileURL)
         case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)

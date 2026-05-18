@@ -85,8 +85,9 @@ final class ExportServiceTests: XCTestCase {
 
     func testFormatPlainTextDefaultIncludesMetadataTimestampsAndSpeakers() {
         let transcription = makeExportOptionsTranscription()
+        let options = TranscriptExportOptions(includeSpeakerLabels: true)
 
-        let text = exportService.formatPlainText(transcription: transcription)
+        let text = exportService.formatPlainText(transcription: transcription, options: options)
 
         XCTAssertTrue(text.contains("interview.mp3"))
         XCTAssertTrue(text.contains("Duration: 0:05"))
@@ -114,8 +115,9 @@ final class ExportServiceTests: XCTestCase {
 
     func testFormatPlainTextDefaultKeepsTimestampsForAutomaticCleanTranscript() {
         let transcription = makeExportOptionsTranscription(cleanTranscript: "Automatically cleaned transcript.")
+        let options = TranscriptExportOptions(includeSpeakerLabels: true)
 
-        let text = exportService.formatPlainText(transcription: transcription)
+        let text = exportService.formatPlainText(transcription: transcription, options: options)
 
         XCTAssertTrue(text.contains("[0:00] Hello."))
         XCTAssertTrue(text.contains("[0:02] Goodbye."))
@@ -300,7 +302,8 @@ final class ExportServiceTests: XCTestCase {
     }
 
     func testBuildSubtitleCuesBreaksOnWordCount() {
-        // 14 words with no punctuation — should break at 12
+        // 14 words with no punctuation — should break at 12 (use wide line limits so
+        // the word-count rule triggers before line wrapping).
         var words: [WordTimestamp] = []
         for i in 0..<14 {
             words.append(WordTimestamp(
@@ -311,7 +314,12 @@ final class ExportServiceTests: XCTestCase {
             ))
         }
 
-        let cues = exportService.buildSubtitleCues(from: words)
+        let config = SubtitleExportConfig(
+            maxWordsPerCue: 12,
+            maxCharsPerLine: 200,
+            maxLinesPerCue: 10
+        )
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
         XCTAssertEqual(cues.count, 2)
         XCTAssertEqual(cues[0].text.components(separatedBy: " ").count, 12)
         XCTAssertEqual(cues[1].text.components(separatedBy: " ").count, 2)
@@ -817,9 +825,29 @@ final class ExportServiceTests: XCTestCase {
             SpeakerInfo(id: "S2", label: "Bob"),
         ]
 
-        let srt = exportService.formatSRT(words: words, speakers: speakers)
+        let srt = exportService.formatSRT(
+            words: words,
+            speakers: speakers,
+            includeSpeakerLabels: true
+        )
         XCTAssertTrue(srt.contains("Alice: Hello. Hi."))
         XCTAssertTrue(srt.contains("Bob: Goodbye. Bye."))
+    }
+
+    func testFormatSRTWithSpeakersLabelsDisabled() {
+        let words = [
+            WordTimestamp(word: "Hello.", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+            WordTimestamp(word: "Hi.", startMs: 600, endMs: 1000, confidence: 0.98, speakerId: "S1"),
+        ]
+        let speakers = [SpeakerInfo(id: "S1", label: "Alice")]
+
+        let srt = exportService.formatSRT(
+            words: words,
+            speakers: speakers,
+            includeSpeakerLabels: false
+        )
+        XCTAssertTrue(srt.contains("\nHello. Hi.\n"))
+        XCTAssertFalse(srt.contains("Alice:"))
     }
 
     func testFormatVTTWithSpeakers() {
@@ -834,10 +862,25 @@ final class ExportServiceTests: XCTestCase {
             SpeakerInfo(id: "S2", label: "Bob"),
         ]
 
-        let vtt = exportService.formatVTT(words: words, speakers: speakers)
+        let vtt = exportService.formatVTT(
+            words: words,
+            speakers: speakers,
+            includeSpeakerLabels: true
+        )
         XCTAssertTrue(vtt.hasPrefix("WEBVTT\n"))
         XCTAssertTrue(vtt.contains("<v Alice>Hello. Hi.</v>"))
         XCTAssertTrue(vtt.contains("<v Bob>Goodbye. Bye.</v>"))
+    }
+
+    func testCueDoesNotSplitOnSpeakerChangeByDefault() {
+        let words = [
+            WordTimestamp(word: "Hi", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
+            WordTimestamp(word: "there", startMs: 500, endMs: 1000, confidence: 0.98, speakerId: "S2"),
+        ]
+
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertEqual(cues.count, 1)
+        XCTAssertEqual(cues[0].text, "Hi there")
     }
 
     func testCueSplitsOnSpeakerChange() {
@@ -846,7 +889,7 @@ final class ExportServiceTests: XCTestCase {
             WordTimestamp(word: "there", startMs: 500, endMs: 1000, confidence: 0.98, speakerId: "S2"),
         ]
 
-        let cues = exportService.buildSubtitleCues(from: words)
+        let cues = exportService.buildSubtitleCues(from: words, breakOnSpeakerChange: true)
         XCTAssertEqual(cues.count, 2)
         XCTAssertEqual(cues[0].speakerId, "S1")
         XCTAssertEqual(cues[0].text, "Hi")
@@ -872,7 +915,10 @@ final class ExportServiceTests: XCTestCase {
             status: .completed
         )
 
-        let md = exportService.formatMarkdown(transcription: transcription)
+        let md = exportService.formatMarkdown(
+            transcription: transcription,
+            options: TranscriptExportOptions(includeSpeakerLabels: true)
+        )
         XCTAssertTrue(md.contains("**Alice**"))
         XCTAssertTrue(md.contains("**Bob**"))
     }
@@ -906,7 +952,11 @@ final class ExportServiceTests: XCTestCase {
 
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("test-speakers.txt")
         defer { try? FileManager.default.removeItem(at: url) }
-        try exportService.exportToTxt(transcription: transcription, url: url)
+        try exportService.exportToTxt(
+            transcription: transcription,
+            url: url,
+            options: TranscriptExportOptions(includeSpeakerLabels: true)
+        )
         let content = try String(contentsOf: url, encoding: .utf8)
 
         XCTAssertTrue(content.contains("Alice:"))
