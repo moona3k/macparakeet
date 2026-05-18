@@ -401,7 +401,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             // we don't produce single-word cues.
             let nextIsClauseStart = !isLast
                 && currentWords.count >= 4
-                && Self.clauseStarters.contains(words[i + 1].word.lowercased())
+                && Self.clauseStarters.contains(
+                    words[i + 1].word.lowercased().trimmingCharacters(in: .punctuationCharacters))
 
             if isLast || (endsWithPunctuation && currentWords.count >= 2) || hasLongGap || tooManyWords || tooLong || nextIsClauseStart {
                 cues.append(SubtitleCue(
@@ -430,6 +431,9 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// split (≤ 2 words) are left untouched.
     private func enforceReadingSpeed(_ cues: [SubtitleCue], words: [WordTimestamp], maxCPS: Double = 25.0) -> [SubtitleCue] {
         var result: [SubtitleCue] = []
+        // Walk words with a single forward index — both cues and words are chronological,
+        // so we never need to scan the whole array per cue (O(N) overall).
+        var wordIdx = 0
         for cue in cues {
             let durationSec = Double(cue.endMs - cue.startMs) / 1000.0
             guard durationSec > 0.1 else { result.append(cue); continue }
@@ -437,8 +441,18 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let cps = Double(cue.text.count) / durationSec
             guard cps > maxCPS else { result.append(cue); continue }
 
-            // Find words that fall within this cue's time range.
-            let cueWords = words.filter { $0.startMs >= cue.startMs && $0.endMs <= cue.endMs }
+            // Advance past words that precede this cue.
+            while wordIdx < words.count && words[wordIdx].startMs < cue.startMs {
+                wordIdx += 1
+            }
+            // Collect words that belong to this cue (same speaker, within time range).
+            var cueWords: [WordTimestamp] = []
+            var scanIdx = wordIdx
+            while scanIdx < words.count && words[scanIdx].endMs <= cue.endMs {
+                let w = words[scanIdx]
+                if w.speakerId == cue.speakerId { cueWords.append(w) }
+                scanIdx += 1
+            }
             guard cueWords.count > 2 else { result.append(cue); continue }
 
             // Split at the midpoint word.
