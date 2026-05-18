@@ -59,6 +59,10 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
     public var gapThresholdMs: Int
     /// Whether to break cues on sentence-ending punctuation.
     public var breakOnPunctuation: Bool
+    /// Minimum words accumulated before a punctuation mark triggers a new cue.
+    public var minWordsBeforePunctuationBreak: Int
+    /// Prefer balanced line lengths when wrapping across lines.
+    public var preferBalancedLines: Bool
 
     public init(
         maxWordsPerCue: Int = 12,
@@ -66,14 +70,18 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
         maxLinesPerCue: Int = 2,
         maxDurationMs: Int = 7000,
         gapThresholdMs: Int = 800,
-        breakOnPunctuation: Bool = true
+        breakOnPunctuation: Bool = true,
+        minWordsBeforePunctuationBreak: Int = 4,
+        preferBalancedLines: Bool = true
     ) {
         self.maxWordsPerCue = max(1, maxWordsPerCue)
         self.maxCharsPerLine = max(10, maxCharsPerLine)
         self.maxLinesPerCue = max(1, maxLinesPerCue)
         self.maxDurationMs = max(1000, maxDurationMs)
-        self.gapThresholdMs = max(100, gapThresholdMs)
+        self.gapThresholdMs = max(0, gapThresholdMs)
         self.breakOnPunctuation = breakOnPunctuation
+        self.minWordsBeforePunctuationBreak = max(1, minWordsBeforePunctuationBreak)
+        self.preferBalancedLines = preferBalancedLines
     }
 
     public static let `default` = SubtitleExportConfig()
@@ -521,7 +529,16 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     ) -> [SubtitleCue] {
         guard !words.isEmpty else { return [] }
 
-        var cues: [SubtitleCue] = []
+        // Internal mutable cue for building
+        struct MutableCue {
+            var startMs: Int
+            var endMs: Int
+            var words: [String]
+            var speakerId: String?
+            var text: String { words.joined(separator: " ") }
+        }
+
+        var rawCues: [MutableCue] = []
         var currentWords: [String] = []
         var cueStartMs = words[0].startMs
         var cueEndMs = words[0].endMs
@@ -529,42 +546,20 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
         func flushCue() {
             guard !currentWords.isEmpty else { return }
-            let rawText = currentWords.joined(separator: " ")
-            let wrapped = wrapSubtitleText(rawText, config: config)
-            cues.append(SubtitleCue(
+            rawCues.append(MutableCue(
                 startMs: cueStartMs,
                 endMs: cueEndMs,
-                text: wrapped,
+                words: currentWords,
                 speakerId: cueSpeakerId
             ))
             currentWords = []
         }
-        
-        func linesNeeded(for text: String) -> Int {
-            let splitWords = text.split(separator: " ")
-            var lineCount = 1
-            var currentLineLength = 0
-            for word in splitWords {
-                let candidateLength = currentLineLength == 0 ? word.count : currentLineLength + 1 + word.count
-                if candidateLength > config.maxCharsPerLine {
-                    lineCount += 1
-                    currentLineLength = word.count
-                } else {
-                    currentLineLength = candidateLength
-                }
-            }
-            return lineCount
-        }
 
         for (i, word) in words.enumerated() {
-            // Break on speaker change only when requested (e.g. captions with speaker names).
             let speakerChanged = breakOnSpeakerChange
                 && !currentWords.isEmpty
                 && word.speakerId != cueSpeakerId
 
-            // Check if adding this word would exceed the total cue character budget.
-            // maxCharsPerLine is interpreted as "max chars per cue total" so the
-            // user-facing slider controls the overall subtitle entry size.
             let prospectiveWords = currentWords + [word.word]
             let prospectiveText = prospectiveWords.joined(separator: " ")
             let exceedsTotalChars = prospectiveText.count > config.maxCharsPerLine
@@ -584,8 +579,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 : false
             let hasLongGap = !isLast && (words[i + 1].startMs - word.endMs) > config.gapThresholdMs
             let tooLong = (cueEndMs - cueStartMs) > config.maxDurationMs
+            let shouldBreakOnPunctuation = endsWithPunctuation
+                && currentWords.count >= config.minWordsBeforePunctuationBreak
 
-            if isLast || (endsWithPunctuation && currentWords.count >= 2) || hasLongGap || tooLong {
+            if isLast || shouldBreakOnPunctuation || hasLongGap || tooLong {
                 flushCue()
                 if !isLast {
                     cueStartMs = words[i + 1].startMs
@@ -594,27 +591,119 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             }
         }
 
-        return cues
+        // Post-process: merge tiny orphaned cues with neighbours when possible.
+        func mergeTinyCues(_ cues: [MutableCue]) -> [MutableCue] {
+            guard cues.count > 1 else { return cues }
+
+            let minChars = 15
+            let minWords = 3
+            let tolerance = 10
+            let maxBudget = config.maxCharsPerLine + tolerance
+
+            var result = cues
+
+            // Forward pass: merge tiny cue with next cue
+            var i = 0
+            while i < result.count - 1 {
+                let current = result[i]
+                let isTiny = current.text.count < minChars || current.words.count < minWords
+                if isTiny {
+                    let next = result[i + 1]
+                    let mergedText = current.text + " " + next.text
+                    if mergedText.count <= maxBudget {
+                        result[i] = MutableCue(
+                            startMs: current.startMs,
+                            endMs: next.endMs,
+                            words: current.words + next.words,
+                            speakerId: current.speakerId
+                        )
+                        result.remove(at: i + 1)
+                        continue
+                    }
+                }
+                i += 1
+            }
+
+            // Backward pass: merge tiny cue with previous cue
+            i = 1
+            while i < result.count {
+                let current = result[i]
+                let isTiny = current.text.count < minChars || current.words.count < minWords
+                if isTiny {
+                    let prev = result[i - 1]
+                    let mergedText = prev.text + " " + current.text
+                    if mergedText.count <= maxBudget {
+                        result[i - 1] = MutableCue(
+                            startMs: prev.startMs,
+                            endMs: current.endMs,
+                            words: prev.words + current.words,
+                            speakerId: prev.speakerId
+                        )
+                        result.remove(at: i)
+                        continue
+                    }
+                }
+                i += 1
+            }
+
+            return result
+        }
+        rawCues = mergeTinyCues(rawCues)
+
+        // Wrap text for each cue
+        return rawCues.map { cue in
+            SubtitleCue(
+                startMs: cue.startMs,
+                endMs: cue.endMs,
+                text: wrapSubtitleText(cue.text, config: config),
+                speakerId: cue.speakerId
+            )
+        }
     }
 
     /// Wrap subtitle text across up to maxLinesPerCue lines.
     ///
-    /// maxCharsPerLine is treated as the *total* character budget for the cue,
-    /// so the wrap point is totalBudget / maxLinesPerCue to distribute evenly.
+    /// maxCharsPerLine is treated as the *total* character budget for the cue.
+    /// When preferBalancedLines is true (and maxLinesPerCue == 2), the algorithm
+    /// tries to split the text so both lines are roughly equal in length,
+    /// preferring natural break points (commas, conjunctions) when the difference
+    /// is small. Falls back to greedy wrapping for single-line cues or when
+    /// balanced wrapping is disabled.
     private func wrapSubtitleText(_ text: String, config: SubtitleExportConfig) -> String {
+        let words = text.split(separator: " ").map(String.init)
+        guard !words.isEmpty else { return text }
+
+        // Single line: just return the text (it was already bounded by cue splitting)
+        if config.maxLinesPerCue <= 1 {
+            return text
+        }
+
         let perLineBudget = max(10, config.maxCharsPerLine / max(1, config.maxLinesPerCue))
-        let words = text.split(separator: " ")
+
+        // For two-line cues, try balanced wrapping when enabled
+        if config.maxLinesPerCue == 2 && config.preferBalancedLines && words.count > 1 {
+            if let balanced = wrapSubtitleTextBalanced(words: words, perLineBudget: perLineBudget) {
+                return balanced
+            }
+        }
+
+        // Fallback: greedy line-by-line wrapping
+        return wrapSubtitleTextGreedy(words: words, perLineBudget: perLineBudget)
+    }
+
+    /// Greedy wrap: fill each line until the next word would exceed budget.
+    /// Post-processes to avoid orphaned very-short final lines.
+    private func wrapSubtitleTextGreedy(words: [String], perLineBudget: Int) -> String {
         var lines: [String] = []
         var currentLine = ""
 
         for word in words {
-            let candidate = currentLine.isEmpty ? String(word) : "\(currentLine) \(word)"
+            let candidate = currentLine.isEmpty ? word : "\(currentLine) \(word)"
             if candidate.count > perLineBudget {
                 if !currentLine.isEmpty {
                     lines.append(currentLine)
                 }
-                currentLine = String(word)
-                // If a single word exceeds the per-line budget, truncate it
+                currentLine = word
                 if currentLine.count > perLineBudget {
                     currentLine = String(currentLine.prefix(perLineBudget))
                 }
@@ -627,7 +716,77 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             lines.append(currentLine)
         }
 
+        // Avoid orphaned very-short last line by merging with previous
+        if lines.count >= 2 {
+            let last = lines.removeLast()
+            if last.count < 5, let prev = lines.last {
+                let merged = prev + " " + last
+                if merged.count <= perLineBudget + 5 {
+                    lines[lines.count - 1] = merged
+                } else {
+                    lines.append(last)
+                }
+            } else {
+                lines.append(last)
+            }
+        }
+
         return lines.joined(separator: "\n")
+    }
+
+    /// Balanced wrap for two-line cues. Tries all possible split points and
+    /// scores them by line-length balance, natural phrasing, and orphan avoidance.
+    private func wrapSubtitleTextBalanced(words: [String], perLineBudget: Int) -> String? {
+        var bestSplit = 0
+        var bestScore = Int.min
+
+        for splitAfter in 1..<words.count {
+            let line1 = words[0..<splitAfter].joined(separator: " ")
+            let line2 = words[splitAfter...].joined(separator: " ")
+
+            // Hard constraint: neither line can exceed budget
+            guard line1.count <= perLineBudget && line2.count <= perLineBudget else { continue }
+
+            // 1. Balance: prefer equal line lengths
+            let balanceScore = -abs(line1.count - line2.count)
+
+            // 2. Natural break bonus
+            let naturalBonus: Int
+            let lastWord = words[splitAfter - 1].lowercased()
+            if lastWord.hasSuffix(",") || lastWord.hasSuffix(";") {
+                naturalBonus = 8
+            } else if ["and", "but", "or", "so", "yet", "for", "nor"].contains(lastWord) {
+                naturalBonus = 4
+            } else {
+                naturalBonus = 0
+            }
+
+            // 3. Proximity bonus: prefer splits close to the midpoint
+            let midpoint = Double(words.count) / 2.0
+            let distFromMid = abs(Double(splitAfter) - midpoint)
+            let proximityBonus = Int(max(0, 5 - distFromMid))
+
+            // 4. Orphan penalty: strongly avoid a very short last line
+            let orphanPenalty: Int
+            if line2.count < 5 {
+                orphanPenalty = -25
+            } else if line2.count < 10 {
+                orphanPenalty = -10
+            } else {
+                orphanPenalty = 0
+            }
+
+            let score = balanceScore + naturalBonus + proximityBonus + orphanPenalty
+            if score > bestScore {
+                bestScore = score
+                bestSplit = splitAfter
+            }
+        }
+
+        guard bestSplit > 0 else { return nil }
+        let line1 = words[0..<bestSplit].joined(separator: " ")
+        let line2 = words[bestSplit...].joined(separator: " ")
+        return "\(line1)\n\(line2)"
     }
 
     private func formattedCueText(

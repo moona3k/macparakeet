@@ -210,6 +210,18 @@ private struct SubtitleConfigSection: View {
 
             Toggle("Break on punctuation", isOn: $config.breakOnPunctuation)
                 .font(DesignSystem.Typography.caption)
+
+            if config.breakOnPunctuation {
+                StableSlider(
+                    title: "Min words before punctuation break",
+                    intValue: $config.minWordsBeforePunctuationBreak,
+                    range: 1...15,
+                    step: 1
+                )
+            }
+
+            Toggle("Balance line lengths", isOn: $config.preferBalancedLines)
+                .font(DesignSystem.Typography.caption)
         }
     }
 }

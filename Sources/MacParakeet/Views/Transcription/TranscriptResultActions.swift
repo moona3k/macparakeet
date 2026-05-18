@@ -58,7 +58,7 @@ enum TranscriptExportPreferences {
     private static let optionsVersionKey = "transcriptExportOptionsVersion"
     private static let lastFormatKey = "lastTranscriptExportFormat"
     /// Bump when export defaults change so saved prefs migrate once.
-    private static let currentOptionsVersion = 3
+    private static let currentOptionsVersion = 4
 
     static func loadOptions() -> TranscriptExportOptions {
         if let string = UserDefaults.standard.string(forKey: optionsKey),
