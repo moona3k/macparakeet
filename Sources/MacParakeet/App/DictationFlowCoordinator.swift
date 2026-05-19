@@ -106,20 +106,20 @@ final class DictationFlowCoordinator {
     }
 
     static func pasteFailureMessage(for error: Error, copiedToClipboard copied: Bool) -> String {
+        let clipboardError = error as? ClipboardServiceError
+
         if copied {
-            if let clipboardError = error as? ClipboardServiceError,
-               case .accessibilityPermissionRequired = clipboardError {
+            if case .accessibilityPermissionRequired? = clipboardError {
                 return "Accessibility permission is required for auto-paste. Copied to clipboard. Press Cmd+V."
             }
             return "Copied to clipboard. Press Cmd+V."
         }
 
-        if let clipboardError = error as? ClipboardServiceError,
-           case .pasteboardWriteFailed = clipboardError {
-            return "Paste failed and the clipboard could not be updated."
+        if case .accessibilityPermissionRequired? = clipboardError {
+            return "Accessibility permission is required for auto-paste, but the clipboard could not be updated."
         }
 
-        return "Paste automation failed. The transcript is temporarily on the clipboard. Press Cmd+V now."
+        return "Paste failed and the clipboard could not be updated."
     }
 
     /// Set after init; updated when dictation hotkey managers are recreated.

@@ -64,7 +64,19 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         )
     }
 
-    func testPasteFailureMessageKeepsClipboardWriteFailureDistinct() {
+    func testPasteFailureMessagePreservesAccessibilityCauseWhenNotCopied() {
+        let message = DictationFlowCoordinator.pasteFailureMessage(
+            for: ClipboardServiceError.accessibilityPermissionRequired,
+            copiedToClipboard: false
+        )
+
+        XCTAssertEqual(
+            message,
+            "Accessibility permission is required for auto-paste, but the clipboard could not be updated."
+        )
+    }
+
+    func testPasteFailureMessageReportsClipboardWriteFailureWhenNotCopied() {
         let message = DictationFlowCoordinator.pasteFailureMessage(
             for: ClipboardServiceError.pasteboardWriteFailed,
             copiedToClipboard: false
@@ -75,7 +87,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
     func testPasteFailureMessageStaysGenericWhenCopiedWithoutAccessibilityCause() {
         // A non-permission paste failure (e.g. CGEvent infrastructure) that still
-        // landed on the clipboard must keep the generic copy — it must NOT claim
+        // landed on the clipboard must keep the generic copy - it must NOT claim
         // an Accessibility cause it cannot attribute.
         let message = DictationFlowCoordinator.pasteFailureMessage(
             for: ClipboardServiceError.eventSourceUnavailable,
@@ -85,7 +97,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         XCTAssertEqual(message, "Copied to clipboard. Press Cmd+V.")
     }
 
-    func testPasteFailureMessageFallsBackWhenNotCopiedAndClipboardIntact() {
+    func testPasteFailureMessageDoesNotSuggestPasteWhenNotCopied() {
         let message = DictationFlowCoordinator.pasteFailureMessage(
             for: ClipboardServiceError.eventCreationFailed,
             copiedToClipboard: false
@@ -93,7 +105,7 @@ final class DictationFlowCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(
             message,
-            "Paste automation failed. The transcript is temporarily on the clipboard. Press Cmd+V now."
+            "Paste failed and the clipboard could not be updated."
         )
     }
 
