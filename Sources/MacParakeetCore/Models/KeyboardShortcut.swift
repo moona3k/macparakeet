@@ -79,7 +79,21 @@ public struct KeyboardShortcut: Codable, Equatable, Hashable, Sendable {
             .filter { (modifiers & $0.rawValue) != 0 }
             .map(\.displayGlyph)
             .joined()
-        return glyphs + keyLabel.uppercased()
+        return glyphs + displayKeyLabel
+    }
+
+    public var displayKeyLabel: String {
+        Self.displayKeyLabel(for: keyCode, fallback: keyLabel)
+    }
+
+    public static func displayKeyLabel(for keyCode: UInt16, fallback keyLabel: String) -> String {
+        if let digit = digitKeyLabelsByKeyCode[keyCode] {
+            return digit
+        }
+        if let named = namedKeyLabelsByKeyCode[keyCode] {
+            return named
+        }
+        return keyLabel.uppercased()
     }
 
     // MARK: - String parsing (CLI input)
@@ -150,6 +164,11 @@ public struct KeyboardShortcut: Codable, Equatable, Hashable, Sendable {
         "6": 0x16, "7": 0x1A, "8": 0x1C, "9": 0x19, "0": 0x1D,
     ]
 
+    private static let digitKeyLabelsByKeyCode: [UInt16: String] = [
+        0x12: "1", 0x13: "2", 0x14: "3", 0x15: "4", 0x17: "5",
+        0x16: "6", 0x1A: "7", 0x1C: "8", 0x19: "9", 0x1D: "0",
+    ]
+
     private static let letterKeyCodes: [String: UInt16] = [
         "a": 0x00, "b": 0x0B, "c": 0x08, "d": 0x02, "e": 0x0E,
         "f": 0x03, "g": 0x05, "h": 0x04, "i": 0x22, "j": 0x26,
@@ -166,6 +185,13 @@ public struct KeyboardShortcut: Codable, Equatable, Hashable, Sendable {
         "tab":    (0x30, "Tab"),
         "escape": (0x35, "Escape"),
         "esc":    (0x35, "Escape"),
+    ]
+
+    private static let namedKeyLabelsByKeyCode: [UInt16: String] = [
+        0x24: "Return",
+        0x30: "Tab",
+        0x31: "Space",
+        0x35: "Escape",
     ]
 
     // MARK: - Dead-key blocklist

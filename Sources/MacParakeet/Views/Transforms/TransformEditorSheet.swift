@@ -295,7 +295,7 @@ struct ShortcutRecorderField: View {
         if let shortcut {
             HStack(spacing: 6) {
                 KeycapBadge(shortcut: shortcut)
-                Text(shortcut.keyLabel.uppercased())
+                Text(shortcut.displayKeyLabel)
                     .font(DesignSystem.Typography.bodySmall.monospacedDigit())
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
                     .accessibilityHidden(true)
@@ -363,27 +363,28 @@ struct ShortcutRecorderField: View {
         let modifierNames = ordered
             .filter { (shortcut.modifiers & $0.rawValue) != 0 }
             .map(\.displayName)
-        return (modifierNames + [shortcut.keyLabel.uppercased()]).joined(separator: " ")
+        return (modifierNames + [shortcut.displayKeyLabel]).joined(separator: " ")
     }
 
     private func labelForKey(event: NSEvent) -> String {
+        let keyCode = UInt16(event.keyCode)
         if let chars = event.charactersIgnoringModifiers, !chars.isEmpty {
             let scalar = chars.first!
             // Map common control codes to display names.
             switch event.keyCode {
-            case 0x24: return "Return"
-            case 0x30: return "Tab"
-            case 0x31: return "Space"
-            case 0x35: return "Escape"
+            case 0x24: return TransformShortcut.displayKeyLabel(for: keyCode, fallback: "Return")
+            case 0x30: return TransformShortcut.displayKeyLabel(for: keyCode, fallback: "Tab")
+            case 0x31: return TransformShortcut.displayKeyLabel(for: keyCode, fallback: "Space")
+            case 0x35: return TransformShortcut.displayKeyLabel(for: keyCode, fallback: "Escape")
             default:
                 if scalar.isLetter || scalar.isNumber {
-                    return String(scalar).uppercased()
+                    return TransformShortcut.displayKeyLabel(for: keyCode, fallback: String(scalar).uppercased())
                 }
                 if scalar.asciiValue.map({ $0 >= 32 }) ?? false {
-                    return String(scalar)
+                    return TransformShortcut.displayKeyLabel(for: keyCode, fallback: String(scalar))
                 }
             }
         }
-        return "Key \(event.keyCode)"
+        return TransformShortcut.displayKeyLabel(for: keyCode, fallback: "Key \(event.keyCode)")
     }
 }

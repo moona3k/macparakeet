@@ -105,6 +105,23 @@ final class DictationFlowCoordinator {
         }
     }
 
+    static func pasteFailureMessage(for error: Error, copiedToClipboard copied: Bool) -> String {
+        let clipboardError = error as? ClipboardServiceError
+
+        if copied {
+            if case .accessibilityPermissionRequired? = clipboardError {
+                return "Accessibility permission is required for auto-paste. Copied to clipboard. Press Cmd+V."
+            }
+            return "Copied to clipboard. Press Cmd+V."
+        }
+
+        if case .accessibilityPermissionRequired? = clipboardError {
+            return "Accessibility permission is required for auto-paste, but the clipboard could not be updated."
+        }
+
+        return "Paste failed and the clipboard could not be updated."
+    }
+
     /// Set after init; updated when dictation hotkey managers are recreated.
     var hotkeyManagers: [HotkeyManager] = []
 
@@ -540,27 +557,14 @@ final class DictationFlowCoordinator {
                     self.sendEvent(.pasteSucceeded(generation: gen))
                 } catch {
                     guard !Task.isCancelled else { return }
-                    let bucket = self.commandFailureBucket(for: error)
+                    let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                     if transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         // Pure action-only dictation (e.g., "press return") — nothing to paste
                         self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
                     } else {
                         let copied = await self.clipboardService.copyToClipboard(transcript)
-                        let failedBeforeClipboardWrite: Bool
-                        if let clipboardError = error as? ClipboardServiceError,
-                           case .pasteboardWriteFailed = clipboardError {
-                            failedBeforeClipboardWrite = true
-                        } else {
-                            failedBeforeClipboardWrite = false
-                        }
-                        let message = if copied {
-                            "Copied to clipboard. Press Cmd+V."
-                        } else if failedBeforeClipboardWrite {
-                            "Paste failed and the clipboard could not be updated."
-                        } else {
-                            "Paste automation failed. The transcript is temporarily on the clipboard. Press Cmd+V now."
-                        }
+                        let message = Self.pasteFailureMessage(for: error, copiedToClipboard: copied)
 
                         self.sendEvent(
                             .pasteFailed(
@@ -960,7 +964,7 @@ final class DictationFlowCoordinator {
         }
     }
 
-    private func commandFailureBucket(for error: Error) -> String {
+    static func commandFailureBucket(for error: Error) -> String {
         if let accessibilityError = error as? AccessibilityServiceError {
             switch accessibilityError {
             case .notAuthorized: return "accessibility_not_authorized"
@@ -970,7 +974,14 @@ final class DictationFlowCoordinator {
             case .unsupportedElement: return "unsupported_element"
             }
         }
-        if error is ClipboardServiceError { return "paste_failed" }
+        if let clipboardError = error as? ClipboardServiceError {
+            switch clipboardError {
+            case .accessibilityPermissionRequired: return "paste_accessibility_permission"
+            case .eventSourceUnavailable: return "paste_event_source_unavailable"
+            case .eventCreationFailed: return "paste_event_creation_failed"
+            case .pasteboardWriteFailed: return "pasteboard_write_failed"
+            }
+        }
         return "unknown"
     }
 

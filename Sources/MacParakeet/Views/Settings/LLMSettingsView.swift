@@ -382,8 +382,19 @@ struct LLMSettingsView: View {
 
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Prompt")
-                        .font(DesignSystem.Typography.body)
+                    HStack(spacing: 7) {
+                        Text("Prompt")
+                            .font(DesignSystem.Typography.body)
+                        Text(viewModel.aiFormatterPromptModeText)
+                            .font(DesignSystem.Typography.micro.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(DesignSystem.Colors.surfaceElevated)
+                            )
+                    }
                     Text("Uses `{{TRANSCRIPT}}` as the transcript placeholder and runs as the last output step.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)

@@ -443,6 +443,17 @@ public final class TransformsViewModel {
         }
         return bindings
     }
+
+    public var heroShortcutInstruction: String {
+        let shortcuts = transforms.compactMap { $0.shortcut?.displayString }
+        guard !shortcuts.isEmpty else {
+            return "Press a Transform's hotkey."
+        }
+
+        let visibleShortcuts = shortcuts.prefix(3).joined(separator: ", ")
+        let suffix = shortcuts.count > 3 ? ", ..." : ""
+        return "Press a Transform's hotkey (\(visibleShortcuts)\(suffix))."
+    }
 }
 
 private func transformShortcutConflict(
