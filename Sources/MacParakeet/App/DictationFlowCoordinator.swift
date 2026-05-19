@@ -105,6 +105,23 @@ final class DictationFlowCoordinator {
         }
     }
 
+    static func pasteFailureMessage(for error: Error, copiedToClipboard copied: Bool) -> String {
+        if copied {
+            if let clipboardError = error as? ClipboardServiceError,
+               case .accessibilityPermissionRequired = clipboardError {
+                return "Accessibility permission is required for auto-paste. Copied to clipboard. Press Cmd+V."
+            }
+            return "Copied to clipboard. Press Cmd+V."
+        }
+
+        if let clipboardError = error as? ClipboardServiceError,
+           case .pasteboardWriteFailed = clipboardError {
+            return "Paste failed and the clipboard could not be updated."
+        }
+
+        return "Paste automation failed. The transcript is temporarily on the clipboard. Press Cmd+V now."
+    }
+
     /// Set after init; updated when dictation hotkey managers are recreated.
     var hotkeyManagers: [HotkeyManager] = []
 
@@ -547,20 +564,7 @@ final class DictationFlowCoordinator {
                         self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
                     } else {
                         let copied = await self.clipboardService.copyToClipboard(transcript)
-                        let failedBeforeClipboardWrite: Bool
-                        if let clipboardError = error as? ClipboardServiceError,
-                           case .pasteboardWriteFailed = clipboardError {
-                            failedBeforeClipboardWrite = true
-                        } else {
-                            failedBeforeClipboardWrite = false
-                        }
-                        let message = if copied {
-                            "Copied to clipboard. Press Cmd+V."
-                        } else if failedBeforeClipboardWrite {
-                            "Paste failed and the clipboard could not be updated."
-                        } else {
-                            "Paste automation failed. The transcript is temporarily on the clipboard. Press Cmd+V now."
-                        }
+                        let message = Self.pasteFailureMessage(for: error, copiedToClipboard: copied)
 
                         self.sendEvent(
                             .pasteFailed(
