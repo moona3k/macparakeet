@@ -109,11 +109,18 @@ struct MeetingsCommand: AsyncParsableCommand {
         @Option(help: "Path to SQLite database file (defaults to the app database).")
         var database: String?
 
+        @Option(
+            name: .customLong("subtitle-preset"),
+            help: "Subtitle preset for SRT/VTT: standard, netflix, bbc, youtube. Defaults to the app's Settings value."
+        )
+        var subtitlePreset: SubtitlePresetArgument?
+
         func run() async throws {
             try await emitJSONOrRethrow(json: format == .json) {
                 let repo = try makeTranscriptionRepository(database: database)
                 let transcription = try findMeeting(idOrName: meeting, repo: repo)
                 let exportService = await ExportService()
+                let subtitleConfig = (subtitlePreset?.preset ?? SubtitleExportPreferences.selectedPreset()).config
 
                 switch format {
                 case .text:
@@ -121,9 +128,9 @@ struct MeetingsCommand: AsyncParsableCommand {
                 case .json:
                     try printJSON(MeetingTranscriptRecord(transcription))
                 case .srt:
-                    print(await exportService.formatSRT(transcription: transcription))
+                    print(await exportService.formatSRT(transcription: transcription, config: subtitleConfig))
                 case .vtt:
-                    print(await exportService.formatVTT(transcription: transcription))
+                    print(await exportService.formatVTT(transcription: transcription, config: subtitleConfig))
                 }
             }
         }

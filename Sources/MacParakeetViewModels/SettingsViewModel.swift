@@ -304,6 +304,14 @@ public final class SettingsViewModel {
     }
     public var meetingAutoSaveFolderPath: String?
 
+    /// Subtitle authoring preset applied to SRT/VTT exports (manual + auto-save).
+    /// Persisted under `SubtitleExportPreferences.presetKey`.
+    public var subtitleExportPreset: SubtitlePreset {
+        didSet {
+            SubtitleExportPreferences.setSelectedPreset(subtitleExportPreset, defaults: defaults)
+        }
+    }
+
     // Calendar auto-start (ADR-017)
     //
     // Each `didSet` writes the value through to `UserDefaults`, fires the
@@ -512,6 +520,7 @@ public final class SettingsViewModel {
         meetingAutoSave = defaults.bool(forKey: AutoSaveScope.meeting.enabledKey)
         meetingAutoSaveFormat = AutoSaveFormat(rawValue: defaults.string(forKey: AutoSaveScope.meeting.formatKey) ?? "md") ?? .md
         meetingAutoSaveFolderPath = Self.resolveAutoSaveFolderPath(defaults: defaults, scope: .meeting)
+        subtitleExportPreset = SubtitleExportPreferences.selectedPreset(defaults: defaults)
         calendarAutoStartMode = Self.resolveCalendarAutoStartMode(defaults: defaults)
         calendarReminderMinutes = Self.resolveCalendarReminderMinutes(defaults: defaults)
         meetingTriggerFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)

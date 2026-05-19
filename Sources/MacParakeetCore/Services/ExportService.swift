@@ -5,7 +5,9 @@ import AppKit
 public protocol ExportServiceProtocol: Sendable {
     func exportToTxt(transcription: Transcription, url: URL) throws
     func exportToSRT(transcription: Transcription, url: URL) throws
+    func exportToSRT(transcription: Transcription, url: URL, config: SubtitleExportConfig) throws
     func exportToVTT(transcription: Transcription, url: URL) throws
+    func exportToVTT(transcription: Transcription, url: URL, config: SubtitleExportConfig) throws
     func exportToMarkdown(transcription: Transcription, url: URL) throws
     func exportToJSON(transcription: Transcription, url: URL) throws
     @MainActor func exportToPDF(transcription: Transcription, url: URL) throws
@@ -166,16 +168,38 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Export transcription as SRT subtitle file
     public func exportToSRT(transcription: Transcription, url: URL) throws {
-        try formatSRT(transcription: transcription).write(to: url, atomically: true, encoding: .utf8)
+        try exportToSRT(transcription: transcription, url: url, config: .default)
+    }
+
+    public func exportToSRT(
+        transcription: Transcription,
+        url: URL,
+        config: SubtitleExportConfig
+    ) throws {
+        try formatSRT(transcription: transcription, config: config)
+            .write(to: url, atomically: true, encoding: .utf8)
     }
 
     /// Export transcription as WebVTT subtitle file
     public func exportToVTT(transcription: Transcription, url: URL) throws {
-        try formatVTT(transcription: transcription).write(to: url, atomically: true, encoding: .utf8)
+        try exportToVTT(transcription: transcription, url: url, config: .default)
+    }
+
+    public func exportToVTT(
+        transcription: Transcription,
+        url: URL,
+        config: SubtitleExportConfig
+    ) throws {
+        try formatVTT(transcription: transcription, config: config)
+            .write(to: url, atomically: true, encoding: .utf8)
     }
 
     /// Format a transcription as SRT, falling back to one full-transcript cue.
     public func formatSRT(transcription: Transcription) -> String {
+        formatSRT(transcription: transcription, config: .default)
+    }
+
+    public func formatSRT(transcription: Transcription, config: SubtitleExportConfig) -> String {
         if let text = editedTranscriptText(transcription: transcription) {
             let duration = transcription.durationMs ?? 0
             return "1\n00:00:00,000 --> \(srtTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
@@ -186,11 +210,15 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let duration = transcription.durationMs ?? 0
             return "1\n00:00:00,000 --> \(srtTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
         }
-        return formatSRT(words: words, speakers: transcription.speakers)
+        return formatSRT(words: words, speakers: transcription.speakers, config: config)
     }
 
     /// Format a transcription as WebVTT, falling back to one full-transcript cue.
     public func formatVTT(transcription: Transcription) -> String {
+        formatVTT(transcription: transcription, config: .default)
+    }
+
+    public func formatVTT(transcription: Transcription, config: SubtitleExportConfig) -> String {
         if let text = editedTranscriptText(transcription: transcription) {
             let duration = transcription.durationMs ?? 0
             return "WEBVTT\n\n\(vttTimestamp(ms: 0)) --> \(vttTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
@@ -201,7 +229,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let duration = transcription.durationMs ?? 0
             return "WEBVTT\n\n\(vttTimestamp(ms: 0)) --> \(vttTimestamp(ms: duration))\n\(singleCueSubtitleText(text))\n"
         }
-        return formatVTT(words: words, speakers: transcription.speakers)
+        return formatVTT(words: words, speakers: transcription.speakers, config: config)
     }
 
     /// Export transcription as JSON file

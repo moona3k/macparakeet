@@ -96,11 +96,13 @@ public final class AutoSaveService {
             // Ensure the folder still exists
             try FileManager.default.createDirectory(at: folderURL, withIntermediateDirectories: true)
 
+            let subtitleConfig = SubtitleExportPreferences.selectedPreset().config
+
             switch format {
             case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL)
             case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL)
-            case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
-            case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
+            case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL, config: subtitleConfig)
+            case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL, config: subtitleConfig)
             case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
             }
 

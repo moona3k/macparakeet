@@ -42,6 +42,12 @@ struct ExportCommand: AsyncParsableCommand {
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
+    @Option(
+        name: .customLong("subtitle-preset"),
+        help: "Subtitle cue-shaping preset for SRT/VTT: standard, netflix, bbc, youtube. Defaults to the value set in the app's Settings."
+    )
+    var subtitlePreset: SubtitlePresetArgument?
+
     func run() async throws {
         try await emitJSONOrRethrow(json: stdout && format == .json) {
             try AppPaths.ensureDirectories()
@@ -75,16 +81,21 @@ struct ExportCommand: AsyncParsableCommand {
         return URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(fileName)
     }
 
+    private func resolvedSubtitleConfig() -> SubtitleExportConfig {
+        (subtitlePreset?.preset ?? SubtitleExportPreferences.selectedPreset()).config
+    }
+
     private func formatContent(transcription: Transcription, exportService: ExportService) async -> String {
+        let subtitleConfig = resolvedSubtitleConfig()
         switch format {
         case .txt:
             return await exportService.formatForClipboard(transcription: transcription)
         case .markdown:
             return await exportService.formatMarkdown(transcription: transcription)
         case .srt:
-            return await exportService.formatSRT(transcription: transcription)
+            return await exportService.formatSRT(transcription: transcription, config: subtitleConfig)
         case .vtt:
-            return await exportService.formatVTT(transcription: transcription)
+            return await exportService.formatVTT(transcription: transcription, config: subtitleConfig)
         case .json:
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -98,17 +109,33 @@ struct ExportCommand: AsyncParsableCommand {
     }
 
     private func writeExport(transcription: Transcription, exportService: ExportService, url: URL) async throws {
+        let subtitleConfig = resolvedSubtitleConfig()
         switch format {
         case .txt:
             try await exportService.exportToTxt(transcription: transcription, url: url)
         case .markdown:
             try await exportService.exportToMarkdown(transcription: transcription, url: url)
         case .srt:
-            try await exportService.exportToSRT(transcription: transcription, url: url)
+            try await exportService.exportToSRT(transcription: transcription, url: url, config: subtitleConfig)
         case .vtt:
-            try await exportService.exportToVTT(transcription: transcription, url: url)
+            try await exportService.exportToVTT(transcription: transcription, url: url, config: subtitleConfig)
         case .json:
             try await exportService.exportToJSON(transcription: transcription, url: url)
         }
+    }
+}
+
+/// `ExpressibleByArgument` wrapper so ArgumentParser can parse `--subtitle-preset`
+/// without polluting `SubtitlePreset` (a Core type) with ArgumentParser dependencies.
+struct SubtitlePresetArgument: ExpressibleByArgument {
+    let preset: SubtitlePreset
+
+    init?(argument: String) {
+        guard let preset = SubtitlePreset(rawValue: argument.lowercased()) else { return nil }
+        self.preset = preset
+    }
+
+    static var allValueStrings: [String] {
+        SubtitlePreset.allCases.map(\.rawValue)
     }
 }

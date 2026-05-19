@@ -831,7 +831,32 @@ struct SettingsView: View {
                 if viewModel.autoSaveTranscripts {
                     autoSaveOptionsView
                 }
+
+                Divider()
+
+                subtitleExportRow
             }
+        }
+    }
+
+    /// Preset picker for SRT/VTT cue shaping. The selection applies to all
+    /// subtitle exports (manual + auto-save) and to the CLI when the user has
+    /// not passed `--subtitle-preset` explicitly.
+    private var subtitleExportRow: some View {
+        HStack {
+            rowText(
+                title: "Subtitle preset",
+                detail: viewModel.subtitleExportPreset.subtitleDescription
+            )
+            Spacer(minLength: DesignSystem.Spacing.md)
+            Picker("", selection: $viewModel.subtitleExportPreset) {
+                ForEach(SubtitlePreset.allCases, id: \.self) { preset in
+                    Text(preset.displayName).tag(preset)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(minWidth: 170, idealWidth: 210, maxWidth: 260)
         }
     }
 

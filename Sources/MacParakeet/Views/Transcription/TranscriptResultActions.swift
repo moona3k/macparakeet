@@ -88,11 +88,13 @@ enum TranscriptResultActions {
         let fileURL = nextAvailableURL(in: downloadsURL, stem: stem, format: format)
         let exportService = ExportService()
 
+        let subtitleConfig = SubtitleExportPreferences.selectedPreset().config
+
         switch format {
         case .txt: try exportService.exportToTxt(transcription: transcription, url: fileURL, options: options)
         case .md: try exportService.exportToMarkdown(transcription: transcription, url: fileURL, options: options)
-        case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL)
-        case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL)
+        case .srt: try exportService.exportToSRT(transcription: transcription, url: fileURL, config: subtitleConfig)
+        case .vtt: try exportService.exportToVTT(transcription: transcription, url: fileURL, config: subtitleConfig)
         case .docx: try exportService.exportToDocx(transcription: transcription, url: fileURL)
         case .pdf: try exportService.exportToPDF(transcription: transcription, url: fileURL)
         case .json: try exportService.exportToJSON(transcription: transcription, url: fileURL)
