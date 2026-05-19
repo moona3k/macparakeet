@@ -15,19 +15,16 @@ Local speech-to-text, transcription, and prompt automation for a Hermes Agent
 running on Apple Silicon. Wraps `macparakeet-cli` so a Hermes skill can call
 the local Parakeet TDT pipeline without any cloud STT dependency.
 
-## Install (manual, today)
+## Install
 
 ```bash
-# 1. Install MacParakeet from https://macparakeet.com
-# 2. Make the CLI available on $PATH
-ln -s /Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli \
-      /usr/local/bin/macparakeet-cli
-# 3. Verify
-macparakeet-cli --version   # 2.1.0
+brew install moona3k/tap/macparakeet-cli
+macparakeet-cli --version   # 2.3.0
 macparakeet-cli health --json
 ```
 
-`brew install moona3k/tap/macparakeet-cli` is on the roadmap.
+If MacParakeet.app is already installed, the bundled CLI is also available at
+`/Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli`.
 
 ## Suggested skill bindings (sketch)
 

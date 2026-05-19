@@ -1,4 +1,4 @@
-# How to create the tap repo and ship the first release
+# How to release `macparakeet-cli` through Homebrew
 
 This file lives in the macparakeet repo for reference. The tap repo
 itself is a separate GitHub repository.
@@ -26,16 +26,23 @@ cp ~/code/macparakeet/scripts/dist/homebrew-tap-scaffold/macparakeet-cli.rb Form
 Don't push the tap yet — the formula's `sha256` field is a placeholder
 until the release tarball exists (next steps).
 
-## Cutting the first CLI release
+## Cutting a CLI release
+
+The examples below use the current release version; update it before each
+release:
+
+```bash
+export VERSION=2.3.0
+```
 
 ### 2. Build the standalone CLI binary
 
-In the macparakeet repo, on a tagged commit:
+In the macparakeet repo, from the commit you intend to tag:
 
 ```bash
 swift build -c release --product macparakeet-cli
-mkdir -p dist/macparakeet-cli-1.4.0-darwin-arm64
-cp .build/release/macparakeet-cli dist/macparakeet-cli-1.4.0-darwin-arm64/
+mkdir -p "dist/macparakeet-cli-${VERSION}-darwin-arm64"
+cp .build/release/macparakeet-cli "dist/macparakeet-cli-${VERSION}-darwin-arm64/"
 ```
 
 ### 3. Sign + notarize the binary
@@ -47,15 +54,17 @@ exact identity is in `scripts/dist/sign_notarize.sh`.
 codesign --sign "Developer ID Application: <YOUR NAME> (<TEAMID>)" \
          --options runtime \
          --timestamp \
-         dist/macparakeet-cli-1.4.0-darwin-arm64/macparakeet-cli
+         "dist/macparakeet-cli-${VERSION}-darwin-arm64/macparakeet-cli"
 
 # Pack for notarization
-ditto -c -k --keepParent dist/macparakeet-cli-1.4.0-darwin-arm64 \
-      dist/macparakeet-cli-1.4.0-darwin-arm64.zip
+ditto -c -k --keepParent "dist/macparakeet-cli-${VERSION}-darwin-arm64" \
+      "dist/macparakeet-cli-${VERSION}-darwin-arm64.zip"
+shasum -a 256 "dist/macparakeet-cli-${VERSION}-darwin-arm64.zip" \
+  | tee "dist/macparakeet-cli-${VERSION}-darwin-arm64.zip.sha256"
 
 # Submit. The notarytool keychain profile name is whatever was set up
 # previously (search scripts/dist/ for the actual name).
-xcrun notarytool submit dist/macparakeet-cli-1.4.0-darwin-arm64.zip \
+xcrun notarytool submit "dist/macparakeet-cli-${VERSION}-darwin-arm64.zip" \
       --keychain-profile <profile-name>
 ```
 
@@ -68,19 +77,23 @@ avoids it because it can SIGBUS-crash on some macOS/Xcode combinations.
 
 ```bash
 cd dist
-tar -czf macparakeet-cli-1.4.0-darwin-arm64.tar.gz \
-        macparakeet-cli-1.4.0-darwin-arm64
-shasum -a 256 macparakeet-cli-1.4.0-darwin-arm64.tar.gz
+COPYFILE_DISABLE=1 tar -czf "macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
+        "macparakeet-cli-${VERSION}-darwin-arm64"
+shasum -a 256 "macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
+  | tee "macparakeet-cli-${VERSION}-darwin-arm64.tar.gz.sha256"
 # Copy the SHA256 hex into the formula's `sha256` field.
 ```
 
 ### 5. Publish the GitHub release
 
 ```bash
-gh release create cli-v1.4.0 \
-  dist/macparakeet-cli-1.4.0-darwin-arm64.tar.gz \
-  --title "macparakeet-cli 1.4.0" \
-  --notes-file Sources/CLI/CHANGELOG.md
+gh release create "cli-v${VERSION}" \
+  "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz" \
+  "dist/macparakeet-cli-${VERSION}-darwin-arm64.tar.gz.sha256" \
+  "dist/macparakeet-cli-${VERSION}-darwin-arm64.zip" \
+  "dist/macparakeet-cli-${VERSION}-darwin-arm64.zip.sha256" \
+  --title "macparakeet-cli ${VERSION}" \
+  --notes-file <release-notes.md>
 ```
 
 Tag pattern: `cli-v<major>.<minor>.<patch>` — keeps CLI tags distinct
@@ -91,7 +104,9 @@ from the app's release tags.
 ```bash
 cd ~/code/homebrew-tap
 # Update Formula/macparakeet-cli.rb's `sha256` line with the value from step 4.
-git add . && git commit -m "Add macparakeet-cli 1.4.0" && git push
+git add Formula/macparakeet-cli.rb
+git commit -m "macparakeet-cli ${VERSION}"
+git push
 ```
 
 ### 7. Verify end-to-end
@@ -101,7 +116,7 @@ brew untap moona3k/tap 2>/dev/null   # if previously tapped
 brew tap moona3k/tap
 brew install macparakeet-cli
 
-macparakeet-cli --version    # 1.4.0
+macparakeet-cli --version    # 2.3.0
 macparakeet-cli health --json
 ```
 
