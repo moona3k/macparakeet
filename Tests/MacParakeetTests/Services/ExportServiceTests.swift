@@ -300,11 +300,16 @@ final class ExportServiceTests: XCTestCase {
     }
 
     func testBuildSubtitleCuesBreaksOnWordCount() {
-        // 14 words with no punctuation — should break at 12
+        // 14 words with no punctuation — should break at 12.
+        // Use letter-only token names so WordNumberSplitter (which splits
+        // letter+digit fusions like `next30`) does not turn `word10` into
+        // two tokens and skew the count.
+        let alphabet = ["aaa", "bbb", "ccc", "ddd", "eee", "fff", "ggg",
+                        "hhh", "iii", "jjj", "kkk", "lll", "mmm", "nnn"]
         var words: [WordTimestamp] = []
-        for i in 0..<14 {
+        for (i, w) in alphabet.enumerated() {
             words.append(WordTimestamp(
-                word: "word\(i)",
+                word: w,
                 startMs: i * 300,
                 endMs: i * 300 + 250,
                 confidence: 0.95

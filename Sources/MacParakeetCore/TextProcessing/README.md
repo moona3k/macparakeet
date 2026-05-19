@@ -40,7 +40,7 @@ mode.
 
 ## What to know before editing
 
-**The five pipeline steps run in this fixed order:**
+**The six pipeline steps run in this fixed order:**
 
 1. **Filler removal.** Strip pure hesitation sounds (`um`, `uh`,
    `umm`, `uhh`) only. Word-boundary regex, case-insensitive,
@@ -57,7 +57,13 @@ mode.
    expansion so the trigger phrase isn't mangled by step 4.
 4. **Text snippet expansion.** Plain text snippets (where
    `action == nil`) replace their trigger phrases with their bodies.
-5. **Whitespace cleanup.** Collapse repeated spaces, fix punctuation
+5. **Letter/digit split.** Re-introduce the missing space between
+   alphabetic prefixes and numeric suffixes that Parakeet sometimes
+   fuses into one token (`next30` → `next 30`). Conservative — only
+   touches all-lowercase / title-case prefixes followed by a digit
+   run of length ≥ 2. See `WordNumberSplitter.swift` for the exact
+   rule and rationale.
+6. **Whitespace cleanup.** Collapse repeated spaces, fix punctuation
    spacing, normalize.
 
 **The order is load-bearing.** Filler removal before custom words

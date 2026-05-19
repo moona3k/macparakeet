@@ -523,10 +523,15 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     ///    downstream. Treat a missing id as continuation of the same speaker.
     /// Empty tokens (after trimming) are dropped.
     private func sanitizeWordTokens(_ words: [WordTimestamp]) -> [WordTimestamp] {
+        // Pre-split fused letter+digit tokens (`next30` → `next` + `30`) before
+        // the rest of sanitisation runs. Doing it up front means downstream
+        // logic — hyphen merging, character counting for CPS, line wrapping —
+        // sees the same word stream a human would expect.
+        let split = WordNumberSplitter.splitWords(words)
         var result: [WordTimestamp] = []
-        result.reserveCapacity(words.count)
+        result.reserveCapacity(split.count)
         var lastSpeakerId: String? = nil
-        for w in words {
+        for w in split {
             let trimmed = w.word.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty { continue }
             let resolvedSpeaker = w.speakerId ?? lastSpeakerId

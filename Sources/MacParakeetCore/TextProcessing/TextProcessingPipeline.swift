@@ -1,9 +1,9 @@
 import Foundation
 
-/// Deterministic 5-step text processing pipeline.
+/// Deterministic 6-step text processing pipeline.
 /// Pure function: same input always produces same output.
 ///
-/// Steps: Filler Removal → Custom Words → Trailing Action Extraction → Snippet Expansion → Whitespace Cleanup
+/// Steps: Filler Removal → Custom Words → Trailing Action Extraction → Snippet Expansion → Letter/Digit Split → Whitespace Cleanup
 public struct TextProcessingPipeline: Sendable {
 
     public init() {}
@@ -45,7 +45,14 @@ public struct TextProcessingPipeline: Sendable {
         let (expandedText, expandedIDs) = expandSnippets(in: result, snippets: textSnippets)
         result = expandedText
 
-        // Step 5: Whitespace cleanup
+        // Step 5: Letter/digit token split — fixes Parakeet-fused tokens like
+        // `next30` → `next 30`. Runs *after* custom words / snippets so users
+        // retain the ability to override either side via their own rules, and
+        // *before* whitespace cleanup so the newly-inserted space gets
+        // normalised alongside everything else.
+        result = WordNumberSplitter.splitInText(result)
+
+        // Step 6: Whitespace cleanup
         result = cleanWhitespace(in: result)
 
         return TextProcessingResult(
