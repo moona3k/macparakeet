@@ -78,6 +78,23 @@ ArgumentParser's plain-text stderr path with exit code `2`. Downstream
 agents that branch on `errorType` should also handle the parse-error case
 by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
+## [Unreleased]
+
+### Added
+
+- LLM-backed commands now expose `--allow-insecure-http` for intentional
+  non-loopback `http://` endpoints on non-local providers.
+
+### Changed
+
+- CLI LLM base URL validation now matches the GUI safety model: `https://`
+  remains allowed everywhere, `http://` remains allowed for loopback and local
+  providers, and non-local providers require `--allow-insecure-http` before
+  sending prompt content or API keys over cleartext HTTP. When the override is
+  used, the CLI writes a warning to stderr so stdout stays machine-readable.
+  Existing scripts that intentionally target a non-loopback HTTP endpoint can
+  keep that behavior by adding the explicit flag.
+
 ## [2.3.1] -- 2026-05-19
 
 ### Changed

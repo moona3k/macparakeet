@@ -19,6 +19,28 @@ func validateBaseURL(_ value: String) throws -> URL {
     return url
 }
 
+func validateBaseURL(
+    _ value: String,
+    providerID: LLMProviderID,
+    allowInsecureHTTP: Bool
+) throws -> URL {
+    let url = try validateBaseURL(value)
+    guard url.scheme?.lowercased() == "http" else { return url }
+    guard !LLMProviderConfig.isLoopbackEndpoint(url) else { return url }
+    guard providerID != .localCLI else { return url }
+    guard !providerID.isLocal else { return url }
+    guard allowInsecureHTTP else {
+        throw ValidationError(
+            """
+            --base-url uses non-loopback http:// for \(providerID.displayName). \
+            Use https://, a loopback URL, or pass --allow-insecure-http to allow \
+            cleartext HTTP intentionally.
+            """
+        )
+    }
+    return url
+}
+
 func readInput(_ path: String) throws -> String {
     if path == "-" {
         var lines: [String] = []
@@ -51,6 +73,12 @@ struct LLMInlineOptions: ParsableArguments {
     @Option(name: .long, help: "Base URL override (e.g. https://us.api.openai.com/v1).")
     var baseURL: String?
 
+    @Flag(
+        name: .long,
+        help: "Allow non-loopback http:// base URLs for non-local providers. Prompt content and API keys may be sent without TLS."
+    )
+    var allowInsecureHTTP: Bool = false
+
     @Option(name: .long, help: "CLI command for cli provider (e.g. 'claude -p').")
     var command: String?
 
@@ -77,16 +105,20 @@ struct LLMInlineOptions: ParsableArguments {
     }
 
     func buildExecutionContext(
-        environment: [String: String] = ProcessInfo.processInfo.environment
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        emitWarnings: Bool = true
     ) throws -> InlineLLMExecutionContext {
         let providerID = try providerID()
 
         let overrideURL: URL? = if let urlStr = baseURL {
-            try validateBaseURL(urlStr)
+            try validateBaseURL(
+                urlStr,
+                providerID: providerID,
+                allowInsecureHTTP: allowInsecureHTTP
+            )
         } else {
             nil
         }
-
         let client = RoutingLLMClient()
 
         var providerConfig: LLMProviderConfig
@@ -160,6 +192,13 @@ struct LLMInlineOptions: ParsableArguments {
             )
         }
 
+        if emitWarnings,
+           allowInsecureHTTP,
+           let overrideURL,
+           Self.usesNonLoopbackHTTP(overrideURL, providerID: providerID) {
+            Self.emitInsecureHTTPWarning(url: overrideURL, providerID: providerID)
+        }
+
         return InlineLLMExecutionContext(
             context: LLMExecutionContext(
                 providerConfig: providerConfig,
@@ -210,8 +249,34 @@ struct LLMInlineOptions: ParsableArguments {
         return nil
     }
 
-    func buildConfig(environment: [String: String] = ProcessInfo.processInfo.environment) throws -> LLMProviderConfig {
-        try buildExecutionContext(environment: environment).context.providerConfig
+    private static func usesNonLoopbackHTTP(_ url: URL, providerID: LLMProviderID) -> Bool {
+        url.scheme?.lowercased() == "http"
+            && !LLMProviderConfig.isLoopbackEndpoint(url)
+            && providerID != .localCLI
+            && !providerID.isLocal
+    }
+
+    private static func emitInsecureHTTPWarning(url: URL, providerID: LLMProviderID) {
+        FileHandle.standardError.write(Data(insecureHTTPWarning(url: url, providerID: providerID).utf8))
+    }
+
+    static func insecureHTTPWarning(url: URL, providerID: LLMProviderID) -> String {
+        """
+            Warning: --allow-insecure-http is sending \(providerID.displayName) LLM traffic to \
+            \(url.absoluteString) without TLS. Prompt content and API keys may be visible on \
+            the network.
+
+            """
+    }
+
+    func buildConfig(
+        environment: [String: String] = ProcessInfo.processInfo.environment,
+        emitWarnings: Bool = true
+    ) throws -> LLMProviderConfig {
+        try buildExecutionContext(
+            environment: environment,
+            emitWarnings: emitWarnings
+        ).context.providerConfig
     }
 }
 

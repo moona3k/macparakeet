@@ -432,29 +432,29 @@ CLI can run without an API key.
 
 ```bash
 swift run macparakeet-cli llm test-connection \
-  --provider openai --api-key sk-...
+  --provider openai --api-key-env OPENAI_API_KEY
 ```
 
 ### Summarize
 
 ```bash
 swift run macparakeet-cli llm summarize transcript.txt \
-  --provider anthropic --api-key sk-ant-...
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY
 
 # Stream output token-by-token
 swift run macparakeet-cli llm summarize transcript.txt \
-  --provider anthropic --api-key sk-ant-... --stream
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY --stream
 
 # Read from stdin
 echo "Long text..." | swift run macparakeet-cli llm summarize - \
-  --provider anthropic --api-key sk-ant-...
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY
 ```
 
 ### Chat (Q&A about a transcript)
 
 ```bash
 swift run macparakeet-cli llm chat transcript.txt \
-  --provider openai --api-key sk-... \
+  --provider openai --api-key-env OPENAI_API_KEY \
   --question "What were the key points?"
 ```
 
@@ -462,7 +462,7 @@ swift run macparakeet-cli llm chat transcript.txt \
 
 ```bash
 swift run macparakeet-cli llm transform transcript.txt \
-  --provider anthropic --api-key sk-ant-... \
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY \
   --prompt "Translate to Spanish"
 ```
 
@@ -481,7 +481,11 @@ swift run macparakeet-cli llm summarize transcript.txt --provider lmstudio --mod
 All LLM commands accept these additional options:
 
 - `--model <name>` — Override default model
-- `--base-url <url>` — Custom API endpoint (http:// or https://)
+- `--base-url <url>` — Custom API endpoint. HTTPS is required for
+  non-local/non-loopback HTTP unless `--allow-insecure-http` is set.
+- `--allow-insecure-http` — Permit intentional non-loopback `http://` for
+  non-local providers. Emits a stderr warning because prompt content and API
+  keys may cross the network without TLS.
 - `--stream` — Stream response token-by-token (summarize, chat, transform)
 - `--command <cmd>` — CLI command template (Local CLI provider only)
 
@@ -584,18 +588,18 @@ and the transcription text as input. By default it persists the result to the
 ```bash
 swift run macparakeet-cli prompts run "Summary" \
   --transcription <transcription-id> \
-  --provider anthropic --api-key sk-ant-...
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY
 
 # Stream output and skip persistence (preview-only)
 swift run macparakeet-cli prompts run "Action Items & Decisions" \
   --transcription a3f7 \
-  --provider openai --api-key sk-... \
+  --provider openai --api-key-env OPENAI_API_KEY \
   --stream --no-store
 
 # Add per-run instructions (mirrors the GUI's regenerate-with-extra flow)
 swift run macparakeet-cli prompts run "Blog Post" \
   --transcription a3f7 \
-  --provider anthropic --api-key sk-ant-... \
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY \
   --extra "Tone: warm and direct. Audience: engineers."
 ```
 

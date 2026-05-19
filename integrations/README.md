@@ -413,6 +413,10 @@ macparakeet-cli prompts run "<prompt-name>" \
   providers read `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, and
   `OPENROUTER_API_KEY` directly. Avoid `--api-key sk-...`; command-line
   arguments can appear in shell history and process listings.
+- **Base URLs:** hosted/non-local providers require `https://` unless the
+  endpoint is loopback. For intentional non-loopback `http://` testing, pass
+  `--allow-insecure-http`; the CLI writes a stderr warning and keeps stdout
+  machine-readable.
 - **JSON flag shape:** read-only query commands take `--json` (a binary flag);
   `transcribe` and `export` take `--format json` because they emit one of
   several formats (txt / srt / vtt / json / docx / pdf). Both produce stable
