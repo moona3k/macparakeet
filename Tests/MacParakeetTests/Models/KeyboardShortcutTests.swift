@@ -48,6 +48,18 @@ final class KeyboardShortcutTests: XCTestCase {
         XCTAssertEqual(lowercase.displayString, "⌥P")
     }
 
+    func testDisplayStringNormalizesShiftedDigitLabel() {
+        let shiftedDigit = KeyboardShortcut(
+            modifiers: KeyboardShortcut.ModifierFlag.command.rawValue
+                | KeyboardShortcut.ModifierFlag.shift.rawValue,
+            keyCode: 0x12,
+            keyLabel: "!"
+        )
+
+        XCTAssertEqual(shiftedDigit.displayKeyLabel, "1")
+        XCTAssertEqual(shiftedDigit.displayString, "⇧⌘1")
+    }
+
     // MARK: - Modifier introspection
 
     func testHasModifierIsFalseWithoutAnyModifiers() {

@@ -557,7 +557,7 @@ final class DictationFlowCoordinator {
                     self.sendEvent(.pasteSucceeded(generation: gen))
                 } catch {
                     guard !Task.isCancelled else { return }
-                    let bucket = self.commandFailureBucket(for: error)
+                    let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                     if transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                         // Pure action-only dictation (e.g., "press return") — nothing to paste
@@ -964,7 +964,7 @@ final class DictationFlowCoordinator {
         }
     }
 
-    private func commandFailureBucket(for error: Error) -> String {
+    static func commandFailureBucket(for error: Error) -> String {
         if let accessibilityError = error as? AccessibilityServiceError {
             switch accessibilityError {
             case .notAuthorized: return "accessibility_not_authorized"
@@ -974,7 +974,14 @@ final class DictationFlowCoordinator {
             case .unsupportedElement: return "unsupported_element"
             }
         }
-        if error is ClipboardServiceError { return "paste_failed" }
+        if let clipboardError = error as? ClipboardServiceError {
+            switch clipboardError {
+            case .accessibilityPermissionRequired: return "paste_accessibility_permission"
+            case .eventSourceUnavailable: return "paste_event_source_unavailable"
+            case .eventCreationFailed: return "paste_event_creation_failed"
+            case .pasteboardWriteFailed: return "pasteboard_write_failed"
+            }
+        }
         return "unknown"
     }
 

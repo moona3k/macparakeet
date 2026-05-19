@@ -142,7 +142,7 @@ struct TransformsView: View {
                 Label("Highlight any text on your Mac.", systemImage: "1.circle.fill")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Label("Press a Transform's hotkey (⌥1, ⌥2, ⌥3, …).", systemImage: "2.circle.fill")
+                Label(viewModel.heroShortcutInstruction, systemImage: "2.circle.fill")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                 Label("The selection is rewritten in place. ⌘Z to undo.", systemImage: "3.circle.fill")
@@ -1048,7 +1048,7 @@ struct KeycapBadge: View {
                             .stroke(DesignSystem.Colors.border, lineWidth: 0.5)
                     }
             }
-            Text(shortcut.keyLabel.uppercased())
+            Text(shortcut.displayKeyLabel)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .frame(minWidth: 22, minHeight: 22)
@@ -1077,7 +1077,7 @@ struct KeycapBadge: View {
         let modifierNames = ordered
             .filter { (shortcut.modifiers & $0.rawValue) != 0 }
             .map(\.displayName)
-        return (modifierNames + [shortcut.keyLabel.uppercased()]).joined(separator: " ")
+        return (modifierNames + [shortcut.displayKeyLabel]).joined(separator: " ")
     }
 }
 

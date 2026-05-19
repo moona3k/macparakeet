@@ -48,6 +48,24 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(labels, ["1", "2", "3"])
     }
 
+    func testHeroShortcutInstructionUsesCurrentBindings() async throws {
+        var polish = try XCTUnwrap(viewModel.transforms.first(where: { $0.name == "Polish" }))
+        polish.keyboardShortcut = KeyboardShortcut(
+            modifiers: KeyboardShortcut.ModifierFlag.command.rawValue
+                | KeyboardShortcut.ModifierFlag.shift.rawValue,
+            keyCode: 0x12,
+            keyLabel: "!"
+        ).encodedString()
+
+        let saved = await viewModel.save(polish)
+        XCTAssertTrue(saved)
+
+        XCTAssertEqual(
+            viewModel.heroShortcutInstruction,
+            "Press a Transform's hotkey (⇧⌘1, ⌥2, ⌥3)."
+        )
+    }
+
     func testSaveNewCustomTransformAppendsToList() async {
         let prompt = Prompt(
             id: UUID(),

@@ -41,6 +41,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.setupStatus, .setUpNeeded)
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
+        XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Default prompt")
     }
 
     func testSetupStatusReadyUsesSavedProviderDisplayName() {
@@ -601,6 +602,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         XCTAssertTrue(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, "Rewrite:\n\(AIFormatter.transcriptPlaceholder)")
+        XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Custom prompt")
     }
 
     func testLoadsLegacyDefaultAIFormatterPromptAsUpdatedDefault() {

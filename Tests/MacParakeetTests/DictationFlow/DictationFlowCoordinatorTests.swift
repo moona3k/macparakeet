@@ -96,4 +96,26 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             "Paste automation failed. The transcript is temporarily on the clipboard. Press Cmd+V now."
         )
     }
+
+    func testCommandFailureBucketSplitsClipboardPermissionFailure() {
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: ClipboardServiceError.accessibilityPermissionRequired),
+            "paste_accessibility_permission"
+        )
+    }
+
+    func testCommandFailureBucketSplitsClipboardInfrastructureFailures() {
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: ClipboardServiceError.eventSourceUnavailable),
+            "paste_event_source_unavailable"
+        )
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: ClipboardServiceError.eventCreationFailed),
+            "paste_event_creation_failed"
+        )
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: ClipboardServiceError.pasteboardWriteFailed),
+            "pasteboard_write_failed"
+        )
+    }
 }

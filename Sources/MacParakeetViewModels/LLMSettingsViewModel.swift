@@ -248,6 +248,12 @@ public final class LLMSettingsViewModel {
         aiFormatterEnabled ? "Enabled" : "Disabled"
     }
 
+    public var aiFormatterPromptModeText: String {
+        draft.normalizedAIFormatterPrompt == AIFormatter.defaultPromptTemplate
+            ? "Default prompt"
+            : "Custom prompt"
+    }
+
     public var aiFormatterDisabledReason: String? {
         if draft.providerID == nil {
             return "Set up AI to enable the formatter."
