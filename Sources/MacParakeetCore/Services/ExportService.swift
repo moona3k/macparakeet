@@ -36,6 +36,95 @@ public struct TranscriptExportOptions: Sendable, Equatable {
     public static let `default` = TranscriptExportOptions()
 }
 
+/// Tunable parameters that shape SRT/VTT cue building. Defaults mirror the values
+/// the pipeline used before this struct existed; preset constants reproduce the
+/// conventions of common subtitle authoring tools (Adobe Premiere defaults,
+/// Netflix Timed Text Style Guide, BBC Subtitle Guidelines, YouTube auto-captions).
+public struct SubtitleExportConfig: Sendable, Equatable {
+    /// Character budget per displayed line. Cues exceeding this are wrapped (or split
+    /// when `maxLines == 1`).
+    public var maxLineChars: Int
+    /// 1 = produce single-line cues only (long cues are split into multiple cues).
+    /// 2 = wrap long cues into two balanced lines separated by `\n`.
+    public var maxLines: Int
+    /// Reading speed ceiling. Cues exceeding this characters-per-second value are
+    /// split at the best linguistic boundary.
+    public var maxCPS: Double
+    /// Minimum on-screen duration. Cues shorter than this are extended into the
+    /// following gap (never overlapping the next cue).
+    public var minCueDurationMs: Int
+    /// Hard upper bound on cue duration; soft duration trigger sits at ~7/8 of this.
+    public var maxCueDurationMs: Int
+    /// Minimum gap preserved between consecutive cues. Closer pairs have the earlier
+    /// cue's `endMs` trimmed back (bounded by `minCueDurationMs`).
+    public var minGapMs: Int
+    /// Word count that triggers a soft break (look-back boundary search applies).
+    public var softWordCap: Int
+    /// Word count that forces a break even when the current word would be a bad ender.
+    public var hardWordCap: Int
+
+    public init(
+        maxLineChars: Int = 42,
+        maxLines: Int = 2,
+        maxCPS: Double = 25.0,
+        minCueDurationMs: Int = 800,
+        maxCueDurationMs: Int = 8000,
+        minGapMs: Int = 67,
+        softWordCap: Int = 12,
+        hardWordCap: Int = 14
+    ) {
+        self.maxLineChars = maxLineChars
+        self.maxLines = maxLines
+        self.maxCPS = maxCPS
+        self.minCueDurationMs = minCueDurationMs
+        self.maxCueDurationMs = maxCueDurationMs
+        self.minGapMs = minGapMs
+        self.softWordCap = softWordCap
+        self.hardWordCap = hardWordCap
+    }
+
+    /// Current pipeline defaults. Matches behavior prior to config plumbing.
+    public static let `default` = SubtitleExportConfig()
+
+    /// Netflix Timed Text Style Guide: 42 chars/line, 17 CPS, 5/6s display window,
+    /// 2-frame gap at 24fps (~83ms).
+    public static let netflix = SubtitleExportConfig(
+        maxLineChars: 42,
+        maxLines: 2,
+        maxCPS: 17.0,
+        minCueDurationMs: 833,
+        maxCueDurationMs: 7000,
+        minGapMs: 83,
+        softWordCap: 12,
+        hardWordCap: 14
+    )
+
+    /// BBC Subtitle Guidelines: narrower 37-char lines, 17 CPS, 1s minimum duration.
+    public static let bbc = SubtitleExportConfig(
+        maxLineChars: 37,
+        maxLines: 2,
+        maxCPS: 17.0,
+        minCueDurationMs: 1000,
+        maxCueDurationMs: 8000,
+        minGapMs: 80,
+        softWordCap: 12,
+        hardWordCap: 14
+    )
+
+    /// Looser pacing closer to YouTube auto-captions: no minimum duration or gap,
+    /// slightly wider word caps.
+    public static let youtube = SubtitleExportConfig(
+        maxLineChars: 42,
+        maxLines: 2,
+        maxCPS: 25.0,
+        minCueDurationMs: 0,
+        maxCueDurationMs: 8000,
+        minGapMs: 0,
+        softWordCap: 14,
+        hardWordCap: 16
+    )
+}
+
 /// Handles exporting transcriptions to files and clipboard.
 /// @MainActor because PDF/DOCX paths use NSTextStorage/NSLayoutManager (AppKit, not thread-safe).
 @MainActor
@@ -210,7 +299,15 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Format word timestamps as SRT subtitle string
     public func formatSRT(words: [WordTimestamp], speakers: [SpeakerInfo]? = nil) -> String {
-        let cues = buildSubtitleCues(from: words)
+        formatSRT(words: words, speakers: speakers, config: .default)
+    }
+
+    public func formatSRT(
+        words: [WordTimestamp],
+        speakers: [SpeakerInfo]? = nil,
+        config: SubtitleExportConfig
+    ) -> String {
+        let cues = buildSubtitleCues(from: words, config: config)
         var lines: [String] = []
         for (i, cue) in cues.enumerated() {
             lines.append("\(i + 1)")
@@ -227,7 +324,15 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Format word timestamps as WebVTT subtitle string
     public func formatVTT(words: [WordTimestamp], speakers: [SpeakerInfo]? = nil) -> String {
-        let cues = buildSubtitleCues(from: words)
+        formatVTT(words: words, speakers: speakers, config: .default)
+    }
+
+    public func formatVTT(
+        words: [WordTimestamp],
+        speakers: [SpeakerInfo]? = nil,
+        config: SubtitleExportConfig
+    ) -> String {
+        let cues = buildSubtitleCues(from: words, config: config)
         var lines: [String] = ["WEBVTT", ""]
         for cue in cues {
             lines.append("\(vttTimestamp(ms: cue.startMs)) --> \(vttTimestamp(ms: cue.endMs))")
@@ -378,15 +483,6 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         "and", "but", "or", "so", "yet", "nor"
     ]
 
-    // Hard caps used by bad-ender deferral. We are willing to push past the soft 12/7000
-    // limits to avoid a bad ending, but not arbitrarily — these caps bound the overshoot.
-    private static let hardWordCap = 14
-    private static let hardDurationMs = 8000
-
-    // Total character budget for a single-line cue. Cues beyond this are wrapped into two
-    // balanced lines via wrapLongCues. Matches the common SRT/VTT safe width.
-    private static let maxLineChars = 42
-
     /// Normalises raw word tokens before cue building. Three cleanups:
     /// 1. Strip leading/trailing whitespace from each word's text. Whisper/Parakeet emit
     ///    tokens with a leading space (" Hello") which, when joined with " ", produce
@@ -430,6 +526,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     }
 
     public func buildSubtitleCues(from rawWords: [WordTimestamp]) -> [SubtitleCue] {
+        buildSubtitleCues(from: rawWords, config: .default)
+    }
+
+    public func buildSubtitleCues(
+        from rawWords: [WordTimestamp],
+        config: SubtitleExportConfig
+    ) -> [SubtitleCue] {
         guard !rawWords.isEmpty else { return [] }
         // Sanitise tokens up front: strip surrounding whitespace (Whisper/Parakeet emit
         // tokens like " Hello" with leading spaces) and merge hyphen-prefix continuations
@@ -475,8 +578,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let isLast = i == words.count - 1
             let endsWithPunctuation = word.word.last.map { ".!?".contains($0) } ?? false
             let hasLongGap = !isLast && (words[i + 1].startMs - word.endMs) > 800
-            let tooManyWords = currentWords.count >= 12
-            let tooLong = (cueEndMs - cueStartMs) > 7000
+            let tooManyWords = currentWords.count >= config.softWordCap
+            // Soft duration trigger sits at ~7/8 of the hard cap so bad-ender deferral
+            // has room to overshoot without blowing the hard ceiling.
+            let softDurationMs = (config.maxCueDurationMs * 7) / 8
+            let tooLong = (cueEndMs - cueStartMs) > softDurationMs
 
             // Single-word imperative break: if this word ends a sentence AND the next
             // word starts a new sentence (capital letter), allow flushing even at
@@ -505,8 +611,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let softTrigger = tooManyWords || tooLong
             let lastWordKey = word.word.lowercased().trimmingCharacters(in: .punctuationCharacters)
             let isBadEnder = Self.badEnders.contains(lastWordKey)
-            let underHardCap = currentWords.count < Self.hardWordCap
-                && (cueEndMs - cueStartMs) < Self.hardDurationMs
+            let underHardCap = currentWords.count < config.hardWordCap
+                && (cueEndMs - cueStartMs) < config.maxCueDurationMs
             let deferForBadEnder = softTrigger
                 && !hardTrigger
                 && !semanticTrigger
@@ -557,10 +663,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             }
         }
 
-        // Enforce reading speed: split cues that exceed 25 CPS, then wrap long cues
-        // into two balanced lines for clean SRT/VTT display.
-        let paced = enforceReadingSpeed(cues, words: words)
-        return wrapLongCues(paced)
+        // Pipeline: pace -> wrap (or split for single-line) -> extend short cues ->
+        // trim overlapping cues to preserve the minimum inter-cue gap.
+        let paced = enforceReadingSpeed(cues, words: words, config: config)
+        let wrapped = wrapLongCues(paced, config: config)
+        let durationEnforced = enforceMinDuration(wrapped, config: config)
+        return enforceMinGap(durationEnforced, config: config)
     }
 
     /// Split cues whose text/duration ratio exceeds maxCPS characters per second.
@@ -568,7 +676,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// standard is for display time compliance tools; 25 catches genuinely unreadable
     /// cues without false-positiving on fast-but-readable speech. Cues that can't be
     /// cleanly split (≤ 2 words) are left untouched.
-    private func enforceReadingSpeed(_ cues: [SubtitleCue], words: [WordTimestamp], maxCPS: Double = 25.0) -> [SubtitleCue] {
+    private func enforceReadingSpeed(
+        _ cues: [SubtitleCue],
+        words: [WordTimestamp],
+        config: SubtitleExportConfig
+    ) -> [SubtitleCue] {
+        let maxCPS = config.maxCPS
         var result: [SubtitleCue] = []
         // Walk words with a single forward index — both cues and words are chronological,
         // so we never need to scan the whole array per cue (O(N) overall).
@@ -690,15 +803,21 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return bestIdx
     }
 
-    /// Wrap cues whose text exceeds maxLineChars into two balanced lines separated by `\n`.
-    /// Picks the word boundary closest to the character midpoint, with a small bonus for
-    /// splits immediately after a comma or before a clause starter. Cues that fit on one
-    /// line pass through unchanged.
-    private func wrapLongCues(_ cues: [SubtitleCue]) -> [SubtitleCue] {
-        cues.map { cue in
-            guard cue.text.count > Self.maxLineChars else { return cue }
+    /// Wrap (or split, when `config.maxLines == 1`) cues whose text exceeds the per-line
+    /// character budget. Picks the word boundary closest to the character midpoint, with
+    /// bonuses for splits after a comma or before a clause starter / coordinating
+    /// conjunction. Cues that fit on one line pass through unchanged.
+    private func wrapLongCues(
+        _ cues: [SubtitleCue],
+        config: SubtitleExportConfig
+    ) -> [SubtitleCue] {
+        let maxLineChars = config.maxLineChars
+        var result: [SubtitleCue] = []
+        result.reserveCapacity(cues.count)
+        for cue in cues {
+            guard cue.text.count > maxLineChars else { result.append(cue); continue }
             let tokens = cue.text.split(separator: " ", omittingEmptySubsequences: true).map(String.init)
-            guard tokens.count >= 2 else { return cue }
+            guard tokens.count >= 2 else { result.append(cue); continue }
 
             let totalLen = cue.text.count
             let targetLen = totalLen / 2
@@ -707,6 +826,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             var prefixLen = 0
             var bestIdx = tokens.count / 2
             var bestScore = Int.min
+            var firstHalfLen = 0
             for i in 1..<tokens.count {
                 prefixLen += tokens[i - 1].count + (i == 1 ? 0 : 1) // +1 for the joining space, except the first hop
                 let firstLen = prefixLen
@@ -723,23 +843,113 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 // start of line 2 than dangling at the end of line 1.
                 if Self.coordinatingConjunctions.contains(nextKey) { score += 3 }
                 // Discourage splits that leave one side wildly oversized.
-                if firstLen > Self.maxLineChars || secondLen > Self.maxLineChars { score -= 2 }
+                if firstLen > maxLineChars || secondLen > maxLineChars { score -= 2 }
 
                 if score > bestScore {
                     bestScore = score
                     bestIdx = i
+                    firstHalfLen = firstLen
                 }
             }
 
             let firstLine = tokens[0..<bestIdx].joined(separator: " ")
             let secondLine = tokens[bestIdx...].joined(separator: " ")
-            return SubtitleCue(
-                startMs: cue.startMs,
-                endMs: cue.endMs,
-                text: "\(firstLine)\n\(secondLine)",
-                speakerId: cue.speakerId
-            )
+
+            if config.maxLines <= 1 {
+                // Single-line mode: emit two consecutive cues instead of wrapping.
+                // Divide the time span proportionally to character length so each
+                // cue's on-screen duration roughly matches its text weight.
+                let cueDuration = cue.endMs - cue.startMs
+                let firstCharShare = Double(firstHalfLen) / Double(max(1, totalLen - 1))
+                let firstDuration = Int((Double(cueDuration) * firstCharShare).rounded())
+                let splitMs = cue.startMs + max(0, min(cueDuration, firstDuration))
+                result.append(SubtitleCue(
+                    startMs: cue.startMs,
+                    endMs: splitMs,
+                    text: firstLine,
+                    speakerId: cue.speakerId
+                ))
+                result.append(SubtitleCue(
+                    startMs: splitMs,
+                    endMs: cue.endMs,
+                    text: secondLine,
+                    speakerId: cue.speakerId
+                ))
+            } else {
+                result.append(SubtitleCue(
+                    startMs: cue.startMs,
+                    endMs: cue.endMs,
+                    text: "\(firstLine)\n\(secondLine)",
+                    speakerId: cue.speakerId
+                ))
+            }
         }
+        return result
+    }
+
+    /// Extend cues whose display duration is shorter than `minCueDurationMs`. Extension
+    /// is capped by the next cue's start (minus `minGapMs`) so we never overlap. Cues
+    /// that can't be extended without overlapping pass through unchanged — we don't
+    /// merge into the next cue because that would undo the upstream cue-shaping work.
+    private func enforceMinDuration(
+        _ cues: [SubtitleCue],
+        config: SubtitleExportConfig
+    ) -> [SubtitleCue] {
+        guard config.minCueDurationMs > 0 else { return cues }
+        var result = cues
+        for i in result.indices {
+            let cue = result[i]
+            let duration = cue.endMs - cue.startMs
+            guard duration < config.minCueDurationMs else { continue }
+            let desiredEnd = cue.startMs + config.minCueDurationMs
+            let ceiling: Int = {
+                if i + 1 < result.count {
+                    return result[i + 1].startMs - config.minGapMs
+                }
+                return Int.max
+            }()
+            let newEnd = max(cue.endMs, min(desiredEnd, ceiling))
+            if newEnd != cue.endMs {
+                result[i] = SubtitleCue(
+                    startMs: cue.startMs,
+                    endMs: newEnd,
+                    text: cue.text,
+                    speakerId: cue.speakerId
+                )
+            }
+        }
+        return result
+    }
+
+    /// Trim consecutive cues that sit closer than `minGapMs` apart. Bounded so we never
+    /// shrink a cue below `minCueDurationMs` — when both constraints can't be honoured
+    /// we keep the cue at its minimum duration and accept the smaller gap.
+    func enforceMinGap(
+        _ cues: [SubtitleCue],
+        config: SubtitleExportConfig
+    ) -> [SubtitleCue] {
+        guard config.minGapMs > 0, cues.count > 1 else { return cues }
+        var result = cues
+        for i in 0..<(result.count - 1) {
+            let prev = result[i]
+            let next = result[i + 1]
+            let gap = next.startMs - prev.endMs
+            guard gap < config.minGapMs else { continue }
+            let desiredEnd = next.startMs - config.minGapMs
+            let floor = prev.startMs + config.minCueDurationMs
+            let newEnd = max(floor, desiredEnd)
+            // Only apply the trim if it actually moves us — avoids no-op writes when
+            // shrinking would violate the minimum duration.
+            if newEnd < prev.endMs {
+                result[i] = SubtitleCue(
+                    startMs: prev.startMs,
+                    endMs: newEnd,
+                    text: prev.text,
+                    speakerId: prev.speakerId
+                )
+            }
+        }
+        return result
     }
 
     /// Resolve a speakerId to a display label using the speakers mapping.

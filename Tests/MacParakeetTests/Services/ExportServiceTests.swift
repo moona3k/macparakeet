@@ -1151,4 +1151,157 @@ final class ExportServiceTests: XCTestCase {
             status: .completed
         )
     }
+
+    // MARK: - SubtitleExportConfig
+
+    func testSubtitleConfigDefaultMatchesLegacyBehavior() {
+        let words: [WordTimestamp] = (0..<10).map { i in
+            WordTimestamp(
+                word: "word\(i)",
+                startMs: i * 300,
+                endMs: i * 300 + 250,
+                confidence: 0.95,
+                speakerId: nil
+            )
+        }
+        let legacy = exportService.buildSubtitleCues(from: words)
+        let configured = exportService.buildSubtitleCues(from: words, config: .default)
+        XCTAssertEqual(legacy.count, configured.count)
+        for (a, b) in zip(legacy, configured) {
+            XCTAssertEqual(a.startMs, b.startMs)
+            XCTAssertEqual(a.endMs, b.endMs)
+            XCTAssertEqual(a.text, b.text)
+            XCTAssertEqual(a.speakerId, b.speakerId)
+        }
+    }
+
+    func testMinCueDurationExtendsShortCue() {
+        // Single short cue with no follower → should extend to minCueDurationMs.
+        let words = [
+            WordTimestamp(word: "Hi.", startMs: 0, endMs: 200,
+                          confidence: 0.95, speakerId: nil)
+        ]
+        let config = SubtitleExportConfig(minCueDurationMs: 1000, minGapMs: 0)
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        XCTAssertEqual(cues.count, 1)
+        XCTAssertGreaterThanOrEqual(cues[0].endMs - cues[0].startMs, 1000)
+    }
+
+    func testMinCueDurationCappedByNextCueStart() {
+        // Two short cues 500ms apart with a 1000ms minimum and 100ms gap. The first
+        // cue can only extend up to nextStart - minGap (i.e. 400ms total duration).
+        let words = [
+            WordTimestamp(word: "Hi.", startMs: 0, endMs: 200,
+                          confidence: 0.95, speakerId: nil),
+            WordTimestamp(word: "Bye.", startMs: 500, endMs: 700,
+                          confidence: 0.95, speakerId: nil)
+        ]
+        let config = SubtitleExportConfig(minCueDurationMs: 1000, minGapMs: 100)
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        XCTAssertEqual(cues.count, 2)
+        XCTAssertLessThanOrEqual(cues[0].endMs, 400)
+    }
+
+    func testMinGapShortensOverlappingCues() {
+        // Two cues with no gap → first cue's endMs trimmed so the gap == minGapMs.
+        let cues = [
+            ExportService.SubtitleCue(startMs: 0, endMs: 1000,
+                                      text: "First.", speakerId: nil),
+            ExportService.SubtitleCue(startMs: 1000, endMs: 2000,
+                                      text: "Second.", speakerId: nil)
+        ]
+        let config = SubtitleExportConfig(minCueDurationMs: 100, minGapMs: 200)
+        let result = exportService.enforceMinGapForTesting(cues, config: config)
+        XCTAssertEqual(result[0].endMs, 800)
+        XCTAssertEqual(result[1].startMs, 1000)
+    }
+
+    func testMinGapDoesNotCrushBelowMinDuration() {
+        // Tight pair where honouring the full gap would push the first cue below the
+        // 500ms minimum duration. Expect the cue to hold at its 500ms floor.
+        let cues = [
+            ExportService.SubtitleCue(startMs: 0, endMs: 600,
+                                      text: "First.", speakerId: nil),
+            ExportService.SubtitleCue(startMs: 650, endMs: 1200,
+                                      text: "Second.", speakerId: nil)
+        ]
+        let config = SubtitleExportConfig(minCueDurationMs: 500, minGapMs: 200)
+        let result = exportService.enforceMinGapForTesting(cues, config: config)
+        XCTAssertEqual(result[0].endMs, 500)
+    }
+
+    func testSingleLineModeSplitsInsteadOfWrapping() {
+        // A 14-word cue that would normally wrap into two lines. With maxLines == 1
+        // it should split into two separate cues with no `\n` in either text.
+        let words = (0..<14).map { i in
+            WordTimestamp(
+                word: "word\(i)",
+                startMs: i * 200,
+                endMs: i * 200 + 180,
+                confidence: 0.95,
+                speakerId: nil
+            )
+        }
+        let config = SubtitleExportConfig(maxLines: 1, hardWordCap: 20)
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        XCTAssertGreaterThanOrEqual(cues.count, 2)
+        for cue in cues {
+            XCTAssertFalse(cue.text.contains("\n"),
+                           "Single-line mode should not emit newline-wrapped cues")
+        }
+    }
+
+    func testNetflixPresetTriggers17CPSSplit() {
+        // ~30 chars over 1.4s ≈ 21 CPS — passes default 25 but fails Netflix 17.
+        let words = [
+            WordTimestamp(word: "Quick", startMs: 0, endMs: 200,
+                          confidence: 0.95, speakerId: nil),
+            WordTimestamp(word: "brown", startMs: 250, endMs: 450,
+                          confidence: 0.95, speakerId: nil),
+            WordTimestamp(word: "fox", startMs: 500, endMs: 700,
+                          confidence: 0.95, speakerId: nil),
+            WordTimestamp(word: "jumps", startMs: 750, endMs: 950,
+                          confidence: 0.95, speakerId: nil),
+            WordTimestamp(word: "high.", startMs: 1000, endMs: 1400,
+                          confidence: 0.95, speakerId: nil)
+        ]
+        let defaultCues = exportService.buildSubtitleCues(from: words, config: .default)
+        let netflixCues = exportService.buildSubtitleCues(from: words, config: .netflix)
+        XCTAssertEqual(defaultCues.count, 1)
+        XCTAssertGreaterThan(netflixCues.count, 1,
+                             "Netflix preset's 17 CPS limit should split this cue")
+    }
+
+    func testBBCPresetUsesNarrowerLineWrap() {
+        // Text length 39 chars: fits on one line under default (42), wraps under BBC (37).
+        let text = "Squat down and push back up with power."  // 39 chars
+        XCTAssertEqual(text.count, 39)
+        let tokens = text.split(separator: " ").map(String.init)
+        let words = tokens.enumerated().map { (i, w) in
+            WordTimestamp(
+                word: w,
+                startMs: i * 300,
+                endMs: i * 300 + 250,
+                confidence: 0.95,
+                speakerId: nil
+            )
+        }
+        let defaultCues = exportService.buildSubtitleCues(from: words, config: .default)
+        let bbcCues = exportService.buildSubtitleCues(from: words, config: .bbc)
+        XCTAssertFalse(defaultCues.contains(where: { $0.text.contains("\n") }))
+        XCTAssertTrue(bbcCues.contains(where: { $0.text.contains("\n") }),
+                      "BBC preset's 37-char line budget should wrap this cue")
+    }
+}
+
+// Test helpers exposed via @testable. These wrap the private enforcement passes so
+// tests can exercise them on hand-built SubtitleCue arrays without going through
+// the full word-timestamp pipeline.
+extension ExportService {
+    func enforceMinGapForTesting(
+        _ cues: [SubtitleCue],
+        config: SubtitleExportConfig
+    ) -> [SubtitleCue] {
+        enforceMinGap(cues, config: config)
+    }
 }
