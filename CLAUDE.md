@@ -2,6 +2,42 @@
 
 > Context for AI coding assistants working on MacParakeet.
 
+## This is a Personal Fork
+
+**Owner:** Justin (not a software engineer — Claude handles all engineering)
+
+**Primary repo:** `justingonz96-creator/macparakeet` — this is where we build and ship from.
+
+**Upstream:** `moona3k/macparakeet` — the original project. We sync from it periodically; we may submit PRs upstream as contributions but that is optional, not required.
+
+**Git remote setup:**
+```
+origin    https://github.com/justingonz96-creator/macparakeet.git  ← primary (push here)
+upstream  https://github.com/moona3k/macparakeet.git               ← sync source only
+```
+
+**To sync upstream improvements:**
+```bash
+git fetch upstream
+git merge upstream/main   # resolve any conflicts, then commit
+git push origin main
+```
+
+**Open upstream PRs (contributions, not dependencies):**
+- #305 — Subtitle: configurable export with presets, min-duration, gap enforcement
+- #307 — Subtitle preset picker: Settings, CLI flag, persistence (stacked on #305)
+- #308 — Text processing: split fused letter+digit tokens (stacked on #307, draft)
+
+These PRs contain work that is already shipping in this fork. If they get merged upstream, the next sync will be a clean no-op for those files.
+
+**Custom features in this fork (relative to upstream `main`):**
+- `SubtitleExportConfig` struct with Standard / Netflix / BBC / YouTube presets
+- `enforceMinDuration` and `enforceMinGap` post-processing passes
+- Subtitle preset picker in Settings (Modes tab, Transcription card) + `--subtitle-preset` CLI flag
+- `WordNumberSplitter` — fixes fused Parakeet tokens like `next30` → `next 30` in both subtitle and text pipeline paths
+
+---
+
 ## What is MacParakeet?
 
 A **fast, private, local-first voice app** for macOS. The v0.6 release ships system-wide dictation, file/URL transcription, meeting recording, and optional local WhisperKit multilingual STT for Korean, Japanese, Chinese, and other languages outside Parakeet's coverage.
