@@ -1,7 +1,8 @@
 # ADR-022: Transforms — System-Wide LLM Rewrites on Selected Text
 
-> Status: PROPOSAL
+> Status: **Accepted / Implemented**
 > Date: 2026-05-12
+> Implementation: Phase 2 merged to `main` on 2026-05-13; `AppFeatures.transformsEnabled` is now `true`.
 > Related: ADR-002 (local-first processing, BYO-key amendment), ADR-009 (custom hotkey support), ADR-011 (LLM via cloud + optional local providers), ADR-012 (telemetry), ADR-013 (Prompt Library + multi-summary)
 
 ## Context
@@ -10,7 +11,7 @@ PR #278 shipped a behind-flag spike of *Transforms* — hotkey-triggered LLM rew
 
 The design exploration (`docs/research/transforms-design-2026-05.md`) frames Transforms as the **hotkey-driven half of a future Command Mode** primitive — the same selection-capture → LLM-rewrite → in-place-replace pipeline that the voice variant tracked in `plans/active/2026-05-voice-command-agent-mode.md` will need, with a simpler trigger. Building the hotkey path first validates the AX coverage question (decision gate of Phase 1) before we invest in voice routing.
 
-This ADR locks the architecture for productizing the spike — Phase 2 in the design doc, planned in `plans/active/2026-05-transforms-phase-2-productize.md`.
+This ADR locks the architecture for the productized Phase 2 surface from the design doc. Phase 2 has shipped on `main`; future voice-driven command mode and richer per-Transform controls remain out of scope here.
 
 ## Decision
 
@@ -81,11 +82,11 @@ The reference (WisprFlow) gates the entire Transforms surface behind a global *O
 
 The mental model: a Transform is "on" if and only if a hotkey is bound to it. Built-ins ship with default hotkeys bound; users can clear them. There is no second-order gate. This is consistent with how the dictation hotkey, the meeting-toggle hotkey, and the global shortcuts in other surfaces work.
 
-The product-level feature flag `AppFeatures.transformsEnabled` exists for staged rollout (replaces `transformsSpikeEnabled`) — when false, the Transforms tab is hidden and the hotkey registry isn't initialized at all. This is a release-gate, not a user preference.
+The product-level feature flag `AppFeatures.transformsEnabled` exists as a release gate (replaces `transformsSpikeEnabled`) — when false, the Transforms tab is hidden and the hotkey registry isn't initialized at all. It is not a user preference. It is enabled on `main` after the website telemetry allowlist deploy landed.
 
 ### 6. BYO-key only (no first-party LLM)
 
-Transforms use the user's configured LLM provider (cloud API key, local Ollama / LM Studio, local Apple Foundation Models when available). The product ships with **no** first-party LLM — every transform call is on the user's dime against their configured provider. Matches the AI Formatter (PR #100) precedent.
+Transforms use the user's configured LLM provider (cloud API key, OpenAI-compatible endpoint, local Ollama / LM Studio, or Local CLI). The product ships with **no** first-party LLM — every transform call is against the user's configured provider. Matches the AI Formatter (PR #100) precedent.
 
 `Polish`, `Distill`, and `Decide` are not gated behind paid tiers. The public build is free / GPL-3.0; Transforms is free.
 
@@ -118,7 +119,7 @@ Both events must be added to `ALLOWED_EVENTS` in `macparakeet-website/functions/
 
 ### 9. Feature-flag rollout (`AppFeatures.transformsEnabled`)
 
-Replaces the spike flag `transformsSpikeEnabled`. Default `false` at merge; flipped to `true` in a separate, small commit after the website telemetry-allowlist deploy is confirmed.
+Replaces the spike flag `transformsSpikeEnabled`. It was introduced as release-off, then flipped to `true` after the website telemetry allowlist accepted `transform_executed` / `transform_failed`. Current `main` has `AppFeatures.transformsEnabled = true`.
 
 When `false`:
 - Transforms tab is hidden from the sidebar.
@@ -177,6 +178,4 @@ Rejected (design doc §"No-selection and error UX"): dangerous in long-text cont
 
 ## Implementation pointer
 
-Phase 2 of `docs/research/transforms-design-2026-05.md`, executed per `plans/active/2026-05-transforms-phase-2-productize.md`. The spike code from PR #278 graduates with minimal change to its low-level services (`SelectionCaptureService`, `SelectionReplacementService`, `TransformExecutor`); the new code is the registry, the productized coordinator, the management UI, and the CLI subcommand tree.
-
-This ADR moves from PROPOSAL → IMPLEMENTED when the Phase 2 work merges to `main`.
+Phase 2 of `docs/research/transforms-design-2026-05.md`, executed per `plans/completed/2026-05-transforms-phase-2-productize.md`. The spike code from PR #278 graduated with minimal change to its low-level services (`SelectionCaptureService`, `SelectionReplacementService`, `TransformExecutor`); the new code is the registry, the productized coordinator, the management UI, and the CLI subcommand tree.

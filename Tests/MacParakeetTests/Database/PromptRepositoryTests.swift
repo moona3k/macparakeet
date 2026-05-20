@@ -78,6 +78,13 @@ final class PromptRepositoryTests: XCTestCase {
         XCTAssertEqual(decideShortcut.modifierFlags, [.option])
     }
 
+    func testDefaultRunningLabelFallsBackForAwkwardNames() {
+        XCTAssertEqual(Prompt.defaultRunningLabel(forName: "Polish"), "Polishing…")
+        XCTAssertEqual(Prompt.defaultRunningLabel(forName: "Make concise"), "Transforming…")
+        XCTAssertEqual(Prompt.defaultRunningLabel(forName: "Already polishing"), "Transforming…")
+        XCTAssertEqual(Prompt.defaultRunningLabel(forName: " \n "), "Transforming…")
+    }
+
     func testFetchAutoRunPromptsIgnoresTransformPrompts() throws {
         var polish = try XCTUnwrap(
             (try repo.fetchVisible(category: .transform))

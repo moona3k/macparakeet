@@ -18,11 +18,12 @@ mode.
 - `TextProcessingResult.swift` — value type returned by the pipeline.
   Carries the cleaned text, the set of expanded-snippet IDs, and an
   optional `postPasteAction` for trailing-action snippets.
-- `TextRefinementService.swift` — opt-in LLM refinement (formal,
-  email, code rewrites). Independent of the deterministic pipeline;
-  invoked from dedicated UI flows, not from the dictation hot path.
-- `AIFormatter.swift` — supporting types for `TextRefinementService`
-  (formatter modes, prompts).
+- `TextRefinementService.swift` — small coordinator for Raw vs Clean
+  text refinement. Raw mode skips full cleanup but still extracts
+  trailing action snippets; Clean mode runs `TextProcessingPipeline`.
+- `AIFormatter.swift` — supporting prompt/rendering types for the
+  opt-in provider-based AI formatter used after deterministic cleanup
+  in dictation and file/URL transcription flows.
 - `TranscriptDerivers.swift` — derives display-side fields
   (search-friendly text, summaries' rendering helpers, etc.) from
   stored transcripts. Read-only; doesn't mutate the canonical text.
@@ -34,8 +35,8 @@ mode.
   fast. (The ADR's step table predates the trailing-action step; the
   code below is authoritative on step count.)
 - `spec/07-text-processing.md` — narrative spec.
-- ADR-011 — the LLM provider model that `TextRefinementService` rides
-  on.
+- ADR-011 — the LLM provider model that the separate AI formatter
+  rides on.
 
 ## What to know before editing
 
@@ -77,10 +78,12 @@ it at the call site, not inside the pipeline.
 it doesn't change meaning. "I want to like Slack the team" must not
 become "I want to Slack the team."
 
-**`TextRefinementService` is a different code path.** It is *not*
-the dictation cleanup path. It handles LLM-powered rewrites the
-user explicitly invokes from a transcript view. Don't conflate the
-two — the deterministic pipeline must remain LLM-free per ADR-004.
+**The AI formatter is a different code path.** `TextRefinementService`
+does not call an LLM. It returns deterministic cleanup (plus any
+post-paste action) first; dictation and transcription services may
+then invoke the opt-in AI formatter through `LLMService`. Don't
+conflate those two stages — the deterministic pipeline must remain
+LLM-free per ADR-004.
 
 ## How to verify a change
 

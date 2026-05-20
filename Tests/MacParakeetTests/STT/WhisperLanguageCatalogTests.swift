@@ -117,4 +117,11 @@ final class WhisperLanguageCatalogTests: XCTestCase {
     func testAutoCodeNormalizesToNil() {
         XCTAssertNil(SpeechEnginePreference.normalizeLanguage(WhisperLanguageCatalog.autoCode))
     }
+
+    func testKnownLanguageNormalizationDropsUnknownCodes() {
+        XCTAssertEqual(SpeechEnginePreference.normalizeKnownLanguage("KO_kr"), "ko")
+        XCTAssertEqual(SpeechEnginePreference.normalizeKnownLanguage("ja"), "ja")
+        XCTAssertNil(SpeechEnginePreference.normalizeKnownLanguage("auto"))
+        XCTAssertNil(SpeechEnginePreference.normalizeKnownLanguage("/Users/alice/private-model"))
+    }
 }

@@ -54,7 +54,7 @@ In two passes the same day, we removed every text badge from the live-panel tab 
 After parallel design reviews by Codex and Gemini against this ADR in its first-draft form, the following corrections and clarifications were folded in. None of them change the product shape; all of them fix correctness, concurrency, or scope-clarity gaps in the original spec.
 
 - **§4 substitution semantics:** specified single-pass simultaneous substitution to prevent injection via user notes containing `{{transcript}}` literals.
-- **§5 auto-run guard:** the new built-in prompt is inserted with `isAutoRun = true` only when the user has at least one auto-run prompt today, preserving ADR-013's "zero auto-run is valid" invariant.
+- **§5 historical auto-run guard:** the reverted built-in prompt was inserted with `isAutoRun = true` only when the user had at least one auto-run prompt, preserving ADR-013's "zero auto-run is valid" invariant during the brief window where that prompt existed.
 - **§7 NSPanel popover:** added implementation notes calling out SwiftUI `.popover` traps inside `KeylessPanel` and committing to an in-view overlay with `onKeyPress` interception.
 - **§8 lock-file ownership:** `MeetingNotesViewModel` no longer writes the lock file directly. All `recording.lock` writes are serialized through `MeetingRecordingService.updateNotes(_:)` so notes-saves cannot race with state-transition writes.
 - **§9 lock-file evolution:** `notes` is added as a `decodeIfPresent` optional at the same schema version (additive). The notes field is decoded independently so a malformed `notes` value cannot block recovery of the audio metadata. Future hard schema bumps will relax the `==` version guard to `>=`.
@@ -151,9 +151,14 @@ Existing prompts that don't use the variables continue to work — they receive 
 
 **Variable names are case-sensitive; canonical casing is lowercase.** `{{userNotes}}` and `{{Usernotes}}` are different keys; only the canonical form `{{userNotes}}` (and `{{transcript}}`) is recognized. Unknown casings fall through to the empty-string fallback for missing keys. This eliminates a class of prompt-authoring bugs where a typo silently produces empty output instead of a substitution.
 
-### 5. New built-in prompt: "Memo-Steered Notes"
+### 5. Superseded built-in prompt proposal: "Memo-Steered Notes"
 
-A new built-in prompt is added to `Prompt.builtInPrompts()` and seeded on next launch. Approximate copy (the literal prompt string — no markdown formatting, the asterisks below are the spec's emphasis only):
+The original 2026-04-25 implementation added a built-in prompt to
+`Prompt.builtInPrompts()` and seeded it on next launch. This subsection is
+retained for historical context only: the 2026-05-02 amendment above removed
+the built-in prompt from the shipped prompt list and reserved its canonical
+UUID. Approximate historical copy (the literal prompt string -- no markdown
+formatting, the asterisks below are the spec's emphasis only):
 
 ```
 You are summarizing a meeting. The user took these notes during the meeting —
@@ -174,9 +179,9 @@ Output:
 - Open questions
 ```
 
-**Auto-run insertion guard.** The new prompt is inserted with `isAutoRun = true` *only when the seeding step finds at least one existing prompt with `isAutoRun = true` in the database*. If the user has explicitly disabled all auto-run prompts (a valid state per ADR-013), the new prompt is inserted with `isAutoRun = false` to preserve their explicit choice. On fresh installs the migration seeds all built-ins together; the guard reduces to "the new prompt is auto-run if any built-in default is auto-run," which holds.
+**Historical auto-run insertion guard.** The reverted prompt was inserted with `isAutoRun = true` *only when the seeding step found at least one existing prompt with `isAutoRun = true` in the database*. If the user had explicitly disabled all auto-run prompts (a valid state per ADR-013), the prompt was inserted with `isAutoRun = false` to preserve their explicit choice.
 
-**Existing built-in prompt updates.** The shipped "Meeting Notes" and similar prompts are updated to reference `{{userNotes}}` optionally; the wording must degrade gracefully when notes are empty (verified per-prompt during implementation). The reconciler in `DatabaseManager.reconcileBuiltInPrompts()` already pushes content updates to built-in rows on every launch — existing users with unmodified built-ins receive the new content automatically. **Customized clones are not migrated** — see Consequences.
+**Existing built-in prompt updates.** The original design also considered updating shipped "Meeting Notes" and similar prompts to reference `{{userNotes}}` optionally. Current shipped behavior keeps the template variables available for custom prompts without changing the default built-in prompt outputs.
 
 ### 6. Snapshot user notes on the summary record
 
@@ -374,7 +379,7 @@ Same principle as ADR-013's prompt snapshots. A summary should always accurately
 
 ### Why `{{userNotes}}` is optional in prompts
 
-Empty notes is a valid state. Built-in prompts must produce useful summaries with or without notes. The new "Memo-Steered Notes" prompt handles the empty case explicitly in its copy ("If the user wrote nothing, infer structure from the transcript alone."). Existing prompts that gain optional `{{userNotes}}` references must read sensibly with empty substitutions — verified by tests.
+Empty notes is a valid state. Built-in prompts must produce useful summaries with or without notes. The reverted "Memo-Steered Notes" prompt attempted to handle the empty case explicitly in its copy ("If the user wrote nothing, infer structure from the transcript alone."), but the 2026-05-02 amendment removed it because the source scoping and duplicate auto-run behavior were wrong. Custom prompts that use `{{userNotes}}` must read sensibly with empty substitutions -- verified by tests.
 
 ### Why upgrade only the calendar-triggered countdown toast
 
@@ -382,11 +387,11 @@ Calendar-triggered starts already carry rich event metadata for free; not surfac
 
 ### Which prompt classes benefit from memo-steering
 
-Memo-steering provides the strongest signal to **open-ended summary prompts** where the LLM is otherwise free to weight transcript topics evenly. The user's notes act as a priority mask — topics the user noted get expanded; topics the user ignored get compressed. The new "Memo-Steered Notes" prompt is the canonical case.
+Memo-steering provides the strongest signal to **open-ended summary prompts** where the LLM is otherwise free to weight transcript topics evenly. The user's notes act as a priority mask -- topics the user noted get expanded; topics the user ignored get compressed. A future source-scoped memo-steered prompt would be the canonical case.
 
 **Tightly structured prompts** (e.g., "Action Items only", "Decisions table") receive marginal benefit because their output structure is fixed regardless of user emphasis — the LLM extracts action items the same way whether the user wrote about them or not. For these prompts we update the wording to *reference* `{{userNotes}}` only when the reference adds value (e.g., "Cross-check action items against any tasks the user noted explicitly"); for prompts where the reference is purely additive ceremony, the update is skipped.
 
-This is verified per-prompt during implementation. The shipped Memo-Steered Notes prompt is the user-facing default; the others are tools.
+The template-rendering path is verified for custom prompts with empty and non-empty notes. No memo-steered built-in prompt currently ships; any future re-introduction needs the source-scoping or auto-run guard described in the 2026-05-02 amendment.
 
 ### Why a single PR despite review pressure to split
 
@@ -416,10 +421,10 @@ If post-implementation the diff is genuinely too large to review in one sitting,
 
 - **Three tabs in a small floating panel risks feeling cramped.** Mitigated by Notes default, the `ViewThatFits` collapse strategy at narrow widths (§1), and the Ask-only streaming dot at wider widths. If Phase 2 usability testing shows users switching too frequently, the collapsible-transcript-ticker-inside-Notes pattern is a planned escape hatch with a defined trigger threshold (~3+ switches/min).
 - **No inline formatting during the meeting.** Plaintext + slash commands cover headings/labels via plaintext markers; bold/italic/lists are not available. Char's TipTap renders formatted blocks live; ours render raw `**Action:**` characters until post-meeting markdown rendering ships (Future Work). Users coming from Char will experience this as a visual regression. Acceptable v0.6 compromise; markdown rendering is one of the first follow-up PRs.
-- **Customized clones of built-in prompts will not gain `{{userNotes}}` automatically.** Users who cloned a built-in into a custom prompt for editing will continue to see their custom prompt produce notes-blind summaries. There is no migration path that touches custom prompts (by design — we don't rewrite user content). The new "Memo-Steered Notes" built-in is the recommended path for users who want notes-aware summaries; the prompt library UI surfaces this via copy on the new prompt's card.
+- **Custom prompts do not gain `{{userNotes}}` automatically.** Users who cloned a built-in into a custom prompt for editing will continue to see their custom prompt produce notes-blind summaries. There is no migration path that touches custom prompts (by design -- we don't rewrite user content). Users who want notes-aware summaries can author a custom prompt that references `{{userNotes}}`; MacParakeet no longer ships a default memo-steered prompt.
 - **One more thing to do during a meeting.** Whether to type notes is now a live decision. Placeholder copy nudges; no force.
 - **First slash menu in the codebase.** Local to the Notes pane, intentionally not generalized. Future menus (e.g., for the dictation overlay) would copy the pattern, not share infrastructure. NSPanel-specific implementation pitfalls flagged in §7.
-- **Updated built-in prompts affect existing users' default outputs.** The new "Memo-Steered Notes" prompt is additive and respects the auto-run guard (§5). Updates to other built-in prompts that thread `{{userNotes}}` are guarded by graceful empty-state copy so existing users see no regression when they take no notes.
+- **Memo-steered built-ins need source scoping before re-introduction.** The reverted "Memo-Steered Notes" prompt showed that a global auto-run prompt can leak meeting-specific assumptions into file and YouTube transcriptions. Current shipped behavior keeps `{{userNotes}}` available for custom prompts without changing default outputs.
 - **Soft length cap of 8,000 words is enforced at the UI/summary layer, not the schema.** Users can technically persist longer notes in the database (the column is unbounded), but only the first 8,000 words feed the summary prompt. The full notes remain visible in the post-meeting view. A user who writes 15,000 words and then complains the summary is incomplete is a real possible support load — mitigated by the inline footer warning at 7,500 words.
 
 ### Neutral
@@ -440,8 +445,8 @@ If post-implementation the diff is genuinely too large to review in one sitting,
 - `MeetingRecordingLockFileStore`: extend JSON schema with `notes: String?` decoded via `decodeIfPresent`; **no schema version bump** (additive change). Notes decoded as a separate `try?` step so a malformed value cannot block recovery of the audio metadata. Document the future-bump strategy in source comments (any future bump must relax the `==` version guard to `>=`).
 - `MeetingRecordingRecoveryService`: at recovery time, copy any surviving lock-file `notes` directly onto the recovered `Transcription.userNotes` row in the same persistence path that finalizes the audio. The live `MeetingNotesViewModel` is not in scope here — by the time recovery runs, the panel VM tree from the crashed session no longer exists. `MeetingNotesViewModel.restore(_:)` exists for a possible future mid-session-resume feature but is not on the v0.6 hard-crash recovery path.
 - `PromptTemplateRenderer` *(new)*: `{{key}}` substitution. Single-pass simultaneous: all replacements collected, applied atomically. Empty-string fallback for missing keys. Adversarial-input tests (user notes containing `{{transcript}}` literals) verify single-pass semantics.
-- `Prompt.builtInPrompts()`: add "Memo-Steered Notes" prompt; update copy on existing built-ins to optionally reference `{{userNotes}}` (per-prompt judgment per Rationale §"Which prompt classes benefit").
-- Auto-run insertion guard: when seeding the new prompt, set `isAutoRun = true` only if at least one existing prompt currently has `isAutoRun = true`; otherwise insert with `isAutoRun = false`.
+- `Prompt.builtInPrompts()`: no current "Memo-Steered Notes" built-in; the canonical UUID from the reverted prompt is reserved and must not be reused.
+- Future prompt seeding: if a memo-steered built-in returns, it must be source-scoped or otherwise guarded so it cannot auto-run globally on non-meeting transcriptions.
 - `PromptResult` model: add `userNotesSnapshot: String?`
 - `PromptResultRepository`: read/write the snapshot column
 
@@ -474,10 +479,9 @@ If post-implementation the diff is genuinely too large to review in one sitting,
 - `MeetingRecordingRecoveryService`: recovered session opens with restored notes
 - `PromptResultsViewModel`: `userNotes` flows into rendered prompt; snapshot recorded on `PromptResult`; **8,000-word truncation** applies to prompt input only (full notes preserved on row); banner surfaces when truncation occurs
 - Slash command literal-string insertion: `/action` inserts the literal `**Action:** ` characters (not interpreted as markdown by the editor)
-- Built-in "Memo-Steered Notes" prompt rendering with empty `userNotes` (graceful)
-- Built-in "Memo-Steered Notes" prompt rendering with non-empty `userNotes`
+- Built-in prompt reconciliation removes the reverted "Memo-Steered Notes" row
+- Custom prompt rendering with empty and non-empty `userNotes`
 - Existing prompts unchanged when `userNotes` is empty (no regression on default output)
-- Auto-run insertion guard: when seeded into a database with zero auto-run prompts, the new prompt is inserted with `isAutoRun = false`; when seeded with at least one auto-run prompt, inserted with `isAutoRun = true`
 - Prompt-result detail view: NULL `userNotesSnapshot` and empty-string snapshot both render the section omitted (not an empty block)
 
 ## Phased Rollout

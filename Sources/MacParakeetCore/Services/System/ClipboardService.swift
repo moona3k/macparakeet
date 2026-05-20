@@ -186,7 +186,7 @@ private final class ClipboardRestoreCoordinator {
 /// Handles clipboard save/restore and paste simulation via Cmd+V.
 @MainActor
 public final class ClipboardService: ClipboardServiceProtocol {
-    nonisolated static let defaultClipboardRestoreDelay: TimeInterval = 1.0
+    nonisolated static let defaultClipboardRestoreDelay: TimeInterval = 0.5
     private static let sharedRestoreCoordinator = ClipboardRestoreCoordinator()
 
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "ClipboardService")

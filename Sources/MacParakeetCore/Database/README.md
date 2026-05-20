@@ -25,6 +25,7 @@ process.
   - `QuickPromptRepository.swift` — quick-prompt entries (Ask tab).
   - `ChatConversationRepository.swift` — multi-turn chat history.
   - `TransformHistoryRepository.swift` — local Transform run history (input/output/source app/timings; ADR-022).
+  - `LLMRunRepository.swift` — local metadata ledger for persisted LLM runs (provider/model/tokens/latency/status/required source link; no prompt/input/output content).
 
 ## Cross-references
 

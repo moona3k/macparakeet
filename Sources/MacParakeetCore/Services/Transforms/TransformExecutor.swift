@@ -119,6 +119,7 @@ public actor TransformExecutor {
     /// needs main-thread delivery.
     public func run(
         prompt: String,
+        replacementMode: SelectionReplacementMode = .replaceSelection,
         onProgress: @escaping @Sendable (TransformProgress) -> Void
     ) async throws -> TransformExecutionResult {
         let start = ContinuousClock.now
@@ -215,7 +216,11 @@ public actor TransformExecutor {
         onProgress(.pasting)
         let path: SelectionReplacementPath
         do {
-            path = try await replacementService.replace(with: accumulated, in: captured)
+            path = try await replacementService.replace(
+                with: accumulated,
+                in: captured,
+                mode: replacementMode
+            )
         } catch let error as SelectionReplacementError {
             onProgress(.failed(error.localizedDescription))
             throw TransformExecutorError.replacementFailed(error)

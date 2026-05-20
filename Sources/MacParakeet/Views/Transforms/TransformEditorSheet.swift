@@ -5,8 +5,8 @@ import MacParakeetViewModels
 /// Modal sheet for Create-your-own and Edit-Transform flows (ADR-022).
 ///
 /// Two-column layout: framing copy on the left (~32% width), three stacked
-/// field cards on the right (Name → Keyboard shortcut → Customize prompt
-/// → optional Running label). Footer: *Autosave On* indicator on builtins,
+/// field cards on the right (Name → Keyboard shortcut → Customize prompt).
+/// Footer: *Autosave On* indicator on builtins,
 /// Cancel + Save on the right.
 ///
 /// Validation is reactive — fires on every field change after the first
@@ -38,7 +38,6 @@ struct TransformEditorSheet: View {
                         nameCard
                         shortcutCard
                         contentCard
-                        runningLabelCard
                     }
                     .padding(DesignSystem.Spacing.xl)
                 }
@@ -81,7 +80,7 @@ struct TransformEditorSheet: View {
     private var nameCard: some View {
         EditorCard(title: "Name your Transform shortcut") {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                TextField("Boss Mode", text: $viewModel.name)
+                TextField("Make concise", text: $viewModel.name)
                     .textFieldStyle(.plain)
                     .font(DesignSystem.Typography.bodyLarge)
                     .padding(.horizontal, DesignSystem.Spacing.md)
@@ -147,28 +146,6 @@ struct TransformEditorSheet: View {
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(DesignSystem.Colors.textTertiary)
                 }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private var runningLabelCard: some View {
-        EditorCard(title: "Running label (optional)") {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
-                TextField("Polishing\u{2026}", text: $viewModel.runningLabel)
-                    .textFieldStyle(.plain)
-                    .font(DesignSystem.Typography.body)
-                    .padding(.horizontal, DesignSystem.Spacing.md)
-                    .padding(.vertical, DesignSystem.Spacing.sm)
-                    .background(DesignSystem.Colors.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(DesignSystem.Colors.border, lineWidth: 0.5)
-                    }
-                Text("Shown in the floating pill while this Transform runs. Defaults to “\(viewModel.normalizedName.isEmpty ? "Transforming\u{2026}" : "\(viewModel.normalizedName)ing\u{2026}")”.")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
             }
         }
     }
@@ -318,7 +295,7 @@ struct ShortcutRecorderField: View {
         if let shortcut {
             HStack(spacing: 6) {
                 KeycapBadge(shortcut: shortcut)
-                Text(shortcut.keyLabel.uppercased())
+                Text(shortcut.displayKeyLabel)
                     .font(DesignSystem.Typography.bodySmall.monospacedDigit())
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
                     .accessibilityHidden(true)
@@ -386,27 +363,28 @@ struct ShortcutRecorderField: View {
         let modifierNames = ordered
             .filter { (shortcut.modifiers & $0.rawValue) != 0 }
             .map(\.displayName)
-        return (modifierNames + [shortcut.keyLabel.uppercased()]).joined(separator: " ")
+        return (modifierNames + [shortcut.displayKeyLabel]).joined(separator: " ")
     }
 
     private func labelForKey(event: NSEvent) -> String {
+        let keyCode = UInt16(event.keyCode)
         if let chars = event.charactersIgnoringModifiers, !chars.isEmpty {
             let scalar = chars.first!
             // Map common control codes to display names.
             switch event.keyCode {
-            case 0x24: return "Return"
-            case 0x30: return "Tab"
-            case 0x31: return "Space"
-            case 0x35: return "Escape"
+            case 0x24: return TransformShortcut.displayKeyLabel(for: keyCode, fallback: "Return")
+            case 0x30: return TransformShortcut.displayKeyLabel(for: keyCode, fallback: "Tab")
+            case 0x31: return TransformShortcut.displayKeyLabel(for: keyCode, fallback: "Space")
+            case 0x35: return TransformShortcut.displayKeyLabel(for: keyCode, fallback: "Escape")
             default:
                 if scalar.isLetter || scalar.isNumber {
-                    return String(scalar).uppercased()
+                    return TransformShortcut.displayKeyLabel(for: keyCode, fallback: String(scalar).uppercased())
                 }
                 if scalar.asciiValue.map({ $0 >= 32 }) ?? false {
-                    return String(scalar)
+                    return TransformShortcut.displayKeyLabel(for: keyCode, fallback: String(scalar))
                 }
             }
         }
-        return "Key \(event.keyCode)"
+        return TransformShortcut.displayKeyLabel(for: keyCode, fallback: "Key \(event.keyCode)")
     }
 }

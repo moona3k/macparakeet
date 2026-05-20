@@ -4,6 +4,11 @@
 > CLI installed locally and a SKILL.md package; the submission flow
 > is non-trivial and needs verification of the current SKILL.md
 > frontmatter schema before attempting.
+>
+> Current release note (2026-05-19): the host CLI is published as
+> `macparakeet-cli 2.3.1` and Homebrew install has been verified. The
+> remaining unknown is ClawHub's current skill-package schema/runtime, not
+> the `macparakeet-cli` distribution path.
 
 ## What ClawHub actually is (corrected)
 
@@ -52,7 +57,7 @@ content to reference the SKILL.md format.
 ```markdown
 ---
 name: macparakeet-stt
-version: 1.0.0
+version: 2.3.1
 author: moona3k
 description: Local Parakeet TDT speech-to-text for Apple Silicon. Wraps macparakeet-cli (GPL-3.0-or-later).
 tags: [stt, transcription, voice, apple-silicon, local, parakeet]
@@ -100,9 +105,10 @@ before publishing.
   fully documented here. Submitting an invalid manifest could be
   rejected — or worse, accepted in a degraded form that misrepresents
   the skill.
-- **Untested install path**: The skill's `install.sh` wrapper around
-  `brew install moona3k/tap/macparakeet-cli` needs to be tested in
-  ClawHub's runtime environment.
+- **Untested ClawHub runtime**: `brew install
+  moona3k/tap/macparakeet-cli` is verified locally, but the skill's
+  `install.sh` wrapper still needs to be tested in ClawHub's runtime
+  environment.
 - **Post-acquisition uncertainty**: OpenClaw was acquired by OpenAI
   in February 2026; the registry tooling and submission flow may
   evolve. Better to consult current docs immediately before

@@ -1,10 +1,13 @@
 import Foundation
+import MacParakeetViewModels
 
 @MainActor
 final class AppSettingsObserverCoordinator {
+    nonisolated static let settingsTabUserInfoKey = "settingsTab"
+
     private let notificationCenter: NotificationCenter
     private let onOpenOnboarding: () -> Void
-    private let onOpenSettings: () -> Void
+    private let onOpenSettings: (SettingsTab?) -> Void
     private let onHotkeyTriggerChanged: () -> Void
     private let onPushToTalkHotkeyTriggerChanged: () -> Void
     private let onMeetingHotkeyTriggerChanged: () -> Void
@@ -26,7 +29,7 @@ final class AppSettingsObserverCoordinator {
     init(
         notificationCenter: NotificationCenter = .default,
         onOpenOnboarding: @escaping () -> Void,
-        onOpenSettings: @escaping () -> Void,
+        onOpenSettings: @escaping (SettingsTab?) -> Void,
         onHotkeyTriggerChanged: @escaping () -> Void,
         onPushToTalkHotkeyTriggerChanged: @escaping () -> Void,
         onMeetingHotkeyTriggerChanged: @escaping () -> Void,
@@ -64,9 +67,10 @@ final class AppSettingsObserverCoordinator {
             forName: .macParakeetOpenSettings,
             object: nil,
             queue: .main
-        ) { [weak self] _ in
+        ) { [weak self] notification in
+            let tab = Self.settingsTab(from: notification)
             Task { @MainActor in
-                self?.onOpenSettings()
+                self?.onOpenSettings(tab)
             }
         }
 
@@ -139,6 +143,13 @@ final class AppSettingsObserverCoordinator {
                 self?.onShowIdlePillChanged()
             }
         }
+    }
+
+    nonisolated private static func settingsTab(from notification: Notification) -> SettingsTab? {
+        guard let raw = notification.userInfo?[settingsTabUserInfoKey] as? String else {
+            return nil
+        }
+        return SettingsTab(rawValue: raw)
     }
 
     func stopObserving() {

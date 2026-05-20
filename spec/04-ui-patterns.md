@@ -11,9 +11,11 @@ MacParakeet has these primary UI surfaces:
 4. **Meeting Recording Tile** -- Capture tile on the Transcribe tab; reflects live recording state
 5. **Meeting Recording Pill** -- Persistent floating pill during meeting recording (sacred geometry icon); shares state with the Transcribe tile
 6. **Meeting Recording Panel** -- Floating Notes / Transcript / Ask panel with audio levels and stop controls
-7. **Menu Bar** -- Quick access and status
-8. **Calendar Countdown Toasts** -- Implemented but hidden from v0.6 by `AppFeatures.calendarEnabled = false`
-9. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls are hidden in v0.6
+7. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
+8. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
+9. **Menu Bar** -- Quick access and status
+10. **Calendar Countdown Toasts** -- Implemented but hidden from v0.6 by `AppFeatures.calendarEnabled = false`
+11. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls are hidden in v0.6
 
 Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutter. The app should feel like part of macOS, not a web app in a wrapper.
 
@@ -49,8 +51,9 @@ Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutt
 │  🗂 Library      │                                           │
 │  🕒 Dictations   │  - Transcribe: 3-mode capture hub        │
 │  📖 Vocabulary   │  - Library: Grid (or list for Meetings)  │
-│  💬 Feedback     │  - Dictations: History list               │
-│  ⚙ Settings      │  - Vocabulary: Processing mode + manage   │
+│  ✦ Transforms    │  - Dictations: History list               │
+│  💬 Feedback     │  - Vocabulary: Processing mode + manage   │
+│  ⚙ Settings      │  - Transforms: Rewrite selected text      │
 │                  │  - Feedback: Form + community link        │
 │                  │  - Settings: Grouped form                 │
 │                  │                                           │
@@ -67,6 +70,7 @@ The sidebar uses NavigationSplitView with flat items (icon + label):
 - **Library** (`square.grid.2x2`) -- All transcriptions; filter chips switch between thumbnail grid (All/YouTube/Local/Favorites) and date-grouped list (Meetings)
 - **Dictations** (`clock.arrow.circlepath`) -- Flat history list with bottom bar player
 - **Vocabulary** (`book.fill`) -- Processing mode, pipeline guide, custom words & snippets management
+- **Transforms** (`sparkles`) -- Saved selected-text rewrites backed by `.transform` prompt rows; visible when `AppFeatures.transformsEnabled` is true
 - **Feedback** (`bubble.left.and.text.bubble.right`) -- Bug reports, feature requests, community link
 - **Settings** (`gearshape`) -- Dictation prefs, meeting recording prefs, storage, permissions
 
@@ -792,6 +796,36 @@ The Vocabulary sidebar item is a dedicated panel for managing the text processin
 
 Note: How It Works, Tips, Custom Words, and Text Snippets sections are only visible when processing mode is set to "Clean".
 
+### Transforms (ADR-022)
+
+The Transforms sidebar item is visible when `AppFeatures.transformsEnabled` is true. It manages saved selected-text rewrites backed by `.transform` prompt rows.
+
+```
+┌───────────────────────────────────────────────────────────┐
+│  TRANSFORMS                                      [+ New]   │
+│  Rewrite selected text anywhere with a hotkey.             │
+│                                                           │
+│  ┌─ Polish ────────────────────────────────  ⌥1  [Edit] │
+│  │ Make selected text clearer in your voice.              │
+│  └───────────────────────────────────────────────────────┘
+│  ┌─ Distill ───────────────────────────────  ⌥2  [Edit] │
+│  │ Compress to signal and remove noise.                  │
+│  └───────────────────────────────────────────────────────┘
+│  ┌─ Decide ────────────────────────────────  ⌥3  [Edit] │
+│  │ Turn discussion into a decision-ready note.            │
+│  └───────────────────────────────────────────────────────┘
+│                                                           │
+│  HISTORY                                                  │
+│  Recent runs with source app, timing, input/output preview │
+└───────────────────────────────────────────────────────────┘
+```
+
+- Built-ins are `Polish`, `Distill`, and `Decide` with default `Option-1/2/3` bindings.
+- A Transform is active when it has a shortcut; there is no second user-facing global enable toggle.
+- The editor validates shortcuts against dictation, meeting, duplicate Transform bindings, bare keys, and hostile Option-letter dead-key combos.
+- The floating Transform progress pill owns running/cancel/error state. The target app remains focused; MacParakeet does not show an inline preview before replacement.
+- Local Transform history is user data. It may contain selected text and output; telemetry and `llm_runs` do not duplicate that content.
+
 ### Custom Words Management (v0.2)
 
 ```
@@ -1215,7 +1249,11 @@ Center and vertex glow are static (constants `centerGlow = 0.32`, `vertexGlow = 
 
 ---
 
-## Version Roadmap
+## Historical UI Roadmap
+
+> Historical implementation snapshot. Current release status lives in
+> `spec/README.md`, and current feature exposure is controlled by
+> `Sources/MacParakeetCore/AppFeatures.swift`.
 
 ### v0.1 (MVP)
 
@@ -1229,12 +1267,12 @@ All UI listed above is v0.1 except where noted:
 
 ### v0.2 (AI Refinement)
 
-- Vocabulary sidebar item (processing mode, pipeline guide, custom words & snippets management)
+- Vocabulary sidebar item (global processing mode, pipeline guide, custom words & snippets management)
 - Custom Words management view (sheet from Vocabulary)
 - Text Snippets management view (sheet from Vocabulary)
-- Context mode selector in dictation (raw/clean badge on overlay)
+- No per-dictation context-mode picker on the dictation overlay; processing mode stays a global Vocabulary default.
 
-### v0.3 (Import & Export, In Progress)
+### v0.3 (Import & Export, Historical Target)
 
 - Feedback sidebar item (form with category cards, community link)
 - YouTube URL input field in transcription view

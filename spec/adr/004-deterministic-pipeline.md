@@ -2,7 +2,7 @@
 
 > Status: **Accepted**
 > Date: 2026-02-08
-> Note: Core decision (deterministic pipeline for default processing) unchanged and strengthened. LLM-powered modes (formal, email, code, command) referenced below were removed 2026-02-23 — only raw and clean modes remain.
+> Note: Core decision (deterministic pipeline for default processing) unchanged and strengthened. LLM-powered modes (formal, email, code, command) referenced below were removed 2026-02-23 — only raw and clean modes remain. Amendment: the pipeline is now five steps after the Voice Return/trailing-action step shipped.
 
 ## Context
 
@@ -17,27 +17,28 @@ Raw STT output -- even from a high-quality model like Parakeet TDT 0.6B-v3 -- be
 Two approaches exist for this cleanup:
 
 1. **LLM-based refinement**: Pass raw text through a language model (local Qwen3-8B or cloud GPT-4) to clean, reformat, and improve it.
-2. **Deterministic pipeline**: Apply rule-based transformations in a fixed order -- filler removal, casing fixes, custom word corrections, snippet expansion.
+2. **Deterministic pipeline**: Apply rule-based transformations in a fixed order -- narrow filler removal, custom word corrections, trailing action extraction, snippet expansion, and whitespace cleanup.
 
 ## Decision
 
-Use a **deterministic 4-step pipeline** for the default "clean" processing mode. Only two modes exist: raw (verbatim) and clean (4-step pipeline).
+Use a **deterministic 5-step pipeline** for the default "clean" processing mode. Only two modes exist: raw (verbatim) and clean (5-step pipeline).
 
 ### Pipeline Steps (in order)
 
 | Step | What It Does | Example |
 |------|-------------|---------|
-| 1. Filler removal | Strip filler words and phrases | "um so like the API" -> "the API" |
+| 1. Filler removal | Strip only always-safe hesitation sounds | "um the API" -> "the API" |
 | 2. Custom word replacement | User-defined vocabulary anchors and corrections | "kube" -> "Kubernetes", "mac parakeet" -> "MacParakeet" |
-| 3. Snippet expansion | Trigger phrase text expansion | "my address" -> "123 Main St, Springfield, IL 62704" |
-| 4. Whitespace cleanup | Collapse spaces, fix punctuation spacing, capitalize | "hello   world ." -> "Hello world." |
+| 3. Trailing action extraction | Strip terminal action-snippet triggers and surface a post-paste action | "send this press return" -> text plus Return action |
+| 4. Snippet expansion | Trigger phrase text expansion | "my address" -> "123 Main St, Springfield, IL 62704" |
+| 5. Whitespace cleanup | Collapse spaces and fix punctuation spacing | "hello   world ." -> "hello world." |
 
 ### Processing Modes
 
 | Mode | Pipeline | LLM | Latency | Use Case |
 |------|----------|-----|---------|----------|
 | Raw | None | No | 0ms | Verbatim transcription |
-| **Clean (default)** | **4-step** | **No** | **<5ms** | **General dictation** |
+| **Clean (default)** | **5-step** | **No** | **<5ms** | **General dictation** |
 
 > Note: Formal, Email, Code, and Command modes were removed 2026-02-23 when local LLM (Qwen3-8B) was eliminated. LLM features are now accessed via dedicated service methods (summarize, chat), not processing modes.
 
@@ -69,7 +70,7 @@ Dictation is a real-time workflow. Users speak, pause, and expect their words to
 | Paste to app | ~10ms |
 | **Total** | **<600ms target** |
 
-The deterministic pipeline runs in under 5ms. LLM-based refinement adds 2-5 seconds (model loading on first call, then 1-3s per inference). This latency is acceptable for advanced modes where users explicitly choose to wait, but unacceptable for the default dictation flow.
+The deterministic pipeline runs in under 5ms. LLM-based formatting or Transforms can add seconds depending on provider latency. That latency is acceptable only when the user explicitly opts into an LLM surface, and unacceptable for the default deterministic cleanup stage.
 
 ### User control via custom words and snippets
 
@@ -77,6 +78,7 @@ The deterministic pipeline includes two user-configurable features:
 
 - **Custom words**: Users define vocabulary anchors (ensure "PostgreSQL" not "post gress q l") and corrections (always replace "kube" with "Kubernetes"). These are predictable and immediate.
 - **Text snippets**: Users define natural language trigger phrases ("my address" expands to their full address, "my signature" expands to their email sign-off). Triggers are spoken phrases — not abbreviations — because STT outputs natural speech. These are instant and deterministic.
+- **Trailing action snippets**: Users can attach a post-paste action such as Voice Return to a terminal trigger phrase. The pipeline strips the trigger before normal snippet expansion and surfaces the action to the paste layer.
 
 An LLM-based approach would require prompt engineering to respect user-defined words and snippets, with no guarantee of compliance.
 
@@ -96,15 +98,15 @@ An LLM-based approach would require prompt engineering to respect user-defined w
 - Clean mode cannot handle complex transformations (e.g., "rewrite this more formally" requires LLM)
 - Custom words require manual setup by users (vs LLM learning from context)
 - Pipeline rules are English-optimized; STT supports 25 European languages but clean mode processing (filler removal, snippets) is English-only. Per-language filler lists and rules needed for clean mode in other languages.
-- LLM-based transforms (summarize, chat) are accessed via separate service methods, not processing modes
+- LLM-based features (formatter, summaries, chat, Transforms) are accessed via separate service methods or feature surfaces, not processing modes
 
 ### Implementation Notes
 
-- Pipeline is a pure function: `String -> String`, easily testable
+- Pipeline is a pure function returning `TextProcessingResult` (`text`, expanded snippet IDs, optional post-paste action), easily testable
 - Each step is independent and composable
 - Custom words and snippets stored in SQLite (same database as other app data)
 - Settings UI for managing custom words and snippets
-- CLI commands for managing words and snippets (scripting-friendly)
+- CLI `vocab` commands for managing words, snippets, and clean processing (scripting-friendly)
 
 ## Prior Art
 

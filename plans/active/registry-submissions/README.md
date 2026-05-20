@@ -7,10 +7,16 @@ until its CLI and SKILL.md schema are verified.
 
 ## Status snapshot (post-2026-04-25 reconnaissance)
 
-The brew tap is live as of 2026-04-25, so install instructions
-(`brew install moona3k/tap/macparakeet-cli`) are now valid in any
-submission. Reconnaissance against each target's `CONTRIBUTING.md`
-sharpened the picture significantly — see per-target notes below.
+The submitted issue drafts date from 2026-04-25. The Brew install path was
+re-verified on 2026-05-19, so install instructions
+(`brew install moona3k/tap/macparakeet-cli`) are now valid in any follow-up
+submission. Reconnaissance against each target's `CONTRIBUTING.md` sharpened
+the picture significantly — see per-target notes below.
+
+Current release note (2026-05-19): `macparakeet-cli 2.3.1` is published at
+[`cli-v2.3.1`](https://github.com/moona3k/macparakeet/releases/tag/cli-v2.3.1)
+and the tap formula has been verified with `brew test
+moona3k/tap/macparakeet-cli`.
 
 | # | Registry | Repo | Submission flow | Status (2026-04-25) |
 |---|---|---|---|---|
@@ -57,7 +63,6 @@ Once the registry placements have landed, cross-post to:
 - **OpenClaw Discord** — `#showcase` or equivalent
 - **Nous Research Discord** — `#hermes-agent` or equivalent
 
-Time these to land alongside the v0.6.0 meeting-recording + WhisperKit
-release for compounding momentum (item #6 of the canonical plan). Don't
-fire community posts before the brew tap is live AND the registry
-placements have been accepted.
+Time these to land alongside the v0.6 release train for compounding momentum
+(item #6 of the canonical plan). Don't fire community posts before the brew
+tap is live AND the registry placements have been accepted.

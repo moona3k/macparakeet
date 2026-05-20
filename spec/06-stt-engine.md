@@ -237,7 +237,7 @@ The GUI uses the persisted `speechRecognitionEngine` preference; the CLI can ove
 
 - **Lazy init**: The shared runtime owner is not loaded at app launch; loaded on first STT request or warm-up
 - **Keep loaded**: Once initialized, the runtime keeps its currently loaded managers ready for subsequent requests
-- **Warm-up during onboarding**: Prepare Parakeet models (~6 GB) + CoreML compilation (~3.4s first time); Whisper is downloaded explicitly only when the user opts into that engine
+- **Warm-up during onboarding**: Prepare Parakeet models (~6 GB) + CoreML compilation (~3.4s first time) on the default path; for Korean, Japanese, Chinese, or Cantonese macOS languages, onboarding prepares Whisper instead and stores the matching Whisper language hint locally
 - **Graceful shutdown**: The shared runtime is released when the app quits
 - **Single owner**: Warm-up, readiness, shutdown, and cache clear happen once at the runtime layer
 - **Cancellation-safe init**: Shutdown/cache clear cancel in-flight initialization and wait for loaded managers to clean themselves up before returning
@@ -289,9 +289,9 @@ YouTube (v0.4+):
                                                                                                         → Merge word timestamps + speaker segments
 
 Meeting live preview (v0.6):
-  MicrophoneCapture (VPIO preferred)/SystemAudioStream
+  MicrophoneCapture (raw default)/SystemAudioStream
     → CaptureOrchestrator (paired frames + bounded lag + chunking)
-    → MicConditioner (pass-through; mic AEC handled upstream by VPIO when available)
+    → MicConditioner (pass-through; no capture-time AEC by default)
     → dominant-system live guard (skip clearly system-dominant mic chunks for live preview only)
     → LiveChunkTranscriber (queueing + ordering + cancellation)
     → STTScheduler.transcribe(audioPath:, job: .meetingLiveChunk, speechEngine: meetingLease.selection, onProgress:)
@@ -341,7 +341,7 @@ The CoreML model for `parakeet-tdt-0.6b-v3-coreml` is **~6 GB** on HuggingFace. 
 
 ### Whisper Model Download
 
-Whisper models are not silently downloaded during onboarding. The user explicitly downloads the default Whisper model from Settings or by running:
+Whisper models are downloaded from an explicit Settings/CLI action, or during first-run onboarding when the local macOS language is Korean, Japanese, Chinese, or Cantonese. That first-run branch is an initial setup choice, not automatic fallback during transcription.
 
 ```bash
 swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
@@ -353,13 +353,14 @@ The normalized Whisper variant is stored without the leading `whisper-` prefix i
 
 During onboarding:
 
-1. Download Parakeet CoreML models (~6 GB) with progress indication
-2. If speaker detection is enabled, prepare diarization assets (~130 MB) on the separate diarization service path
-3. One-time CoreML compilation (~3.4s)
-4. Short warm-up transcription to verify everything works
+1. Use local macOS preferred languages to choose the initial speech setup path.
+2. Default path: download Parakeet CoreML models (~6 GB) with progress indication.
+3. CJK path: download the default Whisper model (~632 MB), save the canonical Whisper language hint (`ko`, `ja`, `zh`, or `yue`), and switch the app default engine to Whisper through the scheduler.
+4. If speaker detection is enabled, prepare diarization assets (~130 MB) on the separate diarization service path.
+5. Warm the selected runtime path enough to verify the chosen engine works.
 
 Onboarding should not report the speech stack as ready until the runtime owner is ready **and** any required default-on speaker-detection assets are available.
-Whisper readiness is separate and only blocks switching to Whisper, not first-run Parakeet readiness.
+Whisper readiness is separate on the default Parakeet path, but it is first-run readiness on the locale-aware CJK path.
 
 This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 

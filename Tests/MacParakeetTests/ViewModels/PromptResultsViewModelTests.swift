@@ -19,6 +19,12 @@ final class PromptResultsViewModelTests: XCTestCase {
         promptRepo.prompts = Prompt.builtInPrompts()
     }
 
+    func testGenerationCapabilityIsFalseBeforeAIConfigured() {
+        XCTAssertFalse(viewModel.hasPromptResultGenerationCapability)
+        XCTAssertFalse(viewModel.canGeneratePromptResult)
+        XCTAssertFalse(viewModel.canGenerateManualPromptResult)
+    }
+
     func testConfigureLoadsVisiblePromptsAndDefaultSelection() {
         viewModel.configure(
             llmService: llm,
@@ -192,7 +198,7 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.promptResults.map(\.content), ["Older"])
     }
 
-    func testAutoGeneratePromptResultsSkipsShortTranscript() {
+    func testAutoGeneratePromptResultsRunsForShortNonEmptyTranscript() {
         viewModel.configure(
             llmService: llm,
             promptRepo: promptRepo,
@@ -200,12 +206,31 @@ final class PromptResultsViewModelTests: XCTestCase {
         )
 
         let queuedIDs = viewModel.autoGeneratePromptResults(
-            transcript: "too short",
+            transcript: "brief but important",
             transcriptionId: UUID()
         )
 
-        XCTAssertTrue(queuedIDs.isEmpty)
-        XCTAssertTrue(viewModel.pendingGenerations.isEmpty)
+        XCTAssertFalse(queuedIDs.isEmpty)
+        XCTAssertEqual(viewModel.pendingGenerations.map(\.id), queuedIDs)
+        XCTAssertEqual(viewModel.pendingGenerations.first?.transcript, "brief but important")
+    }
+
+    func testAutoGeneratePromptResultsSkipsEmptyAndWhitespaceOnlyTranscript() {
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo
+        )
+
+        for transcript in ["", "   \n\t  "] {
+            let queuedIDs = viewModel.autoGeneratePromptResults(
+                transcript: transcript,
+                transcriptionId: UUID()
+            )
+
+            XCTAssertTrue(queuedIDs.isEmpty)
+            XCTAssertTrue(viewModel.pendingGenerations.isEmpty)
+        }
     }
 
     func testLoadPromptResultsClearsPendingGenerationsWhenSwitchingTranscriptions() {

@@ -24,17 +24,17 @@ Likely options: `Resources`, `Tutorial`, `Discussion`, `New Model`.
 
 Primary:
 ```
-macparakeet-cli 1.0 — local Parakeet TDT speech-to-text on Apple Silicon, for AI agents (GPL-3.0)
+macparakeet-cli 2.3.1 — local Parakeet TDT speech-to-text on Apple Silicon, for AI agents (GPL-3.0)
 ```
 
 Alternatives if 100-char limit is tight:
-- `macparakeet-cli 1.0 — local Parakeet STT on Apple Silicon ANE, for agent use (GPL-3.0)`
-- `Local Parakeet TDT CLI for Apple Silicon agents — macparakeet-cli 1.0 (GPL-3.0)`
+- `macparakeet-cli 2.3.1 — local Parakeet STT on Apple Silicon ANE, for agent use`
+- `Local Parakeet TDT CLI for Apple Silicon agents — macparakeet-cli 2.3.1`
 
 ## Post body
 
 ````markdown
-TL;DR: I just tagged `macparakeet-cli 1.0`, a Swift-native CLI that runs NVIDIA's Parakeet TDT 0.6B v3 on the Apple Neural Engine via FluidAudio. ~155x realtime, ~2.5% WER, ~66 MB memory per inference slot. Free + open-source (GPL-3.0). `brew install moona3k/tap/macparakeet-cli`.
+TL;DR: `macparakeet-cli` is now at `2.3.1`: a Swift-native CLI that runs NVIDIA's Parakeet TDT 0.6B v3 on the Apple Neural Engine via FluidAudio. ~155x realtime, ~2.5% WER, ~66 MB memory per inference slot. Free + open-source (GPL-3.0). `brew install moona3k/tap/macparakeet-cli`.
 
 ## Why I'm posting it here
 
@@ -44,7 +44,7 @@ Voice/STT is the documented gap in the local-agent stack on Mac:
 - The OpenAI Whisper API is fast but cloud-only, paid, and breaks the local-first posture this subreddit is built around.
 - `parakeet-mlx` (Python) is the closest thing in spirit, but doesn't carry persistence, prompts, or speaker diarization.
 
-`macparakeet-cli` is the slot between those: Apple Silicon native, ANE-accelerated, persistent SQLite memory, prompt library, semver-stable JSON output. The CLI has existed since v0.1 of the MacParakeet macOS app and powered AI-assisted testing through v0.4–v0.6 — the 1.0.0 tag is the commitment to a stable public surface, not a feature release.
+`macparakeet-cli` is the slot between those: Apple Silicon native, ANE-accelerated, persistent SQLite memory, prompt library, semver-stable JSON output. The CLI has existed since v0.1 of the MacParakeet macOS app and powered AI-assisted testing through v0.4–v0.6; the current 2.x line is the maintained public surface.
 
 ## What you can do with it
 

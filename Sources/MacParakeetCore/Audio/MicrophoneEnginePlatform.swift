@@ -352,6 +352,12 @@ public final class AVAudioEngineMicrophonePlatform: MicrophoneEnginePlatform, @u
     private func tearDownLocked() {
         removeConfigurationChangeObserverLocked()
         removeDefaultInputChangeObserverLocked()
+        guard engineStarter == nil else {
+            audioEngine = AVAudioEngine()
+            running = false
+            lastSucceededAttemptLocked = nil
+            return
+        }
         let inputNode = audioEngine.inputNode
         try? catchingObjCException {
             inputNode.removeTap(onBus: 0)

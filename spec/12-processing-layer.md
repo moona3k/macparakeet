@@ -1,10 +1,10 @@
 # 12 - Processing Layer: Prompt Library + Multi-Summary
 
 > Status: **ACTIVE** — Authoritative, current
-> Related: [spec/11-llm-integration.md](11-llm-integration.md) (LLM providers), [spec/13-agent-workflows.md](13-agent-workflows.md) (future workflows, agents, voice control), [ADR-011](adr/011-llm-cloud-and-local-providers.md) (cloud + local providers), [ADR-013](adr/013-prompt-library-multi-summary.md) (prompt library + multi-summary)
+> Related: [spec/11-llm-integration.md](11-llm-integration.md) (LLM providers), [spec/13-agent-workflows.md](13-agent-workflows.md) (future workflows, agents, voice control), [ADR-011](adr/011-llm-cloud-and-local-providers.md) (cloud + local providers), [ADR-013](adr/013-prompt-library-multi-summary.md) (prompt library + multi-summary), [ADR-022](adr/022-transforms-system-wide-rewrite.md) (Transforms)
 > Triggered by: [GitHub issue #51](https://github.com/moona3k/macparakeet/issues/51), [VoiceInk PR #600](https://github.com/Beingpax/VoiceInk/pull/600) by @mitsuhiko
 
-This spec defines MacParakeet's current processing layer: the Prompt Library and multi-summary system. It is intentionally limited to the data model, UX, and service/view-model behavior needed for prompt-driven summary generation today. The persisted table is still named `summaries`; the Swift model is now `PromptResult`.
+This spec defines MacParakeet's current processing layer: the Prompt Library, multi-summary system, and the shared prompt-storage contract that productized Transforms use. Summary/result behavior remains the main focus here; ADR-022 owns the system-wide Transform interaction model. The persisted summary table is still named `summaries`; the Swift model is now `PromptResult`.
 
 ---
 
@@ -12,7 +12,7 @@ This spec defines MacParakeet's current processing layer: the Prompt Library and
 
 1. Give users control over how AI processes their transcripts — starting with summaries.
 2. Support **multiple summaries per transcript** — different prompts produce different outputs, all navigable.
-3. Establish a reusable **Prompt Library** that serves summaries today and can serve transforms, chat system prompts, and workflow steps tomorrow.
+3. Establish a reusable **Prompt Library** that serves summaries and Transforms today, and can serve chat system prompts and workflow steps tomorrow.
 4. Leave a clean extension point for future actions, workflows, and agent features without over-designing them now.
 5. Avoid premature abstraction — build only what's needed now, but don't foreclose future capabilities.
 
@@ -30,12 +30,13 @@ This spec defines MacParakeet's current processing layer: the Prompt Library and
 
 ### Current Scope
 
-The processing layer currently consists of a reusable Prompt Library and immutable prompt-result records.
+The processing layer currently consists of a reusable Prompt Library, immutable prompt-result records, and Transform prompt rows.
 
 ```
 ┌────────────────────────────────────────────────────────────┐
 │  Prompt Library ← IMPLEMENTED                             │
-│  Prompt { id, name, content, category, visibility, ... }  │
+│  Prompt { id, name, content, category, visibility,        │
+│           keyboardShortcut?, runningLabel?, ... }         │
 └──────────────────────────────┬─────────────────────────────┘
                                │ snapshot
                                ▼
@@ -48,6 +49,8 @@ The processing layer currently consists of a reusable Prompt Library and immutab
 
 Prompts are reusable templates. Summaries are historical outputs that snapshot the prompt content used at generation time.
 
+Transform prompts (`category == .transform`) are saved prompt rows with shortcut/progress metadata. They do not create `summaries` rows; completed GUI Transform runs can be recorded in `transform_history`. See ADR-022 for selection capture, replacement, and history semantics.
+
 ### Data Model Relationships
 
 ```
@@ -56,14 +59,14 @@ prompts
   └──snapshot──→ summaries.promptContent
 ```
 
-The Prompt Library is intentionally general-purpose, but this spec only locks the behavior needed for summary generation. Future actions, workflows, and agent-driven automation are tracked separately in [spec/13-agent-workflows.md](13-agent-workflows.md).
+The Prompt Library is intentionally general-purpose. This spec locks summary/result behavior plus the shared prompt-row shape used by Transforms; ADR-022 locks Transform-specific interaction details. Future actions, workflows, and agent-driven automation are tracked separately in [spec/13-agent-workflows.md](13-agent-workflows.md).
 
 ### Prompt Categories
 
 `Prompt.Category` currently supports:
 
-- `.summary` — used by the summary pane today
-- `.transform` — reserved for future transform UI
+- `.summary` / `.result` — used by the summary pane today; stored as `"summary"` for compatibility
+- `.transform` — productized Transforms (ADR-022), managed by the Transforms tab and `macparakeet-cli transforms`
 
 Additional categories are future schema decisions and are not part of this spec.
 
@@ -73,7 +76,7 @@ Additional categories are future schema decisions and are not part of this spec.
 
 ### Concept
 
-A **Prompt** is a named, reusable instruction template that tells an LLM how to process a transcript. Called "Prompt" (not "Summary Preset") because the data model is general-purpose — the same prompt can serve summaries today, transforms tomorrow, and workflow steps later.
+A **Prompt** is a named, reusable instruction template that tells an LLM how to process text. Called "Prompt" (not "Summary Preset") because the data model is general-purpose — the same table serves summaries and Transforms today, and can serve workflow steps later.
 
 A **Summary** is a generated output tied to a specific transcript. Each transcript can have multiple summaries, including multiple runs of the same prompt with different per-run instructions. Summaries snapshot the prompt that created them — they're self-contained records, not live references.
 
@@ -91,10 +94,12 @@ public struct Prompt: Codable, Identifiable, Sendable {
     public var sortOrder: Int        // display ordering
     public var createdAt: Date
     public var updatedAt: Date
+    public var keyboardShortcut: String?  // transform-only encoded shortcut
+    public var runningLabel: String?       // transform-only progress label
 
     public enum Category: String, Codable, Sendable {
         case result = "summary"
-        case transform   // future
+        case transform
     }
 }
 ```
@@ -110,7 +115,9 @@ CREATE TABLE prompts (
     isAutoRun INTEGER NOT NULL DEFAULT 0,
     sortOrder INTEGER NOT NULL DEFAULT 0,
     createdAt TEXT NOT NULL,
-    updatedAt TEXT NOT NULL
+    updatedAt TEXT NOT NULL,
+    keyboardShortcut TEXT,
+    runningLabel TEXT
 );
 
 CREATE UNIQUE INDEX idx_prompts_name ON prompts(name COLLATE NOCASE);
@@ -190,7 +197,7 @@ You are a helpful assistant that processes transcripts. Follow the user's instru
 
 Prompt cards may be marked `isAutoRun = true` in the prompt library.
 
-- When a new transcription finishes and `llmAvailable && transcript.count > 500`, the app auto-generates summaries for every prompt card with `isAutoRun = true`.
+- When a new transcription finishes and `llmAvailable && transcript` is not empty/whitespace-only, the app auto-generates summaries for every prompt card with `isAutoRun = true`.
 - Multiple auto-run prompt cards are allowed.
 - Zero auto-run prompt cards is a valid configuration. In that state, transcription and chat still work, and users generate prompt tabs manually from the summary UI.
 - Auto-run prompt cards are forced visible while auto-run is enabled.
@@ -288,7 +295,7 @@ Opened via the management control in the summary generation popover. Follows the
 ```
 
 - **Community prompts:** Toggle visibility via checkbox. Auto-run prompts stay visible while auto-run is enabled. Turning auto-run off makes the card manually-only and eligible to be hidden. "Restore Defaults" unhides all community prompts. "Suggest a prompt" links to the JSON file on GitHub for contributors.
-- **My Prompts:** Full CRUD. Edit opens a sheet with name + multi-line TextEditor (prompt text is too long for inline editing). Delete with confirmation alert.
+- **My Prompts:** Full CRUD for summary/result prompts. Edit opens a sheet with name + multi-line TextEditor (prompt text is too long for inline editing). Delete with confirmation alert.
 - **Add Prompt:** Name field + multi-line prompt content + Add button. Name must be unique (case-insensitive, across both community and custom).
 
 ---
@@ -299,7 +306,7 @@ Opened via the management control in the summary generation popover. Follows the
 
 spec/11 §1 (Transcript Summary) describes a single-summary model with a hardcoded prompt. **This spec supersedes that section** — summaries now use the Prompt Library and support multiple outputs per transcript.
 
-spec/11 §3 (Custom Transforms) describes transforms stored in UserDefaults. **The Prompt Library supersedes this concept** — transforms become prompts with `category: .transform`. Custom Transforms haven't been built in the GUI, so no migration needed. When transforms ship, they'll use the Prompt Library.
+spec/11 §3's original Custom Transforms sketch described transforms stored in UserDefaults. **The Prompt Library superseded this concept** — productized Transforms are prompts with `category: .transform`, plus `keyboardShortcut` and `runningLabel` metadata per ADR-022.
 
 spec/11 §2 (Chat with Transcript) and all provider/protocol/CLI sections remain unchanged.
 
@@ -315,7 +322,7 @@ Provider architecture is unchanged. The Prompt Library changes what goes into th
 |------------------|---------------|
 | `prompts` table + community prompt seeds | Action types beyond prompt-driven summarization |
 | `summaries` table / `PromptResult` model (one-to-many) | Workflow engine / step chaining |
-| Prompt model + repository | Triggered automation |
+| Prompt model + repository, including Transform prompt rows | Triggered automation |
 | PromptResult model + repository | Agent profiles / agent handoff |
 | Prompt chips + generation popover | Desktop-context collection |
 | Extra instructions field | Apple Shortcuts / App Intents integration |

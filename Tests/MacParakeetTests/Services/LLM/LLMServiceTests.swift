@@ -488,6 +488,52 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertNil(result.usage)
     }
 
+    func testFormatTranscriptDetailedReturnsEnvelopeAndFormatterMetadata() async throws {
+        mockClient.responseContent = "Hello, world."
+        mockClient.responseModel = "formatter-model"
+        mockClient.responseFinishReason = "stop"
+        mockClient.responseUsage = TokenUsage(promptTokens: 11, completionTokens: 4)
+
+        let result = try await service.formatTranscriptDetailed(
+            transcript: "hello world",
+            promptTemplate: AIFormatter.defaultPromptTemplate,
+            source: .dictation,
+            defaultPromptUsed: true
+        )
+
+        XCTAssertEqual(result.output, "Hello, world.")
+        XCTAssertEqual(result.result.provider, "openai")
+        XCTAssertEqual(result.result.model, "formatter-model")
+        XCTAssertEqual(result.result.usage?.promptTokens, 11)
+        XCTAssertEqual(result.result.usage?.completionTokens, 4)
+        XCTAssertEqual(result.result.usage?.totalTokens, 15)
+        XCTAssertEqual(result.result.stopReason, "stop")
+        XCTAssertFalse(result.operationID.isEmpty)
+        XCTAssertEqual(result.inputChars, "hello world".count)
+        XCTAssertEqual(result.outputChars, "Hello, world.".count)
+        XCTAssertFalse(result.inputTruncated)
+        XCTAssertTrue(result.defaultPromptUsed)
+        XCTAssertEqual(result.messageCount, 2)
+    }
+
+    func testFormatTranscriptDetailedSubtractsPromptOverheadFromTranscriptBudget() async throws {
+        mockConfigStore.config = .ollama(model: "llama3.2")
+        let transcript = "SENTINEL_TRANSCRIPT"
+        let longPromptTemplate = String(repeating: "instruction ", count: 9_000)
+            + AIFormatter.transcriptPlaceholder
+
+        let result = try await service.formatTranscriptDetailed(
+            transcript: transcript,
+            promptTemplate: longPromptTemplate,
+            source: .dictation,
+            defaultPromptUsed: false
+        )
+
+        XCTAssertTrue(result.inputTruncated)
+        XCTAssertEqual(mockClient.capturedMessages.count, 2)
+        XCTAssertFalse(mockClient.capturedMessages[1].content.contains(transcript))
+    }
+
     // MARK: - Transform
 
     func testTransformAssemblesCorrectPrompt() async throws {

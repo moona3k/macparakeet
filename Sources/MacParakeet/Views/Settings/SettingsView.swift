@@ -20,6 +20,9 @@ struct SettingsView: View {
     @Bindable var llmSettingsViewModel: LLMSettingsViewModel
     let updater: SPUUpdater
     let transformHotkeys: [Prompt]
+    let requestedTab: SettingsTab?
+    let requestedTabRevision: Int
+    let onRequestedTabConsumed: () -> Void
     /// Fired by each `HotkeyRecorderView` when it starts/stops capturing
     /// keystrokes. Wired up to `AppHotkeyCoordinator.suspend` / `resume` so
     /// active global taps don't swallow the keyDown the user is recording.
@@ -44,13 +47,20 @@ struct SettingsView: View {
         llmSettingsViewModel: LLMSettingsViewModel,
         updater: SPUUpdater,
         transformHotkeys: [Prompt] = [],
+        requestedTab: SettingsTab? = nil,
+        requestedTabRevision: Int = 0,
+        onRequestedTabConsumed: @escaping () -> Void = {},
         onHotkeyRecordingStateChanged: @escaping (Bool) -> Void
     ) {
         self.viewModel = viewModel
         self.llmSettingsViewModel = llmSettingsViewModel
         self.updater = updater
         self.transformHotkeys = transformHotkeys
+        self.requestedTab = requestedTab
+        self.requestedTabRevision = requestedTabRevision
+        self.onRequestedTabConsumed = onRequestedTabConsumed
         self.onHotkeyRecordingStateChanged = onHotkeyRecordingStateChanged
+        self._rootViewModel = State(initialValue: SettingsRootViewModel(initialTab: requestedTab))
         self._automaticallyChecksForUpdates = State(initialValue: updater.automaticallyChecksForUpdates)
         self._automaticallyDownloadsUpdates = State(initialValue: updater.automaticallyDownloadsUpdates)
     }
@@ -106,6 +116,17 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             viewModel.refreshPermissions()
+        }
+        .onAppear {
+            if requestedTab != nil {
+                onRequestedTabConsumed()
+            }
+        }
+        .onChange(of: requestedTabRevision) { _, _ in
+            if let requestedTab {
+                rootViewModel.open(tab: requestedTab)
+                onRequestedTabConsumed()
+            }
         }
     }
 
@@ -1374,6 +1395,21 @@ struct SettingsView: View {
                     Divider()
 
                     resetActionRow(
+                        title: "Transform history",
+                        detail: "Saved Transform runs only. Transform definitions and shortcuts stay.",
+                        action: ResetDestructiveAction(
+                            buttonTitle: "Clear…",
+                            accessibilityLabel: "Clear Transform history",
+                            confirmationTitle: "Clear Transform History?",
+                            confirmationMessage: "This will delete all saved Transform runs. Transform definitions and shortcuts are not affected. This cannot be undone.",
+                            confirmButtonLabel: "Clear History",
+                            perform: viewModel.clearTransformHistory
+                        )
+                    )
+
+                    Divider()
+
+                    resetActionRow(
                         title: "Downloaded YouTube audio",
                         detail: "Saved audio files only. Transcriptions stay; audio detaches.",
                         action: ResetDestructiveAction(
@@ -1477,6 +1513,10 @@ struct SettingsView: View {
             status: engineSelectorCardStatus
         ) {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                if let banner = speechEngineSwitchBannerState {
+                    speechEngineSwitchBanner(title: banner.title, detail: banner.detail)
+                }
+
                 HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
                     EngineOptionTile(
                         icon: "bolt.fill",
@@ -1488,7 +1528,7 @@ struct SettingsView: View {
                             "Runs on the Neural Engine"
                         ],
                         helpText: "Best for English and other European languages including Spanish, French, German, and Italian. Runs on the Neural Engine for the lowest latency on Apple Silicon.",
-                        modelStatus: viewModel.parakeetStatus,
+                        modelStatus: displayedParakeetModelStatus,
                         isSelected: viewModel.speechEnginePreference == .parakeet,
                         isBusy: viewModel.speechEngineSwitching,
                         onSelect: { selectEngine(.parakeet) }
@@ -1504,7 +1544,7 @@ struct SettingsView: View {
                             "Whisper Large v3 Turbo (632 MB)"
                         ],
                         helpText: "Best for languages outside Parakeet's coverage. Adds Korean, Japanese, Chinese, Thai, Hindi, Arabic, Vietnamese, and 80+ more — any language Whisper supports.",
-                        modelStatus: viewModel.whisperModelStatus,
+                        modelStatus: displayedWhisperModelStatus,
                         isSelected: viewModel.speechEnginePreference == .whisper,
                         isBusy: viewModel.speechEngineSwitching,
                         onSelect: { handleWhisperTileTap() }
@@ -1691,22 +1731,24 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 modelStatusRow(
                     title: "Parakeet",
-                    detail: viewModel.parakeetStatusDetail,
-                    status: viewModel.parakeetStatus,
+                    detail: displayedParakeetModelStatusDetail,
+                    status: displayedParakeetModelStatus,
                     isWorking: viewModel.parakeetRepairing,
-                    primaryAction: parakeetPrimaryAction,
-                    overflowAction: parakeetOverflowAction
+                    actionsDisabled: viewModel.speechEngineSwitching,
+                    primaryAction: displayedParakeetModelStatus == .preparing ? nil : parakeetPrimaryAction,
+                    overflowAction: displayedParakeetModelStatus == .preparing ? nil : parakeetOverflowAction
                 )
 
                 Divider()
 
                 modelStatusRow(
                     title: "Whisper",
-                    detail: viewModel.whisperModelStatusDetail,
-                    status: viewModel.whisperModelStatus,
+                    detail: displayedWhisperModelStatusDetail,
+                    status: displayedWhisperModelStatus,
                     isWorking: viewModel.whisperDownloading,
-                    primaryAction: whisperPrimaryAction,
-                    overflowAction: whisperOverflowAction
+                    actionsDisabled: viewModel.speechEngineSwitching,
+                    primaryAction: displayedWhisperModelStatus == .preparing ? nil : whisperPrimaryAction,
+                    overflowAction: displayedWhisperModelStatus == .preparing ? nil : whisperOverflowAction
                 )
             }
         }
@@ -1714,7 +1756,9 @@ struct SettingsView: View {
 
     private var engineSelectorCardStatus: SettingsCardStatus? {
         if viewModel.speechEngineSwitching {
-            return SettingsCardStatus(.info, label: "Switching…")
+            let target = currentSpeechEngineSwitchTarget
+            let label = target == .whisper ? "Preparing Whisper" : "Switching to \(target.displayName)"
+            return SettingsCardStatus(.recommended, label: label)
         }
         if viewModel.speechEngineError != nil {
             return SettingsCardStatus(.required, label: "Action needed")
@@ -1722,12 +1766,89 @@ struct SettingsView: View {
         return nil
     }
 
+    private var speechEngineSwitchBannerState: (title: String, detail: String)? {
+        guard viewModel.speechEngineSwitching else { return nil }
+        let target = currentSpeechEngineSwitchTarget
+        let phase = viewModel.speechEngineSwitchDetail ?? "Preparing speech engine..."
+        let title = target == .whisper ? "Preparing Whisper" : "Switching to \(target.displayName)"
+        return (
+            title,
+            "\(phase) Dictation, file transcription, and meetings pause until this finishes."
+        )
+    }
+
     private var enginesModelsCardStatus: SettingsCardStatus? {
         SettingsStatusRules.localModelsCardStatus(
-            parakeet: viewModel.parakeetStatus,
-            whisper: viewModel.whisperModelStatus,
+            parakeet: displayedParakeetModelStatus,
+            whisper: displayedWhisperModelStatus,
             activeEngine: viewModel.speechEnginePreference
         )
+    }
+
+    private var currentSpeechEngineSwitchTarget: SpeechEnginePreference {
+        viewModel.speechEngineSwitchTarget ?? viewModel.speechEnginePreference
+    }
+
+    private var displayedParakeetModelStatus: SettingsViewModel.LocalModelStatus {
+        guard viewModel.speechEngineSwitching,
+              currentSpeechEngineSwitchTarget == .parakeet else {
+            return viewModel.parakeetStatus
+        }
+        return .preparing
+    }
+
+    private var displayedParakeetModelStatusDetail: String {
+        guard viewModel.speechEngineSwitching,
+              currentSpeechEngineSwitchTarget == .parakeet else {
+            return viewModel.parakeetStatusDetail
+        }
+        return viewModel.speechEngineSwitchDetail ?? "Loading Parakeet model on Neural Engine..."
+    }
+
+    private var displayedWhisperModelStatus: SettingsViewModel.LocalModelStatus {
+        guard viewModel.speechEngineSwitching,
+              currentSpeechEngineSwitchTarget == .whisper else {
+            return viewModel.whisperModelStatus
+        }
+        return .preparing
+    }
+
+    private var displayedWhisperModelStatusDetail: String {
+        guard viewModel.speechEngineSwitching,
+              currentSpeechEngineSwitchTarget == .whisper else {
+            return viewModel.whisperModelStatusDetail
+        }
+        return viewModel.speechEngineSwitchDetail ?? "Optimizing Whisper for this Mac..."
+    }
+
+    private func speechEngineSwitchBanner(title: String, detail: String) -> some View {
+        HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
+            ProgressView()
+                .controlSize(.small)
+                .frame(width: 18, height: 18)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+                Text(detail)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: DesignSystem.Spacing.md)
+        }
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.vertical, DesignSystem.Spacing.sm)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .fill(DesignSystem.Colors.warningAmber.opacity(0.10))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .strokeBorder(DesignSystem.Colors.warningAmber.opacity(0.28), lineWidth: 0.5)
+        )
+        .accessibilityElement(children: .combine)
     }
 
     /// Routes a tile click through `speechEnginePreference`. The VM's setter
@@ -1749,8 +1870,9 @@ struct SettingsView: View {
     /// and is surfaced only if they explicitly switch.
     ///
     /// When Whisper IS selected: returns nil for usable (`.ready` /
-    /// `.notLoaded`) or transient (`.checking` / `.unknown`) states, and a
-    /// populated state when the user needs to act (download, wait, retry).
+    /// `.notLoaded`) or transient (`.preparing` / `.checking` / `.unknown`)
+    /// states, and a populated state when the user needs to act (download,
+    /// wait, retry).
     /// The banner stays mounted across `.notDownloaded` → `.repairing` →
     /// terminal state so the action surface doesn't blink out on click.
     private var whisperDownloadBannerState: (mode: EngineDownloadBanner.Mode, subtitle: String)? {
@@ -1765,7 +1887,7 @@ struct SettingsView: View {
             return (.downloading, viewModel.whisperModelStatusDetail)
         case .failed:
             return (.retry, viewModel.whisperModelStatusDetail)
-        case .ready, .notLoaded, .checking, .unknown:
+        case .ready, .notLoaded, .preparing, .checking, .unknown:
             return nil
         }
     }
@@ -1785,6 +1907,8 @@ struct SettingsView: View {
             viewModel.speechEngineError = "Download the Whisper model from Local Models below before switching engines."
         case .repairing:
             viewModel.speechEngineError = "Whisper model is downloading — switch engines once it finishes."
+        case .preparing:
+            viewModel.speechEngineError = "Whisper is preparing for this Mac — switch engines once it finishes."
         case .failed:
             viewModel.speechEngineError = "Whisper model failed to load — retry below."
         case .checking, .unknown:
@@ -1795,11 +1919,19 @@ struct SettingsView: View {
     private var parakeetPrimaryAction: ModelRowAction? {
         switch viewModel.parakeetStatus {
         case .failed:
-            return ModelRowAction(label: "Retry", isProminent: true) {
+            return ModelRowAction(
+                label: "Retry",
+                isProminent: true,
+                help: "Re-run Parakeet setup and load the model again."
+            ) {
                 viewModel.repairParakeetModel()
             }
         case .notDownloaded:
-            return ModelRowAction(label: "Download", isProminent: true) {
+            return ModelRowAction(
+                label: "Download",
+                isProminent: true,
+                help: "Download and load the local Parakeet model."
+            ) {
                 viewModel.repairParakeetModel()
             }
         default:
@@ -1810,7 +1942,11 @@ struct SettingsView: View {
     private var parakeetOverflowAction: ModelRowAction? {
         switch viewModel.parakeetStatus {
         case .ready, .notLoaded:
-            return ModelRowAction(label: "Repair…", isProminent: false) {
+            return ModelRowAction(
+                label: "Repair…",
+                isProminent: false,
+                help: "Re-validate the Parakeet files and load the model again."
+            ) {
                 viewModel.repairParakeetModel()
             }
         default:
@@ -1821,11 +1957,19 @@ struct SettingsView: View {
     private var whisperPrimaryAction: ModelRowAction? {
         switch viewModel.whisperModelStatus {
         case .notDownloaded:
-            return ModelRowAction(label: "Download", isProminent: true) {
+            return ModelRowAction(
+                label: "Download",
+                isProminent: true,
+                help: "Download Whisper Large v3 Turbo for multilingual transcription."
+            ) {
                 viewModel.downloadWhisperModel()
             }
         case .failed:
-            return ModelRowAction(label: "Retry", isProminent: true) {
+            return ModelRowAction(
+                label: "Retry",
+                isProminent: true,
+                help: "Try downloading the Whisper model again."
+            ) {
                 viewModel.downloadWhisperModel()
             }
         default:
@@ -1841,7 +1985,11 @@ struct SettingsView: View {
             // (which downloads if files are missing); Whisper re-runs the
             // download (no-op via HuggingFace cache when files are intact).
             // The user shouldn't have to reason about that asymmetry.
-            return ModelRowAction(label: "Repair…", isProminent: false) {
+            return ModelRowAction(
+                label: "Repair…",
+                isProminent: false,
+                help: "Re-check the Whisper files and re-download any missing model assets."
+            ) {
                 viewModel.downloadWhisperModel()
             }
         default:
@@ -1852,7 +2000,15 @@ struct SettingsView: View {
     fileprivate struct ModelRowAction {
         let label: String
         let isProminent: Bool
+        let help: String?
         let run: () -> Void
+
+        init(label: String, isProminent: Bool, help: String? = nil, run: @escaping () -> Void) {
+            self.label = label
+            self.isProminent = isProminent
+            self.help = help
+            self.run = run
+        }
     }
 
     /// Roll-up of the three permissions. `.required` if any feature gate is
@@ -2192,6 +2348,7 @@ struct SettingsView: View {
         detail: String,
         status: SettingsViewModel.LocalModelStatus,
         isWorking: Bool,
+        actionsDisabled: Bool = false,
         primaryAction: ModelRowAction?,
         overflowAction: ModelRowAction?
     ) -> some View {
@@ -2208,13 +2365,24 @@ struct SettingsView: View {
 
             HStack(spacing: DesignSystem.Spacing.sm) {
                 modelStatusPill(status)
+                    .help(modelStatusHelp(status))
 
                 Group {
                     if let action = primaryAction {
-                        modelRowPrimaryButton(action: action, isWorking: isWorking)
-                    } else if let overflow = overflowAction, !isWorking, status != .checking, status != .repairing {
+                        modelRowPrimaryButton(
+                            action: action,
+                            isWorking: isWorking,
+                            actionsDisabled: actionsDisabled
+                        )
+                    } else if let overflow = overflowAction,
+                              !actionsDisabled,
+                              !isWorking,
+                              status != .checking,
+                              status != .repairing,
+                              status != .preparing {
                         Menu {
                             Button(overflow.label, action: overflow.run)
+                                .help(overflow.help ?? overflow.label)
                         } label: {
                             Image(systemName: "ellipsis")
                                 .font(.system(size: 13, weight: .semibold))
@@ -2223,9 +2391,9 @@ struct SettingsView: View {
                         .menuStyle(.borderlessButton)
                         .menuIndicator(.hidden)
                         .fixedSize()
-                        .help("More actions")
+                        .help(overflow.help ?? "More actions")
                         .accessibilityLabel("More actions")
-                    } else if isWorking || status == .checking || status == .repairing {
+                    } else if isWorking || status == .checking || status == .repairing || status == .preparing {
                         ProgressView()
                             .controlSize(.small)
                             .frame(width: 22, height: 22)
@@ -2239,18 +2407,24 @@ struct SettingsView: View {
     }
 
     @ViewBuilder
-    private func modelRowPrimaryButton(action: ModelRowAction, isWorking: Bool) -> some View {
+    private func modelRowPrimaryButton(
+        action: ModelRowAction,
+        isWorking: Bool,
+        actionsDisabled: Bool
+    ) -> some View {
         let label = isWorking ? "Working…" : action.label
         if action.isProminent {
             Button(label, action: action.run)
                 .parakeetAction(.primaryProminent)
                 .controlSize(.small)
-                .disabled(isWorking)
+                .disabled(isWorking || actionsDisabled)
+                .help(action.help ?? action.label)
         } else {
             Button(label, action: action.run)
                 .parakeetAction(.secondary)
                 .controlSize(.small)
-                .disabled(isWorking)
+                .disabled(isWorking || actionsDisabled)
+                .help(action.help ?? action.label)
         }
     }
 
@@ -2394,9 +2568,11 @@ struct SettingsView: View {
             // healthy idle state, not an error. Earlier copy ("Not Loaded"
             // with a pause icon) read as broken and prompted users to hit
             // Repair to "fix" something that wasn't actually broken.
-            ("checkmark.circle.fill", "Downloaded", DesignSystem.Colors.successGreen)
+            ("checkmark.circle.fill", "Installed", DesignSystem.Colors.successGreen)
         case .notDownloaded:
             ("arrow.down.circle.fill", "Not Downloaded", DesignSystem.Colors.errorRed)
+        case .preparing:
+            ("gearshape.fill", "Preparing", DesignSystem.Colors.warningAmber)
         case .repairing:
             ("wrench.and.screwdriver.fill", "Repairing", DesignSystem.Colors.warningAmber)
         case .failed:
@@ -2416,6 +2592,27 @@ struct SettingsView: View {
             Capsule()
                 .fill(color.opacity(0.12))
         )
+    }
+
+    private func modelStatusHelp(_ status: SettingsViewModel.LocalModelStatus) -> String {
+        switch status {
+        case .unknown:
+            "Model status has not been checked yet."
+        case .checking:
+            "Checking whether the model is available on this Mac."
+        case .ready:
+            "Model is loaded in memory and ready to use."
+        case .notLoaded:
+            "Model files are installed locally. The model will load when selected or used."
+        case .notDownloaded:
+            "Model files are missing and must be downloaded before use."
+        case .preparing:
+            "Model is being prepared for this Mac."
+        case .repairing:
+            "Model setup is currently running."
+        case .failed:
+            "The last model setup attempt failed."
+        }
     }
 
     private func openAccessibilitySettings() {

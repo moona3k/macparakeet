@@ -34,6 +34,16 @@ final class SettingsStatusRulesTests: XCTestCase {
         XCTAssertEqual(status, SettingsCardStatus(.recommended, label: "Download recommended"))
     }
 
+    func testLocalModelsShowsPreparingWhenActiveEngineIsPreparing() {
+        let status = SettingsStatusRules.localModelsCardStatus(
+            parakeet: .notLoaded,
+            whisper: .preparing,
+            activeEngine: .whisper
+        )
+
+        XCTAssertEqual(status, SettingsCardStatus(.recommended, label: "Preparing"))
+    }
+
     func testLocalModelsRequiresActionWhenEitherEngineFailed() {
         let status = SettingsStatusRules.localModelsCardStatus(
             parakeet: .ready,

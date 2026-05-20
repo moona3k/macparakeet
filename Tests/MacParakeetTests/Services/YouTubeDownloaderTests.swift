@@ -63,6 +63,7 @@ final class YouTubeDownloaderTests: XCTestCase {
             "--no-playlist",
             "--retries", "3",
             "--concurrent-fragments", "4",
+            "--embed-metadata",
             "--newline",
             "-o", "/tmp/video.%(ext)s",
             "--", "https://www.youtube.com/watch?v=abc",
@@ -78,6 +79,9 @@ final class YouTubeDownloaderTests: XCTestCase {
         )
 
         XCTAssertEqual(formatSelector(in: args), "bestaudio/best")
+        XCTAssertTrue(args.contains("--embed-metadata"))
+        XCTAssertFalse(args.contains("--embed-thumbnail"))
+        XCTAssertFalse(args.contains("--convert-thumbnails"))
     }
 
     func testDownloadAudioArgumentsIncludeJavaScriptRuntimeArgsBeforeFFmpeg() {
@@ -176,6 +180,89 @@ final class YouTubeDownloaderTests: XCTestCase {
         ))
     }
 
+    func testReadableAudioFileStemUsesUploadDateChannelAndTitle() {
+        let stem = YouTubeDownloader.readableAudioFileStem(
+            title: "Swift/Tutorial: Part\n1",
+            channelName: "Swift Dev",
+            uploadDate: "20260515"
+        )
+
+        XCTAssertEqual(stem, "2026-05-15 - Swift Dev - Swift Tutorial Part 1")
+    }
+
+    func testReadableAudioFileStemPreservesMultilingualTitles() {
+        let stem = YouTubeDownloader.readableAudioFileStem(
+            title: "한국어 강의 / 中文播客: 日本語の話",
+            channelName: "데브 채널",
+            uploadDate: "20260515"
+        )
+
+        XCTAssertEqual(stem, "2026-05-15 - 데브 채널 - 한국어 강의 中文播客 日本語の話")
+    }
+
+    func testReadableAudioFileStemCapsByUTF8BytesWithoutBreakingCharacters() {
+        let stem = YouTubeDownloader.readableAudioFileStem(
+            title: String(repeating: "한국어", count: 80),
+            channelName: nil,
+            uploadDate: nil
+        )
+
+        XCTAssertLessThanOrEqual(stem.utf8.count, 180)
+        XCTAssertFalse(stem.isEmpty)
+        XCTAssertTrue(stem.allSatisfy { $0 == "한" || $0 == "국" || $0 == "어" })
+    }
+
+    func testReadableAudioFileStemFallsBackToYouTubeAudioWhenMetadataIsBlank() {
+        let stem = YouTubeDownloader.readableAudioFileStem(
+            title: "Untitled",
+            channelName: " \n ",
+            uploadDate: "not-a-date"
+        )
+
+        XCTAssertEqual(stem, "YouTube Audio")
+    }
+
+    func testReadableAudioFileURLDeduplicatesExistingFiles() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-ytdlp-name-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let existing = directory.appendingPathComponent("2026-05-15 - Swift Dev - Swift Tutorial.m4a")
+        try Data("existing".utf8).write(to: existing)
+
+        let url = YouTubeDownloader.readableAudioFileURL(
+            in: directory,
+            title: "Swift Tutorial",
+            channelName: "Swift Dev",
+            uploadDate: "20260515",
+            fileExtension: "m4a"
+        )
+
+        XCTAssertEqual(url.lastPathComponent, "2026-05-15 - Swift Dev - Swift Tutorial (1).m4a")
+    }
+
+    func testMoveDownloadedAudioToReadableURLRenamesRetainedAudio() throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("macparakeet-ytdlp-move-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let source = directory.appendingPathComponent("\(UUID().uuidString).webm")
+        try Data("audio".utf8).write(to: source)
+
+        let moved = try YouTubeDownloader.moveDownloadedAudioToReadableURL(
+            source,
+            title: "Swift Tutorial",
+            channelName: "Swift Dev",
+            uploadDate: "20260515"
+        )
+
+        XCTAssertEqual(moved.lastPathComponent, "2026-05-15 - Swift Dev - Swift Tutorial.webm")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: moved.path))
+    }
+
     func testRemoveDownloadArtifactsDeletesOnlyMatchingFiles() throws {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-ytdlp-cleanup-\(UUID().uuidString)", isDirectory: true)
@@ -206,11 +293,13 @@ final class YouTubeDownloaderTests: XCTestCase {
             durationSeconds: 600,
             channelName: "Swift Dev",
             thumbnailURL: "https://i.ytimg.com/vi/abc/maxresdefault.jpg",
-            videoDescription: "Learn Swift"
+            videoDescription: "Learn Swift",
+            uploadDate: "20260515"
         )
         XCTAssertEqual(result.channelName, "Swift Dev")
         XCTAssertEqual(result.thumbnailURL, "https://i.ytimg.com/vi/abc/maxresdefault.jpg")
         XCTAssertEqual(result.videoDescription, "Learn Swift")
+        XCTAssertEqual(result.uploadDate, "20260515")
     }
 
     func testDownloadResultMetadataDefaultsToNil() {
@@ -222,6 +311,7 @@ final class YouTubeDownloaderTests: XCTestCase {
         XCTAssertNil(result.channelName)
         XCTAssertNil(result.thumbnailURL)
         XCTAssertNil(result.videoDescription)
+        XCTAssertNil(result.uploadDate)
     }
 
     func testPyInstallerLibraryValidationErrorDetection() {

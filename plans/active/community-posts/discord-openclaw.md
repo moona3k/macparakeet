@@ -24,7 +24,7 @@ short, embed the install command, and let them ask follow-ups.
 ````markdown
 hey openclaw folks 👋
 
-just shipped macparakeet-cli 1.0 — a swift-native CLI that runs Parakeet TDT 0.6B v3 on the Apple Neural Engine. ~155x realtime, ~2.5% WER, ~66 MB per inference slot. free + open-source (GPL-3.0).
+macparakeet-cli is now at 2.3.1 — a swift-native CLI that runs Parakeet TDT 0.6B v3 on the Apple Neural Engine. ~155x realtime, ~2.5% WER, ~66 MB per inference slot. free + open-source (GPL-3.0).
 
 what it gives an OpenClaw skill author:
 • local STT (no cloud, no API keys, no per-minute charges)
@@ -45,7 +45,7 @@ OpenClaw scaffold (capability table + install + conventions): https://github.com
 agent-facing landing: https://macparakeet.com/agents
 launch blog: https://macparakeet.com/blog/macparakeet-cli-1-0/
 
-i'm the maintainer (@moona3k on github), happy to answer Qs or take feature requests. ClawHub publication is on the roadmap — open to guidance from anyone who's been through it.
+i'm the maintainer (@moona3k on github), happy to answer Qs or take feature requests. ClawHub publication is deferred until i verify the current SKILL.md schema — open to guidance from anyone who's been through it.
 ````
 
 ## What to avoid

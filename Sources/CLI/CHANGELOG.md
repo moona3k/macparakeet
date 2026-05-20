@@ -80,15 +80,42 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ## [Unreleased]
 
+### Added
+
+- LLM-backed commands now expose `--allow-insecure-http` for intentional
+  non-loopback `http://` endpoints on non-local providers.
+
+### Changed
+
+- CLI LLM base URL validation now matches the GUI safety model: `https://`
+  remains allowed everywhere, `http://` remains allowed for loopback and local
+  providers, and non-local providers require `--allow-insecure-http` before
+  sending prompt content or API keys over cleartext HTTP. When the override is
+  used, the CLI writes a warning to stderr so stdout stays machine-readable.
+  Existing scripts that intentionally target a non-loopback HTTP endpoint can
+  keep that behavior by adding the explicit flag.
+
+## [2.3.1] -- 2026-05-19
+
+### Changed
+
+- Patch release for the standalone Homebrew channel. No command, flag, JSON
+  schema, or exit-code changes from 2.3.0; the release artifact is rebuilt
+  from latest `main` after the STT-language telemetry/data-model update.
+
+## [2.3.0] -- 2026-05-16
+
 ### Changed
 
 - `flow` command renamed to `vocab`. All subcommands move:
   `flow words` → `vocab words`, `flow snippets` → `vocab snippets`,
   `flow process` → `vocab process`. `flow vocabulary export/import/schema`
-  flattened to `vocab export/import/schema`. No deprecated alias — the
-  old `flow` surface had no external consumers.
+  flattened to `vocab export/import/schema`. The old `flow` command remains as
+  a deprecated alias for this minor release, including the legacy
+  `flow vocabulary export/import/schema` forms, and will be removed at the next
+  major CLI version.
 
-### Added (2.2.0)
+### Added
 
 - `transforms list / show / run / create / delete` — new subcommand tree
   for managing user-defined Transforms (ADR-022). Same surface that the
@@ -105,13 +132,13 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
     provider. Distinct from `llm transform --prompt "..."`, which
     takes an ad-hoc prompt string.
   - `transforms create --name --prompt|--from-file [--shortcut "opt+1"]
-    [--running-label] [--json]` — headless install of a new Transform.
+    [--json]` — headless install of a new Transform.
     Shortcut format: `opt+1`, `cmd+shift+P`, etc. Refuses bare-key
     bindings (must include a modifier).
   - `transforms delete <id|name> [--json]` — deletes a custom
     Transform. Built-ins are protected.
   - `transforms list/show/create --json` use a snake-cased `TransformDTO`
-    payload (`id`, `name`, `shortcut`, `running_label`, `is_built_in`,
+    payload (`id`, `name`, `shortcut`, `is_built_in`,
     `prompt`, `created_at`, `updated_at`). `transforms run --json`
     emits the LLM result envelope, and `transforms delete --json` emits
     `{deleted,id,name}`.

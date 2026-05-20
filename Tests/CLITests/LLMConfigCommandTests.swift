@@ -44,6 +44,19 @@ final class LLMConfigCommandTests: XCTestCase {
         XCTAssertEqual(config.baseURL.absoluteString, "http://127.0.0.1:11435/v1")
     }
 
+    func testInlineOptionsAllowOllamaHTTPOnLAN() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "ollama",
+            "--base-url", "http://192.168.1.5:11434/v1",
+            "--model", "llama3.2"
+        ])
+
+        let config = try options.buildConfig()
+        XCTAssertEqual(config.id, .ollama)
+        XCTAssertEqual(config.baseURL.absoluteString, "http://192.168.1.5:11434/v1")
+        XCTAssertTrue(config.isLocal)
+    }
+
     func testInlineOptionsBuildOpenAICompatibleConfig() throws {
         let options = try LLMInlineOptions.parse([
             "--provider", "openai-compatible",
@@ -131,6 +144,82 @@ final class LLMConfigCommandTests: XCTestCase {
         let config = try options.buildConfig()
         XCTAssertEqual(config.id, .openaiCompatible)
         XCTAssertTrue(config.isLocal)
+    }
+
+    func testInlineOptionsRejectOpenAICompatibleHTTPOnLANWithoutExplicitAllow() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "openai-compatible",
+            "--base-url", "http://192.168.1.5:8000/v1",
+            "--model", "local-model"
+        ])
+
+        XCTAssertThrowsError(try options.buildConfig(emitWarnings: false)) { error in
+            XCTAssertTrue(error is ValidationError)
+            XCTAssertTrue(String(describing: error).contains("--allow-insecure-http"))
+        }
+    }
+
+    func testInlineOptionsAllowOpenAICompatibleHTTPOnLANWithExplicitFlag() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "openai-compatible",
+            "--base-url", "http://192.168.1.5:8000/v1",
+            "--allow-insecure-http",
+            "--model", "local-model"
+        ])
+
+        let config = try options.buildConfig(emitWarnings: false)
+        XCTAssertEqual(config.id, .openaiCompatible)
+        XCTAssertEqual(config.baseURL.absoluteString, "http://192.168.1.5:8000/v1")
+        XCTAssertFalse(config.isLocal)
+    }
+
+    func testInlineOptionsRejectHostedProviderHTTPOnLANWithoutExplicitAllow() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "openai",
+            "--api-key-env", "OPENAI_API_KEY",
+            "--base-url", "http://api.example.com/v1",
+            "--model", "gpt-4.1"
+        ])
+
+        XCTAssertThrowsError(
+            try options.buildConfig(
+                environment: ["OPENAI_API_KEY": "sk-env"],
+                emitWarnings: false
+            )
+        ) { error in
+            XCTAssertTrue(error is ValidationError)
+            XCTAssertTrue(String(describing: error).contains("--allow-insecure-http"))
+        }
+    }
+
+    func testInlineOptionsAllowHostedProviderHTTPOnLANWithExplicitFlag() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "openai",
+            "--api-key-env", "OPENAI_API_KEY",
+            "--base-url", "http://api.example.com/v1",
+            "--allow-insecure-http",
+            "--model", "gpt-4.1"
+        ])
+
+        let config = try options.buildConfig(
+            environment: ["OPENAI_API_KEY": "sk-env"],
+            emitWarnings: false
+        )
+        XCTAssertEqual(config.id, .openai)
+        XCTAssertEqual(config.baseURL.absoluteString, "http://api.example.com/v1")
+        XCTAssertEqual(config.apiKey, "sk-env")
+    }
+
+    func testInsecureHTTPWarningNamesProviderAndURL() throws {
+        let warning = LLMInlineOptions.insecureHTTPWarning(
+            url: URL(string: "http://api.example.com/v1")!,
+            providerID: .openai
+        )
+
+        XCTAssertTrue(warning.contains("--allow-insecure-http"))
+        XCTAssertTrue(warning.contains("OpenAI"))
+        XCTAssertTrue(warning.contains("http://api.example.com/v1"))
+        XCTAssertTrue(warning.contains("without TLS"))
     }
 
     func testInlineOptionsLocalFlagMarksRemoteProviderAsLocal() throws {

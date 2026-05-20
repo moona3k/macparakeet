@@ -42,13 +42,13 @@ struct PromptLibraryView: View {
             }
             .padding(DesignSystem.Spacing.xl)
             .background(DesignSystem.Colors.surface)
-            
+
             Divider()
 
             // MARK: - Content
             ScrollView {
                 VStack(spacing: DesignSystem.Spacing.xxl) {
-                    
+
                     // Error Banner
                     if let errorMessage = viewModel.errorMessage {
                         errorBanner(errorMessage)
@@ -57,7 +57,7 @@ struct PromptLibraryView: View {
                     // Built-In Prompts Section
                     sectionContainer(
                         title: "Built-In Prompts",
-                        subtitle: "Toggle visibility or enable Auto-Run to generate results automatically after transcription longer than ~80 words."
+                        subtitle: "Toggle visibility or enable Auto-Run to generate results automatically after any non-empty transcription."
                     ) {
                         cardGroup {
                             let builtIns = viewModel.prompts.filter(\.isBuiltIn)

@@ -1,6 +1,6 @@
 # Command Mode GUI (F10a) De-Risk Plan
 
-Status: **IN PROGRESS** (core services + chord hotkey arbitration + overlay shipped; AX selection + paste replacement gates remaining)
+Status: **HISTORICAL / ARCHIVED** - retained as a de-risking snapshot; not active work.
 Owner: Core app team
 Updated: 2026-02-20
 

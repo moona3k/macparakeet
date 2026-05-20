@@ -1,6 +1,6 @@
 # LLM Settings State Refactor Plan
 
-> Status: **ACTIVE**
+> Status: **COMPLETED / ARCHIVED** - implementation exists on `main`; this plan is retained for historical context.
 > ADR: 011 (LLM cloud and local providers)
 > Spec: spec/11-llm-integration.md
 

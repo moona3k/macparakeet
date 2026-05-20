@@ -1,6 +1,6 @@
 # LLM Provider Integration Plan
 
-> Status: **ACTIVE**
+> Status: **COMPLETED / ARCHIVED** - implementation exists on `main`; this plan is retained for historical context.
 > ADR: 011 (Cloud API keys + optional local providers)
 > Spec: spec/11-llm-integration.md
 

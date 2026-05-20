@@ -119,6 +119,21 @@ WhisperKit gives broad language coverage while staying local. It is a better fit
 
 Automatic fallback would be surprising and hard to debug: the same file could use different engines depending on detection confidence, installed models, and transient failures. The current design is explicit. Users choose Whisper in Settings or pass `--engine whisper` in the CLI.
 
+### 2026-05-19 amendment: locale-aware first-run setup
+
+First-run onboarding may choose Whisper as the initial engine when the local
+macOS preferred language is Korean, Japanese, Chinese, or Cantonese. This is
+not automatic fallback during transcription: no audio is sampled to infer a
+language, no transcript content is inspected, and every later STT job still
+uses the explicit selected engine. The onboarding branch only prevents CJK
+users from completing setup into a Parakeet-only path that cannot recognize
+their primary language.
+
+The branch stores a canonical Whisper language hint locally (`ko`, `ja`, `zh`,
+or `yue`), downloads the configured local Whisper model if needed, switches the
+runtime through `STTScheduler.setSpeechEngine(.whisper)`, and still prepares
+speaker-detection assets when they are part of first-run readiness.
+
 ### Why not replace Parakeet
 
 Parakeet remains much faster and lighter for supported languages, especially dictation. Whisper solves coverage, not the default latency target.
@@ -142,7 +157,7 @@ Meeting recordings span minutes or hours and have recovery semantics. Pinning gi
 - A second model cache increases disk use.
 - WhisperKit adds another SwiftPM dependency and upstream compatibility surface.
 - Whisper is slower than Parakeet for supported languages.
-- Users must download the Whisper model explicitly before first use.
+- Users must download the Whisper model explicitly before first use, except for the locale-aware CJK onboarding path where Whisper is the initial local setup target.
 - Documentation must distinguish "fully local speech" from "always Parakeet."
 
 ## Implementation Notes

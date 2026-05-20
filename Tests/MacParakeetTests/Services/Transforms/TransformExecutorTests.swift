@@ -278,6 +278,46 @@ final class TransformExecutorTests: XCTestCase {
         XCTAssertEqual(replacementBackend.lastAXText(), "Hi there!")
     }
 
+    func testRunCanPasteResultIntoCurrentFocusInsteadOfAXReplacing() async throws {
+        let captureBackend = FakeSelectionCaptureBackend(
+            isTrusted: true,
+            focusedElement: AXUIElementCreateSystemWide(),
+            selectedText: "Hello world"
+        )
+        let captureService = SelectionCaptureService(
+            backend: captureBackend,
+            clipboardPollTimeout: .milliseconds(40),
+            pollIntervalNanos: 1_000_000
+        )
+        let replacementBackend = FakeSelectionReplacementBackend(
+            isTrusted: true,
+            axWriteSucceeds: true
+        )
+        let replacementService = SelectionReplacementService(
+            backend: replacementBackend,
+            postPasteDelay: .milliseconds(1)
+        )
+        let llm = MockTransformLLMService()
+        llm.streamTokens = ["Hi there!"]
+        let executor = TransformExecutor(
+            captureService: captureService,
+            replacementService: replacementService,
+            llmService: llm
+        )
+
+        let result = try await executor.run(
+            prompt: "polish",
+            replacementMode: .pasteIntoCurrentFocus,
+            onProgress: { _ in }
+        )
+
+        XCTAssertEqual(result.outputText, "Hi there!")
+        XCTAssertEqual(result.path, .clipboardPaste)
+        XCTAssertNil(replacementBackend.lastAXText())
+        XCTAssertEqual(replacementBackend.lastClipboardText(), "Hi there!")
+        XCTAssertEqual(replacementBackend.cmdVPostCount(), 1)
+    }
+
     func testRunPropagatesLLMStreamError() async {
         let captureBackend = FakeSelectionCaptureBackend(
             isTrusted: true,
@@ -360,6 +400,17 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
     func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String { "" }
     func transform(text: String, prompt: String) async throws -> String { "" }
     func formatTranscript(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> String { "" }
+    func formatTranscriptDetailed(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> LLMFormatterResult {
+        LLMFormatterResult(
+            result: LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0),
+            operationID: "mock",
+            inputChars: transcript.count,
+            outputChars: 0,
+            inputTruncated: false,
+            defaultPromptUsed: defaultPromptUsed,
+            messageCount: 2
+        )
+    }
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { $0.finish() }
     }

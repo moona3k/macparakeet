@@ -3,6 +3,18 @@ import XCTest
 @testable import MacParakeetCore
 
 final class AudioCaptureDiagnosticsTests: XCTestCase {
+    func testAppendUsesTemporaryLogUnderXCTest() throws {
+        let logURL = AudioCaptureDiagnostics.diagnosticLogURL()
+        let marker = "unit_test_diagnostic_marker_\(UUID().uuidString)"
+
+        AudioCaptureDiagnostics.append(marker)
+
+        let contents = try String(contentsOf: logURL, encoding: .utf8)
+        XCTAssertTrue(logURL.path.contains("MacParakeetTests/Logs"))
+        XCTAssertFalse(logURL.path.hasPrefix(AppPaths.logsDir))
+        XCTAssertTrue(contents.contains(marker))
+    }
+
     func testDeviceLabelDoesNotExposeRawDeviceID() {
         let label = AudioCaptureDiagnostics.deviceLabel(AudioDeviceID(12345))
 

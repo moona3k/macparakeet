@@ -382,8 +382,19 @@ struct LLMSettingsView: View {
 
             HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Prompt")
-                        .font(DesignSystem.Typography.body)
+                    HStack(spacing: 7) {
+                        Text("Prompt")
+                            .font(DesignSystem.Typography.body)
+                        Text(viewModel.aiFormatterPromptModeText)
+                            .font(DesignSystem.Typography.micro.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(
+                                Capsule()
+                                    .fill(DesignSystem.Colors.surfaceElevated)
+                            )
+                    }
                     Text("Uses `{{TRANSCRIPT}}` as the transcript placeholder and runs as the last output step.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
@@ -511,7 +522,16 @@ struct LLMSettingsView: View {
     private var saveStateIndicator: some View {
         switch viewModel.saveState {
         case .idle:
-            EmptyView()
+            if viewModel.hasUnsavedChanges {
+                HStack(spacing: 4) {
+                    Image(systemName: "circle.fill")
+                        .font(.system(size: 7))
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    Text("Unsaved changes")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.warningAmber)
+                }
+            }
         case .saved:
             HStack(spacing: 4) {
                 Image(systemName: "checkmark.circle.fill")
@@ -552,9 +572,10 @@ struct LLMSettingsView: View {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 12))
                     .foregroundStyle(DesignSystem.Colors.successGreen)
-                Text("Connected")
+                Text(viewModel.connectionSuccessMessage)
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.successGreen)
+                    .lineLimit(2)
             }
         case .error(let message):
             HStack(spacing: 4) {

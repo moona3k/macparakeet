@@ -21,6 +21,22 @@ struct TransformsView: View {
     let onCreate: () -> Void
     let onBindingsChanged: () -> Void
 
+    @State private var historySearchText = ""
+    @State private var expandedHistoryEntryIDs: Set<UUID> = []
+
+    private var historySearchQuery: String {
+        historySearchText.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var isHistoryFiltering: Bool {
+        !historySearchQuery.isEmpty
+    }
+
+    private var filteredHistory: [TransformHistoryEntry] {
+        guard isHistoryFiltering else { return viewModel.history }
+        return viewModel.history.filter { $0.matchesSearch(historySearchQuery) }
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.xl) {
@@ -100,18 +116,6 @@ struct TransformsView: View {
         } message: { entry in
             Text("The saved “\(entry.transformName)” input and output will be removed from local history.")
         }
-        .alert("Clear Transform history?", isPresented: $viewModel.isConfirmingClearHistory) {
-            Button("Clear History", role: .destructive) {
-                Task {
-                    await viewModel.clearHistory()
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                viewModel.isConfirmingClearHistory = false
-            }
-        } message: {
-            Text("All saved Transform runs will be removed from local history.")
-        }
     }
 
     // MARK: - Sections
@@ -138,7 +142,7 @@ struct TransformsView: View {
                 Label("Highlight any text on your Mac.", systemImage: "1.circle.fill")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Label("Press a Transform's hotkey (⌥1, ⌥2, ⌥3, …).", systemImage: "2.circle.fill")
+                Label(viewModel.heroShortcutInstruction, systemImage: "2.circle.fill")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                 Label("The selection is rewritten in place. ⌘Z to undo.", systemImage: "3.circle.fill")
@@ -214,10 +218,6 @@ struct TransformsView: View {
                 .font(DesignSystem.Typography.pageTitle)
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
             Spacer()
-            Button(action: onCreate) {
-                Label("Create New", systemImage: "plus")
-            }
-            .parakeetAction(.primary)
         }
     }
 
@@ -250,24 +250,28 @@ struct TransformsView: View {
 
     @ViewBuilder
     private var footerActions: some View {
-        HStack(spacing: DesignSystem.Spacing.md) {
-            Button(action: {
-                Task {
-                    if await viewModel.reseedMissingBuiltIns(reservedHotkeys: reservedHotkeys) {
-                        onBindingsChanged()
+        if viewModel.hasMissingBuiltInTransforms {
+            HStack(spacing: DesignSystem.Spacing.md) {
+                Button(action: {
+                    Task {
+                        if await viewModel.reseedMissingBuiltIns(reservedHotkeys: reservedHotkeys) {
+                            onBindingsChanged()
+                        }
                     }
+                }) {
+                    Label("Restore missing defaults", systemImage: "arrow.counterclockwise")
                 }
-            }) {
-                Label("Restore missing defaults", systemImage: "arrow.counterclockwise")
+                .parakeetAction(.subtle)
+                Spacer()
             }
-            .parakeetAction(.subtle)
-            Spacer()
+            .padding(.top, DesignSystem.Spacing.md)
         }
-        .padding(.top, DesignSystem.Spacing.md)
     }
 
     @ViewBuilder
     private var historySection: some View {
+        let visibleHistory = filteredHistory
+
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             HStack(alignment: .firstTextBaseline) {
                 Text("History")
@@ -282,15 +286,10 @@ struct TransformsView: View {
                         .background(Capsule().fill(DesignSystem.Colors.surfaceElevated))
                 }
                 Spacer()
-                if !viewModel.history.isEmpty {
-                    Button(role: .destructive) {
-                        viewModel.isConfirmingClearHistory = true
-                    } label: {
-                        Label("Clear", systemImage: "trash")
-                    }
-                    .parakeetAction(.subtle)
-                    .controlSize(.small)
-                }
+            }
+
+            if !viewModel.history.isEmpty {
+                TransformHistorySearchField(text: $historySearchText)
             }
 
             if let historyError = viewModel.historyErrorMessage {
@@ -310,20 +309,46 @@ struct TransformsView: View {
 
             if viewModel.history.isEmpty {
                 TransformHistoryEmptyState()
+            } else if visibleHistory.isEmpty {
+                TransformHistoryNoResultsState(query: historySearchQuery) {
+                    historySearchText = ""
+                }
             } else {
                 LazyVStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-                    ForEach(viewModel.history) { entry in
+                    ForEach(visibleHistory) { entry in
                         TransformHistoryRow(
                             entry: entry,
-                            isCopied: viewModel.copiedHistoryEntryID == entry.id,
-                            onCopy: {
+                            copiedTarget: viewModel.copiedHistoryEntryID == entry.id ? viewModel.copiedHistoryTarget : nil,
+                            isExpanded: expandedHistoryEntryIDs.contains(entry.id),
+                            onToggleExpanded: {
+                                withAnimation(DesignSystem.Animation.contentSwap) {
+                                    if expandedHistoryEntryIDs.contains(entry.id) {
+                                        expandedHistoryEntryIDs.remove(entry.id)
+                                    } else {
+                                        expandedHistoryEntryIDs.insert(entry.id)
+                                    }
+                                }
+                            },
+                            onCopyOutput: {
                                 Task {
                                     await viewModel.copyOutputToClipboard(entry)
+                                }
+                            },
+                            onCopyInput: {
+                                Task {
+                                    await viewModel.copyInputToClipboard(entry)
                                 }
                             },
                             onDelete: { viewModel.pendingDeleteHistoryEntry = entry }
                         )
                     }
+                }
+
+                if !isHistoryFiltering && viewModel.totalHistoryCount > viewModel.history.count {
+                    Text("Showing the most recent \(viewModel.history.count) of \(viewModel.totalHistoryCount) saved runs.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .padding(.top, DesignSystem.Spacing.xs)
                 }
             }
         }
@@ -362,92 +387,98 @@ private struct TransformHistoryEmptyState: View {
     }
 }
 
+private struct TransformHistoryNoResultsState: View {
+    let query: String
+    let onClear: () -> Void
+
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.md) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(DesignSystem.Colors.surfaceElevated))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("No history matches \"\(query)\"")
+                    .font(DesignSystem.Typography.body.weight(.semibold))
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                Text("Search checks Transform names, source apps, original text, and transformed text.")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(DesignSystem.Colors.textSecondary)
+            }
+
+            Spacer(minLength: DesignSystem.Spacing.md)
+
+            Button("Clear Search", action: onClear)
+                .parakeetAction(.subtle)
+                .controlSize(.small)
+        }
+        .padding(DesignSystem.Spacing.lg)
+        .background(DesignSystem.Colors.cardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .stroke(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
+        }
+    }
+}
+
+private struct TransformHistorySearchField: View {
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+
+            TextField("Search Transform history", text: $text)
+                .textFieldStyle(.plain)
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+            if !text.isEmpty {
+                Button {
+                    text = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .parakeetAction(.subtle)
+                .help("Clear search")
+                .accessibilityLabel("Clear history search")
+            }
+        }
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.vertical, DesignSystem.Spacing.sm)
+        .background(DesignSystem.Colors.surfaceElevated.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .stroke(DesignSystem.Colors.border.opacity(0.55), lineWidth: 0.5)
+        }
+    }
+}
+
 private struct TransformHistoryRow: View {
     private static let todayTimeFormat = Date.FormatStyle(date: .omitted, time: .shortened)
     private static let dateTimeFormat = Date.FormatStyle(date: .numeric, time: .shortened)
 
     let entry: TransformHistoryEntry
-    let isCopied: Bool
-    let onCopy: () -> Void
+    let copiedTarget: TransformHistoryCopyTarget?
+    let isExpanded: Bool
+    let onToggleExpanded: () -> Void
+    let onCopyOutput: () -> Void
+    let onCopyInput: () -> Void
     let onDelete: () -> Void
 
     @State private var isHovered = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: "wand.and.stars")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.accent)
-                    .frame(width: 26, height: 26)
-                    .background(Circle().fill(DesignSystem.Colors.accentLight))
-
-                Text(entry.transformName)
-                    .font(DesignSystem.Typography.caption.weight(.semibold))
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-
-                Text("·")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-
-                Text(entry.sourceAppDisplayName)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .lineLimit(1)
-
-                Text("·")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textTertiary)
-
-                Text(formatTime(entry.createdAt))
-                    .font(DesignSystem.Typography.timestamp)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-
-                Spacer(minLength: DesignSystem.Spacing.sm)
-
-                if isCopied {
-                    Text("Copied")
-                        .font(DesignSystem.Typography.micro)
-                        .foregroundStyle(DesignSystem.Colors.successGreen)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 3)
-                        .background(Capsule().fill(DesignSystem.Colors.successGreen.opacity(0.12)))
-                        .transition(.opacity.combined(with: .scale(scale: 0.96)))
-                }
-
-                TransformHistoryIconButton(
-                    systemImage: isCopied ? "checkmark" : "doc.on.clipboard",
-                    color: isCopied ? DesignSystem.Colors.successGreen : DesignSystem.Colors.textSecondary,
-                    help: "Copy transformed text",
-                    action: onCopy
-                )
-                TransformHistoryIconButton(
-                    systemImage: "trash",
-                    color: DesignSystem.Colors.textSecondary,
-                    help: "Delete history item",
-                    action: onDelete
-                )
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text(entry.outputText)
-                    .font(DesignSystem.Typography.body)
-                    .foregroundStyle(DesignSystem.Colors.textPrimary)
-                    .lineLimit(3)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-
-                Text(entry.inputText)
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .lineLimit(2)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, DesignSystem.Spacing.md)
-                    .overlay(alignment: .leading) {
-                        Rectangle()
-                            .fill(DesignSystem.Colors.border)
-                            .frame(width: 2)
-                    }
-            }
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            headerRow
+            content
         }
         .padding(DesignSystem.Spacing.md)
         .background(
@@ -464,11 +495,328 @@ private struct TransformHistoryRow: View {
                 isHovered = hovering
             }
         }
-        .animation(DesignSystem.Animation.hoverTransition, value: isCopied)
+        .contextMenu {
+            Button("Copy Transformed", action: onCopyOutput)
+            Button("Copy Original", action: onCopyInput)
+            Button(isExpanded ? "Hide Details" : "Show Details", action: onToggleExpanded)
+        }
+        .animation(DesignSystem.Animation.hoverTransition, value: copiedTarget)
+        .animation(DesignSystem.Animation.contentSwap, value: isExpanded)
+    }
+
+    private var headerRow: some View {
+        HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+            TransformSigilView(
+                data: .from(
+                    inputText: entry.inputText,
+                    outputText: entry.outputText,
+                    transformName: entry.transformName
+                ),
+                size: 32
+            )
+
+            Text(entry.transformName)
+                .font(DesignSystem.Typography.caption.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .layoutPriority(1)
+
+            Text("·")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+
+            Text(entry.sourceAppDisplayName)
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Text("·")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+
+            Text(formatTime(entry.createdAt))
+                .font(DesignSystem.Typography.timestamp)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .lineLimit(1)
+
+            Spacer(minLength: DesignSystem.Spacing.sm)
+
+            TransformHistoryCopyButton(
+                title: "Copy",
+                copiedTitle: "Copied",
+                systemImage: "doc.on.doc",
+                copiedSystemImage: "checkmark",
+                isCopied: copiedTarget == .output,
+                prominence: .primary,
+                help: "Copy transformed result",
+                action: onCopyOutput
+            )
+
+            TransformHistoryIconButton(
+                systemImage: isExpanded ? "chevron.up" : "chevron.down",
+                color: DesignSystem.Colors.textSecondary,
+                help: isExpanded ? "Hide details" : "Show details",
+                action: onToggleExpanded
+            )
+
+            TransformHistoryIconButton(
+                systemImage: "trash",
+                color: DesignSystem.Colors.textSecondary,
+                help: "Delete history item",
+                action: onDelete
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                if isExpanded {
+                    TransformHistorySectionLabel("Transformed")
+                }
+
+                Text(entry.outputText)
+                    .font(DesignSystem.Typography.body)
+                    .foregroundStyle(DesignSystem.Colors.textPrimary)
+                    .lineLimit(isExpanded ? nil : 3)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if isExpanded {
+                Divider()
+                    .overlay(DesignSystem.Colors.border.opacity(0.5))
+                    .padding(.vertical, DesignSystem.Spacing.xs)
+
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    HStack(alignment: .center, spacing: DesignSystem.Spacing.sm) {
+                        TransformHistorySectionLabel("Original")
+
+                        Spacer(minLength: DesignSystem.Spacing.sm)
+
+                        TransformHistoryCopyButton(
+                            title: "Copy original",
+                            copiedTitle: "Copied",
+                            systemImage: "doc.text",
+                            copiedSystemImage: "checkmark",
+                            isCopied: copiedTarget == .input,
+                            prominence: .inline,
+                            help: "Copy original text",
+                            action: onCopyInput
+                        )
+                    }
+
+                    originalText(lineLimit: nil)
+                }
+
+                TransformHistoryMetaStrip(
+                    llmDuration: formatMilliseconds(entry.llmElapsedMs),
+                    totalDuration: formatMilliseconds(entry.totalElapsedMs)
+                )
+                .padding(.top, DesignSystem.Spacing.xs)
+            } else {
+                originalText(lineLimit: 2)
+            }
+        }
+    }
+
+    private func originalText(lineLimit: Int?) -> some View {
+        Text(entry.inputText)
+            .font(DesignSystem.Typography.bodySmall)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+            .lineLimit(lineLimit)
+            .textSelection(.enabled)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, DesignSystem.Spacing.md)
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(DesignSystem.Colors.border)
+                    .frame(width: 2)
+            }
     }
 
     private func formatTime(_ date: Date) -> String {
         date.formatted(Calendar.current.isDateInToday(date) ? Self.todayTimeFormat : Self.dateTimeFormat)
+    }
+
+    private func formatMilliseconds(_ value: Int) -> String {
+        guard value >= 1_000 else { return "\(value)ms" }
+        return String(format: "%.1fs", Double(value) / 1_000)
+    }
+
+}
+
+private struct TransformHistorySectionLabel: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title.uppercased())
+            .font(DesignSystem.Typography.micro)
+            .foregroundStyle(DesignSystem.Colors.textTertiary)
+    }
+}
+
+private struct TransformHistoryMetaStrip: View {
+    let llmDuration: String
+    let totalDuration: String
+
+    var body: some View {
+        HStack(spacing: DesignSystem.Spacing.xs) {
+            TransformHistoryMetaChip(systemImage: "sparkles", text: "LLM \(llmDuration)")
+            TransformHistoryMetaChip(systemImage: "timer", text: "Total \(totalDuration)")
+        }
+    }
+}
+
+private struct TransformHistoryMetaChip: View {
+    let systemImage: String
+    let text: String
+
+    var body: some View {
+        Label(text, systemImage: systemImage)
+            .font(DesignSystem.Typography.micro)
+            .foregroundStyle(DesignSystem.Colors.textSecondary)
+            .lineLimit(1)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(DesignSystem.Colors.surfaceElevated.opacity(0.72)))
+            .overlay {
+                Capsule()
+                    .stroke(DesignSystem.Colors.border.opacity(0.55), lineWidth: 0.5)
+            }
+    }
+}
+
+private struct TransformHistoryCopyButton: View {
+    enum Prominence {
+        case primary
+        case inline
+    }
+
+    let title: String
+    let copiedTitle: String
+    let systemImage: String
+    let copiedSystemImage: String
+    let isCopied: Bool
+    let prominence: Prominence
+    let help: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 7) {
+                Image(systemName: isCopied ? copiedSystemImage : systemImage)
+                    .font(.system(size: imageSize, weight: .semibold))
+                    .frame(width: 14)
+
+                Text(isCopied ? copiedTitle : title)
+                    .font(labelFont)
+                    .lineLimit(1)
+            }
+            .frame(minWidth: minWidth, minHeight: height)
+            .padding(.horizontal, horizontalPadding)
+            .foregroundStyle(foregroundColor)
+            .background(
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .fill(backgroundColor)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(borderColor, lineWidth: 0.5)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .accessibilityLabel(isCopied ? copiedTitle : help)
+        .onHover { hovering in
+            withAnimation(DesignSystem.Animation.hoverTransition) {
+                isHovered = hovering
+            }
+        }
+        .animation(DesignSystem.Animation.contentSwap, value: isCopied)
+    }
+
+    private var labelFont: Font {
+        switch prominence {
+        case .primary:
+            return DesignSystem.Typography.caption.weight(.semibold)
+        case .inline:
+            return DesignSystem.Typography.micro.weight(.medium)
+        }
+    }
+
+    private var imageSize: CGFloat {
+        switch prominence {
+        case .primary:
+            return 13
+        case .inline:
+            return 11
+        }
+    }
+
+    private var minWidth: CGFloat {
+        switch prominence {
+        case .primary:
+            return 88
+        case .inline:
+            return 104
+        }
+    }
+
+    private var height: CGFloat {
+        switch prominence {
+        case .primary:
+            return 30
+        case .inline:
+            return 24
+        }
+    }
+
+    private var horizontalPadding: CGFloat {
+        switch prominence {
+        case .primary:
+            return 10
+        case .inline:
+            return 8
+        }
+    }
+
+    private var cornerRadius: CGFloat {
+        switch prominence {
+        case .primary:
+            return 8
+        case .inline:
+            return 7
+        }
+    }
+
+    private var foregroundColor: Color {
+        if isCopied { return DesignSystem.Colors.successGreen }
+        return isHovered ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary
+    }
+
+    private var backgroundColor: Color {
+        if isCopied {
+            return DesignSystem.Colors.successGreen.opacity(isHovered ? 0.18 : 0.12)
+        }
+        return DesignSystem.Colors.surfaceElevated.opacity(isHovered ? 0.92 : 0.62)
+    }
+
+    private var borderColor: Color {
+        if isCopied {
+            return DesignSystem.Colors.successGreen.opacity(isHovered ? 0.48 : 0.34)
+        }
+        return DesignSystem.Colors.border.opacity(isHovered ? 0.72 : 0.48)
     }
 }
 
@@ -495,6 +843,26 @@ private struct TransformHistoryIconButton: View {
         .foregroundStyle(isHovered ? DesignSystem.Colors.textPrimary : color)
         .help(help)
         .onHover { isHovered = $0 }
+    }
+}
+
+private extension TransformHistoryEntry {
+    func matchesSearch(_ query: String) -> Bool {
+        let terms = query
+            .split(whereSeparator: { $0.isWhitespace })
+            .map(String.init)
+
+        guard !terms.isEmpty else { return true }
+
+        let searchableText = [
+            transformName,
+            sourceAppDisplayName,
+            sourceAppBundleID ?? "",
+            inputText,
+            outputText
+        ].joined(separator: "\n")
+
+        return terms.allSatisfy { searchableText.localizedCaseInsensitiveContains($0) }
     }
 }
 
@@ -680,7 +1048,7 @@ struct KeycapBadge: View {
                             .stroke(DesignSystem.Colors.border, lineWidth: 0.5)
                     }
             }
-            Text(shortcut.keyLabel.uppercased())
+            Text(shortcut.displayKeyLabel)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
                 .frame(minWidth: 22, minHeight: 22)
@@ -709,7 +1077,7 @@ struct KeycapBadge: View {
         let modifierNames = ordered
             .filter { (shortcut.modifiers & $0.rawValue) != 0 }
             .map(\.displayName)
-        return (modifierNames + [shortcut.keyLabel.uppercased()]).joined(separator: " ")
+        return (modifierNames + [shortcut.displayKeyLabel]).joined(separator: " ")
     }
 }
 

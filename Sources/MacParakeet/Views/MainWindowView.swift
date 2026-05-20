@@ -132,6 +132,9 @@ struct MainWindowView: View {
                                 },
                                 onRetranscribe: { original, speechEngineOverride in
                                     transcriptionViewModel.retranscribe(original, speechEngineOverride: speechEngineOverride)
+                                },
+                                onSetUpAI: {
+                                    state.navigateToSettings(tab: .ai)
                                 }
                             )
                         } else {
@@ -152,7 +155,7 @@ struct MainWindowView: View {
                         TransformsView(
                             viewModel: transformsViewModel,
                             reservedHotkeys: transformReservedHotkeys,
-                            llmConfiguredAction: { state.selectedItem = .settings },
+                            llmConfiguredAction: { state.navigateToSettings(tab: .ai) },
                             onEdit: { state.editingTransform = $0 },
                             onCreate: { state.isCreatingTransform = true },
                             onBindingsChanged: {
@@ -222,6 +225,11 @@ struct MainWindowView: View {
                             llmSettingsViewModel: llmSettingsViewModel,
                             updater: updater,
                             transformHotkeys: transformsViewModel.transforms,
+                            requestedTab: state.requestedSettingsTab,
+                            requestedTabRevision: state.requestedSettingsTabRevision,
+                            onRequestedTabConsumed: {
+                                state.consumeRequestedSettingsTab()
+                            },
                             onHotkeyRecordingStateChanged: onHotkeyRecordingStateChanged
                         )
                     case .discover:

@@ -1,6 +1,6 @@
 # Speaker Diarization Implementation Plan
 
-> Status: **ACTIVE**
+> Status: **COMPLETED / ARCHIVED** - implementation exists on `main`; this plan is retained for historical context.
 
 ## Overview
 

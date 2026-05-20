@@ -42,14 +42,24 @@ public final class SettingsRootViewModel {
 
     private let defaults: UserDefaults
 
-    public init(defaults: UserDefaults = .standard) {
+    public init(defaults: UserDefaults = .standard, initialTab: SettingsTab? = nil) {
         self.defaults = defaults
-        if let raw = defaults.string(forKey: Self.lastViewedTabKey),
+        if let initialTab {
+            self.activeTab = initialTab
+            defaults.set(initialTab.rawValue, forKey: Self.lastViewedTabKey)
+        } else if let raw = defaults.string(forKey: Self.lastViewedTabKey),
            let restored = SettingsTab(rawValue: raw) {
             self.activeTab = restored
         } else {
             self.activeTab = .default
         }
+    }
+
+    /// Opens Settings to a specific top-level tab and exits search mode so
+    /// callers from feature empty states land on the destination itself.
+    public func open(tab: SettingsTab) {
+        activeTab = tab
+        clearSearch()
     }
 
     /// Clears the search query and returns the panel to the tabbed layout.

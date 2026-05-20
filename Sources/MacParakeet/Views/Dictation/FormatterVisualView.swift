@@ -53,6 +53,7 @@ struct FormatterVisualView: View {
     /// pill size identical is what makes the state transition feel like a
     /// hue/geometry evolution rather than a resize.
     var size: CGFloat = 26
+    var accessibilityLabel: String = "Refining transcript"
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -122,7 +123,7 @@ struct FormatterVisualView: View {
         .frame(width: size, height: size)
         .drawingGroup()
         .accessibilityElement()
-        .accessibilityLabel("Refining transcript")
+        .accessibilityLabel(accessibilityLabel)
         .onAppear { runAnimations() }
     }
 

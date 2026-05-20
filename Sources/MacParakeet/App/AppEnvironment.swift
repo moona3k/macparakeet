@@ -12,6 +12,7 @@ final class AppEnvironment {
     let chatConversationRepo: ChatConversationRepository
     let promptRepo: PromptRepository
     let promptResultRepo: PromptResultRepository
+    let llmRunRepo: LLMRunRepository
     let transformHistoryRepo: TransformHistoryRepository
     let quickPromptRepo: QuickPromptRepository
     let sttRuntime: STTRuntime
@@ -49,6 +50,7 @@ final class AppEnvironment {
         chatConversationRepo = ChatConversationRepository(dbQueue: databaseManager.dbQueue)
         promptRepo = PromptRepository(dbQueue: databaseManager.dbQueue)
         promptResultRepo = PromptResultRepository(dbQueue: databaseManager.dbQueue)
+        llmRunRepo = LLMRunRepository(dbQueue: databaseManager.dbQueue)
         transformHistoryRepo = TransformHistoryRepository(dbQueue: databaseManager.dbQueue)
         quickPromptRepo = QuickPromptRepository(dbQueue: databaseManager.dbQueue)
 
@@ -67,12 +69,10 @@ final class AppEnvironment {
             whisperModelVariant: SpeechEnginePreference.whisperModelVariant()
         )
         sttScheduler = STTScheduler(runtime: sttRuntime)
-        // Mic capture is routed through Apple's Voice Processing I/O
-        // (built-in AEC + NS + AGC). If VPIO can't engage on a given device,
-        // capture falls back to raw mic with no AEC — `configureMicConditioner`
-        // logs a warning so the case shows up in telemetry. Flip to `.raw` here
-        // only as a last-resort kill switch.
-        let meetingMicProcessingMode: MeetingMicProcessingMode = .vpioPreferred
+        // Ship raw meeting mic capture by default. VPIO remains available for
+        // explicit experiments, but enabling it during live calls can degrade
+        // the outgoing mic heard by other participants.
+        let meetingMicProcessingMode: MeetingMicProcessingMode = .raw
         // Build the device-attempt chain lazily on each engine start so a
         // user changing their mic in Settings between meetings sees the new
         // selection.
@@ -194,6 +194,7 @@ final class AppEnvironment {
             voiceReturnTrigger: voiceReturnTriggerClosure,
             processingMode: processingModeClosure,
             llmService: llmService,
+            llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: aiFormatterEnabledClosure,
             aiFormatterPromptTemplate: aiFormatterPromptClosure,
             markFirstDictationCompleted: { [runtimePreferences] in
@@ -218,6 +219,7 @@ final class AppEnvironment {
             snippetRepo: snippetRepo,
             processingMode: processingModeClosure,
             llmService: llmService,
+            llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: aiFormatterEnabledClosure,
             aiFormatterPromptTemplate: aiFormatterPromptClosure,
             shouldKeepDownloadedAudio: { [runtimePreferences] in runtimePreferences.shouldSaveTranscriptionAudio },

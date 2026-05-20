@@ -47,6 +47,13 @@ public protocol SpeechEngineOverrideTranscriptionService: TranscriptionServicePr
     ) async throws -> Transcription
 }
 
+private struct FormatterOutcome: Sendable {
+    let text: String?
+    let run: LLMRun?
+
+    static let skipped = FormatterOutcome(text: nil, run: nil)
+}
+
 extension TranscriptionServiceProtocol {
     public func transcribe(fileURL: URL) async throws -> Transcription {
         try await transcribe(fileURL: fileURL, source: .file, onProgress: nil)
@@ -188,6 +195,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
+    private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
     private let aiFormatterPromptTemplate: @Sendable () -> String
     private let shouldKeepDownloadedAudio: @Sendable () -> Bool
@@ -207,6 +215,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
         llmService: LLMServiceProtocol? = nil,
+        llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
@@ -226,6 +235,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.processingMode = processingMode ?? { .raw }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
+        self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
         self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
@@ -312,6 +322,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 fileName: recording.displayName,
                 filePath: recording.mixedAudioURL.path,
                 fileSizeBytes: fileSize,
+                language: nil,
                 status: .processing,
                 sourceType: .meeting,
                 userNotes: recording.userNotes
@@ -482,6 +493,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 filePath: storedFileURL?.path,
                 fileSizeBytes: fileSize,
                 durationMs: embeddedMetadata.durationMs,
+                language: nil,
                 status: .processing,
                 channelName: embeddedMetadata.author,
                 videoDescription: embeddedMetadata.description,
@@ -644,11 +656,18 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                 ?? embeddedMetadata.durationMs
             let channelName = Self.firstNonEmpty(downloadResult.channelName, embeddedMetadata.author)
             let videoDescription = Self.firstNonEmpty(downloadResult.videoDescription, embeddedMetadata.description)
+            let artifactMetadata = YouTubeAudioArtifactMetadata(
+                title: title,
+                artist: channelName,
+                description: videoDescription,
+                thumbnailURL: downloadResult.thumbnailURL
+            )
 
             var transcription = Transcription(
                 fileName: title,
                 filePath: keepDownloadedAudio ? downloadResult.audioFileURL.path : nil,
                 durationMs: durationMs,
+                language: nil,
                 status: .processing,
                 sourceURL: urlString,
                 thumbnailURL: downloadResult.thumbnailURL,
@@ -723,7 +742,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                YouTubeAudioPlaybackConverter.needsConversion(forPath: storedPath) {
                 schedulePlaybackConversion(
                     transcriptionId: completed.id,
-                    inputPath: storedPath
+                    inputPath: storedPath,
+                    metadata: artifactMetadata
                 )
             }
 
@@ -742,7 +762,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     /// and the audio scrubber would be empty.
     private func schedulePlaybackConversion(
         transcriptionId: UUID,
-        inputPath: String
+        inputPath: String,
+        metadata: YouTubeAudioArtifactMetadata?
     ) {
         let converter = playbackConverter
         let repo = transcriptionRepo
@@ -750,7 +771,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         Task.detached(priority: .utility) {
             do {
                 let newPath = try await converter.convertToPlayableM4AIfNeeded(
-                    inputPath: inputPath
+                    inputPath: inputPath,
+                    metadata: metadata
                 )
                 guard newPath != inputPath else { return }
                 try repo.updateFilePath(id: transcriptionId, filePath: newPath)
@@ -1108,7 +1130,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
 
             transcription.rawTranscript = result.text
             transcription.wordTimestamps = words
-            transcription.language = result.language ?? transcription.language
+            transcription.language = SpeechEnginePreference.normalizeKnownLanguage(result.language) ?? transcription.language
             transcription.engine = result.engine.rawValue
             transcription.engineVariant = result.engineVariant
             if let speechDurationMs = words.map(\.endMs).max() {
@@ -1284,8 +1306,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         from sourceResults: [MeetingTranscriptFinalizer.SourceTranscript]
     ) -> String? {
         let languages = Set(sourceResults.compactMap { source in
-            source.result.language?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        }.filter { !$0.isEmpty })
+            SpeechEnginePreference.normalizeKnownLanguage(source.result.language)
+        })
         return languages.count == 1 ? languages.first : nil
     }
 
@@ -1316,7 +1338,11 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             snippets: snippets
         )
         let baseText = refinement.text ?? rawText
-        let formattedTranscript = try await formatTranscriptIfNeeded(baseText)
+        let formatterOutcome = try await formatTranscriptIfNeeded(
+            baseText,
+            runSource: persistResult ? LLMRunSource(transcriptionId: transcription.id) : nil
+        )
+        let formattedTranscript = formatterOutcome.text
         transcription.cleanTranscript = formattedTranscript ?? refinement.text
 
         if persistResult, !refinement.expandedSnippetIDs.isEmpty {
@@ -1334,6 +1360,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         transcription.updatedAt = Date()
         if persistResult {
             try transcriptionRepo.save(transcription)
+            await llmRunRecorder.record(formatterOutcome.run)
         }
 
         let outputText = transcription.cleanTranscript ?? transcription.rawTranscript ?? ""
@@ -1347,7 +1374,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             wordCount: wordCount,
             speakerCount: transcription.speakerCount,
             diarizationRequested: diarizationRequested,
-            diarizationApplied: diarizationApplied
+            diarizationApplied: diarizationApplied,
+            speechEngine: transcription.engine,
+            engineVariant: transcription.engineVariant,
+            language: transcription.language
         ))
         sendTranscriptionOperation(
             operation,
@@ -1360,15 +1390,19 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             diarizationRequested: diarizationRequested,
             diarizationApplied: diarizationApplied,
             speechEngine: transcription.engine,
-            engineVariant: transcription.engineVariant
+            engineVariant: transcription.engineVariant,
+            language: transcription.language
         )
 
         return transcription
     }
 
-    private func formatTranscriptIfNeeded(_ text: String) async throws -> String? {
+    private func formatTranscriptIfNeeded(
+        _ text: String,
+        runSource: LLMRunSource?
+    ) async throws -> FormatterOutcome {
         guard shouldUseAIFormatter(), let llmService else {
-            return nil
+            return .skipped
         }
 
         let promptTemplate = aiFormatterPromptTemplate()
@@ -1379,15 +1413,19 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         // even though the LLM sees the shipped default.
         let defaultPromptUsed = AIFormatter.normalizedPromptTemplate(promptTemplate)
             == AIFormatter.defaultPromptTemplate
+        let startedAt = Date()
         do {
-            let formatted = try await llmService.formatTranscript(
+            let result = try await llmService.formatTranscriptDetailed(
                 transcript: text,
                 promptTemplate: promptTemplate,
                 source: .transcription,
                 defaultPromptUsed: defaultPromptUsed
             )
-            let trimmed = formatted.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            let trimmed = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let run = runSource.map {
+                LLMRun(formatterResult: result, source: $0, feature: .formatterTranscription)
+            }
+            return FormatterOutcome(text: trimmed.isEmpty ? nil : trimmed, run: run)
         } catch {
             if error is CancellationError {
                 throw error
@@ -1402,7 +1440,17 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
                     "message": message,
                 ]
             )
-            return nil
+            let run = runSource.map {
+                LLMRun.failedFormatterRun(
+                    source: $0,
+                    feature: .formatterTranscription,
+                    errorType: Self.errorType(for: error),
+                    inputChars: text.count,
+                    defaultPromptUsed: defaultPromptUsed,
+                    startedAt: startedAt
+                )
+            }
+            return FormatterOutcome(text: nil, run: run)
         }
     }
 
@@ -1442,6 +1490,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         diarizationApplied: Bool = false,
         speechEngine: String? = nil,
         engineVariant: String? = nil,
+        language: String? = nil,
         errorType: String? = nil
     ) {
         Telemetry.send(.transcriptionOperation(
@@ -1462,6 +1511,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             fileSizeBucket: operation.fileSizeBucket,
             speechEngine: speechEngine,
             engineVariant: engineVariant,
+            language: language,
             errorType: errorType
         ))
     }

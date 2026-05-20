@@ -29,10 +29,10 @@ fan-out. There is exactly one instance per process, owned by
   `$TMPDIR/macparakeet/`. Owns the dictation diagnostic timers
   (first-buffer watchdog + recording heartbeat).
 - `MicrophoneCapture.swift` — meeting microphone capture. Subscribes
-  with `wantsVPIO: true` (typically called with
-  `MeetingMicProcessingMode.vpioPreferred`) and falls back to raw
-  if VPIO is unavailable. Has its own silent-buffer watchdog with a
-  stall observer wired up to the meeting flow.
+  with `wantsVPIO: false` by default via `MeetingMicProcessingMode.raw`.
+  VPIO modes remain available for explicit experiments, with raw fallback
+  when `.vpioPreferred` cannot engage. Has its own silent-buffer watchdog
+  with a stall observer wired up to the meeting flow.
 
 **Meeting-side audio (independent of the mic stream)**
 - `SystemAudioStream.swift` — meeting system audio via

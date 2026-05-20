@@ -1,6 +1,7 @@
 import Cocoa
 import Foundation
 import MacParakeetCore
+import OSLog
 
 /// Single process-wide event tap that dispatches keyboard chords to bound
 /// Transforms. Owns one `CGEventTap` and a `[KeyMatch: Prompt.ID]` dispatch
@@ -19,6 +20,8 @@ import MacParakeetCore
 ///
 /// See ADR-022 §4 for the architectural rationale (one tap, N transforms).
 public final class TransformsHotkeyRegistry {
+    private static let logger = Logger(subsystem: "com.macparakeet", category: "TransformsHotkeyRegistry")
+
     /// Fired when a registered shortcut's keyDown event is observed.
     /// The argument is the Prompt.ID bound to the shortcut.
     public var onTrigger: ((UUID) -> Void)?
@@ -124,6 +127,10 @@ public final class TransformsHotkeyRegistry {
         ) else {
             retainedSelf?.release()
             retainedSelf = nil
+            let isTrusted = AXIsProcessTrusted()
+            Self.logger.error(
+                "transforms_hotkey_tap_create_failed accessibility_trusted=\(isTrusted, privacy: .public)"
+            )
             return false
         }
 

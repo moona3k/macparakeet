@@ -132,7 +132,7 @@ MacParakeet uses two event shapes together:
   `llm_formatter_used` preserve existing funnel and feature-adoption analysis.
 - **Operation events** such as `dictation_operation`,
   `transcription_operation`, `meeting_operation`, `llm_operation`,
-  `feedback_operation`, `auto_save_operation`, `model_operation`,
+  `transform_operation`, `feedback_operation`, `auto_save_operation`, `model_operation`,
   `speech_engine_switch_operation`, and `cli_operation` are wide,
   outcome-focused events emitted once per operation completion. They carry a
   short-lived `operation_id`, `workflow_id`, optional `parent_operation_id`,
@@ -182,11 +182,11 @@ when the question is "what happened to this operation?"
 | Event | Props | Question It Answers |
 |---|---|---|
 | `dictation_started` | `trigger` (hotkey, pill_click, menu_bar) | How do people start dictating? |
-| `dictation_completed` | `duration_seconds`, `word_count`, `mode` (hold, persistent), `device_*` | How long are dictations? Which mode is popular? |
+| `dictation_completed` | `duration_seconds`, `word_count`, `mode` (hold, persistent), `speech_engine`, `engine_variant`, `language`, `device_*` | How long are dictations? Which mode, language, and STT engine are popular? |
 | `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, ui), `device_*` | Are people cancelling often? Why? |
 | `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
 | `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
-| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt |
+| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt |
 
 > **Device props** (optional, included when available): `device_transport`, `device_sub_transport`, `device_sample_rate`, `device_channels`, `device_fallback`, `device_selected`. Raw device names and UIDs are intentionally not serialized.
 
@@ -196,15 +196,20 @@ transcription output, not the user's current mutable engine setting. Unknown
 model variants are serialized as `custom` so local model paths or future
 private identifiers cannot leak into telemetry.
 
+`language` is the normalized STT language code (`en`, `ko`, `ja`, `zh`, etc.)
+reported by the speech engine. It is not derived from the user's macOS locale
+and is omitted when unknown, set to auto-detect, or outside the bounded language
+catalog.
+
 ### 3. Transcription — "Is file transcription valuable?"
 
 | Event | Props | Question It Answers |
 |---|---|---|
 | `transcription_started` | `source` (file, youtube, drag_drop, meeting), `audio_duration_seconds` | What sources are popular? How big are the jobs? |
-| `transcription_completed` | `source`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied` | Real-world performance and speaker-label coverage across file, YouTube, and meeting pipelines |
+| `transcription_completed` | `source`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `speech_engine`, `engine_variant`, `language` | Real-world performance, speaker-label coverage, language coverage, and STT engine adoption across file, YouTube, and meeting pipelines |
 | `transcription_cancelled` | `source`, `audio_duration_seconds`, `stage` (download, audio_conversion, stt, diarization, post_processing) | Where do users abandon jobs? |
 | `transcription_failed` | `source`, `stage`, `error_type` | What's breaking, and in which pipeline stage? |
-| `transcription_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `source`, `stage`, `duration_seconds`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `input_kind`, `media_extension`, `file_size_bucket`, `speech_engine`, `engine_variant`, `error_type` | One wide outcome event per file, YouTube, or meeting transcription |
+| `transcription_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `source`, `stage`, `duration_seconds`, `audio_duration_seconds`, `processing_seconds`, `word_count`, `speaker_count`, `diarization_requested`, `diarization_applied`, `input_kind`, `media_extension`, `file_size_bucket`, `speech_engine`, `engine_variant`, `language`, `error_type` | One wide outcome event per file, YouTube, or meeting transcription |
 
 `transcription_operation` is the broad product-health outcome event. Its
 `stage` values are `preflight`, `download`, `audio_conversion`, `stt`,
@@ -233,6 +238,11 @@ events remain useful for diarization-specific timing and failure analysis.
 | `llm_chat_failed` | `provider`, `error_type` | Chat failure rates per provider |
 | `llm_transform_used` | `provider` | One-off transform feature usage |
 | `llm_transform_failed` | `provider`, `error_type` | One-off transform failure rates |
+| `transform_executed` | `transform_name`, `capture_path`, `replace_path`, `llm_ms`, `total_ms` | End-to-end system-wide Transform completions by built-in/custom bucket |
+| `transform_failed` | `transform_name`, `reason` | End-to-end system-wide Transform failure reasons (`empty_selection`, `no_provider`, `capture_failed`, `llm_failed`, `replacement_failed`, `cancelled`) |
+| `transform_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `transform_name`, `stage`, `capture_path`, `replace_path`, `duration_seconds`, `llm_ms`, `total_ms`, `error_type` | One safe outcome event per system-wide Transform attempt, without prompts, selected text, or output text |
+| `ask_menu_opened` | — | Whether users discover the live meeting Ask prompt menu |
+| `ask_prompt_fired` | `source`, `group`, `label` | Which built-in live Ask prompts are used, with custom prompts collapsed to `custom` |
 | `llm_formatter_used` | `provider`, `source`, `duration_seconds`, `input_chars`, `output_chars`, `default_prompt_used`, `input_truncated` | Is transcript/dictation formatting useful, and how expensive is it? |
 | `llm_formatter_failed` | `provider`, `source`, `duration_seconds`, `error_type`, `default_prompt_used`, `input_truncated` | Formatter failure rates and prompt-shape correlations |
 | `llm_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `feature`, `provider`, `streaming`, `outcome`, `duration_seconds`, `input_chars`, `output_chars`, `input_truncated`, `prompt_default_used`, `message_count`, `error_type` | One safe outcome event per LLM call, without prompts, responses, or provider error bodies |
@@ -286,7 +296,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `prompt_created` | — | Are custom prompt templates used? |
 | `prompt_updated` | — | Are custom prompts actively maintained? |
 | `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
-| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, youtube_audio_quality, speaker_diarization, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_auto_stop_enabled, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. |
+| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, youtube_audio_quality, speaker_diarization, whisper_default_language, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_auto_stop_enabled, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. The Whisper language picker and CJK first-run setup emit only the setting name; the selected language is observed from actual STT usage rows. |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
@@ -327,10 +337,10 @@ events remain useful for diarization-specific timing and failure analysis.
 
 | Event | Props | Question It Answers |
 |---|---|---|
-| `model_loaded` | `load_time_seconds` | How long does model warmup take on different chips? |
-| `model_download_started` | — | First-run model setup funnel |
-| `model_download_completed` | `duration_seconds` | How long do model downloads take? |
-| `model_download_failed` | `error_type` | Are downloads failing? |
+| `model_loaded` | `load_time_seconds`, `model_kind`, `speech_engine`, `engine_variant` | How long does model warmup take on different chips and engines? |
+| `model_download_started` | `model_kind`, `speech_engine`, `engine_variant` | First-run and Whisper model setup funnel by engine |
+| `model_download_completed` | `duration_seconds`, `model_kind`, `speech_engine`, `engine_variant` | How long do model downloads take by engine/model? |
+| `model_download_failed` | `error_type`, `model_kind`, `speech_engine`, `engine_variant` | Are downloads failing for Parakeet setup or Whisper downloads? |
 | `model_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `action`, `outcome`, `stage`, `model_kind`, `speech_engine`, `engine_variant`, `duration_seconds`, `error_type` | Canonical model lifecycle event for downloads, warm-up, repairs, cache clears, and cancellations |
 | `speech_engine_switch_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `from_engine`, `to_engine`, `outcome`, `duration_seconds`, `blocked_reason`, `error_type` | Why engine switches succeed, fail, cancel, or get blocked |
 
@@ -572,11 +582,15 @@ The deployed stats endpoint returns both `operations.failures` and
 explicit failure breadcrumb events and crash reports; normal terminal outcomes
 are excluded from that panel.
 
-The dashboard's operation reliability panel currently covers GUI product
-operation events that map directly to user-visible work: dictation,
-transcription, meeting, LLM, feedback, and auto-save. `model_operation` and
-`speech_engine_switch_operation` remain accepted canonical events and are
-visible in the event breakdown until they have dedicated dashboard panels.
+The dashboard's operation reliability panel covers GUI product operation events
+that map directly to user-visible work: dictation, transcription, meeting, LLM,
+Transforms, feedback, auto-save, model lifecycle, and speech-engine switches.
+It also exposes a dedicated speech-engine usage panel so Parakeet-vs-Whisper
+adoption can be read from actual usage rows (`dictation_operation`,
+`transcription_operation`, `model_operation`) and settings intent rows
+(`speech_engine_switch_operation`). A separate language usage panel reads the
+same dictation/transcription operation and completion rows so CJK and other
+multilingual adoption can be monitored without collecting transcript content.
 
 Queries are simple SQL against D1. Dashboard is a Cloudflare Pages site at
 `https://macparakeet.com/stats/`.

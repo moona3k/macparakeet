@@ -125,7 +125,7 @@ final class TransformsCommandTests: XCTestCase {
         let data = try cliJSONEncoder.encode(TransformDTO(prompt: prompt))
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
 
-        XCTAssertEqual(object["running_label"] as? String, "Sharpening...")
+        XCTAssertFalse(object.keys.contains("running_label"))
         XCTAssertEqual(object["is_built_in"] as? Bool, true)
         XCTAssertNotNil(object["created_at"])
         XCTAssertNotNil(object["updated_at"])

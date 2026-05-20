@@ -85,6 +85,30 @@ private final class SaveFailingTranscriptionRepository: TranscriptionRepositoryP
     func updateStatus(id: UUID, status: Transcription.TranscriptionStatus, errorMessage: String?) throws {}
 }
 
+private final class CapturingPlaybackConverter: YouTubeAudioPlaybackConverting, @unchecked Sendable {
+    private let transformedPath: String
+    private let expectation: XCTestExpectation
+    private let capturedMetadata = OSAllocatedUnfairLock<YouTubeAudioArtifactMetadata?>(initialState: nil)
+
+    init(transformedPath: String, expectation: XCTestExpectation) {
+        self.transformedPath = transformedPath
+        self.expectation = expectation
+    }
+
+    func convertToPlayableM4AIfNeeded(
+        inputPath: String,
+        metadata: YouTubeAudioArtifactMetadata?
+    ) async throws -> String {
+        capturedMetadata.withLock { $0 = metadata }
+        expectation.fulfill()
+        return transformedPath
+    }
+
+    func metadataSnapshot() -> YouTubeAudioArtifactMetadata? {
+        capturedMetadata.withLock { $0 }
+    }
+}
+
 private struct StubMediaMetadataExtractor: MediaMetadataExtracting {
     let metadata: MediaMetadata
 
@@ -135,12 +159,14 @@ final class TranscriptionServiceTests: XCTestCase {
     var mockAudio: MockAudioProcessor!
     var mockSTT: MockSTTClient!
     var transcriptionRepo: TranscriptionRepository!
+    var llmRunRepo: LLMRunRepository!
 
     override func setUp() async throws {
         let dbManager = try DatabaseManager()
         mockAudio = MockAudioProcessor()
         mockSTT = MockSTTClient()
         transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+        llmRunRepo = LLMRunRepository(dbQueue: dbManager.dbQueue)
         Telemetry.configure(NoOpTelemetryService())
 
         service = TranscriptionService(
@@ -178,12 +204,23 @@ final class TranscriptionServiceTests: XCTestCase {
     }
 
     func testTranscribeFilePersistsDetectedLanguage() async throws {
-        await mockSTT.configure(result: STTResult(text: "hello world", language: "ko"))
+        let telemetry = TelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        await mockSTT.configure(result: STTResult(text: "hello world", language: "KO-kr"))
 
         let result = try await service.transcribe(fileURL: URL(fileURLWithPath: "/tmp/korean.mp3"))
 
         XCTAssertEqual(result.language, "ko")
         XCTAssertEqual(try transcriptionRepo.fetch(id: result.id)?.language, "ko")
+
+        let completed = try XCTUnwrap(telemetry.snapshot().reversed().first {
+            if case .transcriptionCompleted = $0 { return true }
+            return false
+        })
+        let props = try telemetryProps(for: completed)
+        XCTAssertEqual(props["language"], "ko")
     }
 
     func testTranscribeFilePersistsEngineAttributionFromSTTResult() async throws {
@@ -224,6 +261,27 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(result.status, .completed)
         XCTAssertNil(try transcriptionRepo.fetch(id: result.id))
         XCTAssertTrue(try transcriptionRepo.fetchAll(limit: nil).isEmpty)
+    }
+
+    func testTranscribeTransientFileDoesNotPersistLLMRun() async throws {
+        await mockSTT.configure(result: STTResult(text: "private transcript"))
+        let mockLLMService = MockLLMService()
+        mockLLMService.formatTranscriptResult = "Private transcript."
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            llmService: mockLLMService,
+            llmRunRepo: llmRunRepo,
+            shouldUseAIFormatter: { true },
+            aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
+        )
+
+        _ = try await service.transcribeTransient(fileURL: URL(fileURLWithPath: "/tmp/private.mp3"))
+
+        XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
+        XCTAssertEqual(try llmRunRepo.count(), 0)
     }
 
     func testTranscribeTransientFileDoesNotPersistFailureRow() async throws {
@@ -494,12 +552,18 @@ final class TranscriptionServiceTests: XCTestCase {
         await mockSTT.configure(result: STTResult(text: "hello world"))
         let mockLLMService = MockLLMService()
         mockLLMService.formatTranscriptResult = "Hello, world."
+        mockLLMService.formatTranscriptProvider = "lmstudio"
+        mockLLMService.formatTranscriptModel = "sotto-cleanup"
+        mockLLMService.formatTranscriptUsage = LLMUsage(promptTokens: 10, completionTokens: 4, totalTokens: 14)
+        mockLLMService.formatTranscriptStopReason = "stop"
+        mockLLMService.formatTranscriptLatencyMs = 42
 
         let service = TranscriptionService(
             audioProcessor: mockAudio,
             sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo,
             llmService: mockLLMService,
+            llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: { true },
             aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
         )
@@ -510,6 +574,22 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(result.cleanTranscript, "Hello, world.")
         XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
         XCTAssertEqual(mockLLMService.lastFormattedTranscript, "hello world")
+
+        let runs = try llmRunRepo.fetchForTranscription(id: result.id)
+        XCTAssertEqual(runs.count, 1)
+        XCTAssertEqual(runs.first?.feature, .formatterTranscription)
+        XCTAssertEqual(runs.first?.status, .succeeded)
+        XCTAssertEqual(runs.first?.provider, "lmstudio")
+        XCTAssertEqual(runs.first?.model, "sotto-cleanup")
+        XCTAssertEqual(runs.first?.promptTokens, 10)
+        XCTAssertEqual(runs.first?.completionTokens, 4)
+        XCTAssertEqual(runs.first?.totalTokens, 14)
+        XCTAssertEqual(runs.first?.latencyMs, 42)
+        XCTAssertEqual(runs.first?.inputChars, "hello world".count)
+        XCTAssertEqual(runs.first?.outputChars, "Hello, world.".count)
+        XCTAssertEqual(runs.first?.stopReason, "stop")
+        XCTAssertEqual(runs.first?.defaultPromptUsed, true)
+        XCTAssertEqual(runs.first?.messageCount, 2)
     }
 
     func testTranscribeFallsBackWhenAIFormatterFailsAndPostsWarning() async throws {
@@ -535,6 +615,7 @@ final class TranscriptionServiceTests: XCTestCase {
             sttTranscriber: mockSTT,
             transcriptionRepo: transcriptionRepo,
             llmService: mockLLMService,
+            llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: { true },
             aiFormatterPromptTemplate: { AIFormatter.defaultPromptTemplate }
         )
@@ -546,6 +627,14 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(mockLLMService.formatTranscriptCallCount, 1)
         await fulfillment(of: [warningPosted], timeout: 1.0)
         XCTAssertEqual(warningMessage, "AI formatter output was incomplete. Used standard cleanup.")
+
+        let runs = try llmRunRepo.fetchForTranscription(id: result.id)
+        XCTAssertEqual(runs.count, 1)
+        XCTAssertEqual(runs.first?.feature, .formatterTranscription)
+        XCTAssertEqual(runs.first?.status, .failed)
+        XCTAssertEqual(runs.first?.inputChars, "hello world".count)
+        XCTAssertEqual(runs.first?.outputChars, 0)
+        XCTAssertNotNil(runs.first?.errorType)
     }
 
     func testTranscribePostsAuthenticationWarningWhenAIFormatterAuthFails() async throws {
@@ -728,6 +817,44 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertTrue(phases.contains { if case .transcribing = $0 { true } else { false } })
     }
 
+    func testTranscribeURLPassesYouTubeMetadataToPlaybackConversion() async throws {
+        let downloadedURL = try makeTempDownloadedAudio(fileExtension: "webm")
+        defer { try? FileManager.default.removeItem(at: downloadedURL) }
+
+        let downloader = MockYouTubeDownloader(result: YouTubeDownloader.DownloadResult(
+            audioFileURL: downloadedURL,
+            title: "Video Title",
+            durationSeconds: 120,
+            channelName: "Channel Name",
+            thumbnailURL: "https://img.example/thumb.jpg",
+            videoDescription: "Video description"
+        ))
+        let conversionExpectation = expectation(description: "playback conversion received metadata")
+        let converter = CapturingPlaybackConverter(
+            transformedPath: downloadedURL.deletingPathExtension().appendingPathExtension("m4a").path,
+            expectation: conversionExpectation
+        )
+
+        await mockSTT.configure(result: STTResult(text: "Downloaded transcript"))
+
+        let service = TranscriptionService(
+            audioProcessor: mockAudio,
+            sttTranscriber: mockSTT,
+            transcriptionRepo: transcriptionRepo,
+            youtubeDownloader: downloader,
+            playbackConverter: converter
+        )
+
+        _ = try await service.transcribeURL(urlString: "https://youtu.be/dQw4w9WgXcQ")
+        await fulfillment(of: [conversionExpectation], timeout: 2.0)
+
+        let metadata = try XCTUnwrap(converter.metadataSnapshot())
+        XCTAssertEqual(metadata.title, "Video Title")
+        XCTAssertEqual(metadata.artist, "Channel Name")
+        XCTAssertEqual(metadata.description, "Video description")
+        XCTAssertEqual(metadata.thumbnailURL, "https://img.example/thumb.jpg")
+    }
+
     func testTranscribeMeetingUsesFinalizeLaneAndMergesFreshSourceTranscriptsByAlignment() async throws {
         let telemetry = TelemetrySpy()
         Telemetry.configure(telemetry)
@@ -813,7 +940,10 @@ final class TranscriptionServiceTests: XCTestCase {
             _,
             let speakerCount,
             let diarizationRequested,
-            let diarizationApplied
+            let diarizationApplied,
+            _,
+            _,
+            _
         ) = try XCTUnwrap(completedEvent) else {
             return XCTFail("Expected transcription_completed telemetry")
         }
@@ -1589,10 +1719,26 @@ final class TranscriptionServiceTests: XCTestCase {
         XCTAssertEqual(errorType, "YouTubeDownloadError.downloadFailed")
     }
 
-    private func makeTempDownloadedAudio() throws -> URL {
+    private func telemetryProps(for spec: TelemetryEventSpec) throws -> [String: String] {
+        let event = TelemetryEvent(
+            spec: spec,
+            appVer: "test",
+            osVer: "test",
+            locale: "en-US",
+            chip: "test",
+            session: "test"
+        )
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let data = try encoder.encode(event)
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        return try XCTUnwrap(json["props"] as? [String: String])
+    }
+
+    private func makeTempDownloadedAudio(fileExtension: String = "m4a") throws -> URL {
         try AppPaths.ensureDirectories()
         let url = URL(fileURLWithPath: AppPaths.tempDir)
-            .appendingPathComponent("downloaded-\(UUID().uuidString).m4a")
+            .appendingPathComponent("downloaded-\(UUID().uuidString).\(fileExtension)")
         let created = FileManager.default.createFile(atPath: url.path, contents: Data("audio".utf8))
         XCTAssertTrue(created)
         return url

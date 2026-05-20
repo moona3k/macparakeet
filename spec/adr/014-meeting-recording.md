@@ -4,8 +4,9 @@
 > Date: 2026-04-05
 > Related: ADR-001 (Parakeet STT), ADR-007 (FluidAudio CoreML), ADR-010 (speaker diarization), ADR-021 (WhisperKit optional STT), [GitHub #57](https://github.com/moona3k/macparakeet/issues/57)
 > Amended: 2026-04-10 (historical: meeting mic echo mitigation via joined software AEC + observability hardening)
-> Amended: 2026-04-29 (replace Core Audio process taps with ScreenCaptureKit audio so VPIO can remain enabled on the meeting mic path)
+> Amended: 2026-04-29 (replace Core Audio process taps with ScreenCaptureKit audio so optional VPIO no longer conflicts with system audio capture)
 > Amended: 2026-05-09 (pause/resume for active recordings — [issue #235](https://github.com/moona3k/macparakeet/issues/235))
+> Amended: 2026-05-14 (ship raw meeting mic capture by default after live-call testing showed VPIO can muffle the user's outgoing mic for other participants)
 
 ## Context
 
@@ -13,7 +14,7 @@ MacParakeet has three co-equal modes: system-wide dictation, file transcription,
 
 This came from exploring [GitHub #52](https://github.com/moona3k/macparakeet/issues/52) (hotkey profiles). The core ask was different workflows for different use cases. Meeting recording is the direct answer — a third mode that extends MacParakeet's voice-to-text capability without changing the product's simplicity.
 
-The initial audio capture layer was ported from [Oatmeal](https://github.com/moona3k/oatmeal) and used Core Audio process taps for system audio plus AVAudioEngine for mic capture. Follow-up VPIO testing showed that Core Audio process taps and VPIO do not reliably coexist in MacParakeet's single-process meeting/dictation architecture, so system audio capture moved to ScreenCaptureKit while the mic path keeps AVAudioEngine.
+The initial audio capture layer was ported from [Oatmeal](https://github.com/moona3k/oatmeal) and used Core Audio process taps for system audio plus AVAudioEngine for mic capture. Follow-up VPIO testing showed that Core Audio process taps and VPIO do not reliably coexist in MacParakeet's single-process meeting/dictation architecture, so system audio capture moved to ScreenCaptureKit while the mic path keeps AVAudioEngine. Later live-call testing showed that VPIO can muffle the user's outgoing mic for other participants, so the shipped meeting mic default is raw capture while VPIO remains explicit opt-in plumbing.
 
 ## Decision
 
@@ -33,7 +34,7 @@ System audio is captured via ScreenCaptureKit `SCStream` audio (`SCStreamConfigu
 
 Key components:
 - `SystemAudioStream` - ScreenCaptureKit audio wrapper, converts `CMSampleBuffer` to `AVAudioPCMBuffer`, and emits first-buffer/stall diagnostics
-- `MicrophoneCapture` - AVAudioEngine input node tap with VPIO preferred (separate from existing `AudioRecorder`)
+- `MicrophoneCapture` - AVAudioEngine input node tap with raw capture by default and explicit VPIO opt-in support
 - `MeetingAudioCaptureService` — Actor combining both streams into an `AsyncStream<MeetingAudioCaptureEvent>`
 - `MeetingAudioStorageWriter` — Writes separate M4A files per source (mic + system)
 
@@ -99,8 +100,8 @@ The meeting service captures the active `SpeechEngineSelection` at start and per
 To reduce phantom "Me" fragments when users are on speakers:
 
 - Meeting mic/system buffers are paired in `MeetingAudioPairJoiner` with bounded lag handling and silence-fill fallback.
-- `MicrophoneCapture` prefers macOS Voice Processing I/O so AEC/noise suppression/AGC happen before mic buffers enter the meeting pipeline.
-- A short-window dominant-system guard remains in place for live mic chunk enqueue when recent system energy strongly dominates processed mic energy.
+- `MicrophoneCapture` uses raw mic capture by default so meeting recording does not change the live call mic heard by other participants. VPIO remains available only when explicitly requested.
+- A short-window dominant-system guard remains in place for live mic chunk enqueue when recent system energy strongly dominates mic energy.
 - The guard affects live mic chunk transcription only; mic audio is still stored and included in the finalized meeting artifact.
 - Joiner queue overflow and sync-lag telemetry are logged for long-session observability.
 - Dictation capture remains raw and unchanged (ADR-015 isolation still applies).
@@ -117,7 +118,7 @@ A separate model would require duplicating the entire library infrastructure: re
 
 ### Why ScreenCaptureKit (not Core Audio process taps)?
 
-Core Audio process taps were the original choice because they provide audio-only capture and worked for raw mic capture. They are no longer the correct first-principles solution once meeting mic AEC is a requirement: VPIO is a duplex I/O unit that introduces aggregate-device state, and MacParakeet's process tap also depends on aggregate-device output clocking. ScreenCaptureKit moves system audio capture to the WindowServer/replayd capture path and avoids claiming the HAL output device, so the mic can use VPIO without starving system-audio buffers.
+Core Audio process taps were the original choice because they provide audio-only capture and worked for raw mic capture. They are no longer the correct production solution for MacParakeet: VPIO is a duplex I/O unit that introduces aggregate-device state, and MacParakeet's process tap also depends on aggregate-device output clocking. ScreenCaptureKit moves system audio capture to the WindowServer/replayd capture path and avoids claiming the HAL output device. That keeps system audio reliable and preserves the option to test VPIO without making it the shipped meeting mic default.
 
 ### Why a separate coordinator (not extending DictationFlowCoordinator)?
 

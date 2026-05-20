@@ -91,8 +91,8 @@ final class AppWindowCoordinator: NSObject, NSWindowDelegate {
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    func openMainWindowToSettings() {
-        mainWindowState.selectedItem = .settings
+    func openMainWindowToSettings(tab: SettingsTab? = nil) {
+        mainWindowState.navigateToSettings(tab: tab)
         openMainWindow()
     }
 

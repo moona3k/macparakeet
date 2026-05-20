@@ -1,16 +1,18 @@
 # Dictation First-Load Caption + Proactive Pre-warm
 
-> Status: **ACTIVE**
+> Status: **COMPLETED** — archived from `plans/active/` during the
+> 2026-05-16 docs/spec audit after verifying the pre-warm, loading-caption,
+> runtime-preference, telemetry, and test surfaces are present on `main`.
 >
 > Owner: Daniel Moon (@moona3k) · 2026-05-10
 >
-> Branch: `feat/dictation-first-load-caption`
+> Branch: `feat/dictation-first-load-caption` (merged)
 >
 > Related ADRs: ADR-001 (Parakeet STT), ADR-005 (onboarding), ADR-016 (centralized STT runtime). No new ADR — implementation polish, not an architectural shift.
 
 ## Implementation status
 
-Implemented on `feat/dictation-first-load-caption`; keep this plan active until the user verifies a real build and moves it to `plans/completed/`.
+Implemented on `feat/dictation-first-load-caption` and now present on `main`.
 
 Decisions made during implementation:
 

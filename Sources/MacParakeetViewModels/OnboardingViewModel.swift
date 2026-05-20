@@ -9,6 +9,16 @@ import Metal
 @Observable
 public final class OnboardingViewModel {
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "OnboardingViewModel")
+    public typealias WhisperModelDownloader = @Sendable (
+        _ model: String,
+        _ onProgress: @escaping @Sendable (_ completed: Int, _ total: Int) -> Void
+    ) async throws -> Void
+
+    public struct WhisperOnboardingRecommendation: Sendable, Equatable {
+        public let languageCode: String
+        public let languageName: String
+    }
+
     public enum Step: Int, CaseIterable, Identifiable, Sendable {
         case welcome
         case microphone
@@ -55,16 +65,20 @@ public final class OnboardingViewModel {
     public private(set) var calendarSkipped: Bool
     public private(set) var showRelaunchHint: Bool = false
     public private(set) var engineState: EngineState = .idle
+    public private(set) var whisperRecommendation: WhisperOnboardingRecommendation?
 
     public var isBusy: Bool = false
 
     private let permissionService: PermissionServiceProtocol
     private let sttClient: STTClientProtocol
+    private let speechEngineSwitcher: SpeechEngineSwitching?
     private let diarizationService: DiarizationServiceProtocol?
     private let isRuntimeSupported: @Sendable () -> Bool
     private let availableDiskBytes: @Sendable () -> Int64?
     private let isNetworkReachable: @Sendable () async -> Bool
     private let isSpeechModelCached: @Sendable () -> Bool
+    private let isWhisperModelDownloaded: @Sendable () -> Bool
+    private let downloadWhisperModel: WhisperModelDownloader
     private let defaults: UserDefaults
     private let now: @Sendable () -> Date
     private let permissionPollingInterval: Duration
@@ -88,6 +102,7 @@ public final class OnboardingViewModel {
     private var hasEmittedScreenRecordingGranted = false
     private let requiredFirstSetupDiskBytes: Int64 = 7 * 1_024 * 1_024 * 1_024
     private let requiredDiarizationSetupDiskBytes: Int64 = 512 * 1_024 * 1_024
+    private let requiredWhisperSetupDiskBytes: Int64 = 2 * 1_024 * 1_024 * 1_024
 
     public static let onboardingCompletedKey = "onboarding.completedAtISO"
     public static let meetingRecordingSkippedKey = "onboarding.meetingRecordingSkipped"
@@ -96,11 +111,15 @@ public final class OnboardingViewModel {
     public init(
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
+        speechEngineSwitcher: SpeechEngineSwitching? = nil,
         diarizationService: DiarizationServiceProtocol? = nil,
         isRuntimeSupported: (@Sendable () -> Bool)? = nil,
         availableDiskBytes: (@Sendable () -> Int64?)? = nil,
         isNetworkReachable: (@Sendable () async -> Bool)? = nil,
         isSpeechModelCached: (@Sendable () -> Bool)? = nil,
+        isWhisperModelDownloaded: (@Sendable () -> Bool)? = nil,
+        downloadWhisperModel: WhisperModelDownloader? = nil,
+        preferredLanguages: (@Sendable () -> [String])? = nil,
         defaults: UserDefaults = .standard,
         now: @escaping @Sendable () -> Date = { Date() },
         permissionPollingInterval: Duration = .seconds(2),
@@ -108,11 +127,18 @@ public final class OnboardingViewModel {
     ) {
         self.permissionService = permissionService
         self.sttClient = sttClient
+        self.speechEngineSwitcher = speechEngineSwitcher ?? (sttClient as? SpeechEngineSwitching)
         self.diarizationService = diarizationService
         self.isRuntimeSupported = isRuntimeSupported ?? { Self.defaultRuntimeSupportedCheck() }
         self.availableDiskBytes = availableDiskBytes ?? { Self.defaultAvailableDiskBytes() }
         self.isNetworkReachable = isNetworkReachable ?? { await Self.defaultNetworkReachabilityCheck() }
         self.isSpeechModelCached = isSpeechModelCached ?? { STTRuntime.isModelCached() }
+        self.isWhisperModelDownloaded = isWhisperModelDownloaded ?? {
+            WhisperEngine.isModelDownloaded(model: SpeechEnginePreference.whisperModelVariant())
+        }
+        self.downloadWhisperModel = downloadWhisperModel ?? { model, progress in
+            _ = try await WhisperEngine.downloadModel(model: model, onProgress: progress)
+        }
         self.defaults = defaults
         self.now = now
         self.permissionPollingInterval = permissionPollingInterval
@@ -120,6 +146,9 @@ public final class OnboardingViewModel {
         self.meetingRecordingSkipped = defaults.bool(forKey: Self.meetingRecordingSkippedKey)
         self.calendarSkipped = defaults.bool(forKey: Self.calendarSkippedKey)
         self.calendarPermissionGranted = CalendarService.shared.permissionStatus == .granted
+        self.whisperRecommendation = Self.recommendedWhisperLanguage(
+            preferredLanguages: (preferredLanguages ?? { Locale.preferredLanguages })()
+        )
     }
 
     public var hasCompletedOnboarding: Bool {
@@ -369,6 +398,11 @@ public final class OnboardingViewModel {
         if case .ready = engineState { return }
         if warmUpObserverTask != nil { return }
 
+        if let whisperRecommendation {
+            startRecommendedWhisperSetup(recommendation: whisperRecommendation)
+            return
+        }
+
         engineGeneration += 1
         let generation = engineGeneration
         let observationToken = UUID()
@@ -406,7 +440,10 @@ public final class OnboardingViewModel {
             }
 
             let warmUpStartedAt = Date()
-            Telemetry.send(.modelDownloadStarted)
+            Telemetry.send(.modelDownloadStarted(
+                modelKind: .localSpeechStack,
+                speechEngine: .parakeet
+            ))
             await sttClient.backgroundWarmUp()
             guard self.engineGeneration == generation, self.warmUpObservationToken == observationToken else { return }
 
@@ -433,7 +470,11 @@ public final class OnboardingViewModel {
                     self.engineState = .working(message: message, progress: progress)
                 case .ready:
                     let durationSeconds = Date().timeIntervalSince(warmUpStartedAt)
-                    Telemetry.send(.modelDownloadCompleted(durationSeconds: durationSeconds))
+                    Telemetry.send(.modelDownloadCompleted(
+                        durationSeconds: durationSeconds,
+                        modelKind: .localSpeechStack,
+                        speechEngine: .parakeet
+                    ))
                     do {
                         try await self.prepareDiarizationModelsIfNeeded(generation: generation)
                     } catch is CancellationError {
@@ -449,7 +490,12 @@ public final class OnboardingViewModel {
                     self.isBusy = false
                     break observationLoop
                 case .failed(let message):
-                    Telemetry.send(.modelDownloadFailed(errorType: "BackgroundWarmUpError", errorDetail: message))
+                    Telemetry.send(.modelDownloadFailed(
+                        errorType: "BackgroundWarmUpError",
+                        errorDetail: message,
+                        modelKind: .localSpeechStack,
+                        speechEngine: .parakeet
+                    ))
                     self.engineState = .failed(message: message)
                     self.isBusy = false
                     break observationLoop
@@ -457,6 +503,199 @@ public final class OnboardingViewModel {
             }
         }
         warmUpObserverTask = outerTask
+    }
+
+    private func startRecommendedWhisperSetup(recommendation: WhisperOnboardingRecommendation) {
+        engineGeneration += 1
+        let generation = engineGeneration
+        isBusy = true
+        engineState = .working(message: "Checking Whisper setup requirements...", progress: nil)
+
+        let outerTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.engineGeneration == generation {
+                    self.warmUpObserverTask = nil
+                }
+            }
+
+            do {
+                try await self.runWhisperPreflightIfNeeded()
+                guard self.engineGeneration == generation else { return }
+
+                let modelVariant = SpeechEnginePreference.whisperModelVariant(defaults: self.defaults)
+                if !self.isWhisperModelDownloaded() {
+                    try await self.downloadRecommendedWhisperModel(
+                        modelVariant: modelVariant,
+                        generation: generation
+                    )
+                    guard self.engineGeneration == generation else { return }
+                }
+
+                SpeechEnginePreference.saveWhisperDefaultLanguage(
+                    recommendation.languageCode,
+                    defaults: self.defaults
+                )
+                Telemetry.send(.settingChanged(setting: .whisperDefaultLanguage))
+
+                try await self.activateWhisperEngine(generation: generation)
+                guard self.engineGeneration == generation else { return }
+
+                try await self.prepareDiarizationModelsIfNeeded(generation: generation)
+                guard self.engineGeneration == generation else { return }
+
+                self.engineState = .ready
+                self.isBusy = false
+            } catch is CancellationError {
+                guard self.engineGeneration == generation else { return }
+                self.engineState = .idle
+                self.isBusy = false
+            } catch {
+                guard self.engineGeneration == generation else { return }
+                self.engineState = .failed(message: error.localizedDescription)
+                self.isBusy = false
+            }
+        }
+        warmUpObserverTask = outerTask
+    }
+
+    private func downloadRecommendedWhisperModel(
+        modelVariant: String,
+        generation: Int
+    ) async throws {
+        let friendly = SpeechEnginePreference.friendlyVariantName(modelVariant)
+        let operationContext = Observability.childOperationContext()
+        engineState = .working(message: "Downloading Whisper \(friendly)...", progress: nil)
+        Telemetry.send(.modelDownloadStarted(
+            modelKind: .whisperSTT,
+            speechEngine: .whisper,
+            engineVariant: modelVariant
+        ))
+
+        do {
+            try await downloadWhisperModel(modelVariant) { [weak self] completed, total in
+                let percent = total > 0 ? Double(completed) / Double(total) : 0
+                Task { @MainActor [weak self] in
+                    guard let self, self.engineGeneration == generation else { return }
+                    let clamped = min(max(percent, 0), 1)
+                    self.engineState = .working(
+                        message: "Downloading Whisper \(friendly)... \(Int((clamped * 100).rounded()))%",
+                        progress: clamped
+                    )
+                }
+            }
+            let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+            Telemetry.send(.modelDownloadCompleted(
+                durationSeconds: durationSeconds,
+                modelKind: .whisperSTT,
+                speechEngine: .whisper,
+                engineVariant: modelVariant
+            ))
+            Telemetry.send(.modelOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                action: .download,
+                outcome: .success,
+                stage: .download,
+                modelKind: .whisperSTT,
+                speechEngine: .whisper,
+                engineVariant: modelVariant,
+                durationSeconds: durationSeconds,
+                errorType: nil
+            ))
+        } catch is CancellationError {
+            let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+            Telemetry.send(.modelOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                action: .download,
+                outcome: .cancelled,
+                stage: .download,
+                modelKind: .whisperSTT,
+                speechEngine: .whisper,
+                engineVariant: modelVariant,
+                durationSeconds: durationSeconds,
+                errorType: "CancellationError"
+            ))
+            throw CancellationError()
+        } catch {
+            let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
+            let errorType = TelemetryErrorClassifier.classify(error)
+            Telemetry.send(.modelDownloadFailed(
+                errorType: errorType,
+                errorDetail: TelemetryErrorClassifier.errorDetail(error),
+                modelKind: .whisperSTT,
+                speechEngine: .whisper,
+                engineVariant: modelVariant
+            ))
+            Telemetry.send(.modelOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                action: .download,
+                outcome: .failure,
+                stage: .download,
+                modelKind: .whisperSTT,
+                speechEngine: .whisper,
+                engineVariant: modelVariant,
+                durationSeconds: durationSeconds,
+                errorType: errorType
+            ))
+            throw error
+        }
+    }
+
+    private func activateWhisperEngine(generation: Int) async throws {
+        guard let speechEngineSwitcher else {
+            SpeechEnginePreference.whisper.save(to: defaults)
+            return
+        }
+
+        let previousPreference = SpeechEnginePreference.current(defaults: defaults)
+        let operationContext = Observability.childOperationContext()
+        engineState = .working(message: "Preparing Whisper for this Mac...", progress: nil)
+
+        do {
+            try await Observability.withOperationContext(operationContext) {
+                try await speechEngineSwitcher.setSpeechEngine(.whisper) { [weak self] message in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.engineGeneration == generation else { return }
+                        self.engineState = .working(message: message, progress: nil)
+                    }
+                }
+                if await sttClient.isReady() == false {
+                    try await sttClient.warmUp { [weak self] message in
+                        Task { @MainActor [weak self] in
+                            guard let self, self.engineGeneration == generation else { return }
+                            self.engineState = .working(message: "Whisper: \(message)", progress: nil)
+                        }
+                    }
+                }
+            }
+            SpeechEnginePreference.whisper.save(to: defaults)
+            Telemetry.send(.speechEngineSwitchOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                fromEngine: previousPreference,
+                toEngine: .whisper,
+                outcome: .success,
+                durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                blockedReason: nil,
+                errorType: nil
+            ))
+        } catch {
+            let errorType = TelemetryErrorClassifier.classify(error)
+            Telemetry.send(.speechEngineSwitchOperation(
+                operationID: operationContext.operationID,
+                operationContext: operationContext,
+                fromEngine: previousPreference,
+                toEngine: .whisper,
+                outcome: error is CancellationError ? .cancelled : .failure,
+                durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                blockedReason: Self.telemetrySpeechEngineSwitchBlockedReason(for: error),
+                errorType: errorType
+            ))
+            throw error
+        }
     }
 
     private func prepareDiarizationModelsIfNeeded(generation: Int) async throws {
@@ -544,7 +783,12 @@ public final class OnboardingViewModel {
             let stallSeconds = Int(Self.warmUpStallTimeout.components.seconds)
             let detail = "no warm-up progress for \(stallSeconds)s"
             self.logger.error("warm_up_stall_detected detail=\(detail, privacy: .public)")
-            Telemetry.send(.modelDownloadFailed(errorType: "WarmUpStalled", errorDetail: detail))
+            Telemetry.send(.modelDownloadFailed(
+                errorType: "WarmUpStalled",
+                errorDetail: detail,
+                modelKind: .localSpeechStack,
+                speechEngine: .parakeet
+            ))
             self.engineState = .failed(
                 message: "Setup is taking longer than expected. Check your network connection and tap Retry."
             )
@@ -595,6 +839,41 @@ public final class OnboardingViewModel {
         }
     }
 
+    private func runWhisperPreflightIfNeeded() async throws {
+        guard isRuntimeSupported() else {
+            throw STTError.engineStartFailed("Local model runtime requires Apple Silicon with Metal support.")
+        }
+
+        let whisperDownloaded = isWhisperModelDownloaded()
+        let diarizationAssetsReady = await areDiarizationAssetsReadyForOnboarding()
+        guard !whisperDownloaded || !diarizationAssetsReady else { return }
+
+        guard let freeBytes = availableDiskBytes() else {
+            let requiredDiskBytes = whisperDownloaded ? requiredDiarizationSetupDiskBytes : requiredWhisperSetupDiskBytes
+            throw STTError.engineStartFailed(
+                "Unable to determine free disk space. Verify at least \(Self.formatGiB(requiredDiskBytes)) is available for multilingual setup, then retry."
+            )
+        }
+
+        let requiredDiskBytes =
+            (whisperDownloaded ? 0 : requiredWhisperSetupDiskBytes)
+            + (diarizationAssetsReady ? 0 : requiredDiarizationSetupDiskBytes)
+        guard freeBytes >= requiredDiskBytes else {
+            throw STTError.engineStartFailed(
+                "Not enough free disk space for multilingual setup. Need at least \(Self.formatGiB(requiredDiskBytes)) (available: \(Self.formatGiB(freeBytes)))."
+            )
+        }
+
+        guard await isNetworkReachable() else {
+            let networkRequirement = whisperDownloaded
+                ? "Internet connection is required to download speaker models. Check your network and retry."
+                : "Internet connection is required to download the Whisper model. Check your network and retry."
+            throw STTError.engineStartFailed(
+                networkRequirement
+            )
+        }
+    }
+
     private func areDiarizationAssetsReadyForOnboarding() async -> Bool {
         guard let diarizationService else { return true }
         return await diarizationService.hasCachedModels()
@@ -603,6 +882,42 @@ public final class OnboardingViewModel {
     private nonisolated static func formatGiB(_ bytes: Int64) -> String {
         let gib = Double(bytes) / 1_073_741_824.0
         return String(format: "%.1f GB", gib)
+    }
+
+    public nonisolated static func recommendedWhisperLanguage(
+        preferredLanguages: [String]
+    ) -> WhisperOnboardingRecommendation? {
+        let cjkWhisperLanguageCodes: Set<String> = ["ko", "ja", "zh", "yue"]
+        for language in preferredLanguages {
+            guard let code = SpeechEnginePreference.normalizeKnownLanguage(language),
+                  cjkWhisperLanguageCodes.contains(code) else {
+                continue
+            }
+            return WhisperOnboardingRecommendation(
+                languageCode: code,
+                languageName: WhisperLanguageCatalog.displayLabel(for: code)
+            )
+        }
+        return nil
+    }
+
+    private static func telemetrySpeechEngineSwitchBlockedReason(
+        for error: Error
+    ) -> TelemetrySpeechEngineSwitchBlockedReason? {
+        guard let sttError = error as? STTError else { return nil }
+        switch sttError {
+        case .engineBusy:
+            return .engineBusy
+        case .modelDownloadFailed, .modelNotLoaded:
+            return .modelNotDownloaded
+        case .engineNotRunning,
+             .engineStartFailed,
+             .transcriptionFailed,
+             .timeout,
+             .outOfMemory,
+             .invalidResponse:
+            return nil
+        }
     }
 
     private nonisolated static func defaultAvailableDiskBytes() -> Int64? {

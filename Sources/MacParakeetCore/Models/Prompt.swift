@@ -20,8 +20,8 @@ public struct Prompt: Codable, Identifiable, Sendable {
     public var keyboardShortcut: String?
 
     /// Optional override for the running pill label (e.g. *"Polishing…"*).
-    /// NULL means "derive from name via the `{Name}ing…` heuristic, falling
-    /// back to *Transforming…* for awkward names."
+    /// NULL means derive a short running label from the name when it reads
+    /// naturally, falling back to *Transforming…* for awkward names.
     public var runningLabel: String?
 
     public enum Category: String, Codable, Sendable {
@@ -67,13 +67,17 @@ public struct Prompt: Codable, Identifiable, Sendable {
     }
 
     /// Verb-form label rendered by the floating Transforms pill while this
-    /// transform is running. Honors `runningLabel` if set, otherwise uses
-    /// the `{Name}ing…` heuristic. Falls back to *Transforming…* for awkward
-    /// names that don't form a clean gerund.
+    /// transform is running. Honors `runningLabel` if set, otherwise derives
+    /// a short label from the name when it reads naturally.
     public var derivedRunningLabel: String {
         if let runningLabel, !runningLabel.isEmpty { return runningLabel }
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        return Self.defaultRunningLabel(forName: name)
+    }
+
+    public static func defaultRunningLabel(forName name: String) -> String {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "Transforming…" }
+        guard !trimmed.contains(where: { $0.isWhitespace }) else { return "Transforming…" }
         let lower = trimmed.lowercased()
         // Awkward gerunds — names ending in -ing, -ed, -er, etc. fall through
         // to the generic label rather than producing "Polishinging…".

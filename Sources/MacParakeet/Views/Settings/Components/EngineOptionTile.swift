@@ -159,13 +159,19 @@ struct EngineOptionTile: View {
                 return StatusInfo(
                     color: DesignSystem.Colors.successGreen,
                     label: "Downloaded",
-                    detail: "Loads on first use"
+                    detail: "May optimize on first load"
                 )
             case .notDownloaded:
                 return StatusInfo(
                     color: DesignSystem.Colors.warningAmber,
                     label: "Not downloaded",
                     detail: "Needed before first use"
+                )
+            case .preparing:
+                return StatusInfo(
+                    color: DesignSystem.Colors.warningAmber,
+                    label: "Preparing",
+                    detail: "Optimizing locally"
                 )
             case .repairing:
                 return StatusInfo(

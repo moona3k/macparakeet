@@ -1,6 +1,20 @@
 import Foundation
 import MacParakeetCore
 
+public enum TransformHistoryCopyTarget: Sendable, Equatable {
+    case input
+    case output
+
+    public var statusLabel: String {
+        switch self {
+        case .input:
+            return "Copied original"
+        case .output:
+            return "Copied result"
+        }
+    }
+}
+
 /// Drives the **Transforms** tab list (ADR-022). Owns the user-visible
 /// ordered set of `.transform` prompts plus the "no LLM provider" state
 /// surfaced in the hero card.
@@ -17,9 +31,8 @@ public final class TransformsViewModel {
     public var errorMessage: String?
 
     /// Recent Transform runs, newest first. Surfaced read-only in the
-    /// Transforms tab (copy, delete, clear-all). Capped at
-    /// `historyFetchLimit` rows; the DB keeps the full set so power users
-    /// who clear and re-fill keep their working window intact.
+    /// Transforms tab for copy and per-item delete; bulk clear lives in
+    /// Settings reset/cleanup. Capped at `historyFetchLimit` rows.
     public var history: [TransformHistoryEntry] = []
     public var totalHistoryCount: Int = 0
     public var historyErrorMessage: String?
@@ -28,8 +41,8 @@ public final class TransformsViewModel {
     /// (non-built-in) Transform; cleared on confirm or cancel.
     public var pendingDeleteTransform: Prompt?
     public var pendingDeleteHistoryEntry: TransformHistoryEntry?
-    public var isConfirmingClearHistory: Bool = false
     public var copiedHistoryEntryID: UUID?
+    public var copiedHistoryTarget: TransformHistoryCopyTarget?
 
     /// True when the user has at least one LLM provider configured. Drives
     /// the calm "Configure in Settings" hero state.
@@ -210,26 +223,6 @@ public final class TransformsViewModel {
         }
     }
 
-    public func clearHistory() async {
-        guard let historyRepo else { return }
-        let myGeneration = beginHistoryMutation()
-        defer { endHistoryMutation() }
-        do {
-            let snapshot = try await Self.clearHistoryAndFetchSnapshot(
-                repo: historyRepo,
-                limit: Self.historyFetchLimit
-            )
-            guard myGeneration == historyMutationGeneration else { return }
-            history = snapshot.entries
-            totalHistoryCount = snapshot.totalCount
-            isConfirmingClearHistory = false
-            historyErrorMessage = nil
-        } catch {
-            guard myGeneration == historyMutationGeneration else { return }
-            historyErrorMessage = error.localizedDescription
-        }
-    }
-
     private func beginHistoryMutation() -> Int {
         historyMutationGeneration += 1
         activeHistoryMutationCount += 1
@@ -251,25 +244,45 @@ public final class TransformsViewModel {
             && activeHistoryMutationCount == 0
     }
 
-    /// Copy a prior run's output back to the clipboard, with a brief
-    /// "copied" affordance keyed by entry ID so the UI can show a check
-    /// next to the right row.
+    /// Copy a prior run's output back to the clipboard.
     public func copyOutputToClipboard(_ entry: TransformHistoryEntry) async {
+        await copyHistoryTextToClipboard(entry, target: .output)
+    }
+
+    /// Copy a prior run's original selected text back to the clipboard.
+    public func copyInputToClipboard(_ entry: TransformHistoryEntry) async {
+        await copyHistoryTextToClipboard(entry, target: .input)
+    }
+
+    /// Copy a prior run's text back to the clipboard, with a brief affordance
+    /// keyed by entry ID and text target so the UI can show precise feedback.
+    public func copyHistoryTextToClipboard(
+        _ entry: TransformHistoryEntry,
+        target: TransformHistoryCopyTarget
+    ) async {
         guard let clipboardService else {
             historyErrorMessage = "Clipboard service is unavailable."
             return
         }
-        guard await clipboardService.copyToClipboard(entry.outputText) else {
-            historyErrorMessage = "Could not copy transformed text to the clipboard."
+        let text = switch target {
+        case .input:
+            entry.inputText
+        case .output:
+            entry.outputText
+        }
+        guard await clipboardService.copyToClipboard(text) else {
+            historyErrorMessage = "Could not copy text to the clipboard."
             return
         }
         historyErrorMessage = nil
         copiedResetTask?.cancel()
         copiedHistoryEntryID = entry.id
-        copiedResetTask = Task {
+        copiedHistoryTarget = target
+        copiedResetTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1.5))
-            guard !Task.isCancelled else { return }
+            guard let self, !Task.isCancelled else { return }
             self.copiedHistoryEntryID = nil
+            self.copiedHistoryTarget = nil
         }
     }
 
@@ -289,16 +302,6 @@ public final class TransformsViewModel {
     ) async throws -> (entries: [TransformHistoryEntry], totalCount: Int) {
         try await Task.detached(priority: .userInitiated) {
             _ = try repo.delete(id: id)
-            return try repo.fetchRecentWithCount(limit: limit)
-        }.value
-    }
-
-    private static func clearHistoryAndFetchSnapshot(
-        repo: TransformHistoryRepositoryProtocol,
-        limit: Int
-    ) async throws -> (entries: [TransformHistoryEntry], totalCount: Int) {
-        try await Task.detached(priority: .userInitiated) {
-            try repo.deleteAll()
             return try repo.fetchRecentWithCount(limit: limit)
         }.value
     }
@@ -418,6 +421,16 @@ public final class TransformsViewModel {
         transforms.filter(\.isBuiltIn)
     }
 
+    public var hasMissingBuiltInTransforms: Bool {
+        let visibleIDs = Set(transforms.map(\.id))
+        let canonicalIDs = Set(
+            Prompt.builtInPrompts()
+                .filter { $0.category == .transform }
+                .map(\.id)
+        )
+        return !canonicalIDs.isSubset(of: visibleIDs)
+    }
+
     /// Bindings map for the registry — `[Prompt.ID: KeyboardShortcut]`.
     /// View layer hands this to `TransformsCoordinator.reloadBindings()`
     /// after a save / delete / reseed.
@@ -429,6 +442,17 @@ public final class TransformsViewModel {
             }
         }
         return bindings
+    }
+
+    public var heroShortcutInstruction: String {
+        let shortcuts = transforms.compactMap { $0.shortcut?.displayString }
+        guard !shortcuts.isEmpty else {
+            return "Press a Transform's hotkey."
+        }
+
+        let visibleShortcuts = shortcuts.prefix(3).joined(separator: ", ")
+        let suffix = shortcuts.count > 3 ? ", ..." : ""
+        return "Press a Transform's hotkey (\(visibleShortcuts)\(suffix))."
     }
 }
 

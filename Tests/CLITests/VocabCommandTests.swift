@@ -19,6 +19,84 @@ final class VocabCommandTests: XCTestCase {
         try? FileManager.default.removeItem(at: tempDir)
     }
 
+    // MARK: - Compatibility
+
+    func testVocabCommandKeepsFlowAliasForOneMinorRelease() {
+        XCTAssertTrue(
+            CLI.configuration.subcommands.contains { $0 == VocabCommand.self },
+            "vocab must be available from macparakeet-cli"
+        )
+        XCTAssertTrue(
+            VocabCommand.configuration.aliases.contains("flow"),
+            "flow must remain as a deprecated alias for the 2.x compatibility window"
+        )
+        XCTAssertTrue(
+            VocabCommand.configuration.discussion.contains("deprecated alias"),
+            "the alias needs a visible --help deprecation notice"
+        )
+        XCTAssertTrue(
+            VocabCommand.configuration.subcommands.contains { $0 == VocabLegacyVocabularyCommand.self },
+            "flow vocabulary must remain parseable for the 2.x compatibility window"
+        )
+    }
+
+    func testFlowAliasParsesLegacyWordsPath() throws {
+        let cmd = try CLI.parseAsRoot([
+            "flow", "words", "list",
+            "--database", dbPath,
+            "--json",
+        ])
+        let list = try XCTUnwrap(cmd as? VocabWordsCommand.ListWords)
+        XCTAssertEqual(list.database, dbPath)
+        XCTAssertTrue(list.json)
+    }
+
+    func testFlowAliasParsesFlattenedExportPath() throws {
+        let outputPath = tempDir.appendingPathComponent("bundle.json").path
+        let cmd = try CLI.parseAsRoot([
+            "flow", "export",
+            "--database", dbPath,
+            "--output", outputPath,
+        ])
+        let export = try XCTUnwrap(cmd as? VocabExportCommand)
+        XCTAssertEqual(export.database, dbPath)
+        XCTAssertEqual(export.output, outputPath)
+    }
+
+    func testFlowAliasParsesLegacyVocabularyExportPath() throws {
+        let outputPath = tempDir.appendingPathComponent("legacy-bundle.json").path
+        let cmd = try CLI.parseAsRoot([
+            "flow", "vocabulary", "export",
+            "--database", dbPath,
+            "--output", outputPath,
+        ])
+        let export = try XCTUnwrap(cmd as? VocabExportCommand)
+        XCTAssertEqual(export.database, dbPath)
+        XCTAssertEqual(export.output, outputPath)
+    }
+
+    func testFlowAliasParsesLegacyVocabularyImportPath() throws {
+        let inputPath = tempDir.appendingPathComponent("legacy-bundle.json").path
+        let cmd = try CLI.parseAsRoot([
+            "flow", "vocabulary", "import",
+            "--database", dbPath,
+            "--input", inputPath,
+            "--dry-run",
+            "--json",
+        ])
+        let importCommand = try XCTUnwrap(cmd as? VocabImportCommand)
+        XCTAssertEqual(importCommand.database, dbPath)
+        XCTAssertEqual(importCommand.input, inputPath)
+        XCTAssertTrue(importCommand.dryRun)
+        XCTAssertTrue(importCommand.json)
+    }
+
+    func testFlowAliasParsesLegacyVocabularySchemaPath() throws {
+        let cmd = try CLI.parseAsRoot(["flow", "vocabulary", "schema", "--json"])
+        let schema = try XCTUnwrap(cmd as? VocabSchemaCommand)
+        XCTAssertTrue(schema.json)
+    }
+
     // MARK: - Schema
 
     func testSchemaJSONIsParseable() async throws {

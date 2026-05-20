@@ -33,6 +33,7 @@ final class TransformsViewModelTests: XCTestCase {
         // Built-in count is exposed via the helper.
         XCTAssertEqual(viewModel.builtInTransforms.count, 3)
         XCTAssertEqual(viewModel.customTransforms.count, 0)
+        XCTAssertFalse(viewModel.hasMissingBuiltInTransforms)
     }
 
     func testLoadOrdersBySortOrder() {
@@ -45,6 +46,24 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(bindings.count, 3, "All three built-ins ship with default shortcuts.")
         let labels = Set(bindings.values.map(\.keyLabel))
         XCTAssertEqual(labels, ["1", "2", "3"])
+    }
+
+    func testHeroShortcutInstructionUsesCurrentBindings() async throws {
+        var polish = try XCTUnwrap(viewModel.transforms.first(where: { $0.name == "Polish" }))
+        polish.keyboardShortcut = KeyboardShortcut(
+            modifiers: KeyboardShortcut.ModifierFlag.command.rawValue
+                | KeyboardShortcut.ModifierFlag.shift.rawValue,
+            keyCode: 0x12,
+            keyLabel: "!"
+        ).encodedString()
+
+        let saved = await viewModel.save(polish)
+        XCTAssertTrue(saved)
+
+        XCTAssertEqual(
+            viewModel.heroShortcutInstruction,
+            "Press a Transform's hotkey (⇧⌘1, ⌥2, ⌥3)."
+        )
     }
 
     func testSaveNewCustomTransformAppendsToList() async {
@@ -190,11 +209,13 @@ final class TransformsViewModelTests: XCTestCase {
         }
         await viewModel.load()
         XCTAssertEqual(viewModel.transforms.count, 2, "Polish should be gone before reseed.")
+        XCTAssertTrue(viewModel.hasMissingBuiltInTransforms)
 
         await viewModel.reseedMissingBuiltIns()
 
         XCTAssertEqual(viewModel.transforms.count, 3)
         XCTAssertTrue(viewModel.transforms.contains(where: { $0.name == "Polish" }))
+        XCTAssertFalse(viewModel.hasMissingBuiltInTransforms)
     }
 
     func testReseedDoesNotOverwriteExistingBuiltIn() async {
@@ -339,28 +360,6 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.totalHistoryCount, 1)
     }
 
-    func testClearHistoryEmptiesTheTableAndResetsConfirmFlag() async throws {
-        try historyRepo.save(
-            TransformHistoryEntry(
-                transformName: "Polish",
-                inputText: "rough",
-                outputText: "polished",
-                capturePath: "ax",
-                replacementPath: "ax",
-                llmElapsedMs: 1,
-                totalElapsedMs: 2
-            )
-        )
-        await viewModel.loadHistory()
-        viewModel.isConfirmingClearHistory = true
-
-        await viewModel.clearHistory()
-
-        XCTAssertTrue(viewModel.history.isEmpty)
-        XCTAssertEqual(viewModel.totalHistoryCount, 0)
-        XCTAssertFalse(viewModel.isConfirmingClearHistory)
-    }
-
     func testDeleteHistoryEntryWorksWithoutPendingState() async throws {
         // Regression: SwiftUI alert sets `pendingDeleteHistoryEntry = nil`
         // before the Delete button's Task runs. The view must call
@@ -473,6 +472,28 @@ final class TransformsViewModelTests: XCTestCase {
 
         XCTAssertEqual(clipboardService.lastCopied, "polished")
         XCTAssertEqual(viewModel.copiedHistoryEntryID, entry.id)
+        XCTAssertEqual(viewModel.copiedHistoryTarget, .output)
+        XCTAssertEqual(viewModel.copiedHistoryTarget?.statusLabel, "Copied result")
+        XCTAssertNil(viewModel.historyErrorMessage)
+    }
+
+    func testCopyInputToClipboardWritesOriginalTextAndFlagsCopiedTarget() async throws {
+        let entry = TransformHistoryEntry(
+            transformName: "Polish",
+            inputText: "rough",
+            outputText: "polished",
+            capturePath: "ax",
+            replacementPath: "ax",
+            llmElapsedMs: 1,
+            totalElapsedMs: 2
+        )
+
+        await viewModel.copyInputToClipboard(entry)
+
+        XCTAssertEqual(clipboardService.lastCopied, "rough")
+        XCTAssertEqual(viewModel.copiedHistoryEntryID, entry.id)
+        XCTAssertEqual(viewModel.copiedHistoryTarget, .input)
+        XCTAssertEqual(viewModel.copiedHistoryTarget?.statusLabel, "Copied original")
         XCTAssertNil(viewModel.historyErrorMessage)
     }
 }

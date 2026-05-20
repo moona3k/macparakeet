@@ -152,7 +152,7 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
                                                           ▼
                                   MicConditioner:
                                   - PassthroughMicConditioner
-                                    (AEC is upstream in VPIO when available)
+                                    (raw default; no capture-time AEC)
                                                           │
                                                           ▼
                                               LiveChunkTranscriber
@@ -165,10 +165,10 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 ```
 
 - **System audio** is captured via ScreenCaptureKit `SCStream` audio (`SCStreamConfiguration.capturesAudio = true`), which avoids owning or clocking a HAL aggregate output device.
-- **Mic audio** is captured by subscribing to `SharedMicrophoneStream` with a typed policy (`MeetingMicProcessingMode`): `vpioPreferred` (default), `vpioRequired`, or `raw`.
-- MacParakeet ships meeting capture with VPIO preferred for the mic path and ScreenCaptureKit for system audio. The older Core Audio process-tap path was removed from production because it does not reliably coexist with VPIO in-process. See `docs/research/vpio-process-tap-conflict.md`.
+- **Mic audio** is captured by subscribing to `SharedMicrophoneStream` with a typed policy (`MeetingMicProcessingMode`): `raw` (default), `vpioPreferred`, or `vpioRequired`.
+- MacParakeet ships meeting capture with raw mic capture and ScreenCaptureKit for system audio. VPIO remains available for explicit experiments, but it is not the shipped default because live-call testing showed that engaging it can muffle the user's outgoing mic in Zoom/Meet. The older Core Audio process-tap path also remains out of production because it does not reliably coexist with VPIO in-process. See `docs/research/vpio-process-tap-conflict.md`.
 - Both streams are captured within the same meeting session and aligned by host time. `CaptureOrchestrator` owns join + offset + chunk boundaries via `MeetingAudioPairJoiner` + `AudioChunker`.
-- Mic conditioning is pass-through. When VPIO engages, macOS has already applied AEC/noise suppression/AGC before buffers reach `MeetingRecordingService`; if VPIO falls back to raw, the service logs the degraded mode and keeps transcript-layer system-dominance suppression.
+- Mic conditioning is pass-through. Raw capture applies no capture-time AEC/noise suppression/AGC; transcript-layer system-dominance suppression remains the default guard against obvious speaker bleed. When VPIO is explicitly requested and engages, macOS applies AEC/noise suppression/AGC before buffers reach `MeetingRecordingService`.
 - Audio is stored as separate M4A files (AAC 64kbps, 48kHz mono) per source
 - Source audio is written as fragmented M4A with 1-second movie fragments so kill-9 recovery can keep playable audio through the last committed fragment.
 - After recording stops, microphone + system M4As are merged into `meeting.m4a`. Dual-input sessions preserve source separation as stereo (`L=mic`, `R=system`), while single-input sessions remain mono.
@@ -185,7 +185,7 @@ Mic Input    → SharedMicrophoneStream (+ Voice Processing I/O when active)┘ 
 | `MicrophoneCapture` | Meeting mic subscriber with explicit mic-processing policy, effective-mode reporting, and stall diagnostics |
 | `MeetingAudioCaptureService` | Actor combining both streams into `AsyncStream<MeetingAudioCaptureEvent>` with `.bufferingNewest(2048)` and runtime error emission where available |
 | `CaptureOrchestrator` | Owns ingest/join/offset/chunk flow for live preview |
-| `MicConditioner` | Pass-through seam for mic samples after upstream VPIO processing |
+| `MicConditioner` | Pass-through seam for mic samples; raw capture is the default, with VPIO only when explicitly requested |
 | `LiveChunkTranscriber` | Owns live chunk queueing, cancellation, ordering, STT invocation |
 | `MeetingAudioStorageWriter` | Writes separate M4A files per source (mic + system) |
 | `MeetingRecordingMetadataStore` | Persists `MeetingSourceAlignment` for post-stop merge correctness |
@@ -237,8 +237,8 @@ Meeting recording and dictation share one process-wide microphone engine. Both f
 
 | Flow | Shared mic role | Notes |
 |------|--------|-------|
-| Dictation | `AudioRecorder` subscribes with `wantsVPIO: false` | Copies tap buffers for async conversion/writes and extracts ch[0] so VPIO duplex layouts produce post-AEC mono |
-| Meeting mic | `MicrophoneCapture` subscribes with `wantsVPIO` derived from `MeetingMicProcessingMode` | VPIO preferred for hardware AEC, with raw fallback logged; meeting mic extracts ch[0] when VPIO is engaged |
+| Dictation | `AudioRecorder` subscribes with `wantsVPIO: false` | Copies tap buffers for async conversion/writes and extracts ch[0] if a VPIO duplex layout is already active |
+| Meeting mic | `MicrophoneCapture` subscribes with `wantsVPIO` derived from `MeetingMicProcessingMode` | Raw capture by default; VPIO can still be explicitly requested, and meeting mic extracts ch[0] when VPIO is engaged |
 
 `SharedMicrophoneStream` owns the single `AVAudioEngine`, fans buffers out synchronously, and keeps VPIO sticky once engaged. Engagement is deferred while a non-VPIO dictation subscriber is already in flight, so dictation does not get a mid-session format flip. If deferred VPIO promotion fails, the engine is marked dead, remaining subscriptions are invalidated after their `onEngineDeath` callbacks are captured, and later subscribers start a fresh engine. The shared-engine architecture is required (not a convenience) because VPIO is process-scoped — see ADR-015 §1 for the full rationale.
 
@@ -257,7 +257,7 @@ The primary concurrency use case remains meeting recording + dictation. File tra
 `AudioChunker` buffers audio into chunks with overlap and sends them through the scheduler using the meeting's captured speech engine during recording. This provides:
 - Live transcript preview in the recording pill
 - Source-aware labels: mic chunks → "Me", system chunks → "Them"
-- VPIO-preferred mic capture plus a residual safeguard that suppresses clearly system-dominant mic chunks in live preview windows
+- Raw mic capture plus a residual safeguard that suppresses clearly system-dominant mic chunks in live preview windows
 - Immediate transcript availability when recording stops
 
 ---

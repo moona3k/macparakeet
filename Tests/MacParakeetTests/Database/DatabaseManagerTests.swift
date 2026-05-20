@@ -319,6 +319,7 @@ final class DatabaseManagerTests: XCTestCase {
                 )
             """)
             try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
             // Pre-seed prompts table with all auto-run flags off — simulating
             // a user who has explicitly disabled every auto-run prompt.
             try db.execute(sql: """
@@ -466,6 +467,7 @@ final class DatabaseManagerTests: XCTestCase {
                 )
             """)
             try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
             try db.execute(sql: """
                 CREATE TABLE prompts (
                     id TEXT PRIMARY KEY,
@@ -594,6 +596,7 @@ final class DatabaseManagerTests: XCTestCase {
                 )
             """)
             try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
             try db.execute(sql: """
                 CREATE TABLE prompts (
                     id TEXT PRIMARY KEY,
@@ -725,6 +728,7 @@ final class DatabaseManagerTests: XCTestCase {
 
             // dictations table is required by the v0.7.4 lifetime stats backfill.
             try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
 
             try db.execute(sql: """
                 CREATE TABLE text_snippets (
@@ -831,6 +835,7 @@ final class DatabaseManagerTests: XCTestCase {
 
             // dictations table is required by the v0.7.4 lifetime stats backfill.
             try Self.createV05DictationsTable(db: db)
+            try Self.createV05ChatConversationsTable(db: db)
 
             try db.execute(
                 sql: """
@@ -1001,6 +1006,33 @@ final class DatabaseManagerTests: XCTestCase {
         }
     }
 
+    func testDictationLanguageMigrationToleratesExistingColumnWhenMigrationMarkerIsMissing() throws {
+        let tempDir = FileManager.default.temporaryDirectory
+        let dbPath = tempDir.appendingPathComponent("dictation_language_rerun_\(UUID().uuidString).db").path
+        defer { try? FileManager.default.removeItem(atPath: dbPath) }
+
+        let manager1 = try DatabaseManager(path: dbPath)
+        try manager1.dbQueue.write { db in
+            try db.execute(
+                sql: "DELETE FROM grdb_migrations WHERE identifier = ?",
+                arguments: ["v0.19-dictation-language"]
+            )
+        }
+
+        let manager2 = try DatabaseManager(path: dbPath)
+        try manager2.dbQueue.read { db in
+            let dictationColumns = try db.columns(in: "dictations").map(\.name)
+            XCTAssertTrue(dictationColumns.contains("language"))
+
+            let migrationRecorded = try Bool.fetchOne(
+                db,
+                sql: "SELECT EXISTS(SELECT 1 FROM grdb_migrations WHERE identifier = ?)",
+                arguments: ["v0.19-dictation-language"]
+            ) ?? false
+            XCTAssertTrue(migrationRecorded)
+        }
+    }
+
     /// Recreates the dictations table at its v0.5 shape (after `v0.5-private-dictation`
     /// added `hidden` and `wordCount`). Used by partial-migration test fixtures so the
     /// v0.7.4 lifetime-stats backfill has a real table to read from.
@@ -1021,6 +1053,23 @@ final class DatabaseManagerTests: XCTestCase {
                 hidden INTEGER NOT NULL DEFAULT 0,
                 wordCount INTEGER NOT NULL DEFAULT 0
             )
+        """)
+    }
+
+    static func createV05ChatConversationsTable(db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE chat_conversations (
+                id TEXT PRIMARY KEY,
+                transcriptionId TEXT NOT NULL REFERENCES transcriptions(id) ON DELETE CASCADE,
+                title TEXT NOT NULL DEFAULT '',
+                messages TEXT,
+                createdAt TEXT NOT NULL,
+                updatedAt TEXT NOT NULL
+            )
+        """)
+        try db.execute(sql: """
+            CREATE INDEX idx_chat_conversations_transcription_id
+            ON chat_conversations(transcriptionId)
         """)
     }
 

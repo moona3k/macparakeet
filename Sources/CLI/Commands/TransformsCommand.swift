@@ -105,7 +105,6 @@ extension TransformsCommand {
                 print("ID:        \(transform.id.uuidString)")
                 print("Name:      \(transform.name)\(transform.isBuiltIn ? " [built-in]" : "")")
                 print("Shortcut:  \(transform.shortcut?.displayString ?? "—")")
-                print("Running:   \(transform.derivedRunningLabel)")
                 print("Updated:   \(ISO8601DateFormatter().string(from: transform.updatedAt))")
                 print()
                 print(transform.content)
@@ -235,9 +234,6 @@ extension TransformsCommand {
         @Option(name: .long, help: "Keyboard shortcut, e.g. 'opt+1', 'cmd+shift+P'. Modifier required.")
         var shortcut: String?
 
-        @Option(name: .long, help: "Optional running-pill label. Defaults to a 'Naming…' heuristic.")
-        var runningLabel: String?
-
         @Flag(name: .long, help: "Emit a JSON envelope on success.")
         var json: Bool = false
 
@@ -321,8 +317,7 @@ extension TransformsCommand {
                     sortOrder: 200,
                     createdAt: now,
                     updatedAt: now,
-                    keyboardShortcut: shortcutValue?.encodedString(),
-                    runningLabel: runningLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    keyboardShortcut: shortcutValue?.encodedString()
                 )
                 try repo.save(transform)
 
@@ -797,7 +792,6 @@ struct TransformDTO: Encodable {
     let id: String
     let name: String
     let shortcut: String?
-    let runningLabel: String?
     let isBuiltIn: Bool
     let prompt: String
     let createdAt: Date
@@ -807,7 +801,6 @@ struct TransformDTO: Encodable {
         case id
         case name
         case shortcut
-        case runningLabel = "running_label"
         case isBuiltIn = "is_built_in"
         case prompt
         case createdAt = "created_at"
@@ -818,7 +811,6 @@ struct TransformDTO: Encodable {
         self.id = prompt.id.uuidString
         self.name = prompt.name
         self.shortcut = prompt.shortcut?.displayString
-        self.runningLabel = prompt.runningLabel
         self.isBuiltIn = prompt.isBuiltIn
         self.prompt = prompt.content
         self.createdAt = prompt.createdAt

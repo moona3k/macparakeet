@@ -1,5 +1,6 @@
 import XCTest
 import MacParakeetCore
+import MacParakeetViewModels
 @testable import MacParakeet
 
 @MainActor
@@ -15,6 +16,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         let center = NotificationCenter()
         var onboardingCount = 0
         var settingsCount = 0
+        var settingsTabs: [SettingsTab?] = []
         var hotkeyTriggerCount = 0
         var pushToTalkHotkeyTriggerCount = 0
         var meetingHotkeyTriggerCount = 0
@@ -30,8 +32,9 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
                 self.onboardingCount += 1
                 self.onCallback?()
             },
-            onOpenSettings: { [unowned self] in
+            onOpenSettings: { [unowned self] tab in
                 self.settingsCount += 1
+                self.settingsTabs.append(tab)
                 self.onCallback?()
             },
             onHotkeyTriggerChanged: { [unowned self] in
@@ -88,6 +91,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(fx.onboardingCount, 1)
         XCTAssertEqual(fx.settingsCount, 1)
+        XCTAssertEqual(fx.settingsTabs, [nil])
         XCTAssertEqual(fx.hotkeyTriggerCount, 1)
         XCTAssertEqual(fx.pushToTalkHotkeyTriggerCount, 1)
         XCTAssertEqual(fx.meetingHotkeyTriggerCount, 1)
@@ -119,6 +123,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(fx.onboardingCount, 0)
         XCTAssertEqual(fx.settingsCount, 0)
+        XCTAssertTrue(fx.settingsTabs.isEmpty)
         XCTAssertEqual(fx.hotkeyTriggerCount, 0)
         XCTAssertEqual(fx.pushToTalkHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.meetingHotkeyTriggerCount, 0)
@@ -150,6 +155,23 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
         fx.coordinator.stopObserving()
     }
 
+    func test_openSettingsNotificationForwardsRequestedTab() async {
+        let fx = Fixture()
+        let callback = expectation(description: "settings callback fires")
+        fx.onCallback = { callback.fulfill() }
+        fx.coordinator.startObserving()
+
+        fx.center.post(
+            name: .macParakeetOpenSettings,
+            object: nil,
+            userInfo: [AppSettingsObserverCoordinator.settingsTabUserInfoKey: SettingsTab.ai.rawValue]
+        )
+        await fulfillment(of: [callback], timeout: 1.0)
+
+        XCTAssertEqual(fx.settingsCount, 1)
+        XCTAssertEqual(fx.settingsTabs, [.ai])
+    }
+
     func test_restart_afterStop_reattachesAllObservers() async {
         let fx = Fixture()
         let callbacks = expectation(description: "callbacks fire after restart")
@@ -179,6 +201,7 @@ final class AppSettingsObserverCoordinatorTests: XCTestCase {
 
         XCTAssertEqual(fx.onboardingCount, 1)
         XCTAssertEqual(fx.settingsCount, 0)
+        XCTAssertTrue(fx.settingsTabs.isEmpty)
         XCTAssertEqual(fx.hotkeyTriggerCount, 0)
         XCTAssertEqual(fx.pushToTalkHotkeyTriggerCount, 0)
         XCTAssertEqual(fx.meetingHotkeyTriggerCount, 0)

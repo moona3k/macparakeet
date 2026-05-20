@@ -22,6 +22,34 @@ final class SelectionReplacementServiceTests: XCTestCase {
         XCTAssertEqual(backend.cmdVPostCount(), 0)
     }
 
+    func testPasteIntoCurrentFocusSkipsAXWriteAndOriginalTargetActivation() async throws {
+        let backend = FakeSelectionReplacementBackend(
+            isTrusted: true,
+            axWriteSucceeds: true
+        )
+        let service = SelectionReplacementService(backend: backend, postPasteDelay: .milliseconds(1))
+        let originalTarget = SelectionCaptureTarget(
+            processIdentifier: 1234,
+            bundleIdentifier: "com.example.Source"
+        )
+
+        let path = try await service.replace(
+            with: "polished",
+            in: .ax(
+                text: "raw",
+                element: AXFocusedElement(AXUIElementCreateSystemWide()),
+                target: originalTarget
+            ),
+            mode: .pasteIntoCurrentFocus
+        )
+
+        XCTAssertEqual(path, .clipboardPaste)
+        XCTAssertNil(backend.lastAXText())
+        XCTAssertEqual(backend.activatedTargets(), [])
+        XCTAssertEqual(backend.lastClipboardText(), "polished")
+        XCTAssertEqual(backend.cmdVPostCount(), 1)
+    }
+
     func testReplaceFallsBackToPasteWhenAXFails() async throws {
         let backend = FakeSelectionReplacementBackend(
             isTrusted: true,

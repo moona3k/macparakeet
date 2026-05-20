@@ -129,8 +129,24 @@ The suite includes targeted regressions for progress behavior in URL transcripti
 - `llm chat` prompt composition with and without transcript context
 - `llm chat` argument parsing (`--transcript-file`, `--system`, `--stats`)
 - transcript-file loader behavior (missing file, bounded context assembly)
+- `transforms` saved-prompt CRUD/run JSON envelopes and local history commands
+- `vocab` process/words/snippets command parsing and JSON output
 
 **Tip:** For runtime smoke runs, use a throwaway database path (e.g. `--database /tmp/macparakeet-cli-test.db`) to avoid polluting the real app database.
+
+### LLM Metadata + Transforms Tests
+
+**What:** Local-only LLM run metadata, Transform dispatch/history, and prompt-category separation.
+
+**How:** In-memory SQLite plus protocol mocks for LLM calls, selection capture/replacement, and hotkey dispatch. No real provider calls.
+
+**Examples:**
+- `LLMRunRepositoryTests`: schema constraints, source-link requirement, indexes, save/fetch/delete behavior
+- `LLMServiceTests`: `formatTranscriptDetailed` returns provider/model/token/latency metadata without leaking prompt/output into `llm_runs`
+- `DictationServiceTests` / `TranscriptionServiceTests`: persisted formatter rows record metadata only, while private/no-history/transient flows skip the ledger
+- `TransformsHotkeyRegistryTests`: shortcut parsing, duplicate/collision guards, reserved hotkey conflicts
+- `TransformExecutorTests`: AX/clipboard capture paths, replacement fallback, cancellation/error cleanup
+- `TransformHistoryRepositoryTests`: local input/output/source-app/timing history persistence and deletion
 
 ## What We Skip
 

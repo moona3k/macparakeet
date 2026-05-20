@@ -14,6 +14,16 @@ public enum SelectionReplacementPath: String, Sendable, Equatable {
     case clipboardPaste
 }
 
+public enum SelectionReplacementMode: Sendable, Equatable {
+    /// Prefer zero-side-effect AX replacement, then fall back to clipboard
+    /// paste into the original selection target.
+    case replaceSelection
+    /// Always paste the transformed output through the currently focused
+    /// target. This keeps read-only selections useful: capture can happen in
+    /// one surface while paste lands wherever focus is when the run finishes.
+    case pasteIntoCurrentFocus
+}
+
 public enum SelectionReplacementError: Error, LocalizedError, Sendable {
     case accessibilityNotAuthorized
     case eventSourceUnavailable
@@ -125,8 +135,13 @@ public actor SelectionReplacementService {
     @discardableResult
     public func replace(
         with newText: String,
-        in context: SelectionCaptureResult
+        in context: SelectionCaptureResult,
+        mode: SelectionReplacementMode = .replaceSelection
     ) async throws -> SelectionReplacementPath {
+        if mode == .pasteIntoCurrentFocus {
+            return try await pasteIntoCurrentFocus(newText: newText, context: context)
+        }
+
         switch context {
         case .ax(_, let focused, _):
             // AX-write is the no-side-effect path. If it succeeds, we're done.
@@ -147,6 +162,26 @@ public actor SelectionReplacementService {
             // that newer clipboard instead of the pre-transform snapshot.
             let restoreSnapshot = await snapshotForClipboardContext(savedSnapshot)
             try await pasteAndRestore(newText: newText, snapshot: restoreSnapshot, target: context.target)
+            return .clipboardPaste
+
+        case .empty, .failed:
+            throw SelectionReplacementError.allPathsFailed
+        }
+    }
+
+    private func pasteIntoCurrentFocus(
+        newText: String,
+        context: SelectionCaptureResult
+    ) async throws -> SelectionReplacementPath {
+        switch context {
+        case .ax:
+            let snapshot = await snapshotPasteboardForFallback()
+            try await pasteAndRestore(newText: newText, snapshot: snapshot, target: nil)
+            return .clipboardPaste
+
+        case .clipboard(_, let savedSnapshot, _):
+            let restoreSnapshot = await snapshotForClipboardContext(savedSnapshot)
+            try await pasteAndRestore(newText: newText, snapshot: restoreSnapshot, target: nil)
             return .clipboardPaste
 
         case .empty, .failed:

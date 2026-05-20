@@ -27,9 +27,11 @@ struct TranscriptionVideoPanel: View {
                         .aspectRatio(16/9, contentMode: .fit)
                         .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
 
-                        // CC toggle
-                        HStack {
+                        HStack(spacing: 8) {
                             Spacer()
+
+                            PlaybackSpeedMenu(viewModel: playerViewModel)
+
                             Button {
                                 playerViewModel.showSubtitles.toggle()
                             } label: {

@@ -27,6 +27,12 @@ public protocol LLMServiceProtocol: Sendable {
     func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult
     func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult
     func transformDetailed(text: String, prompt: String) async throws -> LLMResult
+    func formatTranscriptDetailed(
+        transcript: String,
+        promptTemplate: String,
+        source: TelemetryFormatterSource,
+        defaultPromptUsed: Bool
+    ) async throws -> LLMFormatterResult
 }
 
 public extension LLMServiceProtocol {
@@ -129,6 +135,20 @@ public final class LLMService: LLMServiceProtocol, Sendable {
 
     public func transform(text: String, prompt: String) async throws -> String {
         try await transformDetailed(text: text, prompt: prompt).output
+    }
+
+    public func formatTranscript(
+        transcript: String,
+        promptTemplate: String,
+        source: TelemetryFormatterSource,
+        defaultPromptUsed: Bool
+    ) async throws -> String {
+        try await formatTranscriptDetailed(
+            transcript: transcript,
+            promptTemplate: promptTemplate,
+            source: source,
+            defaultPromptUsed: defaultPromptUsed
+        ).output
     }
 
     // MARK: - Envelope (Detailed) Variants
@@ -369,12 +389,12 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         Int((Date().timeIntervalSince(start) * 1000).rounded())
     }
 
-    public func formatTranscript(
+    public func formatTranscriptDetailed(
         transcript: String,
         promptTemplate: String,
         source: TelemetryFormatterSource,
         defaultPromptUsed: Bool
-    ) async throws -> String {
+    ) async throws -> LLMFormatterResult {
         let operationID = Observability.operationID()
         let startedAt = Date()
         let inputChars = transcript.count
@@ -389,24 +409,26 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         )
         let config = context.providerConfig
         let budget = contextBudget(for: config)
-        // Compare original transcript length against budget rather than the
-        // output of `truncateMiddle`, which can be longer than the original
-        // (the truncation marker adds ~32 chars) for inputs that only
-        // slightly exceed the budget. What we actually care about is "did
-        // we have to drop content to fit," which this expresses directly.
-        let inputTruncated = transcript.count > budget
-        let truncated = Self.truncateMiddle(transcript, limit: budget)
+        let promptOverhead = Prompts.formatter.count
+            + AIFormatter.renderPrompt(template: promptTemplate, transcript: "").count
+        let transcriptBudget = max(0, budget - promptOverhead)
+        // Compare original transcript length against the transcript-specific
+        // budget. The request also includes formatter instructions and the
+        // rendered template, so the transcript cannot consume the whole model
+        // context by itself.
+        let inputTruncated = transcript.count > transcriptBudget
+        let truncated = Self.truncateMiddle(transcript, limit: transcriptBudget)
+        let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: truncated)
+        let messages = [
+            ChatMessage(role: .system, content: Prompts.formatter),
+            ChatMessage(role: .user, content: renderedPrompt),
+        ]
 
         do {
-            let renderedPrompt = AIFormatter.renderPrompt(template: promptTemplate, transcript: truncated)
-            let messages = [
-                ChatMessage(role: .system, content: Prompts.formatter),
-                ChatMessage(role: .user, content: renderedPrompt),
-            ]
-
+            let response: ChatCompletionResponse
             let output: String
             if config.id == .lmstudio {
-                let response = try await client.chatCompletion(
+                response = try await client.chatCompletion(
                     messages: messages,
                     context: context,
                     options: ChatCompletionOptions(
@@ -423,7 +445,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 let formatted = parseLMStudioFormattedTranscript(response) ?? response.content
                 output = AIFormatter.normalizedFormattedOutput(formatted)
             } else {
-                let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
+                response = try await client.chatCompletion(messages: messages, context: context, options: .default)
                 output = AIFormatter.normalizedFormattedOutput(response.content)
             }
 
@@ -460,7 +482,23 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 promptDefaultUsed: defaultPromptUsed,
                 messageCount: 2
             )
-            return output
+            let llmResult = LLMResult(
+                output: output,
+                provider: config.id.rawValue,
+                model: response.model,
+                usage: response.usage.map(LLMUsage.init),
+                stopReason: response.finishReason,
+                latencyMs: Self.latencyMs(since: startedAt)
+            )
+            return LLMFormatterResult(
+                result: llmResult,
+                operationID: operationID,
+                inputChars: inputChars,
+                outputChars: output.count,
+                inputTruncated: inputTruncated,
+                defaultPromptUsed: defaultPromptUsed,
+                messageCount: messages.count
+            )
         } catch {
             if error is CancellationError {
                 sendLLMOperation(

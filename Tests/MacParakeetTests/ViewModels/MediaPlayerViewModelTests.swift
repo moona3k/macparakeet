@@ -117,6 +117,87 @@ final class MediaPlayerViewModelTests: XCTestCase {
         XCTAssertEqual(vm.playerState, .idle)
     }
 
+    // MARK: - Playback Rate
+
+    @MainActor
+    func testPlaybackRateLabelsUseCompactMediaPlayerFormat() {
+        XCTAssertEqual(PlaybackRate.label(for: 0.5), "0.5x")
+        XCTAssertEqual(PlaybackRate.label(for: 1.0), "1x")
+        XCTAssertEqual(PlaybackRate.label(for: 1.25), "1.25x")
+        XCTAssertEqual(PlaybackRate.label(for: 1.5), "1.5x")
+        XCTAssertEqual(PlaybackRate.label(for: 2.0), "2x")
+    }
+
+    @MainActor
+    func testPlaybackRateOptionsUseStandardMediaPlayerPresets() {
+        XCTAssertEqual(PlaybackRate.options, [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0])
+    }
+
+    @MainActor
+    func testPlaybackRatePersistsAcrossViewModelInstances() {
+        let defaults = isolatedPlaybackDefaults()
+        let vm = MediaPlayerViewModel(playbackRateDefaults: defaults)
+
+        vm.setPlaybackRate(1.5)
+
+        let reloaded = MediaPlayerViewModel(playbackRateDefaults: defaults)
+        XCTAssertEqual(reloaded.playbackRate, 1.5, accuracy: 0.001)
+        XCTAssertEqual(reloaded.playbackRateLabel, "1.5x")
+    }
+
+    @MainActor
+    func testTogglePlayPauseUsesSelectedPlaybackRate() {
+        let vm = MediaPlayerViewModel(playbackRateDefaults: isolatedPlaybackDefaults())
+        let player = AVPlayer()
+        vm.player = player
+        vm.setPlaybackRate(1.5)
+
+        vm.togglePlayPause()
+
+        XCTAssertEqual(player.defaultRate, 1.5, accuracy: 0.001)
+        XCTAssertEqual(player.rate, 1.5, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testChangingPlaybackRateUpdatesActivePlayerRate() {
+        let vm = MediaPlayerViewModel(playbackRateDefaults: isolatedPlaybackDefaults())
+        let player = AVPlayer()
+        vm.player = player
+        player.rate = 1.0
+
+        vm.setPlaybackRate(1.25)
+
+        XCTAssertEqual(player.defaultRate, 1.25, accuracy: 0.001)
+        XCTAssertEqual(player.rate, 1.25, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testChangingPlaybackRateDoesNotResumePausedPlayerWhenIsPlayingIsStale() {
+        let vm = MediaPlayerViewModel(playbackRateDefaults: isolatedPlaybackDefaults())
+        let player = AVPlayer()
+        vm.player = player
+        vm.isPlaying = true
+        player.pause()
+
+        vm.setPlaybackRate(1.5)
+
+        XCTAssertEqual(player.defaultRate, 1.5, accuracy: 0.001)
+        XCTAssertEqual(player.rate, 0.0, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testCleanupPreservesPlaybackRatePreference() {
+        let vm = MediaPlayerViewModel(playbackRateDefaults: isolatedPlaybackDefaults())
+        vm.setPlaybackRate(1.5)
+        vm.player = AVPlayer()
+        vm.playerState = .ready
+
+        vm.cleanup()
+
+        XCTAssertEqual(vm.playbackRate, 1.5, accuracy: 0.001)
+        XCTAssertEqual(vm.playbackRateLabel, "1.5x")
+    }
+
     // MARK: - Lazy webm → m4a migration (issue #237 playback fix)
 
     @MainActor
@@ -148,7 +229,10 @@ final class MediaPlayerViewModelTests: XCTestCase {
         let transcription = Transcription(
             fileName: "Talk",
             filePath: webm.path,
-            sourceURL: "https://www.youtube.com/watch?v=abc"
+            sourceURL: "https://www.youtube.com/watch?v=abc",
+            thumbnailURL: "https://img.example/thumb.jpg",
+            channelName: "Talk Channel",
+            videoDescription: "Talk description"
         )
         await vm.prepare(for: transcription)
 
@@ -157,6 +241,11 @@ final class MediaPlayerViewModelTests: XCTestCase {
         XCTAssertEqual(captured.path, dir.appendingPathComponent("video.m4a").path)
         XCTAssertEqual(captured.source, webm.path,
                        "Persist callback must receive the source path for cleanup-after-DB-write")
+        let metadata = await stubConverter.lastMetadataSnapshot()
+        XCTAssertEqual(metadata?.title, "Talk")
+        XCTAssertEqual(metadata?.artist, "Talk Channel")
+        XCTAssertEqual(metadata?.description, "Talk description")
+        XCTAssertEqual(metadata?.thumbnailURL, "https://img.example/thumb.jpg")
     }
 
     @MainActor
@@ -287,6 +376,13 @@ final class MediaPlayerViewModelTests: XCTestCase {
     }
 }
 
+private func isolatedPlaybackDefaults() -> UserDefaults {
+    let suiteName = "com.macparakeet.tests.playback-rate.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defaults.removePersistentDomain(forName: suiteName)
+    return defaults
+}
+
 /// Reference-type capture wrapper. Closures that have to mutate state can
 /// hold onto an instance of this rather than capturing a `var`, which
 /// keeps the closure compatible with `@Sendable` semantics under strict
@@ -316,18 +412,27 @@ private final class InvocationCounter: @unchecked Sendable {
 private actor StubPlaybackConverter: YouTubeAudioPlaybackConverting {
     private let transformedPath: String
     private(set) var invocationCount: Int = 0
+    private var lastMetadata: YouTubeAudioArtifactMetadata?
 
     init(transformedPath: String) {
         self.transformedPath = transformedPath
     }
 
-    func convertToPlayableM4AIfNeeded(inputPath: String) async throws -> String {
+    func convertToPlayableM4AIfNeeded(
+        inputPath: String,
+        metadata: YouTubeAudioArtifactMetadata?
+    ) async throws -> String {
         invocationCount += 1
+        lastMetadata = metadata
         return transformedPath
     }
 
     func currentInvocationCount() -> Int {
         invocationCount
+    }
+
+    func lastMetadataSnapshot() -> YouTubeAudioArtifactMetadata? {
+        lastMetadata
     }
 }
 
@@ -336,7 +441,10 @@ private actor StubPlaybackConverter: YouTubeAudioPlaybackConverting {
 /// sleeps. `Task.sleep` throws `CancellationError` when the surrounding
 /// task is cancelled, which propagates out as a converter failure.
 private final class SuspendingStubPlaybackConverter: YouTubeAudioPlaybackConverting, @unchecked Sendable {
-    func convertToPlayableM4AIfNeeded(inputPath: String) async throws -> String {
+    func convertToPlayableM4AIfNeeded(
+        inputPath: String,
+        metadata: YouTubeAudioArtifactMetadata?
+    ) async throws -> String {
         try await Task.sleep(nanoseconds: UInt64.max)
         return inputPath
     }

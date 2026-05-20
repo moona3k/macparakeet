@@ -75,6 +75,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | [ADR-019](adr/019-crash-resilient-meeting-recording.md) | Crash-resilient meeting recording via fragmented MP4 + session lock files (implemented 2026-04-25) |
 | [ADR-020](adr/020-live-meeting-notepad-and-memo-summaries.md) | Live meeting notepad + memo-steered summaries (implemented 2026-04-25) |
 | [ADR-021](adr/021-whisperkit-multilingual-stt.md) | WhisperKit as optional multilingual STT engine |
+| [ADR-022](adr/022-transforms-system-wide-rewrite.md) | Transforms — system-wide LLM rewrites on selected text (implemented 2026-05-13) |
 
 ## Version Roadmap
 
@@ -85,7 +86,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 | v0.3 | YouTube & Export | YouTube transcription, export formats | **Implemented** |
 | v0.4 | Polish & Launch | Diarization, custom hotkey, non-blocking progress, direct distribution | **Implemented** |
 | v0.5 | Data, UI & Prompts | Private dictation, favorites, video player, split-pane detail, library grid, prompt library, multi-summary | **Implemented** |
-| v0.6 | Meeting Recording + Multilingual STT | System audio + mic capture, concurrent with dictation, local transcription, library integration, optional WhisperKit engine | **Release scope** |
+| v0.6 | Meeting Recording + Multilingual STT + Transforms | System audio + mic capture, concurrent with dictation, local transcription, library integration, optional WhisperKit engine, system-wide selected-text rewrites | **Release scope** |
 | v0.7 | Post-v0.6 polish | Follow-up scope TBD after v0.6 ships; calendar remains hidden until explicitly enabled | **Planned** |
 
 ## Version Progress
@@ -104,15 +105,15 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Menu bar app with main window
 - [x] Basic export (TXT/Markdown/SRT/VTT + copy to clipboard)
 - [x] SQLite database (GRDB, dictations + transcriptions + substring search)
-- [x] Internal dev CLI tool (`macparakeet-cli transcribe`, `history`, `health`, `models`, `flow`)
+- [x] Internal dev CLI tool (`macparakeet-cli transcribe`, `history`, `health`, `models`, `vocab`)
 - [x] Test suite passing (`swift test` green)
 
 ### v0.2 Clean Pipeline (Implemented)
 
 - [x] Clean text pipeline (deterministic: fillers, custom words, snippets)
 - [x] Custom words & snippets management UI
-- [x] CLI commands (`macparakeet-cli flow process/words/snippets` + `macparakeet-cli models status/warm-up/repair`)
-- [x] In-app feedback form (Feedback sidebar item → Cloudflare Worker → GitHub Issues on `macparakeet-community`)
+- [x] CLI commands (`macparakeet-cli vocab process/words/snippets` + `macparakeet-cli models status/warm-up/repair`)
+- [x] In-app feedback form (Feedback sidebar item → Cloudflare Worker → GitHub Issues on `moona3k/macparakeet`)
 
 ### v0.3 YouTube & Export (Implemented)
 
@@ -152,8 +153,9 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Thumbnail cache service (download YouTube thumbnails, embedded local artwork, FFmpeg frame extraction for local video)
 - [x] HLS streaming for YouTube video playback (yt-dlp URL extraction + AVPlayer)
 - [x] AVPlayer SwiftUI wrapper with subtitle overlay
-- [x] MediaPlayerViewModel (state machine, 10Hz time sync, seek, play/pause)
+- [x] MediaPlayerViewModel (state machine, 10Hz time sync, seek, play/pause, speed)
 - [x] Audio scrubber bar for audio-only files (44px horizontal bar)
+- [x] Compact playback speed menu for audio and video playback
 - [x] Playback mode auto-detection (video/audio/none)
 - [x] Split-pane detail view (video 40% left, tabbed content 60% right)
 - [x] Synced transcript highlighting during playback (binary search, auto-scroll)
@@ -180,7 +182,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Migration from `transcriptions.summary` → `summaries`
 - [x] Auto-run uses selected prompt cards; zero auto-run cards is supported
 
-### v0.6 Meeting Recording + Multilingual STT (Release scope)
+### v0.6 Meeting Recording + Multilingual STT + Transforms (Release scope)
 
 - [x] System audio capture via ScreenCaptureKit audio (macOS 14.2+)
 - [x] Mic + system audio dual-stream recording (`MeetingAudioCaptureService`)
@@ -194,7 +196,7 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Batch transcription after recording stops (local STT using the pinned engine)
 - [x] Meeting recordings get prompt library, multi-summary, chat, and export automatically
 - [x] Live transcript preview via AudioChunker (chunked transcription during recording)
-- [x] Joined mic/system frame pairing with VPIO-preferred meeting mic capture
+- [x] Joined mic/system frame pairing with raw meeting mic capture by default
 - [x] Dominant-system suppression gate for live mic chunk transcription while preserving recorded mic audio
 - [x] Joiner overflow diagnostics + sync-lag observability for long-running capture sessions
 - [x] Dual-source final meeting artifact keeps mic/system channel separation (stereo when both are present)
@@ -232,6 +234,16 @@ Calendar-related code is present but **not shipped in v0.6**. `AppFeatures.calen
 - [x] Engine switching blocked while jobs are queued/running or a meeting speech-engine lease is active
 - [x] CLI `transcribe --engine parakeet|whisper --language <code>` and `models download whisper-large-v3-v20240930-turbo-632MB`
 - [x] Meeting recordings capture the active engine/language at start and preserve it through metadata, lock files, crash recovery, and final transcription
+
+### v0.6 Productized Transforms
+
+- [x] `Prompt.Category.transform` rows for saved Transforms, with built-in `Polish`, `Distill`, and `Decide`
+- [x] `keyboardShortcut` and `runningLabel` prompt columns for global hotkeys and floating progress copy
+- [x] `TransformsHotkeyRegistry` single event tap, collision detection, and reserved `Option-1/2/3` built-in bindings
+- [x] AX-first selection capture with clipboard fallback, in-place replacement, cancel/error clipboard restoration, and progress pill
+- [x] Transforms sidebar tab and management UI enabled on `main` by `AppFeatures.transformsEnabled = true`
+- [x] Local Transform history with input/output/source-app/timing stored in `transform_history`
+- [x] CLI `transforms` and `transforms history` command trees for headless provisioning and verification
 
 ## For AI Coding Assistants
 

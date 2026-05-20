@@ -41,6 +41,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.setupStatus, .setUpNeeded)
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
+        XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Default prompt")
     }
 
     func testSetupStatusReadyUsesSavedProviderDisplayName() {
@@ -253,6 +254,31 @@ final class LLMSettingsViewModelTests: XCTestCase {
         // Wait for async task
         try await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(viewModel.connectionTestState, .success)
+    }
+
+    func testConnectionSuccessMessagePromptsSaveForUnsavedDraft() async throws {
+        mockConfigStore.config = .gemini(
+            apiKey: "gemini-key",
+            model: "gemini-3.1-pro-preview"
+        )
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.modelName = "gemini-3-flash-preview"
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+
+        viewModel.testConnection()
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(viewModel.connectionTestState, .success)
+        XCTAssertEqual(viewModel.connectionSuccessMessage, "Connected. Save to use this AI option.")
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "gemini-3-flash-preview")
+        XCTAssertEqual(mockConfigStore.config?.modelName, "gemini-3.1-pro-preview")
+
+        viewModel.saveConfiguration()
+
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+        XCTAssertEqual(viewModel.connectionSuccessMessage, "Connected")
+        XCTAssertEqual(mockConfigStore.config?.modelName, "gemini-3-flash-preview")
     }
 
     func testConnectionFailure() async throws {
@@ -471,6 +497,65 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.saveState, .saved)
     }
 
+    func testHasUnsavedChangesTracksSavedGeminiModelDraft() {
+        mockConfigStore.config = .gemini(
+            apiKey: "gemini-key",
+            model: "gemini-3.1-pro-preview"
+        )
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+
+        viewModel.modelName = "gemini-3-flash-preview"
+
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+
+        viewModel.saveConfiguration()
+
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+        XCTAssertEqual(mockConfigStore.config?.modelName, "gemini-3-flash-preview")
+    }
+
+    func testHasUnsavedChangesTracksClearingSavedConfiguration() {
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+
+        viewModel.selectedProviderID = nil
+
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+
+        viewModel.saveConfiguration()
+
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+        XCTAssertNil(mockConfigStore.config)
+    }
+
+    func testHasUnsavedChangesTracksLocalCLIConfigDraft() throws {
+        let defaults = UserDefaults(suiteName: "test.vm.\(UUID().uuidString)")!
+        let cliStore = LocalCLIConfigStore(defaults: defaults)
+        try cliStore.save(
+            LocalCLIConfig(commandTemplate: "claude -p --model haiku", timeoutSeconds: 45)
+        )
+        mockConfigStore.config = .localCLI()
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient, cliConfigStore: cliStore)
+
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+
+        viewModel.commandTemplate = "codex exec --skip-git-repo-check --model gpt-5.4-mini"
+
+        XCTAssertTrue(viewModel.hasUnsavedChanges)
+
+        viewModel.saveConfiguration()
+
+        XCTAssertFalse(viewModel.hasUnsavedChanges)
+        XCTAssertEqual(
+            cliStore.load()?.commandTemplate,
+            "codex exec --skip-git-repo-check --model gpt-5.4-mini"
+        )
+    }
+
     func testSavePersistsAIFormatterPreferences() {
         mockConfigStore.config = .openai(apiKey: "sk-test")
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
@@ -517,6 +602,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         XCTAssertTrue(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, "Rewrite:\n\(AIFormatter.transcriptPlaceholder)")
+        XCTAssertEqual(viewModel.aiFormatterPromptModeText, "Custom prompt")
     }
 
     func testLoadsLegacyDefaultAIFormatterPromptAsUpdatedDefault() {

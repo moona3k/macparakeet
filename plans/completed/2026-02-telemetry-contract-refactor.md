@@ -1,6 +1,6 @@
 # Telemetry Contract Refactor Plan
 
-> Status: **ACTIVE**
+> Status: **COMPLETED / ARCHIVED** - implementation exists on `main`; this plan is retained for historical context.
 > ADR: 012 (Self-hosted telemetry via Cloudflare)
 > Spec: docs/telemetry.md
 

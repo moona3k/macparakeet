@@ -1,11 +1,26 @@
 import Foundation
 import MacParakeetCore
+import MacParakeetViewModels
 
 @MainActor
 @Observable
 final class MainWindowState {
     var selectedItem: SidebarItem = .transcribe
+    var requestedSettingsTab: SettingsTab?
+    var requestedSettingsTabRevision = 0
     var showingProgressDetail = false
+
+    func navigateToSettings(tab: SettingsTab? = nil) {
+        requestedSettingsTab = tab
+        if tab != nil {
+            requestedSettingsTabRevision += 1
+        }
+        selectedItem = .settings
+    }
+
+    func consumeRequestedSettingsTab() {
+        requestedSettingsTab = nil
+    }
 
     /// Transforms tab — pending sheet state (ADR-022). When non-nil the
     /// editor sheet appears for that Transform.

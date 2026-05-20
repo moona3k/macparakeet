@@ -1,9 +1,14 @@
 # Community post drafts
 
-Drafts for cross-posting the macparakeet-cli 1.0 launch to the
+Drafts for cross-posting the macparakeet-cli agent/Homebrew launch to the
 relevant communities. **None of these have been posted.** Each
 needs the maintainer's account on the target platform; the agent
 running this rollout doesn't have those credentials.
+
+Current release note (2026-05-19): the public CLI is now
+`macparakeet-cli 2.3.1` and Homebrew install is verified through
+`moona3k/tap`. Drafts should stay framed as the agent/Brew launch rather
+than a same-day 1.0 tag.
 
 ## Targets and timing
 
@@ -42,8 +47,7 @@ Suggested cadence:
 ## Voice + posture
 
 - **First-person honest, not promotional.** Match the tone of the
-  open-source-announcement blog post and the macparakeet-cli 1.0
-  launch post.
+  open-source-announcement blog post and the macparakeet-cli launch post.
 - **Lead with the gap** (voice/STT slot for Apple Silicon agents),
   not with feature lists.
 - **Disclose maintainer status.** Skip salesy adjectives ("fastest,"
@@ -59,5 +63,5 @@ Suggested cadence:
   OpenAI Whisper API are mentioned only as factual contrast, never
   as targets.
 - **Don't post before the brew tap, /agents page, and blog post
-  are all live.** All three landed on 2026-04-25, so this gate is
-  green.
+  are all live.** The Brew install path is verified as of 2026-05-19;
+  re-check `/agents` and the blog URL immediately before posting.

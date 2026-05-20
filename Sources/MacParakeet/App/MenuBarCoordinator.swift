@@ -24,6 +24,8 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private var statusItem: NSStatusItem?
     private var pasteLastMenuItem: NSMenuItem?
     private var recentDictationsMenuItem: NSMenuItem?
+    private var pasteLastTransformMenuItem: NSMenuItem?
+    private var recentTransformsMenuItem: NSMenuItem?
     private var recordMeetingMenuItem: NSMenuItem?
     private var transcribeFileMenuItem: NSMenuItem?
     private var transcribeYouTubeMenuItem: NSMenuItem?
@@ -160,6 +162,26 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         recentItem.isHidden = true
         menu.addItem(recentItem)
         recentDictationsMenuItem = recentItem
+
+        let pasteTransformItem = NSMenuItem(
+            title: "Paste Last Transform",
+            action: #selector(pasteLastTransform),
+            keyEquivalent: ""
+        )
+        pasteTransformItem.isEnabled = false
+        pasteTransformItem.target = self
+        menu.addItem(pasteTransformItem)
+        pasteLastTransformMenuItem = pasteTransformItem
+
+        let recentTransformsItem = NSMenuItem(
+            title: "Recent Transforms",
+            action: nil,
+            keyEquivalent: ""
+        )
+        recentTransformsItem.submenu = NSMenu()
+        recentTransformsItem.isHidden = true
+        menu.addItem(recentTransformsItem)
+        recentTransformsMenuItem = recentTransformsItem
 
         menu.addItem(NSMenuItem.separator())
 
@@ -307,6 +329,23 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         }
     }
 
+    @objc private func pasteLastTransform() {
+        guard let env = environmentProvider() else { return }
+        Task {
+            guard let entry = (try? env.transformHistoryRepo.fetchRecent(limit: 1))?.first else { return }
+            await pasteFromMenu(text: entry.outputText, clipboardService: env.clipboardService)
+        }
+    }
+
+    @objc private func pasteRecentTransform(_ sender: NSMenuItem) {
+        guard let env = environmentProvider(),
+              let id = sender.representedObject as? UUID else { return }
+        Task {
+            guard let entry = try? env.transformHistoryRepo.fetch(id: id) else { return }
+            await pasteFromMenu(text: entry.outputText, clipboardService: env.clipboardService)
+        }
+    }
+
     @objc private func transcribeFileFromMenu() {
         transcribeFileFlow()
     }
@@ -346,12 +385,18 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         guard let env = environmentProvider() else {
             pasteLastMenuItem?.isEnabled = false
             recentDictationsMenuItem?.isHidden = true
+            pasteLastTransformMenuItem?.isEnabled = false
+            recentTransformsMenuItem?.isHidden = true
             return
         }
 
         let dictations = (try? env.dictationRepo.fetchAll(limit: 5)) ?? []
         pasteLastMenuItem?.isEnabled = !dictations.isEmpty
         rebuildRecentDictationsSubmenu(with: dictations)
+
+        let transforms = (try? env.transformHistoryRepo.fetchRecent(limit: 5)) ?? []
+        pasteLastTransformMenuItem?.isEnabled = !transforms.isEmpty
+        rebuildRecentTransformsSubmenu(with: transforms)
 
         recordMeetingMenuItem?.title = meetingRecordingActiveProvider()
             ? "Stop Recording"
@@ -381,16 +426,31 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
         let submenu = NSMenu()
         for dictation in dictations {
-            let text = dictation.displayText
-                .replacingOccurrences(of: "\n", with: " ")
-            let truncated = text.count > 40 ? String(text.prefix(40)) + "…" : text
             let item = NSMenuItem(
-                title: truncated,
+                title: MenuPreviewFormatter.dictationTitle(text: dictation.displayText),
                 action: #selector(pasteRecentDictation(_:)),
                 keyEquivalent: ""
             )
             item.target = self
             item.representedObject = dictation.id
+            submenu.addItem(item)
+        }
+        recentItem.submenu = submenu
+    }
+
+    private func rebuildRecentTransformsSubmenu(with entries: [TransformHistoryEntry]) {
+        guard let recentItem = recentTransformsMenuItem else { return }
+        recentItem.isHidden = entries.isEmpty
+
+        let submenu = NSMenu()
+        for entry in entries {
+            let item = NSMenuItem(
+                title: MenuPreviewFormatter.transformTitle(outputText: entry.outputText),
+                action: #selector(pasteRecentTransform(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = entry.id
             submenu.addItem(item)
         }
         recentItem.submenu = submenu

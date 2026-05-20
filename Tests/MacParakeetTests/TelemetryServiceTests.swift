@@ -257,7 +257,14 @@ final class TelemetryServiceTests: XCTestCase {
 
     func testEventSerializesToJSON() throws {
         let event = TelemetryEvent(
-            spec: .dictationCompleted(durationSeconds: 12.5, wordCount: 84, mode: .persistent),
+            spec: .dictationCompleted(
+                durationSeconds: 12.5,
+                wordCount: 84,
+                mode: .persistent,
+                speechEngine: "whisper",
+                engineVariant: SpeechEnginePreference.defaultWhisperModelVariant,
+                language: "KO-kr"
+            ),
             appVer: "0.4.2",
             osVer: "15.3",
             locale: "en-US",
@@ -283,6 +290,9 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["duration_seconds"], "12.5")
         XCTAssertEqual(props["word_count"], "84")
         XCTAssertEqual(props["mode"], "persistent")
+        XCTAssertEqual(props["speech_engine"], "whisper")
+        XCTAssertEqual(props["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
+        XCTAssertEqual(props["language"], "ko")
     }
 
     func testCLISurfaceSerializesAsCli() throws {
@@ -425,7 +435,10 @@ final class TelemetryServiceTests: XCTestCase {
                 wordCount: 240,
                 speakerCount: 3,
                 diarizationRequested: true,
-                diarizationApplied: true
+                diarizationApplied: true,
+                speechEngine: "whisper",
+                engineVariant: SpeechEnginePreference.defaultWhisperModelVariant,
+                language: "ja-JP"
             ),
             appVer: "0.4.2",
             osVer: "15.3",
@@ -447,6 +460,9 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["speaker_count"], "3")
         XCTAssertEqual(props["diarization_requested"], "true")
         XCTAssertEqual(props["diarization_applied"], "true")
+        XCTAssertEqual(props["speech_engine"], "whisper")
+        XCTAssertEqual(props["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
+        XCTAssertEqual(props["language"], "ja")
     }
 
     func testTranscriptionFailedSerializesStage() throws {
@@ -517,6 +533,7 @@ final class TelemetryServiceTests: XCTestCase {
                 fileSizeBucket: "10_100mb",
                 speechEngine: "whisper",
                 engineVariant: SpeechEnginePreference.defaultWhisperModelVariant,
+                language: "zh-Hant",
                 errorType: nil
             ),
             appVer: "0.4.2",
@@ -542,6 +559,7 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["file_size_bucket"], "10_100mb")
         XCTAssertEqual(props["speech_engine"], "whisper")
         XCTAssertEqual(props["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
+        XCTAssertEqual(props["language"], "zh")
         XCTAssertNil(props["file_path"])
         XCTAssertNil(props["file_name"])
         XCTAssertNil(props["source_url"])
@@ -558,7 +576,8 @@ final class TelemetryServiceTests: XCTestCase {
                 wordCount: 10,
                 errorType: nil,
                 speechEngine: "whisper",
-                engineVariant: "/Users/example/local-models/private-variant"
+                engineVariant: "/Users/example/local-models/private-variant",
+                language: "/Users/example/private-language"
             ),
             appVer: "0.4.2",
             osVer: "15.3",
@@ -575,6 +594,7 @@ final class TelemetryServiceTests: XCTestCase {
 
         XCTAssertEqual(props["speech_engine"], "whisper")
         XCTAssertEqual(props["engine_variant"], "custom")
+        XCTAssertNil(props["language"])
     }
 
     func testDictationOperationSerializesCancelReason() throws {
@@ -652,6 +672,73 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["engine_variant"], "custom")
         XCTAssertEqual(props["duration_seconds"], "42.4")
         XCTAssertNil(props["model_path"])
+    }
+
+    func testModelBreadcrumbsSerializeEngineDimensions() throws {
+        let specs: [(TelemetryEventSpec, String)] = [
+            (
+                .modelLoaded(
+                    loadTimeSeconds: 2.5,
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: SpeechEnginePreference.defaultWhisperModelVariant
+                ),
+                "model_loaded"
+            ),
+            (
+                .modelDownloadStarted(
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: SpeechEnginePreference.defaultWhisperModelVariant
+                ),
+                "model_download_started"
+            ),
+            (
+                .modelDownloadCompleted(
+                    durationSeconds: 30,
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: SpeechEnginePreference.defaultWhisperModelVariant
+                ),
+                "model_download_completed"
+            ),
+            (
+                .modelDownloadFailed(
+                    errorType: "network",
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: "/Users/alice/private-whisper-model"
+                ),
+                "model_download_failed"
+            ),
+        ]
+
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+
+        for (spec, eventName) in specs {
+            let event = TelemetryEvent(
+                spec: spec,
+                appVer: "0.4.2",
+                osVer: "15.3",
+                locale: "en-US",
+                chip: "Apple M1",
+                session: "test-session"
+            )
+            let data = try encoder.encode(event)
+            let json = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let props = try XCTUnwrap(json["props"] as? [String: String])
+
+            XCTAssertEqual(json["event"] as? String, eventName)
+            XCTAssertEqual(props["model_kind"], "whisper_stt")
+            XCTAssertEqual(props["speech_engine"], "whisper")
+            if eventName == "model_download_failed" {
+                XCTAssertEqual(props["engine_variant"], "custom")
+            } else {
+                XCTAssertEqual(props["engine_variant"], SpeechEnginePreference.defaultWhisperModelVariant)
+            }
+            XCTAssertNil(props["model_path"])
+        }
     }
 
     func testSpeechEngineSwitchOperationSerializesBlockedReason() throws {
@@ -783,6 +870,55 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(duration.props?["duration_ms"], "8200")
         XCTAssertEqual(duration.props?["outcome"], "success")
         XCTAssertNil(duration.props?["durationMs"])
+    }
+
+    func testTransformFailureCanRepresentCaptureFailures() {
+        let failed = TelemetryEventSpec.transformFailed(
+            transformName: .polish,
+            reason: .captureFailed
+        )
+
+        XCTAssertEqual(failed.props?["transform_name"], "polish")
+        XCTAssertEqual(failed.props?["reason"], "capture_failed")
+    }
+
+    func testTransformOperationPropsArePrivacySafeWideEvent() {
+        let context = ObservabilityOperationContext(
+            operationID: "op-transform",
+            workflowID: "wf-transform",
+            parentOperationID: "op-parent",
+            startedAt: Date(timeIntervalSince1970: 0)
+        )
+        let operation = TelemetryEventSpec.transformOperation(
+            operationID: context.operationID,
+            operationContext: context,
+            outcome: .failure,
+            transformName: .custom,
+            stage: .capture,
+            capturePath: .clipboard,
+            replacePath: nil,
+            durationSeconds: 1.25,
+            llmMs: nil,
+            totalMs: nil,
+            errorType: .captureFailed
+        )
+        let props = operation.props
+
+        XCTAssertEqual(operation.name, .transformOperation)
+        XCTAssertEqual(props?["operation_id"], "op-transform")
+        XCTAssertEqual(props?["workflow_id"], "wf-transform")
+        XCTAssertEqual(props?["parent_operation_id"], "op-parent")
+        XCTAssertEqual(props?["outcome"], "failure")
+        XCTAssertEqual(props?["transform_name"], "custom")
+        XCTAssertEqual(props?["stage"], "capture")
+        XCTAssertEqual(props?["capture_path"], "clipboard")
+        XCTAssertEqual(props?["duration_seconds"], "1.2")
+        XCTAssertEqual(props?["error_type"], "capture_failed")
+        XCTAssertNil(props?["reason"])
+        XCTAssertNil(props?["replace_path"])
+        XCTAssertNil(props?["prompt"])
+        XCTAssertNil(props?["input_text"])
+        XCTAssertNil(props?["output_text"])
     }
 
     func testImplementedContractCoversEveryTypedEventName() {
@@ -979,6 +1115,28 @@ final class TelemetryServiceTests: XCTestCase {
             .llmChatFailed(provider: "openai", errorType: "network"),
             .llmTransformUsed(provider: "openai"),
             .llmTransformFailed(provider: "openai", errorType: "network"),
+            .transformExecuted(
+                transformName: .polish,
+                capturePath: .ax,
+                replacePath: .clipboardPaste,
+                llmMs: 1200,
+                totalMs: 1500
+            ),
+            .transformFailed(transformName: .custom, reason: .replacementFailed),
+            .transformOperation(
+                operationID: "op-transform",
+                outcome: .success,
+                transformName: .polish,
+                stage: .complete,
+                capturePath: .ax,
+                replacePath: .clipboardPaste,
+                durationSeconds: 1.5,
+                llmMs: 1200,
+                totalMs: 1500,
+                errorType: nil
+            ),
+            .askMenuOpened,
+            .askPromptFired(source: .emptyState, group: "CAPTURE", label: "Action items"),
             .llmFormatterUsed(
                 provider: "lmstudio",
                 source: .dictation,
@@ -1042,7 +1200,7 @@ final class TelemetryServiceTests: XCTestCase {
             .permissionGranted(permission: .microphone),
             .permissionDenied(permission: .accessibility),
             .modelLoaded(loadTimeSeconds: 2.5),
-            .modelDownloadStarted,
+            .modelDownloadStarted(),
             .modelDownloadCompleted(durationSeconds: 30.0),
             .modelDownloadFailed(errorType: "network"),
             .modelOperation(

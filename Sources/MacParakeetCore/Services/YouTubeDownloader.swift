@@ -53,6 +53,7 @@ public actor YouTubeDownloader {
         public let channelName: String?
         public let thumbnailURL: String?
         public let videoDescription: String?
+        public let uploadDate: String?
 
         public init(
             audioFileURL: URL,
@@ -60,7 +61,8 @@ public actor YouTubeDownloader {
             durationSeconds: Int?,
             channelName: String? = nil,
             thumbnailURL: String? = nil,
-            videoDescription: String? = nil
+            videoDescription: String? = nil,
+            uploadDate: String? = nil
         ) {
             self.audioFileURL = audioFileURL
             self.title = title
@@ -68,6 +70,7 @@ public actor YouTubeDownloader {
             self.channelName = channelName
             self.thumbnailURL = thumbnailURL
             self.videoDescription = videoDescription
+            self.uploadDate = uploadDate
         }
     }
 
@@ -124,7 +127,12 @@ public actor YouTubeDownloader {
         let metadata = try await fetchMetadata(ytDlpPath: ytDlpPath, url: url)
 
         // Step 2: Download audio
-        let audioURL = try await downloadAudio(ytDlpPath: ytDlpPath, url: url, onProgress: onProgress)
+        let audioURL = try await downloadAudio(
+            ytDlpPath: ytDlpPath,
+            url: url,
+            metadata: metadata,
+            onProgress: onProgress
+        )
 
         return DownloadResult(
             audioFileURL: audioURL,
@@ -132,7 +140,8 @@ public actor YouTubeDownloader {
             durationSeconds: metadata.durationSeconds,
             channelName: metadata.channelName,
             thumbnailURL: metadata.thumbnailURL,
-            videoDescription: metadata.videoDescription
+            videoDescription: metadata.videoDescription,
+            uploadDate: metadata.uploadDate
         )
     }
 
@@ -155,6 +164,7 @@ public actor YouTubeDownloader {
         let channelName: String?
         let thumbnailURL: String?
         let videoDescription: String?
+        let uploadDate: String?
     }
 
     private struct JavaScriptRuntime {
@@ -206,19 +216,22 @@ public actor YouTubeDownloader {
         let channel = json["channel"] as? String ?? json["uploader"] as? String
         let thumbnail = json["thumbnail"] as? String
         let description = json["description"] as? String
+        let uploadDate = json["upload_date"] as? String ?? json["release_date"] as? String
 
         return VideoMetadata(
             title: title,
             durationSeconds: duration,
             channelName: channel,
             thumbnailURL: thumbnail,
-            videoDescription: description
+            videoDescription: description,
+            uploadDate: uploadDate
         )
     }
 
     private func downloadAudio(
         ytDlpPath: String,
         url: String,
+        metadata: VideoMetadata,
         onProgress: (@Sendable (Int) -> Void)?
     ) async throws -> URL {
         let tempDir = AppPaths.youtubeDownloadsDir
@@ -349,8 +362,17 @@ public actor YouTubeDownloader {
             throw YouTubeDownloadError.downloadFailed("Downloaded file not found")
         }
 
+        let downloadedURL = URL(fileURLWithPath: tempDir, isDirectory: true)
+            .appendingPathComponent(downloadedFile)
+        let audioURL = try Self.moveDownloadedAudioToReadableURL(
+            downloadedURL,
+            title: metadata.title,
+            channelName: metadata.channelName,
+            uploadDate: metadata.uploadDate
+        )
+        Self.removeDownloadArtifacts(in: URL(fileURLWithPath: tempDir, isDirectory: true), uuid: uuid)
         succeeded = true
-        return URL(fileURLWithPath: "\(tempDir)/\(downloadedFile)")
+        return audioURL
     }
 
     nonisolated static func removeDownloadArtifacts(in directory: URL, uuid: String) {
@@ -383,6 +405,7 @@ public actor YouTubeDownloader {
             "--no-playlist",
             "--retries", "3",
             "--concurrent-fragments", "4",
+            "--embed-metadata",
             "--newline",
             "-o", outputTemplate,
             "--", url,
@@ -414,9 +437,126 @@ public actor YouTubeDownloader {
         return nil
     }
 
+    nonisolated static func readableAudioFileStem(
+        title: String,
+        channelName: String?,
+        uploadDate: String?
+    ) -> String {
+        let normalizedTitle = normalizedFileNamePart(title)
+        let parts = [
+            formattedUploadDate(uploadDate),
+            normalizedFileNamePart(channelName),
+            normalizedTitle == "Untitled" ? nil : normalizedTitle,
+        ].compactMap { $0 }
+
+        return sanitizedReadableStem(parts.joined(separator: " - "))
+    }
+
+    nonisolated static func readableAudioFileURL(
+        in directory: URL,
+        title: String,
+        channelName: String?,
+        uploadDate: String?,
+        fileExtension: String
+    ) -> URL {
+        let stem = readableAudioFileStem(
+            title: title,
+            channelName: channelName,
+            uploadDate: uploadDate
+        )
+        let normalizedExtension = normalizedFileExtension(fileExtension)
+        let fm = FileManager.default
+        var candidate = directory.appendingPathComponent("\(stem).\(normalizedExtension)")
+        var counter = 1
+        while fm.fileExists(atPath: candidate.path) {
+            candidate = directory.appendingPathComponent("\(stem) (\(counter)).\(normalizedExtension)")
+            counter += 1
+        }
+        return candidate
+    }
+
+    nonisolated static func moveDownloadedAudioToReadableURL(
+        _ downloadedURL: URL,
+        title: String,
+        channelName: String?,
+        uploadDate: String?
+    ) throws -> URL {
+        let targetURL = readableAudioFileURL(
+            in: downloadedURL.deletingLastPathComponent(),
+            title: title,
+            channelName: channelName,
+            uploadDate: uploadDate,
+            fileExtension: downloadedURL.pathExtension
+        )
+        guard targetURL != downloadedURL else {
+            return downloadedURL
+        }
+        try FileManager.default.moveItem(at: downloadedURL, to: targetURL)
+        return targetURL
+    }
+
     private nonisolated static func isSupportedDownloadedAudioFile(_ fileName: String) -> Bool {
         let ext = URL(fileURLWithPath: fileName).pathExtension.lowercased()
         return audioFileExtensions.contains(ext) && AudioFileConverter.isSupported(extension: ext)
+    }
+
+    private nonisolated static func formattedUploadDate(_ raw: String?) -> String? {
+        guard let raw else { return nil }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.count == 10,
+           trimmed[trimmed.index(trimmed.startIndex, offsetBy: 4)] == "-",
+           trimmed[trimmed.index(trimmed.startIndex, offsetBy: 7)] == "-"
+        {
+            return trimmed
+        }
+        guard trimmed.count == 8,
+              trimmed.allSatisfy({ $0 >= "0" && $0 <= "9" }) else {
+            return nil
+        }
+        let yearEnd = trimmed.index(trimmed.startIndex, offsetBy: 4)
+        let monthEnd = trimmed.index(yearEnd, offsetBy: 2)
+        return "\(trimmed[..<yearEnd])-\(trimmed[yearEnd..<monthEnd])-\(trimmed[monthEnd...])"
+    }
+
+    private nonisolated static func normalizedFileNamePart(_ value: String?) -> String? {
+        guard let value else { return nil }
+        let normalized = value
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+        return normalized.isEmpty ? nil : normalized
+    }
+
+    private nonisolated static func sanitizedReadableStem(_ raw: String) -> String {
+        var disallowed = CharacterSet(charactersIn: "/:\\\"")
+        disallowed.formUnion(.controlCharacters)
+        let cleaned = raw
+            .components(separatedBy: disallowed)
+            .joined(separator: " ")
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+            .joined(separator: " ")
+
+        let capped = cappedUTF8String(cleaned, maxBytes: 180)
+        return capped.isEmpty ? "YouTube Audio" : capped
+    }
+
+    private nonisolated static func normalizedFileExtension(_ fileExtension: String) -> String {
+        let normalized = fileExtension
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".").union(.whitespacesAndNewlines))
+            .lowercased()
+        return normalized.isEmpty ? "m4a" : normalized
+    }
+
+    private nonisolated static func cappedUTF8String(_ value: String, maxBytes: Int) -> String {
+        var result = ""
+        result.reserveCapacity(min(value.count, maxBytes))
+        for character in value {
+            let candidate = result + String(character)
+            guard candidate.utf8.count <= maxBytes else { break }
+            result = candidate
+        }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private nonisolated static func isYtDlpTemporaryArtifact(_ fileName: String) -> Bool {

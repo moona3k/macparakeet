@@ -201,6 +201,10 @@ public final class TransformEditorViewModel {
     public var normalizedName: String {
         name.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    public var defaultRunningLabelPreview: String {
+        Prompt.defaultRunningLabel(forName: normalizedName)
+    }
 }
 
 // MARK: - Collision-checking abstraction

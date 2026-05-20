@@ -9,18 +9,19 @@ authors: Claude Opus 4.6 (research), Codex/GPT (independent review), Daniel Moon
 
 > Status: **IMPLEMENTED** — decision recorded and shipped on 2026-04-11.
 > Implemented in: `e815396f`
-> Amended 2026-04-29 on `feat/meeting-recording-vpio-and-wallclock-timestamps`: the product direction changed to the previously deferred ScreenCaptureKit migration. Meeting system audio now uses `SystemAudioStream` (`SCStream` audio), while meeting mic capture can keep VPIO preferred. The historical analysis below remains the record for why Core Audio process taps and VPIO must not be paired in-process.
+> Amended 2026-04-29 on `feat/meeting-recording-vpio-and-wallclock-timestamps`: the product direction changed to the previously deferred ScreenCaptureKit migration. Meeting system audio now uses `SystemAudioStream` (`SCStream` audio).
+> Amended 2026-05-14: shipped meeting mic capture returned to raw by default after live-call testing showed VPIO can muffle the user's outgoing mic for other participants. The historical analysis below remains the record for why Core Audio process taps and VPIO must not be paired in-process.
 > Note: This document is preserved as the research record behind the architecture change. Some narrative sections below describe earlier decision states.
 
 ## TL;DR
 
-MacParakeet ships two concurrent features in the same process: dictation (hotkey-triggered mic capture) and meeting recording (mic + system audio simultaneously). The original meeting implementation used a Core Audio process tap introduced in macOS 14.2 to capture system audio; the current branch uses ScreenCaptureKit audio instead.
+MacParakeet ships two concurrent features in the same process: dictation (hotkey-triggered mic capture) and meeting recording (mic + system audio simultaneously). The original meeting implementation used a Core Audio process tap introduced in macOS 14.2 to capture system audio; the current branch uses ScreenCaptureKit audio instead and ships raw meeting mic capture by default.
 
 A refactor on 2026-04-10 (commit `97134e9b` "Refactor meeting recording to VPIO-first pipeline") turned on `AVAudioInputNode.setVoiceProcessingEnabled(true)` (VPIO) for the meeting microphone path to get Apple's hardware acoustic echo cancellation. Motivation: the laptop mic was picking up audio leaking through the speakers from the far-end meeting participant, producing duplicated/echoed content in the mic transcript.
 
 Empirical result: **VPIO cannot coexist with Core Audio process taps in the same process.** Reproducible failure modes (documented below) show that any `setVoiceProcessingEnabled(true)` call in the process silently kills any Core Audio process tap and leaves stale aggregate devices that break subsequent `AVAudioEngine` instances. The user's explicit requirement — "trigger dictation while a meeting is actively recording" — is architecturally incompatible with VPIO being enabled anywhere in the process.
 
-**Current decision:** Remove Core Audio process taps from the production meeting path and capture system audio via ScreenCaptureKit. Meeting mic capture can keep VPIO preferred because system audio no longer depends on a HAL aggregate output-device tap. Dictation remains raw on its independent `AVAudioEngine`.
+**Current decision:** Remove Core Audio process taps from the production meeting path and capture system audio via ScreenCaptureKit. Meeting mic capture ships raw by default because VPIO can degrade the outgoing call mic heard by other participants. VPIO remains explicit opt-in plumbing for experiments; dictation remains raw.
 
 Codex (OpenAI GPT) independently reviewed the analysis and agreed with the decision, while tightening two overclaims in my mechanism explanation.
 
@@ -102,8 +103,8 @@ Verified via grep and direct file reads on 2026-04-11:
 
 - `Sources/MacParakeetCore/Audio/MicrophoneCapture.swift:226` — `try inputNode.setVoiceProcessingEnabled(enabled)` — **the only `setVoiceProcessingEnabled` call in the entire codebase.**
 - The mode is controlled by `MeetingMicProcessingMode` enum (`vpioPreferred`, `vpioRequired`, `raw`).
-- `MicrophoneCapture.start(processingMode:)` at line 46 has method default `.vpioPreferred`.
-- `MeetingAudioCaptureService` has three init signatures (lines 59, 73, 83), all with default `micProcessingMode: MeetingMicProcessingMode = .vpioPreferred`.
+- As of the 2026-05-14 amendment, `MicrophoneCapture.start(processingMode:)` defaults to `.raw`.
+- As of the 2026-05-14 amendment, `MeetingAudioCaptureService` and `MeetingRecordingService` default `micProcessingMode` to `.raw`; the app environment also wires `.raw` for shipped meeting capture.
 - `MicrophoneCapture` is instantiated in production only at `MeetingAudioCaptureService.swift:60` (`self.microphoneCapture = MicrophoneCapture()`).
 
 ### VPIO call sites (tests)
@@ -118,7 +119,7 @@ Verified via grep and direct file reads on 2026-04-11:
 
 ### Historical spec references
 
-- At the time of the 2026-04-11 minimum fix, `spec/05-audio-pipeline.md` documented `MeetingMicProcessingMode` with `vpioPreferred` as the default and needed correction. The 2026-04-29 branch updates the spec again for the ScreenCaptureKit + VPIO-preferred architecture.
+- At the time of the 2026-04-11 minimum fix, `spec/05-audio-pipeline.md` documented `MeetingMicProcessingMode` with `vpioPreferred` as the default and needed correction. The 2026-05-14 amendment documents ScreenCaptureKit system audio with raw meeting mic capture by default and retained explicit VPIO plumbing.
 
 ### Historical software AEC infrastructure
 
@@ -335,23 +336,23 @@ Isolate all VPIO use in a helper process connected via XPC or shared memory. The
 
 **Historical 2026-04-11 decision:** ship option (a): drop VPIO entirely.
 
-**Current 2026-04-29 amended decision:** ship option (b): replace Core Audio process taps with ScreenCaptureKit audio, keep meeting mic VPIO preferred, and keep dictation raw on its independent `AVAudioEngine`.
+**Current 2026-05-14 amended decision:** capture system audio with ScreenCaptureKit, capture meeting mic raw by default, retain explicit VPIO plumbing, and keep dictation raw.
 
 Rationale:
 1. Hard user requirement: concurrent dictation + active meeting recording. In the historical tap-based architecture, VPIO anywhere in the process killed meeting's system audio tap. No tap-based workaround was found.
 2. Zero cost to dictation: it never used VPIO.
 3. Reuses the durable parts of the meeting pipeline: dual-source chunking, source alignment, transcript-layer suppression, crash-resilient storage, and centralized STT scheduling.
-4. First-principles separation: ScreenCaptureKit owns system audio, VPIO owns meeting mic echo cancellation, dictation owns a separate raw mic engine, and the STT scheduler arbitrates compute.
+4. First-principles separation: ScreenCaptureKit owns system audio, raw mic capture avoids changing the live call's outgoing mic path, optional VPIO remains isolated behind explicit policy, and the STT scheduler arbitrates compute.
 5. Bounded scope: this avoids the Core Audio tap/VPIO conflict without the much larger standalone VoiceProcessingIO AudioUnit rewrite.
 
 Current manual verification checklist:
 
 - Dictation alone -> transcript contains the user's voice.
 - Meeting alone with Safari/Zoom/system audio playing -> `system.m4a` contains real system audio and live/final transcript includes the system side.
-- Meeting with built-in speakers -> `microphone.m4a` contains the user's voice; far-end speaker bleed is reduced when VPIO engages, with residual transcript suppression still available.
+- Meeting with built-in speakers -> `microphone.m4a` contains the user's voice; some far-end speaker bleed is acceptable in raw mode, with residual transcript suppression still available.
 - Meeting -> trigger dictation without stopping meeting -> dictation captures and pastes independently; meeting system audio remains continuous.
 - Meeting `systemOnly` mode -> system audio records while the microphone remains free for dictation.
-- Retry after a failed VPIO start -> the next attempt does not fail with the stale half-VPIO `-10875` state.
+- Explicit VPIO experiment retry after a failed VPIO start -> the next attempt does not fail with the stale half-VPIO `-10875` state.
 
 ---
 
@@ -449,7 +450,7 @@ Tracked here for the historical minimum-fix decision. Items tied to `SystemAudio
 
 8. **WebRTC AEC3 integration** — Only if items 6 and 7 are insufficient after real-world user feedback. Vendor `webrtc-audio-processing` as universal static lib, C/Swift bridge, Settings toggle. Estimated effort: 3–5 days.
 
-9. **Rip out dead VPIO code** — Superseded. The current ScreenCaptureKit branch intentionally keeps `MeetingMicProcessingMode.vpioPreferred` and `setVoiceProcessingEnabled` for meeting mic capture.
+9. **Rip out dead VPIO code** — Superseded. The current ScreenCaptureKit branch intentionally keeps `MeetingMicProcessingMode.vpioPreferred` and `setVoiceProcessingEnabled` for explicit meeting mic experiments, but raw capture is the shipped default.
 
 ---
 
@@ -525,7 +526,7 @@ Tracked here for the historical minimum-fix decision. Items tied to `SystemAudio
 
 ### Related MacParakeet files (verified by direct read)
 
-- `Sources/MacParakeetCore/Audio/MicrophoneCapture.swift` — the only VPIO caller; the current meeting path requests `.vpioPreferred`.
+- `Sources/MacParakeetCore/Audio/MicrophoneCapture.swift` — the only VPIO caller; the current shipped meeting path requests `.raw` and keeps VPIO as explicit plumbing.
 - `Sources/MacParakeetCore/Audio/MeetingAudioCaptureService.swift` — owns meeting mic capture and delegates system audio to ScreenCaptureKit-backed `SystemAudioStream`.
 - `Sources/MacParakeetCore/Audio/AudioRecorder.swift` — dictation path, no VPIO.
 - `Sources/MacParakeetCore/Audio/SystemAudioStream.swift` — ScreenCaptureKit system-audio stream implementation.

@@ -1,6 +1,8 @@
 # Plan: MacParakeet CLI as the canonical Parakeet-on-Apple-Silicon surface
 
-> Status: **ACTIVE** — strategic rollout plan. CLI 1.0/AGENTS/integrations work has shipped; remaining work is distribution/website/community rollout around the v0.6 release.
+> Status: **ACTIVE** — strategic rollout plan. CLI semver/AGENTS/integrations
+> work has shipped; Homebrew distribution is live; remaining work is
+> website/community/registry follow-through around the v0.6 release.
 > Author: agent (Claude) + Daniel
 > Date: 2026-04-25
 > Related: PR #138 (CLI prompts + JSON sweep, merged), PR #141 (gitignore journal/, merged), PR #144 (CLI 1.0 + AGENTS.md + integrations/, merged), PR #145 (rollout artifacts + registry drafts)
@@ -16,6 +18,12 @@
 > should be read as `SKILL.md` for any OpenClaw/ClawHub action. See
 > PR #145's `plans/active/registry-submissions/clawhub.md` for the
 > verified submission flow.
+>
+> **Post-Brew correction (2026-05-19):** `brew install
+> moona3k/tap/macparakeet-cli` is now shipped and verified against
+> `macparakeet-cli 2.3.1`. Item 2 below is done; the remaining release work is
+> maintenance of the tap plus website/community/registry follow-through. The
+> body is otherwise preserved as the original April 2026 strategic snapshot.
 
 ---
 
@@ -98,7 +106,7 @@ The CLI is the load-bearing surface. The GUI is one well-crafted client of it. A
 | **FluidAudio CLI demos** | Swift | Same backend we use | Not productized — toys |
 | **VoiceInk** | Swift, GPL, FluidAudio | GUI app | No CLI focus |
 | **MacWhisper / Superwhisper / WisprFlow** | Various | Polished GUI consumer apps | Closed-source, no CLI |
-| **MacParakeet (post-#138)** | Swift native, FluidAudio, SQLite | **Best model + best runtime + memory layer + JSON CLI + GPL** | **Currently lacks the *positioning* + *distribution* to be discovered as canonical** |
+| **MacParakeet (post-#138)** | Swift native, FluidAudio, SQLite | **Best model + best runtime + memory layer + JSON CLI + GPL** | **Positioning/distribution now exists; discovery and registry acceptance remain the active gaps** |
 
 ---
 
@@ -106,37 +114,42 @@ The CLI is the load-bearing surface. The GUI is one well-crafted client of it. A
 
 ### 1. Promote `macparakeet-cli` to a versioned public surface
 
-**Why:** The CLI was previously framed as `"MacParakeet developer CLI (internal; used for AI-assisted development and testing)"` in its own `--help` abstract. Once OpenClaw/Hermes users build skills against `macparakeet-cli flow words add`, that's a public contract. Breaking changes need migration paths.
+**Why:** The CLI was previously framed as `"MacParakeet developer CLI (internal; used for AI-assisted development and testing)"` in its own `--help` abstract. Once OpenClaw/Hermes users build skills against `macparakeet-cli vocab words add`, that's a public contract. Breaking changes need migration paths.
 
 **What:**
-- Adopt **semver** for the CLI surface. Stamp `1.0.0` on it (it's mature enough — the PR #138 work landed CRUD, JSON, validation, tests).
-- Create `CHANGELOG.md` scoped to CLI changes. Existing app changelog is for the app; the CLI deserves its own.
+- Adopt **semver** for the CLI surface. Done; the first public surface was
+  `1.0.0`, and the current published release is `2.3.1`.
+- Create `CHANGELOG.md` scoped to CLI changes. Done at
+  `Sources/CLI/CHANGELOG.md`.
 - Add a **deprecation policy** doc: "CLI surface is semver. Breaking changes require N versions of `--legacy-X` shim and a release-note callout."
-- Bump `macparakeet-cli --version` from `0.1.0` to `1.0.0` in `Sources/CLI/MacParakeetCLI.swift`.
+- Keep `macparakeet-cli --version` aligned with the published CLI release in
+  `Sources/CLI/MacParakeetCLI.swift`.
 
 **Effort:** 0.5 day.
 
-### 2. Ship `brew install moona3k/tap/macparakeet-cli`
+### 2. Ship `brew install moona3k/tap/macparakeet-cli` — shipped 2026-05-19
 
 **Why:** Apple Silicon agent operators want CLI without dragging a `.app` into `/Applications`. Headless installs (Mac mini via SSH, launchd contexts) need a clean `brew install`.
 
-**What:**
-- Create a Homebrew tap repo: `moona3k/homebrew-tap`
-- Formula `macparakeet-cli.rb` that:
-  - Downloads the standalone CLI binary (or builds from source)
-  - Installs bundled FFmpeg + yt-dlp dependencies
-  - Sets up `~/Library/Application Support/MacParakeet/` paths
-  - Pins to a tagged release matching the CLI semver
-- Document install path in README + `/agents` website page
+**What shipped:**
+- Homebrew tap repo: `moona3k/homebrew-tap`
+- Formula `macparakeet-cli.rb` downloads a signed standalone binary from a
+  `cli-vX.Y.Z` GitHub release.
+- Formula installs Homebrew-managed `ffmpeg` and `yt-dlp` dependencies.
+- CLI shares `~/Library/Application Support/MacParakeet/` paths with the app.
+- Root README, `integrations/`, and tap README document the install path.
 - Optional: `curl -sSL macparakeet.com/install-cli.sh | bash` as an alternative one-liner
 
-**Effort:** 1 day.
+**Ongoing maintenance:** bump CLI semver, publish a new `cli-vX.Y.Z` release
+asset, update the tap formula SHA256, and verify with `brew test
+moona3k/tap/macparakeet-cli`. See
+`scripts/dist/homebrew-tap-scaffold/HOWTO.md`.
 
 **Dependency:** Need a way to ship the CLI binary standalone (not bundled in `.app`). Options:
 - Build from source via `swift build --product macparakeet-cli` in the formula (slow but simple)
 - Pre-built signed binary attached to GitHub releases (faster install, more release work)
 
-Recommend pre-built binary path for distribution speed.
+Chosen path: pre-built signed binary attached to GitHub releases.
 
 ### 3. Write `AGENTS.md` at repo root
 
@@ -199,7 +212,7 @@ Recommend pre-built binary path for distribution speed.
   - The agent moment is here (OpenClaw + Hermes data)
   - Voice/STT is the gap in the local agent stack
   - MacParakeet was built for individual macOS users — but the architecture happens to be exactly what agents need
-  - Today: macparakeet-cli 1.0, AGENTS.md, brew install path, registry submissions
+  - Current state: macparakeet-cli 2.3.1, AGENTS.md, brew install path, registry submissions
   - Future: same direction, more depth (MCP later, more agent integrations as ecosystem matures)
 - Link to: AGENTS.md, integrations folder, `/agents` page, Hermes/OpenClaw quickstarts
 - Submit to HN, post to relevant communities
@@ -252,13 +265,16 @@ Items 1-3 are deep work. Items 4-6 are mostly content + light coding. All can be
 
 ---
 
-## Open decisions
+## Resolved decisions
 
-1. **Bump CLI version to `1.0.0` or `0.6.0`?** Semver suggests 1.0 (it's mature, public). Coupling to app version suggests 0.6.0. **Recommend 1.0.0** — the CLI is its own contract.
-2. **Brew tap repo name?** `moona3k/homebrew-tap` (general) or `moona3k/homebrew-macparakeet` (specific)? **Recommend general tap** so future tools can live alongside.
-3. **`/agents` page or `/cli` page?** Audience-framed (`/agents`) vs surface-framed (`/cli`). **Recommend `/agents`** — leads with persona.
-4. **Standalone binary distribution path?** Build-from-source in formula (simple, slow) vs pre-built signed binary (fast, more release work). **Recommend pre-built** for installation UX.
-5. **Update `CLAUDE.md`** to reflect the reframe (CLI as canonical surface, agent operators as second audience)? **Recommend yes** — keep the codebase context current.
+1. **CLI versioning:** the CLI has its own semver line; the current published
+   release is `2.3.1`.
+2. **Brew tap repo name:** `moona3k/homebrew-tap`.
+3. **Agent-facing website path:** `/agents`.
+4. **Standalone binary distribution path:** pre-built signed binaries attached
+   to `cli-vX.Y.Z` releases, then consumed by the tap formula.
+5. **Repo context:** root `AGENTS.md`, `CLAUDE.md`, and `integrations/` carry
+   the CLI-as-public-surface story.
 
 ---
 

@@ -67,6 +67,7 @@ struct TranscriptResultView: View {
     var onBack: (() -> Void)?
     var onStartNew: (() -> Void)?
     var onRetranscribe: ((Transcription, SpeechEngineSelection?) -> Void)?
+    var onSetUpAI: (() -> Void)?
 
     @State private var backHovered = false
     @State private var headerExpanded = false
@@ -1283,9 +1284,7 @@ struct TranscriptResultView: View {
                     tabCapsule(for: tab)
                 }
 
-                if promptResultsViewModel.hasPromptResultGenerationCapability {
-                    generateTabButton
-                }
+                generateTabButton
 
                 Spacer()
             }
@@ -1380,30 +1379,32 @@ struct TranscriptResultView: View {
     }
 
     private var generateTabButton: some View {
-        Image(systemName: "plus")
-            .font(.system(size: 12, weight: .semibold))
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
-            .foregroundStyle(
-                promptResultsViewModel.canGeneratePromptResult
-                    ? DesignSystem.Colors.textSecondary
-                    : DesignSystem.Colors.textTertiary
-            )
-            .onTapGesture {
-                guard promptResultsViewModel.canGeneratePromptResult else { return }
-                showGeneratePopover = true
-            }
-            .popover(isPresented: $showGeneratePopover) {
-                promptGenerationPopover
-                    .frame(width: 420)
-                    .padding(DesignSystem.Spacing.lg)
-            }
-            .accessibilityAddTraits(.isButton)
-            .accessibilityLabel("New prompt generation")
-            .onHover { hovering in
-                if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-            }
+        let hasAI = promptResultsViewModel.hasPromptResultGenerationCapability
+        return Button {
+            showGeneratePopover = true
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .foregroundStyle(
+                    hasAI
+                        ? DesignSystem.Colors.textSecondary
+                        : DesignSystem.Colors.accent
+                )
+        }
+        .buttonStyle(.plain)
+        .contentShape(Rectangle())
+        .popover(isPresented: $showGeneratePopover) {
+            promptGenerationPopover
+                .frame(width: 420)
+                .padding(DesignSystem.Spacing.lg)
+        }
+        .accessibilityLabel(hasAI ? "New prompt generation" : "Set up AI for prompt generation")
+        .help(hasAI ? "Generate a prompt result" : "Set up AI for summaries and action items")
+        .onHover { hovering in
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
     }
 
     private func tabIcon(_ tab: TranscriptionViewModel.TranscriptTab) -> String {
@@ -1616,7 +1617,35 @@ struct TranscriptResultView: View {
         )
     }
 
+    @ViewBuilder
     private var promptGenerationPopover: some View {
+        if promptResultsViewModel.hasPromptResultGenerationCapability {
+            promptGenerationControls
+        } else {
+            promptGenerationSetupPopover
+        }
+    }
+
+    private var promptGenerationSetupPopover: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Text("Set up AI to generate summaries")
+                .font(DesignSystem.Typography.body.weight(.semibold))
+                .foregroundStyle(DesignSystem.Colors.textPrimary)
+            Text("Connect a local AI app, API key, or command-line tool to generate summaries, action items, and custom prompt results.")
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+            Button {
+                showGeneratePopover = false
+                onSetUpAI?()
+            } label: {
+                Label("Set up AI", systemImage: "gearshape")
+            }
+            .parakeetAction(.secondary)
+            .controlSize(.regular)
+        }
+    }
+
+    private var promptGenerationControls: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
             // Prompt chips
             promptChips

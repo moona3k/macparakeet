@@ -37,6 +37,16 @@ final class SettingsRootViewModelTests: XCTestCase {
         XCTAssertEqual(second.activeTab, .system)
     }
 
+    func testInitialTabOverridesPersistedTabAndPersists() {
+        defaults.set(SettingsTab.system.rawValue, forKey: SettingsRootViewModel.lastViewedTabKey)
+
+        let first = SettingsRootViewModel(defaults: defaults, initialTab: .ai)
+        XCTAssertEqual(first.activeTab, .ai)
+
+        let second = SettingsRootViewModel(defaults: defaults)
+        XCTAssertEqual(second.activeTab, .ai)
+    }
+
     func testEachTabRoundTripsThroughPersistence() {
         for tab in SettingsTab.allCases {
             let writer = SettingsRootViewModel(defaults: defaults)
@@ -80,6 +90,18 @@ final class SettingsRootViewModelTests: XCTestCase {
         vm.clearSearch()
         XCTAssertEqual(vm.searchQuery, "")
         XCTAssertFalse(vm.isSearching)
+    }
+
+    func testOpenTabClearsSearchAndPersistsTab() {
+        let vm = SettingsRootViewModel(defaults: defaults)
+        vm.searchQuery = "ai"
+
+        vm.open(tab: .ai)
+
+        XCTAssertEqual(vm.activeTab, .ai)
+        XCTAssertEqual(vm.searchQuery, "")
+        XCTAssertFalse(vm.isSearching)
+        XCTAssertEqual(defaults.string(forKey: SettingsRootViewModel.lastViewedTabKey), SettingsTab.ai.rawValue)
     }
 
     func testWritingSameTabDoesNotChurnDefaults() {

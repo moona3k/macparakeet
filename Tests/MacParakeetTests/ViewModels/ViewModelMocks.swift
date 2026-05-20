@@ -246,6 +246,63 @@ final class MockTranscriptionRepository: TranscriptionRepositoryProtocol, @unche
     }
 }
 
+// MARK: - MockTransformHistoryRepository
+
+final class MockTransformHistoryRepository: TransformHistoryRepositoryProtocol, @unchecked Sendable {
+    var entries: [TransformHistoryEntry] = []
+    var deleteAllCalled = false
+    var deleteAllError: Error?
+
+    func save(_ entry: TransformHistoryEntry) throws {
+        if let index = entries.firstIndex(where: { $0.id == entry.id }) {
+            entries[index] = entry
+        } else {
+            entries.append(entry)
+        }
+    }
+
+    func fetchAll() throws -> [TransformHistoryEntry] {
+        entries.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    func fetchRecent(limit: Int) throws -> [TransformHistoryEntry] {
+        Array(try fetchAll().prefix(max(0, limit)))
+    }
+
+    func fetchRecentWithCount(limit: Int) throws -> (entries: [TransformHistoryEntry], totalCount: Int) {
+        (try fetchRecent(limit: limit), entries.count)
+    }
+
+    func fetch(id: UUID) throws -> TransformHistoryEntry? {
+        entries.first { $0.id == id }
+    }
+
+    func fetch(idPrefix: String) throws -> [TransformHistoryEntry] {
+        let normalizedPrefix = idPrefix.lowercased().replacingOccurrences(of: "-", with: "")
+        return try fetchAll().filter {
+            $0.id.uuidString.lowercased().replacingOccurrences(of: "-", with: "").hasPrefix(normalizedPrefix)
+        }
+    }
+
+    func count() throws -> Int {
+        entries.count
+    }
+
+    func delete(id: UUID) throws -> Bool {
+        let before = entries.count
+        entries.removeAll { $0.id == id }
+        return entries.count < before
+    }
+
+    func deleteAll() throws {
+        deleteAllCalled = true
+        if let deleteAllError {
+            throw deleteAllError
+        }
+        entries.removeAll()
+    }
+}
+
 // MARK: - MockLaunchAtLoginService
 
 final class MockLaunchAtLoginService: LaunchAtLoginControlling {
@@ -523,6 +580,11 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var summarizeResult = "Mock summary"
     var chatResult = "Mock chat response"
     var formatTranscriptResult = "Mock formatted transcript"
+    var formatTranscriptProvider = "mock"
+    var formatTranscriptModel = "mock-model"
+    var formatTranscriptUsage: LLMUsage?
+    var formatTranscriptStopReason: String?
+    var formatTranscriptLatencyMs = 0
     var streamTokens: [String] = ["Hello", " world"]
     var streamDelayNs: UInt64 = 0
     var errorToThrow: Error?
@@ -578,13 +640,42 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         source: TelemetryFormatterSource,
         defaultPromptUsed: Bool
     ) async throws -> String {
+        try await formatTranscriptDetailed(
+            transcript: transcript,
+            promptTemplate: promptTemplate,
+            source: source,
+            defaultPromptUsed: defaultPromptUsed
+        ).output
+    }
+
+    func formatTranscriptDetailed(
+        transcript: String,
+        promptTemplate: String,
+        source: TelemetryFormatterSource,
+        defaultPromptUsed: Bool
+    ) async throws -> LLMFormatterResult {
         formatTranscriptCallCount += 1
         lastFormattedTranscript = transcript
         lastFormatterPromptTemplate = promptTemplate
         lastFormatterSource = source
         lastFormatterDefaultPromptUsed = defaultPromptUsed
         if let error = errorToThrow { throw error }
-        return formatTranscriptResult
+        return LLMFormatterResult(
+            result: LLMResult(
+                output: formatTranscriptResult,
+                provider: formatTranscriptProvider,
+                model: formatTranscriptModel,
+                usage: formatTranscriptUsage,
+                stopReason: formatTranscriptStopReason,
+                latencyMs: formatTranscriptLatencyMs
+            ),
+            operationID: "mock-format-operation",
+            inputChars: transcript.count,
+            outputChars: formatTranscriptResult.count,
+            inputTruncated: false,
+            defaultPromptUsed: defaultPromptUsed,
+            messageCount: 2
+        )
     }
 
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {

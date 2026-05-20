@@ -125,6 +125,29 @@ final class TransformsHotkeyRegistryTests: XCTestCase {
         XCTAssertNotNil(registry.handleEvent(type: .keyUp, event: unrelatedKeyUp))
     }
 
+    func testHandleCommandShiftOneShortcutTriggers() throws {
+        let registry = TransformsHotkeyRegistry()
+        let id = UUID()
+        registry.register(
+            promptID: id,
+            shortcut: KeyboardShortcut(
+                modifiers: KeyboardShortcut.ModifierFlag.command.rawValue
+                    | KeyboardShortcut.ModifierFlag.shift.rawValue,
+                keyCode: 0x12,
+                keyLabel: "1"
+            )
+        )
+
+        var triggeredIDs: [UUID] = []
+        registry.onTrigger = { triggeredIDs.append($0) }
+
+        let keyDown = try XCTUnwrap(CGEvent(keyboardEventSource: nil, virtualKey: 0x12, keyDown: true))
+        keyDown.flags = [.maskCommand, .maskShift]
+
+        XCTAssertNil(registry.handleEvent(type: .keyDown, event: keyDown))
+        XCTAssertEqual(triggeredIDs, [id])
+    }
+
     func testTapDisabledRecoveryClearsPressedKeyState() throws {
         let registry = TransformsHotkeyRegistry()
         let id = UUID()

@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 #if canImport(WhisperKit)
 import WhisperKit
@@ -105,6 +106,8 @@ final class AsyncPermit: @unchecked Sendable {
 
 public actor WhisperEngine: STTTranscribing {
     public static let defaultModelVariant = SpeechEnginePreference.defaultWhisperModelVariant
+
+    private let logger = Logger(subsystem: "com.macparakeet.core", category: "WhisperEngine")
 
     private let modelVariant: String
     private let defaultLanguage: String?
@@ -279,7 +282,21 @@ public actor WhisperEngine: STTTranscribing {
 
         do {
             try AppPaths.ensureDirectories()
-            onProgress?("Loading Whisper model...")
+            let startedAt = Date()
+            let variant = modelVariant
+            let folderName = modelFolder.lastPathComponent
+            let watchdog = Self.makePrepareWatchdog(
+                modelVariant: variant,
+                folderName: folderName,
+                onProgress: onProgress
+            )
+            defer { watchdog.cancel() }
+
+            logger.notice("whisper_model_prepare_start model=\(variant, privacy: .public) folder=\(folderName, privacy: .public)")
+            AudioCaptureDiagnostics.append(
+                "whisper_model_prepare_start model=\(variant) folder=\(folderName)"
+            )
+            onProgress?("Optimizing Whisper for this Mac...")
             whisperKit = try await WhisperKit(WhisperKitConfig(
                 model: modelVariant,
                 downloadBase: downloadBase,
@@ -289,10 +306,20 @@ public actor WhisperEngine: STTTranscribing {
                 download: false
             ))
             isLoaded = true
+            let duration = Observability.durationSeconds(since: startedAt)
+            logger.notice("whisper_model_prepare_complete model=\(variant, privacy: .public) duration_s=\(duration, privacy: .public)")
+            AudioCaptureDiagnostics.append(
+                "whisper_model_prepare_complete model=\(variant) duration_s=\(Self.formatSeconds(duration))"
+            )
             onProgress?("Ready")
         } catch {
             isLoaded = false
             whisperKit = nil
+            let variant = modelVariant
+            logger.error("whisper_model_prepare_failed model=\(variant, privacy: .public) error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+            AudioCaptureDiagnostics.append(
+                "whisper_model_prepare_failed model=\(variant) \(AudioCaptureDiagnostics.errorFields(error))"
+            )
             throw try Self.mapWarmUpError(error)
         }
         #else
@@ -478,6 +505,36 @@ public actor WhisperEngine: STTTranscribing {
     private static func isModelNameBoundary(_ character: Character?) -> Bool {
         guard let character else { return true }
         return character == "-" || character == "_" || character == "/" || character == "."
+    }
+
+    private nonisolated static func makePrepareWatchdog(
+        modelVariant: String,
+        folderName: String,
+        onProgress: (@Sendable (String) -> Void)?
+    ) -> Task<Void, Never> {
+        Task.detached(priority: .background) {
+            let milestones: [(elapsedSeconds: Int, message: String)] = [
+                (15, "Optimizing Whisper for this Mac..."),
+                (60, "Still optimizing Whisper with Core ML. The first load can take a few minutes..."),
+                (180, "Still preparing Whisper. This one-time optimization should be faster next time..."),
+                (300, "Whisper is still optimizing. Leave MacParakeet open until Core ML finishes...")
+            ]
+
+            var previousElapsedSeconds = 0
+            for milestone in milestones {
+                try? await Task.sleep(for: .seconds(milestone.elapsedSeconds - previousElapsedSeconds))
+                guard !Task.isCancelled else { return }
+                previousElapsedSeconds = milestone.elapsedSeconds
+                onProgress?(milestone.message)
+                AudioCaptureDiagnostics.append(
+                    "whisper_model_prepare_still_loading elapsed_s=\(milestone.elapsedSeconds) model=\(modelVariant) folder=\(folderName)"
+                )
+            }
+        }
+    }
+
+    private nonisolated static func formatSeconds(_ value: Double) -> String {
+        String(format: "%.3f", value)
     }
 
     private nonisolated static func mapWarmUpError(_ error: Error) throws -> STTError {

@@ -38,6 +38,9 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     /// e.g. an employer never leaves the device.
     case transformExecuted = "transform_executed"
     case transformFailed = "transform_failed"
+    case transformOperation = "transform_operation"
+    case askMenuOpened = "ask_menu_opened"
+    case askPromptFired = "ask_prompt_fired"
     case llmFormatterUsed = "llm_formatter_used"
     case llmFormatterFailed = "llm_formatter_failed"
     case llmProviderUnavailable = "llm_provider_unavailable"
@@ -228,12 +231,26 @@ public enum TelemetryTransformReplacePath: String, Sendable, Equatable {
     case clipboardPaste = "clipboard_paste"
 }
 
+public enum TelemetryTransformOperationStage: String, Sendable, Equatable {
+    case capture
+    case llm
+    case replacement
+    case complete
+}
+
+public enum TelemetryAskPromptSource: String, Sendable, Equatable {
+    case emptyState = "empty_state"
+    case menu
+    case followUp = "follow_up"
+}
+
 /// Why a Transforms run terminated abnormally. Maps onto
 /// `TransformExecutorError` cases plus a `noProvider` rollup for the
 /// "user hasn't configured an LLM yet" gate.
 public enum TelemetryTransformFailureReason: String, Sendable, Equatable {
     case emptySelection = "empty_selection"
     case noProvider = "no_provider"
+    case captureFailed = "capture_failed"
     case llmFailed = "llm_failed"
     case replacementFailed = "replacement_failed"
     case cancelled
@@ -315,6 +332,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case saveTranscriptionAudio = "save_transcription_audio"
     case youtubeAudioQuality = "youtube_audio_quality"
     case speakerDiarization = "speaker_diarization"
+    case whisperDefaultLanguage = "whisper_default_language"
     case autoSave = "auto_save"
     case meetingAutoSave = "meeting_auto_save"
     case meetingHotkey = "meeting_hotkey"
@@ -339,7 +357,15 @@ public enum TelemetryEventSpec: Sendable {
     case appLaunched
     case appQuit(sessionDurationSeconds: Double)
     case dictationStarted(trigger: TelemetryDictationTrigger?, mode: TelemetryDictationMode?)
-    case dictationCompleted(durationSeconds: Double, wordCount: Int, mode: TelemetryDictationMode?, device: RecordingDeviceInfo? = nil)
+    case dictationCompleted(
+        durationSeconds: Double,
+        wordCount: Int,
+        mode: TelemetryDictationMode?,
+        speechEngine: String? = nil,
+        engineVariant: String? = nil,
+        language: String? = nil,
+        device: RecordingDeviceInfo? = nil
+    )
     case dictationCancelled(durationSeconds: Double?, reason: TelemetryDictationCancelReason?, device: RecordingDeviceInfo? = nil)
     case dictationEmpty(durationSeconds: Double?, device: RecordingDeviceInfo? = nil)
     case dictationFailed(errorType: String, errorDetail: String? = nil, device: RecordingDeviceInfo? = nil)
@@ -355,6 +381,7 @@ public enum TelemetryEventSpec: Sendable {
         cancelReason: TelemetryDictationCancelReason? = nil,
         speechEngine: String? = nil,
         engineVariant: String? = nil,
+        language: String? = nil,
         device: RecordingDeviceInfo? = nil
     )
     case dictationFirstLoadCaptionShown(firstInstall: Bool)
@@ -367,7 +394,10 @@ public enum TelemetryEventSpec: Sendable {
         wordCount: Int,
         speakerCount: Int? = nil,
         diarizationRequested: Bool,
-        diarizationApplied: Bool
+        diarizationApplied: Bool,
+        speechEngine: String? = nil,
+        engineVariant: String? = nil,
+        language: String? = nil
     )
     case transcriptionCancelled(
         source: TelemetryTranscriptionSource,
@@ -398,6 +428,7 @@ public enum TelemetryEventSpec: Sendable {
         fileSizeBucket: String?,
         speechEngine: String? = nil,
         engineVariant: String? = nil,
+        language: String? = nil,
         errorType: String?
     )
     case diarizationStarted(source: TelemetryTranscriptionSource)
@@ -425,6 +456,21 @@ public enum TelemetryEventSpec: Sendable {
         transformName: TelemetryTransformName,
         reason: TelemetryTransformFailureReason
     )
+    case transformOperation(
+        operationID: String,
+        operationContext: ObservabilityOperationContext? = nil,
+        outcome: ObservabilityOutcome,
+        transformName: TelemetryTransformName,
+        stage: TelemetryTransformOperationStage?,
+        capturePath: TelemetryTransformCapturePath?,
+        replacePath: TelemetryTransformReplacePath?,
+        durationSeconds: Double,
+        llmMs: Int?,
+        totalMs: Int?,
+        errorType: TelemetryTransformFailureReason?
+    )
+    case askMenuOpened
+    case askPromptFired(source: TelemetryAskPromptSource, group: String, label: String)
     case llmFormatterUsed(
         provider: String,
         source: TelemetryFormatterSource,
@@ -498,10 +544,30 @@ public enum TelemetryEventSpec: Sendable {
     case permissionGranted(permission: TelemetryPermission)
     case permissionDenied(permission: TelemetryPermission)
     // Performance
-    case modelLoaded(loadTimeSeconds: Double)
-    case modelDownloadStarted
-    case modelDownloadCompleted(durationSeconds: Double)
-    case modelDownloadFailed(errorType: String, errorDetail: String? = nil)
+    case modelLoaded(
+        loadTimeSeconds: Double,
+        modelKind: TelemetryModelKind? = nil,
+        speechEngine: SpeechEnginePreference? = nil,
+        engineVariant: String? = nil
+    )
+    case modelDownloadStarted(
+        modelKind: TelemetryModelKind? = nil,
+        speechEngine: SpeechEnginePreference? = nil,
+        engineVariant: String? = nil
+    )
+    case modelDownloadCompleted(
+        durationSeconds: Double,
+        modelKind: TelemetryModelKind? = nil,
+        speechEngine: SpeechEnginePreference? = nil,
+        engineVariant: String? = nil
+    )
+    case modelDownloadFailed(
+        errorType: String,
+        errorDetail: String? = nil,
+        modelKind: TelemetryModelKind? = nil,
+        speechEngine: SpeechEnginePreference? = nil,
+        engineVariant: String? = nil
+    )
     case modelOperation(
         operationID: String,
         operationContext: ObservabilityOperationContext? = nil,
@@ -669,6 +735,9 @@ extension TelemetryEventSpec {
         case .llmTransformFailed: return .llmTransformFailed
         case .transformExecuted: return .transformExecuted
         case .transformFailed: return .transformFailed
+        case .transformOperation: return .transformOperation
+        case .askMenuOpened: return .askMenuOpened
+        case .askPromptFired: return .askPromptFired
         case .llmFormatterUsed: return .llmFormatterUsed
         case .llmFormatterFailed: return .llmFormatterFailed
         case .llmProviderUnavailable: return .llmProviderUnavailable
@@ -755,6 +824,7 @@ extension TelemetryEventSpec {
              .promptCreated,
              .promptUpdated,
              .promptDeleted,
+             .askMenuOpened,
              .licenseActivated,
              .trialStarted,
              .trialExpired,
@@ -774,11 +844,22 @@ extension TelemetryEventSpec {
                 ("trigger", trigger?.rawValue),
                 ("mode", mode?.rawValue)
             )
-        case .dictationCompleted(let durationSeconds, let wordCount, let mode, let device):
+        case .dictationCompleted(
+            let durationSeconds,
+            let wordCount,
+            let mode,
+            let speechEngine,
+            let engineVariant,
+            let language,
+            let device
+        ):
             return Self.mergeDevice(Self.compactProps(
                 ("duration_seconds", Self.format(durationSeconds)),
                 ("word_count", "\(wordCount)"),
-                ("mode", mode?.rawValue)
+                ("mode", mode?.rawValue),
+                ("speech_engine", speechEngine),
+                ("engine_variant", Self.safeEngineVariant(engineVariant)),
+                ("language", Self.safeLanguageCode(language))
             ), device)
         case .dictationCancelled(let durationSeconds, let reason, let device):
             return Self.mergeDevice(Self.compactProps(
@@ -805,6 +886,7 @@ extension TelemetryEventSpec {
             let cancelReason,
             let speechEngine,
             let engineVariant,
+            let language,
             let device
         ):
             return Self.mergeDevice(Self.compactProps(
@@ -818,6 +900,7 @@ extension TelemetryEventSpec {
                 ("word_count", wordCount.map(String.init)),
                 ("speech_engine", speechEngine),
                 ("engine_variant", Self.safeEngineVariant(engineVariant)),
+                ("language", Self.safeLanguageCode(language)),
                 ("error_type", errorType),
                 ("cancel_reason", cancelReason?.rawValue)
             ), device)
@@ -840,7 +923,10 @@ extension TelemetryEventSpec {
             let wordCount,
             let speakerCount,
             let diarizationRequested,
-            let diarizationApplied
+            let diarizationApplied,
+            let speechEngine,
+            let engineVariant,
+            let language
         ):
             return Self.compactProps(
                 ("source", source.rawValue),
@@ -849,7 +935,10 @@ extension TelemetryEventSpec {
                 ("word_count", "\(wordCount)"),
                 ("speaker_count", speakerCount.map(String.init)),
                 ("diarization_requested", Self.boolString(diarizationRequested)),
-                ("diarization_applied", Self.boolString(diarizationApplied))
+                ("diarization_applied", Self.boolString(diarizationApplied)),
+                ("speech_engine", speechEngine),
+                ("engine_variant", Self.safeEngineVariant(engineVariant)),
+                ("language", Self.safeLanguageCode(language))
             )
         case .transcriptionCancelled(let source, let audioDurationSeconds, let stage):
             return Self.compactProps(
@@ -883,6 +972,7 @@ extension TelemetryEventSpec {
             let fileSizeBucket,
             let speechEngine,
             let engineVariant,
+            let language,
             let errorType
         ):
             return Self.compactProps(
@@ -904,6 +994,7 @@ extension TelemetryEventSpec {
                 ("file_size_bucket", fileSizeBucket),
                 ("speech_engine", speechEngine),
                 ("engine_variant", Self.safeEngineVariant(engineVariant)),
+                ("language", Self.safeLanguageCode(language)),
                 ("error_type", errorType)
             )
         case .diarizationStarted(let source):
@@ -950,6 +1041,39 @@ extension TelemetryEventSpec {
             return [
                 "transform_name": name.rawValue,
                 "reason": reason.rawValue,
+            ]
+        case .transformOperation(
+            let operationID,
+            let operationContext,
+            let outcome,
+            let name,
+            let stage,
+            let capture,
+            let replace,
+            let durationSeconds,
+            let llmMs,
+            let totalMs,
+            let errorType
+        ):
+            return Self.compactProps(
+                ("operation_id", operationID),
+                ("workflow_id", operationContext?.workflowID),
+                ("parent_operation_id", operationContext?.parentOperationID),
+                ("outcome", outcome.rawValue),
+                ("transform_name", name.rawValue),
+                ("stage", stage?.rawValue),
+                ("capture_path", capture?.rawValue),
+                ("replace_path", replace?.rawValue),
+                ("duration_seconds", Self.format(durationSeconds)),
+                ("llm_ms", llmMs.map(String.init)),
+                ("total_ms", totalMs.map(String.init)),
+                ("error_type", errorType?.rawValue)
+            )
+        case .askPromptFired(let source, let group, let label):
+            return [
+                "source": source.rawValue,
+                "group": group,
+                "label": label,
             ]
         case .llmFormatterUsed(
             let provider,
@@ -1048,14 +1172,33 @@ extension TelemetryEventSpec {
             return ["permission": permission.rawValue]
         case .permissionDenied(let permission):
             return ["permission": permission.rawValue]
-        case .modelLoaded(let loadTimeSeconds):
-            return ["load_time_seconds": Self.format(loadTimeSeconds)]
-        case .modelDownloadStarted:
-            return nil
-        case .modelDownloadCompleted(let durationSeconds):
-            return ["duration_seconds": Self.format(durationSeconds)]
-        case .modelDownloadFailed(let errorType, let errorDetail):
-            var props = ["error_type": errorType]
+        case .modelLoaded(let loadTimeSeconds, let modelKind, let speechEngine, let engineVariant):
+            return Self.compactProps(
+                ("load_time_seconds", Self.format(loadTimeSeconds)),
+                ("model_kind", modelKind?.rawValue),
+                ("speech_engine", speechEngine?.rawValue),
+                ("engine_variant", Self.safeEngineVariant(engineVariant))
+            )
+        case .modelDownloadStarted(let modelKind, let speechEngine, let engineVariant):
+            return Self.compactProps(
+                ("model_kind", modelKind?.rawValue),
+                ("speech_engine", speechEngine?.rawValue),
+                ("engine_variant", Self.safeEngineVariant(engineVariant))
+            )
+        case .modelDownloadCompleted(let durationSeconds, let modelKind, let speechEngine, let engineVariant):
+            return Self.compactProps(
+                ("duration_seconds", Self.format(durationSeconds)),
+                ("model_kind", modelKind?.rawValue),
+                ("speech_engine", speechEngine?.rawValue),
+                ("engine_variant", Self.safeEngineVariant(engineVariant))
+            )
+        case .modelDownloadFailed(let errorType, let errorDetail, let modelKind, let speechEngine, let engineVariant):
+            var props = Self.compactProps(
+                ("error_type", errorType),
+                ("model_kind", modelKind?.rawValue),
+                ("speech_engine", speechEngine?.rawValue),
+                ("engine_variant", Self.safeEngineVariant(engineVariant))
+            ) ?? [:]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .modelOperation(
@@ -1334,6 +1477,10 @@ extension TelemetryEventSpec {
         return allowedVariants.contains(normalized) ? normalized : "custom"
     }
 
+    private static func safeLanguageCode(_ language: String?) -> String? {
+        SpeechEnginePreference.normalizeKnownLanguage(language)
+    }
+
     private static func mergeDevice(_ base: [String: String]?, _ device: RecordingDeviceInfo?) -> [String: String]? {
         guard let device else { return base }
         var merged = base ?? [:]
@@ -1376,6 +1523,9 @@ public enum TelemetryImplementedContract {
         .llmTransformFailed: ["provider", "error_type"],
         .transformExecuted: ["transform_name", "capture_path", "replace_path", "llm_ms", "total_ms"],
         .transformFailed: ["transform_name", "reason"],
+        .transformOperation: ["operation_id", "outcome", "transform_name", "duration_seconds"],
+        .askMenuOpened: [],
+        .askPromptFired: ["source", "group", "label"],
         .llmFormatterUsed: ["provider", "source", "duration_seconds", "input_chars", "output_chars", "default_prompt_used", "input_truncated"],
         .llmFormatterFailed: ["provider", "source", "duration_seconds", "error_type", "default_prompt_used", "input_truncated"],
         .llmProviderUnavailable: ["provider", "error_type", "feature"],

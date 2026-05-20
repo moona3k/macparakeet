@@ -776,6 +776,55 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(mockRepo.dictations.isEmpty, "no dictation rows survive Clear All")
     }
 
+    // MARK: - Clear Transform History
+
+    func testClearTransformHistoryCallsRepoAndNotifies() async throws {
+        let transformHistoryRepo = MockTransformHistoryRepository()
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            transformHistoryRepo: transformHistoryRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        var stateChangedFireCount = 0
+        viewModel.onTransformHistoryChanged = { stateChangedFireCount += 1 }
+
+        viewModel.clearTransformHistory()
+
+        try await waitUntil {
+            transformHistoryRepo.deleteAllCalled && stateChangedFireCount == 1
+        }
+        XCTAssertTrue(transformHistoryRepo.deleteAllCalled)
+        XCTAssertEqual(stateChangedFireCount, 1)
+    }
+
+    func testClearTransformHistoryTracksFailedDeleteAllCallWithoutNotifying() async throws {
+        let transformHistoryRepo = MockTransformHistoryRepository()
+        transformHistoryRepo.deleteAllError = NSError(domain: "test", code: 1)
+
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            transformHistoryRepo: transformHistoryRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil
+        )
+
+        var stateChangedFireCount = 0
+        viewModel.onTransformHistoryChanged = { stateChangedFireCount += 1 }
+
+        viewModel.clearTransformHistory()
+
+        try await waitUntil {
+            transformHistoryRepo.deleteAllCalled
+        }
+        XCTAssertTrue(transformHistoryRepo.deleteAllCalled)
+        XCTAssertEqual(stateChangedFireCount, 0)
+    }
+
     // MARK: - Reset Lifetime Stats (#124)
 
     func testResetLifetimeStatsCallsRepo() {
@@ -916,9 +965,9 @@ final class SettingsViewModelTests: XCTestCase {
         )
 
         try await waitUntil { vm.whisperModelStatus == .ready }
-        XCTAssertEqual(vm.whisperModelStatusDetail, "Whisper Large v3 Turbo · Loaded in memory and ready.")
+        XCTAssertEqual(vm.whisperModelStatusDetail, "Large v3 Turbo · Loaded in memory.")
         XCTAssertEqual(vm.parakeetStatus, .notLoaded)
-        XCTAssertEqual(vm.parakeetStatusDetail, "Downloaded. Loads automatically when needed.")
+        XCTAssertEqual(vm.parakeetStatusDetail, "Parakeet TDT 0.6B v3 · Installed locally, loads when selected.")
     }
 
     func testRepairParakeetModelUsesRetryAndEndsReady() async throws {
@@ -951,11 +1000,20 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     func testWhisperDefaultLanguagePersistsNormalizedValue() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
         viewModel.whisperDefaultLanguage = "KO_kr"
         XCTAssertEqual(SpeechEnginePreference.whisperDefaultLanguage(defaults: testDefaults), "ko")
 
         viewModel.whisperDefaultLanguage = "auto"
         XCTAssertNil(SpeechEnginePreference.whisperDefaultLanguage(defaults: testDefaults))
+
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.whisperDefaultLanguage, .whisperDefaultLanguage])
     }
 
     func testSpeechEngineChangeCallsSwitcherAndPersistsOnSuccess() async throws {
@@ -978,6 +1036,63 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .whisper)
         XCTAssertFalse(viewModel.speechEngineSwitching)
         XCTAssertNil(viewModel.speechEngineError)
+    }
+
+    func testSpeechEngineChangeShowsProgressAndClearsWhenDone() async throws {
+        let switcher = MockSpeechEngineSwitcher(progressMessages: ["Optimizing Whisper for this Mac..."])
+        await switcher.blockNextSwitch()
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.speechEnginePreference = .whisper
+
+        try await waitUntil { viewModel.speechEngineSwitching }
+        try await waitUntil { viewModel.speechEngineSwitchTarget == .whisper }
+        try await waitUntil { viewModel.speechEngineSwitchDetail == "Optimizing Whisper for this Mac..." }
+
+        await switcher.releaseSwitch()
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        XCTAssertNil(viewModel.speechEngineSwitchTarget)
+        XCTAssertNil(viewModel.speechEngineSwitchDetail)
+    }
+
+    func testModelRepairsAreIgnoredWhileSpeechEngineIsSwitching() async throws {
+        let switcher = MockSpeechEngineSwitcher(progressMessages: ["Optimizing Whisper for this Mac..."])
+        await switcher.blockNextSwitch()
+        let stt = MockSTTClient()
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            sttClient: stt,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.speechEnginePreference = .whisper
+        try await waitUntil { viewModel.speechEngineSwitching }
+
+        viewModel.repairParakeetModel()
+        viewModel.downloadWhisperModel()
+        try await Task.sleep(for: .milliseconds(50))
+
+        let warmUpCallCount = await stt.warmUpCallCount
+        XCTAssertEqual(warmUpCallCount, 0)
+        XCTAssertFalse(viewModel.parakeetRepairing)
+        XCTAssertFalse(viewModel.whisperDownloading)
+
+        await switcher.releaseSwitch()
+        try await waitForSpeechEngineSwitchingToFinish()
     }
 
     func testSpeechEngineChangeRevertsWhenSwitcherFails() async throws {
@@ -1119,16 +1234,55 @@ final class SettingsViewModelTests: XCTestCase {
 
 private actor MockSpeechEngineSwitcher: SpeechEngineSwitching {
     private let error: Error?
+    private let progressMessages: [String]
     private(set) var preferences: [SpeechEnginePreference] = []
+    private var shouldBlockNextSwitch = false
+    private var switchContinuation: CheckedContinuation<Void, Never>?
+    private var releaseRequested = false
 
-    init(error: Error? = nil) {
+    init(error: Error? = nil, progressMessages: [String] = []) {
         self.error = error
+        self.progressMessages = progressMessages
     }
 
     func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
+        try await setSpeechEngine(preference, onProgress: nil)
+    }
+
+    func setSpeechEngine(
+        _ preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
         preferences.append(preference)
+        for message in progressMessages {
+            onProgress?(message)
+        }
+        if shouldBlockNextSwitch {
+            shouldBlockNextSwitch = false
+            await withCheckedContinuation { continuation in
+                if releaseRequested {
+                    releaseRequested = false
+                    continuation.resume()
+                } else {
+                    switchContinuation = continuation
+                }
+            }
+        }
         if let error {
             throw error
+        }
+    }
+
+    func blockNextSwitch() {
+        shouldBlockNextSwitch = true
+    }
+
+    func releaseSwitch() {
+        if let switchContinuation {
+            switchContinuation.resume()
+            self.switchContinuation = nil
+        } else {
+            releaseRequested = true
         }
     }
 }

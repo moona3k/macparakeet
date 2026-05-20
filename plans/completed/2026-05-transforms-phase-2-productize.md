@@ -1,6 +1,9 @@
 # Plan: Transforms — Phase 2 (Productize)
 
-> Status: **ACTIVE** — vertical slice from spike to ship-ready feature.
+> Status: **COMPLETED** — archived from `plans/active/` during the
+> 2026-05-16 docs/spec audit. Phase 2 is implemented on `main`; ADR-022,
+> `spec/02-features.md`, and `spec/04-ui-patterns.md` now carry the current
+> product contract.
 > Author: agent (Claude) + Daniel
 > Date: 2026-05-12
 > Related:
@@ -44,7 +47,7 @@ PR #278 + the three follow-up commits delivered a substantial foundation. From t
 | LLM service path: `LLMService.transform / transformStream / transformDetailed` | Built (pre-spike) | `Sources/MacParakeetCore/Services/LLM/LLMService.swift` |
 | CLI `macparakeet-cli llm transform --prompt … <input>` | Built (pre-spike) | `Sources/CLI/Commands/LLMTransformCommand.swift` |
 | Feature flag `AppFeatures.transformsSpikeEnabled` (default `false`) | Built | `Sources/MacParakeetCore/AppFeatures.swift:32` |
-| `Prompt.Category.transform` enum case (no built-ins shipped under this category yet) | Built (pre-spike) | `Sources/MacParakeetCore/Models/Prompt.swift:19` |
+| `Prompt.Category.transform` enum case (built-ins seeded by completed Phase 2) | Built (pre-spike) | `Sources/MacParakeetCore/Models/Prompt.swift:19` |
 | Test coverage: capture, replacement, executor, paste resolver | Built | `Tests/MacParakeetTests/Services/{System,Transforms}/…` |
 
 **What the spike intentionally skipped:**
@@ -205,7 +208,7 @@ Two events per ADR-012's allowlist convention:
 
 ### Feature flag
 
-Replace `AppFeatures.transformsSpikeEnabled` with `AppFeatures.transformsEnabled`. Default for the ship build: **`false`** during merge, flipped to **`true`** in the same release that ships the website telemetry-allowlist update. Two-step rollout protects against the silent-batch-drop risk.
+Replace `AppFeatures.transformsSpikeEnabled` with `AppFeatures.transformsEnabled`. The flag was introduced release-off during merge, then flipped to **`true`** after the website telemetry allowlist accepted the Transform events. Current `main` ships productized Transforms enabled.
 
 ---
 

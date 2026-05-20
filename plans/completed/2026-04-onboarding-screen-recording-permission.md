@@ -1,6 +1,6 @@
 # Onboarding — Screen Recording Permission Step
 
-> Status: **ACTIVE**
+> Status: **COMPLETED / ARCHIVED** - implementation exists on `main`; this plan is retained for historical context.
 > Date: 2026-04-10
 > Driving issue: [#66](https://github.com/moona3k/macparakeet/issues/66)
 > Related ADRs: `spec/adr/014-meeting-recording.md`, `spec/adr/015-concurrent-dictation-meeting.md`

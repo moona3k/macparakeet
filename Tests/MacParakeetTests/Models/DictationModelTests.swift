@@ -15,6 +15,7 @@ final class DictationModelTests: XCTestCase {
         XCTAssertEqual(d.processingMode, .raw)
         XCTAssertEqual(d.status, .completed)
         XCTAssertNil(d.errorMessage)
+        XCTAssertNil(d.language)
     }
 
     func testCustomInit() {
@@ -31,7 +32,8 @@ final class DictationModelTests: XCTestCase {
             processingMode: .clean,
             status: .error,
             errorMessage: "Something went wrong",
-            updatedAt: date
+            updatedAt: date,
+            language: "ja"
         )
 
         XCTAssertEqual(d.id, id)
@@ -44,6 +46,7 @@ final class DictationModelTests: XCTestCase {
         XCTAssertEqual(d.processingMode, .clean)
         XCTAssertEqual(d.status, .error)
         XCTAssertEqual(d.errorMessage, "Something went wrong")
+        XCTAssertEqual(d.language, "ja")
     }
 
     func testProcessingModeRawValues() {

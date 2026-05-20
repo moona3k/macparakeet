@@ -3,6 +3,10 @@
 > Status: **ACTIVE**. Snapshot of WisprFlow Pro's current feature surface (May 2026, captured from the macOS app) and how MacParakeet stacks up against each surface today.
 >
 > Companion doc: `wisprflow-deep-dive.md` (Feb 2026, HISTORICAL) covers the high-level positioning. Design follow-on: `transforms-design-2026-05.md` covers the chosen build-direction for Transforms.
+>
+> Implementation update (2026-05-16): MacParakeet now ships productized
+> Transforms on `main`; the Transforms gap analysis below is preserved as
+> historical rationale and updated where it describes the current state.
 
 ## Decisions (2026-05-11)
 
@@ -24,7 +28,7 @@ WisprFlow Pro now organizes its post-dictation cleanup into five sidebar section
 | Snippets (trigger → expansion) | Text Snippets in Vocabulary panel | Capability parity, UX-lite | Aligned — already shipped |
 | Style (per-app tone: Slack vs Gmail vs Discord) | None | **Zero coverage** | Tension with local-first; LLM-dependent |
 | Auto Cleanup (None / Light / Medium / High) | `processingMode` raw/clean + binary AI Formatter | Partial — coarse | Easy to expand; aligned |
-| Transforms (Opt+N to rewrite selected text in any app) | CLI `llm transform` only | **Zero GUI coverage** | Net-new surface; expands product scope |
+| Transforms (Opt+N to rewrite selected text in any app) | Productized Transforms tab, hotkey registry, built-ins, history, and CLI | Core parity, lighter than WisprFlow | Aligned, but expands product scope |
 
 The interesting strategic question is whether we want to follow WisprFlow toward "writing assistant that lives over every text field" or stay "fast local dictation + transcription + meetings." Each gap below is annotated with that lens.
 
@@ -135,7 +139,7 @@ This is the largest capability gap. It's also the one with the most direct tensi
 
 **Why we'd think twice:**
 - It only works well with an LLM in the loop. Deterministic pipelines (our current `clean` mode) can't pull off "rewrite this with the energy of an excited Slack message." So shipping this means making LLM cleanup a first-class path, not a side feature.
-- Local-first commitment. We can mitigate by routing through Apple Foundation Models or a local Ollama provider when available, and falling back to user-configured cloud providers. ADR-002 allows opt-in cloud LLM, so this is consistent in principle — but defaulting users into LLM-rewriting every dictation crosses a line we haven't crossed before.
+- Local-first commitment. We can mitigate by routing through local providers such as LM Studio, Ollama, or Local CLI, and falling back to user-configured cloud providers only when the user opts in. ADR-002 allows opt-in cloud LLM, so this is consistent in principle — but defaulting users into LLM-rewriting every dictation crosses a line we haven't crossed before.
 - App-list churn. WisprFlow ships a hardcoded list of which apps map to which tab. Maintaining that list (and answering "why isn't $APP in the work-messages tab?") becomes ongoing product work.
 
 ### Recommendation
@@ -166,7 +170,7 @@ Important note: *"Note your original dictation is never lost. Just go to the thr
 
 Two independent layers:
 
-- `Dictation.ProcessingMode` = `.raw` or `.clean`. `.raw` = no edits. `.clean` = deterministic 5-step pipeline (filler removal + custom words + snippet expansion + whitespace).
+- `Dictation.ProcessingMode` = `.raw` or `.clean`. `.raw` = no edits except terminal action extraction for Voice Return. `.clean` = deterministic 5-step pipeline (filler removal + custom words + trailing action extraction + snippet expansion + whitespace).
 - `AIFormatter` — optional LLM polish layer, controlled by `aiFormatterEnabled: Bool` + `aiFormatterPrompt: String` in `AppRuntimePreferences`. Off by default; one global prompt.
 
 So we have two levers that map roughly to "no edits" / "deterministic clean" / "deterministic + LLM polish" — three states, where WisprFlow has four with clearer naming.
@@ -215,25 +219,26 @@ Failure mode shown in one screenshot: *"Couldn't detect text in your text box �
 
 ### MacParakeet today
 
-Zero GUI coverage. The pieces exist but are not wired into a system-wide hotkey path:
+Productized Transforms now ship on `main`:
 
-- `Sources/MacParakeetCore/Services/LLM/LLMService.swift` — has `transform(text:prompt:)`, `transformStream`, `transformDetailed`.
-- `Sources/CLI/Commands/LLMTransformCommand.swift` — `macparakeet-cli llm transform` works on stdin/file.
-- `Prompt` model has a `.transform` category that's never populated with shipped prompts. The Prompt Library is wired into meeting transcripts only (category `.result`).
-- Hotkey infrastructure exists (custom hotkey support, ADR-009), but is currently bound to dictation triggers, not transform-on-selection.
+- `Prompt.Category.transform` rows seed the `Polish`, `Distill`, and `Decide` built-ins with default `Option-1/2/3` shortcuts.
+- `TransformsHotkeyRegistry` dispatches bound Transform shortcuts through one event tap.
+- `SelectionCaptureService` and `SelectionReplacementService` provide AX-first capture/replacement with clipboard fallback.
+- `TransformExecutor` streams through the user's configured LLM provider.
+- `TransformHistoryRepository` records local Transform run history.
+- `macparakeet-cli transforms` manages and runs saved Transforms; `macparakeet-cli llm transform` remains the raw ad-hoc prompt primitive.
 
-So the LLM-rewrite primitive exists; what's missing is the surface: hotkey routing → AX-driven selection grab → paste-back.
+WisprFlow still has richer polish around rule toggles and live diff preview.
+MacParakeet intentionally shipped raw editable prompts first.
 
 ### Gap analysis
 
-This is the biggest net-new capability surface. Stack of pieces needed:
+This was the biggest net-new capability surface. Current gap stack:
 
-1. **Selection capture.** AX query for focused element + selected text. We do not currently do this. Fallback: copy-via-Cmd+C-simulation, read clipboard, write back. (WisprFlow's error message suggests they use AX-first and gracefully fail.)
-2. **Hotkey routing.** Our hotkey system today is single-purpose (dictation trigger). Would need to extend to N transform-hotkeys with collision detection and per-transform binding UI.
-3. **Transform definition UI.** Name + shortcut + prompt + rule toggles (the rule toggles are a nice WisprFlow detail — they let users tune a built-in prompt without writing one). We have prompt infrastructure but no "rule toggle" composition.
-4. **Diff preview pane.** Showing a live diff of the expected transformation as you toggle rules — this is genuinely well done in their UI and is the kind of polish that signals "this is a real feature."
-5. **Paste-back path.** Replace selection in place via AX (or fall back to clipboard-paste). We have paste simulation for dictation; this would reuse most of it.
-6. **Built-in defaults.** Shipping a Polish-equivalent and a Prompt-Engineer-equivalent is the on-ramp.
+1. **Rule-toggle composition.** WisprFlow's built-in Polish can be tuned without editing a prompt. MacParakeet v1 exposes prompt editing instead.
+2. **Diff preview pane.** WisprFlow previews insertions/deletions before applying a Transform. MacParakeet relies on macOS Cmd+Z as the v1 escape hatch.
+3. **Per-app routing.** WisprFlow's broader writing-assistant direction still goes further than MacParakeet's current selected-text utility.
+4. **Voice-triggered rewrite.** Still future Command Mode scope.
 
 ### Recommendation
 
@@ -241,17 +246,19 @@ This is where the strategic decision actually lives. Two coherent answers:
 
 **Path A — stay focused.** Ship nothing here. We are a dictation + transcription + meeting tool. Writing assistance is what Raycast AI, ChatGPT's macOS app, Claude's macOS app, and TextSnipped already do. We compete on "fastest local dictation," not "best inline rewrites." This is the lower-risk path and matches the existing positioning.
 
-**Path B — add Transforms as a third leg.** If we believe dictation users also want post-dictation rewrites (and the conversion of dictation → polished prose → paste is genuinely the same job), then Transforms belongs in MacParakeet. Sequence:
+**Path B — add Transforms as a third leg.** If we believe dictation users also want post-dictation rewrites (and the conversion of dictation → polished prose → paste is genuinely the same job), then Transforms belongs in MacParakeet. This is the path now implemented on `main`. Sequence:
 
 1. Wire `Prompt.category = .transform` to a hotkey-driven path. Reuse the existing Prompt Library UI for the management surface.
 2. Implement AX selection-capture with clipboard fallback (the WisprFlow error toast tells us this is the right boundary).
-3. Ship two defaults that mirror Polish and Prompt Engineer (we already have similar prompt shapes in our Prompt Library for meetings — porting is mostly copy).
+3. Ship focused defaults that cover polish, distillation, and decision framing. MacParakeet's implemented set is `Polish`, `Distill`, and `Decide`.
 4. Skip the rule-toggle composition in v1 — it's a delightful detail but adds a lot of UI surface. Ship raw editable prompts only.
 5. Skip the live diff preview in v1. Hard to implement well, easy to live without.
 
-The hidden cost on Path B is the AX integration; once we ship system-wide selection capture, users will expect everything else (commands like "translate this," "make it bullets," etc.) and our scope expands.
+The hidden cost on Path B is the AX integration; now that system-wide selection capture has shipped, users may expect adjacent commands like "translate this" or "make it bullets." Keep that scope in ADR-022/Command Mode follow-ups rather than treating every adjacent rewrite as part of v1.
 
-My honest read: **defer.** This is the surface most worth watching but probably not the next thing we ship. If we ever do build voice-driven Command Mode (mentioned in the historical wisprflow-deep-dive doc and partially echoed by Agent Mode vision), Transforms is the natural prerequisite — but speak-to-rewrite-selection is a much higher-leverage version of the same primitive than hotkey-to-rewrite-selection.
+Historical read at the time of the audit was **defer**. The owner later chose
+Path B, and the implemented scope is intentionally narrower than WisprFlow's
+full writing-assistant surface.
 
 ---
 

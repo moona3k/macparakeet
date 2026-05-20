@@ -1,6 +1,6 @@
 # Command Mode GUI (F10a) Implementation Checklist
 
-Status: Pending de-risk gates
+Status: **HISTORICAL / ARCHIVED** - retained as a checklist snapshot; not active work.
 Owner: Core app team
 Updated: 2026-02-15
 

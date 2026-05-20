@@ -12,6 +12,7 @@ public final class SettingsViewModel {
         case ready
         case notLoaded
         case notDownloaded
+        case preparing
         case repairing
         case failed
     }
@@ -261,6 +262,7 @@ public final class SettingsViewModel {
     public var whisperDefaultLanguage: String {
         didSet {
             SpeechEnginePreference.saveWhisperDefaultLanguage(whisperDefaultLanguage, defaults: defaults)
+            Telemetry.send(.settingChanged(setting: .whisperDefaultLanguage))
         }
     }
 
@@ -276,6 +278,8 @@ public final class SettingsViewModel {
     }
 
     public var speechEngineSwitching = false
+    public var speechEngineSwitchTarget: SpeechEnginePreference?
+    public var speechEngineSwitchDetail: String?
     public var speechEngineError: String?
     public var whisperModelStatus: LocalModelStatus = .unknown
     public var whisperModelStatusDetail: String = "Not checked yet."
@@ -423,6 +427,7 @@ public final class SettingsViewModel {
     private var permissionService: PermissionServiceProtocol?
     private var dictationRepo: DictationRepositoryProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
+    private var transformHistoryRepo: TransformHistoryRepositoryProtocol?
     private var customWordRepo: CustomWordRepositoryProtocol?
     private var snippetRepo: TextSnippetRepositoryProtocol?
     private var entitlementsService: EntitlementsService?
@@ -701,6 +706,7 @@ public final class SettingsViewModel {
         permissionService: PermissionServiceProtocol,
         dictationRepo: DictationRepositoryProtocol,
         transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
+        transformHistoryRepo: TransformHistoryRepositoryProtocol? = nil,
         entitlementsService: EntitlementsService,
         launchAtLoginService: LaunchAtLoginControlling? = nil,
         checkoutURL: URL?,
@@ -714,6 +720,7 @@ public final class SettingsViewModel {
         self.permissionService = permissionService
         self.dictationRepo = dictationRepo
         self.transcriptionRepo = transcriptionRepo
+        self.transformHistoryRepo = transformHistoryRepo
         self.entitlementsService = entitlementsService
         self.launchAtLoginService = launchAtLoginService
         self.checkoutURL = checkoutURL
@@ -995,18 +1002,18 @@ public final class SettingsViewModel {
 
             if activeEngine == .parakeet, activeEngineIsLoaded {
                 self.parakeetStatus = .ready
-                self.parakeetStatusDetail = "Loaded in memory and ready."
+                self.parakeetStatusDetail = "Parakeet TDT 0.6B v3 · Loaded on Neural Engine."
             } else if modelDiskState.parakeetCached {
                 self.parakeetStatus = .notLoaded
-                self.parakeetStatusDetail = "Downloaded. Loads automatically when needed."
+                self.parakeetStatusDetail = "Parakeet TDT 0.6B v3 · Installed locally, loads when selected."
             } else {
                 self.parakeetStatus = .notDownloaded
-                self.parakeetStatusDetail = "Not downloaded yet."
+                self.parakeetStatusDetail = "Parakeet TDT 0.6B v3 · Needs model setup before use."
             }
 
             if activeEngine == .whisper, activeEngineIsLoaded {
                 self.whisperModelStatus = .ready
-                self.whisperModelStatusDetail = "Whisper \(self.whisperVariantFriendlyName) · Loaded in memory and ready."
+                self.whisperModelStatusDetail = "\(self.whisperVariantFriendlyName) · Loaded in memory."
             } else {
                 self.applyWhisperDownloadedStatus(modelDiskState.whisperDownloaded)
             }
@@ -1026,10 +1033,10 @@ public final class SettingsViewModel {
             // to `.ready` after asking the runtime if Whisper is the active
             // engine and currently loaded.
             whisperModelStatus = .notLoaded
-            whisperModelStatusDetail = "Whisper \(friendly) · Downloaded. Loads automatically when selected."
+            whisperModelStatusDetail = "\(friendly) · Installed locally. First load may optimize for this Mac."
         } else {
             whisperModelStatus = .notDownloaded
-            whisperModelStatusDetail = "Whisper \(friendly) · Not downloaded yet."
+            whisperModelStatusDetail = "\(friendly) · Needs download before use."
         }
     }
 
@@ -1040,6 +1047,7 @@ public final class SettingsViewModel {
     }
 
     public func downloadWhisperModel() {
+        guard !speechEngineSwitching else { return }
         guard !whisperDownloading else { return }
         // The user has taken the action that resolves any pending
         // "Whisper isn't ready" error, so clear it. Otherwise the red
@@ -1053,7 +1061,11 @@ public final class SettingsViewModel {
         let friendly = SpeechEnginePreference.friendlyVariantName(modelVariant)
         let operationContext = Observability.childOperationContext()
         whisperModelStatusDetail = "Downloading Whisper \(friendly)..."
-        Telemetry.send(.modelDownloadStarted)
+        Telemetry.send(.modelDownloadStarted(
+            modelKind: .whisperSTT,
+            speechEngine: .whisper,
+            engineVariant: modelVariant
+        ))
 
         Task {
             do {
@@ -1067,7 +1079,12 @@ public final class SettingsViewModel {
                     }
                 }
                 let durationSeconds = Observability.durationSeconds(since: operationContext.startedAt)
-                Telemetry.send(.modelDownloadCompleted(durationSeconds: durationSeconds))
+                Telemetry.send(.modelDownloadCompleted(
+                    durationSeconds: durationSeconds,
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: modelVariant
+                ))
                 Telemetry.send(.modelOperation(
                     operationID: operationContext.operationID,
                     operationContext: operationContext,
@@ -1107,7 +1124,10 @@ public final class SettingsViewModel {
                 let errorType = TelemetryErrorClassifier.classify(error)
                 Telemetry.send(.modelDownloadFailed(
                     errorType: errorType,
-                    errorDetail: TelemetryErrorClassifier.errorDetail(error)
+                    errorDetail: TelemetryErrorClassifier.errorDetail(error),
+                    modelKind: .whisperSTT,
+                    speechEngine: .whisper,
+                    engineVariant: modelVariant
                 ))
                 Telemetry.send(.modelOperation(
                     operationID: operationContext.operationID,
@@ -1169,6 +1189,8 @@ public final class SettingsViewModel {
         }
 
         speechEngineSwitching = true
+        speechEngineSwitchTarget = preference
+        speechEngineSwitchDetail = Self.initialSpeechEngineSwitchDetail(for: preference)
         Task { @MainActor [weak self] in
             guard let self else { return }
             // `defer` fires even on cancellation or unexpected early exit, so
@@ -1176,11 +1198,17 @@ public final class SettingsViewModel {
             // "Switching..." state.
             defer {
                 self.speechEngineSwitching = false
+                self.speechEngineSwitchTarget = nil
+                self.speechEngineSwitchDetail = nil
                 self.refreshModelStatus()
             }
             do {
                 try await Observability.withOperationContext(operationContext) {
-                    try await speechEngineSwitcher.setSpeechEngine(preference)
+                    try await speechEngineSwitcher.setSpeechEngine(preference) { [weak self] message in
+                        Task { @MainActor [weak self] in
+                            self?.speechEngineSwitchDetail = message
+                        }
+                    }
                 }
                 preference.save(to: self.defaults)
                 Telemetry.send(.speechEngineSwitchOperation(
@@ -1229,6 +1257,7 @@ public final class SettingsViewModel {
 
     public func repairParakeetModel() {
         guard let sttClient else { return }
+        guard !speechEngineSwitching else { return }
         guard !parakeetRepairing else { return }
         speechEngineError = nil
         parakeetRepairing = true
@@ -1324,6 +1353,17 @@ public final class SettingsViewModel {
         }
     }
 
+    private static func initialSpeechEngineSwitchDetail(
+        for preference: SpeechEnginePreference
+    ) -> String {
+        switch preference {
+        case .parakeet:
+            "Loading Parakeet model on Neural Engine..."
+        case .whisper:
+            "Optimizing Whisper for this Mac..."
+        }
+    }
+
     public func activateLicense() {
         guard let service = entitlementsService else { return }
         let key = licenseKeyInput
@@ -1397,6 +1437,7 @@ public final class SettingsViewModel {
     /// Fired after a dictation-state change (rows deleted or lifetime counters reset)
     /// so other VMs (e.g. the history view) can reload their derived data.
     public var onDictationStateChanged: (() -> Void)?
+    public var onTransformHistoryChanged: (() -> Void)?
 
     public func clearAllDictations() {
         guard let repo = dictationRepo else { return }
@@ -1433,6 +1474,20 @@ public final class SettingsViewModel {
         }
         refreshStats()
         onDictationStateChanged?()
+    }
+
+    public func clearTransformHistory() {
+        guard let repo = transformHistoryRepo else { return }
+        Task { @MainActor [repo, weak self] in
+            do {
+                try await Task.detached(priority: .userInitiated) {
+                    try repo.deleteAll()
+                }.value
+                self?.onTransformHistoryChanged?()
+            } catch {
+                self?.logger.error("Failed to clear transform history error=\(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 
     public func clearDownloadedYouTubeAudio() {

@@ -34,6 +34,20 @@ final class MeetingAudioCaptureServiceTests: XCTestCase {
         XCTAssertEqual(invocationCount.get(), 1)
     }
 
+    func testDefaultMicProcessingModeRequestsRawCapture() async throws {
+        let microphone = MockMeetingMicrophoneCapture()
+        let systemCapture = MockMeetingSystemAudioCapture()
+        let service = MeetingAudioCaptureService(
+            microphoneCapture: microphone,
+            systemAudioCaptureFactory: { systemCapture }
+        )
+
+        _ = try await service.start()
+        await service.stop()
+
+        XCTAssertEqual(microphone.requestedModes, [.raw])
+    }
+
     func testStartHandlerCopiesInterleavedMicrophoneBuffersIntoUsablePCM() async throws {
         let microphone = MockMeetingMicrophoneCapture()
         let systemCapture = MockMeetingSystemAudioCapture()

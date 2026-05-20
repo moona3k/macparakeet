@@ -1,6 +1,6 @@
 # Keystroke Action Snippets
 
-> Status: **ACTIVE**
+> Status: **COMPLETED / ARCHIVED** - implementation exists on `main`; this plan is retained for historical context.
 > GitHub Issue: moona3k/macparakeet#40
 > Branch: `feature/keystroke-action-snippets`
 > Reviewed by: Codex, Gemini (senior Swift/macOS engineer). All P0/P1 findings addressed.

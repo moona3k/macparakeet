@@ -37,13 +37,15 @@ final class DictationRepositoryTests: XCTestCase {
             durationMs: 1000,
             rawTranscript: "engine test",
             engine: SpeechEnginePreference.whisper.rawValue,
-            engineVariant: SpeechEnginePreference.defaultWhisperModelVariant
+            engineVariant: SpeechEnginePreference.defaultWhisperModelVariant,
+            language: "ko"
         )
         try repo.save(dictation)
 
         let fetched = try repo.fetch(id: dictation.id)
         XCTAssertEqual(fetched?.engine, "whisper")
         XCTAssertEqual(fetched?.engineVariant, SpeechEnginePreference.defaultWhisperModelVariant)
+        XCTAssertEqual(fetched?.language, "ko")
     }
 
     func testLegacyDictationDecodesWithNilEngineFields() throws {
@@ -56,6 +58,7 @@ final class DictationRepositoryTests: XCTestCase {
         let fetched = try repo.fetch(id: dictation.id)
         XCTAssertNil(fetched?.engine)
         XCTAssertNil(fetched?.engineVariant)
+        XCTAssertNil(fetched?.language)
     }
 
     func testFetchAll() throws {

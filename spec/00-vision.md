@@ -28,13 +28,14 @@
 +-----------------------------------------------------------------------+
 ```
 
-Three modes. That is the entire product:
+Three capture modes plus one optional selected-text AI utility. That is the product:
 
 1. **Dictate anywhere** -- Press Fn (or your configured hotkey), speak, release. Text appears where your cursor is.
 2. **Drop a file** -- Drag audio/video in. Get a transcript out.
 3. **Record a meeting** -- Capture system audio + mic, get a transcript when you stop.
+4. **Transform selected text** -- Press a bound Transform hotkey to rewrite selected text through your configured LLM provider.
 
-Everything else exists to make those three modes faster, smarter, and more useful.
+Everything else exists to make those capture modes and the selected-text rewrite surface faster, smarter, and more useful.
 
 ---
 
@@ -47,13 +48,13 @@ Everything else exists to make those three modes faster, smarter, and more usefu
 | **Cloud services** (WisprFlow, Otter) | Fast | Your audio on their servers | $12+/mo forever | Simple |
 | **Local apps** (MacWhisper, Superwhisper) | Good | Private | $30-$250 | Complex or expensive |
 | **Apple Dictation** | Slow | Mostly local | Free | Very limited |
-| **MacParakeet** | **Fastest** | **Can be fully local** | **Current public build free/GPL** | **Three modes** |
+| **MacParakeet** | **Fastest** | **Can be fully local** | **Current public build free/GPL** | **Three capture modes + Transforms** |
 
 No existing app nails all four: **Speed + Privacy + Simplicity + Fair Pricing**.
 
 Cloud services send your voice to remote servers, create accounts, charge monthly, and add server latency. Local apps either bury you in settings (MacWhisper has 50+ features) or charge a premium (Superwhisper at $250). Apple Dictation is free but slow, inaccurate, and has no custom vocabulary, no file transcription.
 
-**MacParakeet's answer:** Built from the ground up around Parakeet TDT for speed, with optional local WhisperKit for languages Parakeet does not cover. Fully local speech by default, with optional networked features. Three modes. Simple and GPL open-source. Done.
+**MacParakeet's answer:** Built from the ground up around Parakeet TDT for speed, with optional local WhisperKit for languages Parakeet does not cover. Fully local speech by default, with optional networked features. Three capture modes, plus Transforms for selected text. Simple and GPL open-source. Done.
 
 ---
 
@@ -78,11 +79,12 @@ This is not privacy theater ("your data is encrypted in transit"). This is priva
 
 ### 3. Simplicity Over Features
 
-MacWhisper has 50+ features. MacParakeet has three modes.
+MacWhisper has 50+ features. MacParakeet has three capture modes plus Transforms.
 
 - **Dictate** -- Press Fn, speak, text appears at cursor. Works in any app.
 - **Transcribe** -- Drop a file, get text out. Audio, video, YouTube links.
 - **Record** -- Capture a meeting (system audio + mic), get a transcript.
+- **Transform** -- Select text anywhere, press a bound hotkey, rewrite it through your configured LLM provider.
 
 Every feature we add must pass the test: "Does this make dictation, transcription, or meeting recording better?" If not, it does not ship.
 
@@ -207,6 +209,26 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 
 > **Historical note:** This slot was originally "Command Mode (Pro)" which was removed in 2026-02. Meeting recording replaced it as Mode 3 in v0.6.
 
+### Optional Utility: Transform Selected Text
+
+```
++-----------------------------------------------------------------------+
+|  Rewrite selected text anywhere without leaving the current app.       |
+|                                                                       |
+|  1. Select text in Slack, Mail, Linear, a browser, or an editor         |
+|  2. Press a bound Transform hotkey (Option-1/2/3 by default)           |
+|  3. MacParakeet captures the selection and runs the saved prompt        |
+|  4. The result replaces the selection in place                         |
+|                                                                       |
+|  Uses the user's configured LLM provider. No selected text is sent      |
+|  unless the user explicitly triggers a Transform.                      |
++-----------------------------------------------------------------------+
+```
+
+- Built-ins: Polish, Distill, Decide.
+- Uses the same BYO-provider LLM architecture as summaries, chat, and the AI formatter.
+- Separate from STT: it operates on selected text, not audio.
+
 ---
 
 ## Target Users
@@ -312,7 +334,7 @@ In a market of subscriptions ($144-180/yr for WisprFlow) and premium pricing ($2
 
 ### 4. Focused Simplicity
 
-Three modes. Not twenty. Not fifty.
+Three capture modes plus Transforms. Not twenty. Not fifty.
 
 The product surface area is intentionally small. This means fewer bugs, faster iteration, easier onboarding, and a UI that does not require a tutorial. If a user cannot figure out MacParakeet in 30 seconds, we have failed.
 
@@ -358,7 +380,7 @@ MacParakeet and Oatmeal are **separate products** that share underlying technolo
 |-----------|-------------|---------|
 | **Purpose** | Voice input, transcription, meeting recording | Meeting memory and knowledge |
 | **Scope** | Text in, text out, meetings transcribed | Meetings, entities, relationships, patterns |
-| **Complexity** | Three modes | Full knowledge system |
+| **Complexity** | Three capture modes + Transforms | Full knowledge system |
 | **User relationship** | Tool (use and forget) | System (compounds over time) |
 | **Codebase** | Independent | Independent |
 | **Revenue** | Current public build free/GPL; official paid distribution/support possible | TBD |

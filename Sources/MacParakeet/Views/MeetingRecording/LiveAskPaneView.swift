@@ -52,6 +52,11 @@ struct LiveAskPaneView: View {
             // from an earlier bubble) it would sit there with non-firing prompts.
             if streaming { showingPromptMenu = false }
         }
+        .onChange(of: showingPromptMenu) { _, isOpen in
+            if isOpen {
+                Telemetry.send(.askMenuOpened)
+            }
+        }
         .sheet(isPresented: $showingPromptsSheet, onDismiss: {
             // Refresh after the user closes the sheet so any edits / new pills
             // / restored defaults take effect immediately in the live pane.
@@ -74,7 +79,7 @@ struct LiveAskPaneView: View {
             VStack(spacing: 0) {
                 StarterPromptList(groups: quickPromptsViewModel.visiblePromptGroups) { entry in
                     showingPromptMenu = false
-                    fire(entry)
+                    fire(entry, source: .menu)
                 }
 
                 Divider()
@@ -139,7 +144,7 @@ struct LiveAskPaneView: View {
             HStack(spacing: 6) {
                 ForEach(quickPromptsViewModel.visiblePinned) { entry in
                     FollowUpPill(label: entry.label) {
-                        fire(entry)
+                        fire(entry, source: .followUp)
                     }
                 }
             }
@@ -172,11 +177,29 @@ struct LiveAskPaneView: View {
     }
 
     /// Pill tap → bubble shows the short label, LLM gets the comprehensive prompt.
-    private func fire(_ entry: QuickPrompt) {
+    private func fire(_ entry: QuickPrompt, source: TelemetryAskPromptSource) {
         guard viewModel.canSendMessage, !viewModel.isStreaming else { return }
+        Telemetry.send(.askPromptFired(
+            source: source,
+            group: telemetryGroup(for: entry),
+            label: telemetryLabel(for: entry)
+        ))
         viewModel.inputText = entry.label
         viewModel.sendMessage(richPrompt: entry.prompt)
         inputFocused = true
+    }
+
+    private func telemetryGroup(for entry: QuickPrompt) -> String {
+        guard entry.isBuiltIn else { return "custom" }
+        guard let group = entry.groupLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !group.isEmpty else {
+            return "ungrouped"
+        }
+        return group
+    }
+
+    private func telemetryLabel(for entry: QuickPrompt) -> String {
+        entry.isBuiltIn ? entry.label : "custom"
     }
 
     // MARK: - Messages
@@ -226,7 +249,7 @@ struct LiveAskPaneView: View {
     private var emptyStateWithPills: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
             StarterPromptList(groups: quickPromptsViewModel.visiblePromptGroups) { entry in
-                fire(entry)
+                fire(entry, source: .emptyState)
             }
 
             Button {
@@ -264,6 +287,19 @@ struct LiveAskPaneView: View {
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Button {
+                NotificationCenter.default.post(
+                    name: .macParakeetOpenSettings,
+                    object: nil,
+                    userInfo: [AppSettingsObserverCoordinator.settingsTabUserInfoKey: SettingsTab.ai.rawValue]
+                )
+            } label: {
+                Label("Set up AI", systemImage: "gearshape")
+            }
+            .parakeetAction(.secondary)
+            .controlSize(.small)
+            .padding(.top, 2)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, DesignSystem.Spacing.lg)

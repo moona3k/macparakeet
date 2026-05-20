@@ -13,6 +13,46 @@ public enum YouTubeAudioPlaybackConverterError: Error, Sendable {
     case sourceMissing(String)
 }
 
+public struct YouTubeAudioArtifactMetadata: Sendable, Equatable {
+    public var title: String?
+    public var artist: String?
+    public var description: String?
+    public var thumbnailURL: String?
+
+    public init(
+        title: String? = nil,
+        artist: String? = nil,
+        description: String? = nil,
+        thumbnailURL: String? = nil
+    ) {
+        self.title = Self.normalized(title)
+        self.artist = Self.normalized(artist)
+        self.description = Self.normalized(description)
+        self.thumbnailURL = Self.normalized(thumbnailURL)
+    }
+
+    var ffmpegMetadataArguments: [String] {
+        var args: [String] = []
+        if let title {
+            args += ["-metadata", "title=\(title)"]
+        }
+        if let artist {
+            args += ["-metadata", "artist=\(artist)"]
+            args += ["-metadata", "album_artist=\(artist)"]
+        }
+        if let description {
+            args += ["-metadata", "description=\(description)"]
+            args += ["-metadata", "comment=\(description)"]
+        }
+        return args
+    }
+
+    private static func normalized(_ value: String?) -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed?.isEmpty == false ? trimmed : nil
+    }
+}
+
 public protocol YouTubeAudioPlaybackConverting: Sendable {
     /// Convert `inputPath` to an AVPlayer-compatible `.m4a` if needed.
     /// Returns the path of the playable file. If the input is already
@@ -20,7 +60,16 @@ public protocol YouTubeAudioPlaybackConverting: Sendable {
     /// source file's lifetime — this method does **not** delete the
     /// source after a successful conversion, since the safe deletion
     /// point is after the caller has persisted the new path.
-    func convertToPlayableM4AIfNeeded(inputPath: String) async throws -> String
+    func convertToPlayableM4AIfNeeded(
+        inputPath: String,
+        metadata: YouTubeAudioArtifactMetadata?
+    ) async throws -> String
+}
+
+public extension YouTubeAudioPlaybackConverting {
+    func convertToPlayableM4AIfNeeded(inputPath: String) async throws -> String {
+        try await convertToPlayableM4AIfNeeded(inputPath: inputPath, metadata: nil)
+    }
 }
 
 /// Transcodes yt-dlp downloads that AVPlayer can't decode (WebM/Opus/Ogg)
@@ -49,7 +98,10 @@ public final class YouTubeAudioPlaybackConverter: YouTubeAudioPlaybackConverting
 
     private let logger = Logger(subsystem: "com.macparakeet", category: "PlaybackConverter")
 
-    public func convertToPlayableM4AIfNeeded(inputPath: String) async throws -> String {
+    public func convertToPlayableM4AIfNeeded(
+        inputPath: String,
+        metadata: YouTubeAudioArtifactMetadata? = nil
+    ) async throws -> String {
         guard Self.needsConversion(forPath: inputPath) else {
             return inputPath
         }
@@ -94,11 +146,35 @@ public final class YouTubeAudioPlaybackConverter: YouTubeAudioPlaybackConverting
         // m4a path until conversion completes.
         let tempOutputURL = Self.temporaryOutputURL(for: outputURL)
 
-        try await runFFmpegWithDyldFallback(
-            primaryPath: ffmpegPath,
-            inputURL: inputURL,
-            outputURL: tempOutputURL
+        let thumbnailURL = await downloadTemporaryThumbnail(
+            from: metadata?.thumbnailURL,
+            nextTo: tempOutputURL
         )
+        defer {
+            if let thumbnailURL {
+                try? FileManager.default.removeItem(at: thumbnailURL)
+            }
+        }
+
+        do {
+            try await runFFmpegWithDyldFallback(
+                primaryPath: ffmpegPath,
+                inputURL: inputURL,
+                outputURL: tempOutputURL,
+                metadata: metadata,
+                thumbnailURL: thumbnailURL
+            )
+        } catch {
+            guard thumbnailURL != nil else { throw error }
+            logger.warning("Retrying playback conversion without thumbnail metadata because thumbnail embed failed: \(error.localizedDescription, privacy: .private)")
+            try await runFFmpegWithDyldFallback(
+                primaryPath: ffmpegPath,
+                inputURL: inputURL,
+                outputURL: tempOutputURL,
+                metadata: metadata,
+                thumbnailURL: nil
+            )
+        }
 
         // Sanity check: ffmpeg can exit 0 yet write an empty file (rare,
         // but the cost of "we already deleted the source webm" makes the
@@ -133,17 +209,42 @@ public final class YouTubeAudioPlaybackConverter: YouTubeAudioPlaybackConverting
     }
 
     /// Build the ffmpeg argument vector. Exposed for testing.
-    public static func ffmpegArguments(inputPath: String, outputPath: String) -> [String] {
-        [
+    public static func ffmpegArguments(
+        inputPath: String,
+        outputPath: String,
+        metadata: YouTubeAudioArtifactMetadata? = nil,
+        thumbnailPath: String? = nil
+    ) -> [String] {
+        var args = [
             "-nostdin",
             "-i", inputPath,
-            "-vn",
+        ]
+        if let thumbnailPath {
+            args += [
+                "-i", thumbnailPath,
+                "-map", "0:a:0",
+                "-map", "1:v:0",
+            ]
+        } else {
+            args += ["-vn"]
+        }
+        args += [
             "-c:a", "aac",
             "-b:a", "192k",
+        ]
+        if thumbnailPath != nil {
+            args += [
+                "-c:v", "mjpeg",
+                "-disposition:v", "attached_pic",
+            ]
+        }
+        args += metadata?.ffmpegMetadataArguments ?? []
+        args += [
             "-movflags", "+faststart",
             "-y",
             outputPath
         ]
+        return args
     }
 
     static func temporaryOutputURL(for outputURL: URL, uuid: UUID = UUID()) -> URL {
@@ -177,13 +278,17 @@ public final class YouTubeAudioPlaybackConverter: YouTubeAudioPlaybackConverting
     private func runFFmpegWithDyldFallback(
         primaryPath: String,
         inputURL: URL,
-        outputURL: URL
+        outputURL: URL,
+        metadata: YouTubeAudioArtifactMetadata?,
+        thumbnailURL: URL?
     ) async throws {
         do {
             try await runFFmpeg(
                 ffmpegPath: primaryPath,
                 inputURL: inputURL,
-                outputURL: outputURL
+                outputURL: outputURL,
+                metadata: metadata,
+                thumbnailURL: thumbnailURL
             )
         } catch let error as YouTubeAudioPlaybackConverterError {
             guard case .conversionFailed(let reason) = error,
@@ -197,7 +302,9 @@ public final class YouTubeAudioPlaybackConverter: YouTubeAudioPlaybackConverting
             try await runFFmpeg(
                 ffmpegPath: fallbackPath,
                 inputURL: inputURL,
-                outputURL: outputURL
+                outputURL: outputURL,
+                metadata: metadata,
+                thumbnailURL: thumbnailURL
             )
         }
     }
@@ -205,7 +312,9 @@ public final class YouTubeAudioPlaybackConverter: YouTubeAudioPlaybackConverting
     private func runFFmpeg(
         ffmpegPath: String,
         inputURL: URL,
-        outputURL: URL
+        outputURL: URL,
+        metadata: YouTubeAudioArtifactMetadata?,
+        thumbnailURL: URL?
     ) async throws {
         var succeeded = false
         defer {
@@ -218,7 +327,9 @@ public final class YouTubeAudioPlaybackConverter: YouTubeAudioPlaybackConverting
         process.executableURL = URL(fileURLWithPath: ffmpegPath)
         process.arguments = Self.ffmpegArguments(
             inputPath: inputURL.path,
-            outputPath: outputURL.path
+            outputPath: outputURL.path,
+            metadata: metadata,
+            thumbnailPath: thumbnailURL?.path
         )
 
         // Mirror AudioFileConverter's stderr handling — ffmpeg's verbose
@@ -267,5 +378,45 @@ public final class YouTubeAudioPlaybackConverter: YouTubeAudioPlaybackConverting
         guard trimmed.count > limit else { return trimmed }
         let start = trimmed.index(trimmed.endIndex, offsetBy: -limit)
         return "...\(trimmed[start...])"
+    }
+
+    private func downloadTemporaryThumbnail(
+        from urlString: String?,
+        nextTo outputURL: URL
+    ) async -> URL? {
+        guard let urlString,
+              let url = URL(string: urlString),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https"].contains(scheme) else {
+            return nil
+        }
+
+        do {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 15
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let http = response as? HTTPURLResponse,
+               !(200...299).contains(http.statusCode) {
+                return nil
+            }
+            guard !data.isEmpty else { return nil }
+
+            let thumbnailURL = Self.temporaryThumbnailURL(for: outputURL, remoteURL: url)
+            try data.write(to: thumbnailURL)
+            return thumbnailURL
+        } catch {
+            logger.warning("Failed to download YouTube thumbnail for audio metadata: \(error.localizedDescription, privacy: .private)")
+            return nil
+        }
+    }
+
+    private static func temporaryThumbnailURL(for outputURL: URL, remoteURL: URL) -> URL {
+        let ext = remoteURL.pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
+        return outputURL
+            .deletingLastPathComponent()
+            .appendingPathComponent(
+                "\(outputURL.deletingPathExtension().lastPathComponent).thumb-\(UUID().uuidString)"
+            )
+            .appendingPathExtension(ext.isEmpty ? "jpg" : ext)
     }
 }

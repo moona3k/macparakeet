@@ -50,7 +50,6 @@ public final class PromptResultsViewModel {
         }
     }
 
-    private static let autoGenerationTranscriptLengthThreshold = 500
     /// Soft cap on user notes for prompt-assembly only — full notes remain on
     /// the Transcription row. ~11k tokens at typical English word→token ratio,
     /// leaving headroom for transcript + system prompt + response (ADR-020 §3).
@@ -314,7 +313,7 @@ public final class PromptResultsViewModel {
 
     @discardableResult
     public func autoGeneratePromptResults(transcript: String, transcriptionId: UUID) -> [UUID] {
-        guard transcript.count > Self.autoGenerationTranscriptLengthThreshold else { return [] }
+        guard transcript.contains(where: { !$0.isWhitespace }) else { return [] }
 
         let autoPrompts: [Prompt]
         do {

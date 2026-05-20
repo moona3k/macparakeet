@@ -3,7 +3,7 @@
 > Status: **IMPLEMENTED** - Done, still accurate (CLI command signatures updated 2026-04-26)
 > Supersedes: Previous HISTORICAL version (local Qwen3-8B via mlx-swift-lm, removed 2026-02-23)
 > ADR: ADR-011 (Cloud API keys + optional local providers)
-> Note: §1 (Transcript Summary) and §3 (Custom Transforms) are superseded by [spec/12-processing-layer.md](12-processing-layer.md) — Prompt Library + multi-summary architecture. Provider protocol, chat, and CLI sections remain current.
+> Note: §1 (Transcript Summary) is superseded by [spec/12-processing-layer.md](12-processing-layer.md) — Prompt Library + multi-summary architecture. §3's old UserDefaults custom-transform design is superseded by ADR-022's productized `Prompt.Category.transform` Transforms. Provider protocol, formatter, chat, and CLI sections remain current.
 
 This spec defines how MacParakeet integrates LLM-powered features via external providers.
 
@@ -11,7 +11,7 @@ This spec defines how MacParakeet integrates LLM-powered features via external p
 
 ## Goals
 
-1. Deliver transcript summarization, chat, and custom transforms via user-configured LLM providers.
+1. Deliver transcript summarization, chat, AI formatting, and Transforms via user-configured LLM providers.
 2. Support cloud APIs (Anthropic, OpenAI, Gemini, OpenRouter), local runtimes (Ollama), and CLI tools (Claude Code, Codex) through one shared service layer.
 3. Keep core speech processing local and preserve a fully local setup when users stick to local providers/features — only transcript text is sent to LLM providers, never audio.
 4. LLM features are optional — the app is fully functional without any provider configured.
@@ -19,7 +19,7 @@ This spec defines how MacParakeet integrates LLM-powered features via external p
 ## Non-Goals
 
 1. Bundling any LLM runtime or model (no mlx-swift-lm, no llama.cpp, no model downloads).
-2. Dictation-time LLM processing (no Command Mode, no AI refinement during dictation).
+2. Bundled/default LLM processing in the dictation hot path. The AI formatter is opt-in, runs after deterministic cleanup, and falls back to the deterministic result if the provider fails.
 3. Building a hosted backend or proxy service.
 4. Automatic fallback between providers.
 
@@ -28,7 +28,7 @@ This spec defines how MacParakeet integrates LLM-powered features via external p
 ## Architecture
 
 ```text
-User triggers LLM action (Summary / Chat / Transform)
+User triggers LLM action (Summary / Chat / Formatter / Transform)
     → LLMService (builds prompt with transcript context)
     → LLMExecutionContextResolver (resolves provider config + CLI config)
     → RoutingLLMClient
@@ -173,6 +173,18 @@ public struct LLMUsage: Sendable, Codable {
     public let completionTokens: Int?
     public let totalTokens: Int?
 }
+
+public struct LLMFormatterResult: Sendable {
+    public let result: LLMResult
+    public let operationID: String
+    public let inputChars: Int
+    public let outputChars: Int
+    public let inputTruncated: Bool
+    public let defaultPromptUsed: Bool
+    public let messageCount: Int
+
+    public var output: String { result.output }
+}
 ```
 
 ### Service Protocol
@@ -197,6 +209,12 @@ public protocol LLMServiceProtocol: Sendable {
         source: TelemetryFormatterSource,
         defaultPromptUsed: Bool
     ) async throws -> String
+    func formatTranscriptDetailed(
+        transcript: String,
+        promptTemplate: String,
+        source: TelemetryFormatterSource,
+        defaultPromptUsed: Bool
+    ) async throws -> LLMFormatterResult
 
     /// Envelope variants used by CLI JSON output
     func generatePromptResultDetailed(
@@ -291,22 +309,19 @@ the transcript, say so. Be concise and specific, citing relevant parts when help
 
 **User notes (meeting recordings, optional):** When the transcription has non-empty `userNotes`, the chat system prompt gains a `User's notes from the meeting:\n…` block before the transcript block. Empty / nil / whitespace-only notes are omitted entirely — chat behavior is byte-identical to a chat without notes. Threaded via `LLMService.chat / chatStream / chatDetailed`'s `userNotes: String?` parameter; the GUI calls `TranscriptChatViewModel.bindUserNotesProvider(_:)` with a closure that returns the latest notes at chat-send time (static for saved transcriptions, live for in-meeting Ask). See ADR-020's 2026-05-02 amendment for context on why this is safe even though the auto-run "Memo-Steered Notes" prompt was reverted.
 
-### 3. Custom Transforms
+### 3. Transforms
 
-> Historical note: the dedicated custom-transform concept below was the original design. The current branch routes this behavior through the Prompt Library in [spec/12-processing-layer.md](12-processing-layer.md) rather than a separate Settings-managed transform list.
+> Superseded design note: the original dedicated custom-transform concept used UserDefaults and transcript-view actions. The current implementation is ADR-022: system-wide selected-text rewrites stored as `Prompt` rows with `category == .transform`.
 
-**Trigger:** Context menu or toolbar action on selected text (transcript view or dictation history).
+**Trigger:** User selects text in any app and presses a bound Transform hotkey, such as `Option-1` for `Polish`.
 
-**Built-in transforms (not user-editable, shipped with app):**
-- "Make formal"
-- "Make concise"
-- "Extract action items"
-- "Fix grammar"
+**Built-ins:** `Polish`, `Distill`, and `Decide`, seeded from `Prompt.builtInPrompts()`.
 
-**Custom transforms (user-defined in Settings):**
-- User provides a name and prompt template
-- Stored in UserDefaults
-- `{text}` placeholder replaced with selected text
+**Custom Transforms:**
+- User provides a name, prompt body, optional shortcut, and optional running label
+- Stored in SQLite through `PromptRepository`
+- Managed by the GUI Transforms tab or `macparakeet-cli transforms`
+- Run output can be recorded locally in `transform_history`; `llm_runs` stores only metadata when a durable source row exists
 
 **System prompt for transforms:**
 ```
@@ -319,13 +334,11 @@ Respond with only the transformed text. Do not add explanations or preamble.
 
 ## UI
 
-> Historical note: the transcript chat surface is current, but the dedicated Custom Transforms settings sketch below predates the Prompt Library implementation in [spec/12-processing-layer.md](12-processing-layer.md).
-
-### Settings > Intelligence
+### Settings > AI
 
 ```
 ┌─────────────────────────────────────────────┐
-│  Intelligence                                │
+│  AI                                          │
 │                                              │
 │  Provider: [Anthropic ▾]                     │
 │                                              │
@@ -341,16 +354,12 @@ Respond with only the transformed text. Do not add explanations or preamble.
 │  │   For fully local AI, use Ollama.       │ │
 │  └─────────────────────────────────────────┘ │
 │                                              │
-│  Custom Transforms                           │
-│  ┌──────────────────────────────────┐        │
-│  │ Make formal                      │        │
-│  │ Make concise                     │        │
-│  │ Extract action items             │        │
-│  │ Fix grammar                      │        │
-│  │ + Add custom transform...        │        │
-│  └──────────────────────────────────┘        │
+│  AI Formatter                                │
+│  [Enable] [Prompt editor] [Reset]            │
 └─────────────────────────────────────────────┘
 ```
+
+Transforms are managed in the dedicated Transforms sidebar tab, not in Settings.
 
 ### Transcript View (with LLM features)
 

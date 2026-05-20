@@ -26,12 +26,14 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
     private let logger = Logger(subsystem: "com.macparakeet.core", category: "SystemAudioStream")
     private let stateQueue = DispatchQueue(label: "com.macparakeet.systemaudiostream.state")
     private let sampleQueue = DispatchQueue(label: "com.macparakeet.systemaudiostream.samples", qos: .userInitiated)
+    private let screenFrameQueue = DispatchQueue(label: "com.macparakeet.systemaudiostream.screenframes", qos: .utility)
     private let watchdogQueue = DispatchQueue(label: "com.macparakeet.systemaudiostream.watchdog", qos: .utility)
     private let watchdogLock = NSLock()
     private let converter = CMSampleBufferToPCMBuffer()
 
     private var state: LifecycleState = .idle
     private var stream: SCStream?
+    private var screenOutputAttached = false
     private var bufferHandler: AudioBufferHandler?
     private var stallObserver: StallObserver?
     private var firstBufferReceived = false
@@ -56,6 +58,7 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
         do {
             let stream = try await makeStream()
             try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: sampleQueue)
+            attachDiscardingScreenOutput(to: stream)
             try storeStreamIfStarting(stream)
             try await startCapture(stream)
             try markRunning()
@@ -77,11 +80,7 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
 
     public func stop() async {
         guard let stream = beginStop() else { return }
-        do {
-            try stream.removeStreamOutput(self, type: .audio)
-        } catch {
-            logger.debug("system_audio_stream_remove_output_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
-        }
+        removeStreamOutputs(from: stream)
         await stopCapture(stream)
         logger.info("system_audio_stream_stopped")
         AudioCaptureDiagnostics.append("system_audio_stream_stopped")
@@ -98,6 +97,7 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
                 return
             }
             state = .starting
+            screenOutputAttached = false
             bufferHandler = handler
             watchdogLock.withLock {
                 firstBufferReceived = false
@@ -170,11 +170,7 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
     private func tearDownAfterFailedStart() async {
         let stream = beginStop()
         guard let stream else { return }
-        do {
-            try stream.removeStreamOutput(self, type: .audio)
-        } catch {
-            logger.debug("system_audio_stream_failed_start_remove_output_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
-        }
+        removeStreamOutputs(from: stream)
         await stopCapture(stream)
     }
 
@@ -197,6 +193,38 @@ public final class SystemAudioStream: NSObject, @unchecked Sendable {
         configuration.excludesCurrentProcessAudio = true
 
         return SCStream(filter: filter, configuration: configuration, delegate: self)
+    }
+
+    private func attachDiscardingScreenOutput(to stream: SCStream) {
+        do {
+            try stream.addStreamOutput(self, type: .screen, sampleHandlerQueue: screenFrameQueue)
+            stateQueue.sync {
+                screenOutputAttached = true
+            }
+            AudioCaptureDiagnostics.append("system_audio_stream_screen_output_attached mode=discard")
+        } catch {
+            logger.debug("system_audio_stream_screen_output_attach_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+        }
+    }
+
+    private func removeStreamOutputs(from stream: SCStream) {
+        do {
+            try stream.removeStreamOutput(self, type: .audio)
+        } catch {
+            logger.debug("system_audio_stream_remove_audio_output_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+        }
+
+        let shouldRemoveScreenOutput = stateQueue.sync { () -> Bool in
+            let attached = screenOutputAttached
+            screenOutputAttached = false
+            return attached
+        }
+        guard shouldRemoveScreenOutput else { return }
+        do {
+            try stream.removeStreamOutput(self, type: .screen)
+        } catch {
+            logger.debug("system_audio_stream_remove_screen_output_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
+        }
     }
 
     private func startCapture(_ stream: SCStream) async throws {

@@ -69,6 +69,14 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         WhisperLanguageCatalog.canonicalCode(for: language)
     }
 
+    public static func normalizeKnownLanguage(_ language: String?) -> String? {
+        guard let normalized = normalizeLanguage(language),
+              WhisperLanguageCatalog.language(forCode: normalized) != nil else {
+            return nil
+        }
+        return normalized
+    }
+
     public static func normalizeModelVariant(_ variant: String?) -> String? {
         guard let variant else { return nil }
         let trimmed = variant.trimmingCharacters(in: .whitespacesAndNewlines)

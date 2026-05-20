@@ -1,6 +1,6 @@
 # WisprFlow Deep Dive
 
-> Status: **HISTORICAL** - Competitive research from February 2026. The local Qwen3-8B / Command Mode comparisons here are outdated because the on-device LLM path was removed 2026-02-23. Current LLM features use provider-based integrations or local CLI instead.
+> Status: **HISTORICAL** — Superseded by `wisprflow-reverse-engineering-2026-05.md` (May 2026, reverse-engineered from app binary v1.5.308). This doc was based on web research only. The local Qwen3-8B / Command Mode comparisons here are outdated because the on-device LLM path was removed 2026-02-23.
 
 ## What WisprFlow Does
 

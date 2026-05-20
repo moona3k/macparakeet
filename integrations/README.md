@@ -55,8 +55,9 @@ sitting at a keyboard, it lives in the .app.
   per-minute charges.
 - **Audio + video file transcription** -- accepts MP3 / WAV / MP4 / MOV /
   WebM / etc. via the bundled FFmpeg.
-- **YouTube transcription** via yt-dlp. The app bundle seeds a signed helper
-  into MacParakeet's Application Support folder before first YouTube use.
+- **YouTube transcription** via yt-dlp. The standalone Homebrew install uses
+  Homebrew's `yt-dlp`; the app bundle can seed a signed helper into
+  MacParakeet's Application Support folder before first YouTube use.
 - **Persistent SQLite memory layer** -- everything transcribed is queryable
   later: dictation history, transcriptions, prompt outputs.
 - **Shared app/CLI preferences** -- agents can set speech engine, processing
@@ -73,8 +74,19 @@ sitting at a keyboard, it lives in the .app.
 
 ## Install
 
-**Today:** the CLI ships inside the macOS app bundle. After installing
-[MacParakeet](https://macparakeet.com), the binary is at:
+**Recommended for agents/headless Macs:**
+
+```bash
+brew install moona3k/tap/macparakeet-cli
+macparakeet-cli --version
+macparakeet-cli health --json
+```
+
+This installs the standalone CLI plus its Homebrew-managed `ffmpeg` and
+`yt-dlp` runtime dependencies. It does not require `MacParakeet.app`.
+
+**Bundled app alternative:** after installing
+[MacParakeet](https://macparakeet.com), the same CLI surface is available at:
 
 ```bash
 /Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli --help
@@ -86,10 +98,6 @@ For convenience, symlink it onto your `$PATH`:
 ln -s /Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli \
       /usr/local/bin/macparakeet-cli
 ```
-
-**On the roadmap:** `brew install moona3k/tap/macparakeet-cli` for a
-standalone install with no `.app` required. See
-[`../plans/active/cli-as-canonical-parakeet-surface.md`](../plans/active/cli-as-canonical-parakeet-surface.md).
 
 ## Why Apple Silicon specifically
 
@@ -405,6 +413,10 @@ macparakeet-cli prompts run "<prompt-name>" \
   providers read `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, and
   `OPENROUTER_API_KEY` directly. Avoid `--api-key sk-...`; command-line
   arguments can appear in shell history and process listings.
+- **Base URLs:** hosted/non-local providers require `https://` unless the
+  endpoint is loopback. For intentional non-loopback `http://` testing, pass
+  `--allow-insecure-http`; the CLI writes a stderr warning and keeps stdout
+  machine-readable.
 - **JSON flag shape:** read-only query commands take `--json` (a binary flag);
   `transcribe` and `export` take `--format json` because they emit one of
   several formats (txt / srt / vtt / json / docx / pdf). Both produce stable

@@ -55,7 +55,7 @@ macparakeet-cli
 │   ├── warm-up [--attempts]             Warm up speech model
 │   ├── repair [--attempts]              Best-effort model repair
 │   └── clear                            Delete cached models
-├── flow                                 Text processing pipeline
+├── vocab, flow                          Text processing pipeline (`flow` is deprecated)
 │   ├── process <text> [--copy]          Run clean text processing
 │   ├── words {list,add,delete}          Manage custom words
 │   │   └── list [--source manual|learned|all] [--json]
@@ -83,6 +83,13 @@ macparakeet-cli
 │   ├── pin <id-or-label> / unpin <id-or-label>
 │   ├── restore-defaults [--id UUID]
 │   └── export [--out path] [--pinned true|false] [--include-builtins] / import <path> [--mode merge|replace]
+├── transforms                           Manage and run saved Transforms
+│   ├── list [--json]
+│   ├── show <id-or-name> [--json]
+│   ├── run <id-or-name> --input FILE|- [--stream] [--json]
+│   ├── create --name X (--prompt Y | --from-file path) [--shortcut opt+1] [--json]
+│   ├── delete <id-or-name> [--json]
+│   └── history {list,show,delete,clear} [--json]
 ├── meetings                             Inspect and manage local meeting recordings
 │   ├── list [--limit] [--json]
 │   ├── show <meeting> [--json]
@@ -93,6 +100,9 @@ macparakeet-cli
 │   └── upcoming [--days N] [--filter link|participants|all] [--json]
 └── feedback <message> [options]         Submit feedback
 ```
+
+`flow` is a compatibility alias for `vocab` in CLI 2.3.x. Use `vocab` in new
+scripts; the alias remains documented here only while the CLI still exposes it.
 
 > **JSON output convention**: any query command marked `[--json]` emits a single
 > JSON document on stdout (ISO-8601 dates, sorted keys, pretty-printed). Pipe to
@@ -386,17 +396,17 @@ swift run macparakeet-cli models clear
 ## Text Pipeline
 
 ```bash
-swift run macparakeet-cli flow process "your text"
-swift run macparakeet-cli flow process "your text" --copy   # also copies to clipboard
+swift run macparakeet-cli vocab process "your text"
+swift run macparakeet-cli vocab process "your text" --copy   # also copies to clipboard
 
-swift run macparakeet-cli flow words list
-swift run macparakeet-cli flow words add "macparakeet" "MacParakeet"
-swift run macparakeet-cli flow words add "hmm"              # vocabulary anchor (no replacement)
-swift run macparakeet-cli flow words delete <ID>
+swift run macparakeet-cli vocab words list
+swift run macparakeet-cli vocab words add "macparakeet" "MacParakeet"
+swift run macparakeet-cli vocab words add "hmm"              # vocabulary anchor (no replacement)
+swift run macparakeet-cli vocab words delete <ID>
 
-swift run macparakeet-cli flow snippets list
-swift run macparakeet-cli flow snippets add "my signature" "Best regards, Daniel"
-swift run macparakeet-cli flow snippets delete <ID>
+swift run macparakeet-cli vocab snippets list
+swift run macparakeet-cli vocab snippets add "my signature" "Best regards, Daniel"
+swift run macparakeet-cli vocab snippets delete <ID>
 ```
 
 ## LLM Commands
@@ -422,29 +432,29 @@ CLI can run without an API key.
 
 ```bash
 swift run macparakeet-cli llm test-connection \
-  --provider openai --api-key sk-...
+  --provider openai --api-key-env OPENAI_API_KEY
 ```
 
 ### Summarize
 
 ```bash
 swift run macparakeet-cli llm summarize transcript.txt \
-  --provider anthropic --api-key sk-ant-...
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY
 
 # Stream output token-by-token
 swift run macparakeet-cli llm summarize transcript.txt \
-  --provider anthropic --api-key sk-ant-... --stream
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY --stream
 
 # Read from stdin
 echo "Long text..." | swift run macparakeet-cli llm summarize - \
-  --provider anthropic --api-key sk-ant-...
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY
 ```
 
 ### Chat (Q&A about a transcript)
 
 ```bash
 swift run macparakeet-cli llm chat transcript.txt \
-  --provider openai --api-key sk-... \
+  --provider openai --api-key-env OPENAI_API_KEY \
   --question "What were the key points?"
 ```
 
@@ -452,7 +462,7 @@ swift run macparakeet-cli llm chat transcript.txt \
 
 ```bash
 swift run macparakeet-cli llm transform transcript.txt \
-  --provider anthropic --api-key sk-ant-... \
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY \
   --prompt "Translate to Spanish"
 ```
 
@@ -471,7 +481,11 @@ swift run macparakeet-cli llm summarize transcript.txt --provider lmstudio --mod
 All LLM commands accept these additional options:
 
 - `--model <name>` — Override default model
-- `--base-url <url>` — Custom API endpoint (http:// or https://)
+- `--base-url <url>` — Custom API endpoint. HTTPS is required for
+  non-local/non-loopback HTTP unless `--allow-insecure-http` is set.
+- `--allow-insecure-http` — Permit intentional non-loopback `http://` for
+  non-local providers. Emits a stderr warning because prompt content and API
+  keys may cross the network without TLS.
 - `--stream` — Stream response token-by-token (summarize, chat, transform)
 - `--command <cmd>` — CLI command template (Local CLI provider only)
 
@@ -489,6 +503,33 @@ swift run macparakeet-cli llm summarize transcript.txt --provider cli --command 
 
 # Custom command
 swift run macparakeet-cli llm chat transcript.txt --provider cli --command "my-tool --stdin" --question "Key points?"
+```
+
+## Transforms
+
+`transforms` is the saved-prompt product surface from ADR-022. It operates on
+text passed to the CLI directly; AX selection capture and in-place replacement
+are GUI-only.
+
+```bash
+# Inspect built-ins and custom Transforms
+swift run macparakeet-cli transforms list
+swift run macparakeet-cli transforms show Polish --json
+
+# Run a saved Transform against a file or stdin
+swift run macparakeet-cli transforms run Polish --input draft.txt --json
+echo "too long; didn't read" | swift run macparakeet-cli transforms run Distill --input -
+
+# Create a custom Transform
+swift run macparakeet-cli transforms create \
+  --name "Terse" \
+  --prompt "Rewrite the input in terse, direct prose. Return only the rewritten text." \
+  --shortcut opt+4 \
+  --json
+
+# Inspect local run history
+swift run macparakeet-cli transforms history list --json
+swift run macparakeet-cli transforms history show <id-prefix>
 ```
 
 ## Prompt Library
@@ -547,18 +588,18 @@ and the transcription text as input. By default it persists the result to the
 ```bash
 swift run macparakeet-cli prompts run "Summary" \
   --transcription <transcription-id> \
-  --provider anthropic --api-key sk-ant-...
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY
 
 # Stream output and skip persistence (preview-only)
 swift run macparakeet-cli prompts run "Action Items & Decisions" \
   --transcription a3f7 \
-  --provider openai --api-key sk-... \
+  --provider openai --api-key-env OPENAI_API_KEY \
   --stream --no-store
 
 # Add per-run instructions (mirrors the GUI's regenerate-with-extra flow)
 swift run macparakeet-cli prompts run "Blog Post" \
   --transcription a3f7 \
-  --provider anthropic --api-key sk-ant-... \
+  --provider anthropic --api-key-env ANTHROPIC_API_KEY \
   --extra "Tone: warm and direct. Audience: engineers."
 ```
 

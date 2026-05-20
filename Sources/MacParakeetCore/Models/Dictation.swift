@@ -21,6 +21,9 @@ public struct Dictation: Codable, Identifiable, Sendable {
     /// Engine-specific model variant id (e.g. the Whisper model id).
     /// `nil` for engines without variants and for legacy rows.
     public var engineVariant: String?
+    /// Normalized detected STT language code (for example `"en"`, `"ko"`,
+    /// `"ja"`, or `"zh"`). `nil` when unknown or for legacy rows.
+    public var language: String?
     /// "Undo AI edit" toggle. When `true`, surfaces (`displayText`, history
     /// copy, recent-paste menu, export) show `rawTranscript` even when a
     /// `cleanTranscript` exists. Reversible — flipping back to `false`
@@ -73,6 +76,7 @@ public struct Dictation: Codable, Identifiable, Sendable {
         wordCount: Int = 0,
         engine: String? = nil,
         engineVariant: String? = nil,
+        language: String? = nil,
         displayRawTranscript: Bool = false
     ) {
         self.id = id
@@ -90,6 +94,7 @@ public struct Dictation: Codable, Identifiable, Sendable {
         self.wordCount = wordCount
         self.engine = engine
         self.engineVariant = engineVariant
+        self.language = language
         self.displayRawTranscript = displayRawTranscript
     }
 
@@ -98,7 +103,7 @@ public struct Dictation: Codable, Identifiable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id, createdAt, durationMs, rawTranscript, cleanTranscript
         case audioPath, pastedToApp, processingMode, status, errorMessage
-        case updatedAt, hidden, wordCount, engine, engineVariant
+        case updatedAt, hidden, wordCount, engine, engineVariant, language
         case displayRawTranscript
     }
 
@@ -119,6 +124,7 @@ public struct Dictation: Codable, Identifiable, Sendable {
         wordCount = try container.decode(Int.self, forKey: .wordCount)
         engine = try container.decodeIfPresent(String.self, forKey: .engine)
         engineVariant = try container.decodeIfPresent(String.self, forKey: .engineVariant)
+        language = try container.decodeIfPresent(String.self, forKey: .language)
         // Decode-if-present so legacy serialized snapshots (in-flight Codable
         // payloads, tests) round-trip without explicitly setting the field.
         displayRawTranscript = try container.decodeIfPresent(Bool.self, forKey: .displayRawTranscript) ?? false
@@ -177,7 +183,7 @@ extension Dictation: FetchableRecord, PersistableRecord {
     public enum Columns: String, ColumnExpression {
         case id, createdAt, durationMs, rawTranscript, cleanTranscript
         case audioPath, pastedToApp, processingMode, status, errorMessage, updatedAt
-        case hidden, wordCount, engine, engineVariant
+        case hidden, wordCount, engine, engineVariant, language
         case displayRawTranscript
     }
 }

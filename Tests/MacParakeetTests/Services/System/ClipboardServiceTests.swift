@@ -4,12 +4,34 @@ import XCTest
 
 @MainActor
 final class ClipboardServiceTests: XCTestCase {
-    func testDefaultRestoreDelayLeavesRoomForAsyncPasteConsumers() {
-        XCTAssertGreaterThanOrEqual(
+    func testDefaultRestoreDelayUsesHalfSecondFallbackWindow() {
+        XCTAssertEqual(
             ClipboardService.defaultClipboardRestoreDelay,
-            0.75,
-            "Restoring too soon can make slow target apps paste the previously saved clipboard item."
+            0.5,
+            accuracy: 0.001,
+            "Fallback clipboard paste should keep the dictated text available briefly without leaving a long stale-clipboard window."
         )
+    }
+
+    func testPasteTextAlwaysUsesClipboardPastePath() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+
+        var pastedStrings: [String] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting {
+                pastedStrings.append(pasteboard.string(forType: .string) ?? "")
+            },
+            clipboardRestoreDelay: Self.shortRestoreDelay
+        )
+
+        try await service.pasteText("dictation")
+
+        XCTAssertEqual(pastedStrings, ["dictation"])
+
+        try await waitForPasteboardString("original", on: pasteboard)
     }
 
     func testPasteboardWriteFailureHasActionableDescription() {

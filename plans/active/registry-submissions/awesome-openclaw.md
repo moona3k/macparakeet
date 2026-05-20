@@ -1,6 +1,11 @@
 # Submission draft — `vincentkoc/awesome-openclaw`
 
 > **Status:** ✅ submitted as issue [#71](https://github.com/vincentkoc/awesome-openclaw/issues/71) on 2026-04-25. Awaiting maintainer triage.
+>
+> Current release note (2026-05-19): `macparakeet-cli 2.3.1` is published
+> and Homebrew-verified. The submitted issue-template text below preserves
+> the 2026-04-25 wording where it refers to the original 1.0.0 versioning
+> event.
 
 ## Submission flow (per their CONTRIBUTING.md)
 

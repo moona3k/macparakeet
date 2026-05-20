@@ -71,6 +71,47 @@ final class YouTubeAudioPlaybackConverterTests: XCTestCase {
         ])
     }
 
+    func testFFmpegArgumentsEmbedMetadataTags() {
+        let args = YouTubeAudioPlaybackConverter.ffmpegArguments(
+            inputPath: "/tmp/source.webm",
+            outputPath: "/tmp/source.m4a",
+            metadata: YouTubeAudioArtifactMetadata(
+                title: "Video Title",
+                artist: "Channel Name",
+                description: "Video description"
+            )
+        )
+
+        XCTAssertTrue(args.containsInOrder(["-metadata", "title=Video Title"]))
+        XCTAssertTrue(args.containsInOrder(["-metadata", "artist=Channel Name"]))
+        XCTAssertTrue(args.containsInOrder(["-metadata", "album_artist=Channel Name"]))
+        XCTAssertTrue(args.containsInOrder(["-metadata", "description=Video description"]))
+        XCTAssertTrue(args.containsInOrder(["-metadata", "comment=Video description"]))
+    }
+
+    func testFFmpegArgumentsAttachThumbnailWhenProvided() {
+        let args = YouTubeAudioPlaybackConverter.ffmpegArguments(
+            inputPath: "/tmp/source.webm",
+            outputPath: "/tmp/source.m4a",
+            thumbnailPath: "/tmp/thumb.jpg"
+        )
+
+        XCTAssertEqual(args, [
+            "-nostdin",
+            "-i", "/tmp/source.webm",
+            "-i", "/tmp/thumb.jpg",
+            "-map", "0:a:0",
+            "-map", "1:v:0",
+            "-c:a", "aac",
+            "-b:a", "192k",
+            "-c:v", "mjpeg",
+            "-disposition:v", "attached_pic",
+            "-movflags", "+faststart",
+            "-y",
+            "/tmp/source.m4a",
+        ])
+    }
+
     func testTemporaryOutputURLKeepsM4AExtensionForFFmpegFormatDetection() {
         let uuid = UUID(uuidString: "11111111-2222-3333-4444-555555555555")!
         let outputURL = URL(fileURLWithPath: "/tmp/source.m4a")
@@ -127,5 +168,27 @@ final class YouTubeAudioPlaybackConverterTests: XCTestCase {
         let converter = YouTubeAudioPlaybackConverter()
         let result = try await converter.convertToPlayableM4AIfNeeded(inputPath: webmPath)
         XCTAssertEqual(result, m4aURL.path)
+    }
+}
+
+private extension Array where Element == String {
+    func containsInOrder(_ values: [String]) -> Bool {
+        guard !values.isEmpty else { return true }
+        for index in indices {
+            guard self[index] == values[0] else { continue }
+            var candidateIndex = index
+            var matched = true
+            for value in values.dropFirst() {
+                candidateIndex = self.index(after: candidateIndex)
+                guard indices.contains(candidateIndex), self[candidateIndex] == value else {
+                    matched = false
+                    break
+                }
+            }
+            if matched {
+                return true
+            }
+        }
+        return false
     }
 }

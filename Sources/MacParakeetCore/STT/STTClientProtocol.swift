@@ -46,6 +46,20 @@ public typealias STTClientProtocol = STTManaging
 
 public protocol SpeechEngineSwitching: Sendable {
     func setSpeechEngine(_ preference: SpeechEnginePreference) async throws
+    func setSpeechEngine(
+        _ preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws
+}
+
+extension SpeechEngineSwitching {
+    public func setSpeechEngine(
+        _ preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        onProgress?("Preparing \(preference.displayName)...")
+        try await setSpeechEngine(preference)
+    }
 }
 
 public protocol SpeechEngineSessionManaging: Sendable {

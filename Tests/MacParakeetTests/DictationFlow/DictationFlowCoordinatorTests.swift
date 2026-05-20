@@ -51,4 +51,83 @@ final class DictationFlowCoordinatorTests: XCTestCase {
             XCTAssertFalse(DictationFlowCoordinator.isCapturingAudio(for: state), "Expected false for \(state)")
         }
     }
+
+    func testPasteFailureMessagePreservesAccessibilityCauseWhenCopied() {
+        let message = DictationFlowCoordinator.pasteFailureMessage(
+            for: ClipboardServiceError.accessibilityPermissionRequired,
+            copiedToClipboard: true
+        )
+
+        XCTAssertEqual(
+            message,
+            "Accessibility permission is required for auto-paste. Copied to clipboard. Press Cmd+V."
+        )
+    }
+
+    func testPasteFailureMessagePreservesAccessibilityCauseWhenNotCopied() {
+        let message = DictationFlowCoordinator.pasteFailureMessage(
+            for: ClipboardServiceError.accessibilityPermissionRequired,
+            copiedToClipboard: false
+        )
+
+        XCTAssertEqual(
+            message,
+            "Accessibility permission is required for auto-paste, but the clipboard could not be updated."
+        )
+    }
+
+    func testPasteFailureMessageReportsClipboardWriteFailureWhenNotCopied() {
+        let message = DictationFlowCoordinator.pasteFailureMessage(
+            for: ClipboardServiceError.pasteboardWriteFailed,
+            copiedToClipboard: false
+        )
+
+        XCTAssertEqual(message, "Paste failed and the clipboard could not be updated.")
+    }
+
+    func testPasteFailureMessageStaysGenericWhenCopiedWithoutAccessibilityCause() {
+        // A non-permission paste failure (e.g. CGEvent infrastructure) that still
+        // landed on the clipboard must keep the generic copy - it must NOT claim
+        // an Accessibility cause it cannot attribute.
+        let message = DictationFlowCoordinator.pasteFailureMessage(
+            for: ClipboardServiceError.eventSourceUnavailable,
+            copiedToClipboard: true
+        )
+
+        XCTAssertEqual(message, "Copied to clipboard. Press Cmd+V.")
+    }
+
+    func testPasteFailureMessageDoesNotSuggestPasteWhenNotCopied() {
+        let message = DictationFlowCoordinator.pasteFailureMessage(
+            for: ClipboardServiceError.eventCreationFailed,
+            copiedToClipboard: false
+        )
+
+        XCTAssertEqual(
+            message,
+            "Paste failed and the clipboard could not be updated."
+        )
+    }
+
+    func testCommandFailureBucketSplitsClipboardPermissionFailure() {
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: ClipboardServiceError.accessibilityPermissionRequired),
+            "paste_accessibility_permission"
+        )
+    }
+
+    func testCommandFailureBucketSplitsClipboardInfrastructureFailures() {
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: ClipboardServiceError.eventSourceUnavailable),
+            "paste_event_source_unavailable"
+        )
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: ClipboardServiceError.eventCreationFailed),
+            "paste_event_creation_failed"
+        )
+        XCTAssertEqual(
+            DictationFlowCoordinator.commandFailureBucket(for: ClipboardServiceError.pasteboardWriteFailed),
+            "pasteboard_write_failed"
+        )
+    }
 }

@@ -42,6 +42,29 @@ private final class MutableDateBox: @unchecked Sendable {
     }
 }
 
+private actor WhisperDownloadSpy {
+    private var calls: [String] = []
+    var error: Error?
+
+    func download(
+        model: String,
+        onProgress: @escaping @Sendable (_ completed: Int, _ total: Int) -> Void
+    ) async throws {
+        calls.append(model)
+
+        onProgress(1, 2)
+        onProgress(2, 2)
+
+        if let error {
+            throw error
+        }
+    }
+
+    func snapshot() -> [String] {
+        calls
+    }
+}
+
 @MainActor
 final class OnboardingViewModelTests: XCTestCase {
     private func waitUntil(
@@ -65,12 +88,16 @@ final class OnboardingViewModelTests: XCTestCase {
     private func makeViewModel(
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
+        speechEngineSwitcher: SpeechEngineSwitching? = nil,
         diarizationService: DiarizationServiceProtocol? = nil,
         defaults: UserDefaults,
         isRuntimeSupported: @escaping @Sendable () -> Bool = { true },
         availableDiskBytes: @escaping @Sendable () -> Int64? = { 20 * 1_024 * 1_024 * 1_024 },
         isNetworkReachable: @escaping @Sendable () async -> Bool = { true },
         isSpeechModelCached: @escaping @Sendable () -> Bool = { false },
+        isWhisperModelDownloaded: @escaping @Sendable () -> Bool = { true },
+        downloadWhisperModel: OnboardingViewModel.WhisperModelDownloader? = nil,
+        preferredLanguages: @escaping @Sendable () -> [String] = { ["en-US"] },
         now: @escaping @Sendable () -> Date = { Date() },
         permissionPollingInterval: Duration = .seconds(2),
         relaunchHintDelay: TimeInterval = 10
@@ -78,11 +105,15 @@ final class OnboardingViewModelTests: XCTestCase {
         OnboardingViewModel(
             permissionService: permissionService,
             sttClient: sttClient,
+            speechEngineSwitcher: speechEngineSwitcher,
             diarizationService: diarizationService,
             isRuntimeSupported: isRuntimeSupported,
             availableDiskBytes: availableDiskBytes,
             isNetworkReachable: isNetworkReachable,
             isSpeechModelCached: isSpeechModelCached,
+            isWhisperModelDownloaded: isWhisperModelDownloaded,
+            downloadWhisperModel: downloadWhisperModel,
+            preferredLanguages: preferredLanguages,
             defaults: defaults,
             now: now,
             permissionPollingInterval: permissionPollingInterval,
@@ -137,6 +168,22 @@ final class OnboardingViewModelTests: XCTestCase {
             OnboardingViewModel.Step.allCases,
             [.welcome, .microphone, .accessibility, .meetingRecording, .calendar, .hotkey, .engine, .done]
         )
+    }
+
+    func testWhisperOnboardingRecommendationDetectsCJKPreferredLanguages() {
+        XCTAssertEqual(
+            OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["ko-KR"])?.languageCode,
+            "ko"
+        )
+        XCTAssertEqual(
+            OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["en-US", "ja-JP"])?.languageCode,
+            "ja"
+        )
+        XCTAssertEqual(
+            OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["zh-Hant-HK"])?.languageCode,
+            "zh"
+        )
+        XCTAssertNil(OnboardingViewModel.recommendedWhisperLanguage(preferredLanguages: ["en-US", "fr-FR"]))
     }
 
     func testMeetingRecordingStepCanContinueWithoutPermission() {
@@ -292,6 +339,148 @@ final class OnboardingViewModelTests: XCTestCase {
         let called = await stt.wasWarmUpCalled()
         XCTAssertTrue(called)
         XCTAssertTrue(vm.canContinueFromCurrentStep())
+    }
+
+    func testEngineWarmUpUsesWhisperForCJKPreferredLanguageWhenModelIsCached() async throws {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            preferredLanguages: { ["ko-KR"] }
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(120))
+
+        XCTAssertEqual(vm.whisperRecommendation?.languageCode, "ko")
+        XCTAssertEqual(vm.engineState, .ready)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .whisper)
+        XCTAssertEqual(SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults), "ko")
+        let switches = await stt.speechEngineSwitchesSnapshot()
+        let warmUpCallCount = await stt.warmUpCallCountSnapshot()
+        XCTAssertEqual(switches, [.whisper])
+        XCTAssertEqual(warmUpCallCount, 0)
+
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.whisperDefaultLanguage])
+    }
+
+    func testEngineWarmUpPreparesDiarizationModelsOnCJKWhisperPath() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let diarization = MockDiarizationService()
+        await diarization.configureCachedModels(false)
+        await diarization.configureReady(false)
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            diarizationService: diarization,
+            defaults: defaults,
+            isWhisperModelDownloaded: { true },
+            preferredLanguages: { ["ko-KR"] }
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(160))
+
+        let prepared = await diarization.prepareModelsCalled
+        XCTAssertTrue(prepared)
+        XCTAssertEqual(vm.engineState, .ready)
+    }
+
+    func testEngineWarmUpDownloadsWhisperForCJKPreferredLanguageWhenMissing() async throws {
+        let telemetry = OnboardingTelemetrySpy()
+        Telemetry.configure(telemetry)
+        defer { Telemetry.configure(NoOpTelemetryService()) }
+
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let downloadSpy = WhisperDownloadSpy()
+        let suite = "com.macparakeet.tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            defaults: defaults,
+            isWhisperModelDownloaded: { false },
+            downloadWhisperModel: { model, progress in
+                try await downloadSpy.download(model: model, onProgress: progress)
+            },
+            preferredLanguages: { ["ja-JP"] }
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(160))
+
+        XCTAssertEqual(vm.engineState, .ready)
+        let downloads = await downloadSpy.snapshot()
+        XCTAssertEqual(downloads, [SpeechEnginePreference.defaultWhisperModelVariant])
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: defaults), .whisper)
+        XCTAssertEqual(SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults), "ja")
+
+        let events = telemetry.snapshot()
+        XCTAssertTrue(events.contains {
+            if case .modelDownloadStarted(let modelKind, let speechEngine, _) = $0 {
+                return modelKind == .whisperSTT && speechEngine == .whisper
+            }
+            return false
+        })
+        XCTAssertTrue(events.contains {
+            if case .modelDownloadCompleted(_, let modelKind, let speechEngine, _) = $0 {
+                return modelKind == .whisperSTT && speechEngine == .whisper
+            }
+            return false
+        })
+    }
+
+    func testEngineWarmUpFailsWhisperPreflightWhenCJKLocaleAndOffline() async throws {
+        let perms = MockPermissionService()
+        let stt = MockSTTClient()
+        let defaults = UserDefaults(suiteName: "com.macparakeet.tests.\(UUID().uuidString)")!
+
+        let vm = makeViewModel(
+            permissionService: perms,
+            sttClient: stt,
+            defaults: defaults,
+            isNetworkReachable: { false },
+            isWhisperModelDownloaded: { false },
+            preferredLanguages: { ["zh-Hans-CN"] }
+        )
+        vm.jump(to: .engine)
+
+        vm.startEngineWarmUp()
+        try await Task.sleep(for: .milliseconds(120))
+
+        if case .failed(let message) = vm.engineState {
+            XCTAssertTrue(message.lowercased().contains("whisper model"))
+        } else {
+            XCTFail("Expected Whisper preflight failure when offline")
+        }
+        let switches = await stt.speechEngineSwitchesSnapshot()
+        XCTAssertEqual(switches, [])
     }
 
     func testEngineWarmUpPreparesDiarizationModelsBeforeReady() async throws {

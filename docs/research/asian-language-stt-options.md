@@ -219,7 +219,7 @@ No refactoring of services, database, or UI needed — the protocol boundary is 
 - **NVIDIA NeMo releases**: New Parakeet variants for CJK languages
 - **FluidAudio releases**: CoreML conversions of per-language Parakeet models or SenseVoice
 - **Qwen3-ASR updates**: Faster inference, larger language coverage
-- **User feedback**: Requests for specific Asian languages in macparakeet-community issues
+- **User feedback**: Requests for specific Asian languages in `moona3k/macparakeet` issues
 - **SenseVoice CoreML**: If someone converts SenseVoice to CoreML, it could offer near-Parakeet speed for CJK
 
 ---

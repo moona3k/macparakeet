@@ -1,6 +1,10 @@
 # Submission draft — `0xNyk/awesome-hermes-agent`
 
 > **Status:** ✅ submitted as issue [#49](https://github.com/0xNyk/awesome-hermes-agent/issues/49) on 2026-04-25. Awaiting maintainer review.
+>
+> Current release note (2026-05-19): `macparakeet-cli 2.3.1` is published
+> and Homebrew-verified. The submitted issue body below preserves the
+> 2026-04-25 text where it refers to the original 1.0.0 versioning event.
 
 ## Submission flow (per their CONTRIBUTING.md)
 
@@ -29,7 +33,7 @@ out to. (Not a Hermes skill itself; the scaffold for that lives at
 
 ## Maturity tag
 
-**`stable`** — `macparakeet-cli 1.0.0` ships with a written semver
+**`stable`** — `macparakeet-cli 2.3.1` ships with a written semver
 compatibility policy, brew distribution, signed + notarized binary,
 and is the maintainer's daily driver.
 

@@ -32,6 +32,13 @@ public protocol DictationServiceProtocol: Sendable {
     var audioLevel: Float { get async }
 }
 
+private struct FormatterOutcome: Sendable {
+    let text: String?
+    let run: LLMRun?
+
+    static let skipped = FormatterOutcome(text: nil, run: nil)
+}
+
 extension DictationServiceProtocol {
     public func startRecording() async throws {
         try await startRecording(context: DictationTelemetryContext())
@@ -56,6 +63,7 @@ public actor DictationService: DictationServiceProtocol {
     private let processingMode: @Sendable () -> Dictation.ProcessingMode
     private let textRefinementService: TextRefinementService
     private let llmService: LLMServiceProtocol?
+    private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
     private let aiFormatterPromptTemplate: @Sendable () -> String
     private let markFirstDictationCompleted: (@Sendable () -> Void)?
@@ -94,6 +102,7 @@ public actor DictationService: DictationServiceProtocol {
         voiceReturnTrigger: (@Sendable () -> String?)? = nil,
         processingMode: (@Sendable () -> Dictation.ProcessingMode)? = nil,
         llmService: LLMServiceProtocol? = nil,
+        llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
         markFirstDictationCompleted: (@Sendable () -> Void)? = nil,
@@ -111,6 +120,7 @@ public actor DictationService: DictationServiceProtocol {
         self.processingMode = processingMode ?? { .raw }
         self.textRefinementService = TextRefinementService()
         self.llmService = llmService
+        self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
         self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
         self.markFirstDictationCompleted = markFirstDictationCompleted
@@ -309,12 +319,16 @@ public actor DictationService: DictationServiceProtocol {
                 wordCount: result.dictation.wordCount,
                 speechEngine: result.dictation.engine,
                 engineVariant: result.dictation.engineVariant,
+                language: result.dictation.language,
                 device: device
             )
             Telemetry.send(.dictationCompleted(
                 durationSeconds: Double(result.dictation.durationMs) / 1000.0,
                 wordCount: result.dictation.wordCount,
                 mode: currentTelemetryContext.mode,
+                speechEngine: result.dictation.engine,
+                engineVariant: result.dictation.engineVariant,
+                language: result.dictation.language,
                 device: device
             ))
             logger.debug(
@@ -463,12 +477,16 @@ public actor DictationService: DictationServiceProtocol {
                 wordCount: result.dictation.wordCount,
                 speechEngine: result.dictation.engine,
                 engineVariant: result.dictation.engineVariant,
+                language: result.dictation.language,
                 device: device
             )
             Telemetry.send(.dictationCompleted(
                 durationSeconds: Double(result.dictation.durationMs) / 1000.0,
                 wordCount: result.dictation.wordCount,
                 mode: currentTelemetryContext.mode,
+                speechEngine: result.dictation.engine,
+                engineVariant: result.dictation.engineVariant,
+                language: result.dictation.language,
                 device: device
             ))
             try? await Task.sleep(for: .milliseconds(500))
@@ -592,12 +610,18 @@ public actor DictationService: DictationServiceProtocol {
         let cleanTranscript = refinement.text
         let expandedSnippetIDs = refinement.expandedSnippetIDs
         let baseText = cleanTranscript ?? result.text
-        let formattedTranscript = try await formatTranscriptIfNeeded(baseText)
+        let saveHistory = shouldSaveDictationHistory?() ?? true
+        let dictationID = UUID()
+        let formatterOutcome = try await formatTranscriptIfNeeded(
+            baseText,
+            runSource: saveHistory ? LLMRunSource(dictationId: dictationID) : nil
+        )
+        let formattedTranscript = formatterOutcome.text
         let finalText = formattedTranscript ?? baseText
         let wc = finalText.split(whereSeparator: \.isWhitespace).count
-        let saveHistory = shouldSaveDictationHistory?() ?? true
 
         var dictation = Dictation(
+            id: dictationID,
             durationMs: computeDurationMs(from: result),
             rawTranscript: result.text,
             cleanTranscript: formattedTranscript ?? cleanTranscript,
@@ -606,7 +630,8 @@ public actor DictationService: DictationServiceProtocol {
             hidden: !saveHistory,
             wordCount: wc,
             engine: result.engine.rawValue,
-            engineVariant: result.engineVariant
+            engineVariant: result.engineVariant,
+            language: SpeechEnginePreference.normalizeKnownLanguage(result.language)
         )
 
         if saveHistory, shouldSaveAudio?() ?? false {
@@ -625,6 +650,7 @@ public actor DictationService: DictationServiceProtocol {
 
         if saveHistory {
             try dictationRepo.save(dictation)
+            await llmRunRecorder.record(formatterOutcome.run)
         } else {
             var privateCopy = dictation
             privateCopy.rawTranscript = ""
@@ -640,9 +666,12 @@ public actor DictationService: DictationServiceProtocol {
         return DictationResult(dictation: dictation, postPasteAction: refinement.postPasteAction)
     }
 
-    private func formatTranscriptIfNeeded(_ text: String) async throws -> String? {
+    private func formatTranscriptIfNeeded(
+        _ text: String,
+        runSource: LLMRunSource?
+    ) async throws -> FormatterOutcome {
         guard shouldUseAIFormatter(), let llmService else {
-            return nil
+            return .skipped
         }
 
         // Notify observers (e.g. the dictation flow coordinator) that the
@@ -671,15 +700,19 @@ public actor DictationService: DictationServiceProtocol {
         // even though the LLM sees the shipped default.
         let defaultPromptUsed = AIFormatter.normalizedPromptTemplate(promptTemplate)
             == AIFormatter.defaultPromptTemplate
+        let startedAt = Date()
         do {
-            let formatted = try await llmService.formatTranscript(
+            let result = try await llmService.formatTranscriptDetailed(
                 transcript: text,
                 promptTemplate: promptTemplate,
                 source: .dictation,
                 defaultPromptUsed: defaultPromptUsed
             )
-            let trimmed = formatted.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? nil : trimmed
+            let trimmed = result.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            let run = runSource.map {
+                LLMRun(formatterResult: result, source: $0, feature: .formatterDictation)
+            }
+            return FormatterOutcome(text: trimmed.isEmpty ? nil : trimmed, run: run)
         } catch {
             if error is CancellationError {
                 throw error
@@ -694,7 +727,17 @@ public actor DictationService: DictationServiceProtocol {
                     "message": message,
                 ]
             )
-            return nil
+            let run = runSource.map {
+                LLMRun.failedFormatterRun(
+                    source: $0,
+                    feature: .formatterDictation,
+                    errorType: Self.errorType(for: error),
+                    inputChars: text.count,
+                    defaultPromptUsed: defaultPromptUsed,
+                    startedAt: startedAt
+                )
+            }
+            return FormatterOutcome(text: nil, run: run)
         }
     }
 
@@ -773,6 +816,7 @@ public actor DictationService: DictationServiceProtocol {
         cancelReason: TelemetryDictationCancelReason? = nil,
         speechEngine: String? = nil,
         engineVariant: String? = nil,
+        language: String? = nil,
         device: RecordingDeviceInfo? = nil
     ) {
         guard let id = operationID ?? currentOperationID else { return }
@@ -790,6 +834,7 @@ public actor DictationService: DictationServiceProtocol {
             cancelReason: cancelReason,
             speechEngine: speechEngine,
             engineVariant: engineVariant,
+            language: language,
             device: device
         ))
     }

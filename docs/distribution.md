@@ -246,6 +246,35 @@ curl -s "https://macparakeet.com/appcast.xml?ts=$(date +%s)" | grep "sparkle:ver
 2. Confirm appcast `sparkle:version` is newer than the installed app's build number
 3. Launch the app → "Check for Updates..." from the menu bar → should find and validate the update
 
+## Standalone CLI Homebrew release
+
+The app DMG/Sparkle channel and the standalone CLI Homebrew channel are
+separate releases. The CLI release ships a signed standalone
+`macparakeet-cli` binary attached to a `cli-vX.Y.Z` GitHub release, then
+updates the formula in <https://github.com/moona3k/homebrew-tap>.
+
+Use [`scripts/dist/homebrew-tap-scaffold/HOWTO.md`](../scripts/dist/homebrew-tap-scaffold/HOWTO.md)
+for the exact checklist. At minimum:
+
+1. Bump `Sources/CLI/MacParakeetCLI.swift` and
+   `Sources/CLI/CHANGELOG.md`.
+2. Build `swift build -c release --product macparakeet-cli`.
+3. Sign the binary with Developer ID, notarize the zip, and publish the
+   tarball/checksums to `cli-vX.Y.Z`.
+4. Update `Formula/macparakeet-cli.rb` in `moona3k/homebrew-tap` with the
+   release URL, version, and tarball SHA256.
+5. Verify from the tap:
+
+```bash
+brew reinstall moona3k/tap/macparakeet-cli
+macparakeet-cli --version
+macparakeet-cli health --json
+brew test moona3k/tap/macparakeet-cli
+```
+
+Do not call the CLI fully released until both the GitHub release asset and
+the tap formula are live and the fresh Homebrew install path passes.
+
 ### Quick reference (copy-paste)
 
 ```bash
@@ -272,6 +301,7 @@ npx wrangler r2 object put macparakeet-downloads/MacParakeet.dmg \
 | `notarytool` auth failure | Keychain profile missing | Run `xcrun notarytool store-credentials "AC_PASSWORD"` (see Step 2 above) |
 | Update found but same version | Build number in appcast ≤ installed build | Ensure `sparkle:version` (build number) is strictly greater |
 | `notarytool` bus error / crash | Using `--wait` flag | **Never use `xcrun notarytool submit --wait`.** Submit without `--wait`, then poll with `xcrun notarytool info <submission-id>`. See gotcha #1 below. |
+| `notarytool` stays `In Progress` beyond the normal window | Apple accepted upload but the submission is likely stale/stuck | Stop local pollers, discard release artifacts, rebuild/sign from scratch, and submit a fresh archive. Do not continue from orphaned `In Progress` submissions. See gotcha #1a below. |
 | TCC permissions silently fail | User ran app from DMG volume instead of /Applications | DMG must include Applications symlink. See gotcha #3 below. |
 | YouTube transcription fails with `[PYI:ERROR] Failed to load Python shared library ... different Team IDs` | Bundled `yt-dlp_macos` was re-signed with hardened runtime but without disabling library validation | Sign `yt-dlp` with `com.apple.security.cs.disable-library-validation=true`, smoke-test `Contents/Resources/yt-dlp --version`, and repair any bad managed copy in Application Support |
 
@@ -295,6 +325,30 @@ xcrun notarytool info <SUBMISSION_ID> --keychain-profile "AC_PASSWORD"
 ```
 
 The `sign_notarize.sh` script already handles this correctly — it submits and polls in a loop. If you're running notarization manually, never add `--wait`.
+
+#### 1a. Restart from clean artifacts if notarization stalls
+
+Normal notarization usually returns `Accepted` in roughly 2-5 minutes. If a
+fresh app or DMG submission stays `In Progress` well beyond that window, treat
+the submission as stale instead of waiting indefinitely. This can happen even
+when `notarytool submit` produced a valid submission ID.
+
+For a clean restart:
+
+```bash
+# Stop any local release pollers first.
+ps -axo pid,ppid,etime,command | rg 'notarytool|sign_notarize|build_app_bundle|hdiutil'
+
+# Then discard generated release artifacts and rebuild/sign fresh.
+rm -rf dist/MacParakeet.app dist/MacParakeet.app.zip \
+  dist/MacParakeet.dmg dist/MacParakeet-rw.dmg dist/.dmg-staging
+VERSION=X.Y.Z scripts/dist/build_app_bundle.sh
+SKIP_NOTARIZE=1 CREATE_DMG=0 scripts/dist/sign_notarize.sh
+```
+
+Submit the newly-created archive and poll that exact fresh submission ID. Only
+staple, DMG, upload, or update Sparkle after a clean `Accepted` response for the
+artifact you are actually shipping.
 
 #### 2. Cloudflare CDN caches R2 objects — Sparkle cache-busting is mandatory
 

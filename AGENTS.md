@@ -8,15 +8,17 @@
 ## What this project is
 
 MacParakeet is a fast, private, local-first voice app for macOS. The v0.6
-release has three co-equal modes: system-wide dictation, file transcription,
-and meeting recording. Parakeet TDT 0.6B v3 via FluidAudio CoreML on the Apple
-Neural Engine is the default STT engine. WhisperKit is also available as an
-optional local multilingual engine for languages Parakeet does not cover.
+release has three co-equal capture modes: system-wide dictation, file
+transcription, and meeting recording, plus productized Transforms on `main`
+for selected-text rewrites. Parakeet TDT 0.6B v3 via FluidAudio CoreML on the
+Apple Neural Engine is the default STT engine. WhisperKit is also available as
+an optional local multilingual engine for languages Parakeet does not cover.
 
 **Release status:** v0.6 ships system-wide dictation, file/URL transcription,
-meeting recording, and optional WhisperKit multilingual STT. Calendar reminders,
-auto-start, and auto-stop are implemented in source but hidden behind
-`AppFeatures.calendarEnabled = false` pending hands-on end-to-end validation.
+meeting recording, optional WhisperKit multilingual STT, and productized
+Transforms on `main`. Calendar reminders, auto-start, and auto-stop are
+implemented in source but hidden behind `AppFeatures.calendarEnabled = false`
+pending hands-on end-to-end validation.
 
 Free and open-source (GPL-3.0). Apple Silicon only. Requires macOS 14.2+.
 

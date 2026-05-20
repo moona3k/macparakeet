@@ -267,4 +267,13 @@ final class TransformEditorViewModelTests: XCTestCase {
         )
         XCTAssertNil(vm.buildSavable()?.runningLabel, "Whitespace-only running label normalizes to nil.")
     }
+
+    func testDefaultRunningLabelPreviewMatchesPromptDerivation() {
+        let vm = TransformEditorViewModel(mode: .create)
+        vm.name = "Make concise"
+        XCTAssertEqual(vm.defaultRunningLabelPreview, "Transforming…")
+
+        vm.name = "Polish"
+        XCTAssertEqual(vm.defaultRunningLabelPreview, "Polishing…")
+    }
 }

@@ -27,7 +27,7 @@ provenance (it's NVIDIA's published number for the model).
 ````markdown
 hey nous community 👋
 
-just tagged macparakeet-cli 1.0 — a swift-native CLI for NVIDIA's Parakeet TDT 0.6B v3 running on the Apple Neural Engine via FluidAudio. ~155x realtime, ~2.5% WER, ~66 MB per inference slot. GPL-3.0.
+macparakeet-cli is now at 2.3.1 — a swift-native CLI for NVIDIA's Parakeet TDT 0.6B v3 running on the Apple Neural Engine via FluidAudio. ~155x realtime, ~2.5% WER, ~66 MB per inference slot. GPL-3.0.
 
 posting because: voice / STT is the documented gap in the Hermes-on-Mac-mini stack, and i think this is the right shape to fill it. concretely, what a Hermes skill author gets:
 

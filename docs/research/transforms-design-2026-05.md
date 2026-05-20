@@ -1,8 +1,14 @@
 # Transforms — Design Exploration
 
-> Status: **PROPOSAL**. Design exploration; not yet an ADR or implementation plan. Next step is either an ADR (if architectural questions need locking) or a plan under `plans/active/`.
-> Updated: 2026-05-11
+> Status: **HISTORICAL DESIGN INPUT**. Superseded by ADR-022 and the productized Transforms implementation on `main`; kept as the design rationale that led to the shipped surface.
+> Updated: 2026-05-16
 > Related: `wisprflow-parity-2026-05.md` (audit that triggered this), `plans/active/2026-05-voice-command-agent-mode.md` (the voice-driven sibling), `docs/agent-mode-vision.md` (north-star framing)
+
+Implementation update: Phase 1 and Phase 2 are now complete on `main`.
+`Polish`, `Distill`, and `Decide` ship as built-in Transform prompt rows;
+the Transforms tab, hotkey registry, CLI surface, and local Transform history
+are implemented. Future work is richer editing/review affordances and the
+voice-driven command layer.
 
 ## Thesis
 
@@ -20,27 +26,29 @@ Reading the audit, it's tempting to characterize this as scope creep — MacPara
 
    | Piece | Status |
    |---|---|
-   | LLM provider stack (`LLMService.transform`, `transformStream`, `transformDetailed`) | Built; used by CLI today |
-   | Prompt model with `.transform` category | Built; no built-ins ship in that category yet |
-   | Global hotkey infrastructure (`GlobalShortcutManager` for chord-triggered actions; `HotkeyManager` for gesture-based; `HotkeyRecorderView` for binding UI) | Built; used for dictation and meeting recording toggle |
+   | LLM provider stack (`LLMService.transform`, `transformStream`, `transformDetailed`) | Built; used by GUI Transforms and CLI surfaces |
+   | Prompt model with `.transform` category | Built; built-ins now ship as `Polish`, `Distill`, and `Decide` |
+   | Global hotkey infrastructure (`GlobalShortcutManager` for chord-triggered actions; `HotkeyManager` for gesture-based; `HotkeyRecorderView` for binding UI) | Built; `TransformsHotkeyRegistry` dispatches bound Transform shortcuts |
    | Dictation has both `rawTranscript` and `cleanTranscript` stored separately | Built; ready for Undo AI edit too |
    | Accessibility permission already requested (for paste simulation) | Built |
    | Paste-back via simulated Cmd+V | Built; used by dictation insertion |
    | CLI surface that proves the prompt-driven rewrite shape works | Built (`macparakeet-cli llm transform`) |
 
-   The genuinely new pieces are narrow: AX-based selection capture, the Transforms management UI, and the bind-N-hotkeys-to-N-transforms mux.
+   The originally new pieces were narrow: AX-based selection capture, the
+   Transforms management UI, and the bind-N-hotkeys-to-N-transforms mux. ADR-022
+   implements that spine on `main`.
 
 ## What we're building
 
 A user-facing surface where:
 
 1. The user binds a hotkey (e.g., Opt+1) to a Transform.
-2. A Transform is `{name, hotkey, prompt, optional model override}` — backed by the existing `Prompt` model with `category = .transform`.
+2. A Transform is `{name, hotkey, prompt, optional running label}` — backed by the existing `Prompt` model with `category = .transform`.
 3. With text selected in any macOS app, pressing the hotkey:
    - Captures the selected text (AX-first; clipboard-hijack fallback)
    - Runs it through the bound prompt via the user's configured LLM provider
    - Replaces the selection in place with the result
-4. Ships with two built-in transforms (`Polish` and `Prompt Engineer` analogues, on Opt+1 / Opt+2). Users can edit them, disable them, or create their own.
+4. Ships with three built-in transforms: `Polish` (Opt+1), `Distill` (Opt+2), and `Decide` (Opt+3). Users can edit them, clear their hotkeys, or create their own.
 5. Fails loudly and recoverably when something goes wrong (no selection, no provider configured, AX denied, LLM timeout).
 
 Explicit non-goals for v1:
@@ -168,15 +176,16 @@ Layout (sketched, not pixel-final):
 |  -----------------------------------------------   |
 |  ⓘ Need an LLM provider configured. [Configure]    |  (only when no provider)
 |                                                    |
-|  Polish              ⌥1   [Edit]  [⬤ Enabled]      |
-|  Prompt Engineer     ⌥2   [Edit]  [⬤ Enabled]      |
-|  My custom one       ⌥3   [Edit]  [⬤ Enabled]      |
+|  Polish              ⌥1   [Edit]                 |
+|  Distill             ⌥2   [Edit]                 |
+|  Decide              ⌥3   [Edit]                 |
+|  My custom one       ⌥4   [Edit]                 |
 |                                                    |
 |  + Create new                                      |
 +----------------------------------------------------+
 ```
 
-Edit pane: Name field, Hotkey recorder, Prompt body editor, optional Model override picker. Saves immediately on edit; "Reset" reverts to built-in defaults for shipped transforms.
+Edit pane: Name field, Hotkey recorder, Prompt body editor, optional running label, and reset controls for built-ins. Per-Transform model selection is deferred; v1 uses the configured global LLM provider.
 
 Discoverability: show the bound hotkey badge inline with each Transform row (WisprFlow's pattern is good here). Surface a brief Transforms tour on first launch after an LLM provider gets configured.
 
@@ -194,7 +203,8 @@ Pill text is the Transform's name in its gerund/verb form:
 | Transform | Pill copy |
 |---|---|
 | Polish | *Polishing…* |
-| Prompt Engineer | *Engineering prompt…* |
+| Distill | *Distilling…* |
+| Decide | *Deciding…* |
 | Summarize (custom) | *Summarizing…* |
 | (any user-defined Transform without a verb form) | *Transforming…* (fallback) |
 
@@ -248,7 +258,7 @@ The behavior is therefore: hotkey fires with empty selection → friendly educat
 
 Tight phasing keeps scope small and lets us validate the AX path before investing in UI.
 
-**Phase 1 — Spine end-to-end (~1 sprint).** Goal: hardcoded Opt+1 → Polish working against the user's currently-configured LLM provider, no UI.
+**Phase 1 — Spine end-to-end (~1 sprint).** Goal: hardcoded Opt+1 → Polish working against the user's currently-configured LLM provider, no UI. **Completed.**
 
 - Implement `SelectionCaptureService` with AX-first + clipboard fallback.
 - Implement `SelectionReplacementService` with AX-write + paste-back fallback.
@@ -257,16 +267,16 @@ Tight phasing keeps scope small and lets us validate the AX path before investin
 - Manual smoke test across: Notes, Mail, Slack desktop, Discord, Chrome, Safari address bar, Cursor, Xcode editor, Terminal. Each app gets a row in a spreadsheet of "AX worked / clipboard fallback / both failed."
 - Decision gate: ship to nightly users on `main`. If the app coverage is bad (e.g., fails on Slack and Mail), step back and rethink before building UI.
 
-**Phase 2 — Productize (~1 sprint).** Goal: shippable feature behind a feature flag.
+**Phase 2 — Productize (~1 sprint).** Goal: shippable feature behind a feature flag. **Completed; enabled on `main`.**
 
 - Wire `Prompt.category == .transform` to the executor via the new registry.
 - Build the Transforms management UI (sidebar tab + edit pane).
-- Ship two built-in transforms (`Polish` + `Prompt Engineer`).
+- Ship three built-in transforms (`Polish`, `Distill`, `Decide`).
 - Failure toasts and the floating progress pill.
 - Onboarding nudge when LLM provider is unset.
-- Feature flag in `AppFeatures` (`transformsEnabled`, default false; flip to true before release).
+- Feature flag in `AppFeatures` (`transformsEnabled`): introduced release-off during rollout, now `true` on `main` after telemetry allowlisting.
 
-**Phase 3 — Polish (~½ sprint).** Goal: removes feature-flag, ships to all users.
+**Phase 3 — Polish (~½ sprint).** Goal: improve the shipped surface with richer editing and review affordances.
 
 - Rule-toggle composition for `Polish` (the WisprFlow micro-pattern).
 - Diff preview in the Transforms edit pane.
@@ -280,28 +290,31 @@ Tight phasing keeps scope small and lets us validate the AX path before investin
 | Clipboard backup/restore dance is racy with user activity | Snapshot before triggering Cmd+C; restore after Cmd+V completes; if the user copies during the transform, we accept some clipboard loss (logged warning). Document this trade-off. |
 | Hotkey collisions with macOS / app shortcuts | Validate at bind time. Default to Opt+1..Opt+9 (mostly safe). Provide collision diagnostics in the binding UI. |
 | Latency from LLM round-trip makes the feature feel slow | Phase 2 shows a progress pill so the user knows work is happening. Phase 3+: explore streaming-into-paste-buffer (high risk, deferred). |
-| Cost / privacy of cloud LLM round-trips on every transform | Default to local Apple Foundation Models / Ollama when available. User picks per-transform via the model override picker. |
-| Feature flag accidentally enabled in release before app coverage is proven | Phase 1 has an explicit decision gate before any UI work begins. |
+| Cost / privacy of cloud LLM round-trips on every transform | Reuse the user's explicit LLM provider configuration. Local providers (LM Studio, Ollama, Local CLI) remain the privacy-preserving path; cloud providers are opt-in. |
+| Feature ships before app coverage is proven | Phase 1 has an explicit decision gate before any UI work begins. |
 | Existing dictation hotkey conflicts during transform run | Suppress dictation triggers while a transform is in-flight (one transform at a time; cancel-then-restart if the user re-triggers). |
 
 ## What needs locking (open questions for the owner)
 
 1. **Sidebar IA**: new top-level `Transforms` item, or nested under a larger surface (e.g., a new `Prompts` parent that contains both transform-prompts and meeting-result-prompts)? My lean: top-level for v1, refactor later if it crowds the sidebar.
-2. **Built-in default count**: two (Polish + Prompt Engineer) or three (add Summarize)? My lean: two — fewer defaults means less curation overhead and clearer "create your own" affordance.
-3. **Model selection per Transform**: ship in Phase 2 or defer to Phase 3? My lean: defer; v1 uses the user's global AIFormatter provider.
+2. **Built-in default count**: resolved by ADR-022 as three: Polish, Distill, and Decide.
+3. **Model selection per Transform**: deferred; v1 uses the user's global LLM provider.
 4. **Telemetry scope**: count of transform-triggers per built-in name (opt-out), or no telemetry on this surface at all? My lean: per-name counts only, no prompts, no content — consistent with ADR-012 and the telemetry allowlist process.
-5. **Free vs paid gating**: WisprFlow gates Transforms behind Pro. We're free/GPL. Stays free, but does it require BYO LLM key (since each call costs money against the user's API)? My lean: yes, BYO-key only — same model as AIFormatter today. The Apple Foundation Models path (when usable on-device) makes this cost-free.
+5. **Free vs paid gating**: WisprFlow gates Transforms behind Pro. We're free/GPL. Stays free; users bring their own local or cloud LLM provider.
 
 ## Connection to Undo AI edit
 
 The same conversation that prioritized Transforms accepted Undo AI edit as a small follow-up. The work is independent of this design — `Dictation` already stores `rawTranscript` and `cleanTranscript` separately, so it's a context-menu affordance in `DictationHistoryView.swift` that swaps the displayed and exported text back to `rawTranscript`. A separate ~1-day task that doesn't need an ADR.
 
-## Open work to start
+## Implementation Status
 
-The next concrete artifacts, in order:
+This design fed ADR-022 and `plans/completed/2026-05-transforms-phase-2-productize.md`.
+The concrete implementation artifacts are complete:
 
-1. **Spike** — wire Opt+1 to a hardcoded Polish prompt and run the app-coverage smoke matrix. Single afternoon.
-2. **ADR** — `ADR-022-transforms-system-wide-rewrite.md`. Locks: AX-first + clipboard-fallback strategy, `Prompt.category == .transform` as the unit, BYO-key requirement, feature-flag rollout.
-3. **Plan** — `plans/active/2026-05-transforms-phase-1.md` covering the Phase 1 spine. Phase 2 gets its own plan after the smoke matrix passes.
+1. **Spike** — shipped through PR #278 and follow-up polish.
+2. **ADR** — `spec/adr/022-transforms-system-wide-rewrite.md`, now accepted/implemented.
+3. **Product plan** — archived at `plans/completed/2026-05-transforms-phase-2-productize.md`.
 
-I'd recommend the spike first — the AX coverage question dominates everything downstream. If AX is solid across the apps our users care about, this is straightforward. If it's bad, the design rebalances toward clipboard-only with different latency/UX trade-offs.
+Remaining Transform work should start from the current shipped surface, not this
+historical open-work list: rule toggles, diff preview, per-Transform model
+selection, and voice-triggered command mode are all follow-up scope.

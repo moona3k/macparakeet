@@ -48,13 +48,17 @@
 │  │                               │                                           │  │
 │  │  ┌──────────────┐  ┌────────▼──────────────────────────────────────────┐ │  │
 │  │  │ExportService │  │               Data Layer                          │ │  │
-│  │  │(TXT)         │  │  Models: Dictation, Transcription, Prompt,       │ │  │
+│  │  │(7 formats)   │  │  Models: Dictation, Transcription, Prompt,       │ │  │
 │  │  └──────────────┘  │          PromptResult, ChatConversation,         │ │  │
+│  │                     │          QuickPrompt, TransformHistory, LLMRun,  │ │  │
 │  │                     │          CustomWord, TextSnippet                 │ │  │
 │  │                     │  Repos:  DictationRepository,                    │ │  │
 │  │                     │          TranscriptionRepository,                │ │  │
 │  │                     │          PromptRepository, PromptResultRepository,│ │  │
+│  │                     │          QuickPromptRepository,                  │ │  │
 │  │                     │          ChatConversationRepository,             │ │  │
+│  │                     │          TransformHistoryRepository,             │ │  │
+│  │                     │          LLMRunRepository,                       │ │  │
 │  │                     │          CustomWordRepository,                   │ │  │
 │  │                     │          TextSnippetRepository                   │ │  │
 │  │                     │  DB:     GRDB (SQLite, single file)             │ │  │
@@ -130,7 +134,7 @@ The diagram below shows the ADR-015/ADR-016 architecture. Dictation and meeting 
 ```
 
 - **Shared microphone engine** — dictation and meeting mic capture subscribe to one process-wide `SharedMicrophoneStream`; downstream feature pipelines stay independent after copying buffers.
-- **Meeting mic processing** — meeting mic capture prefers macOS VPIO for hardware echo cancellation; dictation subscribes as non-VPIO and extracts channel 0 so VPIO duplex layouts still produce the post-AEC mono stream.
+- **Meeting mic processing** — meeting mic capture ships as raw mic capture by default to avoid degrading the live call mic heard by other participants; VPIO remains explicit opt-in plumbing, and consumers extract channel 0 if VPIO is engaged.
 - **No mutual exclusion** — dictation and meeting recording can both be active.
 - **Centralized STT ownership** — one runtime owner manages lifecycle, warm-up, shutdown, and Parakeet/Whisper dispatch.
 - **Explicit scheduling** — the STT stack uses a reserved dictation slot plus a shared background slot; within the background slot, finalize beats live preview, and file transcription waits.
@@ -147,10 +151,10 @@ The UI layer. Thin shell over MacParakeetCore. No business logic lives here.
 
 #### Main Window
 
-**Responsibility:** Primary in-app navigation shell. Hosts the Transcribe capture hub, Library, Dictations, Vocabulary, Feedback, Settings, and Discover surfaces. File/URL transcription, meeting recording, transcript browse, dictation history, prompt actions, and settings all route through this window.
+**Responsibility:** Primary in-app navigation shell. Hosts the Transcribe capture hub, Library, Dictations, Vocabulary, Transforms, Feedback, Settings, and Discover surfaces. File/URL transcription, meeting recording, transcript browse, dictation history, prompt actions, Transforms, and settings all route through this window.
 
 **Key Types:**
-- `MainWindowView` — `NavigationSplitView` sidebar (Transcribe / Library / Dictations / Vocabulary / Feedback / Settings) plus pinned Discover card and a global transcription progress bar
+- `MainWindowView` — `NavigationSplitView` sidebar (Transcribe / Library / Dictations / Vocabulary / Transforms / Feedback / Settings) plus pinned Discover card and a global transcription progress bar
 - `TranscribeView` — YouTube card, file drop card, Meeting Recording tile, and transcript detail / progress surfaces
 - `TranscriptionLibraryView` — file, YouTube, meeting, and favorite transcript browse with search/sort/filter support
 - `TranscriptResultView` — Scrollable text with optional word-level timestamps
@@ -229,12 +233,12 @@ File/URL/meeting action -> MainWindowView/TranscribeView -> TranscriptionService
 
 ### 2. MacParakeetCore (Library — No SwiftUI Dependencies)
 
-The shared core. All business logic, all data access, all service orchestration. Imported by the GUI app (and optionally by a future CLI).  
+The shared core. All business logic, all data access, all service orchestration. Imported by the GUI app and `macparakeet-cli`.
 Core may use AppKit for small macOS adapter services (for example pasteboard, System Settings deep links, app termination notification, document export), but does not own SwiftUI views.
 
 #### 2.1 DictationService
 
-**Responsibility:** Orchestrates the full dictation lifecycle: hotkey detection, audio capture, STT, text processing, and clipboard paste.
+**Responsibility:** Orchestrates the full dictation lifecycle: hotkey detection, audio capture, STT, text processing, and text insertion.
 
 **Key Types/Protocols:**
 ```swift
@@ -277,7 +281,7 @@ DictationService.stopRecording()
     │ ── Receives raw transcript
     │ ── Runs TextProcessingPipeline (if mode == .clean)
     │ ── Saves to DictationRepository
-    │ ── Pastes via NSPasteboard + CGEvent (Cmd+V)
+    │ ── Inserts via NSPasteboard + simulated Cmd+V, then restores clipboard
     │
     ▼
 DictationResult returned
@@ -950,70 +954,34 @@ try migrator.migrate(dbQueue)
 ### Entity-Relationship Diagram
 
 ```
-┌─────────────────┐
-│   dictations    │     (standalone — no foreign keys)
-├─────────────────┤
-│ id              │
-│ createdAt       │
-│ durationMs      │
-│ rawTranscript   │
-│ cleanTranscript │
-│ audioPath       │
-│ pastedToApp     │
-│ processingMode  │
-│ status          │
-│ errorMessage    │
-│ updatedAt       │
-└─────────────────┘
+dictations ──logical update──> lifetime_dictation_stats
+     │
+     └──optional FK from llm_runs for persisted formatter metadata
 
-┌─────────────────┐
-│ transcriptions  │     (standalone — no foreign keys)
-├─────────────────┤
-│ id              │
-│ createdAt       │
-│ fileName        │
-│ filePath        │
-│ fileSizeBytes   │
-│ durationMs      │
-│ rawTranscript   │
-│ cleanTranscript │
-│ wordTimestamps  │
-│ language        │
-│ speakerCount    │
-│ speakers        │
-│ status          │
-│ errorMessage    │
-│ exportPath      │
-│ sourceURL       │
-│ updatedAt       │
-└─────────────────┘
+transcriptions
+     ├──< chat_conversations
+     ├──< summaries / PromptResult
+     └──optional FK from llm_runs for persisted formatter metadata
 
-┌─────────────────┐
-│  custom_words   │     (standalone — user vocabulary)
-├─────────────────┤
-│ id              │
-│ word            │──── unique index
-│ replacement     │
-│ source          │
-│ isEnabled       │
-│ createdAt       │
-│ updatedAt       │
-└─────────────────┘
+summaries / PromptResult ───────optional FK from llm_runs
+chat_conversations ─────────────optional FK from llm_runs
+transform_history ──────────────optional FK from llm_runs
 
-┌─────────────────┐
-│ text_snippets   │     (standalone — user shortcuts)
-├─────────────────┤
-│ id              │
-│ trigger         │──── unique index
-│ expansion       │
-│ isEnabled       │
-│ useCount        │
-│ createdAt       │
-│ updatedAt       │
-└─────────────────┘
+prompts
+     ├──category "summary"   -> prompt library / summary generation
+     └──category "transform" -> Transforms tab + CLI `transforms`
+
+quick_prompts  -> live meeting Ask shortcut pills
+custom_words   -> vocabulary anchors/corrections
+text_snippets  -> text snippets + trailing action snippets
+daily_dictation_stats -> per-day Stats heatmap/streak rollup
 ```
 
-All four tables are independent. No foreign key relationships. This keeps the schema simple and each repository self-contained.
+`spec/01-data-model.md` is the canonical schema reference. This architecture
+document shows only relationships that matter to service boundaries: feature
+tables own their full content, while `llm_runs` stores metadata-only source
+links for durable LLM operations and cascades away when its source row is
+deleted.
 
 ---
 
@@ -1060,7 +1028,7 @@ All four tables are independent. No foreign key relationships. This keeps the sc
 | FluidAudio | `FluidAudio` | Default STT engine (Parakeet TDT via CoreML/ANE) + diarization | Apache 2.0. Use `FluidAudio` product only — NOT `FluidAudioEspeak` (GPL-3.0, would require open-sourcing). |
 | WhisperKit | `argmax-oss-swift` | Optional local multilingual STT engine | Exact 0.18.0 when enabled; `MACPARAKEET_SKIP_WHISPERKIT=1` skips the package for compatibility checks. |
 | GRDB.swift | `GRDB` | SQLite database | v6.29.0+, single-file storage, migrations, Codable records |
-| swift-argument-parser | `ArgumentParser` | CLI (implemented) | `macparakeet-cli transcribe`, `history`, `health`, `models`, `flow` |
+| swift-argument-parser | `ArgumentParser` | CLI (implemented) | `macparakeet-cli transcribe`, `history`, `health`, `models`, `vocab`, `transforms` |
 
 ### Bundled / Downloaded Binaries
 

@@ -31,6 +31,10 @@ enum SettingsStatusRules {
             return SettingsCardStatus(.recommended, label: "Download recommended")
         }
 
+        if activeStatus == .preparing || activeStatus == .repairing || activeStatus == .checking {
+            return SettingsCardStatus(.recommended, label: "Preparing")
+        }
+
         if isAvailable(parakeet), isAvailable(whisper) {
             return SettingsCardStatus(.ok, label: "Ready")
         }

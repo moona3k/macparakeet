@@ -1,7 +1,7 @@
 import Foundation
 @testable import MacParakeetCore
 
-public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing {
+public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, SpeechEngineSwitching {
     public var transcribeResult: STTResult?
     public var transcribeError: Error?
     public var transcribeCallCount = 0
@@ -17,6 +17,9 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing {
     public var warmUpProgressPhases: [String]?
     public var clearModelCacheCalled = false
     public var shutdownCalled = false
+    public var speechEngineSwitches: [SpeechEnginePreference] = []
+    public var speechEngineSwitchError: Error?
+    public var speechEngineSwitchProgressMessages: [String] = []
     private var warmUpState: STTWarmUpState = .idle
     private var warmUpObservers: [UUID: AsyncStream<STTWarmUpState>.Continuation] = [:]
     private var backgroundWarmUpTask: Task<Void, Never>?
@@ -181,6 +184,35 @@ public actor MockSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing {
 
     public func isReady() async -> Bool {
         ready
+    }
+
+    public func configureSpeechEngineSwitch(error: Error?) {
+        speechEngineSwitchError = error
+    }
+
+    public func speechEngineSwitchesSnapshot() -> [SpeechEnginePreference] {
+        speechEngineSwitches
+    }
+
+    public func warmUpCallCountSnapshot() -> Int {
+        warmUpCallCount
+    }
+
+    public func setSpeechEngine(_ preference: SpeechEnginePreference) async throws {
+        try await setSpeechEngine(preference, onProgress: nil)
+    }
+
+    public func setSpeechEngine(
+        _ preference: SpeechEnginePreference,
+        onProgress: (@Sendable (String) -> Void)?
+    ) async throws {
+        speechEngineSwitches.append(preference)
+        onProgress?("Preparing \(preference.displayName)...")
+        speechEngineSwitchProgressMessages.append("Preparing \(preference.displayName)...")
+        if let speechEngineSwitchError {
+            throw speechEngineSwitchError
+        }
+        ready = true
     }
 
     public func clearModelCache() async {

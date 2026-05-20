@@ -1,35 +1,35 @@
 # Homebrew formula for macparakeet-cli.
 #
-# This file is a SCAFFOLD living in the macparakeet repo for review and
-# version control. The actual tap publishes it from a separate repo:
+# This file is the macparakeet repo's reference copy for review and
+# version control. The live tap publishes from a separate repo:
 #
-#   https://github.com/moona3k/homebrew-tap   (to be created)
+#   https://github.com/moona3k/homebrew-tap
 #
-# Once the tap repo exists, copy this file to:
+# Keep this file in sync with:
 #
 #   <tap-repo>/Formula/macparakeet-cli.rb
 #
-# See ../HOWTO.md for first-release instructions.
+# See HOWTO.md for CLI release instructions.
 
 class MacparakeetCli < Formula
   desc "Local STT, transcription, and prompt automation for Apple Silicon"
   homepage "https://macparakeet.com"
-  url "https://github.com/moona3k/macparakeet/releases/download/cli-v1.4.0/macparakeet-cli-1.4.0-darwin-arm64.tar.gz"
-  sha256 "276b979b6976fffd43870a8e2e1515d5ea1fee668ffb79c5ca22be67aac40677"
+  url "https://github.com/moona3k/macparakeet/releases/download/cli-v2.3.1/macparakeet-cli-2.3.1-darwin-arm64.tar.gz"
+  version "2.3.1"
+  sha256 "4250a6d8ad2f829ba00ab6dd4514764e6fa3bb28d6607e5547263fe554be2b6d"
   license "GPL-3.0-or-later"
-  version "1.4.0"
+
+  # Apple Silicon only — the Neural Engine is the entire performance story
+  depends_on arch: :arm64
+  # Runtime media deps (bundled inside MacParakeet.app, but the standalone
+  # CLI install needs them on PATH).
+  depends_on "ffmpeg"
 
   # macOS 14.2+ (Sonoma) — required by FluidAudio + Swift 6 runtime.
   # Homebrew's `depends_on macos:` only accepts major-version symbols, so
   # `:sonoma` covers 14.0+; the patch-level floor (14.2) is enforced at
   # install time via the `odie` check below.
   depends_on macos: :sonoma
-  # Apple Silicon only — the Neural Engine is the entire performance story
-  depends_on arch: :arm64
-
-  # Runtime media deps (bundled inside MacParakeet.app, but the standalone
-  # CLI install needs them on PATH). Both are stable Homebrew formulae.
-  depends_on "ffmpeg"
   depends_on "yt-dlp"
 
   def install

@@ -49,7 +49,7 @@ chance to add context without making the title too dense. Post this
 ````markdown
 Hi HN — Daniel, maintainer of MacParakeet here.
 
-Quick context: this repo has had a macOS app (system-wide dictation, file transcription) since the start. The CLI was internal-feeling until today. With v1.0 of the CLI I'm committing to it as a versioned public surface — semver, written compatibility policy, stable JSON output on every read-only command, brew install path.
+Quick context: this repo has had a macOS app (system-wide dictation, file transcription) since the start. The CLI used to feel internal; it is now a versioned public surface with semver, a written compatibility policy, stable JSON output on every read-only command, and a brew install path. Current release: `macparakeet-cli 2.3.1`.
 
 The reason I'm doing the reframe is that Apple Silicon Mac minis are increasingly the home for personal AI agent daemons (OpenClaw, Hermes, custom shell loops). Voice / STT is the documented gap in that stack: Whisper.cpp doesn't use the Neural Engine, the OpenAI Whisper API breaks local-first, parakeet-mlx (Python) doesn't have a memory layer or prompts. `macparakeet-cli` is exactly the slot between those.
 
@@ -68,7 +68,7 @@ Architecture summary:
             ┌──────────┴──────────┐
             ▼                     ▼
     macparakeet-cli         MacParakeet.app
-    (semver 1.0.0)          (SwiftUI, GUI consumer)
+    (semver 2.3.1)          (SwiftUI, GUI consumer)
 ```
 
 The CLI is the load-bearing surface. The macOS app is one well-crafted client of it. Agent skills (OpenClaw, Hermes, generic shell automation) are other clients.

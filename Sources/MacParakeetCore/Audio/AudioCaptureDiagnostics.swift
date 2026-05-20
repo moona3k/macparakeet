@@ -4,6 +4,7 @@ import os
 
 public enum AudioCaptureDiagnostics {
     private static let lock = OSAllocatedUnfairLock(initialState: ())
+    private static let logPathOverrideEnvironmentKey = "MACPARAKEET_AUDIO_DIAGNOSTICS_LOG_PATH"
     /// On-disk cap for `dictation-audio.log`. Crossing it deletes the file
     /// (not append-rotate). Sized so a heavy user dictating 30–60 min/day
     /// retains tens of days of context — enough that a stall reported via
@@ -77,8 +78,7 @@ public enum AudioCaptureDiagnostics {
 
         lock.withLock {
             let fm = FileManager.default
-            let logURL = URL(fileURLWithPath: AppPaths.logsDir, isDirectory: true)
-                .appendingPathComponent("dictation-audio.log")
+            let logURL = diagnosticLogURL()
 
             do {
                 try fm.createDirectory(
@@ -103,6 +103,34 @@ public enum AudioCaptureDiagnostics {
             } catch {
                 // Diagnostics must never affect audio capture.
             }
+        }
+    }
+
+    static func diagnosticLogURL() -> URL {
+        let environment = ProcessInfo.processInfo.environment
+        if let overridePath = environment[logPathOverrideEnvironmentKey],
+           !overridePath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return URL(fileURLWithPath: overridePath)
+        }
+
+        if isRunningUnderXCTest(environment: environment) {
+            return FileManager.default.temporaryDirectory
+                .appendingPathComponent("MacParakeetTests", isDirectory: true)
+                .appendingPathComponent("Logs", isDirectory: true)
+                .appendingPathComponent("dictation-audio-\(ProcessInfo.processInfo.processIdentifier).log")
+        }
+
+        return URL(fileURLWithPath: AppPaths.logsDir, isDirectory: true)
+            .appendingPathComponent("dictation-audio.log")
+    }
+
+    private static func isRunningUnderXCTest(environment: [String: String]) -> Bool {
+        if environment["XCTestConfigurationFilePath"] != nil {
+            return true
+        }
+
+        return Bundle.allBundles.contains { bundle in
+            bundle.bundlePath.hasSuffix(".xctest")
         }
     }
 
