@@ -272,12 +272,17 @@ final class ExportServiceTests: XCTestCase {
     }
 
     func testBuildSubtitleCuesBreaksOnPunctuation() {
+        // Use a > 800ms gap between sentences so the two-line packing pass
+        // (`mergeAdjacentCuesForTwoLine`) leaves the cues separate. With a
+        // short gap the algorithm intentionally merges adjacent short cues
+        // into a single two-line cue for readability — see
+        // `testBuildSubtitleCuesPacksShortAdjacentSentences` for that path.
         let words = [
             WordTimestamp(word: "Hello", startMs: 0, endMs: 500, confidence: 0.99),
             WordTimestamp(word: "world.", startMs: 600, endMs: 1000, confidence: 0.98),
-            WordTimestamp(word: "How", startMs: 1200, endMs: 1500, confidence: 0.97),
-            WordTimestamp(word: "are", startMs: 1600, endMs: 1800, confidence: 0.96),
-            WordTimestamp(word: "you?", startMs: 1900, endMs: 2200, confidence: 0.95),
+            WordTimestamp(word: "How", startMs: 2000, endMs: 2300, confidence: 0.97),
+            WordTimestamp(word: "are", startMs: 2400, endMs: 2600, confidence: 0.96),
+            WordTimestamp(word: "you?", startMs: 2700, endMs: 3000, confidence: 0.95),
         ]
 
         let cues = exportService.buildSubtitleCues(from: words)
@@ -285,6 +290,7 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(cues[0].text, "Hello world.")
         XCTAssertEqual(cues[1].text, "How are you?")
     }
+
 
     func testBuildSubtitleCuesBreaksOnLongGap() {
         let words = [
