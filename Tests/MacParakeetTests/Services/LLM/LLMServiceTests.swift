@@ -225,7 +225,7 @@ final class LLMServiceTests: XCTestCase {
         mockConfigStore.config = nil
 
         do {
-            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [])
+            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [], source: .transcriptChat)
             XCTFail("Expected LLMError.notConfigured")
         } catch let error as LLMError {
             if case .notConfigured = error {} else {
@@ -312,7 +312,8 @@ final class LLMServiceTests: XCTestCase {
             question: "What was discussed?",
             transcript: "We talked about the release.",
             userNotes: nil,
-            history: []
+            history: [],
+            source: .transcriptChat
         )
 
         XCTAssertEqual(mockClient.capturedMessages.count, 2)
@@ -332,7 +333,8 @@ final class LLMServiceTests: XCTestCase {
             question: "What did Alice say?",
             transcript: "Alice said hello.",
             userNotes: nil,
-            history: history
+            history: history,
+            source: .transcriptChat
         )
 
         // system + 2 history + user question = 4
@@ -349,7 +351,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Why did we delay?",
             transcript: "Alice: We're slipping by a week.",
             userNotes: "decision: ship Friday\nQA owns smoke tests",
-            history: []
+            history: [],
+            source: .transcriptChat
         )
 
         let systemPrompt = mockClient.capturedMessages[0].content
@@ -369,7 +372,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Q",
             transcript: "T",
             userNotes: nil,
-            history: []
+            history: [],
+            source: .transcriptChat
         )
         XCTAssertFalse(
             mockClient.capturedMessages[0].content.contains("User's notes from the meeting"),
@@ -382,7 +386,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Q",
             transcript: "T",
             userNotes: "",
-            history: []
+            history: [],
+            source: .transcriptChat
         )
         XCTAssertFalse(
             mockClient.capturedMessages[0].content.contains("User's notes from the meeting"),
@@ -395,7 +400,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Q",
             transcript: "T",
             userNotes: "   \n\t  \n  ",
-            history: []
+            history: [],
+            source: .transcriptChat
         )
         XCTAssertFalse(
             mockClient.capturedMessages[0].content.contains("User's notes from the meeting"),
@@ -408,7 +414,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Q",
             transcript: "T",
             userNotes: nil,
-            history: []
+            history: [],
+            source: .transcriptChat
         )
         let withoutNotes = mockClient.capturedMessages[0].content
 
@@ -420,7 +427,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Q",
             transcript: "T",
             userNotes: "   ",
-            history: []
+            history: [],
+            source: .transcriptChat
         )
         let withWhitespace = mockClient.capturedMessages[0].content
         XCTAssertEqual(withoutNotes, withWhitespace)
@@ -468,7 +476,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Who?",
             transcript: "Alice and Bob spoke.",
             userNotes: nil,
-            history: []
+            history: [],
+            source: .transcriptChat
         )
 
         XCTAssertEqual(result.output, "answer")
@@ -884,7 +893,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Latest question",
             transcript: transcript,
             userNotes: nil,
-            history: history
+            history: history,
+            source: .transcriptChat
         )
 
         let messages = mockClient.capturedMessages
@@ -913,7 +923,8 @@ final class LLMServiceTests: XCTestCase {
             question: "New question",
             transcript: transcript,
             userNotes: nil,
-            history: history
+            history: history,
+            source: .transcriptChat
         )
 
         let messages = mockClient.capturedMessages
@@ -939,7 +950,8 @@ final class LLMServiceTests: XCTestCase {
             question: question,
             transcript: transcript,
             userNotes: notes,
-            history: history
+            history: history,
+            source: .transcriptChat
         )
 
         let messages = mockClient.capturedMessages
@@ -967,7 +979,8 @@ final class LLMServiceTests: XCTestCase {
             question: "What should we do next?",
             transcript: "The team discussed delivery risks.",
             userNotes: nil,
-            history: history
+            history: history,
+            source: .transcriptChat
         )
 
         let messages = mockClient.capturedMessages
@@ -995,7 +1008,8 @@ final class LLMServiceTests: XCTestCase {
             question: "What happened?",
             transcript: "Something happened.",
             userNotes: nil,
-            history: []
+            history: [],
+            source: .transcriptChat
         )
 
         var tokens: [String] = []
@@ -1068,7 +1082,7 @@ final class LLMServiceTests: XCTestCase {
 
     func testChatStreamThrowsWhenNotConfigured() async {
         mockConfigStore.config = nil
-        let stream = service.chatStream(question: "Q", transcript: "T", userNotes: nil, history: [])
+        let stream = service.chatStream(question: "Q", transcript: "T", userNotes: nil, history: [], source: .transcriptChat)
 
         do {
             for try await _ in stream {
@@ -1226,7 +1240,7 @@ final class LLMServiceTests: XCTestCase {
         mockClient.chatCompletionError = LLMError.cliError("not found")
 
         do {
-            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [])
+            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [], source: .transcriptChat)
             XCTFail("Expected throw")
         } catch {}
 
@@ -1313,7 +1327,7 @@ final class LLMServiceTests: XCTestCase {
             isLocal: true
         )
         mockClient.chatCompletionError = LLMError.modelNotFound("missing")
-        let stream = service.chatStream(question: "Q", transcript: "T", userNotes: nil, history: [])
+        let stream = service.chatStream(question: "Q", transcript: "T", userNotes: nil, history: [], source: .transcriptChat)
 
         do {
             for try await _ in stream {}
@@ -1368,7 +1382,7 @@ final class LLMServiceTests: XCTestCase {
         mockClient.chatCompletionError = LLMError.providerError("500 Internal")
 
         do {
-            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [])
+            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [], source: .transcriptChat)
             XCTFail("Expected throw")
         } catch {}
 

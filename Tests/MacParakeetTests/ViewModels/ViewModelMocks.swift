@@ -595,6 +595,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var lastChatQuestion: String?
     var lastChatHistory: [ChatMessage]?
     var lastChatUserNotes: String?
+    var lastChatSource: TelemetryChatSource?
     var lastSummarySystemPrompt: String?
     var lastFormattedTranscript: String?
     var lastFormatterPromptTemplate: String?
@@ -608,9 +609,10 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         return summarizeResult
     }
 
-    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String {
+    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String {
         chatCallCount += 1
         lastChatUserNotes = userNotes
+        lastChatSource = source
         if let error = errorToThrow { throw error }
         return chatResult
     }
@@ -625,8 +627,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
     }
 
-    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult {
-        let output = try await chat(question: question, transcript: transcript, userNotes: userNotes, history: history)
+    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> LLMResult {
+        let output = try await chat(question: question, transcript: transcript, userNotes: userNotes, history: history, source: source)
         return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
     }
 
@@ -709,11 +711,12 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         }
     }
 
-    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
+    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) -> AsyncThrowingStream<String, Error> {
         chatCallCount += 1
         lastChatQuestion = question
         lastChatHistory = history
         lastChatUserNotes = userNotes
+        lastChatSource = source
         let tokens = streamTokens
         let error = errorToThrow
         let delay = streamDelayNs

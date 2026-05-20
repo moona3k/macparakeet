@@ -4,7 +4,7 @@ import Foundation
 
 public protocol LLMServiceProtocol: Sendable {
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String
-    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String
+    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String
     func transform(text: String, prompt: String) async throws -> String
     func formatTranscript(
         transcript: String,
@@ -14,7 +14,7 @@ public protocol LLMServiceProtocol: Sendable {
     ) async throws -> String
 
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
-    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) -> AsyncThrowingStream<String, Error>
+    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) -> AsyncThrowingStream<String, Error>
     func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error>
 
     // MARK: Envelope variants
@@ -25,7 +25,7 @@ public protocol LLMServiceProtocol: Sendable {
     // `String`-returning callers (the GUI) are unaffected.
 
     func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult
-    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult
+    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> LLMResult
     func transformDetailed(text: String, prompt: String) async throws -> LLMResult
     func formatTranscriptDetailed(
         transcript: String,
@@ -140,8 +140,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         try await generatePromptResultDetailed(transcript: transcript, systemPrompt: systemPrompt).output
     }
 
-    public func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String {
-        try await chatDetailed(question: question, transcript: transcript, userNotes: userNotes, history: history).output
+    public func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String {
+        try await chatDetailed(question: question, transcript: transcript, userNotes: userNotes, history: history, source: source).output
     }
 
     public func transform(text: String, prompt: String) async throws -> String {
@@ -242,7 +242,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         }
     }
 
-    public func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult {
+    public func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> LLMResult {
         let operationID = Observability.operationID()
         let startedAt = Date()
         let context = try loadContextForLLMOperation(
@@ -265,7 +265,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         do {
             let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
             let latencyMs = Self.latencyMs(since: startedAt)
-            Telemetry.send(.llmChatUsed(provider: config.id.rawValue, messageCount: history.count + 1))
+            Telemetry.send(.llmChatUsed(provider: config.id.rawValue, source: source, messageCount: history.count + 1))
             sendLLMOperation(
                 operationID: operationID,
                 feature: "chat",
@@ -659,7 +659,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         }
     }
 
-    public func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
+    public func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let operationID = Observability.operationID()
             let startedAt = Date()
@@ -702,7 +702,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                         outputChars += token.count
                         continuation.yield(token)
                     }
-                    Telemetry.send(.llmChatUsed(provider: config.id.rawValue, messageCount: history.count + 1))
+                    Telemetry.send(.llmChatUsed(provider: config.id.rawValue, source: source, messageCount: history.count + 1))
                     self.sendLLMOperation(
                         operationID: operationID,
                         feature: "chat",

@@ -1111,7 +1111,7 @@ final class TelemetryServiceTests: XCTestCase {
             .exportUsed(format: "txt"),
             .llmPromptResultUsed(provider: "openai"),
             .llmPromptResultFailed(provider: "openai", errorType: "auth"),
-            .llmChatUsed(provider: "openai", messageCount: 3),
+            .llmChatUsed(provider: "openai", source: .transcriptChat, messageCount: 3),
             .llmChatFailed(provider: "openai", errorType: "network"),
             .llmTransformUsed(provider: "openai"),
             .llmTransformFailed(provider: "openai", errorType: "network"),

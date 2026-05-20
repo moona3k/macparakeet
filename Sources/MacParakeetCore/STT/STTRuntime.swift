@@ -169,7 +169,15 @@ public actor STTRuntime: STTRuntimeProtocol {
             let result = try await manager.transcribe(audioURL, decoderState: &decoderState)
             let words = Self.mergeTokenTimingsIntoWords(result.tokenTimings)
             onProgress?(100, 100)
-            return STTResult(text: result.text, words: words, engine: .parakeet, engineVariant: nil)
+            // MacParakeet exposes Parakeet TDT 0.6B-v3 as an English-only engine
+            // — there is no user-facing Parakeet language selector even though
+            // the model itself supports 25 European languages. Attributing
+            // "en" here lets the telemetry `language` field reflect what the
+            // engine actually produced in this app's configuration. If the
+            // app ever exposes Parakeet's multilingual modes, this attribution
+            // needs to consult the user's selection (or per-segment detection)
+            // instead of hard-coding the code.
+            return STTResult(text: result.text, words: words, language: "en", engine: .parakeet, engineVariant: nil)
         } catch {
             throw try Self.mapTranscriptionError(error)
         }

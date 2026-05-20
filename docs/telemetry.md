@@ -234,7 +234,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `export_used` | `format` (txt, md, srt, vtt, docx, pdf, json) | Which export formats matter? |
 | `llm_prompt_result_used` | `provider` | Are prompt-library results and generated summaries being used? Which providers matter? |
 | `llm_prompt_result_failed` | `provider`, `error_type` | Failure rates for prompt-library result generation per provider |
-| `llm_chat_used` | `provider`, `message_count` | Do people chat with transcripts? |
+| `llm_chat_used` | `provider`, `source` (`meeting_ask`, `transcript_chat`), `message_count` | Do people chat with transcripts? Live meeting Ask is separable from post-transcription chat. |
 | `llm_chat_failed` | `provider`, `error_type` | Chat failure rates per provider |
 | `llm_transform_used` | `provider` | One-off transform feature usage |
 | `llm_transform_failed` | `provider`, `error_type` | One-off transform failure rates |

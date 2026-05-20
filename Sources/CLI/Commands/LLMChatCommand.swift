@@ -42,17 +42,23 @@ struct LLMChatCommand: AsyncParsableCommand {
                 contextResolver: StaticLLMExecutionContextResolver(context: execution.context)
             )
 
+            // CLI chat is one-shot and runs under `surface='cli'` in
+            // telemetry, so the `source` value mostly matters for the
+            // surface-blind chat-source dashboard. `transcriptChat` is the
+            // right bucket — the CLI passes an already-transcribed payload
+            // through `--text` / `--from-file`, mirroring the post-recording
+            // GUI chat surface, not the live in-meeting Ask flow.
             if json {
-                let result = try await service.chatDetailed(question: question, transcript: text, userNotes: nil, history: [])
+                let result = try await service.chatDetailed(question: question, transcript: text, userNotes: nil, history: [], source: .transcriptChat)
                 try printJSON(result)
             } else if stream {
-                let tokenStream = service.chatStream(question: question, transcript: text, userNotes: nil, history: [])
+                let tokenStream = service.chatStream(question: question, transcript: text, userNotes: nil, history: [], source: .transcriptChat)
                 for try await token in tokenStream {
                     print(token, terminator: "")
                 }
                 print()
             } else {
-                print(try await service.chat(question: question, transcript: text, userNotes: nil, history: []))
+                print(try await service.chat(question: question, transcript: text, userNotes: nil, history: [], source: .transcriptChat))
             }
         }
     }

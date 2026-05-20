@@ -61,6 +61,12 @@ public final class MeetingRecordingPanelViewModel {
     private var previewLineWordCounts: [Int] = []
 
     public init() {
+        // Mark the chat VM as the live in-meeting Ask surface so
+        // `llm_chat_used` telemetry distinguishes Ask chat from
+        // post-transcription transcript chat. Without this the two sources
+        // collapse into one bucket and Ask adoption is invisible.
+        chatViewModel.markAsMeetingAskSurface()
+
         // Thread the live notepad into the live Ask chat: the closure is
         // called by `TranscriptChatViewModel` at chat-send time, so the
         // freshest keystroke up to the moment the user hits Send is what the
