@@ -1471,6 +1471,36 @@ final class ExportServiceTests: XCTestCase {
             "Engine segments must take priority over cleanedTranscript; expected 1 cue but got \(cues.count): \(cues.map(\.text))")
     }
 
+    /// The final `absorbShortNeighbours` pass must coalesce two
+    /// medium-but-short adjacent cues whose combined text still fits the
+    /// total budget. Regression for the cue-17/18 pattern in SRT (14):
+    /// "we'll work on building" (22 chars) + "our cadence and our
+    /// resistance" (30 chars) → one 53-char cue, not two.
+    func testAbsorbShortNeighboursPacksMediumPairs() {
+        // 9 words that the existing builder would Phase-3 split into two
+        // medium cues at ~22 chars each. Realistic short-pause gaps.
+        let words = [
+            WordTimestamp(word: "we'll",      startMs:    0, endMs:  280, confidence: 0.99),
+            WordTimestamp(word: "work",       startMs:  290, endMs:  500, confidence: 0.99),
+            WordTimestamp(word: "on",         startMs:  510, endMs:  620, confidence: 0.99),
+            WordTimestamp(word: "building",   startMs:  630, endMs:  990, confidence: 0.99),
+            WordTimestamp(word: "our",        startMs: 1000, endMs: 1100, confidence: 0.99),
+            WordTimestamp(word: "cadence",    startMs: 1110, endMs: 1500, confidence: 0.99),
+            WordTimestamp(word: "and",        startMs: 1510, endMs: 1650, confidence: 0.99),
+            WordTimestamp(word: "our",        startMs: 1660, endMs: 1750, confidence: 0.99),
+            WordTimestamp(word: "resistance.", startMs: 1760, endMs: 2200, confidence: 0.99),
+        ]
+        let cleaned = "we'll work on building our cadence and our resistance."
+        let config = SubtitleExportConfig(maxCharsPerLine: 65, maxLinesPerCue: 2, maxCPS: 17.0)
+        let cues = exportService.buildSubtitleCues(
+            from: words,
+            cleanedTranscript: cleaned,
+            config: config
+        )
+        XCTAssertEqual(cues.count, 1,
+            "9-word, 53-char sentence within a 65-char budget should be one cue. Got \(cues.count): \(cues.map(\.text))")
+    }
+
     /// The wrap step must never produce more than `maxLinesPerCue` lines, even
     /// when fed a cue that somehow exceeds the budget (e.g. from an
     /// overly-verbose LLM refinement).

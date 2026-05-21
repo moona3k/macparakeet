@@ -1160,8 +1160,34 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         if config.maxLinesPerCue >= 2 {
             cues = mergeAdjacentCuesForTwoLine(cues, maxChars: config.maxCharsPerLine, gapThresholdMs: config.gapThresholdMs)
         }
-        // Post-process: split cues that exceed the maximum reading speed
-        if config.maxCPS > 0 {
+        // Absorb short cues into neighbours when the combined text fits the
+        // total budget. Catches the residual fragments that slip past
+        // `mergeOrphanedCues` (which only fires when one cue is strictly
+        // tiny) — pairs like "we'll work on building" (22 chars) + "our
+        // cadence and our resistance" (30 chars), neither tiny on its own
+        // but easily mergeable into a single 53-char cue.
+        //
+        // Runs BEFORE `enforceReadingSpeed` and marks merged cues with
+        // `forcedText`. The reading-speed pass skips `forcedText` cues
+        // (existing guard) so a deliberately-merged cue is not re-split
+        // even if its CPS exceeds the configured ceiling — the user has
+        // told us repeatedly that fragmentation reads worse than a fast
+        // single caption.
+        cues = absorbShortNeighbours(
+            cues,
+            maxChars: config.maxCharsPerLine,
+            gapThresholdMs: config.gapThresholdMs
+        )
+
+        // Post-process: split cues that exceed the maximum reading speed.
+        //
+        // Skipped on the sentence-aware path: when we have a cleaned
+        // transcript or engine segments we trust the natural-language unit
+        // boundaries, and re-splitting a fast-spoken sentence here would
+        // recreate the very fragmentation the rest of the pipeline is
+        // trying to avoid. A slightly fast cue reads better than a torn-up
+        // sentence — confirmed by repeated user feedback.
+        if config.maxCPS > 0 && !useSentenceUnits {
             cues = enforceReadingSpeed(cues, config: config)
             // Second orphan-merge pass: enforceReadingSpeed can produce new tiny
             // fragments when the only clean split leaves a short tail. Absorb any
@@ -1403,12 +1429,21 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let gapMs = max(0, words[splitIdx + 1].startMs - words[splitIdx].endMs)
             score += min(gapMs / 5, 100)
 
-            // Prefer balanced
-            let totalLen = firstText.count + secondText.count
-            let idealLen = totalLen / 2
-            let firstDiff = abs(firstText.count - idealLen)
-            let secondDiff = abs(secondText.count - idealLen)
-            score -= (firstDiff + secondDiff) / 2
+            // Prefer fuller first cues over strict 50/50 balance.
+            //
+            // The old "balance" criterion rewarded splits where both halves
+            // were equal length — which produced shorter, more numerous cues
+            // (e.g. a 67-char sentence with a 65-char budget would be split
+            // into two ~33-char cues instead of one ~52-char + ~13-char).
+            // Captions read better with one full cue followed by a shorter
+            // tail than with two medium fragments.
+            //
+            // Reward proximity to the budget on the FIRST half. Penalty
+            // grows linearly with unused budget. A small penalty also stays
+            // on the SECOND half so it doesn't dwarf 1-word tails.
+            let unusedBudget = max(0, maxChars - firstText.count)
+            score -= unusedBudget / 2
+            if secondText.count < 5 { score -= 50 }
 
             candidates.append((splitIdx, score))
         }
@@ -1488,6 +1523,99 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             }
         }
 
+        return result
+    }
+
+    /// Final cue packing pass.
+    ///
+    /// `mergeOrphanedCues` only merges a cue that is *strictly* tiny
+    /// (< 15 chars OR < 3 words). `mergeAdjacentCuesForTwoLine` only
+    /// merges when both cues already fit individually under `maxChars`.
+    /// Neither catches the very common case where two medium-but-short
+    /// cues both fit in the total budget but stay separate — e.g.
+    /// `"we'll work on building"` (22 chars) + `"our cadence and our
+    /// resistance"` (30 chars), which together (53 chars) sit happily
+    /// under a 65-char total budget yet appeared as two cues in test
+    /// SRT (14).
+    ///
+    /// This pass scans for any pair where at least one cue uses less
+    /// than ~60 % of the budget AND the combined text fits, and packs
+    /// them. Iterates to a fixpoint so chains of small cues fully
+    /// coalesce. Marks merged cues with `forcedText` so the downstream
+    /// `applyFrameSnap`/`enforceMonotonicCues` passes preserve them
+    /// verbatim.
+    private func absorbShortNeighbours(
+        _ cues: [MutableCue],
+        maxChars: Int,
+        gapThresholdMs: Int = 800
+    ) -> [MutableCue] {
+        guard cues.count > 1 else { return cues }
+
+        // Anything below this fraction of the budget is treated as
+        // "short" and tries to absorb its neighbour. 60 % gives a clear
+        // visual signal: a 65-char-budget cue with 20–35 chars is short,
+        // a 40+ char cue is already pulling its weight.
+        let shortThreshold = max(20, maxChars * 60 / 100)
+        // Two-line cue budget plus a small tolerance. The "+8" matches
+        // `mergeAdjacentCuesForTwoLine`'s tolerance and lets a 53-char
+        // merge land cleanly in a 65-char-budget cue.
+        let budgetCap = maxChars + 8
+
+        var result = cues
+        var changed = true
+        var safetyIterations = 0
+        while changed && safetyIterations < 8 {
+            changed = false
+            safetyIterations += 1
+            var i = 0
+            while i < result.count - 1 {
+                let current = result[i]
+                let next = result[i + 1]
+                let currentShort = current.text.count < shortThreshold
+                let nextShort = next.text.count < shortThreshold
+                if !currentShort && !nextShort {
+                    i += 1
+                    continue
+                }
+                // Don't merge across a real silence — that's two
+                // utterances even if both happen to be short.
+                if (next.startMs - current.endMs) > gapThresholdMs {
+                    i += 1
+                    continue
+                }
+                let spaceJoined = current.text + " " + next.text
+                let lineJoined = current.text + "\n" + next.text
+                guard spaceJoined.count <= budgetCap else {
+                    i += 1
+                    continue
+                }
+                // Cap the total word count so we don't pack absurdly
+                // many cues into one (10–12 short words ≈ comfortable
+                // 2-line subtitle; 25 words would be unreadable).
+                guard current.words.count + next.words.count <= 16 else {
+                    i += 1
+                    continue
+                }
+                var merged = MutableCue(
+                    startMs: current.startMs,
+                    endMs: next.endMs,
+                    words: current.words + next.words,
+                    wordTimestamps: current.wordTimestamps + next.wordTimestamps,
+                    speakerId: current.speakerId
+                )
+                // Preserve a two-line layout when the combined text
+                // doesn't fit on one line, otherwise let the wrap pass
+                // decide.
+                if spaceJoined.count > maxChars {
+                    merged.forcedText = lineJoined
+                }
+                result[i] = merged
+                result.remove(at: i + 1)
+                changed = true
+                // Stay at the same i so the just-merged cue can absorb
+                // further neighbours if they're still short.
+            }
+        }
         return result
     }
 
