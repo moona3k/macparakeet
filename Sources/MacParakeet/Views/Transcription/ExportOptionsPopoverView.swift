@@ -232,6 +232,41 @@ private struct SubtitleConfigSection: View {
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            Divider()
+                .padding(.vertical, 4)
+
+            StableSlider(
+                title: "End time buffer (ms)",
+                intValue: $config.endTimeBufferMs,
+                range: 0...200,
+                step: 5
+            )
+            Text("Extends each cue slightly past the last word to cover audio decay. Typical: 40–80 ms.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(alignment: .center) {
+                Text("Snap to frame rate")
+                    .font(DesignSystem.Typography.caption)
+                Spacer()
+                Picker("Frame rate", selection: $config.snapToFrameRate) {
+                    Text("None").tag(Optional<Double>.none)
+                    Text("24 fps").tag(Optional<Double>.some(24.0))
+                    Text("25 fps").tag(Optional<Double>.some(25.0))
+                    Text("29.97 fps").tag(Optional<Double>.some(29.97))
+                    Text("30 fps").tag(Optional<Double>.some(30.0))
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.small)
+                .frame(minWidth: 110)
+            }
+            Text("Aligns cue times to video frame boundaries for use in Premiere, Final Cut, or DaVinci Resolve.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
