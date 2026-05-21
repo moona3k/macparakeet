@@ -87,7 +87,9 @@ public actor SubtitleLLMRefiner {
             }
         }
 
-        let totalBudget = max(config.maxCharsPerLine, config.maxCharsPerLine * config.maxLinesPerCue)
+        // `maxCharsPerLine` is the TOTAL cue budget across all rendered
+        // lines, NOT a per-line cap. Truncate any LLM output that exceeds it.
+        let totalBudget = config.maxCharsPerLine
 
         var refined: [ExportService.SubtitleCue] = []
         refined.reserveCapacity(cues.count)
@@ -151,8 +153,9 @@ public actor SubtitleLLMRefiner {
         lines.append("- Do NOT end a cue with conjunctions, articles, determiners, or prepositions.")
         lines.append("- Respect existing punctuation and sentence boundaries.")
         lines.append("- Balance 2-line cues so both lines are roughly equal length.")
-        lines.append("- Max characters per line: \(config.maxCharsPerLine).")
+        lines.append("- Max characters PER CUE (total across both lines combined): \(config.maxCharsPerLine).")
         lines.append("- Max lines per cue: \(config.maxLinesPerCue).")
+        lines.append("- Implied per-line cap: ~\(max(10, config.maxCharsPerLine / max(1, config.maxLinesPerCue))) characters.")
         lines.append("- Preserve meaning; only fix awkward boundaries and balance line breaks.")
         lines.append("")
 

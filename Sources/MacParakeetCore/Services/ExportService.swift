@@ -1396,13 +1396,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // Keep minWords at 3 so it doesn't reabsorb the 3-word tail
         // enforceReadingSpeed's orphan-guard intentionally leaves behind.
         let minWords = 3
-        // Allow merging up to a full cue (per-line budget × line count). For
-        // single-line presets the cap stays at one line; for the standard 2-line
-        // preset this lets tiny cues absorb into ~80-char two-line blocks instead
-        // of staying orphaned next to a medium neighbour.
-        let maxBudget = max(maxChars + 4, maxChars * maxLines - 4)
+        // `maxChars` is the TOTAL cue budget (across all rendered lines).
+        // A small tolerance lets us absorb a 1–2 char overage when the
+        // alternative is an orphaned 1-word cue, which is far worse.
+        let maxBudget = maxChars + 10
 
-        func crossesLongGap(_ a: MutableCue, _ b: MutableCue) -> Bool {
+        func crossesLongGapForTiny(_ a: MutableCue, _ b: MutableCue) -> Bool {
             (b.startMs - a.endMs) > gapThresholdMs
         }
 
@@ -1426,7 +1425,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 if isTiny {
                     let next = result[i + 1]
                     let merged = current.text + " " + next.text
-                    if merged.count <= maxBudget && !crossesLongGap(current, next) {
+                    if merged.count <= maxBudget && !crossesLongGapForTiny(current, next) {
                         result[i] = MutableCue(
                             startMs: current.startMs,
                             endMs: next.endMs,
@@ -1450,7 +1449,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 if isTiny {
                     let prev = result[i - 1]
                     let merged = prev.text + " " + current.text
-                    if merged.count <= maxBudget && !crossesLongGap(prev, current) {
+                    if merged.count <= maxBudget && !crossesLongGapForTiny(prev, current) {
                         result[i - 1] = MutableCue(
                             startMs: prev.startMs,
                             endMs: current.endMs,
@@ -1549,13 +1548,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             } else {
                 phrasalBonus = 0
             }
-            // Two-line cues can hold up to roughly 2 * maxChars across both lines.
-            // We allow the joined text (with \n or " ") to fill that budget, but
-            // still require each individual cue to fit on a single line so the
-            // resulting block lays out cleanly.
+            // `maxCharsPerLine` is the TOTAL character budget for a cue
+            // (across all lines), not a per-line cap. Two short cues are only
+            // packed when their combined text fits within that total budget.
+            // Phrasal-verb joins get a small extra allowance so we don't
+            // refuse a tidy merge that's barely over budget.
             let hasPhrasalBonus = phrasalBonus > 0
-            let twoLineBudget = maxChars * 2 - 4
-            let effectiveMax = hasPhrasalBonus ? twoLineBudget + tolerance + phrasalBonus : twoLineBudget
+            let effectiveMax = hasPhrasalBonus ? maxChars + tolerance + phrasalBonus : maxChars + tolerance
 
             // Merge if EITHER the 2-line pre-formatted OR space-joined fits in budget,
             // and both individual cues are short enough to benefit from merging.
@@ -1603,39 +1602,53 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Pure line-wrapping helper callable from non-main contexts (e.g.
     /// `SubtitleLLMRefiner`). Keep in sync with `wrapSubtitleText`.
+    ///
+    /// Treats `config.maxCharsPerLine` as the **total** character budget for
+    /// the cue across all rendered lines (NOT a per-line cap). The total is
+    /// distributed across at most `config.maxLinesPerCue` lines; if the input
+    /// somehow exceeds the total, lines beyond `maxLinesPerCue` are folded
+    /// back onto the final line.
     nonisolated static func wrapSubtitleTextStatic(_ text: String, config: SubtitleExportConfig) -> String {
-        // If the text is already pre-formatted as multi-line, respect it.
-        if text.contains("\n") {
-            return text
-        }
-
-        let words = text.split(separator: " ").map(String.init)
-        guard !words.isEmpty else { return text }
+        let cleaned = text.replacingOccurrences(of: "\n", with: " ")
+        let words = cleaned.split(separator: " ").map(String.init)
+        guard !words.isEmpty else { return cleaned }
 
         // Single line only
         if config.maxLinesPerCue <= 1 {
-            return text
+            return cleaned
         }
 
-        // If the entire cue fits within the total character budget, keep it on one line.
-        // Do NOT force a multi-line split just because maxLinesPerCue is 2.
-        if text.count <= config.maxCharsPerLine {
-            return text
+        // If the cue fits in the per-line budget (≈ total / lines), keep one line.
+        let perLineBudget = max(10, config.maxCharsPerLine / config.maxLinesPerCue)
+        if cleaned.count <= perLineBudget {
+            return cleaned
         }
 
-        // Text exceeds total budget — we need to split across lines.
-        // Target roughly half the actual text length per line (not half the max budget).
-        let targetLineLength = max(10, text.count / 2)
+        // Otherwise distribute across up to maxLinesPerCue lines, each
+        // targeting `text.count / maxLinesPerCue` chars for balance.
+        let targetLineLength = max(perLineBudget, Int(ceil(Double(cleaned.count) / Double(config.maxLinesPerCue))))
 
-        // For two-line cues, try balanced wrapping when enabled
         if config.maxLinesPerCue == 2 && config.preferBalancedLines && words.count > 1 {
             if let balanced = wrapSubtitleTextBalanced(words: words, perLineBudget: targetLineLength, maxLineLength: config.maxCharsPerLine) {
-                return balanced
+                return clampLines(balanced, maxLines: config.maxLinesPerCue)
             }
         }
 
-        // Fallback: greedy line-by-line wrapping
-        return wrapSubtitleTextGreedy(words: words, perLineBudget: targetLineLength, maxLines: config.maxLinesPerCue)
+        return clampLines(
+            wrapSubtitleTextGreedy(words: words, perLineBudget: targetLineLength, maxLines: config.maxLinesPerCue),
+            maxLines: config.maxLinesPerCue
+        )
+    }
+
+    /// Defence in depth — if any upstream wrap step produced more than the
+    /// configured number of lines, fold the overflow into the final line so
+    /// the cue still renders as a valid N-line block.
+    nonisolated private static func clampLines(_ text: String, maxLines: Int) -> String {
+        let lines = text.components(separatedBy: "\n")
+        guard lines.count > maxLines else { return text }
+        let kept = lines.prefix(maxLines - 1).map { $0 }
+        let overflow = lines.dropFirst(maxLines - 1).joined(separator: " ")
+        return (kept + [overflow]).joined(separator: "\n")
     }
 
     /// Greedy wrap: fill each line until the next word would exceed budget.
