@@ -1312,4 +1312,55 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(decoded.endTimeBufferMs, 0,   "Missing key should default to 0")
         XCTAssertNil(decoded.snapToFrameRate,        "Missing key should default to nil")
     }
+
+    // MARK: - Merge behaviour
+
+    /// A run of one-to-three-word cues with small gaps used to slip through
+    /// mergeOrphanedCues because each pass produced new orphans. The
+    /// iterate-to-fixpoint version should collapse them into one or two cues.
+    func testMergeOrphanedCuesChainsTinyFragmentsToFixpoint() {
+        // Six tiny cues separated by 100ms gaps. Pre-fix this stayed as 6
+        // separate cues. Post-fix the chain should collapse.
+        let words = [
+            WordTimestamp(word: "oh",    startMs:    0, endMs:  100, confidence: 0.99),
+            WordTimestamp(word: "five", startMs:  120, endMs:  240, confidence: 0.99),
+            WordTimestamp(word: "to",    startMs:  340, endMs:  440, confidence: 0.99),
+            WordTimestamp(word: "one",  startMs:  540, endMs:  640, confidence: 0.99),
+            WordTimestamp(word: "oh",    startMs:  740, endMs:  840, confidence: 0.99),
+            WordTimestamp(word: "five.", startMs:  940, endMs: 1040, confidence: 0.99),
+        ]
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertLessThanOrEqual(cues.count, 2,
+            "Chain of six tiny cues with short gaps should collapse to at most 2 cues, got \(cues.count): \(cues.map(\.text))")
+    }
+
+    /// `mergeAdjacentCuesForTwoLine` should pack two ~35-char cues into one
+    /// two-line cue (≈70 chars). The old budget (= maxChars = 42) refused this
+    /// merge even though both lines fit individually.
+    func testMergeAdjacentCuesForTwoLinePacksUpToTwoLineBudget() {
+        // Two distinct sentences (~30 chars each) with a small inter-cue gap.
+        // Per-line budget 42 chars, two-line budget ~80. Joined ≈ 67 chars.
+        let words = [
+            WordTimestamp(word: "I",       startMs:   0, endMs:  100, confidence: 0.99),
+            WordTimestamp(word: "want",    startMs: 110, endMs:  300, confidence: 0.99),
+            WordTimestamp(word: "you",     startMs: 310, endMs:  450, confidence: 0.99),
+            WordTimestamp(word: "to",      startMs: 460, endMs:  550, confidence: 0.99),
+            WordTimestamp(word: "grab",    startMs: 560, endMs:  720, confidence: 0.99),
+            WordTimestamp(word: "your",    startMs: 730, endMs:  860, confidence: 0.99),
+            WordTimestamp(word: "weights.", startMs: 870, endMs: 1090, confidence: 0.99),
+            // 300ms gap → same speaker, small pause
+            WordTimestamp(word: "Take",    startMs: 1400, endMs: 1600, confidence: 0.99),
+            WordTimestamp(word: "the",     startMs: 1610, endMs: 1720, confidence: 0.99),
+            WordTimestamp(word: "weights", startMs: 1730, endMs: 1900, confidence: 0.99),
+            WordTimestamp(word: "down",    startMs: 1910, endMs: 2050, confidence: 0.99),
+            WordTimestamp(word: "slowly.", startMs: 2060, endMs: 2300, confidence: 0.99),
+        ]
+        let cues = exportService.buildSubtitleCues(from: words)
+        XCTAssertEqual(cues.count, 1,
+            "Two short adjacent sentences should pack into one two-line cue, got \(cues.count): \(cues.map(\.text))")
+        if cues.count == 1 {
+            XCTAssertTrue(cues[0].text.contains("\n"),
+                "Packed cue should be pre-formatted as two lines")
+        }
+    }
 }

@@ -87,6 +87,8 @@ public actor SubtitleLLMRefiner {
             }
         }
 
+        let totalBudget = max(config.maxCharsPerLine, config.maxCharsPerLine * config.maxLinesPerCue)
+
         var refined: [ExportService.SubtitleCue] = []
         refined.reserveCapacity(cues.count)
         for (i, batch) in batches.enumerated() {
@@ -94,11 +96,16 @@ public actor SubtitleLLMRefiner {
             for (j, cue) in batch.cues.enumerated() {
                 let raw = j < texts.count ? texts[j] : cue.text
                 let cleaned = Self.cleanText(raw)
-                let bounded = Self.enforceBudget(cleaned, maxChars: config.maxCharsPerLine)
+                let bounded = Self.enforceBudget(cleaned, maxChars: totalBudget)
+                // Always re-wrap so per-line budget is respected, even if the
+                // LLM ignored line breaks. Flatten any \n / <br> the model
+                // injected — the wrapper decides where the line break goes.
+                let flat = bounded.replacingOccurrences(of: "\n", with: " ")
+                let wrapped = ExportService.wrapSubtitleTextStatic(flat, config: config)
                 refined.append(ExportService.SubtitleCue(
                     startMs: cue.startMs,
                     endMs: cue.endMs,
-                    text: bounded,
+                    text: wrapped,
                     speakerId: cue.speakerId
                 ))
             }
@@ -135,6 +142,11 @@ public actor SubtitleLLMRefiner {
         lines.append("Refine the subtitle cues marked [CUE N] below.")
         lines.append("")
         lines.append("Rules:")
+        lines.append("- Return EXACTLY \(batch.cues.count) lines — one per [CUE N] input.")
+        lines.append("- Do NOT merge cues, split cues, add cues, or remove cues.")
+        lines.append("- Refine ONLY the text inside each cue; never copy words from neighbouring cues.")
+        lines.append("- Do NOT emit HTML, markdown, <br>, **bold**, or any markup. Plain text only.")
+        lines.append("- Use a single \\n inside a cue ONLY to break onto a second line; never use <br>.")
         lines.append("- Keep phrasal verbs together (e.g. 'welcome in', 'bring down').")
         lines.append("- Do NOT end a cue with conjunctions, articles, determiners, or prepositions.")
         lines.append("- Respect existing punctuation and sentence boundaries.")
@@ -215,10 +227,27 @@ public actor SubtitleLLMRefiner {
 
     // MARK: - Cleanup
 
-    private static func cleanText(_ text: String) -> String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    /// Cleans LLM output: strips any HTML-style tags (`<br>`, `<i>`, `</b>`,
+    /// etc.) the model may have emitted, normalises newlines, and trims
+    /// outer whitespace. SRT/VTT carry no real HTML, so tags are noise.
+    static func cleanText(_ text: String) -> String {
+        var t = text
+            .trimmingCharacters(in: .whitespacesAndNewlines)
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
+
+        // Strip HTML tags (greedy but bounded — won't match across newlines)
+        if let regex = try? NSRegularExpression(pattern: "<[^>\n]+>", options: []) {
+            let range = NSRange(t.startIndex..<t.endIndex, in: t)
+            t = regex.stringByReplacingMatches(in: t, options: [], range: range, withTemplate: " ")
+        }
+
+        // Collapse multiple consecutive spaces created by tag removal.
+        while t.contains("  ") {
+            t = t.replacingOccurrences(of: "  ", with: " ")
+        }
+
+        return t.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private static func enforceBudget(_ text: String, maxChars: Int) -> String {
@@ -245,8 +274,10 @@ public actor SubtitleLLMRefiner {
         You are a subtitle captioning specialist. You improve subtitle cue text for readability.
         You receive a batch of cues marked [CUE 1], [CUE 2], etc., optionally with CONTEXT BEFORE and CONTEXT AFTER blocks.
         Return ONE line per cue in the input, prefixed with the matching [CUE N] tag.
+        Output plain text only — no HTML, no markdown, no <br> tags, no bold or italic markers.
+        Use \\n inside a cue ONLY when a real line break is needed; never use <br>.
+        Do NOT merge, split, add, or remove cues; preserve cue count exactly.
+        Keep each cue's meaning identical; only fix awkward boundaries and balance line breaks.
         Do not add numbering, timestamps, quotes, explanations, or commentary outside the tagged lines.
-        Keep the meaning identical; only fix awkward boundaries, merge orphaned fragments,
-        and balance line breaks.
         """
 }

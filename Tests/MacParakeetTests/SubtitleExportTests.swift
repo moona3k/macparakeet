@@ -53,11 +53,19 @@ final class SubtitleExportTests: XCTestCase {
             }
         }
         
-        // Verify no cue exceeds the total character budget (65)
+        // Verify no cue exceeds the total character budget for the configured
+        // line count (maxCharsPerLine × maxLinesPerCue = 65 × 2 = 130).
+        let totalBudget = config.maxCharsPerLine * config.maxLinesPerCue
         for (i, cue) in cues.enumerated() {
             let flatText = cue.text.replacingOccurrences(of: "\n", with: " ")
-            if flatText.count > 65 {
-                XCTFail("Cue \(i+1) exceeds 65 chars (\(flatText.count)): \(flatText)")
+            if flatText.count > totalBudget {
+                XCTFail("Cue \(i+1) exceeds \(totalBudget) chars (\(flatText.count)): \(flatText)")
+            }
+            // Also enforce per-line limit
+            for (lineIdx, line) in cue.text.components(separatedBy: "\n").enumerated() {
+                if line.count > config.maxCharsPerLine {
+                    XCTFail("Cue \(i+1) line \(lineIdx+1) exceeds \(config.maxCharsPerLine) chars (\(line.count)): \(line)")
+                }
             }
         }
     }

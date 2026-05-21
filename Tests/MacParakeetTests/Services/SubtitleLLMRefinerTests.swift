@@ -113,6 +113,55 @@ final class SubtitleLLMRefinerTests: XCTestCase {
         }
     }
 
+    // MARK: - Sanitisation
+
+    func testCleanTextStripsHTMLTags() {
+        let dirty = "From there, we're gonna take a little<br>active recovery"
+        XCTAssertEqual(SubtitleLLMRefiner.cleanText(dirty), "From there, we're gonna take a little active recovery")
+    }
+
+    func testCleanTextStripsMarkupKeepsContent() {
+        let dirty = "<i>Welcome</i> to <b>class</b>"
+        XCTAssertEqual(SubtitleLLMRefiner.cleanText(dirty), "Welcome to class")
+    }
+
+    func testRefineReWrapsLongOneLineLLMOutput() async throws {
+        let longText = "What is going on, Echelon, and welcome in to your intervals in"
+        let llm = FixedLLM(refinedText: longText)
+        let refiner = SubtitleLLMRefiner(llmService: llm, batchSize: 4, maxConcurrency: 1)
+
+        let cues = (0..<3).map {
+            ExportService.SubtitleCue(startMs: $0 * 1000, endMs: $0 * 1000 + 500, text: "placeholder \($0)", speakerId: nil)
+        }
+        let result = try await refiner.refine(cues: cues, config: .default)
+
+        // Cue 0 should have been re-wrapped into two lines (max 42 chars/line).
+        XCTAssertTrue(result[0].text.contains("\n"),
+            "Long single-line LLM output should be wrapped into two lines, got: \(result[0].text)")
+        let lines = result[0].text.split(separator: "\n").map(String.init)
+        for line in lines {
+            XCTAssertLessThanOrEqual(line.count, 42,
+                "Each line should fit within maxCharsPerLine after re-wrap, got \(line.count) chars: \(line)")
+        }
+    }
+
+    func testRefineStripsBRTagsBeforeWrapping() async throws {
+        let dirty = "From there, we're gonna take a little<br>active recovery"
+        let llm = FixedLLM(refinedText: dirty)
+        let refiner = SubtitleLLMRefiner(llmService: llm, batchSize: 4, maxConcurrency: 1)
+
+        let cues = (0..<3).map {
+            ExportService.SubtitleCue(startMs: $0 * 1000, endMs: $0 * 1000 + 500, text: "placeholder", speakerId: nil)
+        }
+        let result = try await refiner.refine(cues: cues, config: .default)
+
+        // No `<br>` should survive into the cue text.
+        XCTAssertFalse(result[0].text.contains("<br>"),
+            "<br> tag should be stripped from refined text, got: \(result[0].text)")
+        XCTAssertFalse(result[0].text.contains("<"),
+            "No HTML tags should remain in refined text")
+    }
+
     func testRefineSkipsWhenTooFewCues() async throws {
         let llm = FailingLLM()
         let refiner = SubtitleLLMRefiner(llmService: llm, batchSize: 8, maxConcurrency: 4)
@@ -151,6 +200,53 @@ private final class TaggedEchoLLM: LLMServiceProtocol, @unchecked Sendable {
     }
 
     // Unused protocol surface — minimal stubs.
+    func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String { "" }
+    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String { "" }
+    func formatTranscript(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> String { "" }
+    func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> { AsyncThrowingStream { $0.finish() } }
+    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> { AsyncThrowingStream { $0.finish() } }
+    func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error> { AsyncThrowingStream { $0.finish() } }
+    func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult { LLMResult(output: "", provider: "test", model: "test", latencyMs: 0) }
+    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult { LLMResult(output: "", provider: "test", model: "test", latencyMs: 0) }
+    func transformDetailed(text: String, prompt: String) async throws -> LLMResult {
+        let out = try await transform(text: text, prompt: prompt)
+        return LLMResult(output: out, provider: "test", model: "test", latencyMs: 0)
+    }
+    func formatTranscriptDetailed(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> LLMFormatterResult {
+        LLMFormatterResult(
+            result: LLMResult(output: "", provider: "test", model: "test", latencyMs: 0),
+            operationID: "test",
+            inputChars: 0,
+            outputChars: 0,
+            inputTruncated: false,
+            defaultPromptUsed: defaultPromptUsed,
+            messageCount: 0
+        )
+    }
+}
+
+/// Returns the same refined text for every cue in the batch — useful for
+/// asserting how the refiner sanitises / wraps LLM output downstream.
+private final class FixedLLM: LLMServiceProtocol, @unchecked Sendable {
+    private let refinedText: String
+    init(refinedText: String) { self.refinedText = refinedText }
+
+    func transform(text: String, prompt: String) async throws -> String {
+        var output: [String] = []
+        var inCueBlock = false
+        var cueNum = 0
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let s = String(line)
+            if s.hasPrefix("CUES TO REFINE:") { inCueBlock = true; continue }
+            if inCueBlock {
+                if s.isEmpty { break }
+                cueNum += 1
+                output.append("[CUE \(cueNum)] \(refinedText)")
+            }
+        }
+        return output.joined(separator: "\n")
+    }
+
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String { "" }
     func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String { "" }
     func formatTranscript(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> String { "" }

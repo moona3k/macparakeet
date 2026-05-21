@@ -984,16 +984,19 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
 
         // Post-process: merge tiny orphaned cues
-        cues = mergeOrphanedCues(cues, maxChars: config.maxCharsPerLine, gapThresholdMs: config.gapThresholdMs)
+        cues = mergeOrphanedCues(cues, maxChars: config.maxCharsPerLine, maxLines: config.maxLinesPerCue, gapThresholdMs: config.gapThresholdMs)
         // Post-process: merge adjacent short cues into two-line blocks
-        cues = mergeAdjacentCuesForTwoLine(cues, maxChars: config.maxCharsPerLine, gapThresholdMs: config.gapThresholdMs)
+        // (skipped when the user explicitly asked for single-line cues).
+        if config.maxLinesPerCue >= 2 {
+            cues = mergeAdjacentCuesForTwoLine(cues, maxChars: config.maxCharsPerLine, gapThresholdMs: config.gapThresholdMs)
+        }
         // Post-process: split cues that exceed the maximum reading speed
         if config.maxCPS > 0 {
             cues = enforceReadingSpeed(cues, config: config)
             // Second orphan-merge pass: enforceReadingSpeed can produce new tiny
             // fragments when the only clean split leaves a short tail. Absorb any
             // that remain before the final timestamp passes.
-            cues = mergeOrphanedCues(cues, maxChars: config.maxCharsPerLine, gapThresholdMs: config.gapThresholdMs)
+            cues = mergeOrphanedCues(cues, maxChars: config.maxCharsPerLine, maxLines: config.maxLinesPerCue, gapThresholdMs: config.gapThresholdMs)
         }
 
         // Post-process: extend cue endMs by endTimeBufferMs to cover acoustic decay.
@@ -1267,6 +1270,14 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 continue
             }
 
+            // Respect cues that mergeAdjacentCuesForTwoLine intentionally
+            // packed into a two-line block. Splitting them here would just
+            // recreate the original fragments — undoing the packing pass.
+            if cue.forcedText != nil {
+                result.append(cue)
+                continue
+            }
+
             let cps = Double(cue.text.count) / durationSec
             guard cps > config.maxCPS && cue.wordTimestamps.count > 2 else {
                 result.append(cue)
@@ -1378,13 +1389,18 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     }
 
     /// Post-process: merge cues that are too small with neighbours when possible.
-    private func mergeOrphanedCues(_ cues: [MutableCue], maxChars: Int, gapThresholdMs: Int = 800) -> [MutableCue] {
+    private func mergeOrphanedCues(_ cues: [MutableCue], maxChars: Int, maxLines: Int = 2, gapThresholdMs: Int = 800) -> [MutableCue] {
         guard cues.count > 1 else { return cues }
 
         let minChars = 15
+        // Keep minWords at 3 so it doesn't reabsorb the 3-word tail
+        // enforceReadingSpeed's orphan-guard intentionally leaves behind.
         let minWords = 3
-        let tolerance = 10
-        let maxBudget = maxChars + tolerance
+        // Allow merging up to a full cue (per-line budget × line count). For
+        // single-line presets the cap stays at one line; for the standard 2-line
+        // preset this lets tiny cues absorb into ~80-char two-line blocks instead
+        // of staying orphaned next to a medium neighbour.
+        let maxBudget = max(maxChars + 4, maxChars * maxLines - 4)
 
         func crossesLongGap(_ a: MutableCue, _ b: MutableCue) -> Bool {
             (b.startMs - a.endMs) > gapThresholdMs
@@ -1392,52 +1408,63 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
         var result = cues
 
+        // Iterate forward + backward passes until no more merges happen.
+        // A single pair of passes can leave new orphans (e.g. a 3-cue chain
+        // where the middle was tiny — once merged into the next, the prev
+        // becomes a new candidate). Repeating to fixpoint avoids that.
+        var didMerge = true
+        var safetyIterations = 0
+        while didMerge && safetyIterations < 8 {
+            didMerge = false
+            safetyIterations += 1
 
-        // Forward pass: absorb tiny cue into next cue
-        var i = 0
-        while i < result.count - 1 {
-            let current = result[i]
-            let isTiny = current.text.count < minChars || current.words.count < minWords
-            if isTiny {
-                let next = result[i + 1]
-                let merged = current.text + " " + next.text
-                if merged.count <= maxBudget && !crossesLongGap(current, next) {
-                    result[i] = MutableCue(
-                        startMs: current.startMs,
-                        endMs: next.endMs,
-                        words: current.words + next.words,
-                        wordTimestamps: current.wordTimestamps + next.wordTimestamps,
-                        speakerId: current.speakerId
-                    )
-                    result.remove(at: i + 1)
-                    continue
+            // Forward pass: absorb tiny cue into next cue
+            var i = 0
+            while i < result.count - 1 {
+                let current = result[i]
+                let isTiny = current.text.count < minChars || current.words.count < minWords
+                if isTiny {
+                    let next = result[i + 1]
+                    let merged = current.text + " " + next.text
+                    if merged.count <= maxBudget && !crossesLongGap(current, next) {
+                        result[i] = MutableCue(
+                            startMs: current.startMs,
+                            endMs: next.endMs,
+                            words: current.words + next.words,
+                            wordTimestamps: current.wordTimestamps + next.wordTimestamps,
+                            speakerId: current.speakerId
+                        )
+                        result.remove(at: i + 1)
+                        didMerge = true
+                        continue
+                    }
                 }
+                i += 1
             }
-            i += 1
-        }
 
-
-        // Backward pass: absorb tiny cue into previous cue
-        i = 1
-        while i < result.count {
-            let current = result[i]
-            let isTiny = current.text.count < minChars || current.words.count < minWords
-            if isTiny {
-                let prev = result[i - 1]
-                let merged = prev.text + " " + current.text
-                if merged.count <= maxBudget && !crossesLongGap(prev, current) {
-                    result[i - 1] = MutableCue(
-                        startMs: prev.startMs,
-                        endMs: current.endMs,
-                        words: prev.words + current.words,
-                        wordTimestamps: prev.wordTimestamps + current.wordTimestamps,
-                        speakerId: prev.speakerId
-                    )
-                    result.remove(at: i)
-                    continue
+            // Backward pass: absorb tiny cue into previous cue
+            i = 1
+            while i < result.count {
+                let current = result[i]
+                let isTiny = current.text.count < minChars || current.words.count < minWords
+                if isTiny {
+                    let prev = result[i - 1]
+                    let merged = prev.text + " " + current.text
+                    if merged.count <= maxBudget && !crossesLongGap(prev, current) {
+                        result[i - 1] = MutableCue(
+                            startMs: prev.startMs,
+                            endMs: current.endMs,
+                            words: prev.words + current.words,
+                            wordTimestamps: prev.wordTimestamps + current.wordTimestamps,
+                            speakerId: prev.speakerId
+                        )
+                        result.remove(at: i)
+                        didMerge = true
+                        continue
+                    }
                 }
+                i += 1
             }
-            i += 1
         }
 
         return result
@@ -1522,10 +1549,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             } else {
                 phrasalBonus = 0
             }
-            // Strict budget for general merges; only phrasal-verb boundaries
-            // get the bonus tolerance.
+            // Two-line cues can hold up to roughly 2 * maxChars across both lines.
+            // We allow the joined text (with \n or " ") to fill that budget, but
+            // still require each individual cue to fit on a single line so the
+            // resulting block lays out cleanly.
             let hasPhrasalBonus = phrasalBonus > 0
-            let effectiveMax = hasPhrasalBonus ? maxChars + tolerance + phrasalBonus : maxChars
+            let twoLineBudget = maxChars * 2 - 4
+            let effectiveMax = hasPhrasalBonus ? twoLineBudget + tolerance + phrasalBonus : twoLineBudget
 
             // Merge if EITHER the 2-line pre-formatted OR space-joined fits in budget,
             // and both individual cues are short enough to benefit from merging.
@@ -1567,7 +1597,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// If the cue text fits on a single line (within the total budget), it is NOT
     /// forced into multiple lines. Only cues that exceed the total budget are split,
     /// and the split targets roughly equal line lengths based on the actual text size.
-    private func wrapSubtitleText(_ text: String, config: SubtitleExportConfig) -> String {
+    func wrapSubtitleText(_ text: String, config: SubtitleExportConfig) -> String {
+        Self.wrapSubtitleTextStatic(text, config: config)
+    }
+
+    /// Pure line-wrapping helper callable from non-main contexts (e.g.
+    /// `SubtitleLLMRefiner`). Keep in sync with `wrapSubtitleText`.
+    nonisolated static func wrapSubtitleTextStatic(_ text: String, config: SubtitleExportConfig) -> String {
         // If the text is already pre-formatted as multi-line, respect it.
         if text.contains("\n") {
             return text
@@ -1604,7 +1640,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Greedy wrap: fill each line until the next word would exceed budget.
     /// Post-processes to avoid orphaned very-short final lines.
-    private func wrapSubtitleTextGreedy(words: [String], perLineBudget: Int, maxLines: Int) -> String {
+    nonisolated private static func wrapSubtitleTextGreedy(words: [String], perLineBudget: Int, maxLines: Int) -> String {
         var lines: [String] = []
         var currentLine = ""
 
@@ -1647,7 +1683,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Balanced wrap for two-line cues. Tries all possible split points and
     /// scores them by line-length balance, natural phrasing, and orphan avoidance.
-    private func wrapSubtitleTextBalanced(words: [String], perLineBudget: Int, maxLineLength: Int) -> String? {
+    nonisolated private static func wrapSubtitleTextBalanced(words: [String], perLineBudget: Int, maxLineLength: Int) -> String? {
         var bestSplit = 0
         var bestScore = Int.min
 
