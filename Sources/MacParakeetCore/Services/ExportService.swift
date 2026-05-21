@@ -984,6 +984,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // Post-process: split cues that exceed the maximum reading speed
         if config.maxCPS > 0 {
             cues = enforceReadingSpeed(cues, config: config)
+            // Second orphan-merge pass: enforceReadingSpeed can produce new tiny
+            // fragments when the only clean split leaves a short tail. Absorb any
+            // that remain before the final timestamp passes.
+            cues = mergeOrphanedCues(cues, maxChars: config.maxCharsPerLine, gapThresholdMs: config.gapThresholdMs)
         }
 
         // Post-process: extend cue endMs by endTimeBufferMs to cover acoustic decay.
@@ -1241,7 +1245,6 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
 
         let fallback = candidates.max(by: { $0.score < $1.score })
-        print("[BOUNDARY] fallback=\(fallback?.index ?? 0) score=\(fallback?.score ?? 0) word=\(words[fallback?.index ?? 0].word)")
         return fallback?.index ?? 0
     }
 
@@ -1272,6 +1275,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             if boundaryIndex > 0 && boundaryIndex < cue.wordTimestamps.count - 1 {
                 let firstWords = Array(cue.wordTimestamps[0...boundaryIndex])
                 let secondWords = Array(cue.wordTimestamps[(boundaryIndex + 1)...])
+                // Do not split if either piece would be an orphan (< 3 words).
+                // Producing a 1–2 word fragment undoes mergeOrphanedCues work and
+                // creates the very tiny cues we're trying to avoid.
+                guard firstWords.count >= 3 && secondWords.count >= 3 else {
+                    result.append(cue)
+                    continue
+                }
                 result.append(MutableCue(
                     startMs: cue.startMs,
                     endMs: firstWords.last!.endMs,
