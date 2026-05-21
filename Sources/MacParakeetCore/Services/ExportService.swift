@@ -70,6 +70,16 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
     /// Maximum reading speed in characters per second. Cues exceeding this will be split.
     /// Professional standard (Netflix, BBC): 17.0. Set to 0 to disable.
     public var maxCPS: Double
+    /// Milliseconds added to the end of every cue before gap enforcement runs.
+    /// Compensates for acoustic decay — Parakeet timestamps the amplitude crossing
+    /// point, but the audible sound continues briefly after that. Typical: 40–80 ms.
+    /// Default: 0 (no change). `enforceMinGap` trims any overlap introduced.
+    public var endTimeBufferMs: Int
+    /// When non-nil, cue start/end times are snapped to the nearest video frame
+    /// boundary at this frame rate (e.g. 24.0, 25.0, 29.97, 30.0).
+    /// startMs snaps down; endMs snaps up, so cues never appear late or leave early.
+    /// Default: nil (millisecond precision, no snapping).
+    public var snapToFrameRate: Double?
 
     public init(
         maxWordsPerCue: Int = 12,
@@ -81,7 +91,9 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
         minWordsBeforePunctuationBreak: Int = 4,
         preferBalancedLines: Bool = true,
         useLLMRefinement: Bool = false,
-        maxCPS: Double = 17.0
+        maxCPS: Double = 17.0,
+        endTimeBufferMs: Int = 0,
+        snapToFrameRate: Double? = nil
     ) {
         self.maxWordsPerCue = max(1, maxWordsPerCue)
         self.maxCharsPerLine = max(10, maxCharsPerLine)
@@ -93,9 +105,38 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
         self.preferBalancedLines = preferBalancedLines
         self.useLLMRefinement = useLLMRefinement
         self.maxCPS = max(0, maxCPS)
+        self.endTimeBufferMs = max(0, endTimeBufferMs)
+        self.snapToFrameRate = snapToFrameRate
     }
 
     public static let `default` = SubtitleExportConfig()
+}
+
+// Explicit Codable conformance so new optional fields (endTimeBufferMs, snapToFrameRate)
+// decode gracefully from configs stored before those fields existed.
+extension SubtitleExportConfig {
+    private enum CodingKeys: String, CodingKey {
+        case maxWordsPerCue, maxCharsPerLine, maxLinesPerCue, maxDurationMs,
+             gapThresholdMs, breakOnPunctuation, minWordsBeforePunctuationBreak,
+             preferBalancedLines, useLLMRefinement, maxCPS,
+             endTimeBufferMs, snapToFrameRate
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        maxWordsPerCue               = try c.decode(Int.self, forKey: .maxWordsPerCue)
+        maxCharsPerLine              = try c.decode(Int.self, forKey: .maxCharsPerLine)
+        maxLinesPerCue               = try c.decode(Int.self, forKey: .maxLinesPerCue)
+        maxDurationMs                = try c.decode(Int.self, forKey: .maxDurationMs)
+        gapThresholdMs               = try c.decode(Int.self, forKey: .gapThresholdMs)
+        breakOnPunctuation           = try c.decode(Bool.self, forKey: .breakOnPunctuation)
+        minWordsBeforePunctuationBreak = try c.decode(Int.self, forKey: .minWordsBeforePunctuationBreak)
+        preferBalancedLines          = try c.decode(Bool.self, forKey: .preferBalancedLines)
+        useLLMRefinement             = try c.decode(Bool.self, forKey: .useLLMRefinement)
+        maxCPS                       = try c.decode(Double.self, forKey: .maxCPS)
+        endTimeBufferMs              = try c.decodeIfPresent(Int.self, forKey: .endTimeBufferMs) ?? 0
+        snapToFrameRate              = try c.decodeIfPresent(Double.self, forKey: .snapToFrameRate)
+    }
 }
 
 public struct TranscriptExportOptions: Sendable, Equatable {
@@ -672,13 +713,42 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// When a speaker pauses (gap between words > threshold), that's where a subtitle
     /// should end. For continuous speech without gaps, we split at linguistic boundaries
     /// (commas, conjunctions, prepositions) while staying within the character budget.
+    /// Sanitize raw word timestamps before cue building:
+    /// - Clamps any word's endMs so it does not exceed the next word's startMs
+    ///   (overlaps corrupt CPS calculations and gap detection).
+    /// - Ensures every word has at least 1 ms of duration (prevents divide-by-zero
+    ///   in reading-speed enforcement).
+    private func sanitizeWordTimestamps(_ words: [WordTimestamp]) -> [WordTimestamp] {
+        guard !words.isEmpty else { return words }
+        var result = words
+        let last = result.count - 1
+        for i in 0..<last {
+            // Ensure non-zero duration
+            if result[i].endMs <= result[i].startMs {
+                result[i].endMs = result[i].startMs + 1
+            }
+            // Clamp so this word does not overlap the next
+            if result[i].endMs > result[i + 1].startMs {
+                result[i].endMs = result[i + 1].startMs
+            }
+        }
+        // Last word: only zero-duration fix (no next word to clamp against)
+        if result[last].endMs <= result[last].startMs {
+            result[last].endMs = result[last].startMs + 1
+        }
+        return result
+    }
+
     public func buildSubtitleCues(
         from words: [WordTimestamp],
         config: SubtitleExportConfig = .default,
         breakOnSpeakerChange: Bool = false
     ) -> [SubtitleCue] {
         guard !words.isEmpty else { return [] }
-        
+
+        // Sanitize raw timestamps: fix overlaps and zero-duration words
+        let words = sanitizeWordTimestamps(words)
+
         // Trim whitespace from word tokens (Whisper sometimes emits leading/trailing spaces)
         let trimmedWords = words.map { w in
             WordTimestamp(
@@ -913,6 +983,17 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             cues = enforceReadingSpeed(cues, config: config)
         }
 
+        // Post-process: extend cue endMs by endTimeBufferMs to cover acoustic decay.
+        // Runs before gap enforcement so any overlaps get cleaned up.
+        if config.endTimeBufferMs > 0 {
+            cues = applyEndTimeBuffer(cues, config: config)
+        }
+
+        // Post-process: snap timestamps to video frame boundaries (NLE export).
+        if let fps = config.snapToFrameRate, fps > 0 {
+            cues = applyFrameSnap(cues, fps: fps)
+        }
+
         return cues.map { cue in
             SubtitleCue(
                 startMs: cue.startMs,
@@ -1123,6 +1204,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 }
             }
 
+            // Gap bonus: reward splits at points where the speaker naturally paused.
+            // A 500 ms silence yields +100 — significant but below a comma (+150) or
+            // sentence boundary (+300), so linguistic cues still win when present.
+            let gapMs = max(0, words[splitIdx + 1].startMs - words[splitIdx].endMs)
+            score += min(gapMs / 5, 100)
+
             // Prefer balanced
             let totalLen = firstText.count + secondText.count
             let idealLen = totalLen / 2
@@ -1195,6 +1282,50 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
 
         return result
+    }
+
+    /// Post-process: extend every cue's endMs by `config.endTimeBufferMs`.
+    ///
+    /// Parakeet timestamps a word's end at the acoustic threshold crossing, but the
+    /// audible sound continues briefly (formant decay, consonant release). Adding a
+    /// small buffer keeps cues visible through the full duration of the last word.
+    ///
+    /// If the buffer would push a cue's endMs past the next cue's startMs, clamp it
+    /// so there is at least a 1 ms gap (preventing invalid SRT ordering).
+    private func applyEndTimeBuffer(_ cues: [MutableCue], config: SubtitleExportConfig) -> [MutableCue] {
+        guard config.endTimeBufferMs > 0 else { return cues }
+        var result = cues
+        for i in 0..<result.count {
+            let buffered = result[i].endMs + config.endTimeBufferMs
+            if i + 1 < result.count {
+                // Do not overlap the next cue (leave at least 1 ms gap)
+                result[i].endMs = min(buffered, result[i + 1].startMs - 1)
+            } else {
+                result[i].endMs = buffered
+            }
+        }
+        return result
+    }
+
+    /// Post-process: snap cue timestamps to video frame boundaries.
+    ///
+    /// startMs rounds DOWN (cue appears no later than intended).
+    /// endMs rounds UP (cue disappears no earlier than intended).
+    private func applyFrameSnap(_ cues: [MutableCue], fps: Double) -> [MutableCue] {
+        let frameMs = 1000.0 / fps
+        func snap(_ ms: Int, rule: FloatingPointRoundingRule) -> Int {
+            Int((Double(ms) / frameMs).rounded(rule) * frameMs)
+        }
+        return cues.map { cue in
+            MutableCue(
+                startMs: snap(cue.startMs, rule: .down),
+                endMs:   snap(cue.endMs,   rule: .up),
+                words: cue.words,
+                wordTimestamps: cue.wordTimestamps,
+                speakerId: cue.speakerId,
+                forcedText: cue.forcedText
+            )
+        }
     }
 
     /// Post-process: merge cues that are too small with neighbours when possible.

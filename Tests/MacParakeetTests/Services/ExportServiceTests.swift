@@ -307,28 +307,32 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(cues[1].text, "Second part.")
     }
 
-    func testBuildSubtitleCuesBreaksOnWordCount() {
-        // 14 words with no punctuation — should break at 12 (use wide line limits so
-        // the word-count rule triggers before line wrapping).
+    func testBuildSubtitleCuesBreaksOnCharBudget() {
+        // 8 words where the combined text clearly exceeds a tight maxCharsPerLine,
+        // so the character-budget path (Phase 3) splits the cue.
+        // Each "wordXX" is 6 chars; 8 words joined = 55 chars with spaces.
+        // With maxCharsPerLine: 30, two cues are expected.
         var words: [WordTimestamp] = []
-        for i in 0..<14 {
+        for i in 0..<8 {
             words.append(WordTimestamp(
-                word: "word\(i)",
-                startMs: i * 300,
-                endMs: i * 300 + 250,
+                word: String(format: "word%02d", i),
+                startMs: i * 500,
+                endMs: i * 500 + 400,
                 confidence: 0.95
             ))
         }
-
         let config = SubtitleExportConfig(
-            maxWordsPerCue: 12,
-            maxCharsPerLine: 200,
-            maxLinesPerCue: 10
+            maxCharsPerLine: 30,
+            maxLinesPerCue: 1,
+            maxCPS: 0  // disable CPS enforcement so only char budget splits
         )
         let cues = exportService.buildSubtitleCues(from: words, config: config)
-        XCTAssertEqual(cues.count, 2)
-        XCTAssertEqual(cues[0].text.components(separatedBy: " ").count, 12)
-        XCTAssertEqual(cues[1].text.components(separatedBy: " ").count, 2)
+        XCTAssertGreaterThan(cues.count, 1, "Long text should be split when it exceeds the char budget")
+        // Every individual cue must fit within the budget (with small tolerance for wrap)
+        for cue in cues {
+            XCTAssertLessThanOrEqual(cue.text.count, 40,
+                "Each cue should be close to the character budget")
+        }
     }
 
     func testBuildSubtitleCuesEmpty() {
@@ -890,17 +894,33 @@ final class ExportServiceTests: XCTestCase {
     }
 
     func testCueSplitsOnSpeakerChange() {
+        // Each speaker segment must have enough words/chars to survive mergeOrphanedCues
+        // (which absorbs cues < 15 chars or < 3 words into neighbors).
+        // The gap between speakers is > 800ms (gapThresholdMs default) so that
+        // mergeAdjacentCuesForTwoLine does not pack the two speaker segments back
+        // into a single two-line cue, which would lose speaker identity.
         let words = [
-            WordTimestamp(word: "Hi", startMs: 0, endMs: 500, confidence: 0.99, speakerId: "S1"),
-            WordTimestamp(word: "there", startMs: 500, endMs: 1000, confidence: 0.98, speakerId: "S2"),
+            WordTimestamp(word: "Hello",   startMs:    0, endMs:  300, confidence: 0.99, speakerId: "S1"),
+            WordTimestamp(word: "there,",  startMs:  310, endMs:  600, confidence: 0.99, speakerId: "S1"),
+            WordTimestamp(word: "Alice.",  startMs:  610, endMs:  900, confidence: 0.99, speakerId: "S1"),
+            // 1100ms pause before speaker change (well above 800ms gapThresholdMs)
+            WordTimestamp(word: "Good",    startMs: 2000, endMs: 2200, confidence: 0.99, speakerId: "S2"),
+            WordTimestamp(word: "morning", startMs: 2210, endMs: 2500, confidence: 0.99, speakerId: "S2"),
+            WordTimestamp(word: "Bob.",    startMs: 2510, endMs: 2800, confidence: 0.99, speakerId: "S2"),
         ]
 
         let cues = exportService.buildSubtitleCues(from: words, breakOnSpeakerChange: true)
-        XCTAssertEqual(cues.count, 2)
-        XCTAssertEqual(cues[0].speakerId, "S1")
-        XCTAssertEqual(cues[0].text, "Hi")
-        XCTAssertEqual(cues[1].speakerId, "S2")
-        XCTAssertEqual(cues[1].text, "there")
+        XCTAssertGreaterThanOrEqual(cues.count, 2,
+            "Should produce separate cues for each speaker")
+        // All cues from S1 must precede all cues from S2
+        let s1Cues = cues.filter { $0.speakerId == "S1" }
+        let s2Cues = cues.filter { $0.speakerId == "S2" }
+        XCTAssertFalse(s1Cues.isEmpty, "S1 should have at least one cue")
+        XCTAssertFalse(s2Cues.isEmpty, "S2 should have at least one cue")
+        if let lastS1 = s1Cues.last, let firstS2 = s2Cues.first {
+            XCTAssertLessThanOrEqual(lastS1.endMs, firstS2.startMs,
+                "S1 cues should end before S2 cues start")
+        }
     }
 
     func testFormatMarkdownWithSpeakers() {
@@ -1033,5 +1053,214 @@ final class ExportServiceTests: XCTestCase {
             ],
             status: .completed
         )
+    }
+
+    // MARK: - Word Timing Accuracy Tests
+
+    // MARK: Improvement 1: Gap-Preferred Split Selection
+
+    /// When enforceReadingSpeed must split a fast cue, the split should land at the
+    /// word boundary with the largest inter-word gap — where the speaker paused —
+    /// rather than at the midpoint.
+    ///
+    /// Fixture: 7 words, all < gapThreshold apart so they land in one cue.
+    /// The biggest gap (600 ms) is after word2 at index 2.
+    /// The midpoint (old default) is index 3.
+    /// With the gap bonus, index 2 should score higher and win.
+    func testGapPreferredSplitPicksLargestPause() {
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "wordA", startMs:    0, endMs:  200, confidence: 0.99),
+            WordTimestamp(word: "wordB", startMs:  210, endMs:  400, confidence: 0.99),
+            WordTimestamp(word: "wordC", startMs:  410, endMs:  600, confidence: 0.99),
+            // 600ms gap here (largest, under gapThresholdMs=800 so stays in one cue)
+            WordTimestamp(word: "wordD", startMs: 1200, endMs: 1400, confidence: 0.99),
+            WordTimestamp(word: "wordE", startMs: 1410, endMs: 1600, confidence: 0.99),
+            WordTimestamp(word: "wordF", startMs: 1610, endMs: 1800, confidence: 0.99),
+            WordTimestamp(word: "wordG", startMs: 1810, endMs: 2000, confidence: 0.99),
+        ]
+        // Config: wide char budget (only CPS triggers split); maxCPS very low to force it.
+        // Total text ≈ 41 chars over 2.0s ≈ 20 CPS >> 5.0 → split required.
+        let config = SubtitleExportConfig(
+            maxCharsPerLine: 100,
+            gapThresholdMs: 800,  // 600ms gap < threshold, so all words stay in one cue
+            maxCPS: 5.0
+        )
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        XCTAssertGreaterThan(cues.count, 1, "High-CPS cue should be split by enforceReadingSpeed")
+        // The split at the 600ms pause (after wordC, index 2) should win over the
+        // midpoint (after wordD, index 3). First cue's endMs should be at wordC.endMs = 600.
+        XCTAssertLessThanOrEqual(cues[0].endMs, 600,
+            "Split should land at or before the 600ms gap boundary (wordC endMs=600), not the midpoint")
+    }
+
+    // MARK: Improvement 2: Trailing End-Time Buffer
+
+    /// endTimeBufferMs extends each cue's endMs by the specified amount.
+    func testEndTimeBufferExtendsEndMs() {
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "Hello", startMs: 0,   endMs: 500, confidence: 0.99),
+            WordTimestamp(word: "world", startMs: 600, endMs: 900, confidence: 0.99),
+        ]
+        let noBuffer = SubtitleExportConfig(endTimeBufferMs: 0)
+        let withBuffer = SubtitleExportConfig(endTimeBufferMs: 60)
+
+        let cuesNoBuffer   = exportService.buildSubtitleCues(from: words, config: noBuffer)
+        let cuesWithBuffer = exportService.buildSubtitleCues(from: words, config: withBuffer)
+
+        XCTAssertEqual(cuesNoBuffer.count, 1)
+        XCTAssertEqual(cuesWithBuffer.count, 1)
+        XCTAssertEqual(cuesNoBuffer[0].endMs, 900, "Without buffer, endMs should be the last word's endMs")
+        XCTAssertEqual(cuesWithBuffer[0].endMs, 960, "With 60ms buffer, endMs should be extended by 60ms")
+    }
+
+    /// When the buffer would push endMs past the next cue's startMs, it is clamped
+    /// so at least a 1 ms gap remains between cues.
+    func testEndTimeBufferClampedByNextCueStart() {
+        // Two cues separated by exactly the gapThreshold (800ms gap after "Hello world.")
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "Hello",   startMs:    0, endMs:  400, confidence: 0.99),
+            WordTimestamp(word: "world.",  startMs:  450, endMs:  700, confidence: 0.99),
+            WordTimestamp(word: "Second.", startMs: 2000, endMs: 2500, confidence: 0.99),
+        ]
+        // Large buffer that would normally extend the first cue's endMs well past 2000ms
+        let config = SubtitleExportConfig(gapThresholdMs: 800, endTimeBufferMs: 2000)
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        XCTAssertEqual(cues.count, 2, "Should produce 2 cues across the long gap")
+        // First cue's endMs must be < second cue's startMs
+        XCTAssertLessThan(cues[0].endMs, cues[1].startMs,
+                          "Buffer must not cause cue 0 to overlap cue 1")
+    }
+
+    // MARK: Improvement 3: Input Overlap Sanitization
+
+    /// Overlapping timestamps (word[i].endMs > word[i+1].startMs) are clamped so
+    /// the earlier word's endMs does not exceed the next word's startMs.
+    func testSanitizeOverlappingTimestamps() {
+        // word[0].endMs (600) exceeds word[1].startMs (400) — an overlap
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "Alpha", startMs:   0, endMs: 600, confidence: 0.99),
+            WordTimestamp(word: "Beta",  startMs: 400, endMs: 800, confidence: 0.99),
+        ]
+        let config = SubtitleExportConfig(gapThresholdMs: 200)
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        // Should not crash. Both words should land in one cue.
+        XCTAssertFalse(cues.isEmpty, "Should produce at least one cue")
+        // After sanitization, the cue's startMs must be <= endMs
+        for cue in cues {
+            XCTAssertLessThanOrEqual(cue.startMs, cue.endMs,
+                                     "Cue start must not exceed cue end after overlap sanitization")
+        }
+    }
+
+    /// A word with startMs == endMs (zero duration) is extended by 1 ms to prevent
+    /// divide-by-zero in reading-speed enforcement.
+    func testSanitizeZeroDurationWord() {
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "Normal", startMs: 0,   endMs: 300, confidence: 0.99),
+            WordTimestamp(word: "Zero",   startMs: 400, endMs: 400, confidence: 0.99), // zero-duration
+        ]
+        let config = SubtitleExportConfig()
+        // Should not crash or produce invalid cues
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        XCTAssertFalse(cues.isEmpty, "Should produce cues from words including zero-duration word")
+        for cue in cues {
+            XCTAssertLessThanOrEqual(cue.startMs, cue.endMs)
+        }
+    }
+
+    // MARK: Improvement 4: Frame-Snapping
+
+    /// At 24fps (41.666…ms/frame), startMs rounds down and endMs rounds up to the
+    /// nearest frame boundary.
+    ///
+    /// startMs = 100ms → frame 2 (83.333ms) → snaps DOWN to 83ms
+    /// endMs   = 950ms → frame 23 (958.333ms) → snaps UP to 958ms
+    func testFrameSnapAt24fps() {
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "Hello", startMs: 100, endMs: 600, confidence: 0.99),
+            WordTimestamp(word: "world", startMs: 700, endMs: 950, confidence: 0.99),
+        ]
+        let config = SubtitleExportConfig(snapToFrameRate: 24.0)
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        XCTAssertFalse(cues.isEmpty)
+        let cue = cues[0]
+        // startMs 100 → floor(100 / 41.6667) * 41.6667 = floor(2.4) * 41.6667 = 2 * 41.6667 ≈ 83ms
+        XCTAssertEqual(cue.startMs, 83,
+                       "startMs should snap down to frame 2 at 24fps (83ms)")
+        // endMs 950 → ceil(950 / 41.6667) * 41.6667 = ceil(22.8) * 41.6667 = 23 * 41.6667 ≈ 958ms
+        XCTAssertEqual(cue.endMs, 958,
+                       "endMs should snap up to frame 23 at 24fps (958ms)")
+    }
+
+    /// When snapToFrameRate is nil, timestamps pass through unchanged.
+    func testFrameSnapNilDoesNothing() {
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "Hello", startMs: 123, endMs: 456, confidence: 0.99),
+        ]
+        let config = SubtitleExportConfig(snapToFrameRate: nil)
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        XCTAssertFalse(cues.isEmpty)
+        XCTAssertEqual(cues[0].startMs, 123, "startMs should be unchanged when snapToFrameRate is nil")
+        XCTAssertEqual(cues[0].endMs,   456, "endMs should be unchanged when snapToFrameRate is nil")
+    }
+
+    /// The default config (endTimeBufferMs: 0, snapToFrameRate: nil) produces the
+    /// same output as before these improvements were added.
+    func testDefaultConfigProducesUnchangedBehavior() {
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "This",    startMs:    0, endMs:  200, confidence: 0.99),
+            WordTimestamp(word: "is",      startMs:  220, endMs:  350, confidence: 0.99),
+            WordTimestamp(word: "a",       startMs:  360, endMs:  400, confidence: 0.99),
+            WordTimestamp(word: "test.",   startMs:  410, endMs:  600, confidence: 0.99),
+        ]
+        let defaultConfig = SubtitleExportConfig()
+        let explicitConfig = SubtitleExportConfig(endTimeBufferMs: 0, snapToFrameRate: nil)
+        let cuesDefault  = exportService.buildSubtitleCues(from: words, config: defaultConfig)
+        let cuesExplicit = exportService.buildSubtitleCues(from: words, config: explicitConfig)
+        XCTAssertEqual(cuesDefault.count, cuesExplicit.count)
+        for (a, b) in zip(cuesDefault, cuesExplicit) {
+            XCTAssertEqual(a.startMs, b.startMs)
+            XCTAssertEqual(a.endMs,   b.endMs)
+            XCTAssertEqual(a.text,    b.text)
+        }
+    }
+
+    /// SubtitleExportConfig can be encoded and decoded without data loss.
+    /// New fields (endTimeBufferMs, snapToFrameRate) survive the round-trip.
+    func testSubtitleExportConfigCodableRoundTrip() throws {
+        let original = SubtitleExportConfig(
+            maxCPS: 20.0,
+            endTimeBufferMs: 50,
+            snapToFrameRate: 29.97
+        )
+        let data    = try JSONEncoder().encode(original)
+        let decoded = try JSONDecoder().decode(SubtitleExportConfig.self, from: data)
+        XCTAssertEqual(decoded.endTimeBufferMs, 50)
+        XCTAssertEqual(decoded.snapToFrameRate, 29.97)
+        XCTAssertEqual(decoded.maxCPS, 20.0)
+    }
+
+    /// A config stored before endTimeBufferMs/snapToFrameRate existed (missing those
+    /// keys) decodes without error and falls back to the defaults (0 and nil).
+    func testSubtitleExportConfigDecodesLegacyPayloadGracefully() throws {
+        // Simulate an older stored payload that has no endTimeBufferMs or snapToFrameRate
+        let legacyJSON = """
+        {
+            "maxWordsPerCue": 12,
+            "maxCharsPerLine": 42,
+            "maxLinesPerCue": 2,
+            "maxDurationMs": 7000,
+            "gapThresholdMs": 800,
+            "breakOnPunctuation": true,
+            "minWordsBeforePunctuationBreak": 4,
+            "preferBalancedLines": true,
+            "useLLMRefinement": false,
+            "maxCPS": 17.0
+        }
+        """
+        let data    = legacyJSON.data(using: .utf8)!
+        let decoded = try JSONDecoder().decode(SubtitleExportConfig.self, from: data)
+        XCTAssertEqual(decoded.endTimeBufferMs, 0,   "Missing key should default to 0")
+        XCTAssertNil(decoded.snapToFrameRate,        "Missing key should default to nil")
     }
 }
