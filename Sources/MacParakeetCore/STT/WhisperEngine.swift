@@ -457,10 +457,30 @@ public actor WhisperEngine: STTTranscribing {
         STTResult(
             text: merged.text,
             words: Self.mapWordTimings(merged.allWords),
+            segments: Self.mapSegments(merged.segments),
             language: merged.language,
             engine: .whisper,
             engineVariant: modelVariant
         )
+    }
+
+    /// Map WhisperKit's `TranscriptionSegment` into our engine-neutral
+    /// `STTSegment`. We keep only the fields the subtitle exporter needs
+    /// (start, end, trimmed text) — the rest (token log probs, etc.) is
+    /// internal to WhisperKit.
+    static func mapSegments(_ segments: [TranscriptionSegment]) -> [STTSegment]? {
+        guard !segments.isEmpty else { return nil }
+        return segments.compactMap { seg in
+            let trimmed = seg.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            let startMs = Int((max(0, seg.start) * 1_000).rounded())
+            let endMs = Int((max(0, seg.end) * 1_000).rounded())
+            return STTSegment(
+                startMs: startMs,
+                endMs: max(startMs, endMs),
+                text: trimmed
+            )
+        }
     }
 
     static func shouldRetryWithoutForcedLanguage(_ result: TranscriptionResult) -> Bool {

@@ -36,14 +36,16 @@ public protocol ExportServiceProtocol: Sendable {
         speakers: [SpeakerInfo]?,
         config: SubtitleExportConfig,
         includeSpeakerLabels: Bool,
-        cleanedTranscript: String?
+        cleanedTranscript: String?,
+        engineSegments: [STTSegment]?
     ) -> String
     func formatVTT(
         words: [WordTimestamp],
         speakers: [SpeakerInfo]?,
         config: SubtitleExportConfig,
         includeSpeakerLabels: Bool,
-        cleanedTranscript: String?
+        cleanedTranscript: String?,
+        engineSegments: [STTSegment]?
     ) -> String
     func formatMarkdown(transcription: Transcription) -> String
     func formatForClipboard(transcription: Transcription) -> String
@@ -314,7 +316,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             includeSpeakerLabels: includeSpeakerLabels,
             llmService: llmService,
             onRefinementProgress: onRefinementProgress,
-            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
+            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript,
+            engineSegments: transcription.transcriptSegments
         )
         try text.write(to: url, atomically: true, encoding: .utf8)
     }
@@ -348,7 +351,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             includeSpeakerLabels: includeSpeakerLabels,
             llmService: llmService,
             onRefinementProgress: onRefinementProgress,
-            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
+            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript,
+            engineSegments: transcription.transcriptSegments
         )
         try text.write(to: url, atomically: true, encoding: .utf8)
     }
@@ -374,7 +378,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             speakers: transcription.speakers,
             config: config,
             includeSpeakerLabels: includeSpeakerLabels,
-            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
+            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript,
+            engineSegments: transcription.transcriptSegments
         )
     }
 
@@ -399,7 +404,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             speakers: transcription.speakers,
             config: config,
             includeSpeakerLabels: includeSpeakerLabels,
-            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
+            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript,
+            engineSegments: transcription.transcriptSegments
         )
     }
 
@@ -502,11 +508,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         speakers: [SpeakerInfo]? = nil,
         config: SubtitleExportConfig = .default,
         includeSpeakerLabels: Bool = false,
-        cleanedTranscript: String? = nil
+        cleanedTranscript: String? = nil,
+        engineSegments: [STTSegment]? = nil
     ) -> String {
         let cues = buildSubtitleCues(
             from: words,
             cleanedTranscript: cleanedTranscript,
+            engineSegments: engineSegments,
             config: config,
             breakOnSpeakerChange: includeSpeakerLabels
         )
@@ -528,11 +536,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         includeSpeakerLabels: Bool = false,
         llmService: LLMServiceProtocol?,
         onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil,
-        cleanedTranscript: String? = nil
+        cleanedTranscript: String? = nil,
+        engineSegments: [STTSegment]? = nil
     ) async throws -> String {
         var cues = buildSubtitleCues(
             from: words,
             cleanedTranscript: cleanedTranscript,
+            engineSegments: engineSegments,
             config: config,
             breakOnSpeakerChange: includeSpeakerLabels
         )
@@ -560,11 +570,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         includeSpeakerLabels: Bool = false,
         llmService: LLMServiceProtocol?,
         onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil,
-        cleanedTranscript: String? = nil
+        cleanedTranscript: String? = nil,
+        engineSegments: [STTSegment]? = nil
     ) async throws -> String {
         var cues = buildSubtitleCues(
             from: words,
             cleanedTranscript: cleanedTranscript,
+            engineSegments: engineSegments,
             config: config,
             breakOnSpeakerChange: includeSpeakerLabels
         )
@@ -593,11 +605,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         speakers: [SpeakerInfo]? = nil,
         config: SubtitleExportConfig = .default,
         includeSpeakerLabels: Bool = false,
-        cleanedTranscript: String? = nil
+        cleanedTranscript: String? = nil,
+        engineSegments: [STTSegment]? = nil
     ) -> String {
         let cues = buildSubtitleCues(
             from: words,
             cleanedTranscript: cleanedTranscript,
+            engineSegments: engineSegments,
             config: config,
             breakOnSpeakerChange: includeSpeakerLabels
         )
@@ -670,7 +684,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(
                 from: timestamps,
-                cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
+                cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript,
+                engineSegments: transcription.transcriptSegments
             )
             if options.includeTimestamps || options.includeSpeakerLabels {
                 if options.includeTimestamps {
@@ -750,6 +765,73 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     ///   (overlaps corrupt CPS calculations and gap detection).
     /// - Ensures every word has at least 1 ms of duration (prevents divide-by-zero
     ///   in reading-speed enforcement).
+    /// Map engine-emitted `TranscriptSegment`s (Whisper's native output)
+    /// onto the `[WordTimestamp]` array as `SentenceUnit`s.
+    ///
+    /// Strategy: for each word, find the engine segment whose `[startMs,
+    /// endMs]` range covers the word's midpoint. Walk the array; whenever
+    /// the assigned segment-id changes, emit a unit boundary. Words that
+    /// don't fall in any segment (rare — overlap glitches) inherit the
+    /// previous word's segment, so coverage is total.
+    ///
+    /// Coverage invariant: every input word ends up inside exactly one
+    /// `SentenceUnit`, and units are contiguous (matches Track A's invariant
+    /// so the downstream loop treats both paths identically).
+    private func sentenceUnitsFromEngineSegments(
+        _ segments: [STTSegment],
+        words: [WordTimestamp]
+    ) -> [SentenceUnit] {
+        guard !words.isEmpty, !segments.isEmpty else { return [] }
+
+        // Pre-sort segments by start time (Whisper emits them in order, but
+        // defend against the rare out-of-order chunk merge).
+        let sorted = segments.sorted { $0.startMs < $1.startMs }
+
+        // For each word, pick the segment whose range contains its midpoint;
+        // fall back to the closest segment by start time.
+        var wordSegmentIndex = [Int](repeating: 0, count: words.count)
+        var lastIndex = 0
+        for (i, w) in words.enumerated() {
+            let mid = (w.startMs + w.endMs) / 2
+            // Linear scan from lastIndex — segments are sorted and word
+            // index advances monotonically, so amortized O(N+M).
+            while lastIndex + 1 < sorted.count && sorted[lastIndex + 1].startMs <= mid {
+                lastIndex += 1
+            }
+            wordSegmentIndex[i] = lastIndex
+        }
+
+        // Walk word→segment assignments and emit a unit each time the
+        // assigned segment changes.
+        var units: [SentenceUnit] = []
+        var unitStart = 0
+        for i in 1..<words.count {
+            if wordSegmentIndex[i] != wordSegmentIndex[i - 1] {
+                let text = words[unitStart...(i - 1)].map(\.word).joined(separator: " ")
+                let last = words[i - 1].word
+                let strong = last.last.map { ".!?".contains($0) } ?? false
+                units.append(SentenceUnit(
+                    startIndex: unitStart,
+                    endIndex: i - 1,
+                    text: text,
+                    endsWithStrongPunctuation: strong
+                ))
+                unitStart = i
+            }
+        }
+        // Final trailing unit.
+        let text = words[unitStart...(words.count - 1)].map(\.word).joined(separator: " ")
+        let last = words[words.count - 1].word
+        let strong = last.last.map { ".!?".contains($0) } ?? false
+        units.append(SentenceUnit(
+            startIndex: unitStart,
+            endIndex: words.count - 1,
+            text: text,
+            endsWithStrongPunctuation: strong
+        ))
+        return units
+    }
+
     private func sanitizeWordTimestamps(_ words: [WordTimestamp]) -> [WordTimestamp] {
         guard !words.isEmpty else { return words }
         // Step 1: split fused letter+digit tokens (`arms30.` → `arms 30.`).
@@ -777,6 +859,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     public func buildSubtitleCues(
         from words: [WordTimestamp],
         cleanedTranscript: String? = nil,
+        engineSegments: [STTSegment]? = nil,
         config: SubtitleExportConfig = .default,
         breakOnSpeakerChange: Bool = false
     ) -> [SubtitleCue] {
@@ -817,24 +900,32 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             }
         }
 
-        // Sentence-aware pre-pass: when a cleaned transcript is supplied (or
-        // the caller wants NL-driven boundaries), compute sentence units up
-        // front. The main loop then force-flushes at each unit boundary,
-        // which replaces the old "flush on any 800 ms gap" behaviour.
-        // `sentenceUnitEndForWord[i] == true` means word i is the last word
-        // of its sentence unit; flush after appending it.
-        let useSentenceUnits = cleanedTranscript != nil
+        // Sentence-aware pre-pass.
+        // Two ways to get sentence-unit boundaries:
+        //  1. The STT engine emitted them (`engineSegments`) — Whisper does
+        //     this natively. Authoritative; use directly.
+        //  2. A cleaned transcript is available; run NLTokenizer on the
+        //     joined word stream and derive boundaries deterministically
+        //     (Track A path).
+        // Either way, the main loop force-flushes at each unit boundary,
+        // replacing the old "flush on any 800 ms gap" behaviour.
+        let useSentenceUnits = engineSegments != nil || cleanedTranscript != nil
         var sentenceUnitEndForWord: [Bool] = []
         if useSentenceUnits {
             sentenceUnitEndForWord = Array(repeating: false, count: mergedWords.count)
-            // `longPauseMs` defaults to 1500 — large enough that natural
-            // breaths don't create boundaries, small enough that genuine
-            // stop-and-start utterances do.
-            let units = SubtitleSentenceSegmenter.segment(
-                words: mergedWords,
-                cleanedText: cleanedTranscript,
-                longPauseMs: max(1500, config.gapThresholdMs * 2)
-            )
+            let units: [SentenceUnit]
+            if let segments = engineSegments, !segments.isEmpty {
+                units = sentenceUnitsFromEngineSegments(segments, words: mergedWords)
+            } else {
+                // `longPauseMs` defaults to 1500 — large enough that natural
+                // breaths don't create boundaries, small enough that genuine
+                // stop-and-start utterances do.
+                units = SubtitleSentenceSegmenter.segment(
+                    words: mergedWords,
+                    cleanedText: cleanedTranscript,
+                    longPauseMs: max(1500, config.gapThresholdMs * 2)
+                )
+            }
             for u in units where u.endIndex < sentenceUnitEndForWord.count {
                 sentenceUnitEndForWord[u.endIndex] = true
             }
@@ -1900,7 +1991,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(
                 from: timestamps,
-                cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
+                cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript,
+                engineSegments: transcription.transcriptSegments
             )
             if options.includeTimestamps || options.includeSpeakerLabels {
                 if options.includeTimestamps {
@@ -2007,7 +2099,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
             let cues = buildSubtitleCues(
                 from: timestamps,
-                cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
+                cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript,
+                engineSegments: transcription.transcriptSegments
             )
             var lastSpeakerId: String? = nil
             for cue in cues {

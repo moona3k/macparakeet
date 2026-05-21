@@ -1411,6 +1411,66 @@ final class ExportServiceTests: XCTestCase {
         }
     }
 
+    /// When engine-emitted `STTSegment`s are supplied, the cue builder uses
+    /// them as authoritative sentence-unit boundaries. With a generous char
+    /// budget, two short segments may pack into a single two-line cue (the
+    /// `mergeAdjacentCuesForTwoLine` pass is allowed to do this) — but the
+    /// total word coverage and ordering must be preserved.
+    func testEngineSegmentsDriveCueBoundaries() {
+        let words = [
+            WordTimestamp(word: "Hello",     startMs:    0, endMs:  500, confidence: 0.99),
+            WordTimestamp(word: "there",     startMs:  500, endMs:  900, confidence: 0.99),
+            WordTimestamp(word: "friend.",   startMs:  900, endMs: 1300, confidence: 0.99),
+            WordTimestamp(word: "Goodbye",   startMs: 1400, endMs: 1800, confidence: 0.99),
+            WordTimestamp(word: "and",       startMs: 1800, endMs: 2000, confidence: 0.99),
+            WordTimestamp(word: "farewell.", startMs: 2000, endMs: 2500, confidence: 0.99),
+        ]
+        let segments: [STTSegment] = [
+            STTSegment(startMs: 0, endMs: 1300, text: "Hello there friend."),
+            STTSegment(startMs: 1400, endMs: 2500, text: "Goodbye and farewell."),
+        ]
+        // Tight budget so the two-line pack pass can't merge segments —
+        // forces strict 1:1 segment→cue mapping.
+        let config = SubtitleExportConfig(maxCharsPerLine: 22, maxLinesPerCue: 2, maxCPS: 0)
+        let cues = exportService.buildSubtitleCues(
+            from: words,
+            engineSegments: segments,
+            config: config
+        )
+        XCTAssertEqual(cues.count, 2, "Two engine segments should map to two cues under a tight budget. Got: \(cues.map(\.text))")
+        XCTAssertEqual(cues[0].text.replacingOccurrences(of: "\n", with: " "), "Hello there friend.")
+        XCTAssertEqual(cues[1].text.replacingOccurrences(of: "\n", with: " "), "Goodbye and farewell.")
+    }
+
+    /// Engine segments take priority over a cleaned transcript — if both are
+    /// supplied, segments win. This guards against an inadvertent fallback to
+    /// NLTokenizer when the STT engine already gave us authoritative
+    /// boundaries.
+    func testEngineSegmentsPreferredOverCleanedTranscript() {
+        let words = [
+            WordTimestamp(word: "Hello",  startMs:   0, endMs: 400, confidence: 0.99),
+            WordTimestamp(word: "there.", startMs: 400, endMs: 800, confidence: 0.99),
+            WordTimestamp(word: "Hi.",    startMs: 900, endMs: 1200, confidence: 0.99),
+            WordTimestamp(word: "Yes.",   startMs: 1300, endMs: 1600, confidence: 0.99),
+        ]
+        // Cleaned transcript matches the words; would yield 3 sentence units
+        // via NLTokenizer.
+        let cleaned = "Hello there. Hi. Yes."
+        // Engine segments group everything into ONE phrase — should win.
+        let segments: [STTSegment] = [
+            STTSegment(startMs: 0, endMs: 1600, text: "Hello there. Hi. Yes."),
+        ]
+        let config = SubtitleExportConfig(maxCharsPerLine: 65, maxLinesPerCue: 2, maxCPS: 0)
+        let cues = exportService.buildSubtitleCues(
+            from: words,
+            cleanedTranscript: cleaned,
+            engineSegments: segments,
+            config: config
+        )
+        XCTAssertEqual(cues.count, 1,
+            "Engine segments must take priority over cleanedTranscript; expected 1 cue but got \(cues.count): \(cues.map(\.text))")
+    }
+
     /// The wrap step must never produce more than `maxLinesPerCue` lines, even
     /// when fed a cue that somehow exceeds the budget (e.g. from an
     /// overly-verbose LLM refinement).

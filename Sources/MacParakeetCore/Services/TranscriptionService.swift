@@ -1130,6 +1130,10 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
 
             transcription.rawTranscript = result.text
             transcription.wordTimestamps = words
+            // Engine-emitted segments (Whisper provides these natively;
+            // Parakeet returns nil). Subtitle export prefers them over the
+            // NLTokenizer-derived sentence units (Track A) when present.
+            transcription.transcriptSegments = result.segments
             transcription.language = SpeechEnginePreference.normalizeKnownLanguage(result.language) ?? transcription.language
             transcription.engine = result.engine.rawValue
             transcription.engineVariant = result.engineVariant

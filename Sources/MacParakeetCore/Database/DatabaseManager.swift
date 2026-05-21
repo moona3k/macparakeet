@@ -891,6 +891,20 @@ public final class DatabaseManager: Sendable {
             }
         }
 
+        // v0.20 — engine-emitted sentence/phrase segments on transcriptions.
+        // Whisper natively returns these; Parakeet does not. The subtitle
+        // exporter prefers them over the NLTokenizer-derived boundaries
+        // (Track A) when present. Older rows leave the column NULL and fall
+        // back to Track A behaviour.
+        migrator.registerMigration("v0.20-transcription-segments") { db in
+            let columns = try db.columns(in: "transcriptions").map(\.name)
+            if !columns.contains("transcriptSegments") {
+                try db.alter(table: "transcriptions") { t in
+                    t.add(column: "transcriptSegments", .text)
+                }
+            }
+        }
+
         try migrator.migrate(dbQueue)
         try reconcileBuiltInPrompts()
         try reconcileBuiltInQuickPrompts()

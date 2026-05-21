@@ -23,6 +23,12 @@ public struct Transcription: Codable, Identifiable, Sendable {
     public var rawTranscript: String?
     public var cleanTranscript: String?
     public var wordTimestamps: [WordTimestamp]?
+    /// Engine-emitted sentence/phrase segments captured at transcription
+    /// time. Populated by Whisper (which natively returns segment-level
+    /// timestamps) and left `nil` by Parakeet. When present, the subtitle
+    /// exporter uses these directly as cue boundaries — skipping the
+    /// NLTokenizer pre-pass that runs on the Parakeet path.
+    public var transcriptSegments: [STTSegment]?
     public var language: String?
     public var speakerCount: Int?
     public var speakers: [SpeakerInfo]?
@@ -77,6 +83,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         rawTranscript: String? = nil,
         cleanTranscript: String? = nil,
         wordTimestamps: [WordTimestamp]? = nil,
+        transcriptSegments: [STTSegment]? = nil,
         language: String? = "en",
         speakerCount: Int? = nil,
         speakers: [SpeakerInfo]? = nil,
@@ -109,6 +116,7 @@ public struct Transcription: Codable, Identifiable, Sendable {
         self.rawTranscript = rawTranscript
         self.cleanTranscript = cleanTranscript
         self.wordTimestamps = wordTimestamps
+        self.transcriptSegments = transcriptSegments
         self.language = language
         self.speakerCount = speakerCount
         self.speakers = speakers
@@ -177,7 +185,7 @@ extension Transcription: FetchableRecord, PersistableRecord {
 
     public enum Columns: String, ColumnExpression {
         case id, createdAt, fileName, filePath, fileSizeBytes, durationMs
-        case rawTranscript, cleanTranscript, wordTimestamps, language
+        case rawTranscript, cleanTranscript, wordTimestamps, transcriptSegments, language
         case speakerCount, speakers, diarizationSegments, chatMessages
         case status, errorMessage, exportPath, sourceURL
         case thumbnailURL, channelName, videoDescription, isFavorite, sourceType, recoveredFromCrash, isTranscriptEdited, userNotes, engine, engineVariant, derivedTitle, derivedSnippet, updatedAt
@@ -196,6 +204,8 @@ extension Transcription: FetchableRecord, PersistableRecord {
         rawTranscript = try container.decodeIfPresent(String.self, forKey: .rawTranscript)
         cleanTranscript = try container.decodeIfPresent(String.self, forKey: .cleanTranscript)
         wordTimestamps = try container.decodeIfPresent([WordTimestamp].self, forKey: .wordTimestamps)
+        // `transcriptSegments` was added in v0.10; old DB rows won't have it.
+        transcriptSegments = try container.decodeIfPresent([STTSegment].self, forKey: .transcriptSegments)
         language = try container.decodeIfPresent(String.self, forKey: .language)
         speakerCount = try container.decodeIfPresent(Int.self, forKey: .speakerCount)
 
