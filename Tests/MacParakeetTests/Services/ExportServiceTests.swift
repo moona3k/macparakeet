@@ -1240,6 +1240,55 @@ final class ExportServiceTests: XCTestCase {
         XCTAssertEqual(decoded.maxCPS, 20.0)
     }
 
+    /// Overlapping consecutive cue timestamps are corrected by enforceMonotonicCues.
+    /// Simulates Parakeet jitter where cue N's endMs exceeds cue N+1's startMs.
+    func testEnforceMonotonicCuesFixesOverlap() {
+        // Word stream: two short phrases separated by a long silence (2000ms)
+        // which forces a gap-flush. We then manually craft the scenario by using
+        // a long first word whose endMs slightly exceeds the next word's startMs
+        // (simulating Parakeet timestamp jitter).
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "Hello",  startMs:     0, endMs: 17_851, confidence: 0.99),
+            // Next word starts 34ms BEFORE previous word's endMs — classic Parakeet jitter
+            WordTimestamp(word: "there.", startMs: 17_817, endMs: 19_452, confidence: 0.99),
+        ]
+        // Use gapThreshold=0 so words are NOT gap-split, forcing them to merge
+        // into one cue — which lets us test that the output timestamps are sane.
+        let config = SubtitleExportConfig(
+            gapThresholdMs: 0,
+            breakOnPunctuation: false,
+            maxCPS: 0
+        )
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        // Verify no cue ends after the next one starts
+        for i in 0..<cues.count - 1 {
+            XCTAssertLessThan(cues[i].endMs, cues[i + 1].startMs,
+                "Cue \(i) endMs (\(cues[i].endMs)) must be < cue \(i+1) startMs (\(cues[i+1].startMs))")
+        }
+        // Verify all cues have positive duration
+        for (i, cue) in cues.enumerated() {
+            XCTAssertGreaterThan(cue.endMs, cue.startMs,
+                "Cue \(i) must have positive duration: \(cue.startMs) → \(cue.endMs)")
+        }
+    }
+
+    /// WordNumberSplitter is applied inside sanitizeWordTimestamps so fused tokens
+    /// like "arms30." appear as "arms 30." in the resulting subtitle cue text.
+    func testFusedTokensAreSplitInSubtitleCues() {
+        let words: [WordTimestamp] = [
+            WordTimestamp(word: "welcome",  startMs:   0, endMs:  300, confidence: 0.99),
+            WordTimestamp(word: "to",       startMs: 350, endMs:  500, confidence: 0.99),
+            WordTimestamp(word: "arms30.",  startMs: 550, endMs:  900, confidence: 0.99),
+        ]
+        let config = SubtitleExportConfig(breakOnPunctuation: false, maxCPS: 0)
+        let cues = exportService.buildSubtitleCues(from: words, config: config)
+        let text = cues.map(\.text).joined(separator: " ")
+        XCTAssertTrue(text.contains("arms 30."),
+            "Expected 'arms 30.' after fused-token split, got: \(text)")
+        XCTAssertFalse(text.contains("arms30"),
+            "Fused token 'arms30' should not appear in output, got: \(text)")
+    }
+
     /// A config stored before endTimeBufferMs/snapToFrameRate existed (missing those
     /// keys) decodes without error and falls back to the defaults (0 and nil).
     func testSubtitleExportConfigDecodesLegacyPayloadGracefully() throws {

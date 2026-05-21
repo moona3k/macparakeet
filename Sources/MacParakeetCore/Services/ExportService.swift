@@ -720,7 +720,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     ///   in reading-speed enforcement).
     private func sanitizeWordTimestamps(_ words: [WordTimestamp]) -> [WordTimestamp] {
         guard !words.isEmpty else { return words }
-        var result = words
+        // Step 1: split fused letter+digit tokens (`arms30.` → `arms 30.`).
+        // Runs first so downstream CPS calculations and line-length budgets
+        // see the correct character counts.
+        var result = WordNumberSplitter.splitWords(words)
         let last = result.count - 1
         for i in 0..<last {
             // Ensure non-zero duration
@@ -993,6 +996,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         if let fps = config.snapToFrameRate, fps > 0 {
             cues = applyFrameSnap(cues, fps: fps)
         }
+
+        // Final pass: enforce monotonic non-overlapping timestamps.
+        // Word-level sanitization prevents word overlaps, but cue-level overlaps
+        // can still occur when consecutive cues are built from different timing
+        // sources (e.g. a gap-flush followed by a next cue whose startMs is
+        // slightly before the previous cue's endMs due to Parakeet jitter).
+        cues = enforceMonotonicCues(cues)
 
         return cues.map { cue in
             SubtitleCue(
@@ -1326,6 +1336,29 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 forcedText: cue.forcedText
             )
         }
+    }
+
+    /// Post-process: ensure cue N's endMs does not exceed cue N+1's startMs.
+    ///
+    /// Word-level sanitization prevents word overlaps, but cue-level overlaps
+    /// can still appear due to Parakeet timestamp jitter — e.g. after a
+    /// gap-triggered flush the preceding cue's endMs may sit a few ms after
+    /// the next cue's startMs. SRT/VTT players silently misrender overlapping
+    /// cues. This pass clamps each cue's endMs to (nextStartMs - 1) when
+    /// an overlap is detected, ensuring a strictly non-overlapping sequence.
+    private func enforceMonotonicCues(_ cues: [MutableCue]) -> [MutableCue] {
+        guard cues.count > 1 else { return cues }
+        var result = cues
+        for i in 0..<result.count - 1 {
+            if result[i].endMs >= result[i + 1].startMs {
+                result[i].endMs = result[i + 1].startMs - 1
+            }
+            // Also ensure each cue has positive duration
+            if result[i].endMs <= result[i].startMs {
+                result[i].endMs = result[i].startMs + 1
+            }
+        }
+        return result
     }
 
     /// Post-process: merge cues that are too small with neighbours when possible.
