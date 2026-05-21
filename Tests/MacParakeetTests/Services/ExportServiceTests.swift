@@ -1358,6 +1358,59 @@ final class ExportServiceTests: XCTestCase {
         }
     }
 
+    /// Regression for the "537 cues for a 30-min transcript" fragmentation
+    /// pathology. When the sentence-aware path is active (cleanedTranscript
+    /// supplied), 200 words across 10 punctuated sentences with realistic
+    /// inter-word gaps must NOT explode into hundreds of single-word cues.
+    func testSentencePathDoesNotFragmentOnNormalSilences() {
+        // Build 10 sentences × 20 words each, with a 600 ms gap after every
+        // word (well above the legacy 800 ms... wait, 600 ms is BELOW 800.
+        // The crucial test is gaps that are normal-conversation but spaced
+        // long enough that the legacy path would create fragments).
+        // We use 900 ms gaps mid-sentence: that exceeds the legacy 800 ms
+        // gap-flush threshold but is well below the new 3 s hard-pause.
+        var ws: [WordTimestamp] = []
+        var t = 0
+        for s in 0..<10 {
+            for w in 0..<20 {
+                let isLastWordInSentence = w == 19
+                let token = isLastWordInSentence ? "word\(w)." : "word\(w)"
+                ws.append(WordTimestamp(word: token, startMs: t, endMs: t + 300, confidence: 0.95))
+                // 900 ms mid-sentence gap, 1200 ms inter-sentence gap.
+                let gap = isLastWordInSentence ? 1200 : 900
+                t = t + 300 + gap
+            }
+            _ = s
+        }
+        let cleaned = ws.map(\.word).joined(separator: " ")
+        let config = SubtitleExportConfig(
+            maxCharsPerLine: 65,
+            maxLinesPerCue: 2,
+            gapThresholdMs: 800,
+            maxCPS: 0  // disable reading-speed splits so this test is purely about boundary detection
+        )
+
+        // Legacy path (no cleanedTranscript): every 900 ms gap creates a cue
+        // → expect way more cues than there are sentences. We just sanity
+        // check this is still the OLD behaviour for back-compat.
+        let legacyCues = exportService.buildSubtitleCues(from: ws, config: config)
+        XCTAssertGreaterThan(legacyCues.count, 20, "Legacy path still uses gap-flush; should have many cues")
+
+        // New sentence-aware path: dramatic improvement over legacy. The cue
+        // count is bounded by char budget, but the FRAGMENTATION (cues with
+        // < 3 words) must be eliminated.
+        let cues = exportService.buildSubtitleCues(from: ws, cleanedTranscript: cleaned, config: config)
+        XCTAssertLessThan(cues.count, legacyCues.count,
+            "Sentence path must produce strictly fewer cues than the legacy gap-flush path. Got \(cues.count) vs \(legacyCues.count)")
+        // No single-word or two-word orphans created by silence alone.
+        for (i, cue) in cues.enumerated() {
+            let wordCount = cue.text.replacingOccurrences(of: "\n", with: " ")
+                .split(separator: " ").count
+            XCTAssertGreaterThanOrEqual(wordCount, 3,
+                "Cue \(i) has only \(wordCount) words — sentence path should not produce orphans. Text: \(cue.text)")
+        }
+    }
+
     /// The wrap step must never produce more than `maxLinesPerCue` lines, even
     /// when fed a cue that somehow exceeds the budget (e.g. from an
     /// overly-verbose LLM refinement).

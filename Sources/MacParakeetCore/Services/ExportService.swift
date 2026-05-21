@@ -35,13 +35,15 @@ public protocol ExportServiceProtocol: Sendable {
         words: [WordTimestamp],
         speakers: [SpeakerInfo]?,
         config: SubtitleExportConfig,
-        includeSpeakerLabels: Bool
+        includeSpeakerLabels: Bool,
+        cleanedTranscript: String?
     ) -> String
     func formatVTT(
         words: [WordTimestamp],
         speakers: [SpeakerInfo]?,
         config: SubtitleExportConfig,
-        includeSpeakerLabels: Bool
+        includeSpeakerLabels: Bool,
+        cleanedTranscript: String?
     ) -> String
     func formatMarkdown(transcription: Transcription) -> String
     func formatForClipboard(transcription: Transcription) -> String
@@ -56,7 +58,16 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
     public var maxLinesPerCue: Int
     /// Max duration of a cue in milliseconds.
     public var maxDurationMs: Int
-    /// Pause gap in ms that forces a new cue.
+    /// Pause gap in ms.
+    ///
+    /// When the export pipeline can derive a cleaned transcript and run
+    /// `SubtitleSentenceSegmenter`, this value governs only the
+    /// `mergeOrphanedCues` / `mergeAdjacentCuesForTwoLine` eligibility — it
+    /// does NOT cut cues mid-sentence. A separate hard-pause threshold (3 s)
+    /// inside `buildSubtitleCues` handles true utterance gaps.
+    ///
+    /// On the legacy (no-cleaned-transcript) path this still also serves as
+    /// the cue-flush threshold for backward compatibility.
     public var gapThresholdMs: Int
     /// Whether to break cues on sentence-ending punctuation.
     public var breakOnPunctuation: Bool
@@ -302,7 +313,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             config: config,
             includeSpeakerLabels: includeSpeakerLabels,
             llmService: llmService,
-            onRefinementProgress: onRefinementProgress
+            onRefinementProgress: onRefinementProgress,
+            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
         )
         try text.write(to: url, atomically: true, encoding: .utf8)
     }
@@ -335,7 +347,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             config: config,
             includeSpeakerLabels: includeSpeakerLabels,
             llmService: llmService,
-            onRefinementProgress: onRefinementProgress
+            onRefinementProgress: onRefinementProgress,
+            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
         )
         try text.write(to: url, atomically: true, encoding: .utf8)
     }
@@ -360,7 +373,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             words: words,
             speakers: transcription.speakers,
             config: config,
-            includeSpeakerLabels: includeSpeakerLabels
+            includeSpeakerLabels: includeSpeakerLabels,
+            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
         )
     }
 
@@ -384,7 +398,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             words: words,
             speakers: transcription.speakers,
             config: config,
-            includeSpeakerLabels: includeSpeakerLabels
+            includeSpeakerLabels: includeSpeakerLabels,
+            cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
         )
     }
 
@@ -486,10 +501,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         words: [WordTimestamp],
         speakers: [SpeakerInfo]? = nil,
         config: SubtitleExportConfig = .default,
-        includeSpeakerLabels: Bool = false
+        includeSpeakerLabels: Bool = false,
+        cleanedTranscript: String? = nil
     ) -> String {
         let cues = buildSubtitleCues(
             from: words,
+            cleanedTranscript: cleanedTranscript,
             config: config,
             breakOnSpeakerChange: includeSpeakerLabels
         )
@@ -510,10 +527,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         config: SubtitleExportConfig = .default,
         includeSpeakerLabels: Bool = false,
         llmService: LLMServiceProtocol?,
-        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil
+        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil,
+        cleanedTranscript: String? = nil
     ) async throws -> String {
         var cues = buildSubtitleCues(
             from: words,
+            cleanedTranscript: cleanedTranscript,
             config: config,
             breakOnSpeakerChange: includeSpeakerLabels
         )
@@ -540,10 +559,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         config: SubtitleExportConfig = .default,
         includeSpeakerLabels: Bool = false,
         llmService: LLMServiceProtocol?,
-        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil
+        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil,
+        cleanedTranscript: String? = nil
     ) async throws -> String {
         var cues = buildSubtitleCues(
             from: words,
+            cleanedTranscript: cleanedTranscript,
             config: config,
             breakOnSpeakerChange: includeSpeakerLabels
         )
@@ -571,10 +592,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         words: [WordTimestamp],
         speakers: [SpeakerInfo]? = nil,
         config: SubtitleExportConfig = .default,
-        includeSpeakerLabels: Bool = false
+        includeSpeakerLabels: Bool = false,
+        cleanedTranscript: String? = nil
     ) -> String {
         let cues = buildSubtitleCues(
             from: words,
+            cleanedTranscript: cleanedTranscript,
             config: config,
             breakOnSpeakerChange: includeSpeakerLabels
         )
@@ -645,7 +668,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             lines.append(text)
             lines.append("")
         } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
-            let cues = buildSubtitleCues(from: timestamps)
+            let cues = buildSubtitleCues(
+                from: timestamps,
+                cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
+            )
             if options.includeTimestamps || options.includeSpeakerLabels {
                 if options.includeTimestamps {
                     var lastSpeakerId: String? = nil
@@ -750,6 +776,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     public func buildSubtitleCues(
         from words: [WordTimestamp],
+        cleanedTranscript: String? = nil,
         config: SubtitleExportConfig = .default,
         breakOnSpeakerChange: Bool = false
     ) -> [SubtitleCue] {
@@ -790,6 +817,35 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             }
         }
 
+        // Sentence-aware pre-pass: when a cleaned transcript is supplied (or
+        // the caller wants NL-driven boundaries), compute sentence units up
+        // front. The main loop then force-flushes at each unit boundary,
+        // which replaces the old "flush on any 800 ms gap" behaviour.
+        // `sentenceUnitEndForWord[i] == true` means word i is the last word
+        // of its sentence unit; flush after appending it.
+        let useSentenceUnits = cleanedTranscript != nil
+        var sentenceUnitEndForWord: [Bool] = []
+        if useSentenceUnits {
+            sentenceUnitEndForWord = Array(repeating: false, count: mergedWords.count)
+            // `longPauseMs` defaults to 1500 — large enough that natural
+            // breaths don't create boundaries, small enough that genuine
+            // stop-and-start utterances do.
+            let units = SubtitleSentenceSegmenter.segment(
+                words: mergedWords,
+                cleanedText: cleanedTranscript,
+                longPauseMs: max(1500, config.gapThresholdMs * 2)
+            )
+            for u in units where u.endIndex < sentenceUnitEndForWord.count {
+                sentenceUnitEndForWord[u.endIndex] = true
+            }
+        }
+
+        // The "hard pause" safety net for the new path: even within a single
+        // sentence unit, a multi-second silence forces a cue boundary. This
+        // catches the rare case where NLTokenizer + long-pause fallback both
+        // miss a true utterance gap.
+        let hardPauseMs = 3000
+
         // Track word-level state
         var cues: [MutableCue] = []
         var currentWords: [WordTimestamp] = []
@@ -819,8 +875,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 && !currentWords.isEmpty
                 && word.speakerId != currentSpeakerId
 
-            // Check timing gap (next word starts much later)
-            let hasLongGap = hasNext && (mergedWords[i + 1].startMs - word.endMs) > config.gapThresholdMs
+            // Check timing gap. On the legacy path (no sentence units) this
+            // is the 800 ms `gapThresholdMs` flush. On the new path it is
+            // demoted to the much larger `hardPauseMs` so only multi-second
+            // silences force a mid-sentence cue boundary.
+            let gapFlushThreshold = useSentenceUnits ? hardPauseMs : config.gapThresholdMs
+            let hasLongGap = hasNext && (mergedWords[i + 1].startMs - word.endMs) > gapFlushThreshold
 
             // Check duration limit
             let tooLong = word.endMs - currentStartMs > config.maxDurationMs
@@ -851,8 +911,27 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 continue
             }
 
+            // PHASE 1.5: Sentence-unit boundary (new path only).
+            // `SubtitleSentenceSegmenter` has already pre-computed which words
+            // sit at the end of a natural sentence unit. Trust it: append the
+            // word and flush. This replaces the old "flush on any 800 ms gap"
+            // logic that produced 1-word orphans every time a speaker took a
+            // breath mid-clause.
+            if useSentenceUnits && i < sentenceUnitEndForWord.count && sentenceUnitEndForWord[i] {
+                currentWords.append(word)
+                flushCue(endIndex: i)
+                if hasNext {
+                    currentStartMs = mergedWords[i + 1].startMs
+                    currentSpeakerId = mergedWords[i + 1].speakerId
+                }
+                continue
+            }
+
             // Long gap: the gap is AFTER this word, so this word belongs to the
             // current cue. Append it, flush, then start the next cue at i+1.
+            // On the new sentence-unit path `gapFlushThreshold` is `hardPauseMs`
+            // (3 s) — only true utterance gaps escape; normal pauses inside a
+            // sentence stay inside one cue.
             if hasLongGap {
                 currentWords.append(word)
                 flushCue(endIndex: i)
@@ -1819,7 +1898,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         if let text = editedTranscriptText(transcription: transcription) {
             lines.append(text)
         } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
-            let cues = buildSubtitleCues(from: timestamps)
+            let cues = buildSubtitleCues(
+                from: timestamps,
+                cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
+            )
             if options.includeTimestamps || options.includeSpeakerLabels {
                 if options.includeTimestamps {
                     var lastSpeakerId: String? = nil
@@ -1923,7 +2005,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         if let text = editedTranscriptText(transcription: transcription) {
             result.append(NSAttributedString(string: text, attributes: [.font: bodyFont]))
         } else if let timestamps = transcription.wordTimestamps, !timestamps.isEmpty {
-            let cues = buildSubtitleCues(from: timestamps)
+            let cues = buildSubtitleCues(
+                from: timestamps,
+                cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript
+            )
             var lastSpeakerId: String? = nil
             for cue in cues {
                 if let label = speakerLabel(for: cue.speakerId, in: transcription.speakers),
