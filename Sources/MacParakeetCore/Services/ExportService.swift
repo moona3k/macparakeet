@@ -528,7 +528,13 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return lines.joined(separator: "\n")
     }
 
-    /// Async variant of formatSRT with optional LLM refinement.
+    /// Async variant of formatSRT.
+    ///
+    /// When `config.useLLMRefinement` is true and `llmService` is supplied,
+    /// the LLM-driven layout planner picks the cue boundaries (see
+    /// `SubtitleLLMLayoutPlanner`). On any per-chunk failure the
+    /// deterministic builder runs as a silent fallback for the whole
+    /// transcript, so the export always succeeds.
     public func formatSRT(
         words: [WordTimestamp],
         speakers: [SpeakerInfo]? = nil,
@@ -539,18 +545,15 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         cleanedTranscript: String? = nil,
         engineSegments: [STTSegment]? = nil
     ) async throws -> String {
-        var cues = buildSubtitleCues(
-            from: words,
-            cleanedTranscript: cleanedTranscript,
-            engineSegments: engineSegments,
+        let cues = await produceSubtitleCues(
+            words: words,
             config: config,
-            breakOnSpeakerChange: includeSpeakerLabels
+            includeSpeakerLabels: includeSpeakerLabels,
+            llmService: llmService,
+            onProgress: onRefinementProgress,
+            cleanedTranscript: cleanedTranscript,
+            engineSegments: engineSegments
         )
-
-        if config.useLLMRefinement, let llmService = llmService {
-            let refiner = SubtitleLLMRefiner(llmService: llmService)
-            cues = try await refiner.refine(cues: cues, config: config, onProgress: onRefinementProgress)
-        }
 
         var lines: [String] = []
         for (i, cue) in cues.enumerated() {
@@ -562,7 +565,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return lines.joined(separator: "\n")
     }
 
-    /// Async variant of formatVTT with optional LLM refinement.
+    /// Async variant of formatVTT. See `formatSRT` async for the LLM
+    /// layout / deterministic-fallback behaviour.
     public func formatVTT(
         words: [WordTimestamp],
         speakers: [SpeakerInfo]? = nil,
@@ -573,18 +577,15 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         cleanedTranscript: String? = nil,
         engineSegments: [STTSegment]? = nil
     ) async throws -> String {
-        var cues = buildSubtitleCues(
-            from: words,
-            cleanedTranscript: cleanedTranscript,
-            engineSegments: engineSegments,
+        let cues = await produceSubtitleCues(
+            words: words,
             config: config,
-            breakOnSpeakerChange: includeSpeakerLabels
+            includeSpeakerLabels: includeSpeakerLabels,
+            llmService: llmService,
+            onProgress: onRefinementProgress,
+            cleanedTranscript: cleanedTranscript,
+            engineSegments: engineSegments
         )
-
-        if config.useLLMRefinement, let llmService = llmService {
-            let refiner = SubtitleLLMRefiner(llmService: llmService)
-            cues = try await refiner.refine(cues: cues, config: config, onProgress: onRefinementProgress)
-        }
 
         var lines: [String] = ["WEBVTT", ""]
         for cue in cues {
@@ -597,6 +598,115 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             lines.append("")
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// Single source of truth for the LLM-layout vs deterministic-layout
+    /// decision, used by both `formatSRT (async)` and `formatVTT (async)`.
+    ///
+    /// LLM path:
+    /// 1. Build sentence units (cleanedTranscript / engineSegments / fallback).
+    /// 2. Hand them + the word array to `SubtitleLLMLayoutPlanner`.
+    /// 3. If every chunk laid out cleanly, run the timing post-passes
+    ///    (`endTimeBuffer`, `frameSnap`, `enforceMonotonicCues`) over the
+    ///    planner's cues and wrap each cue's text. Done.
+    /// 4. If ANY chunk fell back, throw the LLM cues away and run the
+    ///    deterministic builder over the full transcript instead. The
+    ///    deterministic path already applies all post-processing, so we
+    ///    return its result directly.
+    private func produceSubtitleCues(
+        words: [WordTimestamp],
+        config: SubtitleExportConfig,
+        includeSpeakerLabels: Bool,
+        llmService: LLMServiceProtocol?,
+        onProgress: SubtitleLLMRefiner.ProgressHandler?,
+        cleanedTranscript: String?,
+        engineSegments: [STTSegment]?
+    ) async -> [SubtitleCue] {
+        let deterministic: () -> [SubtitleCue] = {
+            self.buildSubtitleCues(
+                from: words,
+                cleanedTranscript: cleanedTranscript,
+                engineSegments: engineSegments,
+                config: config,
+                breakOnSpeakerChange: includeSpeakerLabels
+            )
+        }
+
+        guard config.useLLMRefinement, let llmService = llmService else {
+            return deterministic()
+        }
+
+        // Compute sentence units from the same source the deterministic
+        // builder would have used. Prefer engine segments when present.
+        let sanitized = sanitizeWordTimestamps(words)
+        let units: [SentenceUnit]
+        if let segments = engineSegments, !segments.isEmpty {
+            units = sentenceUnitsFromEngineSegments(segments, words: sanitized)
+        } else {
+            units = SubtitleSentenceSegmenter.segment(
+                words: sanitized,
+                cleanedText: cleanedTranscript,
+                longPauseMs: max(1500, config.gapThresholdMs * 2)
+            )
+        }
+
+        let planner = SubtitleLLMLayoutPlanner(llmService: llmService)
+        let chunkResults = await planner.plan(
+            words: sanitized,
+            units: units,
+            config: config,
+            speakerId: nil,
+            onProgress: onProgress
+        )
+
+        // Any chunk fell back to nil → use deterministic for the whole
+        // transcript. Mixing per-chunk LLM output with per-chunk
+        // deterministic output is possible but complicates the
+        // post-processing; full fallback is simpler and the user
+        // already opted into one or the other quality bar.
+        guard !chunkResults.contains(where: { $0.didFallBack }) else {
+            return deterministic()
+        }
+
+        // Stitch chunk cues + timing post-processing.
+        let llmCues = chunkResults.flatMap { $0.cues ?? [] }
+        return applyTimingPostProcessing(llmCues, config: config)
+    }
+
+    /// Run `endTimeBuffer`, `frameSnap`, `enforceMonotonicCues`, and
+    /// `wrapSubtitleText` on a list of already-laid-out cues. Used by the
+    /// LLM-layout path; the deterministic builder runs these inline.
+    private func applyTimingPostProcessing(
+        _ cues: [SubtitleCue],
+        config: SubtitleExportConfig
+    ) -> [SubtitleCue] {
+        // Convert to MutableCue for the post-passes (they read startMs /
+        // endMs only; words/wordTimestamps aren't consulted).
+        var mutable = cues.map { c in
+            MutableCue(
+                startMs: c.startMs,
+                endMs: c.endMs,
+                words: c.text.split(separator: " ").map(String.init),
+                wordTimestamps: [],
+                speakerId: c.speakerId,
+                forcedText: nil
+            )
+        }
+        if config.endTimeBufferMs > 0 {
+            mutable = applyEndTimeBuffer(mutable, config: config)
+        }
+        if let fps = config.snapToFrameRate, fps > 0 {
+            mutable = applyFrameSnap(mutable, fps: fps)
+        }
+        mutable = enforceMonotonicCues(mutable)
+        return zip(mutable, cues).map { mut, original in
+            SubtitleCue(
+                startMs: mut.startMs,
+                endMs: mut.endMs,
+                text: wrapSubtitleText(original.text, config: config),
+                speakerId: original.speakerId
+            )
+        }
     }
 
     /// Format word timestamps as WebVTT subtitle string
