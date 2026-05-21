@@ -1501,6 +1501,120 @@ final class ExportServiceTests: XCTestCase {
             "9-word, 53-char sentence within a 65-char budget should be one cue. Got \(cues.count): \(cues.map(\.text))")
     }
 
+    /// When a long sentence must be split, the splitter must prefer a
+    /// punctuation boundary (comma) over a budget-maximising mid-clause
+    /// break. Regression for the SRT (15) "intervals in / arms 30" case.
+    func testLongSentenceSplitsAtCommaNotMidClause() {
+        // "What is going on, Echelon, and welcome in to your intervals
+        // in arms 30." — 70 chars, must split. The clean choice is at
+        // the comma after "Echelon,".
+        let words = [
+            WordTimestamp(word: "What",      startMs:    0, endMs:  200, confidence: 0.99),
+            WordTimestamp(word: "is",        startMs:  210, endMs:  330, confidence: 0.99),
+            WordTimestamp(word: "going",     startMs:  340, endMs:  500, confidence: 0.99),
+            WordTimestamp(word: "on,",       startMs:  510, endMs:  680, confidence: 0.99),
+            WordTimestamp(word: "Echelon,",  startMs:  690, endMs: 1050, confidence: 0.99),
+            WordTimestamp(word: "and",       startMs: 1060, endMs: 1200, confidence: 0.99),
+            WordTimestamp(word: "welcome",   startMs: 1210, endMs: 1500, confidence: 0.99),
+            WordTimestamp(word: "in",        startMs: 1510, endMs: 1600, confidence: 0.99),
+            WordTimestamp(word: "to",        startMs: 1610, endMs: 1700, confidence: 0.99),
+            WordTimestamp(word: "your",      startMs: 1710, endMs: 1850, confidence: 0.99),
+            WordTimestamp(word: "intervals", startMs: 1860, endMs: 2200, confidence: 0.99),
+            WordTimestamp(word: "in",        startMs: 2210, endMs: 2350, confidence: 0.99),
+            WordTimestamp(word: "arms",      startMs: 2360, endMs: 2600, confidence: 0.99),
+            WordTimestamp(word: "30.",       startMs: 2610, endMs: 2900, confidence: 0.99),
+        ]
+        let cleaned = "What is going on, Echelon, and welcome in to your intervals in arms 30."
+        let config = SubtitleExportConfig(maxCharsPerLine: 65, maxLinesPerCue: 2, maxCPS: 0)
+        let cues = exportService.buildSubtitleCues(
+            from: words,
+            cleanedTranscript: cleaned,
+            config: config
+        )
+        // NO cue may end with a preposition like "in". Either the whole
+        // sentence stays as one cue (soft overflow within ~12-20 %), or
+        // it splits at the comma after "Echelon," — both are fine; both
+        // avoid mid-clause breaks.
+        for (i, cue) in cues.enumerated() {
+            let lastWord = cue.text
+                .replacingOccurrences(of: "\n", with: " ")
+                .split(separator: " ")
+                .last
+                .map(String.init) ?? ""
+            let trimmed = lastWord.trimmingCharacters(in: .punctuationCharacters).lowercased()
+            XCTAssertNotEqual(trimmed, "in",
+                "Cue \(i+1) should not end with preposition 'in'. Got: \(cue.text)")
+        }
+    }
+
+    /// `absorbShortNeighbours` must NOT merge a sentence-tail with the
+    /// start of the next sentence — that's the SRT (15) "arms 30. / We
+    /// will spend the next 30" pattern. (Two complete short sentences
+    /// can still merge; only tails are blocked.)
+    func testAbsorbDoesNotMergeSentenceTailWithNextSentence() {
+        // Synthesise the pattern: a long sentence whose Phase-3 split
+        // leaves "arms 30." as a tail, followed by the start of a new
+        // sentence "We will...".
+        let words = [
+            WordTimestamp(word: "What",      startMs:    0, endMs:  200, confidence: 0.99),
+            WordTimestamp(word: "is",        startMs:  210, endMs:  330, confidence: 0.99),
+            WordTimestamp(word: "going",     startMs:  340, endMs:  500, confidence: 0.99),
+            WordTimestamp(word: "on,",       startMs:  510, endMs:  680, confidence: 0.99),
+            WordTimestamp(word: "Echelon,",  startMs:  690, endMs: 1050, confidence: 0.99),
+            WordTimestamp(word: "and",       startMs: 1060, endMs: 1200, confidence: 0.99),
+            WordTimestamp(word: "welcome",   startMs: 1210, endMs: 1500, confidence: 0.99),
+            WordTimestamp(word: "in",        startMs: 1510, endMs: 1600, confidence: 0.99),
+            WordTimestamp(word: "to",        startMs: 1610, endMs: 1700, confidence: 0.99),
+            WordTimestamp(word: "your",      startMs: 1710, endMs: 1850, confidence: 0.99),
+            WordTimestamp(word: "intervals", startMs: 1860, endMs: 2200, confidence: 0.99),
+            WordTimestamp(word: "in",        startMs: 2210, endMs: 2350, confidence: 0.99),
+            WordTimestamp(word: "arms",      startMs: 2360, endMs: 2600, confidence: 0.99),
+            WordTimestamp(word: "30.",       startMs: 2610, endMs: 2900, confidence: 0.99),
+            WordTimestamp(word: "We",        startMs: 2910, endMs: 3050, confidence: 0.99),
+            WordTimestamp(word: "will",      startMs: 3060, endMs: 3200, confidence: 0.99),
+            WordTimestamp(word: "spend",     startMs: 3210, endMs: 3450, confidence: 0.99),
+            WordTimestamp(word: "the",       startMs: 3460, endMs: 3580, confidence: 0.99),
+            WordTimestamp(word: "next",      startMs: 3590, endMs: 3780, confidence: 0.99),
+            WordTimestamp(word: "30.",       startMs: 3790, endMs: 4050, confidence: 0.99),
+        ]
+        let cleaned = "What is going on, Echelon, and welcome in to your intervals in arms 30. We will spend the next 30."
+        let config = SubtitleExportConfig(maxCharsPerLine: 65, maxLinesPerCue: 2, maxCPS: 0)
+        let cues = exportService.buildSubtitleCues(
+            from: words,
+            cleanedTranscript: cleaned,
+            config: config
+        )
+        // No cue may contain BOTH "arms 30." AND "We will" — that's the
+        // tail+head sentence-mash we're guarding against.
+        for cue in cues {
+            let flat = cue.text.replacingOccurrences(of: "\n", with: " ")
+            XCTAssertFalse(flat.contains("arms 30.") && flat.contains("We will"),
+                "Sentence tail must not merge with next sentence's head. Got cue: \(cue.text)")
+        }
+    }
+
+    /// Two complete short sentences MAY still merge (e.g. "Hi there." +
+    /// "How are you?") — the no-tail-merge guard should only block when
+    /// the first cue is a continuation, not a self-contained sentence.
+    func testAbsorbCanMergeTwoCompleteShortSentences() {
+        let words = [
+            WordTimestamp(word: "Hi",     startMs:    0, endMs:  200, confidence: 0.99),
+            WordTimestamp(word: "there.", startMs:  210, endMs:  500, confidence: 0.99),
+            WordTimestamp(word: "How",    startMs:  501, endMs:  700, confidence: 0.99),
+            WordTimestamp(word: "are",    startMs:  710, endMs:  860, confidence: 0.99),
+            WordTimestamp(word: "you?",   startMs:  870, endMs: 1100, confidence: 0.99),
+        ]
+        let cleaned = "Hi there. How are you?"
+        let config = SubtitleExportConfig(maxCharsPerLine: 65, maxLinesPerCue: 2, maxCPS: 0)
+        let cues = exportService.buildSubtitleCues(
+            from: words,
+            cleanedTranscript: cleaned,
+            config: config
+        )
+        XCTAssertLessThanOrEqual(cues.count, 1,
+            "Two complete short sentences within budget should pack to a single cue. Got: \(cues.map(\.text))")
+    }
+
     /// The wrap step must never produce more than `maxLinesPerCue` lines, even
     /// when fed a cue that somehow exceeds the budget (e.g. from an
     /// overly-verbose LLM refinement).

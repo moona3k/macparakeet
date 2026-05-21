@@ -1073,10 +1073,22 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
             // PHASE 3: Budget exceeded — find best boundary including this word
             if exceedsBudget && !currentWords.isEmpty {
-                // Look ahead: if a sentence boundary is within the next 2 words,
-                // allow a slight overflow (up to 20% over budget) to reach it naturally.
-                var nearSentenceBoundary = false
-                for offset in 1...2 {
+                // Look ahead: if a natural punctuation break is within the
+                // next few words, allow a small overflow to reach it
+                // instead of splitting mid-clause.
+                //
+                //   - Sentence end (.!? followed by capital): allow up to
+                //     20 % overflow within 3 words.
+                //   - Comma / clause break (`,` `;` `:`): allow up to 12 %
+                //     overflow within 3 words.
+                //
+                // The "reach a natural break" branch consumes the word(s)
+                // up to (and including) that punctuation, then flushes —
+                // so the next cue starts on a clean phrase.
+                var nearNaturalBreak = false
+                let sentenceOverflowBudget = (config.maxCharsPerLine * 120) / 100
+                let commaOverflowBudget = (config.maxCharsPerLine * 112) / 100
+                for offset in 1...3 {
                     let peekIdx = i + offset
                     guard peekIdx < mergedWords.count else { break }
                     let peekWord = mergedWords[peekIdx]
@@ -1085,16 +1097,20 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                         && (peekWord.word.last.map { ".!?".contains($0) } ?? false)
                     let nextIsStarter = hasNextPeek
                         && isSentenceStarter(mergedWords[peekIdx + 1].word)
-                    if peekEndsSentence && nextIsStarter {
-                        let extendedText = (prospective + mergedWords[(i + 1)...peekIdx]).map(\.word).joined(separator: " ")
-                        if extendedText.count <= config.maxCharsPerLine {
-                            nearSentenceBoundary = true
-                        }
+                    let peekEndsClause = config.breakOnPunctuation
+                        && (peekWord.word.last.map { ",;:".contains($0) } ?? false)
+                    let extendedText = (prospective + mergedWords[(i + 1)...peekIdx]).map(\.word).joined(separator: " ")
+                    if peekEndsSentence && nextIsStarter && extendedText.count <= sentenceOverflowBudget {
+                        nearNaturalBreak = true
+                        break
+                    }
+                    if peekEndsClause && extendedText.count <= commaOverflowBudget {
+                        nearNaturalBreak = true
                         break
                     }
                 }
 
-                if !nearSentenceBoundary {
+                if !nearNaturalBreak {
                     // Search backward for the best boundary in the FULL prospective cue
                     let boundaryIndex = findBestBoundaryBackward(
                         words: prospective,
@@ -1273,12 +1289,17 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             let nextWord = nextWordRaw.lowercased().trimmingCharacters(in: .punctuationCharacters)
             var score = 0
 
-            // Real punctuation bonuses
+            // Real punctuation bonuses.
+            //
+            // Punctuation is the single strongest signal that a split lands
+            // on a natural caption boundary. We want it to dominate over
+            // budget-fill scoring so a split like "What is going on,
+            // Echelon," wins over a budget-maximising "...intervals in".
             if words[splitIdx].word.last.map({ ".!?".contains($0) }) ?? false {
-                score += 300
+                score += 500
             }
             if words[splitIdx].word.hasSuffix(",") || words[splitIdx].word.hasSuffix(";") || words[splitIdx].word.hasSuffix(":") {
-                score += 150
+                score += 400
             }
 
             // Semantic completeness: noun/verb suffixes
@@ -1580,6 +1601,25 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 // Don't merge across a real silence — that's two
                 // utterances even if both happen to be short.
                 if (next.startMs - current.endMs) > gapThresholdMs {
+                    i += 1
+                    continue
+                }
+                // Don't merge across a sentence boundary when the
+                // current cue is a TAIL of a longer sentence (e.g.
+                // "arms 30." in SRT (15) — the rest of "What is going
+                // on, Echelon, and welcome in to your intervals in arms
+                // 30." landed in the preceding cue). Packing a tail with
+                // the head of the NEXT sentence reads as two distinct
+                // thoughts crammed into one block.
+                //
+                // A "tail" is recognised by: current cue ends with `.!?`
+                // AND current cue does NOT start with a sentence starter
+                // (so it's a continuation, not a self-contained sentence
+                // like "Hi there." or "Yes.").
+                let currentEndsSentence = current.words.last?.last.map { ".!?".contains($0) } ?? false
+                let nextStartsSentence = isSentenceStarter(next.words.first ?? "")
+                let currentStartsSentence = isSentenceStarter(current.words.first ?? "")
+                if currentEndsSentence && nextStartsSentence && !currentStartsSentence {
                     i += 1
                     continue
                 }
