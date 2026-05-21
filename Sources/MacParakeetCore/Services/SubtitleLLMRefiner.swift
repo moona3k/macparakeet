@@ -1,132 +1,231 @@
 import Foundation
 
-/// Uses an LLM to refine subtitle cue boundaries via a sliding-window approach.
-/// Each cue is re-evaluated in the context of its neighbours (previous + current + next)
-/// for natural phrasing, orphan avoidance, and line-break balance.
+/// Uses an LLM to refine subtitle cue boundaries.
+///
+/// Cues are processed in batches (default 8 per LLM call) and batches run
+/// concurrently (default 4 in flight). Each batch carries one cue of context
+/// on either side so the LLM can see neighbouring phrasing without paying for
+/// the full transcript every call. A `onProgress` callback fires after every
+/// batch completes so the UI can render `N/M` style progress. Cooperative
+/// cancellation is honoured between batches and inside the TaskGroup.
 public actor SubtitleLLMRefiner {
 
-    private let llmService: LLMServiceProtocol
+    public typealias ProgressHandler = @Sendable (Int, Int) -> Void
 
-    public init(llmService: LLMServiceProtocol) {
+    private let llmService: LLMServiceProtocol
+    private let batchSize: Int
+    private let maxConcurrency: Int
+
+    public init(
+        llmService: LLMServiceProtocol,
+        batchSize: Int = 8,
+        maxConcurrency: Int = 4
+    ) {
         self.llmService = llmService
+        self.batchSize = max(1, batchSize)
+        self.maxConcurrency = max(1, maxConcurrency)
     }
 
-    /// Refine a list of subtitle cues using a 5-cue sliding window.
+    /// Refine a list of subtitle cues.
     ///
-    /// For each cue the LLM sees up to 2 preceding cues, the current cue, and up to 2
-    /// following cues. It returns ONLY the refined text for the current cue, preserving timing.
-    /// A second pass deduplicates and enforces the character budget.
+    /// - Parameters:
+    ///   - cues: ordered cue list to refine.
+    ///   - config: export config (used for budget hints in the prompt).
+    ///   - onProgress: optional callback invoked with `(completed, total)`
+    ///     after each batch resolves. Always called on the actor's executor.
+    /// - Returns: refined cues in the same order as input.
     public func refine(
         cues: [ExportService.SubtitleCue],
-        config: SubtitleExportConfig
+        config: SubtitleExportConfig,
+        onProgress: ProgressHandler? = nil
     ) async throws -> [ExportService.SubtitleCue] {
         guard cues.count > 2 else { return cues }
 
-        var refined: [ExportService.SubtitleCue] = []
+        let batches = makeBatches(cues: cues)
+        let total = batches.count
+        var completed = 0
+        var refinedTextsByBatch: [Int: [String]] = [:]
 
-        for i in 0..<cues.count {
-            let window = window(for: i, in: cues)
-            let prompt = buildPrompt(window: window, config: config)
+        try await withThrowingTaskGroup(of: (Int, [String]).self) { group in
+            var nextBatchIndex = 0
 
-            let refinedText = try await llmService.transform(
-                text: prompt,
-                prompt: Self.refinerSystemPrompt
-            )
+            // Seed the group with up to maxConcurrency batches.
+            while nextBatchIndex < min(maxConcurrency, total) {
+                let i = nextBatchIndex
+                let batch = batches[i]
+                group.addTask { [llmService] in
+                    let prompt = Self.buildPrompt(batch: batch, config: config)
+                    let response = try await llmService.transform(
+                        text: prompt,
+                        prompt: Self.refinerSystemPrompt
+                    )
+                    let parsed = Self.parseResponse(response, expectedCount: batch.cues.count, fallback: batch.cues.map(\.text))
+                    return (i, parsed)
+                }
+                nextBatchIndex += 1
+            }
 
-            let cleaned = refinedText
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: "\r\n", with: "\n")
-                .replacingOccurrences(of: "\r", with: "\n")
+            while let (i, parsed) = try await group.next() {
+                refinedTextsByBatch[i] = parsed
+                completed += 1
+                onProgress?(completed, total)
 
-            // Enforce budget: if the LLM returned something too long, truncate
-            let finalText = enforceBudget(cleaned, maxChars: config.maxCharsPerLine)
-
-            let cue = cues[i]
-            refined.append(ExportService.SubtitleCue(
-                startMs: cue.startMs,
-                endMs: cue.endMs,
-                text: finalText,
-                speakerId: cue.speakerId
-            ))
+                if nextBatchIndex < total {
+                    let j = nextBatchIndex
+                    let batch = batches[j]
+                    group.addTask { [llmService] in
+                        let prompt = Self.buildPrompt(batch: batch, config: config)
+                        let response = try await llmService.transform(
+                            text: prompt,
+                            prompt: Self.refinerSystemPrompt
+                        )
+                        let parsed = Self.parseResponse(response, expectedCount: batch.cues.count, fallback: batch.cues.map(\.text))
+                        return (j, parsed)
+                    }
+                    nextBatchIndex += 1
+                }
+            }
         }
 
+        var refined: [ExportService.SubtitleCue] = []
+        refined.reserveCapacity(cues.count)
+        for (i, batch) in batches.enumerated() {
+            let texts = refinedTextsByBatch[i] ?? batch.cues.map(\.text)
+            for (j, cue) in batch.cues.enumerated() {
+                let raw = j < texts.count ? texts[j] : cue.text
+                let cleaned = Self.cleanText(raw)
+                let bounded = Self.enforceBudget(cleaned, maxChars: config.maxCharsPerLine)
+                refined.append(ExportService.SubtitleCue(
+                    startMs: cue.startMs,
+                    endMs: cue.endMs,
+                    text: bounded,
+                    speakerId: cue.speakerId
+                ))
+            }
+        }
         return refined
     }
 
-    // MARK: - Sliding Window
+    // MARK: - Batching
 
-    private func window(for index: Int, in cues: [ExportService.SubtitleCue]) -> Window {
-        let prev2 = index > 1 ? cues[index - 2] : nil
-        let prev1 = index > 0 ? cues[index - 1] : nil
-        let curr = cues[index]
-        let next1 = index < cues.count - 1 ? cues[index + 1] : nil
-        let next2 = index < cues.count - 2 ? cues[index + 2] : nil
-        return Window(prev2: prev2, prev1: prev1, current: curr, next1: next1, next2: next2)
+    struct Batch {
+        let cues: [ExportService.SubtitleCue]
+        let contextBefore: ExportService.SubtitleCue?
+        let contextAfter: ExportService.SubtitleCue?
     }
 
-    private struct Window {
-        let prev2: ExportService.SubtitleCue?
-        let prev1: ExportService.SubtitleCue?
-        let current: ExportService.SubtitleCue
-        let next1: ExportService.SubtitleCue?
-        let next2: ExportService.SubtitleCue?
+    private func makeBatches(cues: [ExportService.SubtitleCue]) -> [Batch] {
+        var batches: [Batch] = []
+        var i = 0
+        while i < cues.count {
+            let end = min(i + batchSize, cues.count)
+            let slice = Array(cues[i..<end])
+            let before = i > 0 ? cues[i - 1] : nil
+            let after = end < cues.count ? cues[end] : nil
+            batches.append(Batch(cues: slice, contextBefore: before, contextAfter: after))
+            i = end
+        }
+        return batches
     }
 
-    // MARK: - Prompt Builder
+    // MARK: - Prompt
 
-    private func buildPrompt(window: Window, config: SubtitleExportConfig) -> String {
+    private static func buildPrompt(batch: Batch, config: SubtitleExportConfig) -> String {
         var lines: [String] = []
-        lines.append("REFINE THE MIDDLE CUE.")
+        lines.append("Refine the subtitle cues marked [CUE N] below.")
         lines.append("")
         lines.append("Rules:")
-        lines.append("- Keep phrasal verbs together (e.g. 'welcome in', 'bring down', 'slow up').")
+        lines.append("- Keep phrasal verbs together (e.g. 'welcome in', 'bring down').")
         lines.append("- Do NOT end a cue with conjunctions, articles, determiners, or prepositions.")
         lines.append("- Respect existing punctuation and sentence boundaries.")
         lines.append("- Balance 2-line cues so both lines are roughly equal length.")
-        lines.append("- Maximum total characters across all lines: \(config.maxCharsPerLine).")
-        lines.append("- Maximum lines per cue: \(config.maxLinesPerCue).")
-        lines.append("- Return ONLY the refined text for the MIDDLE cue. No explanation, no quotes.")
+        lines.append("- Max characters per line: \(config.maxCharsPerLine).")
+        lines.append("- Max lines per cue: \(config.maxLinesPerCue).")
+        lines.append("- Preserve meaning; only fix awkward boundaries and balance line breaks.")
         lines.append("")
 
-        if let prev2 = window.prev2 {
-            lines.append("CONTEXT (2 cues before):")
-            lines.append("  \(prev2.text)")
+        if let before = batch.contextBefore {
+            lines.append("CONTEXT BEFORE (do not refine, do not output):")
+            lines.append("  \(before.text.replacingOccurrences(of: "\n", with: " "))")
             lines.append("")
         }
 
-        if let prev1 = window.prev1 {
-            lines.append("CONTEXT (previous cue):")
-            lines.append("  \(prev1.text)")
-            lines.append("")
+        lines.append("CUES TO REFINE:")
+        for (i, cue) in batch.cues.enumerated() {
+            let n = i + 1
+            let flat = cue.text.replacingOccurrences(of: "\n", with: " ")
+            lines.append("[CUE \(n)] \(flat)")
         }
-
-        lines.append("MIDDLE CUE (REFINE THIS):")
-        lines.append("  \(window.current.text)")
         lines.append("")
 
-        if let next1 = window.next1 {
-            lines.append("CONTEXT (next cue):")
-            lines.append("  \(next1.text)")
+        if let after = batch.contextAfter {
+            lines.append("CONTEXT AFTER (do not refine, do not output):")
+            lines.append("  \(after.text.replacingOccurrences(of: "\n", with: " "))")
             lines.append("")
         }
 
-        if let next2 = window.next2 {
-            lines.append("CONTEXT (2 cues ahead):")
-            lines.append("  \(next2.text)")
-            lines.append("")
+        lines.append("OUTPUT FORMAT — return exactly \(batch.cues.count) lines, each starting with the matching [CUE N] tag:")
+        for i in 0..<batch.cues.count {
+            lines.append("[CUE \(i + 1)] <refined text for cue \(i + 1)>")
         }
 
         return lines.joined(separator: "\n")
     }
 
-    // MARK: - Budget Enforcement
+    // MARK: - Parsing
 
-    private func enforceBudget(_ text: String, maxChars: Int) -> String {
+    /// Parse `[CUE N] text` lines from the LLM response. Tolerates extra prose,
+    /// blank lines, or missing tags by falling back to `fallback[i]` for any
+    /// unmatched index.
+    static func parseResponse(_ response: String, expectedCount: Int, fallback: [String]) -> [String] {
+        var byIndex: [Int: String] = [:]
+        let pattern = #"^\s*\[\s*CUE\s+(\d+)\s*\]\s*(.*)$"#
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+            return fallback
+        }
+
+        let raw = response.replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        for line in raw.split(separator: "\n", omittingEmptySubsequences: false) {
+            let lineStr = String(line)
+            let range = NSRange(lineStr.startIndex..<lineStr.endIndex, in: lineStr)
+            guard let match = regex.firstMatch(in: lineStr, options: [], range: range),
+                  match.numberOfRanges == 3,
+                  let numRange = Range(match.range(at: 1), in: lineStr),
+                  let textRange = Range(match.range(at: 2), in: lineStr),
+                  let n = Int(lineStr[numRange]) else { continue }
+            let idx = n - 1
+            guard idx >= 0 && idx < expectedCount else { continue }
+            let text = String(lineStr[textRange]).trimmingCharacters(in: .whitespaces)
+            guard !text.isEmpty else { continue }
+            byIndex[idx] = text
+        }
+
+        var result: [String] = []
+        result.reserveCapacity(expectedCount)
+        for i in 0..<expectedCount {
+            if let parsed = byIndex[i] {
+                result.append(parsed)
+            } else {
+                result.append(i < fallback.count ? fallback[i] : "")
+            }
+        }
+        return result
+    }
+
+    // MARK: - Cleanup
+
+    private static func cleanText(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+    }
+
+    private static func enforceBudget(_ text: String, maxChars: Int) -> String {
         let flat = text.replacingOccurrences(of: "\n", with: " ")
         if flat.count <= maxChars {
             return text
         }
-        // Truncate to maxChars-1 and add ellipsis on the last line
         var lines = text.components(separatedBy: "\n")
         if lines.isEmpty { return String(flat.prefix(maxChars)) }
         let lastIdx = lines.count - 1
@@ -144,9 +243,9 @@ public actor SubtitleLLMRefiner {
 
     private static let refinerSystemPrompt = """
         You are a subtitle captioning specialist. You improve subtitle cue text for readability.
-        You receive up to 2 CONTEXT cues before, a MIDDLE cue to refine, and up to 2 CONTEXT cues after.
-        You output ONLY the refined text for the MIDDLE cue.
-        Do not add numbering, timestamps, quotes, or explanations.
+        You receive a batch of cues marked [CUE 1], [CUE 2], etc., optionally with CONTEXT BEFORE and CONTEXT AFTER blocks.
+        Return ONE line per cue in the input, prefixed with the matching [CUE N] tag.
+        Do not add numbering, timestamps, quotes, explanations, or commentary outside the tagged lines.
         Keep the meaning identical; only fix awkward boundaries, merge orphaned fragments,
         and balance line breaks.
         """

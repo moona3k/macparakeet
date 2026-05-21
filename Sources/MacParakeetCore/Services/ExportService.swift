@@ -280,7 +280,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         url: URL,
         config: SubtitleExportConfig = .default,
         includeSpeakerLabels: Bool = false,
-        llmService: LLMServiceProtocol?
+        llmService: LLMServiceProtocol?,
+        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil
     ) async throws {
         if let text = editedTranscriptText(transcription: transcription) {
             let duration = transcription.durationMs ?? 0
@@ -300,7 +301,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             speakers: transcription.speakers,
             config: config,
             includeSpeakerLabels: includeSpeakerLabels,
-            llmService: llmService
+            llmService: llmService,
+            onRefinementProgress: onRefinementProgress
         )
         try text.write(to: url, atomically: true, encoding: .utf8)
     }
@@ -311,7 +313,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         url: URL,
         config: SubtitleExportConfig = .default,
         includeSpeakerLabels: Bool = false,
-        llmService: LLMServiceProtocol?
+        llmService: LLMServiceProtocol?,
+        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil
     ) async throws {
         if let text = editedTranscriptText(transcription: transcription) {
             let duration = transcription.durationMs ?? 0
@@ -331,7 +334,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             speakers: transcription.speakers,
             config: config,
             includeSpeakerLabels: includeSpeakerLabels,
-            llmService: llmService
+            llmService: llmService,
+            onRefinementProgress: onRefinementProgress
         )
         try text.write(to: url, atomically: true, encoding: .utf8)
     }
@@ -505,7 +509,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         speakers: [SpeakerInfo]? = nil,
         config: SubtitleExportConfig = .default,
         includeSpeakerLabels: Bool = false,
-        llmService: LLMServiceProtocol?
+        llmService: LLMServiceProtocol?,
+        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil
     ) async throws -> String {
         var cues = buildSubtitleCues(
             from: words,
@@ -515,7 +520,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
         if config.useLLMRefinement, let llmService = llmService {
             let refiner = SubtitleLLMRefiner(llmService: llmService)
-            cues = try await refiner.refine(cues: cues, config: config)
+            cues = try await refiner.refine(cues: cues, config: config, onProgress: onRefinementProgress)
         }
 
         var lines: [String] = []
@@ -534,7 +539,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         speakers: [SpeakerInfo]? = nil,
         config: SubtitleExportConfig = .default,
         includeSpeakerLabels: Bool = false,
-        llmService: LLMServiceProtocol?
+        llmService: LLMServiceProtocol?,
+        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil
     ) async throws -> String {
         var cues = buildSubtitleCues(
             from: words,
@@ -544,7 +550,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
         if config.useLLMRefinement, let llmService = llmService {
             let refiner = SubtitleLLMRefiner(llmService: llmService)
-            cues = try await refiner.refine(cues: cues, config: config)
+            cues = try await refiner.refine(cues: cues, config: config, onProgress: onRefinementProgress)
         }
 
         var lines: [String] = ["WEBVTT", ""]

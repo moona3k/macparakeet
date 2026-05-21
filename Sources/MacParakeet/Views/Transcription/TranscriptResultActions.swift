@@ -160,7 +160,8 @@ enum TranscriptResultActions {
         transcription: Transcription,
         format: TranscriptExportFormat,
         options: TranscriptExportOptions = .default,
-        llmService: LLMServiceProtocol?
+        llmService: LLMServiceProtocol?,
+        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil
     ) async throws -> URL {
         let stem = TranscriptSegmenter.sanitizedExportStem(from: transcription.fileName)
         let downloadsURL = try downloadsDirectory()
@@ -179,7 +180,8 @@ enum TranscriptResultActions {
                     url: fileURL,
                     config: options.subtitleConfig,
                     includeSpeakerLabels: options.includeSpeakerLabels,
-                    llmService: llmService
+                    llmService: llmService,
+                    onRefinementProgress: onRefinementProgress
                 )
             } else {
                 try exportService.exportToSRT(
@@ -196,7 +198,8 @@ enum TranscriptResultActions {
                     url: fileURL,
                     config: options.subtitleConfig,
                     includeSpeakerLabels: options.includeSpeakerLabels,
-                    llmService: llmService
+                    llmService: llmService,
+                    onRefinementProgress: onRefinementProgress
                 )
             } else {
                 try exportService.exportToVTT(

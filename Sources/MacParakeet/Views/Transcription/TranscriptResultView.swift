@@ -81,6 +81,8 @@ struct TranscriptResultView: View {
     @State private var exportErrorMessage: String?
     @State private var showingExportOptions = false
     @State private var isExporting = false
+    @State private var exportTask: Task<Void, Never>?
+    @State private var refinementProgress: (completed: Int, total: Int)?
     @State private var selectedExportFormat: TranscriptExportFormat =
         TranscriptExportPreferences.loadLastFormat() ?? .srt
     @State private var transcriptExportOptions: TranscriptExportOptions =
@@ -580,12 +582,27 @@ struct TranscriptResultView: View {
                     Color.black.opacity(0.35)
                         .ignoresSafeArea()
                     VStack(spacing: 12) {
-                        ProgressView()
-                            .scaleEffect(1.2)
-                            .tint(.white)
-                        Text("Exporting with AI Refinement...")
-                            .font(DesignSystem.Typography.body.weight(.medium))
-                            .foregroundStyle(.white)
+                        if let progress = refinementProgress, progress.total > 0 {
+                            ProgressView(value: Double(progress.completed), total: Double(progress.total))
+                                .progressViewStyle(.linear)
+                                .tint(.white)
+                                .frame(width: 220)
+                            Text("Refining \(progress.completed) of \(progress.total) batches…")
+                                .font(DesignSystem.Typography.body.weight(.medium))
+                                .foregroundStyle(.white)
+                        } else {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                                .tint(.white)
+                            Text("Exporting with AI Refinement…")
+                                .font(DesignSystem.Typography.body.weight(.medium))
+                                .foregroundStyle(.white)
+                        }
+                        Button("Cancel") {
+                            exportTask?.cancel()
+                        }
+                        .parakeetAction(.secondary)
+                        .padding(.top, 4)
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 16)
@@ -2696,14 +2713,26 @@ struct TranscriptResultView: View {
 
         // Use async path for LLM-refined subtitle exports
         if options.subtitleConfig.useLLMRefinement && (format == .srt || format == .vtt) {
-            Task { @MainActor in
-                defer { isExporting = false }
+            refinementProgress = nil
+            exportTask?.cancel()
+            exportTask = Task { @MainActor in
+                defer {
+                    isExporting = false
+                    refinementProgress = nil
+                    exportTask = nil
+                }
                 do {
+                    let progressHandler: SubtitleLLMRefiner.ProgressHandler = { completed, total in
+                        Task { @MainActor in
+                            refinementProgress = (completed, total)
+                        }
+                    }
                     let fileURL = try await TranscriptResultActions.exportTranscriptToDownloadsAsync(
                         transcription: source,
                         format: format,
                         options: options,
-                        llmService: promptResultsViewModel.llmService
+                        llmService: promptResultsViewModel.llmService,
+                        onRefinementProgress: progressHandler
                     )
                     TranscriptExportPreferences.saveLastFormat(format)
                     TranscriptExportPreferences.saveOptions(transcriptExportOptions)
@@ -2719,6 +2748,8 @@ struct TranscriptResultView: View {
                         guard !Task.isCancelled else { return }
                         exportConfirmation = nil
                     }
+                } catch is CancellationError {
+                    exportErrorMessage = nil
                 } catch let cocoaError as CocoaError where cocoaError.code == .fileNoSuchFile {
                     exportErrorMessage = "Your Downloads folder could not be found."
                     SoundManager.shared.play(.errorSoft)
