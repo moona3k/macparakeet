@@ -113,6 +113,12 @@ personal AI compute box -- unified memory, ANE, ~8W idle, silent.
 Every command below produces JSON when `--json` is passed. Schemas are stable
 per [`../Sources/CLI/CHANGELOG.md`](../Sources/CLI/CHANGELOG.md).
 
+Agents can discover the supported automation surface at runtime:
+
+```bash
+macparakeet-cli spec --json
+```
+
 ### Health probe (run at agent init)
 
 ```bash
@@ -267,8 +273,18 @@ macparakeet-cli meetings transcript <id> --format json
 macparakeet-cli meetings notes get <id> --json
 macparakeet-cli meetings notes append <id> --text "Decision: ship the parser"
 macparakeet-cli meetings notes clear <id> --json
+macparakeet-cli meetings results list <id> --json
+macparakeet-cli meetings results add <id> \
+  --name "Agent Notes" \
+  --content "Decision: ship the parser" \
+  --json
 macparakeet-cli meetings export <id> --format md --stdout
 ```
+
+Use `meetings notes` for user-authored notes. Use `meetings results add` for
+externally generated summaries, decisions, action items, or other agent output;
+those rows are stored as `PromptResult` records rather than overwriting
+`userNotes`.
 
 Prompt and direct LLM JSON responses use an envelope with `output`, `provider`,
 `model`, optional `usage`, optional `stopReason`, and `latencyMs`.
@@ -343,6 +359,7 @@ user wants YouTube transcription, run
 ## Core Commands
 
 ```bash
+macparakeet-cli spec --json
 macparakeet-cli transcribe "<path-or-youtube-url>" --format json
 macparakeet-cli transcribe "<path-or-youtube-url>" --format transcript --no-history
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
@@ -366,6 +383,7 @@ macparakeet-cli meetings list --json
 macparakeet-cli meetings show "<id-or-prefix-or-title>" --json
 macparakeet-cli meetings transcript "<id-or-prefix-or-title>" --format json
 macparakeet-cli meetings notes append "<id-or-prefix-or-title>" --text "<note>" --json
+macparakeet-cli meetings results add "<id-or-prefix-or-title>" --name "Agent Notes" --stdin --json
 macparakeet-cli meetings export "<id-or-prefix-or-title>" --format md --stdout
 ```
 

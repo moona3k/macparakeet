@@ -84,6 +84,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 - LLM-backed commands now expose `--allow-insecure-http` for intentional
   non-loopback `http://` endpoints on non-local providers.
+- `spec --json` prints a machine-readable CLI contract for agents and scripts,
+  including JSON conventions, exit codes, and supported automation commands.
+- `meetings results list|add` exposes saved meeting PromptResults through the
+  CLI. `add` stores externally generated output as a `PromptResult` without
+  invoking an LLM, preserving the meeting transcript as the canonical object.
 
 ### Changed
 

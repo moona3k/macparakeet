@@ -19,6 +19,7 @@ struct CLI: AsyncParsableCommand {
             HistoryCommand.self,
             ExportCommand.self,
             StatsCommand.self,
+            SpecCommand.self,
             HealthCommand.self,
             ConfigCommand.self,
             ModelsCommand.self,
