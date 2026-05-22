@@ -51,6 +51,10 @@ final class MeetingAutoStartCoordinator {
     private var pollingTimer: Timer?
     private var pollingInterval: TimeInterval = 0  // 0 = uninitialized
 
+    /// Reentrancy guard for `pollAsync` — see the guard there for why a
+    /// coincident poll is dropped rather than allowed to interleave.
+    private var isPolling = false
+
     private var dismissedEventIds: Set<String> = []
     private var remindedEventIds: Set<String> = []
     private var countdownShownEventIds: Set<String> = []
@@ -212,6 +216,18 @@ final class MeetingAutoStartCoordinator {
     // MARK: - Polling
 
     private func pollAsync() async {
+        // Reentrancy guard. Timer ticks, EKEventStoreChanged bursts, settings
+        // changes, and wake all spawn `Task { await pollAsync() }`. Without
+        // this, two polls can interleave across the `await` fetch and both
+        // pass the `!remindedEventIds.contains(...)` check before either
+        // inserts — posting a *duplicate* reminder notification (which has no
+        // dedupe of its own). One poll at a time; a coincident request is
+        // safely dropped because the in-flight poll already reflects current
+        // state (it re-reads settings, permission, and events itself).
+        guard !isPolling else { return }
+        isPolling = true
+        defer { isPolling = false }
+
         // Run binding-cleanup *before* the early returns so toggling mode
         // off (or losing permission) while an auto-started recording is in
         // flight doesn't strand a stale `autoStartedEvent` until the

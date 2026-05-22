@@ -273,6 +273,34 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         coordinator.stop()
     }
 
+    // MARK: - Poll reentrancy (#3)
+
+    func testConcurrentPollsDoNotInterleave() async {
+        // Hold one poll inside its fetch, then issue a second. The reentrancy
+        // guard must drop the second so it can't double-post a reminder.
+        calendarService.stubPermissionStatus = .granted
+        calendarService.stubEvents = [event(startsIn: 5 * 60)]
+        seedSettings(mode: .notify, reminderMinutes: 5)
+
+        let coordinator = makeCoordinator()
+        calendarService.holdNextFetch = true
+
+        coordinator.testHook_forcePoll()   // poll A enters and parks in fetch
+        await waitForPoll()
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, 1,
+                       "First poll should be mid-fetch")
+
+        coordinator.testHook_forcePoll()   // poll B — should be dropped
+        await waitForPoll()
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, 1,
+                       "A reentrant poll must be dropped, not run a second fetch")
+
+        calendarService.releaseHeldFetch()
+        await waitForPoll()
+
+        coordinator.stop()
+    }
+
     // MARK: - Owned-event merge for reliable auto-stop (#2)
 
     func testMergeReinjectsOwnedEventWhenDroppedFromFetch() {

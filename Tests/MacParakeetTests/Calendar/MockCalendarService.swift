@@ -22,6 +22,12 @@ final class MockCalendarService: CalendarServicing, @unchecked Sendable {
     nonisolated(unsafe) private(set) var fetchUpcomingEventsCallCount = 0
     nonisolated(unsafe) private(set) var availableCalendarsCallCount = 0
 
+    /// When set, the *next* fetch parks until `releaseHeldFetch()` is called.
+    /// Lets reentrancy tests hold one poll inside its `await` so a second poll
+    /// can be issued deterministically (no sleeps).
+    nonisolated(unsafe) var holdNextFetch = false
+    nonisolated(unsafe) private var fetchContinuation: CheckedContinuation<Void, Never>?
+
     nonisolated var permissionStatus: CalendarService.PermissionStatus {
         stubPermissionStatus
     }
@@ -43,9 +49,19 @@ final class MockCalendarService: CalendarServicing, @unchecked Sendable {
 
     func fetchUpcomingEvents(from: Date, days: Int?) async throws -> [CalendarEvent] {
         fetchUpcomingEventsCallCount += 1
+        if holdNextFetch {
+            holdNextFetch = false
+            await withCheckedContinuation { fetchContinuation = $0 }
+        }
         if let stubFetchError {
             throw stubFetchError
         }
         return stubEvents
+    }
+
+    /// Resume a fetch parked by `holdNextFetch`.
+    func releaseHeldFetch() {
+        fetchContinuation?.resume()
+        fetchContinuation = nil
     }
 }
