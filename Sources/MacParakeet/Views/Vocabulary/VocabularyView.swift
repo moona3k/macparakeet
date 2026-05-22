@@ -8,8 +8,7 @@ struct VocabularyView: View {
     @Bindable var textSnippetsViewModel: TextSnippetsViewModel
     @Bindable var backupViewModel: VocabularyBackupViewModel
 
-    @State private var showCustomWords = false
-    @State private var showTextSnippets = false
+    @Binding var activeSheet: VocabularySheetKind?
     @State private var hoveredCardTitle: String?
     @State private var hoveredModeTitle: String?
 
@@ -37,20 +36,6 @@ struct VocabularyView: View {
             .padding(DesignSystem.Spacing.lg)
         }
         .background(DesignSystem.Colors.background)
-        .sheet(isPresented: $showCustomWords) {
-            settingsViewModel.refreshStats()
-        } content: {
-            ModalScrimContainer(onScrimTap: { showCustomWords = false }) {
-                CustomWordsView(viewModel: customWordsViewModel)
-            }
-        }
-        .sheet(isPresented: $showTextSnippets) {
-            settingsViewModel.refreshStats()
-        } content: {
-            ModalScrimContainer(onScrimTap: { showTextSnippets = false }) {
-                TextSnippetsView(viewModel: textSnippetsViewModel)
-            }
-        }
         .onAppear {
             settingsViewModel.refreshStats()
         }
@@ -132,7 +117,7 @@ struct VocabularyView: View {
                     actionTitle: "Manage words",
                     action: {
                         customWordsViewModel.loadWords()
-                        showCustomWords = true
+                        activeSheet = .customWords
                     }
                 )
 
@@ -145,7 +130,7 @@ struct VocabularyView: View {
                     actionTitle: "Manage snippets",
                     action: {
                         textSnippetsViewModel.loadSnippets()
-                        showTextSnippets = true
+                        activeSheet = .textSnippets
                     }
                 )
 

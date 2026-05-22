@@ -4,10 +4,9 @@ import MacParakeetViewModels
 
 struct TextSnippetsView: View {
     @Bindable var viewModel: TextSnippetsViewModel
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
     @State private var hoveredSnippetID: UUID?
     @State private var showTips = false
-    @FocusState private var searchFocused: Bool
     @FocusState private var triggerFieldFocused: Bool
     @FocusState private var expansionFieldFocused: Bool
 
@@ -16,7 +15,7 @@ struct TextSnippetsView: View {
             VocabSheetHeader(
                 title: "Text Snippets",
                 subtitle: "Say a short phrase, paste a longer one.",
-                onDone: { dismiss() }
+                onDone: onClose
             )
 
             Divider()
@@ -27,8 +26,7 @@ struct TextSnippetsView: View {
                         placeholder: "Search snippets…",
                         text: $viewModel.searchText,
                         leadingSystemImage: "magnifyingglass",
-                        showsClearButton: true,
-                        externalFocus: $searchFocused
+                        showsClearButton: true
                     )
 
                     snippetsSection
@@ -37,11 +35,6 @@ struct TextSnippetsView: View {
                 }
                 .padding(DesignSystem.Spacing.lg)
             }
-        }
-        .onAppear {
-            // Open neutral — don't let the freshly presented sheet auto-focus
-            // the search field.
-            Task { @MainActor in searchFocused = false }
         }
         .alert(
             "Delete Snippet?",

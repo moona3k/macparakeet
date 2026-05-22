@@ -4,9 +4,8 @@ import MacParakeetViewModels
 
 struct CustomWordsView: View {
     @Bindable var viewModel: CustomWordsViewModel
-    @Environment(\.dismiss) private var dismiss
+    let onClose: () -> Void
     @State private var hoveredWordID: UUID?
-    @FocusState private var searchFocused: Bool
     @FocusState private var wordFieldFocused: Bool
     @FocusState private var replacementFieldFocused: Bool
 
@@ -15,7 +14,7 @@ struct CustomWordsView: View {
             VocabSheetHeader(
                 title: "Custom Words",
                 subtitle: "Teach MacParakeet how you say things.",
-                onDone: { dismiss() }
+                onDone: onClose
             )
 
             Divider()
@@ -26,8 +25,7 @@ struct CustomWordsView: View {
                         placeholder: "Search words…",
                         text: $viewModel.searchText,
                         leadingSystemImage: "magnifyingglass",
-                        showsClearButton: true,
-                        externalFocus: $searchFocused
+                        showsClearButton: true
                     )
 
                     wordsSection
@@ -35,11 +33,6 @@ struct CustomWordsView: View {
                 }
                 .padding(DesignSystem.Spacing.lg)
             }
-        }
-        .onAppear {
-            // Open neutral — don't let the freshly presented sheet auto-focus
-            // the search field. The eye should land on the content.
-            Task { @MainActor in searchFocused = false }
         }
         .alert(
             "Delete Word?",

@@ -1,5 +1,13 @@
 import SwiftUI
 
+/// Which Vocabulary management panel is presented as a window-level overlay.
+/// Owned by `MainWindowView` so the scrim covers the whole window (a `.sheet`
+/// can't dismiss on outside-click and auto-focuses its first field).
+enum VocabularySheetKind: Equatable {
+    case customWords
+    case textSnippets
+}
+
 // Shared building blocks for the Vocabulary surfaces (the Vocabulary tab and
 // the Custom Words / Text Snippets sheets). These replace the old "every
 // subsection is its own icon-tiled card" pattern with lighter, list-native
