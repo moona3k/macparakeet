@@ -147,6 +147,15 @@ public extension CalendarEvent {
     }
 }
 
+// Identity is `id` only (EventKit's `eventIdentifier`). This is deliberate:
+// `==`/`hash` answer "same calendar event," not "same occurrence." A
+// rescheduled occurrence keeps its `id`, so two occurrences of one recurring
+// series can compare equal — meaning a `Set<CalendarEvent>` would silently
+// collapse them. The coordinator never does that: occurrence-level identity
+// (suppression sets, reschedule re-fire) is keyed on `dedupeKey` (id + start
+// time), and the only `contains` over a `[CalendarEvent]` (owned-event merge)
+// matches on `id` on purpose. If a future caller needs per-occurrence set
+// semantics, key on `dedupeKey`, not the event itself.
 extension CalendarEvent: Hashable {
     public static func == (lhs: CalendarEvent, rhs: CalendarEvent) -> Bool {
         lhs.id == rhs.id
