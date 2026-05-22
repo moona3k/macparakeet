@@ -5,19 +5,35 @@ import MacParakeetViewModels
 struct TextSnippetsView: View {
     @Bindable var viewModel: TextSnippetsViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var hoveredCardTitle: String?
     @State private var hoveredSnippetID: UUID?
+    @State private var showTips = false
+    @FocusState private var triggerFieldFocused: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                headerCard
-                guidanceCard
-                searchCard
-                snippetsCard
-                addSnippetCard
+        VStack(spacing: 0) {
+            VocabSheetHeader(
+                title: "Text Snippets",
+                subtitle: "Say a short phrase, paste a longer one.",
+                onDone: { dismiss() }
+            )
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+                    ParakeetTextField(
+                        placeholder: "Search snippets…",
+                        text: $viewModel.searchText,
+                        leadingSystemImage: "magnifyingglass",
+                        showsClearButton: true
+                    )
+
+                    snippetsSection
+                    addSection
+                    tipsDisclosure
+                }
+                .padding(DesignSystem.Spacing.lg)
             }
-            .padding(DesignSystem.Spacing.lg)
         }
         .background(.thickMaterial)
         .alert(
@@ -40,116 +56,91 @@ struct TextSnippetsView: View {
         }
     }
 
-    // MARK: - Cards
+    // MARK: - Sections
 
-    private var headerCard: some View {
-        managementCard(
-            title: "Text Snippets",
-            subtitle: "Say a short phrase, paste a longer one.",
-            icon: "text.insert"
-        ) {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 100), spacing: DesignSystem.Spacing.sm)],
-                spacing: DesignSystem.Spacing.sm
-            ) {
-                metricChip(title: "Total", value: "\(viewModel.snippets.count)")
-                metricChip(title: "Visible", value: "\(viewModel.filteredSnippets.count)")
-                metricChip(title: "Enabled", value: "\(viewModel.snippets.filter(\.isEnabled).count)")
+    private var snippetsSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            VocabSectionHeader(title: "Snippet Rules") {
+                Text(snippetsCountLabel)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
             }
 
-            HStack {
-                Spacer()
-                Button("Done") { dismiss() }
-                    .parakeetAction(.primaryProminent)
-                    .keyboardShortcut(.cancelAction)
-            }
-        }
-    }
-
-    private var guidanceCard: some View {
-        managementCard(
-            title: "Guidance",
-            subtitle: "Tips for reliable phrase detection.",
-            icon: "lightbulb.fill"
-        ) {
-            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: "quote.bubble")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.warningAmber)
-                Text("Use natural trigger phrases (for example, \"my signature\") rather than abbreviations, since Parakeet recognizes natural speech.")
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundStyle(.secondary)
-            }
-            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: "return")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.warningAmber)
-                Text("Type \\n in the expansion to insert a line break. Example: trigger \"new paragraph\" with expansion \\n\\n inserts a blank line.")
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var searchCard: some View {
-        managementCard(
-            title: "Search",
-            subtitle: "Filter by trigger phrase or expansion text.",
-            icon: "magnifyingglass"
-        ) {
-            TextField("Search snippets...", text: $viewModel.searchText)
-                .textFieldStyle(.roundedBorder)
-        }
-    }
-
-    private var snippetsCard: some View {
-        managementCard(
-            title: "Snippet Rules",
-            subtitle: "Toggle each snippet and track usage volume.",
-            icon: "list.bullet"
-        ) {
             if viewModel.filteredSnippets.isEmpty {
                 emptyState
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, DesignSystem.Spacing.xl)
+                    .vocabGroup()
             } else {
-                VStack(spacing: DesignSystem.Spacing.sm) {
-                    ForEach(viewModel.filteredSnippets) { snippet in
+                VStack(spacing: 0) {
+                    ForEach(Array(viewModel.filteredSnippets.enumerated()), id: \.element.id) { index, snippet in
+                        if index > 0 {
+                            Divider().padding(.leading, 52)
+                        }
                         snippetRow(snippet)
                     }
                 }
+                .vocabGroup()
             }
         }
     }
 
-    private var addSnippetCard: some View {
-        managementCard(
-            title: "Add Snippet",
-            subtitle: "Define a trigger phrase and what it expands to.",
-            icon: "plus.circle"
-        ) {
-            VStack(spacing: DesignSystem.Spacing.sm) {
-                if let error = viewModel.errorMessage {
-                    Text(error)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.errorRed)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+    private var addSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            VocabSectionHeader(
+                title: "Add Snippet",
+                subtitle: "Define a trigger phrase and what it expands to."
+            )
 
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    TextField("Trigger phrase", text: $viewModel.newTrigger)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($triggerFieldFocused)
-                    TextField("Expansion", text: $viewModel.newExpansion)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Add") {
-                        viewModel.addSnippet()
-                    }
+            if let error = viewModel.errorMessage {
+                Text(error)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                ParakeetTextField(
+                    placeholder: "Trigger phrase",
+                    text: $viewModel.newTrigger,
+                    onSubmit: attemptAdd,
+                    externalFocus: $triggerFieldFocused
+                )
+                ParakeetTextField(
+                    placeholder: "Expansion",
+                    text: $viewModel.newExpansion,
+                    onSubmit: attemptAdd
+                )
+                Button("Add", action: attemptAdd)
                     .parakeetAction(.primaryProminent)
+                    .controlSize(.large)
                     .disabled(
                         viewModel.newTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                             || viewModel.newExpansion.trimmingCharacters(in: .whitespaces).isEmpty
                     )
-                }
             }
+        }
+    }
+
+    private var tipsDisclosure: some View {
+        DisclosureGroup(isExpanded: $showTips) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+                tipRow(
+                    icon: "quote.bubble",
+                    text: "Use natural trigger phrases (for example, \"my signature\") rather than abbreviations — Parakeet recognizes natural speech."
+                )
+                tipRow(
+                    icon: "return",
+                    text: "Type \\n in the expansion to insert a line break. Example: trigger \"new paragraph\" with expansion \\n\\n inserts a blank line."
+                )
+            }
+            .padding(.top, DesignSystem.Spacing.sm)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        } label: {
+            Text("Tips for reliable detection")
+                .font(DesignSystem.Typography.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -158,7 +149,7 @@ struct TextSnippetsView: View {
     private func snippetRow(_ snippet: TextSnippet) -> some View {
         let isHovered = hoveredSnippetID == snippet.id
         let usageHint: String = snippet.useCount > 0
-            ? "Used \(snippet.useCount) times"
+            ? "Used \(snippet.useCount) time\(snippet.useCount == 1 ? "" : "s")"
             : "Not yet used"
         return HStack(spacing: DesignSystem.Spacing.md) {
             Toggle("", isOn: Binding(
@@ -166,20 +157,15 @@ struct TextSnippetsView: View {
                 set: { _ in viewModel.toggleEnabled(snippet) }
             ))
             .labelsHidden()
-            .toggleStyle(.switch)
+            .parakeetSwitch()
             .controlSize(.small)
             .accessibilityLabel("Enable \(snippet.trigger)")
             .accessibilityHint("Expands during dictation to a saved phrase")
 
             VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 4) {
-                    Text("Trigger:")
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                    Text("\"\(snippet.trigger)\"")
-                        .font(DesignSystem.Typography.body)
-                        .opacity(snippet.isEnabled ? 1.0 : 0.55)
-                }
+                Text("\"\(snippet.trigger)\"")
+                    .font(DesignSystem.Typography.body)
+                    .opacity(snippet.isEnabled ? 1.0 : 0.55)
 
                 Text("Expands to: \(snippet.expansion.replacingOccurrences(of: "\n", with: " ↵ "))")
                     .font(DesignSystem.Typography.caption)
@@ -187,35 +173,35 @@ struct TextSnippetsView: View {
                     .lineLimit(2)
             }
 
-            Spacer()
+            Spacer(minLength: DesignSystem.Spacing.sm)
 
             if snippet.useCount > 0 {
-                Text("\(snippet.useCount)")
-                    .font(DesignSystem.Typography.micro)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 3)
-                    .background(Capsule().fill(DesignSystem.Colors.surfaceElevated))
-                    .help(usageHint)
-                    .accessibilityLabel(usageHint)
+                HStack(spacing: 3) {
+                    Image(systemName: "chart.bar.fill")
+                        .font(.system(size: 9, weight: .semibold))
+                    Text("\(snippet.useCount)")
+                        .font(DesignSystem.Typography.micro.weight(.medium))
+                        .monospacedDigit()
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 7)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(DesignSystem.Colors.surfaceElevated))
+                .help(usageHint)
+                .accessibilityLabel(usageHint)
             }
 
-            Button(role: .destructive) {
+            DeleteIconButton(
+                helpText: "Delete \(snippet.trigger)",
+                accessibilityName: "Delete \(snippet.trigger)"
+            ) {
                 viewModel.pendingDeleteSnippet = snippet
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 12, weight: .medium))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Delete \(snippet.trigger)")
-            .accessibilityLabel("Delete \(snippet.trigger)")
         }
-        .padding(DesignSystem.Spacing.sm)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(isHovered ? DesignSystem.Colors.rowHoverBackground : DesignSystem.Colors.surfaceElevated)
-        )
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.vertical, DesignSystem.Spacing.sm + 2)
+        .background(isHovered ? DesignSystem.Colors.rowHoverBackground : Color.clear)
+        .contentShape(Rectangle())
         .onHover { hovering in
             withAnimation(DesignSystem.Animation.hoverTransition) {
                 hoveredSnippetID = hovering ? snippet.id : nil
@@ -223,12 +209,10 @@ struct TextSnippetsView: View {
         }
     }
 
-    @FocusState private var triggerFieldFocused: Bool
-
     private var emptyState: some View {
         VStack(spacing: DesignSystem.Spacing.sm) {
             Image(systemName: "text.insert")
-                .font(.system(size: 28))
+                .font(.system(size: 26))
                 .foregroundStyle(.secondary)
             Text(viewModel.snippets.isEmpty ? "No text snippets yet" : "No matches")
                 .font(DesignSystem.Typography.body)
@@ -238,83 +222,49 @@ struct TextSnippetsView: View {
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
+                    .frame(maxWidth: 320)
                 Button("Add Your First Snippet") {
                     triggerFieldFocused = true
                 }
-                .parakeetAction(.primaryProminent)
+                .parakeetAction(.primary)
                 .controlSize(.small)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DesignSystem.Spacing.lg)
-    }
-
-    // MARK: - Reusable
-
-    private func managementCard<Content: View>(
-        title: String,
-        subtitle: String,
-        icon: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        let isHovered = hoveredCardTitle == title
-        return VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.accent)
-                    .frame(width: 30, height: 30)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(DesignSystem.Colors.accent.opacity(0.12))
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(DesignSystem.Typography.sectionTitle)
-                    Text(subtitle)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            content()
-        }
-        .padding(DesignSystem.Spacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                .fill(DesignSystem.Colors.cardBackground)
-                .cardShadow(isHovered ? DesignSystem.Shadows.cardHover : DesignSystem.Shadows.cardRest)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                .strokeBorder(
-                    isHovered ? DesignSystem.Colors.accent.opacity(0.2) : DesignSystem.Colors.border.opacity(0.6),
-                    lineWidth: 0.5
-                )
-        )
-        .onHover { hovering in
-            withAnimation(DesignSystem.Animation.hoverTransition) {
-                hoveredCardTitle = hovering ? title : nil
+                .padding(.top, 2)
             }
         }
     }
 
-    private func metricChip(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(DesignSystem.Typography.micro)
+    private func tipRow(icon: String, text: String) -> some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(DesignSystem.Colors.warningAmber)
+                .frame(width: 16)
+            Text(text)
+                .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
-            Text(value)
-                .font(DesignSystem.Typography.body.weight(.semibold))
-                .contentTransition(.numericText())
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(DesignSystem.Colors.surfaceElevated)
-        )
+    }
+
+    // MARK: - Helpers
+
+    private var snippetsCountLabel: String {
+        let total = viewModel.snippets.count
+        let searching = !viewModel.searchText.trimmingCharacters(in: .whitespaces).isEmpty
+        if searching {
+            return "\(viewModel.filteredSnippets.count) of \(total)"
+        }
+        let disabled = viewModel.snippets.filter { !$0.isEnabled }.count
+        if disabled > 0 {
+            return "\(total) · \(disabled) off"
+        }
+        return total == 1 ? "1 snippet" : "\(total) snippets"
+    }
+
+    private func attemptAdd() {
+        let triggerEmpty = viewModel.newTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let expansionEmpty = viewModel.newExpansion.trimmingCharacters(in: .whitespaces).isEmpty
+        guard !triggerEmpty && !expansionEmpty else { return }
+        viewModel.addSnippet()
     }
 }
