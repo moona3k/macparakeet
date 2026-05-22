@@ -676,12 +676,24 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// Run `endTimeBuffer`, `frameSnap`, `enforceMonotonicCues`, and
     /// `wrapSubtitleText` on a list of already-laid-out cues. Used by the
     /// LLM-layout path; the deterministic builder runs these inline.
+    /// Post-process LLM-laid-out cues with the same merge + timing
+    /// passes the deterministic builder uses, minus `enforceReadingSpeed`
+    /// (consistent with the sentence-aware path).
+    ///
+    /// The LLM tends to over-fragment — real-world telemetry shows it
+    /// producing ~5 cues for a 99-char sentence where 2 would suffice,
+    /// and occasionally splitting mid-number-range like "between 80 /
+    /// and 90.". Running `mergeOrphanedCues` and friends on its output
+    /// consolidates short orphans into their neighbours without
+    /// throwing away the LLM's better boundary choices elsewhere.
     private func applyTimingPostProcessing(
         _ cues: [SubtitleCue],
         config: SubtitleExportConfig
     ) -> [SubtitleCue] {
-        // Convert to MutableCue for the post-passes (they read startMs /
-        // endMs only; words/wordTimestamps aren't consulted).
+        // Convert to MutableCue. The merge passes read `.text` (derived
+        // from `.words`), so populating `.words` by splitting the LLM
+        // text on spaces gives them what they need without us needing
+        // the original word timestamps.
         var mutable = cues.map { c in
             MutableCue(
                 startMs: c.startMs,
@@ -692,6 +704,27 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 forcedText: nil
             )
         }
+        // Same merge sequence as `buildSubtitleCues` (sans
+        // `enforceReadingSpeed` — see the sentence-unit path).
+        mutable = mergeOrphanedCues(
+            mutable,
+            maxChars: config.maxCharsPerLine,
+            maxLines: config.maxLinesPerCue,
+            gapThresholdMs: config.gapThresholdMs
+        )
+        if config.maxLinesPerCue >= 2 {
+            mutable = mergeAdjacentCuesForTwoLine(
+                mutable,
+                maxChars: config.maxCharsPerLine,
+                gapThresholdMs: config.gapThresholdMs
+            )
+        }
+        mutable = absorbShortNeighbours(
+            mutable,
+            maxChars: config.maxCharsPerLine,
+            gapThresholdMs: config.gapThresholdMs
+        )
+        // Timing passes (after merges so they see the final cue list).
         if config.endTimeBufferMs > 0 {
             mutable = applyEndTimeBuffer(mutable, config: config)
         }
@@ -699,12 +732,16 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             mutable = applyFrameSnap(mutable, fps: fps)
         }
         mutable = enforceMonotonicCues(mutable)
-        return zip(mutable, cues).map { mut, original in
+        // Final map: wrap the merged cue's text (which is the joined
+        // word list, or `forcedText` if `mergeAdjacentCuesForTwoLine`
+        // set it). Wrap respects existing `\n` so forced-two-line cues
+        // stay as authored.
+        return mutable.map { mut in
             SubtitleCue(
                 startMs: mut.startMs,
                 endMs: mut.endMs,
-                text: wrapSubtitleText(original.text, config: config),
-                speakerId: original.speakerId
+                text: wrapSubtitleText(mut.text, config: config),
+                speakerId: mut.speakerId
             )
         }
     }

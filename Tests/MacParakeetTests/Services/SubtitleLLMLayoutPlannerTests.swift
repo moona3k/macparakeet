@@ -149,6 +149,45 @@ final class SubtitleLLMLayoutPlannerTests: XCTestCase {
         }
     }
 
+    /// The auto-splitter must not break "between X and Y" /
+    /// "X to Y" — the LLM has already shown a bad habit of doing it
+    /// itself (see SRT 19 cue 17/18). The splitter should never make
+    /// the problem worse.
+    func testAutoSplitDoesNotBreakNumberRange() {
+        // "Find a cadence between 80 and 90." — 9 words, ~33 chars.
+        // Budget 18 forces a split. The splitter MUST not put the
+        // break between "80" and "and 90".
+        let ws = [
+            WordTimestamp(word: "Find",    startMs:    0, endMs:  150, confidence: 0.99),
+            WordTimestamp(word: "a",       startMs:  160, endMs:  220, confidence: 0.99),
+            WordTimestamp(word: "cadence", startMs:  230, endMs:  500, confidence: 0.99),
+            WordTimestamp(word: "between", startMs:  510, endMs:  780, confidence: 0.99),
+            WordTimestamp(word: "80",      startMs:  790, endMs:  900, confidence: 0.99),
+            WordTimestamp(word: "and",     startMs:  910, endMs: 1000, confidence: 0.99),
+            WordTimestamp(word: "90.",     startMs: 1010, endMs: 1200, confidence: 0.99),
+        ]
+        let range = LayoutPlanParser.CueRange(start: 0, end: 6)
+        let result = SubtitleLLMLayoutPlanner.autoSplitOversizedRanges(
+            [range],
+            words: ws,
+            perCueBudget: 18
+        )
+        // For every piece, check it doesn't end at "80" with "and"
+        // immediately following, nor end at "and" with "90." right after.
+        for piece in result where piece.end < ws.count - 1 {
+            let lastWord = ws[piece.end].word.trimmingCharacters(in: .punctuationCharacters).lowercased()
+            let nextWord = ws[piece.end + 1].word.trimmingCharacters(in: .punctuationCharacters).lowercased()
+            XCTAssertFalse(
+                (lastWord == "80" || lastWord == "90") && nextWord == "and",
+                "Auto-split tore a number range at \(piece.start)-\(piece.end): '\(lastWord)' | '\(nextWord)'"
+            )
+            XCTAssertFalse(
+                lastWord == "and" && (nextWord == "80" || nextWord == "90"),
+                "Auto-split tore a number range at \(piece.start)-\(piece.end): '\(lastWord)' | '\(nextWord)'"
+            )
+        }
+    }
+
     /// Ranges that already fit the budget pass through unchanged.
     func testAutoSplitLeavesInBudgetRangesUntouched() {
         let ws = [

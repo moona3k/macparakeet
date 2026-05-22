@@ -244,14 +244,24 @@ public actor SubtitleLLMLayoutPlanner {
     /// auto-splitter is forced to choose between candidates, anything
     /// ending in one of these is heavily penalised.
     static let autoSplitBadEnders: Set<String> = [
+        // Coordinating conjunctions
         "and", "but", "or", "so", "yet", "for", "nor", "then",
+        // Subordinating conjunctions — never end a cue here.
+        // Real failure case: SRT (19) cue 10 was "Legs are moving because"
+        // because this list was missing the subordinators.
+        "because", "although", "while", "since", "whereas", "unless",
+        "until", "though", "if", "when", "where", "as",
+        // Articles + determiners
         "the", "a", "an",
         "this", "that", "these", "those",
         "my", "your", "his", "her", "its", "our", "their",
-        "in", "on", "at", "to", "of", "with", "from", "by", "as", "into", "onto",
+        // Prepositions
+        "in", "on", "at", "to", "of", "with", "from", "by", "into", "onto",
+        // Auxiliary verbs
         "is", "are", "was", "were", "be", "been", "being",
         "have", "has", "had", "do", "does", "did",
         "will", "would", "can", "could", "should",
+        // Short pronouns
         "i", "we", "you", "they", "he", "she", "it",
     ]
 
@@ -328,6 +338,30 @@ public actor SubtitleLLMLayoutPlanner {
 
             // Strong penalty for ending on a bad word.
             if autoSplitBadEnders.contains(stripped) { score -= 300 }
+
+            // Number-range guard: penalise splits that would tear apart
+            // "X and Y" / "X to Y" / "between X and Y" patterns where X
+            // or Y is a number. Real failure case: the LLM produced
+            // "...between 80" + "and 90." which made it through because
+            // the size was fine; the auto-splitter shouldn't make this
+            // worse by picking the same kind of break itself.
+            let endsInDigit = stripped.unicodeScalars.last.map { CharacterSet.decimalDigits.contains($0) } ?? false
+            let nextRaw = (splitIdx + 1) <= range.end ? words[splitIdx + 1].word : ""
+            let nextStripped = nextRaw.trimmingCharacters(in: .punctuationCharacters).lowercased()
+            let prevStripped: String = {
+                guard splitIdx - 1 >= range.start else { return "" }
+                return words[splitIdx - 1].word.trimmingCharacters(in: .punctuationCharacters).lowercased()
+            }()
+            // Split puts a number on the left and "and X" / "to X" on the right.
+            if endsInDigit && (nextStripped == "and" || nextStripped == "to") {
+                score -= 400
+            }
+            // Split puts "and Y" / "to Y" on the right where prev was a number.
+            // (Same pattern, different way the LLM can give us the chunk.)
+            if (stripped == "and" || stripped == "to"),
+               prevStripped.unicodeScalars.last.map({ CharacterSet.decimalDigits.contains($0) }) ?? false {
+                score -= 400
+            }
 
             // Prefer a balanced split (roughly equal halves by char count).
             let total = leftText.count + rightText.count
