@@ -1,8 +1,9 @@
 # Vocabulary Surface Refinement
 
-> Status: **ACTIVE** — UI polish pass on the Vocabulary tab + Custom Words /
+> Status: **IMPLEMENTED** — UI polish pass on the Vocabulary tab + Custom Words /
 > Text Snippets sheets, holding them to the bar set by the Dictation Stats
-> screen.
+> screen. Shipped on branch `design/vocabulary-refinement`; build + `swift test`
+> green. Pending visual sign-off + merge.
 
 ## Why
 
@@ -63,6 +64,9 @@ Shared primitives added in `Views/Vocabulary/VocabularyComponents.swift` and a
   adopt `parakeetSwitch()` app-wide for full toggle consistency.
 
 ## Verification
-- `swift build` green.
-- `swift test` green (no ViewModel/logic changes; views are not unit-tested).
-- Manual: launch app, eyeball Vocabulary tab + both sheets in light/dark.
+- `swift build --target MacParakeet` green (85s).
+- `swift test` green — full suite exit 0 (no ViewModel/logic changes; views are
+  not unit-tested).
+- Manual (pending): launch app, eyeball Vocabulary tab + both sheets in
+  light/dark — grouped-surface contrast in dark mode, divider inset alignment,
+  Add-button vs field height, and coral sidebar-selection weight.
