@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// LLM-driven cue layout planner.
 ///
@@ -154,6 +155,8 @@ public actor SubtitleLLMLayoutPlanner {
 
     // MARK: - Per-chunk
 
+    private static let log = Logger(subsystem: "com.macparakeet.core", category: "SubtitleLLMLayoutPlanner")
+
     private static func runOne(
         chunk: Chunk,
         llmService: LLMServiceProtocol,
@@ -165,6 +168,7 @@ public actor SubtitleLLMLayoutPlanner {
         do {
             response = try await llmService.transform(text: prompt, prompt: systemPrompt)
         } catch {
+            log.warning("layout_planner_chunk_fallback reason=llm_threw range=\(chunk.startIndex)-\(chunk.endIndex) error=\(String(describing: error), privacy: .public)")
             return ChunkResult(
                 chunkStartIndex: chunk.startIndex,
                 chunkEndIndex: chunk.endIndex,
@@ -180,6 +184,7 @@ public actor SubtitleLLMLayoutPlanner {
         let perCueBudget = config.maxCharsPerLine
         switch LayoutPlanParser.parse(response, words: chunk.words, perCueBudget: perCueBudget) {
         case .success(let ranges):
+            log.debug("layout_planner_chunk_ok range=\(chunk.startIndex)-\(chunk.endIndex) cues=\(ranges.count) budget=\(perCueBudget)")
             // Map chunk-local indices back to source indices when we build
             // the cue. Use OUR word array for text + timing.
             var cues: [ExportService.SubtitleCue] = []
@@ -201,7 +206,14 @@ public actor SubtitleLLMLayoutPlanner {
                 chunkEndIndex: chunk.endIndex,
                 cues: cues
             )
-        case .failure:
+        case .failure(let reason):
+            // Truncated preview of the LLM body so a failure tells us
+            // whether the issue is parsing, schema, range math, or
+            // budget — and we can fix the right thing rather than
+            // guessing. Privacy `.public` because this is the user's
+            // own transcript, not third-party data.
+            let preview = response.prefix(500).replacingOccurrences(of: "\n", with: " ")
+            log.warning("layout_planner_chunk_fallback reason=\(String(describing: reason), privacy: .public) range=\(chunk.startIndex)-\(chunk.endIndex) budget=\(perCueBudget) response=\(preview, privacy: .public)")
             return ChunkResult(
                 chunkStartIndex: chunk.startIndex,
                 chunkEndIndex: chunk.endIndex,
