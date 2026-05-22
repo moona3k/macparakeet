@@ -31,7 +31,6 @@ public final class MeetingCountdownToastViewModel {
     }
 
     public var title: String
-    public var body: String
     /// 0...1 — completion fraction over `duration` seconds.
     public var progress: Double = 0
     public var duration: TimeInterval
@@ -39,12 +38,10 @@ public final class MeetingCountdownToastViewModel {
 
     public init(
         title: String,
-        body: String,
         duration: TimeInterval,
         calendarContext: CalendarContext? = nil
     ) {
         self.title = title
-        self.body = body
         self.duration = duration
         self.calendarContext = calendarContext
     }

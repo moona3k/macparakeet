@@ -51,7 +51,6 @@ final class MeetingCountdownToastController {
     /// trigger paths that already work cleanly per ADR-020 §10.
     func showAutoStart(
         title: String,
-        body: String,
         duration: TimeInterval = 5,
         calendarContext: MeetingCountdownToastViewModel.CalendarContext? = nil,
         onOutcome: @escaping (MeetingCountdownToastOutcome) -> Void
@@ -59,7 +58,6 @@ final class MeetingCountdownToastController {
         present(
             viewModel: MeetingCountdownToastViewModel(
                 title: title,
-                body: body,
                 duration: duration,
                 calendarContext: calendarContext
             ),

@@ -6,7 +6,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
     func testMinimalAutoStartHasNoCalendarContext() {
         let vm = MeetingCountdownToastViewModel(
             title: "Standup",
-            body: "Recording will start automatically.",
             duration: 5
         )
 
@@ -22,7 +21,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
         )
         let vm = MeetingCountdownToastViewModel(
             title: "Q2 Planning",
-            body: "Recording will start automatically — joining Zoom?",
             duration: 5,
             calendarContext: context
         )
@@ -38,7 +36,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
         )
         let vm = MeetingCountdownToastViewModel(
             title: "1:1",
-            body: "Recording will start automatically.",
             duration: 5,
             calendarContext: context
         )
@@ -54,7 +51,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
         )
         let vm = MeetingCountdownToastViewModel(
             title: "Solo",
-            body: "Recording will start automatically.",
             duration: 5,
             calendarContext: context
         )
@@ -70,7 +66,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
         )
         let vm = MeetingCountdownToastViewModel(
             title: "Hallway sync",
-            body: "Recording will start automatically.",
             duration: 5,
             calendarContext: context
         )
@@ -86,7 +81,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
         )
         let vm = MeetingCountdownToastViewModel(
             title: "Empty",
-            body: "Recording will start automatically.",
             duration: 5,
             calendarContext: context
         )

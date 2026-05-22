@@ -15,15 +15,18 @@ struct MeetingCountdownToastView: View {
     /// Dismissive action — Cancel. Bound to `.escape`.
     let onDismiss: () -> Void
     /// Affirmative action — Start Now. Bound to `.return` via a hidden shortcut.
-    let onConfirm: (() -> Void)?
+    /// Always supplied (the toast is auto-start-only), so non-optional.
+    let onConfirm: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// One short status line under the title. Kept deliberately terse — the
-    /// rosette + ring already carry "recording" and "counting down".
+    /// rosette + ring already carry "counting down". "Auto-recording" (not
+    /// "Recording") because the meeting hasn't started recording yet — this
+    /// is the pre-start countdown.
     private var subtitle: String {
         if let service = viewModel.calendarContext?.serviceName {
-            return "Recording · \(service)"
+            return "Auto-recording · \(service)"
         }
         return "Auto-recording"
     }
@@ -84,11 +87,13 @@ struct MeetingCountdownToastView: View {
             Circle()
                 .stroke(DesignSystem.Colors.meetingPillText.opacity(0.12), lineWidth: 2.5)
 
+            // `progress` is driven at 60Hz by the controller, so the ring is
+            // already smooth — no per-update `.animation` (it would just stack
+            // redundant 50ms interpolations on a value that changes every ~16ms).
             Circle()
                 .trim(from: 0, to: max(0, min(1, viewModel.progress)))
                 .stroke(DesignSystem.Colors.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-                .animation(.linear(duration: 0.05), value: viewModel.progress)
 
             MerkabaPillIcon(
                 isAnimating: !reduceMotion,
@@ -100,14 +105,11 @@ struct MeetingCountdownToastView: View {
         .frame(width: 46, height: 46)
     }
 
-    @ViewBuilder
     private var returnShortcut: some View {
-        if let onConfirm {
-            Button("", action: onConfirm)
-                .keyboardShortcut(.return, modifiers: [])
-                .opacity(0)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
+        Button("", action: onConfirm)
+            .keyboardShortcut(.return, modifiers: [])
+            .opacity(0)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 }

@@ -395,12 +395,11 @@ final class MeetingAutoStartCoordinator {
         // when we surface it after the event has already started.
         let leadSeconds = max(0, Int(event.startTime.timeIntervalSinceNow.rounded()))
         let serviceName = event.meetUrl.flatMap(MeetingLinkParser.shared.identifyService)
-        let body = serviceName.map { "Recording will start automatically — joining \($0)?" }
-            ?? "Recording will start automatically."
 
         // Rich variant per ADR-020 §10: only the calendar-driven start
-        // path supplies CalendarContext. Manual hotkey/menu-bar/panel
-        // starts continue to surface the minimal layout.
+        // path supplies CalendarContext (the view derives its status line
+        // from `serviceName`). Manual hotkey/menu-bar/panel starts surface
+        // the minimal layout.
         let calendarContext = MeetingCountdownToastViewModel.CalendarContext(
             attendeeCount: event.attendeeCount,
             serviceName: serviceName,
@@ -409,7 +408,6 @@ final class MeetingAutoStartCoordinator {
 
         toastController.showAutoStart(
             title: event.title,
-            body: body,
             calendarContext: calendarContext
         ) { [weak self] outcome in
             self?.handleAutoStartOutcome(outcome, for: event)
@@ -537,7 +535,6 @@ extension MeetingAutoStartCoordinator {
         )
         toastController.showAutoStart(
             title: "Standup",
-            body: "Joining Google Meet",
             duration: 6,
             calendarContext: context
         ) { _ in }
