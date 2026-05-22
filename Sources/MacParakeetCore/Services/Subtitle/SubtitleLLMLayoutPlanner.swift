@@ -172,7 +172,12 @@ public actor SubtitleLLMLayoutPlanner {
             )
         }
 
-        let perCueBudget = max(config.maxCharsPerLine, config.maxCharsPerLine * config.maxLinesPerCue)
+        // `maxCharsPerLine` is the TOTAL cue budget across all rendered
+        // lines (not a per-line cap) — same semantics as the deterministic
+        // builder and the wrap pass. Earlier this multiplied by
+        // `maxLinesPerCue`, which let the LLM produce ~128-char cues at a
+        // configured 65-char budget. SRT (17), block 15 was the smoking gun.
+        let perCueBudget = config.maxCharsPerLine
         switch LayoutPlanParser.parse(response, words: chunk.words, perCueBudget: perCueBudget) {
         case .success(let ranges):
             // Map chunk-local indices back to source indices when we build
@@ -217,7 +222,12 @@ public actor SubtitleLLMLayoutPlanner {
         """
 
     private static func buildPrompt(chunk: Chunk, config: SubtitleExportConfig) -> String {
-        let perCueBudget = max(config.maxCharsPerLine, config.maxCharsPerLine * config.maxLinesPerCue)
+        // `maxCharsPerLine` is the TOTAL cue budget across all rendered
+        // lines (not a per-line cap) — same semantics as the deterministic
+        // builder and the wrap pass. Earlier this multiplied by
+        // `maxLinesPerCue`, which let the LLM produce ~128-char cues at a
+        // configured 65-char budget. SRT (17), block 15 was the smoking gun.
+        let perCueBudget = config.maxCharsPerLine
         let perLineHint = max(10, config.maxCharsPerLine / max(1, config.maxLinesPerCue))
 
         var lines: [String] = []
