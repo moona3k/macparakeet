@@ -560,7 +560,7 @@ struct SettingsView: View {
                 HStack(alignment: .center) {
                     rowText(
                         title: "Hands-free mode",
-                        detail: "Double-tap to start; tap again to stop."
+                        detail: "Tap to start; tap again to stop."
                     )
                     Spacer(minLength: DesignSystem.Spacing.md)
                     VStack(alignment: .trailing, spacing: 4) {
@@ -942,8 +942,7 @@ struct SettingsView: View {
 
     private func dictationHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
         guard !candidate.isDisabled else { return .allowed }
-        if candidate != viewModel.pushToTalkHotkeyTrigger,
-           candidate.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
+        if candidate.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "push to talk",
                 trigger: viewModel.pushToTalkHotkeyTrigger
@@ -978,8 +977,7 @@ struct SettingsView: View {
 
     private func pushToTalkHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
         guard !candidate.isDisabled else { return .allowed }
-        if candidate != viewModel.hotkeyTrigger,
-           candidate.overlaps(with: viewModel.hotkeyTrigger) {
+        if candidate.overlaps(with: viewModel.hotkeyTrigger) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "hands-free mode",
                 trigger: viewModel.hotkeyTrigger
@@ -1049,8 +1047,7 @@ struct SettingsView: View {
 
     private func dictationHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
         guard !trigger.isDisabled else { return nil }
-        if trigger != viewModel.pushToTalkHotkeyTrigger,
-           trigger.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
+        if trigger.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "push to talk",
                 trigger: viewModel.pushToTalkHotkeyTrigger
@@ -1085,8 +1082,7 @@ struct SettingsView: View {
 
     private func pushToTalkHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
         guard !trigger.isDisabled else { return nil }
-        if trigger != viewModel.hotkeyTrigger,
-           trigger.overlaps(with: viewModel.hotkeyTrigger) {
+        if trigger.overlaps(with: viewModel.hotkeyTrigger) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "hands-free mode",
                 trigger: viewModel.hotkeyTrigger
@@ -2262,8 +2258,8 @@ struct SettingsView: View {
 
             if !viewModel.hotkeyTrigger.isDisabled {
                 modeShortcutRow(
-                    keys: [viewModel.hotkeyTrigger.shortSymbol, viewModel.hotkeyTrigger.shortSymbol],
-                    separator: "·",
+                    keys: [viewModel.hotkeyTrigger.shortSymbol],
+                    separator: nil,
                     action: "Hands-free mode",
                     detail: "Tap again to stop"
                 )

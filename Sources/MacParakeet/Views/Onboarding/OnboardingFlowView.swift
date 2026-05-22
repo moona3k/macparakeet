@@ -8,11 +8,19 @@ struct OnboardingFlowView: View {
     let onOpenMainApp: () -> Void
     let onOpenSettings: () -> Void
 
-    /// Trigger shown in onboarding copy — falls back to the default (.fn) when
-    /// the user has disabled their hotkey, so instructional text stays readable.
-    private var displayTrigger: HotkeyTrigger {
+    /// Triggers shown in onboarding copy — fall back to defaults when disabled
+    /// so instructional text stays readable.
+    private var handsFreeDisplayTrigger: HotkeyTrigger {
         let current = HotkeyTrigger.current
-        return current.isDisabled ? .fn : current
+        return current.isDisabled ? .defaultDictation : current
+    }
+
+    private var pushToTalkDisplayTrigger: HotkeyTrigger {
+        let current = HotkeyTrigger.current(
+            defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+            fallback: .defaultPushToTalk
+        )
+        return current.isDisabled ? .defaultPushToTalk : current
     }
 
     private let windowWidth: CGFloat = 740
@@ -377,7 +385,7 @@ struct OnboardingFlowView: View {
                 featureRow(
                     icon: "mic.fill",
                     title: "Dictate anywhere",
-                    detail: "Double-tap \(displayTrigger.displayName) for persistent dictation, or hold-to-talk and release to stop. Text appears where your cursor is."
+                    detail: "Tap \(handsFreeDisplayTrigger.displayName) for hands-free dictation, or hold \(pushToTalkDisplayTrigger.displayName) and release to stop. Text appears where your cursor is."
                 )
                 featureRow(
                     icon: "bolt.fill",
@@ -534,7 +542,7 @@ struct OnboardingFlowView: View {
         }
     }
 
-    @State private var doubleTapPhase = 0
+    @State private var tapPhase = 0
     @State private var holdPhase: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -544,7 +552,7 @@ struct OnboardingFlowView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(DesignSystem.Colors.accent)
-                    Text("Your dictation hotkey is currently disabled. The examples below show the default key (\(displayTrigger.shortSymbol)). You can set a hotkey anytime in Settings.")
+                    Text("Your hands-free hotkey is currently disabled. The examples below show the default shortcuts. You can set hotkeys anytime in Settings.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -555,24 +563,24 @@ struct OnboardingFlowView: View {
                 )
             }
 
-            // Persistent Mode card
+            // Hands-free mode card
             onboardingCard {
                 HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                    doubleTapIllustration
+                    singleTapIllustration
                         .frame(width: 80)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Persistent Mode")
+                        Text("Hands-free mode")
                             .font(DesignSystem.Typography.micro)
                             .foregroundStyle(DesignSystem.Colors.accent)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
 
-                        Text("Double-tap \(displayTrigger.shortSymbol)")
+                        Text("Tap \(handsFreeDisplayTrigger.shortSymbol)")
                             .font(DesignSystem.Typography.sectionTitle)
 
-                        Text("Starts persistent recording.\nTap \(displayTrigger.shortSymbol) again to stop and paste.")
+                        Text("Starts persistent recording.\nTap \(handsFreeDisplayTrigger.shortSymbol) again to stop and paste.")
                             .font(DesignSystem.Typography.bodySmall)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -595,7 +603,7 @@ struct OnboardingFlowView: View {
                             .padding(.vertical, 3)
                             .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
 
-                        Text("Hold \(displayTrigger.shortSymbol)")
+                        Text("Hold \(pushToTalkDisplayTrigger.shortSymbol)")
                             .font(DesignSystem.Typography.sectionTitle)
 
                         Text("Records while you hold the key.\nRelease to stop and paste.")
@@ -620,7 +628,7 @@ struct OnboardingFlowView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            Text("Tip: If your keyboard doesn't send \(displayTrigger.displayName) events, you can still use file transcription from the main app window.")
+            Text("Tip: If your keyboard doesn't send Fn events, you can still use file transcription from the main app window.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }
@@ -632,24 +640,16 @@ struct OnboardingFlowView: View {
 
     @State private var animationTask: Task<Void, Never>?
 
-    private var doubleTapIllustration: some View {
-        HStack(spacing: 4) {
-            keyCap(displayTrigger.shortSymbol)
-                .scaleEffect(doubleTapPhase == 1 ? 0.9 : 1.0)
-                .opacity(reduceMotion || doubleTapPhase == 1 ? 1.0 : 0.5)
-            Text("·")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.tertiary)
-            keyCap(displayTrigger.shortSymbol)
-                .scaleEffect(doubleTapPhase == 2 ? 0.9 : 1.0)
-                .opacity(reduceMotion || doubleTapPhase == 2 ? 1.0 : 0.5)
-        }
-        .animation(.easeInOut(duration: 0.15), value: doubleTapPhase)
+    private var singleTapIllustration: some View {
+        keyCap(handsFreeDisplayTrigger.shortSymbol)
+            .scaleEffect(tapPhase == 1 ? 0.9 : 1.0)
+            .opacity(reduceMotion || tapPhase == 1 ? 1.0 : 0.5)
+            .animation(.easeInOut(duration: 0.15), value: tapPhase)
     }
 
     private var holdIllustration: some View {
         VStack(spacing: 6) {
-            keyCap(displayTrigger.shortSymbol)
+            keyCap(pushToTalkDisplayTrigger.shortSymbol)
                 .scaleEffect(holdPhase > 0 ? 0.93 : 1.0)
                 .opacity(reduceMotion || holdPhase > 0 ? 1.0 : 0.5)
                 .animation(.easeInOut(duration: 0.15), value: holdPhase > 0)
@@ -670,17 +670,11 @@ struct OnboardingFlowView: View {
         animationTask?.cancel()
         animationTask = Task { @MainActor in
             while !Task.isCancelled {
-                // Double-tap: press, pause, press
-                doubleTapPhase = 1
+                // Hands-free tap.
+                tapPhase = 1
                 try? await Task.sleep(for: .milliseconds(200))
                 guard !Task.isCancelled else { break }
-                doubleTapPhase = 0
-                try? await Task.sleep(for: .milliseconds(150))
-                guard !Task.isCancelled else { break }
-                doubleTapPhase = 2
-                try? await Task.sleep(for: .milliseconds(200))
-                guard !Task.isCancelled else { break }
-                doubleTapPhase = 0
+                tapPhase = 0
 
                 // Hold: press and grow bar
                 holdPhase = 0.01 // trigger "pressed" state
@@ -856,7 +850,7 @@ struct OnboardingFlowView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     quickTip(icon: "mic.fill", text: HotkeyTrigger.current.isDisabled
                         ? "Click the dictation pill or set a hotkey in Settings to start dictating"
-                        : "Double-tap \(displayTrigger.displayName) to start dictating anywhere")
+                        : "Tap \(handsFreeDisplayTrigger.displayName) to start dictating anywhere")
                     quickTip(icon: "doc.fill", text: "Drop an audio file onto the main window to transcribe")
                     quickTip(icon: "gearshape", text: "Visit Settings to customize your experience")
                 }

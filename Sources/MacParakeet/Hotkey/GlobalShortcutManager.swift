@@ -4,7 +4,7 @@ import MacParakeetCore
 
 /// Lightweight global shortcut listener for immediate actions like toggling
 /// meeting recording. Unlike `HotkeyManager`, this does not model hold or
-/// double-tap gestures.
+/// dictation gesture handling.
 public final class GlobalShortcutManager {
     public var onTrigger: (() -> Void)?
 

@@ -125,10 +125,13 @@ public struct HotkeyTrigger: Sendable {
             return KeyCodeNames.name(for: code).shortSymbol
         case .chord:
             guard let code = keyCode else { return "?" }
-            let modifierPart = Self.sortedModifierSymbols(chordModifiers)
+            let modifierSymbols = Self.sortedModifierSymbols(chordModifiers)
             let keyPart = KeyCodeNames.name(for: code).shortSymbol
-            if modifierPart.isEmpty { return keyPart }
-            return "\(modifierPart)\(keyPart)"
+            if modifierSymbols.isEmpty { return keyPart }
+            if modifierSymbols.contains("fn") {
+                return (modifierSymbols + [keyPart]).joined(separator: "+")
+            }
+            return "\(modifierSymbols.joined())\(keyPart)"
         case .modifierChord:
             let modifierPart = Self.sortedModifierComponentSymbols(modifierChordComponents)
             return modifierPart.isEmpty ? "?" : modifierPart
@@ -171,22 +174,22 @@ public struct HotkeyTrigger: Sendable {
         54: 55,
     ]
 
-    /// Standard macOS modifier ordering: ⌃ ⌥ ⇧ ⌘
+    /// Standard macOS modifier ordering for modifier-only triggers: ⌃ ⌥ ⇧ ⌘.
     private static let modifierOrder: [String] = ["control", "option", "shift", "command"]
+    private static let keyChordModifierOrder: [String] = ["fn", "control", "option", "shift", "command"]
 
     /// Returns sorted display names for chord modifiers (e.g. ["Control", "Command"]).
     private static func sortedModifierDisplayNames(_ modifiers: [String]?) -> [String] {
         guard let modifiers else { return [] }
-        return modifierOrder.filter { modifiers.contains($0) }
+        return keyChordModifierOrder.filter { modifiers.contains($0) }
             .compactMap { modifierDisplayNames[$0]?.displayName }
     }
 
     /// Returns concatenated short symbols for chord modifiers (e.g. "⌃⌘").
-    private static func sortedModifierSymbols(_ modifiers: [String]?) -> String {
-        guard let modifiers else { return "" }
-        return modifierOrder.filter { modifiers.contains($0) }
+    private static func sortedModifierSymbols(_ modifiers: [String]?) -> [String] {
+        guard let modifiers else { return [] }
+        return keyChordModifierOrder.filter { modifiers.contains($0) }
             .compactMap { modifierDisplayNames[$0]?.shortSymbol }
-            .joined()
     }
 
     private static func sortedModifierComponentDisplayNames(_ components: [ModifierComponent]?) -> [String] {
@@ -217,9 +220,10 @@ public struct HotkeyTrigger: Sendable {
     private static let maskShift: UInt64     = 0x00020000  // NX_SHIFTMASK
     private static let maskControl: UInt64   = 0x00040000  // NX_CONTROLMASK
     private static let maskAlternate: UInt64 = 0x00080000  // NX_ALTERNATEMASK
+    private static let maskSecondaryFn: UInt64 = 0x00800000 // NX_SECONDARYFNMASK
 
-    /// All 4 relevant modifier bits OR'd together.
-    public static let relevantModifierBits: UInt64 = maskCommand | maskShift | maskControl | maskAlternate
+    /// All relevant modifier bits OR'd together.
+    public static let relevantModifierBits: UInt64 = maskCommand | maskShift | maskControl | maskAlternate | maskSecondaryFn
 
     /// CGEventFlags raw value for chord modifiers, computed at runtime.
     /// Maps modifier names to their CGEventFlags mask bits and OR's them together.
@@ -285,6 +289,7 @@ public struct HotkeyTrigger: Sendable {
         var flags: UInt64 = 0
         for name in modifiers {
             switch name {
+            case "fn": flags |= Self.maskSecondaryFn
             case "command": flags |= Self.maskCommand
             case "shift": flags |= Self.maskShift
             case "control": flags |= Self.maskControl
@@ -349,7 +354,7 @@ public struct HotkeyTrigger: Sendable {
 
     // MARK: - Default Triggers
 
-    public static let defaultDictation: HotkeyTrigger = .fn
+    public static let defaultDictation: HotkeyTrigger = .chord(modifiers: ["fn"], keyCode: 49)
     public static let defaultPushToTalk: HotkeyTrigger = .fn
     public static let defaultMeetingRecording: HotkeyTrigger = .chord(modifiers: ["command", "shift"], keyCode: 46)
 
@@ -361,9 +366,9 @@ public struct HotkeyTrigger: Sendable {
     }
 
     /// Create a chord trigger from modifier names and a CGKeyCode (e.g., `chord(modifiers: ["command"], keyCode: 25)` for Cmd+9).
-    /// Modifier order is normalized to ⌃⌥⇧⌘ regardless of input order.
+    /// Modifier order is normalized to fn⌃⌥⇧⌘ regardless of input order.
     public static func chord(modifiers: [String], keyCode: UInt16) -> HotkeyTrigger {
-        let sorted = modifierOrder.filter { modifiers.contains($0) }
+        let sorted = keyChordModifierOrder.filter { modifiers.contains($0) }
         return HotkeyTrigger(kind: .chord, modifierName: nil, keyCode: keyCode, chordModifiers: sorted)
     }
 
@@ -626,11 +631,11 @@ public struct HotkeyTrigger: Sendable {
     ]
 
     /// Resolve the configured trigger from the provided defaults store.
-    /// Tries JSON decode first, falls back to legacy string, defaults to `.fn`.
+    /// Tries JSON decode first, falls back to legacy string, defaults to the hands-free shortcut.
     public static func current(
         defaults: UserDefaults = .standard,
         defaultsKey: String = defaultsKey,
-        fallback: HotkeyTrigger = .fn
+        fallback: HotkeyTrigger = .defaultDictation
     ) -> HotkeyTrigger {
         guard let stored = defaults.object(forKey: defaultsKey) else {
             return fallback

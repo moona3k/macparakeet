@@ -96,15 +96,15 @@ final class AppHotkeyCoordinator {
             return "Dictation Shortcuts: Disabled"
         }
         if !handsFree.isDisabled, handsFree == pushToTalk {
-            return "Dictation: \(handsFree.displayName) (hold or double-tap)"
+            return "Dictation Shortcuts: Conflict on \(handsFree.displayName)"
         }
         if handsFree.isDisabled {
             return "Push-to-talk: Hold \(pushToTalk.displayName)"
         }
         if pushToTalk.isDisabled {
-            return "Hands-free: Double-tap \(handsFree.displayName)"
+            return "Hands-free: Tap \(handsFree.displayName)"
         }
-        return "Dictation: Hold \(pushToTalk.displayName) / Double-tap \(handsFree.displayName)"
+        return "Dictation: Hold \(pushToTalk.displayName) / Tap \(handsFree.displayName)"
     }
 
     static func dictationHotkeyPlan(
@@ -116,24 +116,12 @@ final class AppHotkeyCoordinator {
         }
 
         if !handsFreeTrigger.isDisabled, !pushToTalkTrigger.isDisabled {
-            if handsFreeTrigger == pushToTalkTrigger {
-                return DictationHotkeyPlan(
-                    specs: [
-                        DictationHotkeyPlan.Spec(
-                            trigger: handsFreeTrigger,
-                            gestureMode: .doubleTapAndHold
-                        ),
-                    ],
-                    conflict: nil
-                )
-            }
-
             if handsFreeTrigger.overlaps(with: pushToTalkTrigger) {
                 return DictationHotkeyPlan(
                     specs: [
                         DictationHotkeyPlan.Spec(
                             trigger: handsFreeTrigger,
-                            gestureMode: .doubleTapOnly
+                            gestureMode: .singleTapToggle
                         ),
                     ],
                     conflict: DictationHotkeyPlan.Conflict(
@@ -149,7 +137,7 @@ final class AppHotkeyCoordinator {
             specs.append(
                 DictationHotkeyPlan.Spec(
                     trigger: handsFreeTrigger,
-                    gestureMode: .doubleTapOnly
+                    gestureMode: .singleTapToggle
                 )
             )
         }
@@ -345,12 +333,14 @@ final class AppHotkeyCoordinator {
     ) -> FnKeyStateMachine.RecordingMode? {
         guard let activeMode else { return nil }
         switch (activeMode, gestureMode) {
-        case (.persistent, .doubleTapOnly),
+        case (.persistent, .singleTapToggle),
+             (.persistent, .doubleTapOnly),
              (.persistent, .doubleTapAndHold),
              (.holdToTalk, .holdOnly),
              (.holdToTalk, .doubleTapAndHold):
             return activeMode
         case (.persistent, .holdOnly),
+             (.holdToTalk, .singleTapToggle),
              (.holdToTalk, .doubleTapOnly):
             return nil
         }

@@ -1132,12 +1132,28 @@ final class SettingsViewModelTests: XCTestCase {
 
     // MARK: - Hotkey Trigger
 
-    func testHotkeyTriggerDefaultsToFn() {
-        XCTAssertEqual(viewModel.hotkeyTrigger, .fn)
+    func testHotkeyTriggerDefaultsToFnSpace() {
+        XCTAssertEqual(viewModel.hotkeyTrigger, .defaultDictation)
     }
 
     func testPushToTalkHotkeyTriggerDefaultsToFn() {
         XCTAssertEqual(viewModel.pushToTalkHotkeyTrigger, .fn)
+    }
+
+    func testDefaultDictationAndPushToTalkHotkeysPersistForFreshDefaults() {
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultPushToTalk
+        )
     }
 
     func testHotkeyTriggerPersistsKeyCode() {
@@ -1183,6 +1199,25 @@ final class SettingsViewModelTests: XCTestCase {
         vm.hotkeyTrigger = .control
         let vm2 = SettingsViewModel(defaults: testDefaults)
         XCTAssertEqual(vm2.pushToTalkHotkeyTrigger, legacyTrigger)
+    }
+
+    func testLegacyDefaultFnHandsFreeMigratesToFnSpaceWithoutChangingPushToTalk() {
+        testDefaults.removeObject(forKey: HotkeyTrigger.pushToTalkDefaultsKey)
+        HotkeyTrigger.fn.save(to: testDefaults)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultPushToTalk
+        )
     }
 
     func testPushToTalkDedicatedDefaultsKeyWinsOverLegacyDictationHotkey() {

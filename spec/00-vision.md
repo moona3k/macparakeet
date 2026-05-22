@@ -136,9 +136,9 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 +-----------------------------------------------------------------------+
 |  Any app. Any text field. Any time.                                   |
 |                                                                       |
-|  1. Press and hold Fn (or double-tap Fn)                              |
+|  1. Hold Fn for push-to-talk or tap Fn+Space for hands-free           |
 |  2. Speak naturally                                                   |
-|  3. Release Fn                                                        |
+|  3. Release Fn, or tap Fn+Space again                                 |
 |  4. Clean text appears at cursor in <500ms                            |
 |                                                                       |
 |  +-----------------------------------------+                          |

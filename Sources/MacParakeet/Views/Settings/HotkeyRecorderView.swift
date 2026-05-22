@@ -135,15 +135,16 @@ struct HotkeyRecorderView: View {
     /// Symbols for currently held modifiers in standard macOS order (⌃⌥⇧⌘).
     private var pendingModifierSymbols: String {
         if modifierCaptureMode == .sideSpecific {
+            if pendingModifierComponents.map(\.modifierName) == ["fn"] { return "fn" }
             return HotkeyTrigger.modifierChord(components: pendingModifierComponents).shortSymbol
         }
 
-        let order = ["control", "option", "shift", "command"]
-        let symbols: [String: String] = ["control": "⌃", "option": "⌥", "shift": "⇧", "command": "⌘"]
+        let order = ["fn", "control", "option", "shift", "command"]
+        let symbols: [String: String] = ["fn": "fn", "control": "⌃", "option": "⌥", "shift": "⇧", "command": "⌘"]
         let names = pendingModifierComponents.map(\.modifierName)
-        return order.filter { names.contains($0) }
+        let parts = order.filter { names.contains($0) }
             .compactMap { symbols[$0] }
-            .joined()
+        return parts.joined(separator: names.contains("fn") ? "+" : "")
     }
 
     // MARK: - Recording Logic
@@ -174,7 +175,7 @@ struct HotkeyRecorderView: View {
                     return nil
                 }
 
-                // Check if chord modifiers are held (Cmd, Ctrl, Option, Shift — excluding Fn/Caps Lock)
+                // Check if chord modifiers are held. Caps Lock remains excluded.
                 let heldModifiers = chordModifiersFromFlags(event.modifierFlags)
 
                 if !heldModifiers.isEmpty {
@@ -225,8 +226,12 @@ struct HotkeyRecorderView: View {
 
                 if let name = modifierName {
                     if name == "fn" {
-                        // Fn is bare modifier only — accept immediately on key-down
                         if event.modifierFlags.contains(.function) {
+                            pendingModifierComponents = [.init(modifierName: "fn")]
+                            candidateModifierComponents = pendingModifierComponents
+                        } else if candidateModifierComponents.contains(.init(modifierName: "fn")) {
+                            pendingModifierComponents = []
+                            candidateModifierComponents = []
                             switch combinedValidation(for: .fn) {
                             case .blocked(let msg):
                                 validationMessage = msg
@@ -298,13 +303,14 @@ struct HotkeyRecorderView: View {
     }
 
     /// Extract chord-eligible modifier names from NSEvent modifier flags.
-    /// Excludes Fn (bare modifier only per plan).
+    /// Caps Lock is intentionally excluded.
     private func chordModifiersFromFlags(_ flags: NSEvent.ModifierFlags) -> [String] {
         var modifiers: [String] = []
         if flags.contains(.control) { modifiers.append("control") }
         if flags.contains(.option) { modifiers.append("option") }
         if flags.contains(.shift) { modifiers.append("shift") }
         if flags.contains(.command) { modifiers.append("command") }
+        if flags.contains(.function) { modifiers.append("fn") }
         return modifiers
     }
 
@@ -373,8 +379,11 @@ struct HotkeyRecorderView: View {
         keyCode: UInt16,
         captureMode: ModifierCaptureMode
     ) -> HotkeyTrigger? {
-        let genericNames: Set<String> = ["control", "option", "shift", "command"]
+        let genericNames: Set<String> = ["fn", "control", "option", "shift", "command"]
         guard genericNames.contains(name) else { return nil }
+        if name == "fn" {
+            return .fn
+        }
         switch captureMode {
         case .generic:
             return HotkeyTrigger(kind: .modifier, modifierName: name, keyCode: nil)

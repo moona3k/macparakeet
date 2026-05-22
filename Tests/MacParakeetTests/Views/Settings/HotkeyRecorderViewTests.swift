@@ -87,6 +87,26 @@ final class HotkeyRecorderViewTests: XCTestCase {
         XCTAssertEqual(candidate, .chord(modifiers: ["option"], keyCode: 8))
     }
 
+    func testGenericRecordingAllowsFnKeyChords() {
+        let candidate = HotkeyRecorderView.keyChordTrigger(
+            modifiers: ["fn"],
+            keyCode: 49,
+            captureMode: .generic
+        )
+
+        XCTAssertEqual(candidate, .defaultDictation)
+    }
+
+    func testBareFnCaptureRemainsSupported() {
+        let candidate = HotkeyRecorderView.bareModifierTrigger(
+            for: "fn",
+            keyCode: 63,
+            captureMode: .generic
+        )
+
+        XCTAssertEqual(candidate, .fn)
+    }
+
     func testSingleModifierDoesNotBecomeModifierChord() {
         let candidate = HotkeyRecorderView.modifierChordTrigger(
             components: [.init(modifierName: "option", keyCode: 61)],

@@ -27,7 +27,7 @@ REQ-DICT-001:
   status: implemented
 
 REQ-DICT-002:
-  description: Double-tap for persistent recording, hold for push-to-talk
+  description: Separate hands-free tap-to-toggle and hold-to-talk shortcuts
   version: v0.1
   status: implemented
 

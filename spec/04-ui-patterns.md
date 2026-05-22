@@ -242,7 +242,7 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 - **Show:** On app launch and after every dictation exit (stop, cancel, error, dismiss)
 - **Hide:** When dictation starts
-- **Click:** Starts persistent dictation (same as double-tap Fn)
+- **Click:** Starts persistent dictation (same as the hands-free shortcut)
 - **Hover:** Expands pill, shows tooltip
 - **Mouse exit:** Collapses pill, hides tooltip
 - **Focus:** Never steals focus (non-activating panel)
@@ -744,12 +744,11 @@ Settings open in the content area when "Settings" is selected in the sidebar. Th
 │  DICTATION                                                │
 │  ─────────────────────────────────────────────────────    │
 │                                                           │
-│  Hotkey                       [fn Fn        ▾]          │
-│  (Double-tap to start dictation)                         │
+│  Push to talk                [fn Fn        ▾]          │
+│  (Hold to dictate, release to stop)                       │
 │                                                           │
-│  Stop mode                    [● Hold to record]         │
-│                               [  Double-tap toggle]      │
-│  (Hold: release key to stop. Toggle: tap again to stop)  │
+│  Hands-free mode             [fn+Space    ▾]          │
+│  (Tap to start, tap again to stop)                       │
 │                                                           │
 │  Silence threshold            [──●──────── 2.0s]        │
 │  (Auto-stop after this much silence)                     │

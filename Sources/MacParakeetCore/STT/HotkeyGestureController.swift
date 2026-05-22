@@ -7,6 +7,7 @@ public final class HotkeyGestureController {
         case doubleTapAndHold
         case doubleTapOnly
         case holdOnly
+        case singleTapToggle
     }
 
     public enum Output: Equatable, Sendable {
@@ -33,9 +34,17 @@ public final class HotkeyGestureController {
         case blocked
     }
 
+    private enum SingleTapState: Equatable {
+        case idle
+        case active
+        case cancelWindow
+        case blocked
+    }
+
     private let mode: Mode
     private let stateMachine: FnKeyStateMachine
     private var holdOnlyState: HoldOnlyState = .idle
+    private var singleTapState: SingleTapState = .idle
     private var suppressedUntilReset = false
 
     public init(
@@ -62,6 +71,20 @@ public final class HotkeyGestureController {
                 holdOnlyState = .blocked
                 return []
             case .pressed, .active:
+                return []
+            }
+        }
+
+        if mode == .singleTapToggle {
+            switch singleTapState {
+            case .idle:
+                singleTapState = .active
+                return [.startRecording(mode: .persistent)]
+            case .active:
+                singleTapState = .idle
+                return [.stopRecording]
+            case .cancelWindow, .blocked:
+                singleTapState = .blocked
                 return []
             }
         }
@@ -94,6 +117,10 @@ public final class HotkeyGestureController {
             return results
         }
 
+        if mode == .singleTapToggle {
+            return []
+        }
+
         let action = stateMachine.fnUp(timestampMs: timestampMs)
         results.append(contentsOf: outputs(for: action))
         if action == .none, stateMachine.state == .waitingForSecondTap {
@@ -122,6 +149,10 @@ public final class HotkeyGestureController {
             return results
         }
 
+        if mode == .singleTapToggle {
+            return []
+        }
+
         switch stateMachine.state {
         case .holdToTalk:
             // Non-bare releases bypass outputs(for:) so the hotkey returns to idle
@@ -142,6 +173,10 @@ public final class HotkeyGestureController {
 
         if mode == .holdOnly {
             return nonBareTriggerReleased()
+        }
+
+        if mode == .singleTapToggle {
+            return []
         }
 
         var results: [Output] = [.cancelStartupDebounce, .cancelHoldWindow]
@@ -178,6 +213,19 @@ public final class HotkeyGestureController {
             return results
         }
 
+        if mode == .singleTapToggle {
+            switch singleTapState {
+            case .active:
+                singleTapState = .cancelWindow
+                return [.cancelRecording]
+            case .cancelWindow, .blocked:
+                singleTapState = .idle
+                return [.cancelRecording]
+            case .idle:
+                return [.escapeWhileIdle]
+            }
+        }
+
         let wasWaitingForSecondTap = stateMachine.state == .waitingForSecondTap
         let action = stateMachine.escapePressed()
 
@@ -198,6 +246,7 @@ public final class HotkeyGestureController {
         guard !suppressedUntilReset else { return [] }
 
         if mode == .doubleTapOnly { return [] }
+        if mode == .singleTapToggle { return [] }
         if mode == .holdOnly {
             guard holdOnlyState == .pressed else { return [] }
             holdOnlyState = .active
@@ -210,6 +259,7 @@ public final class HotkeyGestureController {
         guard !suppressedUntilReset else { return [] }
 
         if mode == .doubleTapOnly { return [] }
+        if mode == .singleTapToggle { return [] }
         if mode == .holdOnly { return [] }
         return outputs(for: stateMachine.holdTimerFired())
     }
@@ -217,6 +267,7 @@ public final class HotkeyGestureController {
     public func suppressUntilReset() {
         suppressedUntilReset = true
         holdOnlyState = .idle
+        singleTapState = .idle
         stateMachine.reset()
     }
 
@@ -229,6 +280,10 @@ public final class HotkeyGestureController {
             holdOnlyState = .cancelWindow
             return
         }
+        if mode == .singleTapToggle {
+            singleTapState = .cancelWindow
+            return
+        }
         stateMachine.blockUntilReset()
     }
 
@@ -238,12 +293,17 @@ public final class HotkeyGestureController {
             holdOnlyState = mode == .holdToTalk ? .active : .idle
             return
         }
+        if self.mode == .singleTapToggle {
+            singleTapState = mode == .persistent ? .active : .idle
+            return
+        }
         stateMachine.resumeRecording(mode: mode)
     }
 
     public func reset() {
         suppressedUntilReset = false
         holdOnlyState = .idle
+        singleTapState = .idle
         stateMachine.reset()
     }
 

@@ -68,18 +68,18 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     func testMenuTitleDescribesSharedDictationTrigger() {
         XCTAssertEqual(
             AppHotkeyCoordinator.menuTitle(handsFree: .fn, pushToTalk: .fn),
-            "Dictation: Fn (hold or double-tap)"
+            "Dictation Shortcuts: Conflict on Fn"
         )
     }
 
     func testMenuTitleDescribesDistinctDictationTriggers() {
         XCTAssertEqual(
             AppHotkeyCoordinator.menuTitle(handsFree: .control, pushToTalk: .option),
-            "Dictation: Hold Option / Double-tap Control"
+            "Dictation: Hold Option / Tap Control"
         )
     }
 
-    func testDictationHotkeyPlanUsesOneCombinedManagerForSharedTrigger() {
+    func testDictationHotkeyPlanKeepsHandsFreeWhenSharedTriggerWouldConflict() {
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
             handsFree: .fn,
             pushToTalk: .fn
@@ -89,9 +89,9 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .fn, gestureMode: .doubleTapAndHold),
+                    .init(trigger: .fn, gestureMode: .singleTapToggle),
                 ],
-                conflict: nil
+                conflict: .init(trigger: .fn, conflicts: [.fn])
             )
         )
     }
@@ -106,7 +106,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .control, gestureMode: .doubleTapOnly),
+                    .init(trigger: .control, gestureMode: .singleTapToggle),
                     .init(trigger: .option, gestureMode: .holdOnly),
                 ],
                 conflict: nil
@@ -125,7 +125,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .control, gestureMode: .doubleTapOnly),
+                    .init(trigger: .control, gestureMode: .singleTapToggle),
                 ],
                 conflict: .init(trigger: pushToTalk, conflicts: [.control])
             )
@@ -261,6 +261,11 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
 
     func testResumeModeMatchesActiveDictationRole() {
         XCTAssertEqual(
+            AppHotkeyCoordinator.resumeMode(.persistent, for: .singleTapToggle),
+            .persistent
+        )
+        XCTAssertFalse(AppHotkeyCoordinator.shouldSuppressPeer(.persistent, for: .singleTapToggle))
+        XCTAssertEqual(
             AppHotkeyCoordinator.resumeMode(.persistent, for: .doubleTapOnly),
             .persistent
         )
@@ -283,6 +288,8 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             .holdToTalk
         )
         XCTAssertFalse(AppHotkeyCoordinator.shouldSuppressPeer(.holdToTalk, for: .doubleTapAndHold))
+        XCTAssertNil(AppHotkeyCoordinator.resumeMode(.holdToTalk, for: .singleTapToggle))
+        XCTAssertTrue(AppHotkeyCoordinator.shouldSuppressPeer(.holdToTalk, for: .singleTapToggle))
         XCTAssertNil(AppHotkeyCoordinator.resumeMode(.holdToTalk, for: .doubleTapOnly))
         XCTAssertTrue(AppHotkeyCoordinator.shouldSuppressPeer(.holdToTalk, for: .doubleTapOnly))
         XCTAssertNil(AppHotkeyCoordinator.resumeMode(nil, for: .doubleTapAndHold))

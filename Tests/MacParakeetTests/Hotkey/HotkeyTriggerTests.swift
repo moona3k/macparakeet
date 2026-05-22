@@ -194,9 +194,9 @@ final class HotkeyTriggerTests: XCTestCase {
 
     // MARK: - Persistence
 
-    func testCurrentDefaultsToFn() {
+    func testCurrentDefaultsToHandsFreeShortcut() {
         testDefaults.removeObject(forKey: "hotkeyTrigger")
-        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .fn)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
     }
 
     func testSaveAndLoad() throws {
@@ -250,9 +250,9 @@ final class HotkeyTriggerTests: XCTestCase {
         )
     }
 
-    func testLegacyStringInvalidFallsBackToFn() {
+    func testLegacyStringInvalidFallsBackToHandsFreeDefault() {
         testDefaults.set("invalid_key", forKey: "hotkeyTrigger")
-        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .fn)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
     }
 
     // MARK: - Validation
@@ -384,6 +384,16 @@ final class HotkeyTriggerTests: XCTestCase {
         let trigger = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 96)
         XCTAssertEqual(trigger.displayName, "Option+F5")
         XCTAssertEqual(trigger.shortSymbol, "⌥F5")
+    }
+
+    func testFnSpaceChordDisplayAndFlags() {
+        let trigger = HotkeyTrigger.defaultDictation
+
+        XCTAssertEqual(trigger, .chord(modifiers: ["fn"], keyCode: 49))
+        XCTAssertEqual(trigger.displayName, "Fn+Space")
+        XCTAssertEqual(trigger.shortSymbol, "fn+Space")
+        XCTAssertEqual(trigger.chordEventFlags, 0x00800000)
+        XCTAssertEqual(trigger.validation, .allowed)
     }
 
     // MARK: - Chord Validation

@@ -392,9 +392,8 @@ struct DictationOverlayView: View {
 
     // MARK: - Ready State
 
-    /// Ready pill — a gentle breathing ring that appears briefly after the
-    /// first Fn tap while the state machine waits to see if a second tap lands
-    /// (double-tap = persistent recording) or the window elapses (back to
+    /// Ready pill — a gentle breathing ring that appears briefly while the
+    /// state machine waits to see if the gesture becomes active or elapses (back to
     /// idle). The breath ring belongs to the same sacred-geometry family as
     /// `SpinnerRingView` (processing) and `MerkabaDissipateView` (no speech),
     /// but is the smallest and lightest member — a poised inhale rather than

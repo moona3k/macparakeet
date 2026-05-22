@@ -95,7 +95,7 @@ All ADRs live in `spec/adr/`. These are locked -- they record decisions already 
 
 Dictation + transcription + history + settings. Get audio in, text out, pasted into any app.
 
-- [x] System-wide dictation: Configurable hotkey (Fn default), double-tap (persistent) + hold-to-talk
+- [x] System-wide dictation: Configurable shortcuts for hands-free tap-to-toggle and hold-to-talk
 - [x] File transcription: Drag-drop audio/video files
 - [x] Compact dark pill overlay with recording timer + waveform
 - [x] Persistent idle pill (always-visible, click-to-dictate)

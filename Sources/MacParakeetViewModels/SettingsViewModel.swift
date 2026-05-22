@@ -467,10 +467,14 @@ public final class SettingsViewModel {
         menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
         showIdlePill = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey) as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
-        hotkeyTrigger = HotkeyTrigger.current(defaults: defaults)
+        let resolvedDictationHotkeyTrigger = Self.resolveDictationHotkeyTrigger(defaults: defaults)
+        hotkeyTrigger = resolvedDictationHotkeyTrigger.trigger
         let shouldPersistPushToTalkMigration = defaults.object(forKey: HotkeyTrigger.pushToTalkDefaultsKey) == nil
         let resolvedPushToTalkHotkeyTrigger = Self.resolvePushToTalkHotkeyTrigger(defaults: defaults)
         pushToTalkHotkeyTrigger = resolvedPushToTalkHotkeyTrigger
+        if resolvedDictationHotkeyTrigger.shouldPersist {
+            resolvedDictationHotkeyTrigger.trigger.save(to: defaults)
+        }
         if shouldPersistPushToTalkMigration {
             resolvedPushToTalkHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
         }
@@ -664,6 +668,24 @@ public final class SettingsViewModel {
             defaultsKey: HotkeyTrigger.meetingDefaultsKey,
             fallback: .defaultMeetingRecording
         )
+    }
+
+    private static func resolveDictationHotkeyTrigger(defaults: UserDefaults) -> (
+        trigger: HotkeyTrigger,
+        shouldPersist: Bool
+    ) {
+        let hasHandsFreeTrigger = defaults.object(forKey: HotkeyTrigger.defaultsKey) != nil
+        let hasDedicatedPushToTalkTrigger = defaults.object(forKey: HotkeyTrigger.pushToTalkDefaultsKey) != nil
+
+        guard hasHandsFreeTrigger else {
+            return (.defaultDictation, true)
+        }
+
+        let stored = HotkeyTrigger.current(defaults: defaults, fallback: .fn)
+        if !hasDedicatedPushToTalkTrigger, stored == .fn {
+            return (.defaultDictation, true)
+        }
+        return (stored, false)
     }
 
     private static func resolvePushToTalkHotkeyTrigger(defaults: UserDefaults) -> HotkeyTrigger {
