@@ -454,6 +454,7 @@ final class TransformsCommandTests: XCTestCase {
                 defaults: defaults
             )
         )
+        // cmd+shift+m still conflicts because defaultMeetingRecording uses .exclusive mode.
         XCTAssertNotNil(
             appHotkeyCollision(
                 for: try XCTUnwrap(KeyboardShortcut.parse("cmd+shift+m")),
