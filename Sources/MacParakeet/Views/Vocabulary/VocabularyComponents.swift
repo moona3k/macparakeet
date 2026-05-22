@@ -208,10 +208,11 @@ struct DeleteIconButton: View {
 
 // MARK: - Modal scrim container
 
-/// Wraps a sheet's panel in a full-bleed dimmed scrim so clicking outside the
-/// panel dismisses it (macOS sheets don't dismiss on outside-click natively).
-/// The panel carries its own rounded material background, border, and shadow;
-/// the modal views inside no longer set their own background.
+/// Wraps a modal panel in a full-bleed dimmed scrim so clicking outside the
+/// panel dismisses it. Presented as a window-level overlay rather than a
+/// `.sheet` — a sheet can't dismiss on outside-click and auto-focuses its first
+/// text field. The panel carries its own rounded material background, border,
+/// and shadow; the modal views inside don't set their own background.
 struct ModalScrimContainer<Content: View>: View {
     private let onScrimTap: () -> Void
     private let content: Content
