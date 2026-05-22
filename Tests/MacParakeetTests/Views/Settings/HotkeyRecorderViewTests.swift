@@ -4,6 +4,29 @@ import XCTest
 @testable import MacParakeetCore
 
 final class HotkeyRecorderViewTests: XCTestCase {
+    func testStandardBareModifierCaptureRecordsPhysicalModifierSide() {
+        let candidate = HotkeyRecorderView.bareModifierTrigger(
+            for: "command",
+            keyCode: 54,
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(
+            candidate,
+            HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        )
+    }
+
+    func testStandardModifierKeyChordCapturePreservesGenericChordBehavior() {
+        let candidate = HotkeyRecorderView.keyChordTrigger(
+            modifiers: ["command"],
+            keyCode: 8,
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(candidate, .chord(modifiers: ["command"], keyCode: 8))
+    }
+
     func testGenericBareModifierCapturePreservesEitherSideBehavior() {
         let candidate = HotkeyRecorderView.bareModifierTrigger(
             for: "option",

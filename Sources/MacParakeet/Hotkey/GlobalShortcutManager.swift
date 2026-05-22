@@ -122,13 +122,20 @@ public final class GlobalShortcutManager {
             return Unmanaged.passUnretained(event)
         }
 
-        handleModifierFlagsChanged(flags: event.flags)
+        handleModifierFlagsChanged(
+            flags: event.flags,
+            changedKeyCode: UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+        )
         return Unmanaged.passUnretained(event)
     }
 
-    private func handleModifierFlagsChanged(flags: CGEventFlags) {
+    private func handleModifierFlagsChanged(flags: CGEventFlags, changedKeyCode: UInt16? = nil) {
         if let targetKeyCode = trigger.modifierKeyCode {
-            handleSideSpecificModifierFlagsChanged(flags: flags, targetKeyCode: targetKeyCode)
+            handleSideSpecificModifierFlagsChanged(
+                flags: flags,
+                targetKeyCode: targetKeyCode,
+                changedKeyCode: changedKeyCode
+            )
             return
         }
 
@@ -141,9 +148,22 @@ public final class GlobalShortcutManager {
         }
     }
 
-    private func handleSideSpecificModifierFlagsChanged(flags: CGEventFlags, targetKeyCode: UInt16) {
-        let isPressed = ModifierKeyMatcher.sideSpecificModifierIsPressed(flags: flags, keyCode: targetKeyCode)
-        let oppositeIsPressed = ModifierKeyMatcher.oppositeSideModifierIsPressed(flags: flags, keyCode: targetKeyCode)
+    private func handleSideSpecificModifierFlagsChanged(
+        flags: CGEventFlags,
+        targetKeyCode: UInt16,
+        changedKeyCode: UInt16?
+    ) {
+        let isPressed = ModifierKeyMatcher.sideSpecificModifierIsPressed(
+            flags: flags,
+            keyCode: targetKeyCode,
+            changedKeyCode: changedKeyCode,
+            previouslyPressed: targetModifierWasPressed
+        )
+        let oppositeIsPressed = ModifierKeyMatcher.oppositeSideModifierIsPressed(
+            flags: flags,
+            keyCode: targetKeyCode,
+            changedKeyCode: changedKeyCode
+        )
 
         guard isPressed else {
             targetModifierWasPressed = false
@@ -326,9 +346,9 @@ public final class GlobalShortcutManager {
         )
     }
 
-    func modifierFlagsChangedForTesting(flags: CGEventFlags) {
+    func modifierFlagsChangedForTesting(flags: CGEventFlags, changedKeyCode: UInt16? = nil) {
         guard trigger.kind == .modifier else { return }
-        handleModifierFlagsChanged(flags: flags)
+        handleModifierFlagsChanged(flags: flags, changedKeyCode: changedKeyCode)
     }
 
     func modifierChordFlagsChangedForTesting(flags: CGEventFlags) {

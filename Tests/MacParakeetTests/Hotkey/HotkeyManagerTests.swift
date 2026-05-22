@@ -957,6 +957,79 @@ final class HotkeyManagerTests: XCTestCase {
 
     // MARK: - Side-Specific Modifier Detection
 
+    func testSideSpecificRightCommandTriggersFromChangedKeyCodeWhenSideFlagsAreMissing() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = HotkeyManager(trigger: trigger)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000,
+                changedKeyCode: 54
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
+        )
+    }
+
+    func testSideSpecificRightCommandIgnoresLeftCommandWhenSideFlagsAreMissing() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = HotkeyManager(trigger: trigger)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000,
+                changedKeyCode: 55
+            ),
+            []
+        )
+    }
+
+    func testSideSpecificRightCommandReleaseFromChangedKeyCodeWhenSideFlagsAreMissing() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = HotkeyManager(trigger: trigger)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskCommand],
+            timestampMs: 1_000,
+            changedKeyCode: 54
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050,
+                changedKeyCode: 54
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap]
+        )
+    }
+
+    func testHoldOnlySideSpecificCommandCancelsBeforeStartupWhenUsedAsChord() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = HotkeyManager(trigger: trigger, gestureMode: .holdOnly)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000,
+                changedKeyCode: 54
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(
+            manager.modifierKeyDownOutputsForTesting(keyCode: 8, timestampMs: 1_025),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+    }
+
     func testSideSpecificRightOptionOnlyTriggersOnRightKey() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
         let manager = HotkeyManager(trigger: trigger)
@@ -1093,6 +1166,62 @@ final class HotkeyManagerTests: XCTestCase {
                     rightOptionMask
                 ),
                 timestampMs: 1_200
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
+        )
+    }
+
+    func testSideSpecificOppositeSideTapCancelsPendingSecondTapWhenSideFlagsAreMissing() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = HotkeyManager(trigger: trigger)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000,
+                changedKeyCode: 54
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050,
+                changedKeyCode: 54
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap]
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_100,
+                changedKeyCode: 55
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_150,
+                changedKeyCode: 55
+            ),
+            []
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_200,
+                changedKeyCode: 54
             ),
             [
                 .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),

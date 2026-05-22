@@ -9,6 +9,7 @@ import SwiftUI
 ///                    Warning text shown below.
 struct HotkeyRecorderView: View {
     enum ModifierCaptureMode {
+        case standard
         case generic
         case sideSpecific
     }
@@ -29,7 +30,7 @@ struct HotkeyRecorderView: View {
     /// Tracks held modifiers during recording for two-phase chord capture.
     @State private var pendingModifierComponents: [HotkeyTrigger.ModifierComponent] = []
     @State private var candidateModifierComponents: [HotkeyTrigger.ModifierComponent] = []
-    @State private var modifierCaptureMode: ModifierCaptureMode = .generic
+    @State private var modifierCaptureMode: ModifierCaptureMode = .standard
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 4) {
@@ -69,7 +70,7 @@ struct HotkeyRecorderView: View {
             }
 
             Button(trigger.isDisabled ? "Set Hotkey..." : "Change...") {
-                startRecording(modifierCaptureMode: .generic)
+                startRecording(modifierCaptureMode: .standard)
             }
             .parakeetAction(.secondary)
 
@@ -91,7 +92,11 @@ struct HotkeyRecorderView: View {
 
                 Divider()
 
-                Button("Record Specific Modifier Side") {
+                Button("Record Either-Side Modifier") {
+                    startRecording(modifierCaptureMode: .generic)
+                }
+
+                Button("Record Specific-Side Modifier Chord") {
                     startRecording(modifierCaptureMode: .sideSpecific)
                 }
             } label: {
@@ -134,7 +139,7 @@ struct HotkeyRecorderView: View {
 
     /// Symbols for currently held modifiers in standard macOS order (⌃⌥⇧⌘).
     private var pendingModifierSymbols: String {
-        if modifierCaptureMode == .sideSpecific {
+        if modifierCaptureMode == .standard || modifierCaptureMode == .sideSpecific {
             if pendingModifierComponents.map(\.modifierName) == ["fn"] { return "fn" }
             return HotkeyTrigger.modifierChord(components: pendingModifierComponents).shortSymbol
         }
@@ -149,7 +154,7 @@ struct HotkeyRecorderView: View {
 
     // MARK: - Recording Logic
 
-    private func startRecording(modifierCaptureMode: ModifierCaptureMode = .generic) {
+    private func startRecording(modifierCaptureMode: ModifierCaptureMode = .standard) {
         // Guard against double-start leaking the existing monitor
         if eventMonitor != nil { stopRecording() }
 
@@ -323,7 +328,7 @@ struct HotkeyRecorderView: View {
             return chordModifiersFromFlags(event.modifierFlags).map {
                 HotkeyTrigger.ModifierComponent(modifierName: $0)
             }
-        case .sideSpecific:
+        case .standard, .sideSpecific:
             return Self.sideSpecificModifierComponentsAfterFlagsChanged(
                 pending: pendingModifierComponents,
                 eventKeyCode: event.keyCode,
@@ -387,7 +392,7 @@ struct HotkeyRecorderView: View {
         switch captureMode {
         case .generic:
             return HotkeyTrigger(kind: .modifier, modifierName: name, keyCode: nil)
-        case .sideSpecific:
+        case .standard, .sideSpecific:
             return HotkeyTrigger(kind: .modifier, modifierName: name, keyCode: nil, modifierKeyCode: keyCode)
         }
     }
@@ -398,7 +403,7 @@ struct HotkeyRecorderView: View {
     ) -> HotkeyTrigger? {
         let trigger: HotkeyTrigger
         switch captureMode {
-        case .generic:
+        case .standard, .generic:
             trigger = HotkeyTrigger.modifierChord(
                 components: components.map {
                     HotkeyTrigger.ModifierComponent(modifierName: $0.modifierName)
@@ -420,7 +425,7 @@ struct HotkeyRecorderView: View {
         keyCode: UInt16,
         captureMode: ModifierCaptureMode
     ) -> HotkeyTrigger? {
-        guard captureMode == .generic else { return nil }
+        guard captureMode == .standard || captureMode == .generic else { return nil }
         return HotkeyTrigger.chord(modifiers: modifiers, keyCode: keyCode)
     }
 
@@ -452,7 +457,7 @@ struct HotkeyRecorderView: View {
         isRecording = false
         pendingModifierComponents = []
         candidateModifierComponents = []
-        modifierCaptureMode = .generic
+        modifierCaptureMode = .standard
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil
