@@ -452,7 +452,7 @@ public enum TelemetryEventSpec: Sendable {
     case llmPromptResultUsed(provider: String)
     case llmPromptResultFailed(provider: String, errorType: String, errorDetail: String? = nil)
     case llmChatUsed(provider: String, source: TelemetryChatSource, messageCount: Int)
-    case llmChatFailed(provider: String, errorType: String, errorDetail: String? = nil)
+    case llmChatFailed(provider: String, source: TelemetryChatSource, errorType: String, errorDetail: String? = nil)
     case llmTransformUsed(provider: String)
     case llmTransformFailed(provider: String, errorType: String, errorDetail: String? = nil)
     /// Transforms (ADR-022) feature-level success. Fired by
@@ -1033,8 +1033,8 @@ extension TelemetryEventSpec {
             return props
         case .llmChatUsed(let provider, let source, let messageCount):
             return ["provider": provider, "source": source.rawValue, "message_count": "\(messageCount)"]
-        case .llmChatFailed(let provider, let errorType, let errorDetail):
-            var props = ["provider": provider, "error_type": errorType]
+        case .llmChatFailed(let provider, let source, let errorType, let errorDetail):
+            var props = ["provider": provider, "source": source.rawValue, "error_type": errorType]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .llmTransformUsed(let provider):
@@ -1532,7 +1532,7 @@ public enum TelemetryImplementedContract {
         .llmPromptResultUsed: ["provider"],
         .llmPromptResultFailed: ["provider", "error_type"],
         .llmChatUsed: ["provider", "source", "message_count"],
-        .llmChatFailed: ["provider", "error_type"],
+        .llmChatFailed: ["provider", "source", "error_type"],
         .llmTransformUsed: ["provider"],
         .llmTransformFailed: ["provider", "error_type"],
         .transformExecuted: ["transform_name", "capture_path", "replace_path", "llm_ms", "total_ms"],

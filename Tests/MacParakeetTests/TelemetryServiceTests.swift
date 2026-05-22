@@ -390,7 +390,7 @@ final class TelemetryServiceTests: XCTestCase {
             .transcriptionFailed(source: .file, stage: .stt, errorType: "runtime", errorDetail: rawDetail),
             .diarizationFailed(source: .meeting, errorType: "runtime", errorDetail: rawDetail),
             .llmPromptResultFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
-            .llmChatFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
+            .llmChatFailed(provider: "openai", source: .transcriptChat, errorType: "provider", errorDetail: rawDetail),
             .llmTransformFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
             .licenseActivationFailed(errorType: "network", errorDetail: rawDetail),
             .restoreFailed(errorType: "network", errorDetail: rawDetail),
@@ -1112,7 +1112,7 @@ final class TelemetryServiceTests: XCTestCase {
             .llmPromptResultUsed(provider: "openai"),
             .llmPromptResultFailed(provider: "openai", errorType: "auth"),
             .llmChatUsed(provider: "openai", source: .transcriptChat, messageCount: 3),
-            .llmChatFailed(provider: "openai", errorType: "network"),
+            .llmChatFailed(provider: "openai", source: .transcriptChat, errorType: "network"),
             .llmTransformUsed(provider: "openai"),
             .llmTransformFailed(provider: "openai", errorType: "network"),
             .transformExecuted(

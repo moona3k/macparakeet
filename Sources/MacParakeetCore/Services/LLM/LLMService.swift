@@ -302,7 +302,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                         feature: .chat
                     ))
                 } else {
-                    Telemetry.send(.llmChatFailed(provider: config.id.rawValue, errorType: kind))
+                    Telemetry.send(.llmChatFailed(provider: config.id.rawValue, source: source, errorType: kind))
                 }
                 sendLLMOperation(
                     operationID: operationID,
@@ -729,6 +729,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                         } else {
                             Telemetry.send(.llmChatFailed(
                                 provider: provider,
+                                source: source,
                                 errorType: kind
                             ))
                         }

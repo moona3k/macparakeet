@@ -137,8 +137,12 @@ public enum WhisperLanguageCatalog {
     /// the code when the model emits an unfamiliar token; without this map
     /// `normalizeKnownLanguage("english")` returns nil and the language
     /// attribution silently disappears from telemetry.
+    // English names are not guaranteed unique the way ISO codes are, so use the
+    // collision-tolerant initializer rather than `uniqueKeysWithValues:` (which
+    // traps at static-init time on a duplicate). Keep the first/canonical entry.
     private static let byEnglishName: [String: WhisperLanguage] = Dictionary(
-        uniqueKeysWithValues: all.map { ($0.englishName.lowercased(), $0) }
+        all.map { ($0.englishName.lowercased(), $0) },
+        uniquingKeysWith: { first, _ in first }
     )
 
     /// WhisperKit accepts a handful of alternate names for the same language

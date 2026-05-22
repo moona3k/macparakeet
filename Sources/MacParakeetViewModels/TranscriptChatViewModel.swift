@@ -373,6 +373,14 @@ public final class TranscriptChatViewModel {
     /// the VM keeps the meeting-Ask attribution for its entire lifetime,
     /// including post-meeting "Continue chat" persistence.
     public func markAsMeetingAskSurface() {
+        // Contract: call once at construction, before any chat activity. A later
+        // call would silently reclassify subsequent `llm_chat_used` telemetry.
+        // Debug-only assert so misuse surfaces in tests/dev without ever crashing
+        // a user's session over a telemetry-attribution slip.
+        assert(
+            chatSource == .transcriptChat && messages.isEmpty && chatHistory.isEmpty,
+            "markAsMeetingAskSurface() must be called once at construction, before any messages are sent"
+        )
         self.chatSource = .meetingAsk
     }
 

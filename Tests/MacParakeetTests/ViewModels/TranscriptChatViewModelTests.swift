@@ -1000,7 +1000,8 @@ final class TranscriptChatViewModelTests: XCTestCase {
         mockService.streamTokens = ["hi"]
         viewModel.inputText = "Q"
         viewModel.sendMessage()
-        try await Task.sleep(nanoseconds: 150_000_000)
+        // Match the 200ms streaming-task settle used throughout this suite.
+        try await Task.sleep(nanoseconds: 200_000_000)
 
         XCTAssertEqual(mockService.lastChatSource, .transcriptChat)
     }
@@ -1015,7 +1016,8 @@ final class TranscriptChatViewModelTests: XCTestCase {
         mockService.streamTokens = ["hi"]
         viewModel.inputText = "Q"
         viewModel.sendMessage()
-        try await Task.sleep(nanoseconds: 150_000_000)
+        // Match the 200ms streaming-task settle used throughout this suite.
+        try await Task.sleep(nanoseconds: 200_000_000)
 
         XCTAssertEqual(mockService.lastChatSource, .meetingAsk)
     }
