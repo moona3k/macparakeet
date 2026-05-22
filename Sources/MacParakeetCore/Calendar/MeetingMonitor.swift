@@ -62,6 +62,9 @@ public enum MeetingMonitor {
 
     /// Evaluate calendar events and return any pending monitor events.
     /// Pure function — all state passed in, no side effects.
+    ///
+    /// The three suppression sets hold `CalendarEvent.dedupeKey` values (id +
+    /// start time), not bare ids — so a rescheduled occurrence re-fires.
     public static func evaluate(
         events: [CalendarEvent],
         now: Date,
@@ -76,14 +79,14 @@ public enum MeetingMonitor {
         let candidates = events.filter { event in
             guard !event.isAllDay else { return false }
             guard event.userStatus != .declined else { return false }
-            guard !dismissedEventIds.contains(event.id) else { return false }
+            guard !dismissedEventIds.contains(event.dedupeKey) else { return false }
             return passesFilter(event, filter: config.triggerFilter)
         }
 
         var result: [MonitorEvent] = []
 
         for event in candidates {
-            if config.reminderMinutes > 0 && !remindedEventIds.contains(event.id) {
+            if config.reminderMinutes > 0 && !remindedEventIds.contains(event.dedupeKey) {
                 let reminderTime = event.startTime.addingTimeInterval(-Double(config.reminderMinutes * 60))
                 let reminderWindowEnd = reminderTime.addingTimeInterval(90)
                 if now >= reminderTime && now <= reminderWindowEnd {
@@ -98,7 +101,7 @@ public enum MeetingMonitor {
             // notification is low-cost, but auto-recording a meeting you might
             // not attend is a surprise.
             if config.mode == .autoStart && !activeRecording
-                && !countdownShownEventIds.contains(event.id)
+                && !countdownShownEventIds.contains(event.dedupeKey)
                 && shouldAutoStart(forStatus: event.userStatus) {
                 let autoStartBegin = event.startTime.addingTimeInterval(-5)
                 let autoStartEnd = event.startTime.addingTimeInterval(30)

@@ -128,6 +128,16 @@ public extension CalendarEvent {
         participants.count
     }
 
+    /// Stable key for the coordinator's per-occurrence suppression sets
+    /// (reminded / countdown-shown / dismissed). Combines `id` with the start
+    /// time so rescheduling an event to a different time is treated as a fresh
+    /// occurrence that can re-fire — keying on `id` alone permanently
+    /// suppressed a same-day reschedule. Whole-second granularity is plenty;
+    /// meetings don't move by sub-second amounts.
+    var dedupeKey: String {
+        "\(id)|\(Int(startTime.timeIntervalSinceReferenceDate))"
+    }
+
     var isMeeting: Bool {
         !participants.isEmpty || meetUrl != nil
     }

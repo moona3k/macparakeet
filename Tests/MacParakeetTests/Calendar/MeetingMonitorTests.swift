@@ -193,10 +193,34 @@ final class MeetingMonitorTests: XCTestCase {
             config: config(reminderMinutes: 5),
             activeRecording: false,
             dismissedEventIds: [],
-            remindedEventIds: ["evt-1"],
+            remindedEventIds: [evt.dedupeKey],
             countdownShownEventIds: []
         )
         XCTAssertTrue(result.isEmpty)
+    }
+
+    func testRescheduledEventReFiresReminder() {
+        let now = Date()
+        // Reminded at an earlier slot, then moved. Same id, different start
+        // time → different dedupeKey → the reminder fires again.
+        let rescheduled = event(id: "evt-1", startsIn: 5 * 60, from: now)
+        let oldSlotKey = CalendarEvent(
+            id: "evt-1",
+            title: "Standup",
+            startTime: now.addingTimeInterval(-3600),
+            endTime: now.addingTimeInterval(-1800)
+        ).dedupeKey
+        let result = MeetingMonitor.evaluate(
+            events: [rescheduled],
+            now: now,
+            config: config(reminderMinutes: 5),
+            activeRecording: false,
+            dismissedEventIds: [],
+            remindedEventIds: [oldSlotKey],
+            countdownShownEventIds: []
+        )
+        XCTAssertEqual(extractIds(result), ["evt-1"],
+                       "A reschedule to a new time must re-fire — the old slot's key must not suppress it")
     }
 
     func testReminderMinutesZeroDisablesReminder() {
@@ -321,7 +345,7 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(),
             activeRecording: false,
-            dismissedEventIds: ["evt-1"],
+            dismissedEventIds: [evt.dedupeKey],
             remindedEventIds: [],
             countdownShownEventIds: []
         )
@@ -372,7 +396,7 @@ final class MeetingMonitorTests: XCTestCase {
             activeRecording: false,
             dismissedEventIds: [],
             remindedEventIds: [],
-            countdownShownEventIds: ["evt-1"]
+            countdownShownEventIds: [evt.dedupeKey]
         )
         XCTAssertTrue(result.isEmpty)
     }
@@ -549,7 +573,7 @@ final class MeetingMonitorTests: XCTestCase {
             now: now,
             config: config(),
             activeRecording: false,
-            dismissedEventIds: ["dismissed"],
+            dismissedEventIds: [dismissed.dedupeKey],
             remindedEventIds: [],
             countdownShownEventIds: []
         )

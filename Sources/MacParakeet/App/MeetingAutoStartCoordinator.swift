@@ -333,7 +333,7 @@ final class MeetingAutoStartCoordinator {
     /// - `.userDismissed` → add to dismissed set so monitor stops emitting
     /// - `.programmaticClose` → no-op (another toast preempted us)
     private func showAutoStartCountdown(_ event: CalendarEvent) {
-        countdownShownEventIds.insert(event.id)
+        countdownShownEventIds.insert(event.dedupeKey)
         // Actual lead time — how far before T-0 the toast went up. The
         // auto-start window allows up to +30s past T-0, so clamp to 0
         // when we surface it after the event has already started.
@@ -391,7 +391,7 @@ final class MeetingAutoStartCoordinator {
             onAutoStartConfirmed(event.title)
             logger.info("Auto-start confirmed for event id=\(event.id, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
         case .userDismissed:
-            dismissedEventIds.insert(event.id)
+            dismissedEventIds.insert(event.dedupeKey)
             Telemetry.send(.calendarAutoStartCancelled(reason: "user_cancel"))
             logger.info("Auto-start cancelled by user for event id=\(event.id, privacy: .public)")
         case .programmaticClose:
@@ -445,7 +445,7 @@ final class MeetingAutoStartCoordinator {
             autoStopCountdownEventId = nil
             logger.info("Auto-stop confirmed for event id=\(event.id, privacy: .public)")
         case .userDismissed:
-            dismissedEventIds.insert(event.id)
+            dismissedEventIds.insert(event.dedupeKey)
             autoStopCountdownEventId = nil
             Telemetry.send(.calendarAutoStopCancelled)
             logger.info("Auto-stop cancelled by user for event id=\(event.id, privacy: .public)")
@@ -506,7 +506,7 @@ private extension MeetingAutoStartCoordinator {
         // Mark before posting so a failed delivery doesn't cause us to
         // re-attempt every poll tick — better to miss one reminder than
         // spam the user.
-        remindedEventIds.insert(event.id)
+        remindedEventIds.insert(event.dedupeKey)
 
         // Defense in depth: we requested authorization at calendar grant
         // time, but the user may have revoked notifications since. Without
@@ -584,7 +584,7 @@ private extension MeetingAutoStartCoordinator {
     /// `try?` — silent failure is acceptable for a 24-hour janitor.
     private func cleanupStaleIds() async {
         guard let events = try? await calendarService.fetchUpcomingEvents(days: 7) else { return }
-        let liveIds = Set(events.map(\.id))
+        let liveIds = Set(events.map(\.dedupeKey))
         dismissedEventIds.formIntersection(liveIds)
         remindedEventIds.formIntersection(liveIds)
         countdownShownEventIds.formIntersection(liveIds)
