@@ -14,8 +14,8 @@ MacParakeet has these primary UI surfaces:
 7. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
 8. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
 9. **Menu Bar** -- Quick access and status
-10. **Calendar Countdown Toasts** -- Implemented but hidden from v0.6 by `AppFeatures.calendarEnabled = false`
-11. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls are hidden in v0.6
+10. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start
+11. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls appear once Calendar access is granted
 
 Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutter. The app should feel like part of macOS, not a web app in a wrapper.
 
@@ -716,7 +716,7 @@ Row anatomy:
 
 Settings open in the content area when "Settings" is selected in the sidebar. The current information architecture is a four-tab shell with a persistent header, search field, and status-aware tab badges:
 
-- **Modes** — Audio Input, Dictation, Transcription, and Meeting Recording cards. Calendar controls are folded into Meeting Recording but hidden in v0.6 while `AppFeatures.calendarEnabled = false`.
+- **Modes** — Audio Input, Dictation, Transcription, and Meeting Recording cards. Calendar controls are folded into Meeting Recording and appear once Calendar access is granted (`AppFeatures.calendarEnabled = true`).
 - **Engine** — Speech engine selector, Whisper language picker, and local model status/management.
 - **AI** — Optional provider setup for summaries, transcript chat, prompt actions, and live Ask.
 - **System** — Startup, permissions, storage, updates, privacy/telemetry, onboarding reset, about, and fenced Reset & Cleanup actions.

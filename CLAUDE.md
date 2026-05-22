@@ -17,12 +17,12 @@ A **fast, private, local-first voice app** for macOS. The v0.6 release ships sys
 | Channel | Agent Assumption | Features |
 |---------|------------------|----------|
 | Stable DMG | User-facing release, recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, optional WhisperKit, exports, vocabulary, AI features |
-| `main` | Development | v0.6 release scope plus productized Transforms enabled; hidden calendar auto-start/reminder code remains under `AppFeatures.calendarEnabled = false` |
+| `main` | Development | v0.6 release scope plus productized Transforms and calendar auto-start enabled (`AppFeatures.calendarEnabled = true`); calendar auto-start defaults to mode `.off` (strictly opt-in) |
 
 When editing public-facing docs, preserve this release boundary: v0.6 includes
 meeting recording and WhisperKit. Calendar reminders, auto-start, and auto-stop
-are implemented in source but hidden behind `AppFeatures.calendarEnabled =
-false` pending hands-on end-to-end validation.
+are implemented and enabled on `main` (`AppFeatures.calendarEnabled = true`);
+calendar auto-start defaults to mode `.off`, so it is strictly opt-in.
 
 ## Quick Navigation
 
@@ -117,7 +117,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 | ADR-014 | Meeting recording via ScreenCaptureKit system audio | `spec/adr/014-meeting-recording.md` |
 | ADR-015 | Concurrent dictation and meeting recording | `spec/adr/015-concurrent-dictation-meeting.md` |
 | ADR-016 | Centralized STT runtime and two-slot scheduler | `spec/adr/016-centralized-stt-runtime-scheduler.md` |
-| ADR-017 | Calendar-driven meeting auto-start (Phases 1 + 2 implemented but hidden from v0.6; Phase 3 proposed) | `spec/adr/017-calendar-meeting-auto-start.md` |
+| ADR-017 | Calendar-driven meeting auto-start (Phases 1 + 2 implemented and enabled; auto-start defaults to opt-in `.off`; Phase 3 proposed) | `spec/adr/017-calendar-meeting-auto-start.md` |
 | ADR-018 | Live meeting Ask tab (Insights dropped per amendment; Ask shipped) | `spec/adr/018-live-meeting-insights-and-ask.md` |
 | ADR-019 | Crash-resilient meeting recording (implemented) | `spec/adr/019-crash-resilient-meeting-recording.md` |
 | ADR-020 | Live meeting notepad + memo-steered summaries (implemented) | `spec/adr/020-live-meeting-notepad-and-memo-summaries.md` |
@@ -128,7 +128,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 
 ## Current Phase
 
-**Current main branch** -- v0.6 release scope includes meeting recording, optional WhisperKit multilingual STT, and productized Transforms. Calendar auto-start/reminders are implemented in source but hidden behind `AppFeatures.calendarEnabled = false`.
+**Current main branch** -- v0.6 release scope includes meeting recording, optional WhisperKit multilingual STT, and productized Transforms. Calendar auto-start/reminders are implemented and enabled (`AppFeatures.calendarEnabled = true`) after the post-#318 reliability hardening; auto-start defaults to mode `.off`, so it stays opt-in.
 
 - **v0.1** MVP -- System-wide dictation, file transcription, overlay, history, export, SQLite, CLI, STT engine
 - **v0.2** Clean Pipeline -- Text processing (filler removal, custom words, snippets), Vocabulary UI, feedback form
@@ -136,7 +136,7 @@ All ADRs are in `spec/adr/`. These are locked decisions -- don't second-guess th
 - **v0.4** Polish + Launch -- Diarization, custom hotkeys, Sparkle updates, LLM providers, voice stats, distribution
 - **v0.5** Data, UI & Prompts -- Private dictation, multi-conversation chat, favorites, video player, split-pane detail, library grid, prompt library, multi-summary, open-source release
 - **v0.6** Meeting Recording + Multilingual STT + Transforms -- ScreenCaptureKit system audio + raw AVAudioEngine mic capture by default, retained opt-in VPIO plumbing, fragmented MP4 source files + crash recovery (ADR-019), transcript-layer suppression, concurrent with dictation (ADR-015), centralized STT runtime + scheduler (ADR-016), sacred-geometry recording pill + Notes/Transcript/Ask meeting panel, customizable Ask quick prompts, library integration, prompt/result/chat support (ADR-014), live notepad + memo-steered summaries with `{{userNotes}}` template variable + slash commands (ADR-020), optional WhisperKit engine support for non-Parakeet languages, persisted speech-engine preference, Whisper language picker/default, CLI `transcribe --engine parakeet|whisper --language`, Whisper model download path, engine pinning for active meeting sessions and crash recovery (ADR-021), and productized system-wide LLM Transforms with `Polish`, `Distill`, and `Decide` built-ins (ADR-022).
-- **Calendar auto-start** -- Implemented in code (ADR-017 Phases 1 + 2) but hidden from v0.6 by `AppFeatures.calendarEnabled = false`.
+- **Calendar auto-start** -- Implemented (ADR-017 Phases 1 + 2) and enabled via `AppFeatures.calendarEnabled = true` after the post-#318 reliability hardening. Defaults to mode `.off` (opt-in); Phase 3 (late-join/retro-link) remains proposed.
 
 ## Key Patterns
 

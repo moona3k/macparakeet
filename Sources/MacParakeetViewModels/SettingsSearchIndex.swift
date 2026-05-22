@@ -88,8 +88,8 @@ public enum SettingsSearchIndex {
     ]
 
     /// Ids gated on `AppFeatures.calendarEnabled` independently of meeting
-    /// recording. Filtered when calendar is hidden so search doesn't land
-    /// on the (currently invisible) calendar subsection.
+    /// recording. Filtered out when the flag is off so search doesn't land
+    /// on a hidden calendar subsection.
     private static let calendarGatedIds: Set<String> = [
         "meeting.calendar"
     ]

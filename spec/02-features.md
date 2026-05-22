@@ -83,7 +83,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 │  • Meeting engine/language pinning for live + recovery + final   │
 │  • Transforms: Polish / Distill / Decide selected text anywhere  │
 │  • CLI transforms + local Transform history                      │
-│  • Calendar auto-start implemented but hidden behind feature flag │
+│  • Calendar auto-start enabled (opt-in; default mode .off)        │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ▼
@@ -1516,7 +1516,7 @@ exposes a terminal provider/model/token metadata envelope.
 
 ## v0.6 — Meeting Recording + Multilingual STT
 
-The v0.6 scope includes system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional WhisperKit multilingual STT (ADR-021), the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented in source but hidden by `AppFeatures.calendarEnabled = false`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 feature surface.
+The v0.6 scope includes system audio + mic capture (ADR-014, ADR-015), the centralized STT runtime (ADR-016), optional WhisperKit multilingual STT (ADR-021), the live Ask tab (ADR-018), crash-resilient recording (ADR-019), and the live notepad plus `{{userNotes}}` plumbing from ADR-020. Calendar-driven auto-start (ADR-017) is implemented and enabled (`AppFeatures.calendarEnabled = true`), defaulting to opt-in mode `.off`. The full v0.6 backlog lives in `spec/README.md`; the F-numbered entries below cover the ADR-020 feature surface.
 
 Meeting transcription uses the current speech engine captured at recording start. Parakeet remains the default; WhisperKit can be selected before starting a meeting for languages outside Parakeet coverage.
 

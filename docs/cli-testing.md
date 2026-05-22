@@ -364,7 +364,7 @@ swift run macparakeet-cli meetings export <meeting> --format md --stdout
 
 ## Calendar
 
-Calendar commands inspect the same EventKit pipeline used by hidden calendar auto-start/reminder code. The v0.6 app surfaces are hidden behind `AppFeatures.calendarEnabled = false`, so this CLI surface is mainly for headless verification. Calendar permission must already be granted through a build with the GUI calendar permission surface enabled, a previous grant, or macOS Settings.
+Calendar commands inspect the same EventKit pipeline used by the calendar auto-start/reminder code, which is enabled (`AppFeatures.calendarEnabled = true`). This CLI surface remains useful for headless verification. Calendar permission must already be granted through the GUI calendar permission surface, a previous grant, or macOS Settings — the CLI is a separate TCC identity and won't prompt on its own.
 
 ```bash
 swift run macparakeet-cli calendar upcoming --days 1 --filter link

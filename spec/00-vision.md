@@ -119,7 +119,7 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 
 ## What MacParakeet Is Not
 
-- **Not a full meeting intelligence app** -- MacParakeet records and transcribes meetings, has live notes, Ask, and prompt-based action summaries. Calendar auto-start code exists but is hidden from v0.6; it does not do entity extraction, cross-meeting memory, CRM-style enrichment, or team intelligence. That deeper intelligence layer is Oatmeal.
+- **Not a full meeting intelligence app** -- MacParakeet records and transcribes meetings, has live notes, Ask, and prompt-based action summaries. Calendar auto-start is implemented and enabled (opt-in); it does not do entity extraction, cross-meeting memory, CRM-style enrichment, or team intelligence. That deeper intelligence layer is Oatmeal.
 - **Not a note-taking app** -- It puts text where your cursor is. Your note app is your note app.
 - **Not a cloud service** -- No hosted transcription backend, no accounts, no sync product. Core speech stays local.
 - **Not an enterprise product** -- Single-user, single-Mac. No admin console, no team management (initially).
@@ -477,7 +477,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 - Settings speech-engine picker and Whisper language picker
 - CLI `transcribe --engine parakeet|whisper --language`
 - Meeting recordings pin engine/language for live preview, recovery, and finalization
-- Calendar auto-start/auto-stop code is implemented but hidden from v0.6 by `AppFeatures.calendarEnabled = false`
+- Calendar auto-start/auto-stop is implemented and enabled (`AppFeatures.calendarEnabled = true`); defaults to opt-in mode `.off`
 
 ### v0.7: Post-v0.6 polish
 

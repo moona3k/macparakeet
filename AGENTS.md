@@ -17,8 +17,8 @@ an optional local multilingual engine for languages Parakeet does not cover.
 **Release status:** v0.6 ships system-wide dictation, file/URL transcription,
 meeting recording, optional WhisperKit multilingual STT, and productized
 Transforms on `main`. Calendar reminders, auto-start, and auto-stop are
-implemented in source but hidden behind `AppFeatures.calendarEnabled = false`
-pending hands-on end-to-end validation.
+implemented and enabled on `main` (`AppFeatures.calendarEnabled = true`);
+calendar auto-start defaults to mode `.off`, so it is strictly opt-in.
 
 Free and open-source (GPL-3.0). Apple Silicon only. Requires macOS 14.2+.
 
