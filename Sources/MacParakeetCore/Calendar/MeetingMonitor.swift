@@ -92,9 +92,14 @@ public enum MeetingMonitor {
             }
 
             // Auto-start and late-join only fire when mode allows it AND we're
-            // not already recording. Phase D keeps these as harmless no-ops
-            // because the coordinator only handles `.reminderDue`.
-            if config.mode == .autoStart && !activeRecording && !countdownShownEventIds.contains(event.id) {
+            // not already recording. They are *also* gated on RSVP: we don't
+            // auto-record an invite the user declined or hasn't accepted
+            // (`.pending`). Reminders stay lenient (declined-only) since a
+            // notification is low-cost, but auto-recording a meeting you might
+            // not attend is a surprise.
+            if config.mode == .autoStart && !activeRecording
+                && !countdownShownEventIds.contains(event.id)
+                && shouldAutoStart(forStatus: event.userStatus) {
                 let autoStartBegin = event.startTime.addingTimeInterval(-5)
                 let autoStartEnd = event.startTime.addingTimeInterval(30)
                 if now >= autoStartBegin && now <= autoStartEnd {
@@ -118,6 +123,21 @@ public enum MeetingMonitor {
         }
 
         return result
+    }
+
+    /// Whether an event is eligible for *auto-start* (and late-join) based on
+    /// the user's RSVP. `.declined` is already filtered out of candidates;
+    /// this additionally blocks `.pending` (invited, not yet accepted). Own
+    /// meetings and personal blocks surface as `.unknown`/`nil` and remain
+    /// eligible. Auto-*stop* is intentionally NOT gated by this — once we're
+    /// recording an event we still want to stop at its end regardless of RSVP.
+    private static func shouldAutoStart(forStatus status: EventParticipant.ParticipantStatus?) -> Bool {
+        switch status {
+        case .declined, .pending:
+            return false
+        case .accepted, .tentative, .unknown, .none:
+            return true
+        }
     }
 
     private static func passesFilter(_ event: CalendarEvent, filter: MeetingTriggerFilter) -> Bool {
