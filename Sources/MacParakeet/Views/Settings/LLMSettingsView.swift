@@ -44,7 +44,7 @@ struct LLMSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer(minLength: DesignSystem.Spacing.md)
-                        SecureField(viewModel.selectedProviderID == .lmstudio ? "LM Studio token" : "sk-...", text: $viewModel.apiKeyInput)
+                        SecureField(viewModel.apiKeyPlaceholder, text: $viewModel.apiKeyInput)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 220)
                     }

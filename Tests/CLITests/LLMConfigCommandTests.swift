@@ -98,6 +98,20 @@ final class LLMConfigCommandTests: XCTestCase {
         XCTAssertTrue(config.isLocal)
     }
 
+    func testInlineOptionsBuildLMStudioConfigWithoutAPIKey() throws {
+        let options = try LLMInlineOptions.parse([
+            "--provider", "lmstudio",
+            "--model", "local-model",
+        ])
+
+        let config = try options.buildConfig(environment: [:])
+        XCTAssertEqual(config.id, .lmstudio)
+        XCTAssertNil(config.apiKey)
+        XCTAssertEqual(config.baseURL.absoluteString, "http://localhost:1234/v1")
+        XCTAssertEqual(config.modelName, "local-model")
+        XCTAssertTrue(config.isLocal)
+    }
+
     func testInlineOptionsReadStandardProviderEnvironment() throws {
         let options = try LLMInlineOptions.parse([
             "--provider", "anthropic",

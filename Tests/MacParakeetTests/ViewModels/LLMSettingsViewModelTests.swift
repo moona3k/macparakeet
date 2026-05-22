@@ -110,6 +110,25 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.requiresAPIKey)
     }
 
+    func testAPIKeyPlaceholderIsProviderSpecific() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .lmstudio
+        XCTAssertEqual(viewModel.apiKeyPlaceholder, "LM Studio token")
+
+        viewModel.selectedProviderID = .anthropic
+        XCTAssertEqual(viewModel.apiKeyPlaceholder, "sk-ant-...")
+
+        viewModel.selectedProviderID = .openrouter
+        XCTAssertEqual(viewModel.apiKeyPlaceholder, "sk-or-...")
+
+        viewModel.selectedProviderID = .gemini
+        XCTAssertEqual(viewModel.apiKeyPlaceholder, "Gemini API key")
+
+        viewModel.selectedProviderID = .openaiCompatible
+        XCTAssertEqual(viewModel.apiKeyPlaceholder, "Optional API key")
+    }
+
     func testOpenAICompatibleProviderStartsInCustomModelMode() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openaiCompatible
