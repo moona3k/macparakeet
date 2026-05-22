@@ -272,4 +272,73 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
 
         coordinator.stop()
     }
+
+    // MARK: - Auto-stop idempotency (#1 — privacy)
+
+    func testAutoStopCompletionAfterExternalStopDoesNotConfirm() async {
+        // The privacy regression: a calendar auto-stop countdown was up,
+        // the user manually stopped the recording during the 30s window, and
+        // when the countdown completed the old code blindly toggled — which,
+        // with no recording in flight, *started* a brand-new one. The fix:
+        // the completion re-verifies ownership (cleared by the self-heal) and
+        // routes through an idempotent stop. Here we assert the completion is
+        // a no-op once the binding is gone.
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+
+        recordingActiveStub = true
+        coordinator.testHook_simulateAutoStartConfirmed(eventId: "evt-1")
+        XCTAssertEqual(coordinator.testHook_autoStartedEventId, "evt-1")
+
+        // User stops the recording themselves; the next poll self-heals the
+        // binding (and dismisses any live auto-stop toast).
+        recordingActiveStub = false
+        calendarService.stubEvents = []
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+        XCTAssertNil(coordinator.testHook_autoStartedEventId)
+
+        // The auto-stop countdown completes *after* the external stop.
+        let event = CalendarEvent(
+            id: "evt-1",
+            title: "Wrap",
+            startTime: Date().addingTimeInterval(-1800),
+            endTime: Date().addingTimeInterval(5)
+        )
+        coordinator.handleAutoStopOutcome(.completed, for: event)
+        XCTAssertEqual(autoStopConfirmedCount, 0,
+                       "Auto-stop completion after an external stop must NOT confirm — otherwise the idempotent stop could hit a replacement recording, and the old toggle would have *started* one")
+
+        coordinator.stop()
+    }
+
+    func testAutoStopCompletionWhileOwnedAndActiveConfirms() async {
+        // Guard against the ownership recheck being too aggressive: the happy
+        // path (binding still owns the active recording) must still stop.
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+
+        recordingActiveStub = true
+        coordinator.testHook_simulateAutoStartConfirmed(eventId: "evt-1")
+
+        let event = CalendarEvent(
+            id: "evt-1",
+            title: "Wrap",
+            startTime: Date().addingTimeInterval(-1800),
+            endTime: Date().addingTimeInterval(5)
+        )
+        coordinator.handleAutoStopOutcome(.completed, for: event)
+        XCTAssertEqual(autoStopConfirmedCount, 1,
+                       "An owned, still-active recording must auto-stop on completion")
+
+        coordinator.stop()
+    }
 }

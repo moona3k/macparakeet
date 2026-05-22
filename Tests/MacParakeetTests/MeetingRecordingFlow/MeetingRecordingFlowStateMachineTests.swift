@@ -12,6 +12,22 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(effects, [.checkPermissions])
     }
 
+    func testStopRequestedWhileIdleIsNoOp() {
+        // `MeetingRecordingFlowCoordinator.stopFromCalendar()` (the idempotent
+        // calendar auto-stop path) relies on `.stopRequested` being a no-op
+        // from `.idle` — it must NEVER start a recording. This invariant is
+        // what makes auto-stop safe to fire even if the recording already
+        // ended (see #1 privacy fix).
+        var machine = MeetingRecordingFlowStateMachine()
+
+        let effects = machine.handle(.stopRequested)
+
+        XCTAssertEqual(machine.state, .idle)
+        XCTAssertTrue(effects.isEmpty)
+        XCTAssertEqual(machine.generation, 0,
+                       "No generation bump means no recording was started")
+    }
+
     func testPermissionDeniedReturnsToIdleAndPresentsAlert() {
         var machine = MeetingRecordingFlowStateMachine()
         _ = machine.handle(.startRequested)

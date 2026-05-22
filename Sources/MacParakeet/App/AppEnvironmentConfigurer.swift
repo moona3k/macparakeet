@@ -323,7 +323,10 @@ final class AppEnvironmentConfigurer {
                     meetingCoordinator?.startFromCalendar(title: title)
                 },
                 onAutoStopConfirmed: { [weak meetingCoordinator] in
-                    meetingCoordinator?.toggleRecording()
+                    // Idempotent stop — never a toggle. A toggle would *start*
+                    // a new recording if the user already stopped the
+                    // auto-started one during the 30s auto-stop countdown.
+                    meetingCoordinator?.stopFromCalendar()
                 }
             )
             // The recording flow tells the calendar coordinator when an

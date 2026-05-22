@@ -190,6 +190,11 @@ final class MeetingAutoStartCoordinator {
         if !activeRecording, autoStartedEventId != nil {
             autoStartedEventId = nil
             autoStopCountdownEventId = nil
+            // Dismiss any stale auto-stop countdown — the recording it was
+            // about to stop is already gone. Without this the toast keeps
+            // ticking and its completion would fire the stop against whatever
+            // recording exists next. `close()` is a no-op when nothing's up.
+            toastController.close()
         }
 
         let mode = settingsViewModel.calendarAutoStartMode
@@ -425,6 +430,16 @@ final class MeetingAutoStartCoordinator {
     func handleAutoStopOutcome(_ outcome: MeetingCountdownToastOutcome, for event: CalendarEvent) {
         switch outcome {
         case .completed, .primedEarly:
+            // Re-verify ownership at *fire* time, not just at show time. If the
+            // recording stopped (or was replaced) during the 30s countdown,
+            // the self-heal cleared the binding — don't stop whatever is
+            // recording now. Belt-and-suspenders with the toast dismissal in
+            // `pollAsync`; keeps this handler correct in isolation.
+            guard autoStartedEventId == event.id else {
+                autoStopCountdownEventId = nil
+                logger.info("Auto-stop completion ignored — binding no longer owns event id=\(event.id, privacy: .public)")
+                return
+            }
             onAutoStopConfirmed()
             autoStartedEventId = nil
             autoStopCountdownEventId = nil
