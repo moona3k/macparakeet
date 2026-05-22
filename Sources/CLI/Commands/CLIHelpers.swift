@@ -47,10 +47,12 @@ enum CLILookupError: Error, LocalizedError {
 
 enum CLIInputError: Error, LocalizedError {
     case empty
+    case invalidEncoding
 
     var errorDescription: String? {
         switch self {
         case .empty: return "Input is empty."
+        case .invalidEncoding: return "Input must be valid UTF-8."
         }
     }
 }
@@ -287,7 +289,12 @@ enum CLIErrorType {
             }
         }
         if error is CLILookupError { return lookup }
-        if error is CLIInputError { return inputEmpty }
+        if let input = error as? CLIInputError {
+            switch input {
+            case .empty: return inputEmpty
+            case .invalidEncoding: return validation
+            }
+        }
         if let transforms = error as? CLITransformsError {
             return transforms.errorType
         }

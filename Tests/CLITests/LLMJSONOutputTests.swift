@@ -158,6 +158,7 @@ final class LLMJSONOutputTests: XCTestCase {
         XCTAssertEqual(CLIErrorType.key(for: CLILookupError.emptyID), "lookup")
         XCTAssertEqual(CLIErrorType.key(for: CLILookupError.notFound("nope")), "lookup")
         XCTAssertEqual(CLIErrorType.key(for: CLIInputError.empty), "input_empty")
+        XCTAssertEqual(CLIErrorType.key(for: CLIInputError.invalidEncoding), "validation")
         XCTAssertEqual(CLIErrorType.key(for: ValidationError("bad combo")), "validation")
 
         struct UnknownError: Error {}

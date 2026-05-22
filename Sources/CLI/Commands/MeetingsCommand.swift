@@ -299,11 +299,9 @@ struct MeetingsCommand: AsyncParsableCommand {
 
             func run() async throws {
                 try emitJSONOrRethrow(json: json) {
-                    let db = try makeDatabaseManager(database: database)
-                    let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
-                    let resultRepo = PromptResultRepository(dbQueue: db.dbQueue)
-                    let transcription = try findMeeting(idOrName: meeting, repo: transcriptionRepo)
-                    let results = try resultRepo
+                    let repositories = try makeMeetingResultRepositories(database: database)
+                    let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                    let results = try repositories.promptResults
                         .fetchAll(transcriptionId: transcription.id)
                         .map { MeetingPromptResultRecord(result: $0, transcription: transcription) }
 
@@ -371,12 +369,12 @@ struct MeetingsCommand: AsyncParsableCommand {
 
             func run() async throws {
                 try emitJSONOrRethrow(json: json) {
-                    let db = try makeDatabaseManager(database: database)
-                    let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
-                    let resultRepo = PromptResultRepository(dbQueue: db.dbQueue)
-                    let transcription = try findMeeting(idOrName: meeting, repo: transcriptionRepo)
+                    let repositories = try makeMeetingResultRepositories(database: database)
+                    let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
                     let resultContent = try resultInput(content: content, stdin: stdin)
-                    let resultName = normalizedNonEmptyText(name) ?? name
+                    guard let resultName = normalizedNonEmptyText(name) else {
+                        throw ValidationError("--name must not be empty.")
+                    }
                     let promptSnapshot = normalizedNonEmptyText(promptContent)
                         ?? "External result imported with `macparakeet-cli meetings results add`."
                     let now = Date()
@@ -391,7 +389,7 @@ struct MeetingsCommand: AsyncParsableCommand {
                         updatedAt: now
                     )
 
-                    try resultRepo.save(promptResult)
+                    try repositories.promptResults.save(promptResult)
                     let record = MeetingPromptResultRecord(result: promptResult, transcription: transcription)
                     if json {
                         try printJSON(record)
@@ -600,9 +598,22 @@ private struct MeetingPromptResultRecord: Encodable {
     }
 }
 
+private struct MeetingResultRepositories {
+    let transcriptions: TranscriptionRepository
+    let promptResults: PromptResultRepository
+}
+
 private func makeDatabaseManager(database: String?) throws -> DatabaseManager {
     try AppPaths.ensureDirectories()
     return try DatabaseManager(path: resolvedDatabasePath(database))
+}
+
+private func makeMeetingResultRepositories(database: String?) throws -> MeetingResultRepositories {
+    let dbManager = try makeDatabaseManager(database: database)
+    return MeetingResultRepositories(
+        transcriptions: TranscriptionRepository(dbQueue: dbManager.dbQueue),
+        promptResults: PromptResultRepository(dbQueue: dbManager.dbQueue)
+    )
 }
 
 private func makeTranscriptionRepository(database: String?) throws -> TranscriptionRepository {
@@ -646,7 +657,7 @@ private func notesInput(text: String?, stdin: Bool) throws -> String {
     if stdin {
         let data = FileHandle.standardInput.readDataToEndOfFile()
         guard let decoded = String(data: data, encoding: .utf8) else {
-            throw CLIInputError.empty
+            throw CLIInputError.invalidEncoding
         }
         value = decoded
     } else {
@@ -661,7 +672,7 @@ private func resultInput(content: String?, stdin: Bool) throws -> String {
     if stdin {
         let data = FileHandle.standardInput.readDataToEndOfFile()
         guard let decoded = String(data: data, encoding: .utf8) else {
-            throw CLIInputError.empty
+            throw CLIInputError.invalidEncoding
         }
         value = decoded
     } else {
