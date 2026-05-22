@@ -889,6 +889,14 @@ public final class SettingsViewModel {
         Telemetry.send(granted ? .permissionGranted(permission: .calendar) : .permissionDenied(permission: .calendar))
         if granted {
             await CalendarNotificationAuthorization.requestIfNeeded()
+            // Match the onboarding grant flow (OnboardingViewModel applies
+            // .notify on grant): a user who explicitly grants Calendar access
+            // from Settings intends to use the feature, so default them into
+            // the safe .notify mode. Only when still .off — never clobber an
+            // existing .autoStart choice.
+            if calendarAutoStartMode == .off {
+                calendarAutoStartMode = .notify
+            }
         }
         return granted
     }
