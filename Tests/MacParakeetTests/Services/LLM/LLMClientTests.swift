@@ -223,6 +223,25 @@ final class LLMClientTests: XCTestCase {
         XCTAssertNil(capturedRequest?.value(forHTTPHeaderField: "Authorization"))
     }
 
+    func testLMStudioAuthHeaderSetFromOptionalAPIKey() async throws {
+        var capturedRequest: URLRequest?
+
+        MockURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), self.validResponseData())
+        }
+
+        let config = LLMProviderConfig.lmstudio(apiKey: "lm-token", model: "local-model")
+        _ = try await llmClient.chatCompletion(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            config: config,
+            options: .default
+        )
+
+        XCTAssertEqual(capturedRequest?.url?.absoluteString, "http://localhost:1234/v1/chat/completions")
+        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "Authorization"), "Bearer lm-token")
+    }
+
     // MARK: - Request Body
 
     func testRequestBodyContainsModelAndMessages() async throws {

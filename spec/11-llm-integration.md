@@ -67,7 +67,7 @@ The service boundary stays stable even though the transport is mixed.
 | OpenAI-Compatible | Custom | User-supplied | Optional API key; local loopback endpoints are treated as local |
 | Google Gemini | Cloud | `https://generativelanguage.googleapis.com/v1beta/openai` | `Authorization: Bearer` |
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
-| LM Studio | Local | `http://localhost:1234/v1` | `apiKey: nil` in config |
+| LM Studio | Local | `http://localhost:1234/v1` | Optional API token (`Authorization: Bearer`) |
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | `Authorization: Bearer` |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 
@@ -83,7 +83,7 @@ The service boundary stays stable even though the transport is mixed.
 public struct LLMProviderConfig: Codable, Sendable, Equatable {
     public let id: LLMProviderID
     public let baseURL: URL
-    public let apiKey: String?         // nil for local providers; client injects Bearer ollama for Ollama
+    public let apiKey: String?         // nil for providers without auth; optional for LM Studio/OpenAI-compatible
     public let modelName: String       // e.g. "claude-sonnet-4-6", "gpt-4.1", "qwen3.5:4b"
     public let isLocal: Bool           // true for Ollama, LM Studio, and loopback OpenAI-compatible endpoints
 }
@@ -446,9 +446,10 @@ macparakeet-cli llm chat transcript.txt --provider openai --api-key sk-... --que
 # Transform text with custom instruction
 macparakeet-cli llm transform input.txt --provider anthropic --api-key sk-ant-... --prompt "Make formal"
 
-# LM Studio provider (no API key needed)
+# LM Studio provider (API key optional)
 macparakeet-cli llm test-connection --provider lmstudio --model qwen3.5-27b
 macparakeet-cli llm summarize transcript.txt --provider lmstudio --model qwen3.5-27b
+macparakeet-cli llm summarize transcript.txt --provider lmstudio --model qwen3.5-27b --api-key-env LM_API_TOKEN
 ```
 
 ```bash

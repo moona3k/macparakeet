@@ -416,7 +416,8 @@ swift run macparakeet-cli vocab snippets delete <ID>
 
 All LLM commands require `--provider`; `--api-key` is required only for providers
 that need one. Ollama, LM Studio, OpenAI-compatible local endpoints, and Local
-CLI can run without an API key.
+CLI can run without an API key; LM Studio also accepts an optional API token
+when its server-side authentication is enabled.
 
 ### Supported Providers
 
@@ -428,7 +429,7 @@ CLI can run without an API key.
 | `gemini` | gemini-2.5-flash | Yes |
 | `openrouter` | anthropic/claude-sonnet-4 | Yes |
 | `ollama` | qwen3.5:4b | No (local) |
-| `lmstudio` | user-selected in LM Studio | No (local) |
+| `lmstudio` | user-selected in LM Studio | Optional (local) |
 | `cli` | N/A (tool decides) | No (tool manages auth) |
 
 ### Test Connection
@@ -477,6 +478,9 @@ swift run macparakeet-cli llm test-connection --provider lmstudio --model qwen3.
 
 # Summarize via LM Studio's OpenAI-compatible endpoint
 swift run macparakeet-cli llm summarize transcript.txt --provider lmstudio --model qwen3.5-27b
+
+# Use an LM Studio API token when Require Authentication is enabled
+swift run macparakeet-cli llm summarize transcript.txt --provider lmstudio --model qwen3.5-27b --api-key-env LM_API_TOKEN
 ```
 
 ### Common Options

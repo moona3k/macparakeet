@@ -73,6 +73,20 @@ final class LLMConfigStoreTests: XCTestCase {
         XCTAssertEqual(loaded?.isLocal, true)
     }
 
+    func testLMStudioOptionalAPIKeyStoredInKeychain() throws {
+        let config = LLMProviderConfig.lmstudio(apiKey: "lm-token", model: "local-model")
+        try store.saveConfig(config)
+
+        XCTAssertEqual(try keychain.getString("llm_api_key_lmstudio"), "lm-token")
+        let data = defaults.data(forKey: "llm_provider_config")!
+        let json = try JSONSerialization.jsonObject(with: data) as! [String: Any]
+        XCTAssertNil(json["apiKey"])
+
+        let loaded = try store.loadConfig()
+        XCTAssertEqual(loaded?.id, .lmstudio)
+        XCTAssertEqual(loaded?.apiKey, "lm-token")
+    }
+
     func testOverwriteAPIKey() throws {
         let config1 = LLMProviderConfig.openai(apiKey: "old-key")
         try store.saveConfig(config1)
