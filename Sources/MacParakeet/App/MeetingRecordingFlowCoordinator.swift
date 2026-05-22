@@ -203,16 +203,18 @@ final class MeetingRecordingFlowCoordinator {
     /// calendar coordinator can drop its binding, and emits
     /// `calendar_auto_start_failed{reason=state_busy}` so we can see how
     /// often back-to-back meetings actually collide in the wild.
-    func startFromCalendar(title: String? = nil) {
+    @discardableResult
+    func startFromCalendar(title: String? = nil) -> Int? {
         guard stateMachine.state == .idle else {
             Telemetry.send(.calendarAutoStartFailed(reason: "state_busy"))
             onAutoStartFailed?()
-            return
+            return nil
         }
         pendingTrigger = .calendarAutoStart
         pendingTitle = title
         currentMeetingOperationContext = ObservabilityOperationContext()
         sendEvent(.startRequested)
+        return stateMachine.generation
     }
 
     /// Calendar-driven stop. **Idempotent: stops an in-flight recording but
@@ -224,11 +226,14 @@ final class MeetingRecordingFlowCoordinator {
     /// Only `.stopRequested` is ever sent, and only from states that have
     /// something to stop — `(.idle, .stopRequested)` is a state-machine no-op
     /// anyway, but we don't even send it.
-    func stopFromCalendar() {
+    func stopFromCalendar(recordingGeneration: Int) {
+        guard stateMachine.generation == recordingGeneration else { return }
         switch stateMachine.state {
+        case .checkingPermissions:
+            sendEvent(.cancelRequested)
         case .recording, .starting, .stopping:
             sendEvent(.stopRequested)
-        case .idle, .checkingPermissions, .transcribing, .finishing:
+        case .idle, .transcribing, .finishing:
             break  // nothing to stop — and never start
         }
     }

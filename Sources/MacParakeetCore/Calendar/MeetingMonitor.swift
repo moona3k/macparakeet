@@ -138,7 +138,12 @@ public enum MeetingMonitor {
     /// leaving the recording running. Beyond this the recording is left for a
     /// manual stop — we don't force-stop a recording for a meeting that ended
     /// long ago.
-    private static let autoStopForgiveness: TimeInterval = 5 * 60
+    ///
+    /// Public so the coordinator's adaptive-polling logic can mirror this
+    /// exact window: it polls fast through the forgiveness tail (when the
+    /// event has dropped out of the forward fetch and the normal cadence
+    /// math goes blind) and relaxes once the tail closes.
+    public static let autoStopForgiveness: TimeInterval = 5 * 60
 
     /// Whether an event is eligible for *auto-start* (and late-join) based on
     /// the user's RSVP. `.declined` is already filtered out of candidates;

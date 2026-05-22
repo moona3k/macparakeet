@@ -17,6 +17,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     private var autoStartConfirmedCount = 0
     private var autoStartConfirmedTitles: [String] = []
     private var autoStopConfirmedCount = 0
+    private var autoStopConfirmedGenerations: [Int] = []
     /// When true, the `onAutoStartConfirmed` stub mimics the real flow
     /// coordinator's `state_busy` rejection by clearing the binding —
     /// exercising the back-to-back retry path (#8).
@@ -38,6 +39,7 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         autoStartConfirmedCount = 0
         autoStartConfirmedTitles = []
         autoStopConfirmedCount = 0
+        autoStopConfirmedGenerations = []
         simulateAutoStartBusy = false
         coordinatorRef = nil
     }
@@ -74,16 +76,21 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             settingsViewModel: settingsViewModel,
             isRecordingActive: { [weak self] in self?.recordingActiveStub ?? false },
             onAutoStartConfirmed: { [weak self] title in
-                guard let self else { return }
+                guard let self else { return nil }
                 self.autoStartConfirmedCount += 1
                 self.autoStartConfirmedTitles.append(title)
                 if self.simulateAutoStartBusy {
                     // Mimic MeetingRecordingFlowCoordinator.startFromCalendar's
                     // synchronous state_busy path: clear the optimistic binding.
                     self.coordinatorRef?.clearAutoStartBinding()
+                    return nil
                 }
+                return 1
             },
-            onAutoStopConfirmed: { [weak self] in self?.autoStopConfirmedCount += 1 },
+            onAutoStopConfirmed: { [weak self] generation in
+                self?.autoStopConfirmedCount += 1
+                self?.autoStopConfirmedGenerations.append(generation)
+            },
             toastController: toastController
         )
     }
@@ -220,6 +227,30 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         // recording will be titled, not the date-based default.
         XCTAssertEqual(autoStartConfirmedTitles, [uniqueTitle],
                        "Auto-start must forward the event title so the saved recording is named after the meeting")
+
+        coordinator.stop()
+    }
+
+    func testAutoStartCompletionIgnoredAfterModeTurnsOff() {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        let event = CalendarEvent(
+            id: "evt-1",
+            title: "Standup",
+            startTime: Date(),
+            endTime: Date().addingTimeInterval(1800)
+        )
+        coordinator.testHook_markCountdownShown(event)
+
+        settingsViewModel.calendarAutoStartMode = .off
+        coordinator.handleAutoStartOutcome(.completed, for: event)
+
+        XCTAssertEqual(autoStartConfirmedCount, 0,
+                       "A countdown that completes after calendar auto-start is disabled must not start recording")
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(event),
+                       "Disabled-mode completion should not permanently suppress a later re-enable")
 
         coordinator.stop()
     }
@@ -475,6 +506,62 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         coordinator.handleAutoStopOutcome(.completed, for: event)
         XCTAssertEqual(autoStopConfirmedCount, 1,
                        "An owned, still-active recording must auto-stop on completion")
+        XCTAssertEqual(autoStopConfirmedGenerations, [1],
+                       "Auto-stop must target the recording generation returned by calendar auto-start")
+
+        coordinator.stop()
+    }
+
+    func testAutoStopCompletionIgnoredAfterAutoStopDisabled() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+
+        recordingActiveStub = true
+        coordinator.testHook_simulateAutoStartConfirmed(eventId: "evt-1")
+        settingsViewModel.calendarAutoStopEnabled = false
+
+        let event = CalendarEvent(
+            id: "evt-1",
+            title: "Wrap",
+            startTime: Date().addingTimeInterval(-1800),
+            endTime: Date().addingTimeInterval(5)
+        )
+        coordinator.handleAutoStopOutcome(.completed, for: event)
+
+        XCTAssertEqual(autoStopConfirmedCount, 0,
+                       "A countdown that completes after calendar auto-stop is disabled must not stop recording")
+
+        coordinator.stop()
+    }
+
+    func testKeepRecordingDoesNotLeaveFastPollingStuck() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        coordinator.start()
+        await waitForPoll()
+
+        recordingActiveStub = true
+        let event = CalendarEvent(
+            id: "evt-1",
+            title: "Wrap",
+            startTime: Date().addingTimeInterval(-1800),
+            endTime: Date().addingTimeInterval(5)
+        )
+        coordinator.handleAutoStartOutcome(.completed, for: event)
+        coordinator.handleAutoStopOutcome(.userDismissed, for: event)
+
+        calendarService.stubEvents = []
+        coordinator.testHook_forcePoll()
+        await waitForPoll()
+
+        XCTAssertEqual(coordinator.testHook_pollingInterval, 60,
+                       "After Keep Recording, dismissed auto-stop should not force 5s polling forever")
 
         coordinator.stop()
     }

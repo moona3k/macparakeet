@@ -116,6 +116,7 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             viewModel.refreshPermissions()
+            Task { await viewModel.refreshCalendarNotificationAuthorization() }
         }
         .onAppear {
             if requestedTab != nil {

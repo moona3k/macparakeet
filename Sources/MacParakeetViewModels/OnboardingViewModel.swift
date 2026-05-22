@@ -340,15 +340,15 @@ public final class OnboardingViewModel {
         Telemetry.send(.permissionPrompted(permission: .calendar))
         Task {
             let granted = await CalendarService.shared.requestPermission()
-            if granted {
-                await CalendarNotificationAuthorization.requestIfNeeded()
-            }
+            let notificationsGranted = granted
+                ? await CalendarNotificationAuthorization.requestIfNeeded()
+                : false
             await MainActor.run {
                 self.isBusy = false
                 self.calendarPermissionGranted = granted
                 if granted {
                     Telemetry.send(.permissionGranted(permission: .calendar))
-                    self.applyCalendarMode(.notify)
+                    self.applyCalendarMode(notificationsGranted ? .notify : .off)
                 } else {
                     Telemetry.send(.permissionDenied(permission: .calendar))
                 }

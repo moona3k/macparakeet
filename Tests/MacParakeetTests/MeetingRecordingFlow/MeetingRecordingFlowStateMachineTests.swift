@@ -13,11 +13,10 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
     }
 
     func testStopRequestedWhileIdleIsNoOp() {
-        // `MeetingRecordingFlowCoordinator.stopFromCalendar()` (the idempotent
-        // calendar auto-stop path) relies on `.stopRequested` being a no-op
-        // from `.idle` — it must NEVER start a recording. This invariant is
-        // what makes auto-stop safe to fire even if the recording already
-        // ended (see #1 privacy fix).
+        // `MeetingRecordingFlowCoordinator.stopFromCalendar(recordingGeneration:)`
+        // relies on `.stopRequested` being a no-op from `.idle` — it must NEVER
+        // start a recording. This invariant keeps auto-stop safe to fire even
+        // if the recording already ended (see #1 privacy fix).
         var machine = MeetingRecordingFlowStateMachine()
 
         let effects = machine.handle(.stopRequested)

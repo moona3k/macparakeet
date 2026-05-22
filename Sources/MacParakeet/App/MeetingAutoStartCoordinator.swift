@@ -40,8 +40,8 @@ final class MeetingAutoStartCoordinator {
     /// an auto-start recording. The event title is forwarded so the
     /// recording flow can pre-name the saved transcription with the
     /// calendar event name instead of the date-based default.
-    private let onAutoStartConfirmed: @MainActor (_ title: String) -> Void
-    private let onAutoStopConfirmed: @MainActor () -> Void
+    private let onAutoStartConfirmed: @MainActor (_ title: String) -> Int?
+    private let onAutoStopConfirmed: @MainActor (_ recordingGeneration: Int) -> Void
     private let toastController: MeetingCountdownToastController
     private let logger = Logger(subsystem: "com.macparakeet", category: "MeetingAutoStart")
 
@@ -70,6 +70,7 @@ final class MeetingAutoStartCoordinator {
     /// (detected by next poll seeing `isRecordingActive() == false` while we
     /// still hold one) or when auto-stop fires.
     private var autoStartedEvent: CalendarEvent?
+    private var autoStartedRecordingGeneration: Int?
     /// `event.id` of an auto-started recording for which we're currently
     /// showing the auto-stop countdown. Prevents re-firing the toast on
     /// every poll tick during the 30s window. Bare `id` (not `dedupeKey`) on
@@ -96,8 +97,8 @@ final class MeetingAutoStartCoordinator {
         calendarService: any CalendarServicing = CalendarService.shared,
         settingsViewModel: SettingsViewModel,
         isRecordingActive: @escaping @MainActor () -> Bool = { false },
-        onAutoStartConfirmed: @escaping @MainActor (_ title: String) -> Void = { _ in },
-        onAutoStopConfirmed: @escaping @MainActor () -> Void = {},
+        onAutoStartConfirmed: @escaping @MainActor (_ title: String) -> Int? = { _ in nil },
+        onAutoStopConfirmed: @escaping @MainActor (_ recordingGeneration: Int) -> Void = { _ in },
         toastController: MeetingCountdownToastController? = nil
     ) {
         self.calendarService = calendarService
@@ -218,6 +219,7 @@ final class MeetingAutoStartCoordinator {
         // mode to .off). Re-evaluate immediately and reset adaptive polling
         // back to baseline so we don't keep the 5s timer alive for a feature
         // that's now disabled.
+        toastController.close()
         rescheduleTimer(interval: 60)
         Task { await pollAsync() }
     }
@@ -254,6 +256,7 @@ final class MeetingAutoStartCoordinator {
         let activeRecording = isRecordingActive()
         if !activeRecording, autoStartedEvent != nil {
             autoStartedEvent = nil
+            autoStartedRecordingGeneration = nil
             autoStopCountdownEventId = nil
             // Dismiss any stale auto-stop countdown — the recording it was
             // about to stop is already gone. Without this the toast keeps
@@ -263,8 +266,14 @@ final class MeetingAutoStartCoordinator {
         }
 
         // Fast-path guards before the (awaited) fetch.
-        guard settingsViewModel.calendarAutoStartMode != .off else { return }
-        guard calendarService.permissionStatus == .granted else { return }
+        guard settingsViewModel.calendarAutoStartMode != .off else {
+            toastController.close()
+            return
+        }
+        guard calendarService.permissionStatus == .granted else {
+            toastController.close()
+            return
+        }
 
         let events: [CalendarEvent]
         do {
@@ -283,8 +292,14 @@ final class MeetingAutoStartCoordinator {
         // pre-fetch values are stale; honoring the latest stops us from
         // processing a now-disabled feature one last time.
         let mode = settingsViewModel.calendarAutoStartMode
-        guard mode != .off else { return }
-        guard calendarService.permissionStatus == .granted else { return }
+        guard mode != .off else {
+            toastController.close()
+            return
+        }
+        guard calendarService.permissionStatus == .granted else {
+            toastController.close()
+            return
+        }
 
         let config = currentConfig(mode: mode)
         // Re-inject the owned in-flight recording's event if it has dropped
@@ -364,7 +379,10 @@ final class MeetingAutoStartCoordinator {
         // is actually on screen. Otherwise the cadence could relax to 60s right
         // when we need to surface the missed auto-stop.
         if isRecordingActive(), settingsViewModel.calendarAutoStopEnabled,
-           autoStartedEvent != nil, autoStopCountdownEventId == nil {
+           let autoStartedEvent,
+           autoStopCountdownEventId == nil,
+           !dismissedEventIds.contains(autoStartedEvent.dedupeKey),
+           Date() <= autoStartedEvent.endTime.addingTimeInterval(MeetingMonitor.autoStopForgiveness) {
             rescheduleTimer(interval: 5)
             return
         }
@@ -487,6 +505,7 @@ final class MeetingAutoStartCoordinator {
     /// binding can suppress the *next* meeting's auto-stop window.
     func clearAutoStartBinding() {
         autoStartedEvent = nil
+        autoStartedRecordingGeneration = nil
         autoStopCountdownEventId = nil
         logger.info("Auto-start binding cleared (start failed or state busy)")
     }
@@ -498,9 +517,13 @@ final class MeetingAutoStartCoordinator {
     func handleAutoStartOutcome(_ outcome: MeetingCountdownToastOutcome, for event: CalendarEvent) {
         switch outcome {
         case .completed, .primedEarly:
-            autoStartedEvent = event
-            onAutoStartConfirmed(event.title)
-            if autoStartedEvent == nil {
+            guard settingsViewModel.calendarAutoStartMode == .autoStart,
+                  calendarService.permissionStatus == .granted else {
+                countdownShownEventIds.remove(event.dedupeKey)
+                logger.info("Auto-start completion ignored — calendar auto-start is no longer enabled")
+                return
+            }
+            guard let recordingGeneration = onAutoStartConfirmed(event.title) else {
                 // Start was rejected (state_busy — a prior recording is still
                 // wrapping up): `onAutoStartFailed` cleared the binding
                 // synchronously. Drop this occurrence's countdown-shown mark
@@ -511,9 +534,11 @@ final class MeetingAutoStartCoordinator {
                 // Phase-3 late-join territory.
                 countdownShownEventIds.remove(event.dedupeKey)
                 logger.info("Auto-start rejected (state busy) for event id=\(event.id, privacy: .public) — will retry after current recording ends")
-            } else {
-                logger.info("Auto-start confirmed for event id=\(event.id, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
+                return
             }
+            autoStartedEvent = event
+            autoStartedRecordingGeneration = recordingGeneration
+            logger.info("Auto-start confirmed for event id=\(event.id, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
         case .userDismissed:
             dismissedEventIds.insert(event.dedupeKey)
             Telemetry.send(.calendarAutoStartCancelled(reason: "user_cancel"))
@@ -554,18 +579,27 @@ final class MeetingAutoStartCoordinator {
     func handleAutoStopOutcome(_ outcome: MeetingCountdownToastOutcome, for event: CalendarEvent) {
         switch outcome {
         case .completed, .primedEarly:
+            guard settingsViewModel.calendarAutoStartMode == .autoStart,
+                  settingsViewModel.calendarAutoStopEnabled,
+                  calendarService.permissionStatus == .granted else {
+                autoStopCountdownEventId = nil
+                logger.info("Auto-stop completion ignored — calendar auto-stop is no longer enabled")
+                return
+            }
             // Re-verify ownership at *fire* time, not just at show time. If the
             // recording stopped (or was replaced) during the 30s countdown,
             // the self-heal cleared the binding — don't stop whatever is
             // recording now. Belt-and-suspenders with the toast dismissal in
             // `pollAsync`; keeps this handler correct in isolation.
-            guard autoStartedEvent?.id == event.id else {
+            guard autoStartedEvent?.id == event.id,
+                  let recordingGeneration = autoStartedRecordingGeneration else {
                 autoStopCountdownEventId = nil
                 logger.info("Auto-stop completion ignored — binding no longer owns event id=\(event.id, privacy: .public)")
                 return
             }
-            onAutoStopConfirmed()
+            onAutoStopConfirmed(recordingGeneration)
             autoStartedEvent = nil
+            autoStartedRecordingGeneration = nil
             autoStopCountdownEventId = nil
             logger.info("Auto-stop confirmed for event id=\(event.id, privacy: .public)")
         case .userDismissed:
@@ -586,6 +620,8 @@ final class MeetingAutoStartCoordinator {
 /// links — the methods are `internal` so they don't escape the module.
 extension MeetingAutoStartCoordinator {
     var testHook_autoStartedEventId: String? { autoStartedEvent?.id }
+    var testHook_autoStartedRecordingGeneration: Int? { autoStartedRecordingGeneration }
+    var testHook_pollingInterval: TimeInterval { pollingInterval }
 
     /// Simulate the private `showAutoStartCountdown` having marked an event as
     /// countdown-shown (without driving real toast UI).
