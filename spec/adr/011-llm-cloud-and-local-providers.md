@@ -44,7 +44,7 @@ The current branch supports these provider/runtime types through one shared serv
 | Google (Gemini) | Cloud | `https://generativelanguage.googleapis.com/v1beta/openai` | API key (`Authorization: Bearer`) |
 | OpenRouter | Cloud | `https://openrouter.ai/api/v1` | API key (`Authorization: Bearer`) |
 | Ollama | Local | `http://localhost:11434/v1` | `apiKey: nil` in config; client injects `Bearer ollama` |
-| LM Studio | Local | `http://localhost:1234/v1` | `apiKey: nil` in config |
+| LM Studio | Local | `http://localhost:1234/v1` | Optional API token (`Authorization: Bearer`) |
 | Local CLI | CLI | N/A (subprocess) | N/A (tool manages its own auth) |
 
 **Amendment (2026-04-03): Local CLI provider.** Users with Claude Code or Codex subscriptions can use their CLI tools (`claude -p`, `codex exec`, or any custom command) for summaries, chat, and transforms — no separate API key needed. The CLI tool runs as a subprocess via `posix_spawn` with process group management. Prompts are delivered via stdin and `MACPARAKEET_*` environment variables. This extends the provider model without changing the `LLMClientProtocol` — a `RoutingLLMClient` dispatches `.localCLI` contexts to `LocalCLILLMClient` and everything else to the HTTP `LLMClient`. See PR #47.
@@ -162,7 +162,7 @@ Users who want local-only LLM can install Ollama (`brew install ollama && ollama
 public struct LLMProviderConfig: Codable, Sendable, Equatable {
     public let id: LLMProviderID       // .anthropic, .openai, .ollama, etc.
     public let baseURL: URL
-    public let apiKey: String?         // nil for local providers; client injects Bearer ollama for Ollama
+    public let apiKey: String?         // nil for providers without auth; optional for LM Studio/OpenAI-compatible
     public let modelName: String       // "claude-sonnet-4-6", "gpt-4.1", "qwen3.5:4b"
     public let isLocal: Bool           // true for Ollama, LM Studio, and loopback OpenAI-compatible endpoints
 }

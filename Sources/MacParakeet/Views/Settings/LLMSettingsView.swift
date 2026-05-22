@@ -29,7 +29,7 @@ struct LLMSettingsView: View {
             if viewModel.selectedProviderID != nil {
                 Divider()
 
-                // API key (hidden for local providers)
+                // API key (hidden for providers that cannot use one)
                 if viewModel.supportsAPIKey {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -44,7 +44,7 @@ struct LLMSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer(minLength: DesignSystem.Spacing.md)
-                        SecureField("sk-...", text: $viewModel.apiKeyInput)
+                        SecureField(viewModel.selectedProviderID == .lmstudio ? "LM Studio token" : "sk-...", text: $viewModel.apiKeyInput)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 220)
                     }
@@ -501,7 +501,7 @@ struct LLMSettingsView: View {
                 .foregroundStyle(isLocal ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
 
             Text(isLocal
-                 ? "Transcript text stays on this Mac."
+                 ? "Transcript text is sent only to your local AI endpoint."
                  : isCLI
                     ? "Runs a command on this Mac. The command may contact its own service."
                     : "Transcription stays local. Transcript text is sent only when you run an AI action.")

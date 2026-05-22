@@ -37,8 +37,8 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     /// Whether the provider supports API-key-based auth.
     public var supportsAPIKey: Bool {
         switch self {
-        case .ollama, .lmstudio, .localCLI: return false
-        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter: return true
+        case .ollama, .localCLI: return false
+        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .lmstudio: return true
         }
     }
 
@@ -157,11 +157,11 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
         )
     }
 
-    public static func lmstudio(model: String = "", baseURL: URL? = nil) -> LLMProviderConfig {
+    public static func lmstudio(apiKey: String? = nil, model: String = "", baseURL: URL? = nil) -> LLMProviderConfig {
         LLMProviderConfig(
             id: .lmstudio,
             baseURL: baseURL ?? URL(string: "http://localhost:1234/v1")!,
-            apiKey: nil,
+            apiKey: apiKey,
             modelName: model,
             isLocal: true
         )

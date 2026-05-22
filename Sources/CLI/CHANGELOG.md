@@ -84,6 +84,8 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 - LLM-backed commands now expose `--allow-insecure-http` for intentional
   non-loopback `http://` endpoints on non-local providers.
+- `llm` commands using `--provider lmstudio` now honor optional LM Studio API
+  tokens via `--api-key`, `--api-key-env`, or `LM_API_TOKEN`.
 
 ### Changed
 

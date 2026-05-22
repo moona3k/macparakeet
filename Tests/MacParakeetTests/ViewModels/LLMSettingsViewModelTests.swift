@@ -101,6 +101,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .lmstudio
         XCTAssertFalse(viewModel.requiresAPIKey)
+        XCTAssertTrue(viewModel.supportsAPIKey)
     }
 
     func testCloudProviderRequiresAPIKey() {
@@ -414,6 +415,21 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.useCustomModel)
         XCTAssertEqual(viewModel.modelName, "llama-3.2")
         XCTAssertNil(viewModel.modelListErrorMessage)
+    }
+
+    func testLMStudioSavesOptionalAPIKey() async throws {
+        mockClient.modelsList = ["local-model"]
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .lmstudio
+        try await Task.sleep(nanoseconds: 100_000_000)
+        viewModel.apiKeyInput = "lm-token"
+        viewModel.saveConfiguration()
+
+        let saved = mockConfigStore.config
+        XCTAssertEqual(saved?.id, .lmstudio)
+        XCTAssertEqual(saved?.apiKey, "lm-token")
+        XCTAssertEqual(saved?.modelName, "local-model")
     }
 
     func testOllamaLoadsAvailableModelsAndDefaultsToFirstResult() async throws {

@@ -136,6 +136,21 @@ final class LLMSettingsDraftTests: XCTestCase {
         XCTAssertEqual(config?.modelName, "")
     }
 
+    func testLMStudioAllowsOptionalAPIKey() throws {
+        let draft = LLMSettingsDraft(
+            providerID: .lmstudio,
+            apiKeyInput: "lm-token",
+            suggestedModelName: "local-model"
+        )
+
+        XCTAssertNil(draft.validationError)
+
+        let config = try draft.buildConfig(defaultBaseURL: "http://localhost:1234/v1")
+        XCTAssertEqual(config?.id, .lmstudio)
+        XCTAssertEqual(config?.apiKey, "lm-token")
+        XCTAssertTrue(config?.isLocal == true)
+    }
+
     func testOpenAICompatibleProviderRequiresCustomEndpoint() {
         let draft = LLMSettingsDraft(
             providerID: .openaiCompatible,

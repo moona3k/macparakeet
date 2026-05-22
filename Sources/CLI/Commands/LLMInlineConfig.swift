@@ -170,7 +170,11 @@ struct LLMInlineOptions: ParsableArguments {
                   !rawModel.isEmpty else {
                 throw ValidationError("--model is required for LM Studio")
             }
-            providerConfig = .lmstudio(model: rawModel, baseURL: overrideURL)
+            providerConfig = .lmstudio(
+                apiKey: try optionalAPIKey(defaultEnvNames: ["LM_API_TOKEN"], environment: environment),
+                model: rawModel,
+                baseURL: overrideURL
+            )
         case .localCLI:
             guard let rawCommand = command,
                   !rawCommand.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
