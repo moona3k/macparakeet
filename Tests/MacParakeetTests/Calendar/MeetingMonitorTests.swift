@@ -562,6 +562,58 @@ final class MeetingMonitorTests: XCTestCase {
         XCTAssertFalse(result.contains { if case .autoStopDue = $0 { return true } else { return false } })
     }
 
+    func testAutoStopFiresWithinForgivenessTailPastEnd() {
+        let now = Date()
+        // Meeting already ended 60s ago, recording still active (we woke from
+        // sleep / it ran long). Within the 5-min forgiveness tail → auto-stop
+        // should still fire so the recording doesn't run forever.
+        let evt = CalendarEvent(
+            id: "ended",
+            title: "Wrap",
+            startTime: now.addingTimeInterval(-1800),
+            endTime: now.addingTimeInterval(-60),
+            meetUrl: "https://zoom.us/j/1",
+            participants: [EventParticipant(email: "x@y")],
+            userStatus: .accepted
+        )
+        let result = MeetingMonitor.evaluate(
+            events: [evt],
+            now: now,
+            config: config(mode: .autoStart, autoStopEnabled: true),
+            activeRecording: true,
+            dismissedEventIds: [],
+            remindedEventIds: [],
+            countdownShownEventIds: []
+        )
+        XCTAssertTrue(result.contains { if case .autoStopDue = $0 { return true } else { return false } },
+                      "Auto-stop must still fire shortly after endTime (sleep / long meeting)")
+    }
+
+    func testAutoStopDoesNotFireBeyondForgivenessTail() {
+        let now = Date()
+        // Ended 6 minutes ago — beyond the 5-min forgiveness tail. Leave it
+        // for a manual stop rather than force-stopping a long-past meeting.
+        let evt = CalendarEvent(
+            id: "ended",
+            title: "Wrap",
+            startTime: now.addingTimeInterval(-3600),
+            endTime: now.addingTimeInterval(-6 * 60),
+            meetUrl: "https://zoom.us/j/1",
+            participants: [EventParticipant(email: "x@y")],
+            userStatus: .accepted
+        )
+        let result = MeetingMonitor.evaluate(
+            events: [evt],
+            now: now,
+            config: config(mode: .autoStart, autoStopEnabled: true),
+            activeRecording: true,
+            dismissedEventIds: [],
+            remindedEventIds: [],
+            countdownShownEventIds: []
+        )
+        XCTAssertFalse(result.contains { if case .autoStopDue = $0 { return true } else { return false } })
+    }
+
     // MARK: - Multiple events
 
     func testHandlesMultipleEventsIndependently() {

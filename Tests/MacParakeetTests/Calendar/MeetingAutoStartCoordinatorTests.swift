@@ -273,6 +273,41 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         coordinator.stop()
     }
 
+    // MARK: - Owned-event merge for reliable auto-stop (#2)
+
+    func testMergeReinjectsOwnedEventWhenDroppedFromFetch() {
+        // EventKit stops returning the event once `now` passes its endTime, so
+        // a still-active owned recording must be re-injected for the auto-stop
+        // window to remain evaluable.
+        let owned = event(id: "owned", startsIn: -1800)
+        let merged = MeetingAutoStartCoordinator.mergingOwnedEvent(
+            into: [],
+            owned: owned,
+            activeRecording: true
+        )
+        XCTAssertEqual(merged.map(\.id), ["owned"])
+    }
+
+    func testMergeDoesNotDuplicateWhenOwnedEventStillPresent() {
+        let owned = event(id: "owned", startsIn: -600)
+        let merged = MeetingAutoStartCoordinator.mergingOwnedEvent(
+            into: [owned],
+            owned: owned,
+            activeRecording: true
+        )
+        XCTAssertEqual(merged.map(\.id), ["owned"], "Must not duplicate an event already in the fetch")
+    }
+
+    func testMergeNoOpWhenNotRecording() {
+        let owned = event(id: "owned", startsIn: -600)
+        let merged = MeetingAutoStartCoordinator.mergingOwnedEvent(
+            into: [],
+            owned: owned,
+            activeRecording: false
+        )
+        XCTAssertTrue(merged.isEmpty, "No merge when there's no active recording to protect")
+    }
+
     // MARK: - Auto-stop idempotency (#1 — privacy)
 
     func testAutoStopCompletionAfterExternalStopDoesNotConfirm() async {

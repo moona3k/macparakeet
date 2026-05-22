@@ -54,13 +54,14 @@ final class MeetingAutoStartCoordinator {
     private var dismissedEventIds: Set<String> = []
     private var remindedEventIds: Set<String> = []
     private var countdownShownEventIds: Set<String> = []
-    /// `event.id` of the calendar event that triggered the *current*
-    /// recording. Lets `.autoStopDue` only act on auto-started recordings —
-    /// a manually-started recording during a calendar event is not auto-
-    /// stopped (per ADR-017 §10). Cleared when recording ends (detected by
-    /// next poll seeing `isRecordingActive() == false` while we still hold
-    /// an id) or when auto-stop fires.
-    private var autoStartedEventId: String?
+    /// The calendar event that triggered the *current* recording (full event,
+    /// so we keep its `endTime` for the auto-stop window even after EventKit
+    /// stops returning it). Lets `.autoStopDue` only act on auto-started
+    /// recordings — a manually-started recording during a calendar event is
+    /// not auto-stopped (per ADR-017 §10). Cleared when recording ends
+    /// (detected by next poll seeing `isRecordingActive() == false` while we
+    /// still hold one) or when auto-stop fires.
+    private var autoStartedEvent: CalendarEvent?
     /// `event.id` of an auto-started recording for which we're currently
     /// showing the auto-stop countdown. Prevents re-firing the toast on
     /// every poll tick during the 30s window.
@@ -71,6 +72,11 @@ final class MeetingAutoStartCoordinator {
     // mutation always happens on the main actor — no race.
     nonisolated(unsafe) private var settingsObserver: NSObjectProtocol?
     nonisolated(unsafe) private var calendarChangeObserver: NSObjectProtocol?
+    /// `NSWorkspace.didWakeNotification` — polls immediately on wake so a
+    /// meeting whose auto-start/stop window opened while the Mac slept gets
+    /// caught (the repeating `Timer` doesn't fire during sleep). Lives on
+    /// `NSWorkspace.shared.notificationCenter`, not `NotificationCenter.default`.
+    nonisolated(unsafe) private var wakeObserver: NSObjectProtocol?
     private var cleanupTask: Task<Void, Never>?
 
     init(
@@ -100,6 +106,9 @@ final class MeetingAutoStartCoordinator {
         if let observer = calendarChangeObserver {
             NotificationCenter.default.removeObserver(observer)
         }
+        if let observer = wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+        }
     }
 
     // MARK: - Lifecycle
@@ -117,6 +126,7 @@ final class MeetingAutoStartCoordinator {
         scheduleCleanupTask()
         registerCalendarChangeObserver()
         registerSettingsObserver()
+        registerWakeObserver()
         rescheduleTimer(interval: 60)
         // Poll immediately so a meeting starting in the next minute doesn't
         // wait for the first tick.
@@ -139,6 +149,10 @@ final class MeetingAutoStartCoordinator {
         if let observer = calendarChangeObserver {
             NotificationCenter.default.removeObserver(observer)
             calendarChangeObserver = nil
+        }
+        if let observer = wakeObserver {
+            NSWorkspace.shared.notificationCenter.removeObserver(observer)
+            wakeObserver = nil
         }
         logger.info("Meeting auto-start coordinator stopped")
     }
@@ -170,6 +184,22 @@ final class MeetingAutoStartCoordinator {
         }
     }
 
+    private func registerWakeObserver() {
+        wakeObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.logger.debug("System woke — polling immediately")
+                // pollAsync re-tunes the cadence at the end, so we don't need
+                // to wait for the (possibly 60s-out) next timer tick to catch
+                // a window that opened during sleep.
+                await self?.pollAsync()
+            }
+        }
+    }
+
     private func handleSettingsChanged() {
         // Setting changes can disable a feature mid-flight (e.g., toggling
         // mode to .off). Re-evaluate immediately and reset adaptive polling
@@ -184,11 +214,11 @@ final class MeetingAutoStartCoordinator {
     private func pollAsync() async {
         // Run binding-cleanup *before* the early returns so toggling mode
         // off (or losing permission) while an auto-started recording is in
-        // flight doesn't strand a stale `autoStartedEventId` until the
+        // flight doesn't strand a stale `autoStartedEvent` until the
         // user re-enables.
         let activeRecording = isRecordingActive()
-        if !activeRecording, autoStartedEventId != nil {
-            autoStartedEventId = nil
+        if !activeRecording, autoStartedEvent != nil {
+            autoStartedEvent = nil
             autoStopCountdownEventId = nil
             // Dismiss any stale auto-stop countdown — the recording it was
             // about to stop is already gone. Without this the toast keeps
@@ -214,8 +244,18 @@ final class MeetingAutoStartCoordinator {
         }
 
         let config = currentConfig(mode: mode)
+        // Re-inject the owned in-flight recording's event if it has dropped
+        // out of the forward fetch (EventKit's overlap predicate stops
+        // returning it once `now` passes its endTime). Without this, an
+        // auto-stop missed during sleep — or for a meeting that ran long —
+        // could never fire because the event simply vanishes from the poll.
+        let eventsForMonitor = Self.mergingOwnedEvent(
+            into: events,
+            owned: autoStartedEvent,
+            activeRecording: activeRecording
+        )
         let monitorEvents = MeetingMonitor.evaluate(
-            events: events,
+            events: eventsForMonitor,
             now: Date(),
             config: config,
             activeRecording: activeRecording,
@@ -241,6 +281,23 @@ final class MeetingAutoStartCoordinator {
             triggerFilter: settingsViewModel.meetingTriggerFilter,
             lateJoinGraceMinutes: 10
         )
+    }
+
+    /// Re-inject the owned, in-flight recording's event when it has dropped
+    /// out of the forward fetch. Pure + `static` so it's unit-testable without
+    /// driving the live poll. No-op when not recording, when there's no owned
+    /// event, or when the event is already present.
+    static func mergingOwnedEvent(
+        into fetched: [CalendarEvent],
+        owned: CalendarEvent?,
+        activeRecording: Bool
+    ) -> [CalendarEvent] {
+        guard activeRecording,
+              let owned,
+              !fetched.contains(where: { $0.id == owned.id }) else {
+            return fetched
+        }
+        return fetched + [owned]
     }
 
     private func filterByIncludedCalendars(_ events: [CalendarEvent]) -> [CalendarEvent] {
@@ -375,7 +432,7 @@ final class MeetingAutoStartCoordinator {
     /// during the underlying `startRecording()`. Without this, a stale
     /// binding can suppress the *next* meeting's auto-stop window.
     func clearAutoStartBinding() {
-        autoStartedEventId = nil
+        autoStartedEvent = nil
         autoStopCountdownEventId = nil
         logger.info("Auto-start binding cleared (start failed or state busy)")
     }
@@ -387,7 +444,7 @@ final class MeetingAutoStartCoordinator {
     func handleAutoStartOutcome(_ outcome: MeetingCountdownToastOutcome, for event: CalendarEvent) {
         switch outcome {
         case .completed, .primedEarly:
-            autoStartedEventId = event.id
+            autoStartedEvent = event
             onAutoStartConfirmed(event.title)
             logger.info("Auto-start confirmed for event id=\(event.id, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
         case .userDismissed:
@@ -408,7 +465,7 @@ final class MeetingAutoStartCoordinator {
     private func showAutoStopCountdown(_ event: CalendarEvent) {
         // Only act on the binding the coordinator owns. Manual recordings
         // are sovereign — auto-stop never touches them.
-        guard autoStartedEventId == event.id else { return }
+        guard autoStartedEvent?.id == event.id else { return }
         // Don't re-stack the toast on every poll while it's already up.
         guard autoStopCountdownEventId != event.id else { return }
         autoStopCountdownEventId = event.id
@@ -435,13 +492,13 @@ final class MeetingAutoStartCoordinator {
             // the self-heal cleared the binding — don't stop whatever is
             // recording now. Belt-and-suspenders with the toast dismissal in
             // `pollAsync`; keeps this handler correct in isolation.
-            guard autoStartedEventId == event.id else {
+            guard autoStartedEvent?.id == event.id else {
                 autoStopCountdownEventId = nil
                 logger.info("Auto-stop completion ignored — binding no longer owns event id=\(event.id, privacy: .public)")
                 return
             }
             onAutoStopConfirmed()
-            autoStartedEventId = nil
+            autoStartedEvent = nil
             autoStopCountdownEventId = nil
             logger.info("Auto-stop confirmed for event id=\(event.id, privacy: .public)")
         case .userDismissed:
@@ -461,7 +518,7 @@ final class MeetingAutoStartCoordinator {
 /// `#if DEBUG`-gated so `swift test -c release` (CI perf lane) still
 /// links — the methods are `internal` so they don't escape the module.
 extension MeetingAutoStartCoordinator {
-    var testHook_autoStartedEventId: String? { autoStartedEventId }
+    var testHook_autoStartedEventId: String? { autoStartedEvent?.id }
 
     func testHook_simulateAutoStartConfirmed(eventId: String) {
         let event = CalendarEvent(
@@ -486,7 +543,7 @@ extension MeetingAutoStartCoordinator {
     func testHook_simulateAutoStopFired(eventId: String) {
         // Mimic the production guard: only proceed if the event matches
         // the coordinator's auto-started binding.
-        guard autoStartedEventId == eventId else { return }
+        guard autoStartedEvent?.id == eventId else { return }
         let event = CalendarEvent(
             id: eventId,
             title: "Test",

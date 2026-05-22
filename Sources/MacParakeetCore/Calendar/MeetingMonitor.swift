@@ -22,8 +22,12 @@ public enum MeetingMonitor {
         /// keeps the case but does not wire UI — see ADR-017.
         case lateJoinAvailable(CalendarEvent)
 
-        /// Fires in the window `[endTime - autoStopLeadSeconds, endTime]`.
-        /// Only emitted when `activeRecording == true`.
+        /// Fires in the window `[endTime - autoStopLeadSeconds,
+        /// endTime + autoStopForgiveness]`. Only emitted when
+        /// `activeRecording == true`. The forgiveness tail past `endTime`
+        /// catches a window missed during sleep or for a meeting that ran
+        /// long — without it, the event drops out of the forward fetch the
+        /// instant `now` passes `endTime` and the recording never auto-stops.
         case autoStopDue(CalendarEvent)
     }
 
@@ -118,7 +122,7 @@ public enum MeetingMonitor {
 
             if config.mode == .autoStart && config.autoStopEnabled && activeRecording {
                 let autoStopBegin = event.endTime.addingTimeInterval(-Double(config.autoStopLeadSeconds))
-                let autoStopEnd = event.endTime
+                let autoStopEnd = event.endTime.addingTimeInterval(autoStopForgiveness)
                 if now >= autoStopBegin && now <= autoStopEnd {
                     result.append(.autoStopDue(event))
                 }
@@ -127,6 +131,14 @@ public enum MeetingMonitor {
 
         return result
     }
+
+    /// How long past an event's `endTime` the auto-stop window stays open.
+    /// Lets a poll that lands late (resumed from sleep, or a meeting that ran
+    /// long) still surface the auto-stop countdown rather than silently
+    /// leaving the recording running. Beyond this the recording is left for a
+    /// manual stop — we don't force-stop a recording for a meeting that ended
+    /// long ago.
+    private static let autoStopForgiveness: TimeInterval = 5 * 60
 
     /// Whether an event is eligible for *auto-start* (and late-join) based on
     /// the user's RSVP. `.declined` is already filtered out of candidates;
