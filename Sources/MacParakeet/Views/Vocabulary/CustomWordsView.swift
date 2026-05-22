@@ -7,6 +7,7 @@ struct CustomWordsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var hoveredWordID: UUID?
     @FocusState private var wordFieldFocused: Bool
+    @FocusState private var replacementFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -102,13 +103,14 @@ struct CustomWordsView: View {
                 ParakeetTextField(
                     placeholder: "Word or phrase",
                     text: $viewModel.newWord,
-                    onSubmit: attemptAdd,
+                    onSubmit: { replacementFieldFocused = true },
                     externalFocus: $wordFieldFocused
                 )
                 ParakeetTextField(
                     placeholder: "Replacement (optional)",
                     text: $viewModel.newReplacement,
-                    onSubmit: attemptAdd
+                    onSubmit: attemptAdd,
+                    externalFocus: $replacementFieldFocused
                 )
                 Button("Add", action: attemptAdd)
                     .parakeetAction(.primaryProminent)

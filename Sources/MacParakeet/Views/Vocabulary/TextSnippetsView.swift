@@ -8,6 +8,7 @@ struct TextSnippetsView: View {
     @State private var hoveredSnippetID: UUID?
     @State private var showTips = false
     @FocusState private var triggerFieldFocused: Bool
+    @FocusState private var expansionFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
@@ -104,13 +105,14 @@ struct TextSnippetsView: View {
                 ParakeetTextField(
                     placeholder: "Trigger phrase",
                     text: $viewModel.newTrigger,
-                    onSubmit: attemptAdd,
+                    onSubmit: { expansionFieldFocused = true },
                     externalFocus: $triggerFieldFocused
                 )
                 ParakeetTextField(
                     placeholder: "Expansion",
                     text: $viewModel.newExpansion,
-                    onSubmit: attemptAdd
+                    onSubmit: attemptAdd,
+                    externalFocus: $expansionFieldFocused
                 )
                 Button("Add", action: attemptAdd)
                     .parakeetAction(.primaryProminent)

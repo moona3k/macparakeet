@@ -38,6 +38,7 @@ struct ParakeetTextField: View {
                 Image(systemName: leadingSystemImage)
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
             }
 
             TextField(placeholder, text: $text)
@@ -56,7 +57,7 @@ struct ParakeetTextField: View {
                         .foregroundStyle(.tertiary)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Clear")
+                .accessibilityLabel("Clear search")
             }
         }
         .padding(.horizontal, 10)
