@@ -122,29 +122,20 @@ final class LayoutPlanParserTests: XCTestCase {
         )
     }
 
-    // MARK: - Budget enforcement
+    // MARK: - Budget enforcement (deferred to the planner)
 
-    func testCueExceedingBudgetIsRejected() {
-        // 5 words × "w0" = ~3 chars + space, total joined ~17 chars.
-        // Set a tight cap so the test fires.
+    /// The parser intentionally does NOT enforce the per-cue size cap —
+    /// the LLM consistently overshoots it (75–115 chars at a 65-char
+    /// budget in real data) and rejecting the whole chunk on that basis
+    /// wastes the rest of the LLM's good boundary choices.
+    /// `SubtitleLLMLayoutPlanner.runOne` runs an auto-split pass after
+    /// parsing that breaks oversized cues at the best linguistic point.
+    func testCueExceedingBudgetIsStillAcceptedByParser() {
+        // 5 words joined "w0 w1 w2 w3 w4" = 14 chars, well over the 10
+        // budget. Old parser would have rejected; new parser accepts and
+        // leaves the size handling to the planner.
         let ws = words(5)
         let json = #"{"cues":[{"start":0,"end":4}]}"#
-        let result = LayoutPlanParser.parse(json, words: ws, perCueBudget: 10)
-        switch result {
-        case .failure(.cueExceedsBudget):
-            return
-        case .failure(let other):
-            XCTFail("Expected cueExceedsBudget, got \(other)")
-        case .success:
-            XCTFail("Expected failure")
-        }
-    }
-
-    func testCueWithinSoftOverflowIsAccepted() {
-        // 4 words, joined "w0 w1 w2 w3" = 11 chars. Budget 10 → cap 11
-        // (115 % of 10 = 11.5 → 11). Should JUST pass.
-        let ws = words(4)
-        let json = #"{"cues":[{"start":0,"end":3}]}"#
         XCTAssertNotNil(try? LayoutPlanParser.parse(json, words: ws, perCueBudget: 10).get())
     }
 }

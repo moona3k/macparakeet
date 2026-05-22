@@ -112,6 +112,59 @@ final class SubtitleLLMLayoutPlannerTests: XCTestCase {
         XCTAssertEqual(results[1].chunkEndIndex, 11)
     }
 
+    // MARK: - Auto-split
+
+    /// A single LLM-emitted range that exceeds the per-cue budget must
+    /// be auto-split into multiple budget-compliant ranges at natural
+    /// break points — the chunk must NOT fall back to deterministic
+    /// just because one cue was too long.
+    func testAutoSplitBreaksOversizedRangeAtPunctuation() {
+        // 8 words, joined ≈ 50 chars with a period at index 3 — a
+        // natural break point. Budget 25 (cap = 28) forces the splitter
+        // to break this range.
+        let ws = [
+            WordTimestamp(word: "hello",    startMs: 0, endMs: 100, confidence: 0.99),
+            WordTimestamp(word: "there",    startMs: 110, endMs: 200, confidence: 0.99),
+            WordTimestamp(word: "everyone", startMs: 210, endMs: 400, confidence: 0.99),
+            WordTimestamp(word: "today.",   startMs: 410, endMs: 600, confidence: 0.99),
+            WordTimestamp(word: "Welcome",  startMs: 610, endMs: 800, confidence: 0.99),
+            WordTimestamp(word: "to",       startMs: 810, endMs: 850, confidence: 0.99),
+            WordTimestamp(word: "the",      startMs: 860, endMs: 900, confidence: 0.99),
+            WordTimestamp(word: "class.",   startMs: 910, endMs: 1100, confidence: 0.99),
+        ]
+        let range = LayoutPlanParser.CueRange(start: 0, end: 7)
+        let result = SubtitleLLMLayoutPlanner.autoSplitOversizedRanges(
+            [range],
+            words: ws,
+            perCueBudget: 25
+        )
+        XCTAssertGreaterThan(result.count, 1, "Oversized range should split into multiple pieces")
+        // First half should end at the period (index 3 'today.').
+        XCTAssertEqual(result[0].end, 3, "Splitter should land on the sentence terminator")
+        // No piece may end with a bad-ender.
+        for piece in result {
+            let lastWord = ws[piece.end].word.trimmingCharacters(in: .punctuationCharacters).lowercased()
+            XCTAssertFalse(SubtitleLLMLayoutPlanner.autoSplitBadEnders.contains(lastWord),
+                "Auto-split cue \(piece.start)-\(piece.end) ends with bad word '\(lastWord)'")
+        }
+    }
+
+    /// Ranges that already fit the budget pass through unchanged.
+    func testAutoSplitLeavesInBudgetRangesUntouched() {
+        let ws = [
+            WordTimestamp(word: "Hi",     startMs: 0, endMs: 100, confidence: 0.99),
+            WordTimestamp(word: "there.", startMs: 110, endMs: 300, confidence: 0.99),
+        ]
+        let range = LayoutPlanParser.CueRange(start: 0, end: 1)
+        let result = SubtitleLLMLayoutPlanner.autoSplitOversizedRanges(
+            [range],
+            words: ws,
+            perCueBudget: 100
+        )
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0], range)
+    }
+
     // MARK: - Progress
 
     func testProgressFiresForEveryChunk() async {

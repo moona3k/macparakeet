@@ -80,8 +80,7 @@ enum LayoutPlanParser {
 
         var ranges: [CueRange] = []
         ranges.reserveCapacity(cueArray.count)
-        let cap = max(perCueBudget, perCueBudget * 115 / 100)
-        for (i, item) in cueArray.enumerated() {
+        for (_, item) in cueArray.enumerated() {
             // Accept either Int or NSNumber from JSON.
             guard let startRaw = item["start"] as? NSNumber,
                   let endRaw = item["end"] as? NSNumber else {
@@ -95,12 +94,16 @@ enum LayoutPlanParser {
             guard end >= start else {
                 return .failure(.rangeInverted(start: start, end: end))
             }
-            // Per-cue text-length cap. Joined-by-space length, not literal
-            // string content — the LLM didn't choose words, we did.
-            let joined = words[start...end].map(\.word).joined(separator: " ")
-            if joined.count > cap {
-                return .failure(.cueExceedsBudget(cueIndex: i, length: joined.count, cap: cap))
-            }
+            // Per-cue size is intentionally NOT enforced here. The LLM
+            // tends to overshoot the configured budget (real data: 75–115
+            // chars at a 65-char budget, with rare 190-char outliers).
+            // `SubtitleLLMLayoutPlanner` post-processes the parsed ranges
+            // and auto-splits any oversized cue at the best linguistic
+            // break, so the chunk doesn't fall back wholesale to the
+            // deterministic builder just because of one too-long cue.
+            // `perCueBudget` is kept on the function signature so callers
+            // can still pass it (the planner uses it for the split pass).
+            _ = perCueBudget
             ranges.append(CueRange(start: start, end: end))
         }
 

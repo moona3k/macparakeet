@@ -183,8 +183,21 @@ public actor SubtitleLLMLayoutPlanner {
         // configured 65-char budget. SRT (17), block 15 was the smoking gun.
         let perCueBudget = config.maxCharsPerLine
         switch LayoutPlanParser.parse(response, words: chunk.words, perCueBudget: perCueBudget) {
-        case .success(let ranges):
-            log.debug("layout_planner_chunk_ok range=\(chunk.startIndex)-\(chunk.endIndex) cues=\(ranges.count) budget=\(perCueBudget)")
+        case .success(let rawRanges):
+            // Auto-split any LLM-produced cue whose text exceeds the
+            // configured budget (with a small tolerance). The LLM tends
+            // to overshoot — real telemetry showed 75–115-char cues at
+            // a 65-char budget. Rejecting the chunk wastes the LLM's
+            // other (good) boundary choices, so instead we keep them
+            // and only break the oversized ones at the best linguistic
+            // point.
+            let ranges = autoSplitOversizedRanges(rawRanges, words: chunk.words, perCueBudget: perCueBudget)
+            let didSplit = ranges.count > rawRanges.count
+            if didSplit {
+                log.debug("layout_planner_autosplit chunk=\(chunk.startIndex)-\(chunk.endIndex) before=\(rawRanges.count) after=\(ranges.count) budget=\(perCueBudget)")
+            } else {
+                log.debug("layout_planner_chunk_ok range=\(chunk.startIndex)-\(chunk.endIndex) cues=\(ranges.count) budget=\(perCueBudget)")
+            }
             // Map chunk-local indices back to source indices when we build
             // the cue. Use OUR word array for text + timing.
             var cues: [ExportService.SubtitleCue] = []
@@ -220,6 +233,112 @@ public actor SubtitleLLMLayoutPlanner {
                 cues: nil
             )
         }
+    }
+
+    // MARK: - Prompt
+
+    // MARK: - Auto-split
+
+    /// Words we don't want a cue to end with — conjunctions, articles,
+    /// determiners, prepositions, auxiliary verbs, short pronouns. If the
+    /// auto-splitter is forced to choose between candidates, anything
+    /// ending in one of these is heavily penalised.
+    static let autoSplitBadEnders: Set<String> = [
+        "and", "but", "or", "so", "yet", "for", "nor", "then",
+        "the", "a", "an",
+        "this", "that", "these", "those",
+        "my", "your", "his", "her", "its", "our", "their",
+        "in", "on", "at", "to", "of", "with", "from", "by", "as", "into", "onto",
+        "is", "are", "was", "were", "be", "been", "being",
+        "have", "has", "had", "do", "does", "did",
+        "will", "would", "can", "could", "should",
+        "i", "we", "you", "they", "he", "she", "it",
+    ]
+
+    /// Split every LLM-emitted range whose joined text exceeds
+    /// `perCueBudget * 1.15` into smaller ranges at the best linguistic
+    /// break point. Recurses on each half so a single very-long range
+    /// (e.g. the 190-char outlier seen in logs) still ends up as several
+    /// budget-compliant pieces.
+    ///
+    /// The split point picker prefers, in order: sentence terminators,
+    /// commas / semicolons / colons, then a midpoint by character count.
+    /// Endings in `autoSplitBadEnders` get a strong penalty so the
+    /// auto-split doesn't undo the very rules we asked the LLM to
+    /// follow.
+    static func autoSplitOversizedRanges(
+        _ ranges: [LayoutPlanParser.CueRange],
+        words: [WordTimestamp],
+        perCueBudget: Int
+    ) -> [LayoutPlanParser.CueRange] {
+        let cap = max(perCueBudget, perCueBudget * 115 / 100)
+        var out: [LayoutPlanParser.CueRange] = []
+        for r in ranges {
+            out.append(contentsOf: splitRecursive(r, words: words, cap: cap, depth: 0))
+        }
+        return out
+    }
+
+    private static func splitRecursive(
+        _ range: LayoutPlanParser.CueRange,
+        words: [WordTimestamp],
+        cap: Int,
+        depth: Int
+    ) -> [LayoutPlanParser.CueRange] {
+        // Hard recursion guard — pathological inputs (e.g. a single
+        // 200-char word) shouldn't loop. After 6 levels we accept the
+        // range as-is and let the wrap pass downstream deal with display.
+        guard depth < 6 else { return [range] }
+        let text = words[range.start...range.end].map(\.word).joined(separator: " ")
+        if text.count <= cap { return [range] }
+        if range.end - range.start < 2 { return [range] }
+        guard let splitIdx = bestSplitIndex(in: words, range: range, cap: cap) else {
+            return [range]
+        }
+        let left = LayoutPlanParser.CueRange(start: range.start, end: splitIdx)
+        let right = LayoutPlanParser.CueRange(start: splitIdx + 1, end: range.end)
+        return splitRecursive(left, words: words, cap: cap, depth: depth + 1)
+             + splitRecursive(right, words: words, cap: cap, depth: depth + 1)
+    }
+
+    /// Score each candidate split index inside the range; return the
+    /// best one (or nil if no candidate produces a left half ≤ cap).
+    private static func bestSplitIndex(
+        in words: [WordTimestamp],
+        range: LayoutPlanParser.CueRange,
+        cap: Int
+    ) -> Int? {
+        var best: (index: Int, score: Int)? = nil
+
+        for splitIdx in range.start..<range.end {
+            let leftText = words[range.start...splitIdx].map(\.word).joined(separator: " ")
+            // Left half must fit; otherwise this candidate is useless.
+            guard leftText.count <= cap else { continue }
+            let rightText = words[(splitIdx + 1)...range.end].map(\.word).joined(separator: " ")
+            guard !rightText.isEmpty else { continue }
+
+            let raw = words[splitIdx].word
+            let last = raw.last
+            let stripped = raw.trimmingCharacters(in: .punctuationCharacters).lowercased()
+
+            var score = 0
+            // Strong reward for landing on punctuation.
+            if let c = last, ".!?".contains(c) { score += 500 }
+            else if let c = last, ",;:".contains(c) { score += 250 }
+
+            // Strong penalty for ending on a bad word.
+            if autoSplitBadEnders.contains(stripped) { score -= 300 }
+
+            // Prefer a balanced split (roughly equal halves by char count).
+            let total = leftText.count + rightText.count
+            let mid = total / 2
+            score -= abs(leftText.count - mid)
+
+            if best == nil || score > best!.score {
+                best = (splitIdx, score)
+            }
+        }
+        return best?.index
     }
 
     // MARK: - Prompt
