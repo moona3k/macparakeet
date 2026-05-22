@@ -13,10 +13,9 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
     }
 
     func testStopRequestedWhileIdleIsNoOp() {
-        // `MeetingRecordingFlowCoordinator.stopFromCalendar(recordingGeneration:)`
-        // relies on `.stopRequested` being a no-op from `.idle` — it must NEVER
-        // start a recording. This invariant keeps auto-stop safe to fire even
-        // if the recording already ended (see #1 privacy fix).
+        // Invariant: `.stopRequested` from `.idle` must be a no-op — a stop
+        // must NEVER start a recording. (Privacy fix: a blind toggle would
+        // silently begin mic + system-audio capture nobody asked for.)
         var machine = MeetingRecordingFlowStateMachine()
 
         let effects = machine.handle(.stopRequested)

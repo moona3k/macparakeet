@@ -296,7 +296,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `prompt_created` | — | Are custom prompt templates used? |
 | `prompt_updated` | — | Are custom prompts actively maintained? |
 | `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
-| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, youtube_audio_quality, speaker_diarization, whisper_default_language, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_auto_stop_enabled, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. The Whisper language picker and CJK first-run setup emit only the setting name; the selected language is observed from actual STT usage rows. |
+| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, youtube_audio_quality, speaker_diarization, whisper_default_language, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. The Whisper language picker and CJK first-run setup emit only the setting name; the selected language is observed from actual STT usage rows. |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
@@ -312,8 +312,6 @@ events remain useful for diarization-specific timing and failure analysis.
 | `calendar_auto_start_triggered` | `lead_seconds`, `has_meet_url` | How often countdowns reach auto-start |
 | `calendar_auto_start_cancelled` | `reason` | How often users cancel the countdown |
 | `calendar_auto_start_failed` | `reason` (`permission_denied`, `state_busy`, `service_threw`) | What blocks auto-start |
-| `calendar_auto_stop_shown` | `event_duration_seconds` | How often auto-stop countdowns are shown |
-| `calendar_auto_stop_cancelled` | — | How often users extend beyond the calendar event end |
 
 ### 6. Licensing — "Is the business working?"
 

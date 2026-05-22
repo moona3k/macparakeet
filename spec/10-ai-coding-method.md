@@ -167,7 +167,7 @@ Create `spec/kernel/state_machines/*.yaml` only for flows where explicit transit
 - Dictation lifecycle
 - Meeting recording lifecycle and crash recovery
 - STT scheduler/lease behavior
-- Calendar auto-start/auto-stop
+- Calendar auto-start
 - Destructive import/replace flows
 
 Each state machine should include:

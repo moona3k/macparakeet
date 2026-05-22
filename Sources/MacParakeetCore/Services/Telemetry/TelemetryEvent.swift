@@ -105,8 +105,6 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case calendarAutoStartTriggered = "calendar_auto_start_triggered"
     case calendarAutoStartCancelled = "calendar_auto_start_cancelled"
     case calendarAutoStartFailed = "calendar_auto_start_failed"
-    case calendarAutoStopShown = "calendar_auto_stop_shown"
-    case calendarAutoStopCancelled = "calendar_auto_stop_cancelled"
     // STT runtime observability
     case sttRuntimeUnhealthy = "stt_runtime_unhealthy"
     // Errors
@@ -384,7 +382,6 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case calendarAutoStartMode = "calendar_auto_start_mode"
     case calendarReminderMinutes = "calendar_reminder_minutes"
     case calendarTriggerFilter = "calendar_trigger_filter"
-    case calendarAutoStopEnabled = "calendar_auto_stop_enabled"
     case calendarIncludedCalendars = "calendar_included_calendars"
 }
 
@@ -698,11 +695,6 @@ public enum TelemetryEventSpec: Sendable {
     /// - `state_busy` — recording flow was non-idle (back-to-back meeting)
     /// - `service_threw` — `MeetingRecordingService.startRecording` errored
     case calendarAutoStartFailed(reason: String)
-    /// Auto-stop countdown shown for an event currently being recorded.
-    case calendarAutoStopShown(eventDurationSeconds: Double)
-    /// User extended past the calendar event's end time (suppressed
-    /// auto-stop). Tells us how often the 30s lead is wrong.
-    case calendarAutoStopCancelled
     // STT runtime observability. Fires when an STT runtime call (cancel-drain,
     // model-cache clear, shutdown, engine swap) exceeds the watchdog timeout.
     // Detection-only; the caller continues to await as today.
@@ -832,8 +824,6 @@ extension TelemetryEventSpec {
         case .calendarAutoStartTriggered: return .calendarAutoStartTriggered
         case .calendarAutoStartCancelled: return .calendarAutoStartCancelled
         case .calendarAutoStartFailed: return .calendarAutoStartFailed
-        case .calendarAutoStopShown: return .calendarAutoStopShown
-        case .calendarAutoStopCancelled: return .calendarAutoStopCancelled
         case .sttRuntimeUnhealthy: return .sttRuntimeUnhealthy
         case .errorOccurred: return .errorOccurred
         case .crashOccurred: return .crashOccurred
@@ -1398,10 +1388,6 @@ extension TelemetryEventSpec {
             return ["reason": reason]
         case .calendarAutoStartFailed(let reason):
             return ["reason": reason]
-        case .calendarAutoStopShown(let eventDurationSeconds):
-            return ["event_duration_seconds": Self.format(eventDurationSeconds)]
-        case .calendarAutoStopCancelled:
-            return nil
         case .sttRuntimeUnhealthy(let reason):
             return ["reason": reason]
         case .errorOccurred(let domain, let code, let description):
@@ -1620,8 +1606,6 @@ public enum TelemetryImplementedContract {
         .calendarAutoStartTriggered: ["lead_seconds", "has_meet_url"],
         .calendarAutoStartCancelled: ["reason"],
         .calendarAutoStartFailed: ["reason"],
-        .calendarAutoStopShown: ["event_duration_seconds"],
-        .calendarAutoStopCancelled: [],
         .sttRuntimeUnhealthy: ["reason"],
         .errorOccurred: ["domain", "code", "description"],
         .crashOccurred: ["crash_type", "signal", "name", "crash_ts", "crash_app_ver"],

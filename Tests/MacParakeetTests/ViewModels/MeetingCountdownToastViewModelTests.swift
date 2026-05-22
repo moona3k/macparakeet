@@ -5,7 +5,6 @@ import XCTest
 final class MeetingCountdownToastViewModelTests: XCTestCase {
     func testMinimalAutoStartHasNoCalendarContext() {
         let vm = MeetingCountdownToastViewModel(
-            style: .autoStart,
             title: "Standup",
             body: "Recording will start automatically.",
             duration: 5
@@ -13,8 +12,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
 
         XCTAssertNil(vm.calendarContext)
         XCTAssertNil(vm.contextSummary, "Manual-trigger toasts must not show the rich context row (ADR-020 §10)")
-        XCTAssertEqual(vm.primaryActionLabel, "Cancel")
-        XCTAssertEqual(vm.secondaryActionLabel, "Start Now")
     }
 
     func testRichAutoStartFormatsAttendeesAndService() {
@@ -24,7 +21,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
             steeringHint: "Take notes during the meeting."
         )
         let vm = MeetingCountdownToastViewModel(
-            style: .autoStart,
             title: "Q2 Planning",
             body: "Recording will start automatically — joining Zoom?",
             duration: 5,
@@ -41,7 +37,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
             steeringHint: "Take notes during the meeting."
         )
         let vm = MeetingCountdownToastViewModel(
-            style: .autoStart,
             title: "1:1",
             body: "Recording will start automatically.",
             duration: 5,
@@ -58,7 +53,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
             steeringHint: "Take notes."
         )
         let vm = MeetingCountdownToastViewModel(
-            style: .autoStart,
             title: "Solo",
             body: "Recording will start automatically.",
             duration: 5,
@@ -75,7 +69,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
             steeringHint: "Take notes."
         )
         let vm = MeetingCountdownToastViewModel(
-            style: .autoStart,
             title: "Hallway sync",
             body: "Recording will start automatically.",
             duration: 5,
@@ -92,7 +85,6 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
             steeringHint: "Take notes."
         )
         let vm = MeetingCountdownToastViewModel(
-            style: .autoStart,
             title: "Empty",
             body: "Recording will start automatically.",
             duration: 5,
@@ -100,17 +92,5 @@ final class MeetingCountdownToastViewModelTests: XCTestCase {
         )
 
         XCTAssertNil(vm.contextSummary, "An empty context yields nil so the view skips the row entirely")
-    }
-
-    func testAutoStopStyleHasNoSecondaryAction() {
-        let vm = MeetingCountdownToastViewModel(
-            style: .autoStop,
-            title: "Wrap ending",
-            body: "Stop recording?",
-            duration: 30
-        )
-
-        XCTAssertEqual(vm.primaryActionLabel, "Keep Recording")
-        XCTAssertNil(vm.secondaryActionLabel)
     }
 }

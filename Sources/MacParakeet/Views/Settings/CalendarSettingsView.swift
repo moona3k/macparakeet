@@ -29,11 +29,6 @@ struct CalendarSettingsView: View {
                     Divider()
                     triggerFilterRow
 
-                    if viewModel.calendarAutoStartMode == .autoStart {
-                        Divider()
-                        autoStopRow
-                    }
-
                     if !availableCalendars.isEmpty {
                         Divider()
                         includedCalendarsRow
@@ -219,27 +214,6 @@ struct CalendarSettingsView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(minWidth: 200)
-        }
-    }
-
-    // MARK: - Auto-stop toggle (only when mode == .autoStart)
-
-    @ViewBuilder
-    private var autoStopRow: some View {
-        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Stop recording at meeting end")
-                    .font(DesignSystem.Typography.body)
-                Text("Shows a 30-second countdown when the meeting is scheduled to end. Click \"Keep Recording\" if it runs over.")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: DesignSystem.Spacing.md)
-            Toggle("", isOn: $viewModel.calendarAutoStopEnabled)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .accessibilityLabel("Stop recording at meeting end")
-                .accessibilityHint("Shows a 30-second countdown when the meeting is scheduled to end")
         }
     }
 

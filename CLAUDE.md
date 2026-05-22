@@ -20,9 +20,12 @@ A **fast, private, local-first voice app** for macOS. The v0.6 release ships sys
 | `main` | Development | v0.6 release scope plus productized Transforms and calendar auto-start enabled (`AppFeatures.calendarEnabled = true`); calendar auto-start defaults to mode `.off` (strictly opt-in) |
 
 When editing public-facing docs, preserve this release boundary: v0.6 includes
-meeting recording and WhisperKit. Calendar reminders, auto-start, and auto-stop
-are implemented and enabled on `main` (`AppFeatures.calendarEnabled = true`);
-calendar auto-start defaults to mode `.off`, so it is strictly opt-in.
+meeting recording and WhisperKit. Calendar reminders and auto-start are
+implemented and enabled on `main` (`AppFeatures.calendarEnabled = true`);
+calendar auto-start defaults to mode `.off`, so it is strictly opt-in. Calendar-
+driven auto-stop was removed (ADR-017 amendment, 2026-05) — scheduled end times
+are unreliable, so recordings are stopped manually (activity/audio-based auto-stop
+is a future ADR).
 
 ## Quick Navigation
 

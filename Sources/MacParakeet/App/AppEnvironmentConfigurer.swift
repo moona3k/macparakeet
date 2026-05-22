@@ -328,22 +328,8 @@ final class AppEnvironmentConfigurer {
                 },
                 onAutoStartConfirmed: { [weak meetingCoordinator] title in
                     meetingCoordinator?.startFromCalendar(title: title)
-                },
-                onAutoStopConfirmed: { [weak meetingCoordinator] recordingGeneration in
-                    // Idempotent stop — never a toggle. A toggle would *start*
-                    // a new recording if the user already stopped the
-                    // auto-started one during the 30s auto-stop countdown.
-                    meetingCoordinator?.stopFromCalendar(recordingGeneration: recordingGeneration)
                 }
             )
-            // The recording flow tells the calendar coordinator when an
-            // auto-start attempt actually failed (state was non-idle, or
-            // the underlying start threw) so the optimistic binding gets
-            // dropped — otherwise the next meeting's auto-stop would be
-            // suppressed by a stale `autoStartedEventId`.
-            meetingCoordinator.onAutoStartFailed = { [weak coordinator] in
-                coordinator?.clearAutoStartBinding()
-            }
             coordinator.start()
             calendarCoordinator = coordinator
         } else {

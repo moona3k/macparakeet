@@ -33,15 +33,12 @@ final class MeetingMonitorTests: XCTestCase {
     private func config(
         mode: CalendarAutoStartMode = .notify,
         reminderMinutes: Int = 5,
-        triggerFilter: MeetingTriggerFilter = .withLink,
-        autoStopEnabled: Bool = true
+        triggerFilter: MeetingTriggerFilter = .withLink
     ) -> MeetingMonitor.Config {
         MeetingMonitor.Config(
             mode: mode,
             reminderMinutes: reminderMinutes,
             countdownSeconds: 5,
-            autoStopEnabled: autoStopEnabled,
-            autoStopLeadSeconds: 30,
             triggerFilter: triggerFilter,
             lateJoinGraceMinutes: 10
         )
@@ -50,7 +47,7 @@ final class MeetingMonitorTests: XCTestCase {
     private func extractIds(_ events: [MeetingMonitor.MonitorEvent]) -> [String] {
         events.map {
             switch $0 {
-            case .reminderDue(let e), .autoStartDue(let e), .lateJoinAvailable(let e), .autoStopDue(let e):
+            case .reminderDue(let e), .autoStartDue(let e), .lateJoinAvailable(let e):
                 return e.id
             }
         }
@@ -452,32 +449,6 @@ final class MeetingMonitorTests: XCTestCase {
                       "Reminders should remain lenient for pending invites")
     }
 
-    func testAutoStopFiresForPendingInviteOnceRecording() {
-        let now = Date()
-        // RSVP gates auto-START only. If we're already recording a meeting
-        // (regardless of RSVP), auto-stop must still fire at its end.
-        let evt = CalendarEvent(
-            id: "ending",
-            title: "Wrap",
-            startTime: now.addingTimeInterval(-1500),
-            endTime: now.addingTimeInterval(20),
-            meetUrl: "https://zoom.us/j/1",
-            participants: [EventParticipant(email: "x@y")],
-            userStatus: .pending
-        )
-        let result = MeetingMonitor.evaluate(
-            events: [evt],
-            now: now,
-            config: config(mode: .autoStart, autoStopEnabled: true),
-            activeRecording: true,
-            dismissedEventIds: [],
-            remindedEventIds: [],
-            countdownShownEventIds: []
-        )
-        XCTAssertTrue(result.contains { if case .autoStopDue = $0 { return true } else { return false } },
-                      "Auto-stop is not RSVP-gated — a recording in flight must still stop at meeting end")
-    }
-
     // MARK: - Late join
 
     func testLateJoinFiresAfter30sUntilGracePeriod() {
@@ -510,108 +481,6 @@ final class MeetingMonitorTests: XCTestCase {
             countdownShownEventIds: []
         )
         XCTAssertTrue(result.isEmpty)
-    }
-
-    // MARK: - Auto-stop
-
-    func testAutoStopFiresInLastSecondsOfMeeting() {
-        let now = Date()
-        // Event ends 20s after `now` (started 25 min ago, runs for 25 min) →
-        // inside the [endTime - 30s, endTime] auto-stop window.
-        let evt = CalendarEvent(
-            id: "ending",
-            title: "Wrap",
-            startTime: now.addingTimeInterval(-1500),
-            endTime: now.addingTimeInterval(20),
-            meetUrl: "https://zoom.us/j/1",
-            participants: [EventParticipant(email: "x@y")],
-            userStatus: .accepted
-        )
-        let result = MeetingMonitor.evaluate(
-            events: [evt],
-            now: now,
-            config: config(mode: .autoStart, autoStopEnabled: true),
-            activeRecording: true,
-            dismissedEventIds: [],
-            remindedEventIds: [],
-            countdownShownEventIds: []
-        )
-        XCTAssertTrue(result.contains { if case .autoStopDue = $0 { return true } else { return false } })
-    }
-
-    func testAutoStopDoesNotFireWhenNotRecording() {
-        let now = Date()
-        let evt = CalendarEvent(
-            id: "ending",
-            title: "Wrap",
-            startTime: now.addingTimeInterval(-1500),
-            endTime: now.addingTimeInterval(20),
-            meetUrl: "https://zoom.us/j/1",
-            participants: [EventParticipant(email: "x@y")],
-            userStatus: .accepted
-        )
-        let result = MeetingMonitor.evaluate(
-            events: [evt],
-            now: now,
-            config: config(mode: .autoStart),
-            activeRecording: false,
-            dismissedEventIds: [],
-            remindedEventIds: [],
-            countdownShownEventIds: []
-        )
-        XCTAssertFalse(result.contains { if case .autoStopDue = $0 { return true } else { return false } })
-    }
-
-    func testAutoStopFiresWithinForgivenessTailPastEnd() {
-        let now = Date()
-        // Meeting already ended 60s ago, recording still active (we woke from
-        // sleep / it ran long). Within the 5-min forgiveness tail → auto-stop
-        // should still fire so the recording doesn't run forever.
-        let evt = CalendarEvent(
-            id: "ended",
-            title: "Wrap",
-            startTime: now.addingTimeInterval(-1800),
-            endTime: now.addingTimeInterval(-60),
-            meetUrl: "https://zoom.us/j/1",
-            participants: [EventParticipant(email: "x@y")],
-            userStatus: .accepted
-        )
-        let result = MeetingMonitor.evaluate(
-            events: [evt],
-            now: now,
-            config: config(mode: .autoStart, autoStopEnabled: true),
-            activeRecording: true,
-            dismissedEventIds: [],
-            remindedEventIds: [],
-            countdownShownEventIds: []
-        )
-        XCTAssertTrue(result.contains { if case .autoStopDue = $0 { return true } else { return false } },
-                      "Auto-stop must still fire shortly after endTime (sleep / long meeting)")
-    }
-
-    func testAutoStopDoesNotFireBeyondForgivenessTail() {
-        let now = Date()
-        // Ended 6 minutes ago — beyond the 5-min forgiveness tail. Leave it
-        // for a manual stop rather than force-stopping a long-past meeting.
-        let evt = CalendarEvent(
-            id: "ended",
-            title: "Wrap",
-            startTime: now.addingTimeInterval(-3600),
-            endTime: now.addingTimeInterval(-6 * 60),
-            meetUrl: "https://zoom.us/j/1",
-            participants: [EventParticipant(email: "x@y")],
-            userStatus: .accepted
-        )
-        let result = MeetingMonitor.evaluate(
-            events: [evt],
-            now: now,
-            config: config(mode: .autoStart, autoStopEnabled: true),
-            activeRecording: true,
-            dismissedEventIds: [],
-            remindedEventIds: [],
-            countdownShownEventIds: []
-        )
-        XCTAssertFalse(result.contains { if case .autoStopDue = $0 { return true } else { return false } })
     }
 
     // MARK: - Multiple events

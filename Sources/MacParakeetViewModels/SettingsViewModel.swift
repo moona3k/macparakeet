@@ -354,14 +354,6 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .calendarTriggerFilter))
         }
     }
-    public var calendarAutoStopEnabled: Bool {
-        didSet {
-            defaults.set(calendarAutoStopEnabled, forKey: CalendarAutoStartPreferences.autoStopEnabledKey)
-            guard !isResolvingCalendarSettings else { return }
-            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .calendarAutoStopEnabled))
-        }
-    }
     public var calendarExcludedIdentifiers: Set<String> {
         didSet {
             defaults.set(Array(calendarExcludedIdentifiers), forKey: CalendarAutoStartPreferences.excludedCalendarIdsKey)
@@ -526,7 +518,6 @@ public final class SettingsViewModel {
         calendarAutoStartMode = Self.resolveCalendarAutoStartMode(defaults: defaults)
         calendarReminderMinutes = Self.resolveCalendarReminderMinutes(defaults: defaults)
         meetingTriggerFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
-        calendarAutoStopEnabled = defaults.object(forKey: CalendarAutoStartPreferences.autoStopEnabledKey) as? Bool ?? true
         calendarExcludedIdentifiers = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
 
         // Defense-in-depth self-heal: in the rare case that
@@ -590,9 +581,6 @@ public final class SettingsViewModel {
 
         let resolvedFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
         if meetingTriggerFilter != resolvedFilter { meetingTriggerFilter = resolvedFilter }
-
-        let resolvedAutoStop = defaults.object(forKey: CalendarAutoStartPreferences.autoStopEnabledKey) as? Bool ?? true
-        if calendarAutoStopEnabled != resolvedAutoStop { calendarAutoStopEnabled = resolvedAutoStop }
 
         let resolvedExcluded = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
         if calendarExcludedIdentifiers != resolvedExcluded { calendarExcludedIdentifiers = resolvedExcluded }

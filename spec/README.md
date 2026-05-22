@@ -217,12 +217,12 @@ Dictation + transcription + history + settings. Get audio in, text out, pasted i
 - [x] Plain-noun tab strip with one ambient indicator (ADR-020 §1, amended 2026-05-02): `Notes`, `Transcript`, `Ask` plus a breathing dot on Ask while `chatViewModel.isStreaming`; `ViewThatFits` collapses the dot into the tooltip at the 360px floor
 - [x] STT failure copy refinement (ADR-020): "Recording Error" → "Meeting interrupted" + Library-recovery hint wrapper around the technical detail
 
-Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabled = true`) after the post-#318 reliability hardening. It surfaces the onboarding step, Settings subsection, search entry, reminder notifications, auto-start countdown, auto-stop countdown, and coordinator polling; auto-start defaults to mode `.off`, so it is strictly opt-in:
+Calendar-related code is implemented and **enabled** (`AppFeatures.calendarEnabled = true`) after the post-#318 reliability hardening. It surfaces the onboarding step, Settings subsection, search entry, reminder notifications, auto-start countdown, and coordinator polling; auto-start defaults to mode `.off`, so it is strictly opt-in:
 
 - [x] Calendar-driven reminders (ADR-017 Phase 1): EventKit integration + onboarding + settings + per-calendar include list
 - [x] Pre-meeting macOS notifications at configurable lead time (off / 1 / 5 / 10 min)
-- [x] Auto-start countdown toast (ADR-017 Phase 2): 5s cancellable, top-center, non-activating
-- [x] Auto-stop toast at calendar event end (ADR-017 Phase 2): 30s, "Keep Recording" cancels
+- [x] Auto-start countdown toast (ADR-017 Phase 2): 5s cancellable, top-right, non-activating
+- [ ] ~~Auto-stop toast at calendar event end~~ — **removed** (ADR-017 amendment, 2026-05): scheduled end times are unreliable; recordings stop manually. Activity/audio-based auto-stop is a future ADR.
 - [x] Calendar event title applied to auto-started recordings instead of date-based default
 - [x] Rich pre-meeting countdown toast for calendar starts (ADR-020): attendees + service icon row + steering hint pointing the user at the Notes tab. Manual-trigger toasts unchanged
 

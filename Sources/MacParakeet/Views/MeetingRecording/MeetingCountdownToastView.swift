@@ -1,94 +1,65 @@
 import MacParakeetViewModels
 import SwiftUI
 
-/// Compact non-activating toast for calendar-driven auto-start countdowns.
-/// Two flavors via `MeetingCountdownToastViewModel.Style`:
+/// Compact "countdown halo" toast for calendar-driven **auto-start**. The
+/// sacred-geometry rosette (shared with the recording pill via
+/// `MerkabaPillIcon`) sits inside a coral ring that sweeps over the countdown —
+/// the ring *is* the timer, so there's no separate progress bar. Minimal text:
+/// the meeting title plus one status line. Lives top-right (ADR-017 / ADR-020 §10).
 ///
-/// - `.autoStart` → "Standup starts in 5s" + Cancel + Start Now
-/// - `.autoStop`  → "Wrap ending — stop recording?" + Keep Recording
-///
-/// Bound to a `@Bindable` view model so the controller can drive `progress`
-/// from a 60Hz timer without re-rendering the whole subtree.
+/// `✕` cancels this auto-start; `↵` starts now. If left alone, the ring fills
+/// and recording starts automatically. (Auto-*stop* was removed — see the
+/// ADR-017 amendment — so there is no stop variant of this toast.)
 struct MeetingCountdownToastView: View {
     @Bindable var viewModel: MeetingCountdownToastViewModel
-    /// Always present — the dismissive action (Cancel / Keep Recording).
-    /// Bound to `.escape` and rendered with `.bordered` (less prominent).
+    /// Dismissive action — Cancel. Bound to `.escape`.
     let onDismiss: () -> Void
-    /// Optional affirmative action (Start Now). Only present in the
-    /// `.autoStart` style; bound to `.return` and rendered with
-    /// `.borderedProminent` so it visually reads as the default.
+    /// Affirmative action — Start Now. Bound to `.return` via a hidden shortcut.
     let onConfirm: (() -> Void)?
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// One short status line under the title. Kept deliberately terse — the
+    /// rosette + ring already carry "recording" and "counting down".
+    private var subtitle: String {
+        if let service = viewModel.calendarContext?.serviceName {
+            return "Recording · \(service)"
+        }
+        return "Auto-recording"
+    }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
-            HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: viewModel.style == .autoStart ? "calendar.badge.clock" : "stop.circle")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(DesignSystem.Colors.meetingPillText)
+        HStack(spacing: DesignSystem.Spacing.md) {
+            halo
+
+            VStack(alignment: .leading, spacing: 2) {
                 Text(viewModel.title)
                     .font(DesignSystem.Typography.meetingPillStatus)
                     .foregroundStyle(DesignSystem.Colors.meetingPillText)
                     .lineLimit(1)
-                Spacer()
+                Text(subtitle)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.meetingPillText.opacity(0.6))
+                    .lineLimit(1)
             }
 
-            Text(viewModel.body)
-                .font(DesignSystem.Typography.caption)
-                .foregroundStyle(DesignSystem.Colors.meetingPillText.opacity(0.75))
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: DesignSystem.Spacing.sm)
 
-            // Rich variant — only present for calendar-triggered auto-start
-            // (ADR-020 §10). Carries attendee count + meeting service icon
-            // and a steering hint pointing the user at the Notes tab. Manual
-            // toasts skip this block entirely.
-            if let summary = viewModel.contextSummary, let hint = viewModel.calendarContext?.steeringHint {
-                Divider()
-                    .opacity(0.3)
-                HStack(spacing: 6) {
-                    if let service = viewModel.calendarContext?.serviceName {
-                        Image(systemName: serviceIconName(for: service))
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(DesignSystem.Colors.meetingPillText.opacity(0.8))
-                            .accessibilityHidden(true)
-                    }
-                    Text(summary)
-                        .font(.system(size: 11, weight: .regular))
-                        .foregroundStyle(DesignSystem.Colors.meetingPillText.opacity(0.85))
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
-                }
-                Text(hint)
-                    .font(.system(size: 11, weight: .regular))
-                    .foregroundStyle(DesignSystem.Colors.meetingPillText.opacity(0.65))
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
+            // Bare ✕ — minimal cancel. "Cancel auto-start" via accessibility.
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(DesignSystem.Colors.meetingPillText.opacity(0.55))
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
             }
-
-            progressBar
-
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                Button(action: onDismiss) {
-                    Text(viewModel.primaryActionLabel)
-                        .frame(maxWidth: .infinity)
-                }
-                .parakeetAction(.secondary)
-                .controlSize(.small)
-                .keyboardShortcut(.escape, modifiers: [])
-
-                if let confirmLabel = viewModel.secondaryActionLabel,
-                   let onConfirm {
-                    Button(action: onConfirm) {
-                        Text(confirmLabel)
-                            .frame(maxWidth: .infinity)
-                    }
-                    .parakeetAction(.primaryProminent)
-                    .controlSize(.small)
-                    .keyboardShortcut(.return, modifiers: [])
-                }
-            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.escape, modifiers: [])
+            .accessibilityLabel("Cancel auto-start")
         }
-        .padding(DesignSystem.Spacing.md)
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.vertical, DesignSystem.Spacing.sm + 2)
+        .frame(width: 300)
         .background(
             RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                 .fill(DesignSystem.Colors.meetingPillBackground)
@@ -96,36 +67,47 @@ struct MeetingCountdownToastView: View {
                     RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                         .stroke(DesignSystem.Colors.meetingPillStroke, lineWidth: 0.5)
                 )
-                .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
+                .shadow(color: .black.opacity(0.28), radius: 14, y: 6)
         )
-        .frame(width: viewModel.calendarContext == nil ? 280 : 320)
+        // Hidden Return shortcut for "Start Now". Kept out of the visible
+        // layout so the toast stays button-free per the design.
+        .background(returnShortcut)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text("\(viewModel.title). \(subtitle). Starting automatically."))
     }
 
-    /// SF Symbol name for the meeting service. Names match the strings
-    /// `MeetingLinkParser.identifyService` returns — keep this list in
-    /// sync with that switch (Sources/MacParakeetCore/Calendar/
-    /// MeetingLinkParser.swift). Unknown services fall through to a
-    /// generic link icon.
-    private func serviceIconName(for service: String) -> String {
-        switch service {
-        case "Zoom", "Google Meet", "Microsoft Teams", "Webex", "Around":
-            return "video.fill"
-        default:
-            return "link"
+    /// Rosette wrapped in the countdown ring. The track is a faint full circle;
+    /// the coral arc trims from 0 → `progress` and fills as the countdown
+    /// completes (full ring = recording starts).
+    private var halo: some View {
+        ZStack {
+            Circle()
+                .stroke(DesignSystem.Colors.meetingPillText.opacity(0.12), lineWidth: 2.5)
+
+            Circle()
+                .trim(from: 0, to: max(0, min(1, viewModel.progress)))
+                .stroke(DesignSystem.Colors.accent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.linear(duration: 0.05), value: viewModel.progress)
+
+            MerkabaPillIcon(
+                isAnimating: !reduceMotion,
+                audioLevel: 0,
+                showStem: false
+            )
+            .frame(width: 30, height: 30)
         }
+        .frame(width: 46, height: 46)
     }
 
-    private var progressBar: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(DesignSystem.Colors.meetingPillText.opacity(0.12))
-                Capsule()
-                    .fill(DesignSystem.Colors.accent)
-                    .frame(width: max(0, min(1, viewModel.progress)) * geo.size.width)
-                    .animation(.linear(duration: 0.05), value: viewModel.progress)
-            }
+    @ViewBuilder
+    private var returnShortcut: some View {
+        if let onConfirm {
+            Button("", action: onConfirm)
+                .keyboardShortcut(.return, modifiers: [])
+                .opacity(0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
         }
-        .frame(height: 4)
     }
 }

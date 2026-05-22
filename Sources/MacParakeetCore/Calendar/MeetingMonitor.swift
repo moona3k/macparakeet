@@ -21,14 +21,6 @@ public enum MeetingMonitor {
         /// Fires in the window `(T + 30s, T + lateJoinGraceMinutes]`. Phase D
         /// keeps the case but does not wire UI — see ADR-017.
         case lateJoinAvailable(CalendarEvent)
-
-        /// Fires in the window `[endTime - autoStopLeadSeconds,
-        /// endTime + autoStopForgiveness]`. Only emitted when
-        /// `activeRecording == true`. The forgiveness tail past `endTime`
-        /// catches a window missed during sleep or for a meeting that ran
-        /// long — without it, the event drops out of the forward fetch the
-        /// instant `now` passes `endTime` and the recording never auto-stops.
-        case autoStopDue(CalendarEvent)
     }
 
     public struct Config: Codable, Sendable, Equatable {
@@ -38,8 +30,6 @@ public enum MeetingMonitor {
         /// Phase 2 — countdown duration before auto-start fires. Held here so
         /// the future coordinator wiring doesn't need a separate config type.
         public var countdownSeconds: Int
-        public var autoStopEnabled: Bool
-        public var autoStopLeadSeconds: Int
         public var triggerFilter: MeetingTriggerFilter
         public var lateJoinGraceMinutes: Int
 
@@ -47,16 +37,12 @@ public enum MeetingMonitor {
             mode: CalendarAutoStartMode = .notify,
             reminderMinutes: Int = 5,
             countdownSeconds: Int = 5,
-            autoStopEnabled: Bool = true,
-            autoStopLeadSeconds: Int = 30,
             triggerFilter: MeetingTriggerFilter = .withLink,
             lateJoinGraceMinutes: Int = 10
         ) {
             self.mode = mode
             self.reminderMinutes = reminderMinutes
             self.countdownSeconds = countdownSeconds
-            self.autoStopEnabled = autoStopEnabled
-            self.autoStopLeadSeconds = autoStopLeadSeconds
             self.triggerFilter = triggerFilter
             self.lateJoinGraceMinutes = lateJoinGraceMinutes
         }
@@ -119,38 +105,16 @@ public enum MeetingMonitor {
                     result.append(.lateJoinAvailable(event))
                 }
             }
-
-            if config.mode == .autoStart && config.autoStopEnabled && activeRecording {
-                let autoStopBegin = event.endTime.addingTimeInterval(-Double(config.autoStopLeadSeconds))
-                let autoStopEnd = event.endTime.addingTimeInterval(autoStopForgiveness)
-                if now >= autoStopBegin && now <= autoStopEnd {
-                    result.append(.autoStopDue(event))
-                }
-            }
         }
 
         return result
     }
 
-    /// How long past an event's `endTime` the auto-stop window stays open.
-    /// Lets a poll that lands late (resumed from sleep, or a meeting that ran
-    /// long) still surface the auto-stop countdown rather than silently
-    /// leaving the recording running. Beyond this the recording is left for a
-    /// manual stop — we don't force-stop a recording for a meeting that ended
-    /// long ago.
-    ///
-    /// Public so the coordinator's adaptive-polling logic can mirror this
-    /// exact window: it polls fast through the forgiveness tail (when the
-    /// event has dropped out of the forward fetch and the normal cadence
-    /// math goes blind) and relaxes once the tail closes.
-    public static let autoStopForgiveness: TimeInterval = 5 * 60
-
     /// Whether an event is eligible for *auto-start* (and late-join) based on
     /// the user's RSVP. `.declined` is already filtered out of candidates;
     /// this additionally blocks `.pending` (invited, not yet accepted). Own
     /// meetings and personal blocks surface as `.unknown`/`nil` and remain
-    /// eligible. Auto-*stop* is intentionally NOT gated by this — once we're
-    /// recording an event we still want to stop at its end regardless of RSVP.
+    /// eligible.
     private static func shouldAutoStart(forStatus status: EventParticipant.ParticipantStatus?) -> Bool {
         switch status {
         case .declined, .pending:

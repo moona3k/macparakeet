@@ -58,30 +58,10 @@ final class MeetingCountdownToastController {
     ) {
         present(
             viewModel: MeetingCountdownToastViewModel(
-                style: .autoStart,
                 title: title,
                 body: body,
                 duration: duration,
                 calendarContext: calendarContext
-            ),
-            onOutcome: onOutcome
-        )
-    }
-
-    /// Show an end-of-meeting auto-stop countdown. Default duration 30s
-    /// gives the user time to extend a meeting that ran over.
-    func showAutoStop(
-        title: String,
-        body: String,
-        duration: TimeInterval = 30,
-        onOutcome: @escaping (MeetingCountdownToastOutcome) -> Void
-    ) {
-        present(
-            viewModel: MeetingCountdownToastViewModel(
-                style: .autoStop,
-                title: title,
-                body: body,
-                duration: duration
             ),
             onOutcome: onOutcome
         )
@@ -115,13 +95,11 @@ final class MeetingCountdownToastController {
         let view = MeetingCountdownToastView(
             viewModel: viewModel,
             onDismiss: { [weak self] in self?.finish(.userDismissed) },
-            onConfirm: viewModel.secondaryActionLabel == nil
-                ? nil
-                : { [weak self] in self?.finish(.primedEarly) }
+            onConfirm: { [weak self] in self?.finish(.primedEarly) }
         )
 
         let hosting = NSHostingView(rootView: view)
-        hosting.frame = NSRect(x: 0, y: 0, width: 280, height: 130)
+        hosting.frame = NSRect(x: 0, y: 0, width: 300, height: 80)
 
         let panel = CountdownPanel(
             contentRect: hosting.frame,
@@ -137,15 +115,16 @@ final class MeetingCountdownToastController {
         panel.contentView = hosting
 
         if let screen = Self.screenForToast() {
-            // Top-center of the visible frame; sits below the menu bar but
-            // above any active app window — makes the countdown impossible
-            // to miss without being aggressive.
+            // Top-right of the visible frame, like a system notification: tucked
+            // under the menu bar in the corner so it's noticeable without
+            // covering the active app's center of attention.
             let panelSize = hosting.fittingSize.width > 0
                 ? hosting.fittingSize
-                : NSSize(width: 280, height: 130)
+                : NSSize(width: 300, height: 80)
             let frame = screen.visibleFrame
-            let x = frame.midX - panelSize.width / 2
-            let y = frame.maxY - panelSize.height - 32
+            let margin: CGFloat = 16
+            let x = frame.maxX - panelSize.width - margin
+            let y = frame.maxY - panelSize.height - margin
             panel.setFrame(NSRect(origin: NSPoint(x: x, y: y), size: panelSize), display: true)
         }
 

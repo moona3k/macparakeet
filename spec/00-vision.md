@@ -477,7 +477,7 @@ Ship-quality polish. Direct distribution via notarized DMG.
 - Settings speech-engine picker and Whisper language picker
 - CLI `transcribe --engine parakeet|whisper --language`
 - Meeting recordings pin engine/language for live preview, recovery, and finalization
-- Calendar auto-start/auto-stop is implemented and enabled (`AppFeatures.calendarEnabled = true`); defaults to opt-in mode `.off`
+- Calendar auto-start is implemented and enabled (`AppFeatures.calendarEnabled = true`); defaults to opt-in mode `.off`. Calendar-driven auto-stop was removed (ADR-017 amendment); recordings stop manually
 
 ### v0.7: Post-v0.6 polish
 

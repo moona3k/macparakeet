@@ -293,7 +293,7 @@ REQ-XFORM-002:
 # --- v0.6 Calendar Auto-Start (ADR-017) ---
 
 REQ-CAL-001:
-  description: Calendar auto-start monitors EventKit calendars via adaptive polling and, per a user-selected mode (off/notify/auto-start, default off and strictly opt-in), notifies of upcoming meetings and/or auto-starts meeting recording with a pre-meeting countdown and generation-bound auto-stop; RSVP-declined and zero-duration events are excluded and the whole surface is gated by Calendar permission and AppFeatures.calendarEnabled
+  description: Calendar auto-start monitors EventKit calendars via adaptive polling and, per a user-selected mode (off/notify/auto-start, default off and strictly opt-in), notifies of upcoming meetings and/or auto-starts meeting recording with a pre-meeting countdown; RSVP-declined and zero-duration events are excluded and the whole surface is gated by Calendar permission and AppFeatures.calendarEnabled. Calendar-driven auto-stop was removed (ADR-017 amendment, 2026-05) — recordings stop manually; activity-based auto-stop is a future ADR
   version: v0.6
   status: implemented
 

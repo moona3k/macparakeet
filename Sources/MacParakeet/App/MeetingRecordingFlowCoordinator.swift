@@ -124,14 +124,6 @@ final class MeetingRecordingFlowCoordinator {
     /// back to its date-based default title.
     private var pendingTitle: String?
 
-    /// Optional callback fired when an auto-start attempt couldn't actually
-    /// start a recording — either because the state machine wasn't idle
-    /// (back-to-back meeting, previous wrap-up still in progress) or the
-    /// underlying `startRecording()` threw. The auto-start coordinator
-    /// uses this to clear its `autoStartedEventId` binding so a stale id
-    /// doesn't suppress the *next* meeting's auto-stop.
-    var onAutoStartFailed: (() -> Void)?
-
     /// Pause / resume the in-flight recording. The state flip happens AFTER
     /// the service confirms — an optimistic flip before the await would race
     /// with the 150ms polling reconciler (which reads `captureMode` from the
@@ -199,15 +191,14 @@ final class MeetingRecordingFlowCoordinator {
     /// telemetry distinguishes it and pre-names the recording with the
     /// event title, then enters the normal start flow. No-op if a recording
     /// is already in progress (manual recording wins by arriving first —
-    /// see ADR-017 §10). When non-idle, fires `onAutoStartFailed` so the
-    /// calendar coordinator can drop its binding, and emits
+    /// see ADR-017 §10), in which case it emits
     /// `calendar_auto_start_failed{reason=state_busy}` so we can see how
-    /// often back-to-back meetings actually collide in the wild.
+    /// often back-to-back meetings actually collide in the wild. Returns the
+    /// recording generation on success (or `nil` when the state was busy).
     @discardableResult
     func startFromCalendar(title: String? = nil) -> Int? {
         guard stateMachine.state == .idle else {
             Telemetry.send(.calendarAutoStartFailed(reason: "state_busy"))
-            onAutoStartFailed?()
             return nil
         }
         pendingTrigger = .calendarAutoStart
@@ -217,37 +208,13 @@ final class MeetingRecordingFlowCoordinator {
         return stateMachine.generation
     }
 
-    /// Calendar-driven stop. **Idempotent: stops an in-flight recording but
-    /// NEVER starts one.** The auto-stop countdown completion routes here
-    /// instead of `toggleRecording()` — a blind toggle would *start* a brand
-    /// new recording if the user had already stopped the auto-started one
-    /// during the 30s countdown, which for a privacy-first app is the worst
-    /// kind of surprise (silent mic + system-audio capture nobody asked for).
-    /// Only `.stopRequested` is ever sent, and only from states that have
-    /// something to stop — `(.idle, .stopRequested)` is a state-machine no-op
-    /// anyway, but we don't even send it.
-    func stopFromCalendar(recordingGeneration: Int) {
-        guard stateMachine.generation == recordingGeneration else { return }
-        switch stateMachine.state {
-        case .checkingPermissions:
-            sendEvent(.cancelRequested)
-        case .recording, .starting, .stopping:
-            sendEvent(.stopRequested)
-        case .idle, .transcribing, .finishing:
-            break  // nothing to stop — and never start
-        }
-    }
-
     /// Discard the pending start context (trigger + title) when the start
     /// sequence exits without ever reaching the `.startRecording` effect —
     /// today, only the permissions-denied path. The `.startRecording`
     /// effect handler clears these inline because it needs to snapshot
     /// them first to fire telemetry; this helper is for the paths that
     /// bail out earlier. If the bailing-out start was calendar-driven,
-    /// emits `calendar_auto_start_failed{reason}` and notifies the
-    /// calendar coordinator so its `autoStartedEventId` binding doesn't
-    /// strand (it self-heals on the next poll, but notifying immediately
-    /// keeps the two coordinators in lockstep).
+    /// emits `calendar_auto_start_failed{reason}` for observability.
     private func clearPendingStartContext(failureReason: String) {
         let wasCalendarTriggered = pendingTrigger == .calendarAutoStart
         sendMeetingOperation(
@@ -263,7 +230,6 @@ final class MeetingRecordingFlowCoordinator {
         currentMeetingTrigger = nil
         if wasCalendarTriggered {
             Telemetry.send(.calendarAutoStartFailed(reason: failureReason))
-            onAutoStartFailed?()
         }
     }
 
@@ -453,15 +419,12 @@ final class MeetingRecordingFlowCoordinator {
                         errorType: TelemetryErrorClassifier.classify(error),
                         errorDetail: TelemetryErrorClassifier.errorDetail(error)
                     ))
-                    // If this start was driven by calendar auto-start, tell
-                    // the coordinator so it can drop the binding it set
-                    // optimistically when the countdown completed, and emit
+                    // If this start was driven by calendar auto-start, emit
                     // the dedicated failure event so analysts can see *why*
                     // (vs just inferring "silent failure" by subtraction
                     // from `.calendarAutoStartTriggered`).
                     if trigger == .calendarAutoStart {
                         Telemetry.send(.calendarAutoStartFailed(reason: "service_threw"))
-                        self.onAutoStartFailed?()
                     }
                     self.sendMeetingOperation(
                         outcome: .failure,
