@@ -72,10 +72,6 @@ struct MainWindowView: View {
     /// recorder is active. Passed through to `SettingsView`.
     let onHotkeyRecordingStateChanged: (Bool) -> Void
 
-    /// Vocabulary management panel presented as a window-level overlay, so the
-    /// scrim covers the whole window and clicking outside dismisses it.
-    @State private var activeVocabularySheet: VocabularySheetKind?
-
     var body: some View {
         VStack(spacing: 0) {
             NavigationSplitView {
@@ -220,8 +216,7 @@ struct MainWindowView: View {
                             settingsViewModel: settingsViewModel,
                             customWordsViewModel: customWordsViewModel,
                             textSnippetsViewModel: textSnippetsViewModel,
-                            backupViewModel: vocabularyBackupViewModel,
-                            activeSheet: $activeVocabularySheet
+                            backupViewModel: vocabularyBackupViewModel
                         )
                     case .feedback:
                         FeedbackView(viewModel: feedbackViewModel)
@@ -262,39 +257,12 @@ struct MainWindowView: View {
                 state.selectedItem = .library
             }
         }
-        .overlay {
-            vocabularyModalOverlay
-        }
-        .animation(DesignSystem.Animation.contentSwap, value: activeVocabularySheet)
     }
 
     /// Show the global bottom bar when transcribing on any tab except Transcribe (which has its own detailed view)
     private var showGlobalProgressBar: Bool {
         transcriptionViewModel.isTranscribing
             && state.selectedItem != .transcribe
-    }
-
-    /// Window-level overlay for the Vocabulary management panels. Presented here
-    /// (not via `.sheet`) so the dimmed scrim covers the whole window, clicking
-    /// outside the panel dismisses it, and nothing auto-grabs keyboard focus.
-    @ViewBuilder
-    private var vocabularyModalOverlay: some View {
-        if let sheet = activeVocabularySheet {
-            ModalScrimContainer(onScrimTap: closeVocabularySheet) {
-                switch sheet {
-                case .customWords:
-                    CustomWordsView(viewModel: customWordsViewModel, onClose: closeVocabularySheet)
-                case .textSnippets:
-                    TextSnippetsView(viewModel: textSnippetsViewModel, onClose: closeVocabularySheet)
-                }
-            }
-            .transition(.opacity)
-        }
-    }
-
-    private func closeVocabularySheet() {
-        activeVocabularySheet = nil
-        settingsViewModel.refreshStats()
     }
 
     private var transformReservedHotkeys: [TransformShortcutReservedHotkey] {

@@ -4,17 +4,20 @@ import MacParakeetViewModels
 
 struct CustomWordsView: View {
     @Bindable var viewModel: CustomWordsViewModel
-    let onClose: () -> Void
+    @Environment(\.dismiss) private var dismiss
     @State private var hoveredWordID: UUID?
     @FocusState private var wordFieldFocused: Bool
     @FocusState private var replacementFieldFocused: Bool
 
     var body: some View {
         VStack(spacing: 0) {
+            SheetAutoFocusSuppressor()
+                .frame(width: 0, height: 0)
+
             VocabSheetHeader(
                 title: "Custom Words",
                 subtitle: "Teach MacParakeet how you say things.",
-                onDone: onClose
+                onDone: { dismiss() }
             )
 
             Divider()
@@ -74,7 +77,7 @@ struct CustomWordsView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(viewModel.filteredWords.enumerated()), id: \.element.id) { index, word in
                         if index > 0 {
-                            Divider().padding(.leading, 52)
+                            Divider().padding(.leading, VocabMetrics.rowDividerInset)
                         }
                         wordRow(word)
                     }

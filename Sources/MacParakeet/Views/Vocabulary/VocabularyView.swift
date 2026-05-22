@@ -8,7 +8,8 @@ struct VocabularyView: View {
     @Bindable var textSnippetsViewModel: TextSnippetsViewModel
     @Bindable var backupViewModel: VocabularyBackupViewModel
 
-    @Binding var activeSheet: VocabularySheetKind?
+    @State private var showCustomWords = false
+    @State private var showTextSnippets = false
     @State private var hoveredCardTitle: String?
     @State private var hoveredModeTitle: String?
 
@@ -36,6 +37,18 @@ struct VocabularyView: View {
             .padding(DesignSystem.Spacing.lg)
         }
         .background(DesignSystem.Colors.background)
+        .sheet(isPresented: $showCustomWords) {
+            settingsViewModel.refreshStats()
+        } content: {
+            CustomWordsView(viewModel: customWordsViewModel)
+                .frame(width: 640, height: 560)
+        }
+        .sheet(isPresented: $showTextSnippets) {
+            settingsViewModel.refreshStats()
+        } content: {
+            TextSnippetsView(viewModel: textSnippetsViewModel)
+                .frame(width: 640, height: 560)
+        }
         .onAppear {
             settingsViewModel.refreshStats()
         }
@@ -117,7 +130,7 @@ struct VocabularyView: View {
                     actionTitle: "Manage words",
                     action: {
                         customWordsViewModel.loadWords()
-                        activeSheet = .customWords
+                        showCustomWords = true
                     }
                 )
 
@@ -130,7 +143,7 @@ struct VocabularyView: View {
                     actionTitle: "Manage snippets",
                     action: {
                         textSnippetsViewModel.loadSnippets()
-                        activeSheet = .textSnippets
+                        showTextSnippets = true
                     }
                 )
 
@@ -196,8 +209,7 @@ struct VocabularyView: View {
                             exampleRow(input: "the \(trigger) was broken", result: "Pastes as-is — trigger is mid-sentence", fires: false)
                             exampleRow(input: "git status", result: "Pastes as-is — no trigger spoken", fires: false)
                         }
-                        .padding(.leading, 24)
-                        .padding(.top, 2)
+                        .padding(.leading, DesignSystem.Spacing.lg)
                     }
 
                 }

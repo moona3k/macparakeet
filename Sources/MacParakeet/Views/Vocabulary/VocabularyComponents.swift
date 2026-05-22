@@ -1,18 +1,20 @@
 import SwiftUI
-
-/// Which Vocabulary management panel is presented as a window-level overlay.
-/// Owned by `MainWindowView` so the scrim covers the whole window (a `.sheet`
-/// can't dismiss on outside-click and auto-focuses its first field).
-enum VocabularySheetKind: Equatable {
-    case customWords
-    case textSnippets
-}
+import AppKit
 
 // Shared building blocks for the Vocabulary surfaces (the Vocabulary tab and
 // the Custom Words / Text Snippets sheets). These replace the old "every
 // subsection is its own icon-tiled card" pattern with lighter, list-native
 // primitives: one grouped surface per collection, plain section headers, and
 // fields whose focus reads coral instead of the system blue ring.
+
+// MARK: - Layout metrics
+
+/// Layout metrics shared across the Vocabulary management sheets.
+enum VocabMetrics {
+    /// Leading inset for in-group row dividers so they begin under the row's
+    /// text — clearing the small toggle plus the row's leading padding + gap.
+    static let rowDividerInset: CGFloat = 52
+}
 
 // MARK: - Styled text field
 
@@ -106,10 +108,11 @@ struct VocabSectionHeader<Trailing: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(alignment: .firstTextBaseline) {
-                Text(title.uppercased())
+                Text(title)
                     .font(.system(size: 11, weight: .semibold))
                     .tracking(0.6)
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 Spacer(minLength: DesignSystem.Spacing.sm)
                 trailing
             }
@@ -206,43 +209,22 @@ struct DeleteIconButton: View {
     }
 }
 
-// MARK: - Modal scrim container
+// MARK: - Sheet auto-focus suppressor
 
-/// Wraps a modal panel in a full-bleed dimmed scrim so clicking outside the
-/// panel dismisses it. Presented as a window-level overlay rather than a
-/// `.sheet` — a sheet can't dismiss on outside-click and auto-focuses its first
-/// text field. The panel carries its own rounded material background, border,
-/// and shadow; the modal views inside don't set their own background.
-struct ModalScrimContainer<Content: View>: View {
-    private let onScrimTap: () -> Void
-    private let content: Content
+/// Stops a freshly presented `.sheet` from auto-focusing its first text field.
+/// macOS makes the first text field the window's initial first responder;
+/// pointing `initialFirstResponder` at a non-editable view instead means the
+/// sheet opens with nothing focused — no caret, no flash. Drop a zero-size
+/// instance inside the sheet's content.
+struct SheetAutoFocusSuppressor: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { BlockerView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
 
-    init(onScrimTap: @escaping () -> Void, @ViewBuilder content: () -> Content) {
-        self.onScrimTap = onScrimTap
-        self.content = content()
-    }
-
-    var body: some View {
-        ZStack {
-            Rectangle()
-                .fill(Color.black.opacity(0.18))
-                .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .onTapGesture(perform: onScrimTap)
-                .accessibilityAddTraits(.isButton)
-                .accessibilityLabel("Close")
-
-            content
-                .frame(width: 640, height: 540)
-                .background(.thickMaterial, in: RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius))
-                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius))
-                .overlay(
-                    RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius)
-                        .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.5)
-                )
-                .shadow(color: .black.opacity(0.35), radius: 40, x: 0, y: 16)
-                .contentShape(Rectangle())
+    private final class BlockerView: NSView {
+        override var acceptsFirstResponder: Bool { false }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            window?.initialFirstResponder = self
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

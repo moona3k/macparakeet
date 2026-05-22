@@ -4,7 +4,7 @@ import MacParakeetViewModels
 
 struct TextSnippetsView: View {
     @Bindable var viewModel: TextSnippetsViewModel
-    let onClose: () -> Void
+    @Environment(\.dismiss) private var dismiss
     @State private var hoveredSnippetID: UUID?
     @State private var showTips = false
     @FocusState private var triggerFieldFocused: Bool
@@ -12,10 +12,13 @@ struct TextSnippetsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            SheetAutoFocusSuppressor()
+                .frame(width: 0, height: 0)
+
             VocabSheetHeader(
                 title: "Text Snippets",
                 subtitle: "Say a short phrase, paste a longer one.",
-                onDone: onClose
+                onDone: { dismiss() }
             )
 
             Divider()
@@ -76,7 +79,7 @@ struct TextSnippetsView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(viewModel.filteredSnippets.enumerated()), id: \.element.id) { index, snippet in
                         if index > 0 {
-                            Divider().padding(.leading, 52)
+                            Divider().padding(.leading, VocabMetrics.rowDividerInset)
                         }
                         snippetRow(snippet)
                     }
