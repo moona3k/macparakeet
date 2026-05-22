@@ -357,13 +357,20 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, 1,
                        "First poll should be mid-fetch")
 
-        coordinator.testHook_forcePoll()   // poll B — should be dropped
+        coordinator.testHook_forcePoll()   // poll B — should be coalesced
         await waitForPoll()
+        XCTAssertTrue(coordinator.testHook_pollAgainRequested,
+                      "The reentrant poll must register a coalesced re-run (proves it entered and hit the guard, not merely queued)")
         XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, 1,
-                       "A reentrant poll must be dropped, not run a second fetch")
+                       "A reentrant poll must not run a second concurrent fetch")
 
+        // Releasing A lets it finish and run exactly one coalesced re-poll.
         calendarService.releaseHeldFetch()
         await waitForPoll()
+        XCTAssertFalse(coordinator.testHook_pollAgainRequested,
+                       "Coalesced flag should be consumed by the re-run")
+        XCTAssertEqual(calendarService.fetchUpcomingEventsCallCount, 2,
+                       "The dropped poll must be honored once after the in-flight poll completes")
 
         coordinator.stop()
     }

@@ -52,8 +52,12 @@ final class MeetingAutoStartCoordinator {
     private var pollingInterval: TimeInterval = 0  // 0 = uninitialized
 
     /// Reentrancy guard for `pollAsync` — see the guard there for why a
-    /// coincident poll is dropped rather than allowed to interleave.
+    /// coincident poll is coalesced rather than allowed to interleave.
     private var isPolling = false
+    /// Set when a poll is requested while one is already in flight. The
+    /// in-flight poll runs exactly one more pass on completion so a settings
+    /// change (or reschedule) made mid-fetch isn't lost until the next tick.
+    private var pollAgainRequested = false
 
     private var dismissedEventIds: Set<String> = []
     private var remindedEventIds: Set<String> = []
@@ -68,7 +72,12 @@ final class MeetingAutoStartCoordinator {
     private var autoStartedEvent: CalendarEvent?
     /// `event.id` of an auto-started recording for which we're currently
     /// showing the auto-stop countdown. Prevents re-firing the toast on
-    /// every poll tick during the 30s window.
+    /// every poll tick during the 30s window. Bare `id` (not `dedupeKey`) on
+    /// purpose: this is *live recording identity*, like `autoStartedEvent` —
+    /// not occurrence-level suppression. The dedup sets use `dedupeKey`;
+    /// dismissing an auto-stop suppresses the occurrence via `dismissedEventIds`
+    /// (which is keyed by `dedupeKey`), so the toast can't re-fire after a
+    /// "Keep Recording".
     private var autoStopCountdownEventId: String?
 
     // `nonisolated(unsafe)` so the nonisolated `deinit` can read these to
@@ -224,9 +233,19 @@ final class MeetingAutoStartCoordinator {
         // dedupe of its own). One poll at a time; a coincident request is
         // safely dropped because the in-flight poll already reflects current
         // state (it re-reads settings, permission, and events itself).
-        guard !isPolling else { return }
+        guard !isPolling else {
+            // A poll arrived while one is in flight — coalesce it.
+            pollAgainRequested = true
+            return
+        }
         isPolling = true
-        defer { isPolling = false }
+        defer {
+            isPolling = false
+            if pollAgainRequested {
+                pollAgainRequested = false
+                Task { @MainActor [weak self] in await self?.pollAsync() }
+            }
+        }
 
         // Run binding-cleanup *before* the early returns so toggling mode
         // off (or losing permission) while an auto-started recording is in
@@ -243,8 +262,8 @@ final class MeetingAutoStartCoordinator {
             toastController.close()
         }
 
-        let mode = settingsViewModel.calendarAutoStartMode
-        guard mode != .off else { return }
+        // Fast-path guards before the (awaited) fetch.
+        guard settingsViewModel.calendarAutoStartMode != .off else { return }
         guard calendarService.permissionStatus == .granted else { return }
 
         let events: [CalendarEvent]
@@ -258,6 +277,14 @@ final class MeetingAutoStartCoordinator {
             logger.error("Failed to fetch events: \(error.localizedDescription, privacy: .public)")
             return
         }
+
+        // Re-read mode/permission AFTER the await: the user may have toggled
+        // the feature off (or revoked Calendar access) during the fetch. The
+        // pre-fetch values are stale; honoring the latest stops us from
+        // processing a now-disabled feature one last time.
+        let mode = settingsViewModel.calendarAutoStartMode
+        guard mode != .off else { return }
+        guard calendarService.permissionStatus == .granted else { return }
 
         let config = currentConfig(mode: mode)
         // Re-inject the owned in-flight recording's event if it has dropped
@@ -331,6 +358,17 @@ final class MeetingAutoStartCoordinator {
     }
 
     private func adjustPollingFrequency(events: [CalendarEvent]) {
+        // If we still owe an auto-stop for an owned recording (its window may
+        // have been missed — e.g. resumed from sleep — and the event has since
+        // dropped out of the forward fetch), poll fast until the stop countdown
+        // is actually on screen. Otherwise the cadence could relax to 60s right
+        // when we need to surface the missed auto-stop.
+        if isRecordingActive(), settingsViewModel.calendarAutoStopEnabled,
+           autoStartedEvent != nil, autoStopCountdownEventId == nil {
+            rescheduleTimer(interval: 5)
+            return
+        }
+
         let now = Date()
         // Soonest *future* start — drives auto-start window accuracy.
         let nextStart = events
@@ -558,6 +596,8 @@ extension MeetingAutoStartCoordinator {
     func testHook_isCountdownShown(_ event: CalendarEvent) -> Bool {
         countdownShownEventIds.contains(event.dedupeKey)
     }
+
+    var testHook_pollAgainRequested: Bool { pollAgainRequested }
 
     func testHook_simulateAutoStartConfirmed(eventId: String) {
         let event = CalendarEvent(
