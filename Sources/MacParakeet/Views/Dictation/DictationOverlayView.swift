@@ -404,7 +404,7 @@ struct DictationOverlayView: View {
 
     // MARK: - Hold-to-Talk State
 
-    /// Red dot + timer + waveform — no buttons needed since releasing Fn stops recording.
+    /// Red dot + timer + waveform — no buttons needed since releasing push-to-talk stops recording.
     private var holdToTalkContent: some View {
         HStack(spacing: 12) {
             // Recording indicator dot
@@ -698,10 +698,19 @@ struct DictationOverlayView: View {
             return ("Copied to Clipboard", "Auto-paste wasn't available. Press Cmd+V where you want the text.")
         }
         if lower.contains("not recording") {
-            let trigger = HotkeyTrigger.current
-            let hint = trigger.isDisabled
-                ? "Click the dictation pill to start recording."
-                : "Press \(trigger.displayName) to start recording first."
+            let handsFreeTrigger = HotkeyTrigger.current
+            let pushToTalkTrigger = HotkeyTrigger.current(
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            )
+            let hint: String
+            if !handsFreeTrigger.isDisabled {
+                hint = "Tap \(handsFreeTrigger.displayName) to start recording first."
+            } else if !pushToTalkTrigger.isDisabled {
+                hint = "Hold \(pushToTalkTrigger.displayName) to start recording first."
+            } else {
+                hint = "Click the dictation pill to start recording."
+            }
             return ("Not Recording", hint)
         }
         if lower.contains("timeout") || lower.contains("timed out") {

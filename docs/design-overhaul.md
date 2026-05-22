@@ -344,8 +344,8 @@ The overall tone is **warm, organic, slightly mystical**. Think singing bowls, s
 
 | Event | Sound Character | Duration | Notes |
 |-------|----------------|----------|-------|
-| Recording start | Soft ascending chime — like tapping a small singing bowl | 300-500ms | Plays when Fn double-tap starts recording |
-| Recording stop | Gentle descending tone — the bowl settling | 200-400ms | Plays when Fn stops recording |
+| Recording start | Soft ascending chime — like tapping a small singing bowl | 300-500ms | Plays when hands-free dictation starts recording |
+| Recording stop | Gentle descending tone — the bowl settling | 200-400ms | Plays when dictation stops |
 | Transcription complete | Warm "ding" — a bell with slow decay | 400-600ms | Success moment, should feel satisfying |
 | File dropped into portal | Soft whoosh + subtle crystal tone | 300-500ms | Accompanies the portal animation |
 | Error | Low, muted tone — not alarming, just "hmm" | 300ms | Should not startle |
@@ -554,7 +554,7 @@ Every empty state is a **personality moment**:
 
 | Empty State | Copy | Visual |
 |-------------|------|--------|
-| No dictations | "Your voice, captured. Press Fn to start." | Large warm merkaba, gentle pulse |
+| No dictations | "Your voice, captured. Tap Fn+Space to start." | Large warm merkaba, gentle pulse |
 | No transcriptions | "Drop a file and watch the magic happen." | Merkaba with subtle upward particle drift |
 | Search no results | "Nothing matched. Try different words?" | Merkaba at low opacity, still |
 | Error | "Hmm, something went wrong." + actionable detail | Warm error card, not stark red |

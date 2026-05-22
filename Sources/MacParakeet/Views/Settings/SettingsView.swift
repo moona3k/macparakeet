@@ -622,7 +622,7 @@ struct SettingsView: View {
                 // OS-integration startup section.
                 settingsToggleRow(
                     title: "Show dictation pill at all times",
-                    detail: "When off, the pill hides until you press the hotkey.",
+                    detail: "When off, the pill hides until you use a dictation shortcut.",
                     isOn: $viewModel.showIdlePill
                 )
             }
@@ -2246,6 +2246,7 @@ struct SettingsView: View {
                 modeShortcutRow(
                     keys: [viewModel.pushToTalkHotkeyTrigger.shortSymbol],
                     separator: nil,
+                    verb: "Hold",
                     action: "Push to talk",
                     detail: "Release to stop"
                 )
@@ -2260,6 +2261,7 @@ struct SettingsView: View {
                 modeShortcutRow(
                     keys: [viewModel.hotkeyTrigger.shortSymbol],
                     separator: nil,
+                    verb: "Tap",
                     action: "Hands-free mode",
                     detail: "Tap again to stop"
                 )
@@ -2272,7 +2274,13 @@ struct SettingsView: View {
         )
     }
 
-    private func modeShortcutRow(keys: [String], separator: String?, action: String, detail: String) -> some View {
+    private func modeShortcutRow(
+        keys: [String],
+        separator: String?,
+        verb: String,
+        action: String,
+        detail: String
+    ) -> some View {
         HStack(spacing: DesignSystem.Spacing.sm) {
             HStack(spacing: 3) {
                 if keys.count == 2, let sep = separator {
@@ -2282,7 +2290,7 @@ struct SettingsView: View {
                         .foregroundStyle(.tertiary)
                     miniSettingsKeyCap(keys[1])
                 } else {
-                    Text("Hold")
+                    Text(verb)
                         .font(DesignSystem.Typography.micro)
                         .foregroundStyle(.secondary)
                     miniSettingsKeyCap(keys[0])

@@ -396,6 +396,11 @@ final class HotkeyTriggerTests: XCTestCase {
         XCTAssertEqual(trigger.validation, .allowed)
     }
 
+    func testDefaultHandsFreeAndPushToTalkDoNotOverlap() {
+        XCTAssertFalse(HotkeyTrigger.defaultDictation.overlaps(with: .defaultPushToTalk))
+        XCTAssertFalse(HotkeyTrigger.defaultPushToTalk.overlaps(with: .defaultDictation))
+    }
+
     // MARK: - Chord Validation
 
     func testChordValidationDefaultAllowed() {

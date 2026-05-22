@@ -114,6 +114,44 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
+    func testDictationHotkeyPlanUsesSeparateManagersForDefaults() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .defaultDictation,
+            pushToTalk: .defaultPushToTalk
+        )
+
+        XCTAssertEqual(
+            plan,
+            AppHotkeyCoordinator.DictationHotkeyPlan(
+                specs: [
+                    .init(trigger: .defaultDictation, gestureMode: .singleTapToggle),
+                    .init(
+                        trigger: .defaultPushToTalk,
+                        gestureMode: .holdOnly,
+                        startupDebounceMs: FnKeyStateMachine.defaultTapThresholdMs
+                    ),
+                ],
+                conflict: nil
+            )
+        )
+    }
+
+    func testDictationHotkeyPlanKeepsStandardPushToTalkDebounceWhenNoFnChordConflict() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control,
+            pushToTalk: .defaultPushToTalk
+        )
+
+        XCTAssertEqual(
+            plan.specs.last,
+            .init(
+                trigger: .defaultPushToTalk,
+                gestureMode: .holdOnly,
+                startupDebounceMs: FnKeyStateMachine.defaultStartupDebounceMs
+            )
+        )
+    }
+
     func testDictationHotkeyPlanKeepsHandsFreeOnlyWhenTriggersOverlapButDiffer() {
         let pushToTalk = HotkeyTrigger.modifierChord(modifiers: ["control", "option"])
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(

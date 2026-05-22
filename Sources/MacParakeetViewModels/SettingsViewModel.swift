@@ -467,16 +467,14 @@ public final class SettingsViewModel {
         menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
         showIdlePill = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey) as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
-        let resolvedDictationHotkeyTrigger = Self.resolveDictationHotkeyTrigger(defaults: defaults)
-        hotkeyTrigger = resolvedDictationHotkeyTrigger.trigger
-        let shouldPersistPushToTalkMigration = defaults.object(forKey: HotkeyTrigger.pushToTalkDefaultsKey) == nil
-        let resolvedPushToTalkHotkeyTrigger = Self.resolvePushToTalkHotkeyTrigger(defaults: defaults)
-        pushToTalkHotkeyTrigger = resolvedPushToTalkHotkeyTrigger
-        if resolvedDictationHotkeyTrigger.shouldPersist {
-            resolvedDictationHotkeyTrigger.trigger.save(to: defaults)
+        let resolvedDictationHotkeys = Self.resolveDictationHotkeyTriggers(defaults: defaults)
+        hotkeyTrigger = resolvedDictationHotkeys.handsFree
+        pushToTalkHotkeyTrigger = resolvedDictationHotkeys.pushToTalk
+        if resolvedDictationHotkeys.shouldPersistHandsFree {
+            resolvedDictationHotkeys.handsFree.save(to: defaults)
         }
-        if shouldPersistPushToTalkMigration {
-            resolvedPushToTalkHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+        if resolvedDictationHotkeys.shouldPersistPushToTalk {
+            resolvedDictationHotkeys.pushToTalk.save(to: defaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
         }
         meetingHotkeyTrigger = Self.resolveMeetingHotkeyTrigger(defaults: defaults)
         fileTranscriptionHotkeyTrigger = Self.resolveTranscriptionHotkeyTrigger(
@@ -670,33 +668,63 @@ public final class SettingsViewModel {
         )
     }
 
-    private static func resolveDictationHotkeyTrigger(defaults: UserDefaults) -> (
-        trigger: HotkeyTrigger,
-        shouldPersist: Bool
+    private static func resolveDictationHotkeyTriggers(defaults: UserDefaults) -> (
+        handsFree: HotkeyTrigger,
+        pushToTalk: HotkeyTrigger,
+        shouldPersistHandsFree: Bool,
+        shouldPersistPushToTalk: Bool
     ) {
         let hasHandsFreeTrigger = defaults.object(forKey: HotkeyTrigger.defaultsKey) != nil
         let hasDedicatedPushToTalkTrigger = defaults.object(forKey: HotkeyTrigger.pushToTalkDefaultsKey) != nil
 
-        guard hasHandsFreeTrigger else {
-            return (.defaultDictation, true)
+        if !hasHandsFreeTrigger {
+            let pushToTalk = hasDedicatedPushToTalkTrigger
+                ? HotkeyTrigger.current(
+                    defaults: defaults,
+                    defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                    fallback: .defaultPushToTalk
+                )
+                : .defaultPushToTalk
+            return (
+                defaultHandsFreeTrigger(avoiding: pushToTalk),
+                pushToTalk,
+                true,
+                !hasDedicatedPushToTalkTrigger
+            )
         }
 
-        let stored = HotkeyTrigger.current(defaults: defaults, fallback: .fn)
-        if !hasDedicatedPushToTalkTrigger, stored == .fn {
-            return (.defaultDictation, true)
+        let storedHandsFree = HotkeyTrigger.current(defaults: defaults, fallback: .defaultDictation)
+        if !hasDedicatedPushToTalkTrigger {
+            if storedHandsFree.isDisabled {
+                return (.disabled, .disabled, false, true)
+            }
+            return (
+                defaultHandsFreeTrigger(avoiding: storedHandsFree),
+                storedHandsFree,
+                true,
+                true
+            )
         }
-        return (stored, false)
-    }
 
-    private static func resolvePushToTalkHotkeyTrigger(defaults: UserDefaults) -> HotkeyTrigger {
-        guard defaults.object(forKey: HotkeyTrigger.pushToTalkDefaultsKey) != nil else {
-            return HotkeyTrigger.current(defaults: defaults, fallback: .defaultPushToTalk)
-        }
-        return HotkeyTrigger.current(
+        let pushToTalk = HotkeyTrigger.current(
             defaults: defaults,
             defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
             fallback: .defaultPushToTalk
         )
+        if !storedHandsFree.isDisabled,
+           !pushToTalk.isDisabled,
+           storedHandsFree.overlaps(with: pushToTalk) {
+            return (defaultHandsFreeTrigger(avoiding: pushToTalk), pushToTalk, true, false)
+        }
+        return (storedHandsFree, pushToTalk, false, false)
+    }
+
+    private static func defaultHandsFreeTrigger(avoiding pushToTalk: HotkeyTrigger) -> HotkeyTrigger {
+        guard !pushToTalk.isDisabled,
+              HotkeyTrigger.defaultDictation.overlaps(with: pushToTalk) else {
+            return .defaultDictation
+        }
+        return .disabled
     }
 
     /// Transcription hotkeys (file / YouTube) default to `.disabled` — users opt in.

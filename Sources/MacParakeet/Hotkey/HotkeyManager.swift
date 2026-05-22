@@ -60,13 +60,15 @@ public final class HotkeyManager {
     public init(
         trigger: HotkeyTrigger = .fn,
         gestureMode: HotkeyGestureController.Mode = .doubleTapAndHold,
-        tapThresholdMs: Int = FnKeyStateMachine.defaultTapThresholdMs
+        tapThresholdMs: Int = FnKeyStateMachine.defaultTapThresholdMs,
+        startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs
     ) {
         self.trigger = trigger
         self.gestureMode = gestureMode
         self.gestureController = HotkeyGestureController(
             mode: gestureMode,
-            tapThresholdMs: tapThresholdMs
+            tapThresholdMs: tapThresholdMs,
+            startupDebounceMs: startupDebounceMs
         )
         self.tapThresholdMs = self.gestureController.tapThresholdMs
         self.targetMask = trigger.kind == .modifier ? ModifierKeyMatcher.mask(for: trigger.modifierName) : nil

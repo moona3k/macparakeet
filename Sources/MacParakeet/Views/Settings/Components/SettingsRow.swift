@@ -72,7 +72,7 @@ struct SettingsToggleRow: View {
     return VStack(spacing: DesignSystem.Spacing.md) {
         SettingsToggleRow(
             title: "Show dictation pill at all times",
-            detail: "When off, the pill hides until you press the hotkey.",
+            detail: "When off, the pill hides until you use a dictation shortcut.",
             isOn: $toggleOn
         )
 
@@ -107,7 +107,7 @@ struct SettingsToggleRow: View {
     return VStack(spacing: DesignSystem.Spacing.md) {
         SettingsToggleRow(
             title: "Show dictation pill at all times",
-            detail: "When off, the pill hides until you press the hotkey.",
+            detail: "When off, the pill hides until you use a dictation shortcut.",
             isOn: $toggleOn
         )
 

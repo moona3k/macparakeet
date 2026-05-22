@@ -155,7 +155,7 @@ Both modes coexist with no double-tap requirement.
 - Modifier-only chord triggers: require an exact set of 2+ chord-eligible modifiers before emitting the same key-agnostic gesture signals as single-key triggers. Generic and side-specific variants are persisted distinctly, and overlap checks block ambiguous assignments.
 - Edge detection: only fire on actual transitions of the target key state
 - Bare-tap filtering (modifiers only): if a regular key is pressed while the modifier is held (e.g., Ctrl+C), the release is not counted as a tap — prevents keyboard shortcuts from triggering dictation
-- Gesture interruption: if a non-Escape key is pressed during the legacy double-tap waiting window, the state machine resets — prevents detection across typing
+- Gesture interruption: if a non-Escape key is pressed during a pending tap/hold window, the state machine resets — prevents detection across typing
 - Chord validation: Escape blocked for all kinds. Modifier+key chords containing Command warn about system shortcut conflicts (Cmd+Tab, Cmd+Space, Cmd+Q/W/H/M). Fn is allowed in modifier+key chords such as Fn+Space.
 - Hands-free key-down: toggles persistent recording immediately for key and modifier+key triggers; bare modifier hands-free triggers toggle on bare release so normal modifier shortcuts are not captured.
 - Dedicated push-to-talk key-down: schedule only the startup debounce, then start hold-to-talk.
@@ -183,7 +183,7 @@ Both modes coexist with no double-tap requirement.
 ├─────────────────────────────────────────────────────────────────┤
 │ 4. User stops recording:                                         │
 │    - Release Fn (hold-to-talk auto-stop), OR                     │
-│    - Press Fn again (persistent mode), OR                        │
+│    - Tap Fn+Space again (hands-free mode), OR                    │
 │    - Press Escape (soft cancel with undo window), OR             │
 │    - Silence auto-stop (2s default, if enabled in settings)      │
 │    - If stop is requested while startup is in-flight, stop is     │
@@ -226,7 +226,7 @@ DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
 **Soft cancel (Esc):**
 - Pressing Escape during recording triggers soft cancel
 - 5-second undo window: overlay shows countdown ring + Undo button
-- During undo window, Fn key is blocked (prevents accidental re-activation)
+- During undo window, dictation shortcuts are blocked (prevents accidental re-activation)
 - Audio buffer preserved until countdown expires or user confirms discard
 - Tapping the countdown ring dismisses immediately (confirms discard)
 - Tapping Undo resumes processing (transcribe + paste)
@@ -237,7 +237,7 @@ Compact dark pill, icon-only controls, positioned at bottom-center of screen (40
 
 ```
          ┌───────────────────────────────┐
-         │  Stop & paste (Fn)            │  ← Hover tooltip (dark capsule)
+         │  Stop & paste                 │  ← Hover tooltip (dark capsule)
          └───────────────────────────────┘
          ┌─────────────────────────────┐
          │  [X] ∿∿∿∿∿∿∿∿∿∿∿∿  [■]    │  ← Recording pill
@@ -251,12 +251,12 @@ Compact dark pill, icon-only controls, positioned at bottom-center of screen (40
 **Controls:** Icon buttons only, no text labels
 **Border:** Subtle white stroke (`Color.white.opacity(0.1)`, 1px)
 
-**Hover tooltips:** AppKit-level `MouseTrackingOverlay` using `NSTrackingArea` with `.activeAlways` flag (required because the overlay is a non-activating `NSPanel`). Sits on top of the hosting view with `hitTest -> nil` for click passthrough. Zone-based detection by relative X position. Tooltips render as dark capsule positioned above the pill with 13pt medium white text. Keyboard shortcuts highlighted in light blue.
+**Hover tooltips:** AppKit-level `MouseTrackingOverlay` using `NSTrackingArea` with `.activeAlways` flag (required because the overlay is a non-activating `NSPanel`). Sits on top of the hosting view with `hitTest -> nil` for click passthrough. Zone-based detection by relative X position. Tooltips render as dark capsule positioned above the pill with 13pt medium white text. Keyboard shortcuts are highlighted only when the action has a fixed shortcut.
 
 | Zone | Tooltip | Shortcut Highlight |
 |------|---------|-------------------|
 | X button (left) | Cancel | `Esc` in blue |
-| Stop button (right) | Stop & paste | Trigger key name in blue |
+| Stop button (right) | Stop & paste | -- |
 | Countdown ring | Dismiss | -- |
 | Undo button | Undo | -- |
 
@@ -267,14 +267,14 @@ Space is always reserved for the tooltip (opacity toggle, not conditional render
 1. **Recording** -- `[X cancel] [waveform 12 bars] [stop]` (~150px)
    - X button: white icon on dark circle (0.2 opacity background), triggers soft cancel (Esc)
    - Waveform: 12 white bars, 3px wide, max 20px tall, center-peaking wave pattern, updates in real-time from audio level
-   - Stop button: white square (10x10, cornerRadius 3) inside red circle, triggers stop (Fn)
+   - Stop button: white square (10x10, cornerRadius 3) inside red circle, triggers stop
    - Recording timer displayed (e.g., "0:03") -- hover tooltips provide additional guidance
 
 2. **Cancelled** -- `[countdown ring] [Undo button]` (~140px)
    - Countdown ring: circular progress indicator (accent color, depletes over 5 seconds) with remaining seconds number in center
    - Tap ring to dismiss immediately (confirms discard)
    - Undo button: "Undo" text on subtle white background (0.15 opacity), rounded rect
-   - 5-second countdown, Fn key blocked during cancel window
+   - 5-second countdown, dictation shortcuts blocked during cancel window
    - Audio buffer preserved until confirmed discard
 
 3. **Processing** -- `[spinner] [red dot]` (~100px)
@@ -444,7 +444,7 @@ The app lives primarily in the menu bar. Click the icon for quick actions, or op
 ┌────────────────────────────┐
 │ 🎙 MacParakeet              │
 ├────────────────────────────┤
-│ Start Dictation        Fn   │
+│ Start Dictation  Fn+Space   │
 │ Open Window            ⌘O   │
 ├────────────────────────────┤
 │ Recent Files            ►   │
@@ -612,7 +612,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 │ │                                                              │ │
 │ │ Stop mode:                                                   │ │
 │ │   ( ) Auto-stop after silence     Delay: [2 sec ▾]          │ │
-│ │   (•) Manual stop (press Fn again)                           │ │
+│ │   (•) Manual stop (tap hands-free shortcut again)             │ │
 │ │                                                              │ │
 │ └──────────────────────────────────────────────────────────────┘ │
 │                                                                  │

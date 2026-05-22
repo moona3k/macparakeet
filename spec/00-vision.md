@@ -30,7 +30,7 @@
 
 Three capture modes plus one optional selected-text AI utility. That is the product:
 
-1. **Dictate anywhere** -- Press Fn (or your configured hotkey), speak, release. Text appears where your cursor is.
+1. **Dictate anywhere** -- Tap Fn+Space for hands-free dictation, or hold Fn for push-to-talk. Text appears where your cursor is.
 2. **Drop a file** -- Drag audio/video in. Get a transcript out.
 3. **Record a meeting** -- Capture system audio + mic, get a transcript when you stop.
 4. **Transform selected text** -- Press a bound Transform hotkey to rewrite selected text through your configured LLM provider.
@@ -81,7 +81,7 @@ This is not privacy theater ("your data is encrypted in transit"). This is priva
 
 MacWhisper has 50+ features. MacParakeet has three capture modes plus Transforms.
 
-- **Dictate** -- Press Fn, speak, text appears at cursor. Works in any app.
+- **Dictate** -- Tap Fn+Space or hold Fn, speak, and text appears at cursor. Works in any app.
 - **Transcribe** -- Drop a file, get text out. Audio, video, YouTube links.
 - **Record** -- Capture a meeting (system audio + mic), get a transcript.
 - **Transform** -- Select text anywhere, press a bound hotkey, rewrite it through your configured LLM provider.

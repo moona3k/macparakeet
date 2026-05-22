@@ -328,6 +328,41 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertTrue(secondDown.shouldSwallow)
     }
 
+    func testDefaultFnSpaceChordCancelsPendingPushToTalkBeforeHandsFreeStarts() {
+        let pushToTalk = HotkeyManager(
+            trigger: .defaultPushToTalk,
+            gestureMode: .holdOnly,
+            startupDebounceMs: FnKeyStateMachine.defaultTapThresholdMs
+        )
+        let handsFree = HotkeyManager(trigger: .defaultDictation, gestureMode: .singleTapToggle)
+
+        XCTAssertEqual(
+            pushToTalk.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_000
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultTapThresholdMs)]
+        )
+
+        XCTAssertEqual(
+            pushToTalk.modifierKeyDownOutputsForTesting(keyCode: 49, timestampMs: 1_200),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+        XCTAssertEqual(pushToTalk.startupDebounceElapsedForTesting(), [])
+
+        let handsFreeStart = handsFree.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 49,
+            flags: HotkeyTrigger.defaultDictation.chordEventFlags,
+            timestampMs: 1_200
+        )
+        XCTAssertEqual(handsFreeStart.outputs, [.startRecording(mode: .persistent)])
+        XCTAssertTrue(handsFreeStart.shouldSwallow)
+    }
+
     func testHoldOnlyGestureModeWorksForModifierChordTriggers() {
         let trigger = HotkeyTrigger.modifierChord(modifiers: ["control", "option"])
         let manager = HotkeyManager(trigger: trigger, gestureMode: .holdOnly)
