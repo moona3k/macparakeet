@@ -58,9 +58,8 @@ struct CalendarSettingsView: View {
     @ViewBuilder
     private var notificationWarningRow: some View {
         HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-            // Amber triangle to match the established warning treatment
-            // (LLM provider validation, hotkey conflicts) — a plain text row
-            // doesn't read as "something's broken."
+            // Match the established warning treatment used for provider
+            // validation and hotkey conflicts.
             Image(systemName: "exclamationmark.triangle.fill")
                 .font(.system(size: 12))
                 .foregroundStyle(DesignSystem.Colors.warningAmber)
