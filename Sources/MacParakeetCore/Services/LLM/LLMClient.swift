@@ -178,10 +178,15 @@ public final class LLMClient: LLMClientProtocol, Sendable {
                             continuation.yield(text)
                         case .done:
                             sawDone = true
+                            try validateStreamCompletion(
+                                providerID: config.id,
+                                sawSentinel: sawDone,
+                                yieldedAnyContent: yieldedAnyContent
+                            )
                             continuation.finish()
                             return
                         case .error(let message):
-                            throw LLMError.streamingError(message)
+                            throw mapStreamingError(message: message)
                         case .skip:
                             break
                         }
@@ -294,6 +299,7 @@ public final class LLMClient: LLMClientProtocol, Sendable {
                     }
 
                     // Ollama streams NDJSON: one JSON object per line
+                    var yieldedAnyContent = false
                     for try await line in bytes.lines {
                         try Task.checkCancellation()
 
@@ -305,21 +311,32 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
                         // Check for errors
                         if let error = chunk.error {
-                            throw LLMError.streamingError(error)
+                            throw mapStreamingError(message: error)
                         }
 
                         let content = chunk.message.content
                         if !content.isEmpty {
+                            yieldedAnyContent = true
                             continuation.yield(content)
                         }
 
                         // done:true means stream is complete
                         if chunk.done == true {
+                            try validateStreamCompletion(
+                                providerID: config.id,
+                                sawSentinel: true,
+                                yieldedAnyContent: yieldedAnyContent
+                            )
                             continuation.finish()
                             return
                         }
                     }
 
+                    try validateStreamCompletion(
+                        providerID: config.id,
+                        sawSentinel: false,
+                        yieldedAnyContent: yieldedAnyContent
+                    )
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -469,12 +486,17 @@ public final class LLMClient: LLMClientProtocol, Sendable {
                             continuation.yield(text)
                         } else if eventType == "message_stop" {
                             sawMessageStop = true
+                            try validateStreamCompletion(
+                                providerID: config.id,
+                                sawSentinel: sawMessageStop,
+                                yieldedAnyContent: yieldedAnyContent
+                            )
                             continuation.finish()
                             return
                         } else if eventType == "error",
                                   let error = json["error"] as? [String: Any],
                                   let message = error["message"] as? String {
-                            throw LLMError.streamingError(message)
+                            throw mapStreamingError(message: message)
                         }
                     }
 
@@ -779,8 +801,12 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
         guard let data = trimmed.data(using: .utf8) else { return .skip }
 
-        // Ollama can emit {"error": "..."} mid-stream on OOM or model failure.
-        // Detect and surface as a streaming error instead of silently dropping.
+        // Local/OpenAI-compatible servers can emit provider errors mid-stream
+        // instead of returning a non-2xx response. LM Studio, for example,
+        // sends `event: error` followed by a `data:` JSON object whose
+        // `error` field is an object and whose top-level `message` carries
+        // the human-readable context-length failure. Surface those as errors
+        // instead of silently dropping the frame and accepting an empty EOF.
         if let streamError = try? JSONDecoder().decode(StreamErrorResponse.self, from: data),
            let errorMessage = streamError.error {
             return .error(errorMessage)
@@ -842,16 +868,15 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         sawSentinel: Bool,
         yieldedAnyContent: Bool
     ) throws {
+        guard yieldedAnyContent else {
+            throw LLMError.streamingError("stream produced no content before EOF")
+        }
         guard Self.providerEnforcesStreamSentinel(providerID), !sawSentinel else { return }
 
         // EOF before the sentinel from a provider that contractually emits one.
-        // Distinguish "no content at all" (likely auth/connection drop after
-        // headers — usually a backend issue) from "some content delivered"
-        // (mid-response truncation — the user-visible failure mode).
-        let detail = yieldedAnyContent
-            ? "stream ended before completion sentinel — response is truncated"
-            : "stream produced no content before EOF"
-        throw LLMError.streamingError(detail)
+        // Some content delivered means the user is otherwise looking at a
+        // silently truncated output.
+        throw LLMError.streamingError("stream ended before completion sentinel — response is truncated")
     }
 
     private func mapError(statusCode: Int, data: Data) -> LLMError {
@@ -895,6 +920,31 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         default:
             return .providerError(message)
         }
+    }
+
+    private func mapStreamingError(message rawMessage: String) -> LLMError {
+        let message = Self.scrubAPIKeyArtifacts(from: rawMessage)
+        let lowered = message.lowercased()
+
+        if lowered.contains("context")
+            || lowered.contains("tokens to keep")
+            || lowered.contains("too many tokens")
+            || lowered.contains("maximum number of tokens") {
+            return .contextTooLong
+        }
+        if lowered.contains("rate limit") || lowered.contains("rate_limit") {
+            return .rateLimited
+        }
+        if lowered.contains("unauthorized")
+            || lowered.contains("authentication")
+            || lowered.contains("api key") {
+            return .authenticationFailed(message)
+        }
+        if lowered.contains("model")
+            && (lowered.contains("not found") || lowered.contains("does not exist")) {
+            return .modelNotFound(message)
+        }
+        return .streamingError(message)
     }
 
     /// Anthropic Messages API version pin. Anthropic dates each API version;
@@ -1022,9 +1072,41 @@ struct GeminiErrorWrapper: Decodable {
     }
 }
 
-/// Ollama can emit {"error": "..."} mid-stream on OOM or model failure.
+/// Providers can emit error payloads mid-stream. Shapes observed in practice:
+/// - Ollama: `{ "error": "..." }`
+/// - LM Studio: `{ "error": { "message": "..." }, "message": "..." }`
 struct StreamErrorResponse: Decodable {
     let error: String?
+
+    private enum CodingKeys: String, CodingKey {
+        case error
+        case message
+    }
+
+    private struct ErrorObject: Decodable {
+        let message: String?
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let message = try? container.decode(String.self, forKey: .message),
+           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            error = message
+            return
+        }
+        if let errorMessage = try? container.decode(String.self, forKey: .error),
+           !errorMessage.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            error = errorMessage
+            return
+        }
+        if let errorObject = try? container.decode(ErrorObject.self, forKey: .error),
+           let message = errorObject.message,
+           !message.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            error = message
+            return
+        }
+        error = nil
+    }
 }
 
 struct ModelsListResponse: Decodable {

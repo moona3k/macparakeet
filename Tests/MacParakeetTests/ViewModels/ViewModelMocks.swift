@@ -586,6 +586,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var formatTranscriptStopReason: String?
     var formatTranscriptLatencyMs = 0
     var streamTokens: [String] = ["Hello", " world"]
+    var streamTokenBatches: [[String]] = []
     var streamDelayNs: UInt64 = 0
     var errorToThrow: Error?
     var summarizeCallCount = 0
@@ -681,7 +682,12 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         summarizeCallCount += 1
         lastSummarySystemPrompt = systemPrompt
-        let tokens = streamTokens
+        let tokens: [String]
+        if streamTokenBatches.isEmpty {
+            tokens = streamTokens
+        } else {
+            tokens = streamTokenBatches.removeFirst()
+        }
         let error = errorToThrow
         let delay = streamDelayNs
         return AsyncThrowingStream { continuation in

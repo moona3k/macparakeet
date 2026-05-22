@@ -756,6 +756,10 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(LLMService.localContextBudget, 80_000)
     }
 
+    func testLMStudioContextBudget() {
+        XCTAssertEqual(LLMService.lmStudioContextBudget, 8_000)
+    }
+
     func testLocalProviderUsesLocalBudget() async throws {
         mockConfigStore.config = .ollama(model: "llama3.2")
 
@@ -766,6 +770,87 @@ final class LLMServiceTests: XCTestCase {
         // The user message should be truncated
         let userMessage = mockClient.capturedMessages.last!
         XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+    }
+
+    func testLMStudioPromptResultUsesConservativeBudgetIncludingSystemPrompt() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        let text = String(repeating: "word ", count: 3_000)
+        _ = try await service.generatePromptResultDetailed(
+            transcript: text,
+            systemPrompt: "Extract the action items."
+        )
+
+        let systemMessage = try XCTUnwrap(mockClient.capturedMessages.first)
+        let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
+        XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+        XCTAssertLessThanOrEqual(
+            userMessage.content.count,
+            LLMService.lmStudioContextBudget - systemMessage.content.count
+        )
+    }
+
+    func testLMStudioPromptResultBoundsRenderedSystemPromptContainingTranscript() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        let transcript = String(repeating: "word ", count: 3_000)
+        _ = try await service.generatePromptResultDetailed(
+            transcript: transcript,
+            systemPrompt: "Read this inline transcript:\n\(transcript)"
+        )
+
+        let systemMessage = try XCTUnwrap(mockClient.capturedMessages.first)
+        let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
+        XCTAssertLessThanOrEqual(
+            systemMessage.content.count + userMessage.content.count,
+            LLMService.lmStudioContextBudget
+        )
+        XCTAssertTrue(systemMessage.content.contains("[... content truncated ...]"))
+        XCTAssertEqual(userMessage.content, "")
+    }
+
+    func testLMStudioStreamingPromptResultUsesConservativeBudgetIncludingSystemPrompt() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        mockClient.streamTokens = ["done"]
+
+        let text = String(repeating: "word ", count: 3_000)
+        let stream = service.generatePromptResultStream(
+            transcript: text,
+            systemPrompt: "Extract the action items."
+        )
+        for try await _ in stream {}
+
+        let systemMessage = try XCTUnwrap(mockClient.capturedMessages.first)
+        let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
+        XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+        XCTAssertLessThanOrEqual(
+            userMessage.content.count,
+            LLMService.lmStudioContextBudget - systemMessage.content.count
+        )
+    }
+
+    func testLMStudioTransformSubtractsPromptOverheadFromTextBudget() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        let text = String(repeating: "word ", count: 3_000)
+        _ = try await service.transformDetailed(text: text, prompt: "Make it concise.")
+
+        let totalMessageChars = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        XCTAssertLessThanOrEqual(totalMessageChars, LLMService.lmStudioContextBudget)
+        XCTAssertTrue(mockClient.capturedMessages.last?.content.contains("[... content truncated ...]") == true)
+    }
+
+    func testLMStudioStreamingTransformSubtractsPromptOverheadFromTextBudget() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        mockClient.streamTokens = ["done"]
+
+        let text = String(repeating: "word ", count: 3_000)
+        let stream = service.transformStream(text: text, prompt: "Make it concise.")
+        for try await _ in stream {}
+
+        let totalMessageChars = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        XCTAssertLessThanOrEqual(totalMessageChars, LLMService.lmStudioContextBudget)
+        XCTAssertTrue(mockClient.capturedMessages.last?.content.contains("[... content truncated ...]") == true)
     }
 
     func testCloudProviderDoesNotTruncateWithinBudget() async throws {

@@ -101,6 +101,15 @@ public final class TranscriptionViewModel {
         selectedTab = .result(id: promptResultID)
     }
 
+    public func handleGenerationFailed(_ generationID: UUID, replacingPromptResultID: UUID?) {
+        guard case .generation(let selectedID) = selectedTab, selectedID == generationID else { return }
+        if let replacingPromptResultID {
+            selectedTab = .result(id: replacingPromptResultID)
+        } else {
+            selectedTab = .transcript
+        }
+    }
+
     private var transcriptionService: TranscriptionServiceProtocol?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
     private var promptResultRepo: PromptResultRepositoryProtocol?

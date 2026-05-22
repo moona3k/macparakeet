@@ -597,6 +597,17 @@ final class LLMClientTests: XCTestCase {
         }
     }
 
+    func testParseSSELineLMStudioErrorObject() {
+        let result = llmClient.parseSSELine("""
+        data: {"error":{"message":"The number of tokens to keep from the initial prompt is greater than the context length."},"message":"The number of tokens to keep from the initial prompt is greater than the context length."}
+        """)
+        if case .error(let message) = result {
+            XCTAssertTrue(message.contains("context length"))
+        } else {
+            XCTFail("Expected .error, got \(result)")
+        }
+    }
+
     func testParseSSELineDataWithNoSpace() {
         let result = llmClient.parseSSELine("data:{\"choices\":[{\"delta\":{\"content\":\"Hi\"}}]}")
         if case .content(let text) = result {
@@ -674,6 +685,25 @@ final class LLMClientTests: XCTestCase {
                 ),
                 "Lenient provider \(provider) should not throw on missing sentinel"
             )
+        }
+    }
+
+    func testValidateStreamCompletionThrowsWhenLenientProviderYieldsNoContent() {
+        for provider in [LLMProviderID.gemini, .openaiCompatible, .lmstudio, .ollama, .localCLI] {
+            XCTAssertThrowsError(
+                try llmClient.validateStreamCompletion(
+                    providerID: provider,
+                    sawSentinel: false,
+                    yieldedAnyContent: false
+                ),
+                "Provider \(provider) should not treat an empty stream as success"
+            ) { error in
+                guard let llmError = error as? LLMError, case .streamingError(let detail) = llmError else {
+                    XCTFail("Expected LLMError.streamingError for \(provider), got \(error)")
+                    return
+                }
+                XCTAssertTrue(detail.contains("no content"), "Detail should mention no content; got: \(detail)")
+            }
         }
     }
 
@@ -1021,6 +1051,81 @@ final class LLMClientTests: XCTestCase {
             XCTAssertEqual(msg, "out of memory")
         } else {
             XCTFail("Expected .error, got \(result)")
+        }
+    }
+
+    func testChatCompletionStreamThrowsWhenDoneArrivesWithoutContent() async throws {
+        MockURLProtocol.handler = { request in
+            (self.okResponse(for: request), Data("data: [DONE]\n\n".utf8))
+        }
+
+        let stream = llmClient.chatCompletionStream(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            config: .openai(apiKey: "sk-test"),
+            options: .default
+        )
+
+        do {
+            for try await _ in stream {}
+            XCTFail("Expected empty stream to throw")
+        } catch let error as LLMError {
+            guard case .streamingError(let detail) = error else {
+                XCTFail("Expected streamingError, got \(error)")
+                return
+            }
+            XCTAssertTrue(detail.contains("no content"))
+        }
+    }
+
+    func testChatCompletionStreamMapsLMStudioContextStreamError() async throws {
+        MockURLProtocol.handler = { request in
+            let body = """
+            event: error
+            data: {"error":{"message":"The number of tokens to keep from the initial prompt is greater than the context length."},"message":"The number of tokens to keep from the initial prompt is greater than the context length."}
+
+            """
+            return (self.okResponse(for: request), Data(body.utf8))
+        }
+
+        let stream = llmClient.chatCompletionStream(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            config: .lmstudio(model: "qwen/qwen3-4b-2507"),
+            options: .default
+        )
+
+        do {
+            for try await _ in stream {}
+            XCTFail("Expected LM Studio context stream error")
+        } catch let error as LLMError {
+            guard case .contextTooLong = error else {
+                XCTFail("Expected contextTooLong, got \(error)")
+                return
+            }
+        }
+    }
+
+    func testChatCompletionStreamScrubsStreamErrorMessage() async throws {
+        MockURLProtocol.handler = { request in
+            let body = "data: {\"error\":\"backend leaked sk-1234567890abcdef\"}\n\n"
+            return (self.okResponse(for: request), Data(body.utf8))
+        }
+
+        let stream = llmClient.chatCompletionStream(
+            messages: [ChatMessage(role: .user, content: "Hi")],
+            config: .openai(apiKey: "sk-test"),
+            options: .default
+        )
+
+        do {
+            for try await _ in stream {}
+            XCTFail("Expected stream error")
+        } catch let error as LLMError {
+            guard case .streamingError(let detail) = error else {
+                XCTFail("Expected streamingError, got \(error)")
+                return
+            }
+            XCTAssertFalse(detail.contains("sk-1234567890abcdef"))
+            XCTAssertTrue(detail.contains("<api-key>"))
         }
     }
 

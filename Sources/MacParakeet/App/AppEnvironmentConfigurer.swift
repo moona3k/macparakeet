@@ -197,6 +197,13 @@ final class AppEnvironmentConfigurer {
             self?.transcriptionViewModel.handleGenerationCompleted(generationID, promptResultID: promptResultID)
         }
 
+        promptResultsViewModel.onGenerationFailed = { [weak self] generationID, replacingPromptResultID in
+            self?.transcriptionViewModel.handleGenerationFailed(
+                generationID,
+                replacingPromptResultID: replacingPromptResultID
+            )
+        }
+
         promptResultsViewModel.onDeletedPromptResult = { [weak self] promptResultID in
             self?.transcriptionViewModel.handlePromptResultDeleted(promptResultID)
         }

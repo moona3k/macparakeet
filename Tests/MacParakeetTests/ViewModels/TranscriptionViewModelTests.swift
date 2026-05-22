@@ -682,6 +682,25 @@ final class TranscriptionViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.hasConversations)
     }
 
+    func testFailedRegenerationRestoresOriginalResultTab() {
+        let generationID = UUID()
+        let promptResultID = UUID()
+        viewModel.selectedTab = .generation(id: generationID)
+
+        viewModel.handleGenerationFailed(generationID, replacingPromptResultID: promptResultID)
+
+        XCTAssertEqual(viewModel.selectedTab, .result(id: promptResultID))
+    }
+
+    func testFailedNewGenerationFallsBackToTranscriptTab() {
+        let generationID = UUID()
+        viewModel.selectedTab = .generation(id: generationID)
+
+        viewModel.handleGenerationFailed(generationID, replacingPromptResultID: nil)
+
+        XCTAssertEqual(viewModel.selectedTab, .transcript)
+    }
+
     // MARK: - File Drop
 
     func testHandleFileDropReturnsFalseWhenAlreadyTranscribing() {
