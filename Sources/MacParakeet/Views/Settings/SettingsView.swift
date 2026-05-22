@@ -143,19 +143,20 @@ struct SettingsView: View {
                 activeTab: tabBindingExitingSearch,
                 tabBadges: tabBadges
             )
-            // The tab bar's labels are non-negotiable — when the window is
-            // narrow, the search field gives ground first. Without this
-            // priority, the HStack distributes width proportionally and the
-            // tab bar gets compressed alongside the search field.
-            .layoutPriority(1)
 
-            Spacer(minLength: DesignSystem.Spacing.md)
-
+            // The search field reserves a clickable width first; the tab bar —
+            // whose per-button `.fixedSize` already keeps its labels from
+            // wrapping — fills whatever remains. The previous arrangement gave
+            // the *tab bar* layout priority, so its `maxWidth: .infinity`
+            // segments ate the entire row even in wide windows, collapsing the
+            // search field to an icon-only stub with no hittable text area.
+            // Reserving the field's width keeps it usable at every size.
             SettingsSearchField(
                 query: $rootViewModel.searchQuery,
                 isFocused: $searchFieldFocused
             )
-            .frame(maxWidth: 280)
+            .frame(minWidth: 200, maxWidth: 280)
+            .layoutPriority(1)
         }
     }
 

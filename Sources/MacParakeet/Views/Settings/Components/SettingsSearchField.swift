@@ -73,6 +73,13 @@ struct SettingsSearchField: View {
                     lineWidth: isFocused ? 1 : 0.5
                 )
         )
+        // The bare `TextField` only takes focus when its (potentially tiny)
+        // text area is clicked. Make the whole capsule — icon and padding
+        // included — a focus target so the control is never a dead pill.
+        .contentShape(Capsule())
+        .onTapGesture {
+            isFocused = true
+        }
         .animation(DesignSystem.Animation.hoverTransition, value: isFocused)
     }
 }
