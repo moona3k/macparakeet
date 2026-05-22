@@ -3,8 +3,8 @@ import MacParakeetViewModels
 import SwiftUI
 
 /// Calendar auto-start section. Slotted into Settings between Meeting
-/// Recording and Transcription. Phase D — only `.off` and `.notify` modes
-/// are exposed; `.autoStart` ships in Phase E (ADR-017).
+/// Recording and Transcription. Exposes all three modes — `.off`, `.notify`,
+/// and `.autoStart` (with the auto-stop sub-toggle) per ADR-017 Phases 1+2.
 struct CalendarSettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @State private var availableCalendars: [CalendarInfo] = []
@@ -20,6 +20,10 @@ struct CalendarSettingsView: View {
                 modeRow
 
                 if viewModel.calendarAutoStartMode != .off {
+                    if !viewModel.calendarNotificationsAuthorized {
+                        Divider()
+                        notificationWarningRow
+                    }
                     Divider()
                     reminderLeadRow
                     Divider()
@@ -37,8 +41,40 @@ struct CalendarSettingsView: View {
                 }
             }
         }
-        .onAppear { reloadCalendars() }
+        .onAppear {
+            reloadCalendars()
+            refreshNotificationAuth()
+        }
         .onChange(of: viewModel.calendarPermissionGranted) { _, _ in reloadCalendars() }
+        .onChange(of: viewModel.calendarAutoStartMode) { _, _ in refreshNotificationAuth() }
+    }
+
+    // MARK: - Notification permission warning
+
+    /// macOS notifications are a separate TCC scope from Calendar. When they're
+    /// off, `.notify` reminders (and the `.autoStart` pre-meeting reminder) are
+    /// silently dropped — surface that instead of letting the feature look on
+    /// but do nothing.
+    @ViewBuilder
+    private var notificationWarningRow: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Notifications are off")
+                    .font(DesignSystem.Typography.body)
+                Text("Calendar reminders won't appear until you allow MacParakeet notifications in System Settings.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            Button("Open System Settings") {
+                viewModel.openNotificationSystemSettings()
+            }
+            .controlSize(.small)
+        }
+    }
+
+    private func refreshNotificationAuth() {
+        Task { await viewModel.refreshCalendarNotificationAuthorization() }
     }
 
     // MARK: - Permission

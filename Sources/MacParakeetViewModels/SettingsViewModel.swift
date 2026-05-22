@@ -380,6 +380,13 @@ public final class SettingsViewModel {
     public var calendarPermissionGranted: Bool {
         calendarPermissionStatus == .granted
     }
+    /// Whether macOS notification authorization is granted. Calendar reminders
+    /// (`.notify`, and the pre-meeting reminder in `.autoStart`) are delivered
+    /// via `UNUserNotificationCenter`, a *separate* TCC scope from Calendar —
+    /// so a user can grant Calendar yet have reminders silently dropped.
+    /// Settings surfaces this; refreshed by the view (defaults to `true` so the
+    /// warning never flashes before the first async check resolves).
+    public var calendarNotificationsAuthorized: Bool = true
 
     // Permission status
     public var microphoneGranted = false
@@ -888,6 +895,25 @@ public final class SettingsViewModel {
 
     public func openCalendarSystemSettings() {
         if NSWorkspace.shared.open(CalendarService.settingsURL) { return }
+    }
+
+    /// Refresh the cached notification-authorization state. Cheap async read
+    /// of `UNUserNotificationCenter` settings; the view calls this on appear
+    /// and when the calendar mode changes.
+    public func refreshCalendarNotificationAuthorization() async {
+        calendarNotificationsAuthorized = await CalendarNotificationAuthorization.isAuthorized()
+    }
+
+    /// Deep-link to the Notifications pane in System Settings. The pane id
+    /// changed across macOS versions, so try the modern one first.
+    public func openNotificationSystemSettings() {
+        let candidates = [
+            "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
+            "x-apple.systempreferences:com.apple.preference.notifications",
+        ]
+        for string in candidates {
+            if let url = URL(string: string), NSWorkspace.shared.open(url) { return }
+        }
     }
 
     public func startPermissionPolling() {
