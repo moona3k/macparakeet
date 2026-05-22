@@ -462,7 +462,20 @@ final class MeetingAutoStartCoordinator {
         case .completed, .primedEarly:
             autoStartedEvent = event
             onAutoStartConfirmed(event.title)
-            logger.info("Auto-start confirmed for event id=\(event.id, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
+            if autoStartedEvent == nil {
+                // Start was rejected (state_busy — a prior recording is still
+                // wrapping up): `onAutoStartFailed` cleared the binding
+                // synchronously. Drop this occurrence's countdown-shown mark
+                // so it can retry on a later poll once the blocking recording
+                // ends. Otherwise a true back-to-back meeting is permanently
+                // suppressed. Retry only helps while still inside the
+                // auto-start window [start-5s, start+30s]; later than that is
+                // Phase-3 late-join territory.
+                countdownShownEventIds.remove(event.dedupeKey)
+                logger.info("Auto-start rejected (state busy) for event id=\(event.id, privacy: .public) — will retry after current recording ends")
+            } else {
+                logger.info("Auto-start confirmed for event id=\(event.id, privacy: .public) outcome=\(String(describing: outcome), privacy: .public)")
+            }
         case .userDismissed:
             dismissedEventIds.insert(event.dedupeKey)
             Telemetry.send(.calendarAutoStartCancelled(reason: "user_cancel"))
@@ -535,6 +548,16 @@ final class MeetingAutoStartCoordinator {
 /// links — the methods are `internal` so they don't escape the module.
 extension MeetingAutoStartCoordinator {
     var testHook_autoStartedEventId: String? { autoStartedEvent?.id }
+
+    /// Simulate the private `showAutoStartCountdown` having marked an event as
+    /// countdown-shown (without driving real toast UI).
+    func testHook_markCountdownShown(_ event: CalendarEvent) {
+        countdownShownEventIds.insert(event.dedupeKey)
+    }
+
+    func testHook_isCountdownShown(_ event: CalendarEvent) -> Bool {
+        countdownShownEventIds.contains(event.dedupeKey)
+    }
 
     func testHook_simulateAutoStartConfirmed(eventId: String) {
         let event = CalendarEvent(

@@ -17,6 +17,11 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
     private var autoStartConfirmedCount = 0
     private var autoStartConfirmedTitles: [String] = []
     private var autoStopConfirmedCount = 0
+    /// When true, the `onAutoStartConfirmed` stub mimics the real flow
+    /// coordinator's `state_busy` rejection by clearing the binding —
+    /// exercising the back-to-back retry path (#8).
+    private var simulateAutoStartBusy = false
+    private weak var coordinatorRef: MeetingAutoStartCoordinator?
 
     override func setUp() {
         super.setUp()
@@ -33,6 +38,8 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         autoStartConfirmedCount = 0
         autoStartConfirmedTitles = []
         autoStopConfirmedCount = 0
+        simulateAutoStartBusy = false
+        coordinatorRef = nil
     }
 
     /// Seed `UserDefaults` *before* the SettingsViewModel is constructed
@@ -67,8 +74,14 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
             settingsViewModel: settingsViewModel,
             isRecordingActive: { [weak self] in self?.recordingActiveStub ?? false },
             onAutoStartConfirmed: { [weak self] title in
-                self?.autoStartConfirmedCount += 1
-                self?.autoStartConfirmedTitles.append(title)
+                guard let self else { return }
+                self.autoStartConfirmedCount += 1
+                self.autoStartConfirmedTitles.append(title)
+                if self.simulateAutoStartBusy {
+                    // Mimic MeetingRecordingFlowCoordinator.startFromCalendar's
+                    // synchronous state_busy path: clear the optimistic binding.
+                    self.coordinatorRef?.clearAutoStartBinding()
+                }
             },
             onAutoStopConfirmed: { [weak self] in self?.autoStopConfirmedCount += 1 },
             toastController: toastController
@@ -269,6 +282,60 @@ final class MeetingAutoStartCoordinatorTests: XCTestCase {
         await waitForPoll()
         XCTAssertNil(coordinator.testHook_autoStartedEventId,
                      "Binding must clear when recording stops outside coordinator's control")
+
+        coordinator.stop()
+    }
+
+    // MARK: - Back-to-back retry (#8)
+
+    func testStateBusyAutoStartClearsSuppressionForRetry() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        coordinatorRef = coordinator
+        simulateAutoStartBusy = true
+        coordinator.start()
+        await waitForPoll()
+
+        let event = CalendarEvent(
+            id: "B",
+            title: "Back-to-back",
+            startTime: Date(),
+            endTime: Date().addingTimeInterval(1800)
+        )
+        coordinator.testHook_markCountdownShown(event)
+        XCTAssertTrue(coordinator.testHook_isCountdownShown(event))
+
+        // Completion attempts the start; the stub rejects it (state_busy) and
+        // clears the binding synchronously → suppression must be dropped.
+        coordinator.handleAutoStartOutcome(.completed, for: event)
+        XCTAssertFalse(coordinator.testHook_isCountdownShown(event),
+                       "A state_busy auto-start must clear suppression so a true back-to-back meeting can retry once the first recording ends")
+
+        coordinator.stop()
+    }
+
+    func testSuccessfulAutoStartRetainsSuppression() async {
+        calendarService.stubPermissionStatus = .granted
+        seedSettings(mode: .autoStart)
+
+        let coordinator = makeCoordinator()
+        coordinatorRef = coordinator
+        simulateAutoStartBusy = false  // success path
+        coordinator.start()
+        await waitForPoll()
+
+        let event = CalendarEvent(
+            id: "B",
+            title: "Solo",
+            startTime: Date(),
+            endTime: Date().addingTimeInterval(1800)
+        )
+        coordinator.testHook_markCountdownShown(event)
+        coordinator.handleAutoStartOutcome(.completed, for: event)
+        XCTAssertTrue(coordinator.testHook_isCountdownShown(event),
+                      "A successful auto-start must keep its suppression — no duplicate countdown")
 
         coordinator.stop()
     }
