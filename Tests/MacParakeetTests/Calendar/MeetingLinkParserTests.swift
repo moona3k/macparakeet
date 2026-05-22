@@ -88,6 +88,18 @@ final class MeetingLinkParserTests: XCTestCase {
         XCTAssertTrue(parser.isMeetingUrl("https://acme.com/conference/room"))
     }
 
+    func testGenericIgnoresKeywordInQueryString() {
+        // A keyword only in the query string (Jira/CRM links) is not a meeting.
+        XCTAssertFalse(parser.isMeetingUrl("https://jira.corp.com?type=conference&id=PROJ-123"))
+        XCTAssertFalse(parser.isMeetingUrl("https://helpdesk.com?mode=call&ticket=456"))
+        XCTAssertFalse(parser.isMeetingUrl("https://example.com?video=1"))
+    }
+
+    func testGenericMatchesPathTokenEvenWithQuery() {
+        // Token in the path is still a match, query after it is fine.
+        XCTAssertTrue(parser.isMeetingUrl("https://example.com/conference?id=1"))
+    }
+
     func testReturnsNilForPlainText() {
         XCTAssertNil(parser.extractMeetingUrl(from: "Just a calendar block, no link"))
     }

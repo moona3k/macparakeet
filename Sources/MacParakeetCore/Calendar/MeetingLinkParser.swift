@@ -19,9 +19,12 @@ public struct MeetingLinkParser: Sendable {
     private static let wherebyPattern = #"https?://(?:[\w-]+\.)?whereby\.com/[\w/.-]+"#
     // Word-boundaried tokens so the generic fallback no longer matches
     // `call` inside `recall`/`teamcall`/`?utm_campaign=fallcall` or `video`
-    // inside `videogame.com`. It still catches delimited tokens like
-    // `/meet/`, `/video-call`, `/conference/`.
-    private static let genericVideoPattern = #"https?://[^\s]*\b(?:meet|video|call|conference)\b[^\s]*"#
+    // inside `videogame.com`. The keyword must appear in the host/path
+    // (the `[^\s?#]*` prefix stops at `?`/`#`) so a query param like
+    // `?type=conference` on a non-meeting link (Jira, CRM) doesn't count.
+    // Still catches delimited path tokens like `/meet/`, `/video-call`,
+    // `/conference?id=1`.
+    private static let genericVideoPattern = #"https?://[^\s?#]*\b(?:meet|video|call|conference)\b[^\s]*"#
 
     private static let patterns: [(name: String, pattern: String)] = [
         ("zoom", zoomPattern),
