@@ -7,6 +7,7 @@ struct TextSnippetsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var hoveredSnippetID: UUID?
     @State private var showTips = false
+    @FocusState private var searchFocused: Bool
     @FocusState private var triggerFieldFocused: Bool
     @FocusState private var expansionFieldFocused: Bool
 
@@ -26,7 +27,8 @@ struct TextSnippetsView: View {
                         placeholder: "Search snippets…",
                         text: $viewModel.searchText,
                         leadingSystemImage: "magnifyingglass",
-                        showsClearButton: true
+                        showsClearButton: true,
+                        externalFocus: $searchFocused
                     )
 
                     snippetsSection
@@ -36,7 +38,11 @@ struct TextSnippetsView: View {
                 .padding(DesignSystem.Spacing.lg)
             }
         }
-        .background(.thickMaterial)
+        .onAppear {
+            // Open neutral — don't let the freshly presented sheet auto-focus
+            // the search field.
+            Task { @MainActor in searchFocused = false }
+        }
         .alert(
             "Delete Snippet?",
             isPresented: Binding(
@@ -127,14 +133,16 @@ struct TextSnippetsView: View {
 
     private var tipsDisclosure: some View {
         DisclosureGroup(isExpanded: $showTips) {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
                 tipRow(
-                    icon: "quote.bubble",
-                    text: "Use natural trigger phrases (for example, \"my signature\") rather than abbreviations — Parakeet recognizes natural speech."
+                    icon: "waveform",
+                    title: "Speak naturally",
+                    detail: "Use real phrases like \"my signature\" — not abbreviations."
                 )
                 tipRow(
                     icon: "return",
-                    text: "Type \\n in the expansion to insert a line break. Example: trigger \"new paragraph\" with expansion \\n\\n inserts a blank line."
+                    title: "Add line breaks",
+                    detail: "Put `\\n` in an expansion. `\\n\\n` makes a blank line."
                 )
             }
             .padding(.top, DesignSystem.Spacing.sm)
@@ -235,16 +243,21 @@ struct TextSnippetsView: View {
         }
     }
 
-    private func tipRow(icon: String, text: String) -> some View {
+    private func tipRow(icon: String, title: String, detail: LocalizedStringKey) -> some View {
         HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
             Image(systemName: icon)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(DesignSystem.Colors.warningAmber)
-                .frame(width: 16)
-            Text(text)
-                .font(DesignSystem.Typography.caption)
+                .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title)
+                    .font(DesignSystem.Typography.caption.weight(.semibold))
+                    .foregroundStyle(.primary)
+                Text(detail)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 

@@ -6,6 +6,7 @@ struct CustomWordsView: View {
     @Bindable var viewModel: CustomWordsViewModel
     @Environment(\.dismiss) private var dismiss
     @State private var hoveredWordID: UUID?
+    @FocusState private var searchFocused: Bool
     @FocusState private var wordFieldFocused: Bool
     @FocusState private var replacementFieldFocused: Bool
 
@@ -25,7 +26,8 @@ struct CustomWordsView: View {
                         placeholder: "Search words…",
                         text: $viewModel.searchText,
                         leadingSystemImage: "magnifyingglass",
-                        showsClearButton: true
+                        showsClearButton: true,
+                        externalFocus: $searchFocused
                     )
 
                     wordsSection
@@ -34,7 +36,11 @@ struct CustomWordsView: View {
                 .padding(DesignSystem.Spacing.lg)
             }
         }
-        .background(.thickMaterial)
+        .onAppear {
+            // Open neutral — don't let the freshly presented sheet auto-focus
+            // the search field. The eye should land on the content.
+            Task { @MainActor in searchFocused = false }
+        }
         .alert(
             "Delete Word?",
             isPresented: Binding(
@@ -89,7 +95,7 @@ struct CustomWordsView: View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             VocabSectionHeader(
                 title: "Add Rule",
-                subtitle: "Add a word to correct, or leave the replacement blank to enforce its spelling."
+                subtitle: "Replace a word, or leave the replacement blank to lock its spelling and capitalization."
             )
 
             if let error = viewModel.errorMessage {
@@ -117,7 +123,40 @@ struct CustomWordsView: View {
                     .controlSize(.large)
                     .disabled(viewModel.newWord.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+
+            if !viewModel.newWord.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                rulePreview
+                    .transition(.opacity)
+            }
         }
+        .animation(DesignSystem.Animation.hoverTransition, value: viewModel.newWord.isEmpty)
+    }
+
+    @ViewBuilder
+    private var rulePreview: some View {
+        let word = viewModel.newWord.trimmingCharacters(in: .whitespacesAndNewlines)
+        let replacement = viewModel.newReplacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        HStack(spacing: DesignSystem.Spacing.xs) {
+            if replacement.isEmpty {
+                Text("“\(word)”")
+                    .font(DesignSystem.Typography.caption.monospaced())
+                    .foregroundStyle(.primary)
+                Text("kept exactly — fixes spelling & capitalization")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("“\(word)”")
+                    .font(DesignSystem.Typography.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                Text("“\(replacement)”")
+                    .font(DesignSystem.Typography.caption.monospaced())
+                    .foregroundStyle(.primary)
+            }
+        }
+        .padding(.leading, 2)
     }
 
     // MARK: - Rows

@@ -197,3 +197,43 @@ struct DeleteIconButton: View {
         .accessibilityLabel(accessibilityName)
     }
 }
+
+// MARK: - Modal scrim container
+
+/// Wraps a sheet's panel in a full-bleed dimmed scrim so clicking outside the
+/// panel dismisses it (macOS sheets don't dismiss on outside-click natively).
+/// The panel carries its own rounded material background, border, and shadow;
+/// the modal views inside no longer set their own background.
+struct ModalScrimContainer<Content: View>: View {
+    private let onScrimTap: () -> Void
+    private let content: Content
+
+    init(onScrimTap: @escaping () -> Void, @ViewBuilder content: () -> Content) {
+        self.onScrimTap = onScrimTap
+        self.content = content()
+    }
+
+    var body: some View {
+        ZStack {
+            Rectangle()
+                .fill(Color.black.opacity(0.18))
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .onTapGesture(perform: onScrimTap)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel("Close")
+
+            content
+                .frame(width: 640, height: 540)
+                .background(.thickMaterial, in: RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius))
+                .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.cornerRadius)
+                        .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.5)
+                )
+                .shadow(color: .black.opacity(0.35), radius: 40, x: 0, y: 16)
+                .contentShape(Rectangle())
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}

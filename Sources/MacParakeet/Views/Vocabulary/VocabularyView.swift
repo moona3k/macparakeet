@@ -40,14 +40,16 @@ struct VocabularyView: View {
         .sheet(isPresented: $showCustomWords) {
             settingsViewModel.refreshStats()
         } content: {
-            CustomWordsView(viewModel: customWordsViewModel)
-                .frame(minWidth: 620, minHeight: 460)
+            ModalScrimContainer(onScrimTap: { showCustomWords = false }) {
+                CustomWordsView(viewModel: customWordsViewModel)
+            }
         }
         .sheet(isPresented: $showTextSnippets) {
             settingsViewModel.refreshStats()
         } content: {
-            TextSnippetsView(viewModel: textSnippetsViewModel)
-                .frame(minWidth: 620, minHeight: 460)
+            ModalScrimContainer(onScrimTap: { showTextSnippets = false }) {
+                TextSnippetsView(viewModel: textSnippetsViewModel)
+            }
         }
         .onAppear {
             settingsViewModel.refreshStats()
