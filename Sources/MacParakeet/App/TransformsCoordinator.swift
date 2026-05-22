@@ -147,7 +147,10 @@ final class TransformsCoordinator {
         var bindings: [UUID: KeyboardShortcut] = [:]
         for prompt in prompts {
             if let shortcut = prompt.shortcut {
-                if let conflict = reservedHotkeys.first(where: { shortcut.hotkeyTrigger.overlaps(with: $0.trigger) }) {
+                let trigger = shortcut.hotkeyTrigger
+                if let conflict = reservedHotkeys.first(where: {
+                    trigger.conflicts(with: $0.trigger, otherMode: $0.conflictMode)
+                }) {
                     logger.notice(
                         "transforms: skipping binding for \(prompt.name, privacy: .public); conflicts with \(conflict.name, privacy: .public) \(conflict.trigger.formattedLabel, privacy: .public)"
                     )

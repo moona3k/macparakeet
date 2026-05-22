@@ -35,6 +35,11 @@ public struct HotkeyTrigger: Sendable {
         case blocked(String)
     }
 
+    public enum ConflictMode: Equatable, Sendable {
+        case exclusive
+        case bareModifierDictation
+    }
+
     // MARK: - Stored Properties (canonical identity only)
 
     public let kind: Kind
@@ -563,6 +568,46 @@ public struct HotkeyTrigger: Sendable {
             let rhs = Self.modifierRequirements(forChord: other)
             return Self.requirements(lhs, canBeSatisfiedBy: rhs)
                 || Self.requirements(rhs, canBeSatisfiedBy: lhs)
+        default:
+            return false
+        }
+    }
+
+    public func conflicts(
+        with other: HotkeyTrigger,
+        selfMode: ConflictMode = .exclusive,
+        otherMode: ConflictMode = .exclusive
+    ) -> Bool {
+        guard overlaps(with: other) else { return false }
+        if selfMode == .bareModifierDictation,
+           Self.bareModifierDictationCanShare(self, with: other) {
+            return false
+        }
+        if otherMode == .bareModifierDictation,
+           Self.bareModifierDictationCanShare(other, with: self) {
+            return false
+        }
+        return true
+    }
+
+    private static func bareModifierDictationCanShare(
+        _ dictationTrigger: HotkeyTrigger,
+        with other: HotkeyTrigger
+    ) -> Bool {
+        guard dictationTrigger.kind == .modifier,
+              let lhs = modifierRequirement(for: dictationTrigger) else {
+            return false
+        }
+
+        switch other.kind {
+        case .chord:
+            return modifierRequirements(forChord: other).contains {
+                modifierRequirementsAreCompatible(lhs, $0)
+            }
+        case .modifierChord:
+            return modifierRequirements(forModifierChord: other).contains {
+                modifierRequirementsAreCompatible(lhs, $0)
+            }
         default:
             return false
         }

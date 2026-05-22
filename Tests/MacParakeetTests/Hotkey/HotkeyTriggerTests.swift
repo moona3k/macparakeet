@@ -916,6 +916,29 @@ final class HotkeyTriggerTests: XCTestCase {
         XCTAssertTrue(commandM.overlaps(with: bareM))
     }
 
+    func testBareModifierDictationCanShareModifierPlusKeyChord() {
+        let rightCommand = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let meeting = HotkeyTrigger.defaultMeetingRecording
+
+        XCTAssertTrue(rightCommand.overlaps(with: meeting))
+        XCTAssertFalse(rightCommand.conflicts(with: meeting, selfMode: .bareModifierDictation))
+        XCTAssertFalse(meeting.conflicts(with: rightCommand, otherMode: .bareModifierDictation))
+    }
+
+    func testBareModifierDictationCanShareTransformOptionChord() {
+        let optionOne = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 0x12)
+
+        XCTAssertTrue(HotkeyTrigger.option.overlaps(with: optionOne))
+        XCTAssertFalse(HotkeyTrigger.option.conflicts(with: optionOne, selfMode: .bareModifierDictation))
+    }
+
+    func testBareModifierDictationStillConflictsWithBareModifier() {
+        let rightCommand = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+
+        XCTAssertTrue(rightCommand.conflicts(with: .command, selfMode: .bareModifierDictation))
+        XCTAssertTrue(rightCommand.conflicts(with: .command, otherMode: .bareModifierDictation))
+    }
+
     // MARK: - Telemetry
 
     func testTelemetryKindMapsOnlyStructuralTriggerKind() {

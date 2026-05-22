@@ -283,6 +283,28 @@ final class TransformsHotkeyRegistryTests: XCTestCase {
         )
     }
 
+    func testCollisionBareModifierDictationReservedHotkeyAllowsChordUsingThatModifier() {
+        let opt1 = KeyboardShortcut(
+            modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,
+            keyCode: 0x12,
+            keyLabel: "1"
+        )
+        XCTAssertNil(
+            checker.check(
+                candidate: opt1,
+                existing: [:],
+                excludingPromptID: nil,
+                reservedHotkeys: [
+                    TransformShortcutReservedHotkey(
+                        name: "push to talk",
+                        trigger: .option,
+                        conflictMode: .bareModifierDictation
+                    )
+                ]
+            )
+        )
+    }
+
     func testCollisionModifierChordReservedHotkeyDoesNotConflictWithSubsetTransformChord() {
         let opt4 = KeyboardShortcut(
             modifiers: KeyboardShortcut.ModifierFlag.option.rawValue,

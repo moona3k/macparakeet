@@ -257,12 +257,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
 
         viewModel.meetingHotkeyTrigger = .defaultMeetingRecording
-        viewModel.pushToTalkHotkeyTrigger = HotkeyTrigger(
-            kind: .modifier,
-            modifierName: "command",
-            keyCode: nil,
-            modifierKeyCode: 54
-        )
+        viewModel.pushToTalkHotkeyTrigger = .defaultMeetingRecording
 
         coordinator.suspend()
         coordinator.refreshAllHotkeys()
@@ -273,6 +268,34 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
 
         coordinator.resume()
         XCTAssertEqual(conflictReports, 1, "resume() must rebuild taps from current settings")
+    }
+
+    func testAuxiliaryHotkeysCanShareChordsWithBareModifierDictationTriggers() {
+        let rightCommand = HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+
+        XCTAssertEqual(
+            AppHotkeyCoordinator.conflictingTriggers(
+                for: .defaultMeetingRecording,
+                among: [
+                    .init(rightCommand, mode: .bareModifierDictation)
+                ]
+            ),
+            []
+        )
+        XCTAssertEqual(
+            AppHotkeyCoordinator.conflictingTriggers(
+                for: .defaultMeetingRecording,
+                among: [
+                    .init(rightCommand)
+                ]
+            ),
+            [rightCommand]
+        )
     }
 
     func testSetupAllHotkeysIsDeferredWhileSuspended() {

@@ -98,6 +98,16 @@ final class AppHotkeyCoordinator {
         let conflict: Conflict?
     }
 
+    struct HotkeyConflictCandidate: Equatable {
+        let trigger: HotkeyTrigger
+        let mode: HotkeyTrigger.ConflictMode
+
+        init(_ trigger: HotkeyTrigger, mode: HotkeyTrigger.ConflictMode = .exclusive) {
+            self.trigger = trigger
+            self.mode = mode
+        }
+    }
+
     static func menuTitle(for trigger: HotkeyTrigger) -> String {
         menuTitle(handsFree: trigger, pushToTalk: trigger)
     }
@@ -279,10 +289,10 @@ final class AppHotkeyCoordinator {
         meetingHotkeyManager = startAuxiliaryHotkey(
             trigger: settingsViewModel.meetingHotkeyTrigger,
             conflicts: [
-                settingsViewModel.hotkeyTrigger,
-                settingsViewModel.pushToTalkHotkeyTrigger,
-                settingsViewModel.fileTranscriptionHotkeyTrigger,
-                settingsViewModel.youtubeTranscriptionHotkeyTrigger,
+                .init(settingsViewModel.hotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
+                .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onToggleMeetingRecording()
@@ -294,10 +304,10 @@ final class AppHotkeyCoordinator {
         fileTranscriptionHotkeyManager = startAuxiliaryHotkey(
             trigger: settingsViewModel.fileTranscriptionHotkeyTrigger,
             conflicts: [
-                settingsViewModel.hotkeyTrigger,
-                settingsViewModel.pushToTalkHotkeyTrigger,
-                settingsViewModel.meetingHotkeyTrigger,
-                settingsViewModel.youtubeTranscriptionHotkeyTrigger,
+                .init(settingsViewModel.hotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.meetingHotkeyTrigger),
+                .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onTriggerFileTranscription()
@@ -309,10 +319,10 @@ final class AppHotkeyCoordinator {
         youtubeTranscriptionHotkeyManager = startAuxiliaryHotkey(
             trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger,
             conflicts: [
-                settingsViewModel.hotkeyTrigger,
-                settingsViewModel.pushToTalkHotkeyTrigger,
-                settingsViewModel.meetingHotkeyTrigger,
-                settingsViewModel.fileTranscriptionHotkeyTrigger,
+                .init(settingsViewModel.hotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.meetingHotkeyTrigger),
+                .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onTriggerYouTubeTranscription()
@@ -325,12 +335,12 @@ final class AppHotkeyCoordinator {
     /// `GlobalShortcutManager`, and surface the availability callback.
     private func startAuxiliaryHotkey(
         trigger: HotkeyTrigger,
-        conflicts: [HotkeyTrigger],
+        conflicts: [HotkeyConflictCandidate],
         onTrigger: @escaping @MainActor () -> Void
     ) -> GlobalShortcutManager? {
         guard !trigger.isDisabled else { return nil }
         let overlappingTriggers = Self.uniqueTriggers(
-            conflicts.filter { !$0.isDisabled && $0.overlaps(with: trigger) }
+            Self.conflictingTriggers(for: trigger, among: conflicts)
         )
         if !overlappingTriggers.isEmpty {
             onHotkeyConflict(trigger, overlappingTriggers)
@@ -350,6 +360,19 @@ final class AppHotkeyCoordinator {
         } else {
             onHotkeyUnavailable()
             return nil
+        }
+    }
+
+    static func conflictingTriggers(
+        for trigger: HotkeyTrigger,
+        among conflicts: [HotkeyConflictCandidate]
+    ) -> [HotkeyTrigger] {
+        conflicts.compactMap { conflict in
+            guard !conflict.trigger.isDisabled,
+                  trigger.conflicts(with: conflict.trigger, otherMode: conflict.mode) else {
+                return nil
+            }
+            return conflict.trigger
         }
     }
 

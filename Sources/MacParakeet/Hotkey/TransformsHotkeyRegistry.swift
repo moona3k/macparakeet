@@ -266,7 +266,7 @@ public struct TransformsHotkeyCollisionChecker {
 
         let candidateTrigger = candidate.hotkeyTrigger
         for reserved in reservedHotkeys where !reserved.trigger.isDisabled {
-            if candidateTrigger.overlaps(with: reserved.trigger) {
+            if candidateTrigger.conflicts(with: reserved.trigger, otherMode: reserved.conflictMode) {
                 return .reservedHotkey(name: reserved.name)
             }
         }

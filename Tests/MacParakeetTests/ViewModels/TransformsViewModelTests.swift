@@ -200,6 +200,29 @@ final class TransformsViewModelTests: XCTestCase {
         XCTAssertEqual(reloadedPolish.shortcut?.displayString, "⌥4")
     }
 
+    func testResetBuiltInAllowsDefaultShortcutWhenReservedByBareModifierDictationHotkey() async throws {
+        var polish = try XCTUnwrap(viewModel.transforms.first(where: { $0.name == "Polish" }))
+        polish.content = "Custom polish prompt body."
+        polish.keyboardShortcut = KeyboardShortcut.parse("opt+4")!.encodedString()
+        let savedPolish = await viewModel.save(polish)
+        XCTAssertTrue(savedPolish)
+
+        let reset = await viewModel.resetBuiltIn(
+            polish,
+            reservedHotkeys: [
+                TransformShortcutReservedHotkey(
+                    name: "push to talk",
+                    trigger: .option,
+                    conflictMode: .bareModifierDictation
+                )
+            ]
+        )
+        XCTAssertTrue(reset)
+
+        let reloadedPolish = try XCTUnwrap(viewModel.transforms.first(where: { $0.id == polish.id }))
+        XCTAssertEqual(reloadedPolish.shortcut?.displayString, "⌥1")
+    }
+
     func testReseedMissingBuiltInsRecreatesDeletedDefault() async throws {
         // Force-delete Polish via raw SQL (bypassing the built-in protection)
         // to simulate a corrupted state where a built-in is missing.

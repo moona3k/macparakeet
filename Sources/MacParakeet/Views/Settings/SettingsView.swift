@@ -852,13 +852,16 @@ struct SettingsView: View {
                     defaultTrigger: .disabled,
                     additionalValidation: { candidate in
                         guard !candidate.isDisabled else { return .allowed }
-                        if candidate.overlaps(with: viewModel.hotkeyTrigger) {
+                        if candidate.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
                             return .blocked(SettingsHotkeyConflictMessage.blocked(
                                 conflictingWith: "hands-free mode",
                                 trigger: viewModel.hotkeyTrigger
                             ))
                         }
-                        if candidate.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
+                        if candidate.conflicts(
+                            with: viewModel.pushToTalkHotkeyTrigger,
+                            otherMode: .bareModifierDictation
+                        ) {
                             return .blocked(SettingsHotkeyConflictMessage.blocked(
                                 conflictingWith: "push to talk",
                                 trigger: viewModel.pushToTalkHotkeyTrigger
@@ -904,13 +907,13 @@ struct SettingsView: View {
         otherTranscriptionName: String
     ) -> String? {
         guard !trigger.isDisabled else { return nil }
-        if trigger.overlaps(with: viewModel.hotkeyTrigger) {
+        if trigger.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "hands-free mode",
                 trigger: viewModel.hotkeyTrigger
             )
         }
-        if trigger.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
+        if trigger.conflicts(with: viewModel.pushToTalkHotkeyTrigger, otherMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "push to talk",
                 trigger: viewModel.pushToTalkHotkeyTrigger
@@ -945,25 +948,26 @@ struct SettingsView: View {
                 trigger: viewModel.pushToTalkHotkeyTrigger
             ))
         }
-        if AppFeatures.meetingRecordingEnabled, candidate.overlaps(with: viewModel.meetingHotkeyTrigger) {
+        if AppFeatures.meetingRecordingEnabled,
+           candidate.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "meeting recording",
                 trigger: viewModel.meetingHotkeyTrigger
             ))
         }
-        if candidate.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
+        if candidate.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "file transcription",
                 trigger: viewModel.fileTranscriptionHotkeyTrigger
             ))
         }
-        if candidate.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
+        if candidate.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "YouTube transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             ))
         }
-        if let conflict = transformHotkeyConflict(for: candidate) {
+        if let conflict = transformHotkeyConflict(for: candidate, triggerMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: conflict.name,
                 trigger: conflict.trigger
@@ -980,25 +984,26 @@ struct SettingsView: View {
                 trigger: viewModel.hotkeyTrigger
             ))
         }
-        if AppFeatures.meetingRecordingEnabled, candidate.overlaps(with: viewModel.meetingHotkeyTrigger) {
+        if AppFeatures.meetingRecordingEnabled,
+           candidate.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "meeting recording",
                 trigger: viewModel.meetingHotkeyTrigger
             ))
         }
-        if candidate.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
+        if candidate.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "file transcription",
                 trigger: viewModel.fileTranscriptionHotkeyTrigger
             ))
         }
-        if candidate.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
+        if candidate.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "YouTube transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             ))
         }
-        if let conflict = transformHotkeyConflict(for: candidate) {
+        if let conflict = transformHotkeyConflict(for: candidate, triggerMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: conflict.name,
                 trigger: conflict.trigger
@@ -1009,13 +1014,16 @@ struct SettingsView: View {
 
     private func meetingHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
         guard !candidate.isDisabled else { return .allowed }
-        if candidate.overlaps(with: viewModel.hotkeyTrigger) {
+        if candidate.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "hands-free mode",
                 trigger: viewModel.hotkeyTrigger
             ))
         }
-        if candidate.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
+        if candidate.conflicts(
+            with: viewModel.pushToTalkHotkeyTrigger,
+            otherMode: .bareModifierDictation
+        ) {
             return .blocked(SettingsHotkeyConflictMessage.blocked(
                 conflictingWith: "push to talk",
                 trigger: viewModel.pushToTalkHotkeyTrigger
@@ -1050,25 +1058,26 @@ struct SettingsView: View {
                 trigger: viewModel.pushToTalkHotkeyTrigger
             )
         }
-        if AppFeatures.meetingRecordingEnabled, trigger.overlaps(with: viewModel.meetingHotkeyTrigger) {
+        if AppFeatures.meetingRecordingEnabled,
+           trigger.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "meeting recording",
                 trigger: viewModel.meetingHotkeyTrigger
             )
         }
-        if trigger.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
+        if trigger.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "file transcription",
                 trigger: viewModel.fileTranscriptionHotkeyTrigger
             )
         }
-        if trigger.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
+        if trigger.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "YouTube transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             )
         }
-        if let conflict = transformHotkeyConflict(for: trigger) {
+        if let conflict = transformHotkeyConflict(for: trigger, triggerMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: conflict.name,
                 trigger: conflict.trigger
@@ -1085,25 +1094,26 @@ struct SettingsView: View {
                 trigger: viewModel.hotkeyTrigger
             )
         }
-        if AppFeatures.meetingRecordingEnabled, trigger.overlaps(with: viewModel.meetingHotkeyTrigger) {
+        if AppFeatures.meetingRecordingEnabled,
+           trigger.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "meeting recording",
                 trigger: viewModel.meetingHotkeyTrigger
             )
         }
-        if trigger.overlaps(with: viewModel.fileTranscriptionHotkeyTrigger) {
+        if trigger.conflicts(with: viewModel.fileTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "file transcription",
                 trigger: viewModel.fileTranscriptionHotkeyTrigger
             )
         }
-        if trigger.overlaps(with: viewModel.youtubeTranscriptionHotkeyTrigger) {
+        if trigger.conflicts(with: viewModel.youtubeTranscriptionHotkeyTrigger, selfMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "YouTube transcription",
                 trigger: viewModel.youtubeTranscriptionHotkeyTrigger
             )
         }
-        if let conflict = transformHotkeyConflict(for: trigger) {
+        if let conflict = transformHotkeyConflict(for: trigger, triggerMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: conflict.name,
                 trigger: conflict.trigger
@@ -1114,13 +1124,13 @@ struct SettingsView: View {
 
     private func meetingHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
         guard !trigger.isDisabled else { return nil }
-        if trigger.overlaps(with: viewModel.hotkeyTrigger) {
+        if trigger.conflicts(with: viewModel.hotkeyTrigger, otherMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "hands-free mode",
                 trigger: viewModel.hotkeyTrigger
             )
         }
-        if trigger.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
+        if trigger.conflicts(with: viewModel.pushToTalkHotkeyTrigger, otherMode: .bareModifierDictation) {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: "push to talk",
                 trigger: viewModel.pushToTalkHotkeyTrigger
@@ -1147,13 +1157,16 @@ struct SettingsView: View {
         return nil
     }
 
-    private func transformHotkeyConflict(for trigger: HotkeyTrigger) -> (name: String, trigger: HotkeyTrigger)? {
+    private func transformHotkeyConflict(
+        for trigger: HotkeyTrigger,
+        triggerMode: HotkeyTrigger.ConflictMode = .exclusive
+    ) -> (name: String, trigger: HotkeyTrigger)? {
         guard !trigger.isDisabled else { return nil }
         for transform in transformHotkeys {
             guard let shortcut = transform.shortcut else { continue }
             let transformTrigger = shortcut.hotkeyTrigger
             guard !transformTrigger.isDisabled else { continue }
-            if trigger.overlaps(with: transformTrigger) {
+            if trigger.conflicts(with: transformTrigger, selfMode: triggerMode) {
                 return ("Transform \(transform.name)", transformTrigger)
             }
         }

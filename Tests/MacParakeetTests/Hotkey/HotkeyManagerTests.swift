@@ -129,6 +129,36 @@ final class HotkeyManagerTests: XCTestCase {
         )
     }
 
+    func testHoldOnlyCommandCancelsBeforeStartupWhenUsedAsChord() {
+        let manager = HotkeyManager(trigger: .command, gestureMode: .holdOnly)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(
+            manager.modifierKeyDownOutputsForTesting(keyCode: 8, timestampMs: 1_025),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050
+            ),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+    }
+
     func testSuppressedHoldOnlyManagerDoesNotStartUntilReset() {
         let manager = HotkeyManager(trigger: .fn, gestureMode: .holdOnly)
 

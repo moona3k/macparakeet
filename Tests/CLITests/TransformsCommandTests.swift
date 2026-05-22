@@ -438,6 +438,30 @@ final class TransformsCommandTests: XCTestCase {
         }
     }
 
+    func testAppHotkeyCollisionAllowsChordSharingBareModifierDictationHotkey() throws {
+        let suiteName = "com.macparakeet.tests.transforms.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        HotkeyTrigger.option.save(
+            to: defaults,
+            defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey
+        )
+
+        XCTAssertNil(
+            appHotkeyCollision(
+                for: try XCTUnwrap(KeyboardShortcut.parse("opt+5")),
+                defaults: defaults
+            )
+        )
+        XCTAssertNotNil(
+            appHotkeyCollision(
+                for: try XCTUnwrap(KeyboardShortcut.parse("cmd+shift+m")),
+                defaults: defaults
+            )
+        )
+    }
+
     func testCreateRejectsMacOSDeadKeyShortcut() throws {
         let tmp = FileManager.default.temporaryDirectory
             .appendingPathComponent("transforms-cli-\(UUID().uuidString)")
