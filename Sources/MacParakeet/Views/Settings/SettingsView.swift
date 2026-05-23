@@ -22,6 +22,9 @@ enum SettingsDictationHotkeyConflictPolicy {
         peerName: String
     ) -> HotkeyTrigger.ValidationResult? {
         guard candidate.overlaps(with: peer) else { return nil }
+        if HotkeyTrigger.isDefaultDictationGesturePreset(handsFree: candidate, pushToTalk: peer) {
+            return nil
+        }
         return .blocked(SettingsHotkeyConflictMessage.blocked(
             conflictingWith: peerName,
             trigger: peer
@@ -35,6 +38,9 @@ enum SettingsDictationHotkeyConflictPolicy {
         disablesTrigger: Bool
     ) -> String? {
         guard trigger.overlaps(with: peer) else { return nil }
+        if HotkeyTrigger.isDefaultDictationGesturePreset(handsFree: trigger, pushToTalk: peer) {
+            return nil
+        }
         if disablesTrigger {
             return SettingsHotkeyConflictMessage.disabled(
                 conflictingWith: peerName,

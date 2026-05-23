@@ -116,6 +116,9 @@ final class AppHotkeyCoordinator {
         if handsFree.isDisabled && pushToTalk.isDisabled {
             return "Dictation Shortcuts: Disabled"
         }
+        if HotkeyTrigger.isDefaultDictationGesturePreset(handsFree: handsFree, pushToTalk: pushToTalk) {
+            return "Dictation: Hold Fn / Tap Fn"
+        }
         if handsFree.overlaps(with: pushToTalk) {
             let conflictName = handsFree == pushToTalk
                 ? handsFree.displayName
@@ -137,6 +140,21 @@ final class AppHotkeyCoordinator {
     ) -> DictationHotkeyPlan {
         guard !handsFreeTrigger.isDisabled || !pushToTalkTrigger.isDisabled else {
             return DictationHotkeyPlan(specs: [], conflict: nil)
+        }
+
+        if HotkeyTrigger.isDefaultDictationGesturePreset(
+            handsFree: handsFreeTrigger,
+            pushToTalk: pushToTalkTrigger
+        ) {
+            return DictationHotkeyPlan(
+                specs: [
+                    DictationHotkeyPlan.Spec(
+                        trigger: handsFreeTrigger,
+                        gestureMode: .doubleTapAndHold
+                    ),
+                ],
+                conflict: nil
+            )
         }
 
         if !handsFreeTrigger.isDisabled, !pushToTalkTrigger.isDisabled {

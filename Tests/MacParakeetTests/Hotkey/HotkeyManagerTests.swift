@@ -328,7 +328,7 @@ final class HotkeyManagerTests: XCTestCase {
     }
 
     func testSingleTapToggleGestureModeWorksForFnSpaceChord() {
-        let trigger = HotkeyTrigger.defaultDictation
+        let trigger = HotkeyTrigger.fnSpace
         let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
 
         let firstDown = manager.chordEventDecisionForTesting(
@@ -365,7 +365,7 @@ final class HotkeyManagerTests: XCTestCase {
             gestureMode: .holdOnly,
             startupDebounceMs: FnKeyStateMachine.defaultTapThresholdMs
         )
-        let handsFree = HotkeyManager(trigger: .defaultDictation, gestureMode: .singleTapToggle)
+        let handsFree = HotkeyManager(trigger: .fnSpace, gestureMode: .singleTapToggle)
 
         XCTAssertEqual(
             pushToTalk.modifierFlagsChangedOutputsForTesting(
@@ -387,7 +387,7 @@ final class HotkeyManagerTests: XCTestCase {
         let handsFreeStart = handsFree.chordEventDecisionForTesting(
             type: .keyDown,
             keyCode: 49,
-            flags: HotkeyTrigger.defaultDictation.chordEventFlags,
+            flags: HotkeyTrigger.fnSpace.chordEventFlags,
             timestampMs: 1_200
         )
         XCTAssertEqual(handsFreeStart.outputs, [.startRecording(mode: .persistent)])

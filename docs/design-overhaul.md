@@ -554,7 +554,7 @@ Every empty state is a **personality moment**:
 
 | Empty State | Copy | Visual |
 |-------------|------|--------|
-| No dictations | "Your voice, captured. Tap Fn+Space to start." | Large warm merkaba, gentle pulse |
+| No dictations | "Your voice, captured. Tap Fn to start." | Large warm merkaba, gentle pulse |
 | No transcriptions | "Drop a file and watch the magic happen." | Merkaba with subtle upward particle drift |
 | Search no results | "Nothing matched. Try different words?" | Merkaba at low opacity, still |
 | Error | "Hmm, something went wrong." + actionable detail | Warm error card, not stark red |

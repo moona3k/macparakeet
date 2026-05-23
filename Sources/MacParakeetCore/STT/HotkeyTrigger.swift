@@ -359,9 +359,17 @@ public struct HotkeyTrigger: Sendable {
 
     // MARK: - Default Triggers
 
-    public static let defaultDictation: HotkeyTrigger = .chord(modifiers: ["fn"], keyCode: 49)
+    public static let fnSpace: HotkeyTrigger = .chord(modifiers: ["fn"], keyCode: 49)
+    public static let defaultDictation: HotkeyTrigger = .fn
     public static let defaultPushToTalk: HotkeyTrigger = .fn
     public static let defaultMeetingRecording: HotkeyTrigger = .chord(modifiers: ["command", "shift"], keyCode: 46)
+
+    public static func isDefaultDictationGesturePreset(
+        handsFree: HotkeyTrigger,
+        pushToTalk: HotkeyTrigger
+    ) -> Bool {
+        handsFree == .defaultDictation && pushToTalk == .defaultPushToTalk
+    }
 
     // MARK: - Factory
 

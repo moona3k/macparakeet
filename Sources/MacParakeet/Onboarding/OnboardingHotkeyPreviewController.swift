@@ -103,7 +103,7 @@ final class OnboardingHotkeyPreviewController {
     }
 
     /// Mirror the production app: once one trigger fires, suppress the peer
-    /// trigger until reset so a held `fn` can't also fire an `fn+Space` toggle.
+    /// trigger until reset so overlapping custom triggers cannot double-fire.
     private func suppressPeers(of active: HotkeyManager) {
         for manager in managers where manager !== active {
             manager.suppressUntilReset()

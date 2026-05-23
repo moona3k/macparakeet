@@ -27,14 +27,25 @@ final class SettingsHotkeyConflictMessageTests: XCTestCase {
         )
     }
 
-    func testDictationPeerValidationBlocksExactDuplicate() {
+    func testDictationPeerValidationAllowsDefaultFnGesturePreset() {
         XCTAssertEqual(
             SettingsDictationHotkeyConflictPolicy.validation(
                 candidate: .fn,
                 peer: .fn,
                 peerName: "push to talk"
             ),
-            .blocked("Conflicts with push to talk (🌐 Fn).")
+            nil
+        )
+    }
+
+    func testDictationPeerValidationBlocksNonDefaultExactDuplicate() {
+        XCTAssertEqual(
+            SettingsDictationHotkeyConflictPolicy.validation(
+                candidate: .control,
+                peer: .control,
+                peerName: "push to talk"
+            ),
+            .blocked("Conflicts with push to talk (⌃ Control).")
         )
     }
 
@@ -85,7 +96,7 @@ final class SettingsHotkeyConflictMessageTests: XCTestCase {
         )
     }
 
-    func testExistingDictationPeerConflictMessageCanNameActiveTrigger() {
+    func testExistingDictationPeerConflictMessageAllowsDefaultFnGesturePreset() {
         XCTAssertEqual(
             SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
                 trigger: .fn,
@@ -93,19 +104,31 @@ final class SettingsHotkeyConflictMessageTests: XCTestCase {
                 peerName: "push to talk",
                 disablesTrigger: false
             ),
-            "Conflicts with push to talk (🌐 Fn)."
+            nil
+        )
+    }
+
+    func testExistingDictationPeerConflictMessageCanNameActiveTrigger() {
+        XCTAssertEqual(
+            SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
+                trigger: .control,
+                peer: .control,
+                peerName: "push to talk",
+                disablesTrigger: false
+            ),
+            "Conflicts with push to talk (⌃ Control)."
         )
     }
 
     func testExistingDictationPeerConflictMessageCanNameDisabledTrigger() {
         XCTAssertEqual(
             SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
-                trigger: .fn,
-                peer: .fn,
+                trigger: .control,
+                peer: .control,
                 peerName: "hands-free mode",
                 disablesTrigger: true
             ),
-            "Disabled — conflicts with hands-free mode (🌐 Fn)."
+            "Disabled — conflicts with hands-free mode (⌃ Control)."
         )
     }
 }

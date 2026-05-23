@@ -278,27 +278,27 @@ Tests/
 
 These flows must be tested manually after any overlay or hotkey changes. Automated unit tests cover the state machine logic, but the full UX requires human verification.
 
-> **Note:** "Fn+Space" below refers to the configured hands-free shortcut, and "Fn" refers to the configured push-to-talk shortcut. Defaults are Fn+Space for hands-free and Fn for push-to-talk. The two dictation shortcuts must be distinct and non-overlapping; Settings should reject conflicting triggers for the two roles. Test with at least two different trigger keys.
+> **Note:** The default dictation preset uses `Fn` for both roles: double-tap `Fn` for hands-free, and hold `Fn` for push-to-talk. `Fn+Space` is a supported custom hands-free chord and should remain recordable. Custom dictation shortcuts must be distinct and non-overlapping; Settings should reject conflicting triggers for the two roles. Test with at least two different trigger keys.
 
 ### Happy Path
 
 | # | Flow | Steps | Expected |
 |---|------|-------|----------|
-| 1 | Persistent recording | Fn+Space → speak → Fn+Space | Pill appears → waveform animates → checkmark → text pasted |
+| 1 | Persistent recording | Double-tap Fn → speak → tap Fn | Pill appears → waveform animates → checkmark → text pasted |
 | 2 | Hold-to-talk | Hold Fn (>400ms) → speak → release Fn | Pill appears → waveform → checkmark → text pasted |
 
 ### Cancel & Undo Flows
 
 | # | Flow | Steps | Expected |
 |---|------|-------|----------|
-| 3 | Cancel via Esc | Fn+Space → Esc | Pill shows countdown ring (5s) → auto-dismiss |
-| 4 | Cancel via X button | Fn+Space → click X | Same as Esc cancel — countdown → auto-dismiss |
-| 5 | Undo after Esc cancel | Fn+Space → Esc → click Undo | Recording restarts, pill shows waveform again |
-| 6 | Undo after X cancel | Fn+Space → click X → click Undo | Recording restarts, pill shows waveform again |
-| 7 | **Hands-free after undo** | Fn+Space → cancel → Undo → Fn+Space | Recording stops, checkmark, text pasted |
-| 8 | **New hands-free recording after undo** | Fn+Space → cancel → Undo → Fn+Space → Fn+Space | New recording starts |
-| 9 | Hands-free blocked during cancel | Fn+Space → Esc → Fn+Space (during countdown) | Nothing happens — shortcut is blocked |
-| 10 | Cancel countdown expires | Fn+Space → Esc → wait 5s | Pill auto-dismisses, Fn+Space works again |
+| 3 | Cancel via Esc | Double-tap Fn → Esc | Pill shows countdown ring (5s) → auto-dismiss |
+| 4 | Cancel via X button | Double-tap Fn → click X | Same as Esc cancel — countdown → auto-dismiss |
+| 5 | Undo after Esc cancel | Double-tap Fn → Esc → click Undo | Recording restarts, pill shows waveform again |
+| 6 | Undo after X cancel | Double-tap Fn → click X → click Undo | Recording restarts, pill shows waveform again |
+| 7 | **Hands-free after undo** | Double-tap Fn → cancel → Undo → tap Fn | Recording stops, checkmark, text pasted |
+| 8 | **New hands-free recording after undo** | Double-tap Fn → cancel → Undo → tap Fn → double-tap Fn | New recording starts |
+| 9 | Hands-free blocked during cancel | Double-tap Fn → Esc → Fn (during countdown) | Nothing happens — shortcut is blocked |
+| 10 | Cancel countdown expires | Double-tap Fn → Esc → wait 5s | Pill auto-dismisses, Fn works again |
 
 ### Configurable Hotkey
 
@@ -308,18 +308,18 @@ These flows must be tested manually after any overlay or hotkey changes. Automat
 | 10b | New trigger works | Ctrl+Space → speak → Ctrl+Space | Recording starts/stops with new shortcut |
 | 10c | Bare-tap filtering | Hold Ctrl → press C → release Ctrl | Does NOT trigger dictation (keyboard shortcut) |
 | 10d | Single-tap modifier filtering | Ctrl → type "hello" → release Ctrl | Does NOT trigger dictation |
-| 10e | Switch back to Fn+Space | Settings → Shortcuts → Hands-free mode → select Fn+Space | Fn+Space works again, Ctrl no longer triggers |
-| 10f | Dynamic UI text | Change to Option+Space → check overlay/pill/history | All say "Option+Space" instead of "Fn+Space" |
-| 10g | Conflicting dictation shortcut blocked | Try setting both dictation shortcuts to Fn, then try an overlapping pair such as Control and Control+Space | Settings rejects the second assignment with a conflict message |
+| 10e | Record Fn+Space custom chord | Settings → Shortcuts → Hands-free mode → record Fn+Space | Fn+Space works, Ctrl no longer triggers |
+| 10f | Dynamic UI text | Change to Option+Space → check overlay/pill/history | All say "Option+Space" instead of "Fn" |
+| 10g | Conflicting custom dictation shortcut blocked | Restore default so both roles use Fn, then try an overlapping custom pair such as Control and Control+Space | Default Fn preset is accepted; Settings rejects the custom conflict with a conflict message |
 
 ### State Transitions
 
 | # | Flow | Steps | Expected |
 |---|------|-------|----------|
-| 11 | Recording → Processing | Fn+Space → speak → Fn+Space | Pill smoothly transitions from waveform to spinner |
+| 11 | Recording → Processing | Double-tap Fn → speak → tap Fn | Pill smoothly transitions from waveform to spinner |
 | 12 | Processing → Success | (after transcription completes) | Animated checkmark appears, then text pastes |
 | 13 | Error display | (trigger STT error) | Error card (rounded rect, icon, title+subtitle, dismiss button) |
-| 13a | Delayed first-stop race | Fn+Space, then immediately Fn+Space while first start is still spinning up | Stop is deferred, then processing/paste completes once recording is active (no silent drop) |
+| 13a | Delayed first-stop race | Double-tap Fn, then immediately tap Fn while first start is still spinning up | Stop is deferred, then processing/paste completes once recording is active (no silent drop) |
 
 ### Hover Tooltips
 

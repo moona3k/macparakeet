@@ -30,7 +30,7 @@
 
 Three capture modes plus one optional selected-text AI utility. That is the product:
 
-1. **Dictate anywhere** -- Tap Fn+Space for hands-free dictation, or hold Fn for push-to-talk. Text appears where your cursor is.
+1. **Dictate anywhere** -- Double-tap Fn for hands-free dictation, or hold Fn for push-to-talk. Text appears where your cursor is.
 2. **Drop a file** -- Drag audio/video in. Get a transcript out.
 3. **Record a meeting** -- Capture system audio + mic, get a transcript when you stop.
 4. **Transform selected text** -- Press a bound Transform hotkey to rewrite selected text through your configured LLM provider.
@@ -81,7 +81,7 @@ This is not privacy theater ("your data is encrypted in transit"). This is priva
 
 MacWhisper has 50+ features. MacParakeet has three capture modes plus Transforms.
 
-- **Dictate** -- Tap Fn+Space or hold Fn, speak, and text appears at cursor. Works in any app.
+- **Dictate** -- Double-tap Fn or hold Fn, speak, and text appears at cursor. Works in any app.
 - **Transcribe** -- Drop a file, get text out. Audio, video, YouTube links.
 - **Record** -- Capture a meeting (system audio + mic), get a transcript.
 - **Transform** -- Select text anywhere, press a bound hotkey, rewrite it through your configured LLM provider.
@@ -136,9 +136,9 @@ That does not mean monetization is permanently forbidden. GPL permits charging f
 +-----------------------------------------------------------------------+
 |  Any app. Any text field. Any time.                                   |
 |                                                                       |
-|  1. Hold Fn for push-to-talk or tap Fn+Space for hands-free           |
+|  1. Hold Fn for push-to-talk or double-tap Fn for hands-free          |
 |  2. Speak naturally                                                   |
-|  3. Release Fn, or tap Fn+Space again                                 |
+|  3. Release Fn, or tap Fn again                                       |
 |  4. Clean text appears at cursor in <500ms                            |
 |                                                                       |
 |  +-----------------------------------------+                          |

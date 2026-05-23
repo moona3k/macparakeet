@@ -738,6 +738,9 @@ public final class SettingsViewModel {
     }
 
     private static func defaultHandsFreeTrigger(avoiding pushToTalk: HotkeyTrigger) -> HotkeyTrigger {
+        if pushToTalk == .defaultPushToTalk {
+            return .defaultDictation
+        }
         guard !pushToTalk.isDisabled,
               HotkeyTrigger.defaultDictation.overlaps(with: pushToTalk) else {
             return .defaultDictation

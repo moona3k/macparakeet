@@ -68,7 +68,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     func testMenuTitleDescribesSharedDictationTrigger() {
         XCTAssertEqual(
             AppHotkeyCoordinator.menuTitle(handsFree: .fn, pushToTalk: .fn),
-            "Dictation Shortcuts: Conflict on Fn"
+            "Dictation: Hold Fn / Tap Fn"
         )
     }
 
@@ -89,7 +89,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
-    func testDictationHotkeyPlanKeepsHandsFreeWhenSharedTriggerWouldConflict() {
+    func testDictationHotkeyPlanUsesCombinedDefaultGestureForFnPair() {
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
             handsFree: .fn,
             pushToTalk: .fn
@@ -99,9 +99,9 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .fn, gestureMode: .singleTapToggle),
+                    .init(trigger: .fn, gestureMode: .doubleTapAndHold),
                 ],
-                conflict: .init(trigger: .fn, conflicts: [.fn])
+                conflict: nil
             )
         )
     }
@@ -124,7 +124,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
-    func testDictationHotkeyPlanUsesSeparateManagersForDefaults() {
+    func testDictationHotkeyPlanUsesCombinedManagerForDefaults() {
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
             handsFree: .defaultDictation,
             pushToTalk: .defaultPushToTalk
@@ -134,12 +134,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .defaultDictation, gestureMode: .singleTapToggle),
-                    .init(
-                        trigger: .defaultPushToTalk,
-                        gestureMode: .holdOnly,
-                        startupDebounceMs: FnKeyStateMachine.defaultTapThresholdMs
-                    ),
+                    .init(trigger: .defaultDictation, gestureMode: .doubleTapAndHold),
                 ],
                 conflict: nil
             )

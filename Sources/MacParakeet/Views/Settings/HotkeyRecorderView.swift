@@ -181,7 +181,10 @@ struct HotkeyRecorderView: View {
                 }
 
                 // Check if chord modifiers are held. Caps Lock remains excluded.
-                let heldModifiers = chordModifiersFromFlags(event.modifierFlags)
+                let heldModifiers = Self.chordModifierNames(
+                    flags: event.modifierFlags,
+                    pendingComponents: pendingModifierComponents
+                )
 
                 if !heldModifiers.isEmpty {
                     // Chord: modifier(s) + key
@@ -310,13 +313,22 @@ struct HotkeyRecorderView: View {
     /// Extract chord-eligible modifier names from NSEvent modifier flags.
     /// Caps Lock is intentionally excluded.
     private func chordModifiersFromFlags(_ flags: NSEvent.ModifierFlags) -> [String] {
-        var modifiers: [String] = []
-        if flags.contains(.control) { modifiers.append("control") }
-        if flags.contains(.option) { modifiers.append("option") }
-        if flags.contains(.shift) { modifiers.append("shift") }
-        if flags.contains(.command) { modifiers.append("command") }
-        if flags.contains(.function) { modifiers.append("fn") }
-        return modifiers
+        Self.chordModifierNames(flags: flags, pendingComponents: [])
+    }
+
+    static func chordModifierNames(
+        flags: NSEvent.ModifierFlags,
+        pendingComponents: [HotkeyTrigger.ModifierComponent]
+    ) -> [String] {
+        let order = ["fn", "control", "option", "shift", "command"]
+        var names: Set<String> = []
+        if flags.contains(.function) { names.insert("fn") }
+        if flags.contains(.control) { names.insert("control") }
+        if flags.contains(.option) { names.insert("option") }
+        if flags.contains(.shift) { names.insert("shift") }
+        if flags.contains(.command) { names.insert("command") }
+        names.formUnion(pendingComponents.map(\.modifierName))
+        return order.filter { names.contains($0) }
     }
 
     private func modifierComponentsAfterFlagsChanged(

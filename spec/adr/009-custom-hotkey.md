@@ -50,12 +50,12 @@ Community issue #17 requested modifier+key combos (e.g., Cmd+9) because Logitech
 2. **Release-any-part stops** — For hold-to-talk with Cmd+9, releasing either Cmd or 9 ends dictation.
 3. **Key swallowed, modifiers passed** — The trigger key event is swallowed; modifier flag changes pass through to the active app.
 4. **Required modifiers must be present** — Mask to 5 relevant bits (fn⌃⌥⇧⌘) before comparing. Caps Lock, NumPad, etc. are stripped.
-5. **Fn allowed in key chords** — Fn+Space is the default hands-free dictation shortcut. Bare Fn remains available for push-to-talk.
+5. **Fn allowed in key chords** — Fn+Space is supported as a custom hands-free dictation shortcut. The default dictation behavior is a shared bare-Fn gesture preset: double-tap Fn for hands-free and hold Fn for push-to-talk.
 6. **FnKeyStateMachine unchanged** — Key-agnostic. Chords generate role-specific down/up signals, including hands-free single-tap toggle and hold-to-talk.
 7. **Modifier names stored as `[String]`** — Not raw `CGEventFlags.rawValue` (has phantom bits). Readable JSON: `{"kind":"chord","keyCode":25,"chordModifiers":["command"]}`.
 8. **HotkeyRecorderView two-phase capture** — Held modifiers show as preview (e.g. "⌘..."); pressing a key with modifiers held creates a chord; releasing all modifiers without a key press creates a bare modifier trigger.
 9. **Validation** — Chords are `.allowed` by default. Escape blocked. Cmd+Tab and Cmd+Space warned (system intercepts them).
-10. **Distinct dictation roles** — Hands-free and push-to-talk cannot be manually assigned overlapping triggers. Settings blocks conflicting assignments, while legacy single-hotkey installs migrate to distinct shortcuts where possible.
+10. **Distinct dictation roles** — Hands-free and push-to-talk cannot be manually assigned overlapping triggers. Settings blocks conflicting assignments, except for the built-in shared Fn default gesture preset. Legacy single-hotkey installs migrate to the shared default gesture when appropriate, or to distinct shortcuts where possible.
 
 ### Original decision preserved
 

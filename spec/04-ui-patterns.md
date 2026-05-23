@@ -223,7 +223,7 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 ```
   ╭────────────────────────────────────────────╮
-  │  Click, tap fn+Space or hold fn to dictate │  ← tooltip bubble
+  │  Click, tap fn or hold fn to dictate       │  ← tooltip bubble
   ╰────────────────────────────────────────────╯
 ┌──────────────────────────────────────────┐
 │    ╭──────────────────────────────╮      │
@@ -233,7 +233,7 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 - 148×30pt expanded dark capsule (black 85%)
 - 12 small dots (3pt, white 25%) inside pill
-- Tooltip bubble above: "Click, tap fn+Space or hold fn to dictate"
+- Tooltip bubble above: "Click, tap fn or hold fn to dictate"
   - Shortcut tokens in pink (0.85, 0.55, 0.75)
   - Dark capsule background (black 90%) with white 10% stroke
 ```
@@ -747,7 +747,7 @@ Settings open in the content area when "Settings" is selected in the sidebar. Th
 │  Push to talk                [fn Fn        ▾]          │
 │  (Hold to dictate, release to stop)                       │
 │                                                           │
-│  Hands-free mode             [fn+Space    ▾]          │
+│  Hands-free mode             [fn          ▾]          │
 │  (Tap to start, tap again to stop)                       │
 │                                                           │
 │  Silence threshold            [──●──────── 2.0s]        │

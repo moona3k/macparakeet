@@ -387,18 +387,22 @@ final class HotkeyTriggerTests: XCTestCase {
     }
 
     func testFnSpaceChordDisplayAndFlags() {
-        let trigger = HotkeyTrigger.defaultDictation
+        let trigger = HotkeyTrigger.fnSpace
 
-        XCTAssertEqual(trigger, .chord(modifiers: ["fn"], keyCode: 49))
         XCTAssertEqual(trigger.displayName, "Fn+Space")
         XCTAssertEqual(trigger.shortSymbol, "fn+Space")
         XCTAssertEqual(trigger.chordEventFlags, 0x00800000)
         XCTAssertEqual(trigger.validation, .allowed)
     }
 
-    func testDefaultHandsFreeAndPushToTalkDoNotOverlap() {
-        XCTAssertFalse(HotkeyTrigger.defaultDictation.overlaps(with: .defaultPushToTalk))
-        XCTAssertFalse(HotkeyTrigger.defaultPushToTalk.overlaps(with: .defaultDictation))
+    func testDefaultHandsFreeAndPushToTalkUseCombinedFnGesturePreset() {
+        XCTAssertEqual(HotkeyTrigger.defaultDictation, .fn)
+        XCTAssertEqual(HotkeyTrigger.defaultPushToTalk, .fn)
+        XCTAssertTrue(HotkeyTrigger.defaultDictation.overlaps(with: .defaultPushToTalk))
+        XCTAssertTrue(HotkeyTrigger.isDefaultDictationGesturePreset(
+            handsFree: .defaultDictation,
+            pushToTalk: .defaultPushToTalk
+        ))
     }
 
     // MARK: - Chord Validation

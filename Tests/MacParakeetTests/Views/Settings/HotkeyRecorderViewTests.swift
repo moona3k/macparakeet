@@ -170,7 +170,21 @@ final class HotkeyRecorderViewTests: XCTestCase {
             captureMode: .generic
         )
 
-        XCTAssertEqual(candidate, .defaultDictation)
+        XCTAssertEqual(candidate, .fnSpace)
+    }
+
+    func testKeyChordCaptureUsesPendingFnWhenKeyDownFlagsOmitFunction() {
+        let modifiers = HotkeyRecorderView.chordModifierNames(
+            flags: [],
+            pendingComponents: [.init(modifierName: "fn")]
+        )
+        let candidate = HotkeyRecorderView.keyChordTrigger(
+            modifiers: modifiers,
+            keyCode: 49,
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(candidate, .fnSpace)
     }
 
     func testBareFnCaptureRemainsSupported() {
