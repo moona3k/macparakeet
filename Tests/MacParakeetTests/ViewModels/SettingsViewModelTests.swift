@@ -1358,6 +1358,54 @@ final class SettingsViewModelTests: XCTestCase {
         )
     }
 
+    func testLegacyFnSpaceDefaultPairMigratesToCombinedDefaultGesture() {
+        HotkeyTrigger.fnSpace.save(to: testDefaults)
+        HotkeyTrigger.defaultPushToTalk.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultPushToTalk
+        )
+    }
+
+    func testLegacyFnSpaceDefaultWithoutDedicatedPushToTalkMigratesToCombinedDefaultGesture() {
+        testDefaults.removeObject(forKey: HotkeyTrigger.pushToTalkDefaultsKey)
+        HotkeyTrigger.fnSpace.save(to: testDefaults)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultPushToTalk
+        )
+    }
+
+    func testStoredFnSpaceHandsFreePersistsWhenDedicatedPushToTalkIsCustom() {
+        HotkeyTrigger.fnSpace.save(to: testDefaults)
+        HotkeyTrigger.control.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .fnSpace)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .control)
+    }
+
     func testMissingHandsFreeKeyUsesCombinedDefaultWhenDedicatedPushToTalkIsDefault() {
         testDefaults.removeObject(forKey: HotkeyTrigger.defaultsKey)
         HotkeyTrigger.defaultDictation.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)

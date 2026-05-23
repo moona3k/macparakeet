@@ -144,7 +144,7 @@ Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-
 | **Hands-free** | Double-tap Fn by default, or tap the configured hands-free shortcut | Persistent recording. Tap the shortcut again to stop. |
 | **Press-and-hold** | Hold the push-to-talk shortcut | Hold-to-talk. Release auto-stops and pastes. |
 
-Legacy single-hotkey installs are migrated to the shared default gesture when the stored trigger is `Fn`. Otherwise the old trigger becomes push-to-talk, while hands-free moves to the default `Fn` preset or disables itself if that would conflict.
+Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migrate to the shared `Fn` gesture preset. Legacy single-hotkey installs are migrated to the shared default gesture when the stored trigger is `Fn`. Otherwise the old trigger becomes push-to-talk, while hands-free moves to the default `Fn` preset or disables itself if that would conflict.
 
 **Implementation:**
 - `CGEvent` tap for system-wide key event interception

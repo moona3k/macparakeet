@@ -706,6 +706,9 @@ public final class SettingsViewModel {
             if storedHandsFree.isDisabled {
                 return (.disabled, .disabled, false, true)
             }
+            if storedHandsFree == .fnSpace {
+                return (.defaultDictation, .defaultPushToTalk, true, true)
+            }
             let handsFree = defaultHandsFreeTrigger(avoiding: storedHandsFree)
             return (
                 handsFree,
@@ -720,6 +723,10 @@ public final class SettingsViewModel {
             defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
             fallback: .defaultPushToTalk
         )
+        if storedHandsFree == .fnSpace,
+           pushToTalk == .defaultPushToTalk {
+            return (.defaultDictation, .defaultPushToTalk, true, false)
+        }
         if !storedHandsFree.isDisabled,
            !pushToTalk.isDisabled,
            storedHandsFree == pushToTalk {
