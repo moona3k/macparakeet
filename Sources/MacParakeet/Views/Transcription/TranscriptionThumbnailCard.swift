@@ -159,6 +159,19 @@ struct TranscriptionThumbnailCard<MenuContent: View>: View {
     }
 
     private var displayTitle: String {
+        // Meetings have a real, user-editable title (the meeting name shown in
+        // the detail header). Honor it here too — the "All"/"Favorites" grid can
+        // include meetings — instead of the transcript-content-derived title.
+        // File/YouTube rows have no inherent title, so the smart `derivedTitle`
+        // is the better headline for them.
+        if transcription.sourceType == .meeting {
+            // A meeting's name is always its title — never fall through to the
+            // transcript-derived title (keeps meeting titles honest and matches
+            // MeetingRowCard). `fileName` is effectively never blank for
+            // meetings, but guard so a whitespace name can't leak content.
+            let name = transcription.fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty ? transcription.fileName : name
+        }
         if let derived = transcription.derivedTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !derived.isEmpty {
             return derived
         }
