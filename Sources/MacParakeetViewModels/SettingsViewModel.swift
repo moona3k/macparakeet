@@ -1276,7 +1276,7 @@ public final class SettingsViewModel {
         speechEngineError = nil
         let previousPreference = SpeechEnginePreference.current(defaults: defaults)
         let operationContext = Observability.childOperationContext()
-        let switchWasCold = Self.speechEngineSwitchWasCold(to: preference, defaults: defaults)
+        let switchWasCold = SpeechEnginePreference.isColdSwitch(to: preference, defaults: defaults)
 
         if preference == .whisper && !isWhisperModelDownloaded {
             speechEngineError = "Download the Whisper model before switching engines."
@@ -1516,17 +1516,6 @@ public final class SettingsViewModel {
         case .unavailable:
             return .unavailable
         }
-    }
-
-    private static func speechEngineSwitchWasCold(
-        to preference: SpeechEnginePreference,
-        defaults: UserDefaults
-    ) -> Bool {
-        guard preference == .whisper else { return false }
-        return !SpeechEnginePreference.hasOptimizedWhisper(
-            variant: SpeechEnginePreference.whisperModelVariant(defaults: defaults),
-            defaults: defaults
-        )
     }
 
     private static func initialSpeechEngineSwitchDetail(

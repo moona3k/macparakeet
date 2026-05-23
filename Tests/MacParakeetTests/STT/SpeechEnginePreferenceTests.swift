@@ -78,4 +78,18 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: "large-v3-turbo", defaults: defaults))
         XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: "small", defaults: defaults))
     }
+
+    func testColdSwitchOnlyAppliesToUnoptimizedActiveWhisperVariant() {
+        let (defaults, suite) = makeIsolatedDefaults()
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        SpeechEnginePreference.saveWhisperModelVariant("small", defaults: defaults)
+
+        XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .parakeet, defaults: defaults))
+        XCTAssertTrue(SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults))
+
+        SpeechEnginePreference.markWhisperOptimized(variant: "small", defaults: defaults)
+
+        XCTAssertFalse(SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults))
+    }
 }

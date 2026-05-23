@@ -639,7 +639,7 @@ public enum TelemetryEventSpec: Sendable {
         durationSeconds: Double,
         blockedReason: TelemetrySpeechEngineSwitchBlockedReason?,
         errorType: String?,
-        wasCold: Bool? = nil
+        wasCold: Bool
     )
     // Lifecycle actions
     case feedbackSubmitted(category: String)
@@ -1301,7 +1301,7 @@ extension TelemetryEventSpec {
                 ("duration_seconds", Self.format(durationSeconds)),
                 ("blocked_reason", blockedReason?.rawValue),
                 ("error_type", errorType),
-                ("was_cold", wasCold.map(Self.boolString))
+                ("was_cold", Self.boolString(wasCold))
             )
         case .feedbackSubmitted(let category):
             return ["category": category]

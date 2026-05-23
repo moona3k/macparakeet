@@ -652,11 +652,7 @@ public final class OnboardingViewModel {
 
         let previousPreference = SpeechEnginePreference.current(defaults: defaults)
         let operationContext = Observability.childOperationContext()
-        let modelVariant = SpeechEnginePreference.whisperModelVariant(defaults: defaults)
-        let switchWasCold = !SpeechEnginePreference.hasOptimizedWhisper(
-            variant: modelVariant,
-            defaults: defaults
-        )
+        let switchWasCold = SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults)
         engineState = .working(message: "Preparing Whisper for this Mac...", progress: nil)
 
         do {

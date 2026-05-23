@@ -1235,7 +1235,7 @@ final class SettingsViewModelTests: XCTestCase {
         let outcome: ObservabilityOutcome
         let blockedReason: TelemetrySpeechEngineSwitchBlockedReason?
         let errorType: String?
-        let wasCold: Bool?
+        let wasCold: Bool
     }
 
     private func speechEngineSwitchEvents(

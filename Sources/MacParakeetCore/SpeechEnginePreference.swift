@@ -81,6 +81,11 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         return optimized.contains(normalized)
     }
 
+    public static func isColdSwitch(to preference: SpeechEnginePreference, defaults: UserDefaults = .standard) -> Bool {
+        guard preference == .whisper else { return false }
+        return !hasOptimizedWhisper(variant: whisperModelVariant(defaults: defaults), defaults: defaults)
+    }
+
     /// Records that `variant` finished its one-time optimize on this Mac.
     /// Idempotent; call after a successful `WhisperEngine.prepare()`.
     public static func markWhisperOptimized(variant: String, defaults: UserDefaults = .standard) {
