@@ -877,6 +877,10 @@ final class MockPromptResultRepository: PromptResultRepositoryProtocol, @uncheck
     func hasPromptResults(transcriptionId: UUID) throws -> Bool {
         promptResults.contains { $0.transcriptionId == transcriptionId }
     }
+
+    func count(transcriptionId: UUID) throws -> Int {
+        promptResults.filter { $0.transcriptionId == transcriptionId }.count
+    }
 }
 
 // MARK: - MockChatConversationRepository

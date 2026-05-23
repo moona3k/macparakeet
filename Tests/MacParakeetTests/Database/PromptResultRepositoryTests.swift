@@ -63,6 +63,7 @@ final class PromptResultRepositoryTests: XCTestCase {
 
         XCTAssertEqual(try repo.fetchAll(transcriptionId: transcription.id).count, 2)
         XCTAssertEqual(try repo.count(transcriptionId: transcription.id), 2)
+        XCTAssertEqual(try repo.counts(transcriptionIds: [transcription.id])[transcription.id], 2)
         XCTAssertTrue(try repo.hasPromptResults(transcriptionId: transcription.id))
     }
 
@@ -119,5 +120,6 @@ final class PromptResultRepositoryTests: XCTestCase {
 
         XCTAssertFalse(try repo.hasPromptResults(transcriptionId: transcription.id))
         XCTAssertEqual(try repo.count(transcriptionId: transcription.id), 0)
+        XCTAssertEqual(try repo.counts(transcriptionIds: [transcription.id])[transcription.id] ?? 0, 0)
     }
 }

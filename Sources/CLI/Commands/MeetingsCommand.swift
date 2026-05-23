@@ -43,24 +43,27 @@ struct MeetingsCommand: AsyncParsableCommand {
                     limit: limit,
                     includeProcessing: true
                 )).items
-                    .map { transcription in
-                        MeetingListItem(
-                            transcription,
-                            promptResultCount: try repositories.promptResults.count(transcriptionId: transcription.id)
-                        )
-                    }
+                let promptResultCounts = try repositories.promptResults.counts(
+                    transcriptionIds: meetings.map(\.id)
+                )
+                let items = meetings.map { transcription in
+                    MeetingListItem(
+                        transcription,
+                        promptResultCount: promptResultCounts[transcription.id] ?? 0
+                    )
+                }
 
                 if json {
-                    try printJSON(meetings)
+                    try printJSON(items)
                     return
                 }
 
-                guard !meetings.isEmpty else {
+                guard !items.isEmpty else {
                     print("No meetings found.")
                     return
                 }
 
-                for meeting in meetings {
+                for meeting in items {
                     let duration = meeting.durationMs.map(formatDuration) ?? "--"
                     let notes = meeting.hasNotes ? "notes" : "no notes"
                     let results = meeting.promptResultCount == 1 ? "1 result" : "\(meeting.promptResultCount) results"
@@ -621,7 +624,7 @@ private struct MeetingPromptResultRecord: Encodable {
 
 private struct MeetingResultRepositories {
     let transcriptions: TranscriptionRepository
-    let promptResults: PromptResultRepository
+    let promptResults: PromptResultRepositoryProtocol
 }
 
 private func makeDatabaseManager(database: String?) throws -> DatabaseManager {
@@ -725,7 +728,7 @@ private func exportContent(
 ) throws -> String {
     switch format {
     case .md:
-        return markdownExport(for: transcription)
+        return markdownExport(for: transcription, promptResultCount: promptResultCount)
     case .json:
         let data = try cliJSONEncoder.encode(MeetingRecord(
             transcription,
@@ -735,7 +738,7 @@ private func exportContent(
     }
 }
 
-private func markdownExport(for transcription: Transcription) -> String {
+private func markdownExport(for transcription: Transcription, promptResultCount: Int) -> String {
     var sections: [String] = []
     sections.append("# \(transcription.fileName)")
     sections.append("""
@@ -743,6 +746,7 @@ private func markdownExport(for transcription: Transcription) -> String {
     - Created: \(ISO8601DateFormatter().string(from: transcription.createdAt))
     - Duration: \(transcription.durationMs.map(formatDuration) ?? "--")
     - Status: \(transcription.status.rawValue)
+    - Prompt results: \(promptResultCount)
     """)
 
     if let notes = normalizedNotes(transcription.userNotes) {

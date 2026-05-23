@@ -112,7 +112,7 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(saved[0].userNotesSnapshot, "Manual note")
     }
 
-    func testListAndShowExposePromptResultAvailability() async throws {
+    func testMeetingSurfacesExposePromptResultAvailability() async throws {
         let dbURL = temporaryDatabaseURL()
         defer { try? FileManager.default.removeItem(at: dbURL) }
         let db = try DatabaseManager(path: dbURL.path)
@@ -174,6 +174,17 @@ final class MeetingsCommandTests: XCTestCase {
         )
         XCTAssertEqual(exportPayload["hasPromptResults"] as? Bool, true)
         XCTAssertEqual(exportPayload["promptResultCount"] as? Int, 1)
+
+        let markdownExportCommand = try MeetingsCommand.ExportSubcommand.parse([
+            meeting.id.uuidString,
+            "--format", "md",
+            "--stdout",
+            "--database", dbURL.path,
+        ])
+        let markdownExportOutput = try await captureStandardOutput {
+            try await markdownExportCommand.run()
+        }
+        XCTAssertTrue(markdownExportOutput.contains("- Prompt results: 1"))
     }
 
     func testFormatRawValues() {
