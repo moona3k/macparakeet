@@ -21,8 +21,7 @@ enum SettingsDictationHotkeyConflictPolicy {
         peer: HotkeyTrigger,
         peerName: String
     ) -> HotkeyTrigger.ValidationResult? {
-        guard !candidate.isDisabled else { return nil }
-        guard candidate == peer || candidate.overlaps(with: peer) else { return nil }
+        guard candidate.overlaps(with: peer) else { return nil }
         return .blocked(SettingsHotkeyConflictMessage.blocked(
             conflictingWith: peerName,
             trigger: peer
@@ -32,11 +31,17 @@ enum SettingsDictationHotkeyConflictPolicy {
     static func existingConflictMessage(
         trigger: HotkeyTrigger,
         peer: HotkeyTrigger,
-        peerName: String
+        peerName: String,
+        disablesTrigger: Bool
     ) -> String? {
-        guard !trigger.isDisabled else { return nil }
-        guard trigger == peer || trigger.overlaps(with: peer) else { return nil }
-        return SettingsHotkeyConflictMessage.disabled(
+        guard trigger.overlaps(with: peer) else { return nil }
+        if disablesTrigger {
+            return SettingsHotkeyConflictMessage.disabled(
+                conflictingWith: peerName,
+                trigger: peer
+            )
+        }
+        return SettingsHotkeyConflictMessage.blocked(
             conflictingWith: peerName,
             trigger: peer
         )
@@ -1083,7 +1088,8 @@ struct SettingsView: View {
         if let conflict = SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
             trigger: trigger,
             peer: viewModel.pushToTalkHotkeyTrigger,
-            peerName: "push to talk"
+            peerName: "push to talk",
+            disablesTrigger: false
         ) {
             return conflict
         }
@@ -1120,7 +1126,8 @@ struct SettingsView: View {
         if let conflict = SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
             trigger: trigger,
             peer: viewModel.hotkeyTrigger,
-            peerName: "hands-free mode"
+            peerName: "hands-free mode",
+            disablesTrigger: true
         ) {
             return conflict
         }

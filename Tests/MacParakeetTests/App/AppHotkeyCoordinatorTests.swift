@@ -72,6 +72,16 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
+    func testMenuTitleDescribesOverlappingDictationTriggers() {
+        XCTAssertEqual(
+            AppHotkeyCoordinator.menuTitle(
+                handsFree: .chord(modifiers: ["control"], keyCode: 49),
+                pushToTalk: .control
+            ),
+            "Dictation Shortcuts: Conflict on Control+Space / Control"
+        )
+    }
+
     func testMenuTitleDescribesDistinctDictationTriggers() {
         XCTAssertEqual(
             AppHotkeyCoordinator.menuTitle(handsFree: .control, pushToTalk: .option),

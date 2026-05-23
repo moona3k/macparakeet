@@ -66,4 +66,28 @@ final class SettingsHotkeyConflictMessageTests: XCTestCase {
             )
         )
     }
+
+    func testExistingDictationPeerConflictMessageCanNameActiveTrigger() {
+        XCTAssertEqual(
+            SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
+                trigger: .fn,
+                peer: .fn,
+                peerName: "push to talk",
+                disablesTrigger: false
+            ),
+            "Conflicts with push to talk (🌐 Fn)."
+        )
+    }
+
+    func testExistingDictationPeerConflictMessageCanNameDisabledTrigger() {
+        XCTAssertEqual(
+            SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
+                trigger: .fn,
+                peer: .fn,
+                peerName: "hands-free mode",
+                disablesTrigger: true
+            ),
+            "Disabled — conflicts with hands-free mode (🌐 Fn)."
+        )
+    }
 }

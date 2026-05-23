@@ -137,7 +137,7 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 
 **Activation — Configurable Hotkey:**
 
-Dictation has two configurable shortcuts: push-to-talk defaults to `Fn`, and hands-free mode defaults to `Fn+Space`. The "record a shortcut" UI supports bare modifiers (Fn, Control, etc.), standalone keys (F5, Tab, etc.), modifier+key chords (Fn+Space, Cmd+9, Ctrl+Shift+D), and modifier-only chords (Command+Option, including side-specific variants like Right Command+Right Option). See ADR-009 for full details. The two dictation shortcuts must be distinct; Settings blocks assigning the same trigger to both roles.
+Dictation has two configurable shortcuts: push-to-talk defaults to `Fn`, and hands-free mode defaults to `Fn+Space`. The "record a shortcut" UI supports bare modifiers (Fn, Control, etc.), standalone keys (F5, Tab, etc.), modifier+key chords (Fn+Space, Cmd+9, Ctrl+Shift+D), and modifier-only chords (Command+Option, including side-specific variants like Right Command+Right Option). See ADR-009 for full details. The two dictation shortcuts must be distinct and non-overlapping; Settings blocks assigning conflicting triggers to both roles.
 
 | Mode | Gesture | Behavior |
 |------|---------|----------|
@@ -159,7 +159,7 @@ Legacy single-hotkey installs are migrated to distinct shortcuts where possible:
 - Chord validation: Escape blocked for all kinds. Modifier+key chords containing Command warn about system shortcut conflicts (Cmd+Tab, Cmd+Space, Cmd+Q/W/H/M). Fn is allowed in modifier+key chords such as Fn+Space.
 - Hands-free key-down: toggles persistent recording immediately for key and modifier+key triggers; bare modifier hands-free triggers toggle on bare release so normal modifier shortcuts are not captured.
 - Dedicated push-to-talk key-down: schedule only the startup debounce, then start hold-to-talk.
-- Duplicate dictation shortcuts: exact same-trigger assignments are rejected in Settings and reported as conflicts at runtime instead of creating a hidden combined gesture.
+- Duplicate or overlapping dictation shortcuts: conflicting assignments are rejected in Settings and reported at runtime instead of creating a hidden combined gesture.
 - On key-up: dedicated push-to-talk releases after startup debounce stop and process.
 - Escape is permanently reserved for cancel-dictation and cannot be assigned as hotkey
 - Requires Accessibility permission (prompted on first activation).
