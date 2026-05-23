@@ -17,7 +17,7 @@ struct EngineOptionTile: View {
     let modelStatus: SettingsViewModel.LocalModelStatus
     let isSelected: Bool
     let isBusy: Bool
-    var unavailableReason: String?
+    let unavailableReason: String?
     /// When the model is downloaded but has never paid its one-time on-device
     /// optimize, the next load is slow (minutes). Splits the `.notLoaded`
     /// footer into a cold "Setup needed" vs warm "Downloaded" presentation.
@@ -350,6 +350,7 @@ struct EngineDownloadBanner: View {
                 modelStatus: .ready,
                 isSelected: true,
                 isBusy: false,
+                unavailableReason: nil,
                 onSelect: {}
             )
 
@@ -366,6 +367,7 @@ struct EngineDownloadBanner: View {
                 modelStatus: .notDownloaded,
                 isSelected: false,
                 isBusy: false,
+                unavailableReason: nil,
                 onSelect: {}
             )
         }
