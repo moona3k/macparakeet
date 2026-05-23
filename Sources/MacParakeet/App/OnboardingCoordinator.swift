@@ -9,6 +9,8 @@ final class OnboardingCoordinator {
     private let onOpenMainWindow: () -> Void
     private let onOpenSettings: () -> Void
     private let onCompleted: () -> Void
+    private let onHotkeyPreviewArm: () -> Void
+    private let onHotkeyPreviewDisarm: () -> Void
 
     private var reopenOnNextActivate = false
 
@@ -17,13 +19,17 @@ final class OnboardingCoordinator {
         onRefreshHotkeys: @escaping () -> Void,
         onOpenMainWindow: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
-        onCompleted: @escaping () -> Void = {}
+        onCompleted: @escaping () -> Void = {},
+        onHotkeyPreviewArm: @escaping () -> Void = {},
+        onHotkeyPreviewDisarm: @escaping () -> Void = {}
     ) {
         self.onboardingWindowController = onboardingWindowController
         self.onRefreshHotkeys = onRefreshHotkeys
         self.onOpenMainWindow = onOpenMainWindow
         self.onOpenSettings = onOpenSettings
         self.onCompleted = onCompleted
+        self.onHotkeyPreviewArm = onHotkeyPreviewArm
+        self.onHotkeyPreviewDisarm = onHotkeyPreviewDisarm
     }
 
     var isVisible: Bool {
@@ -76,6 +82,8 @@ final class OnboardingCoordinator {
                     await entitlementsService.bootstrapTrialIfNeeded()
                 }
             },
+            onHotkeyPreviewArm: { [weak self] in self?.onHotkeyPreviewArm() },
+            onHotkeyPreviewDisarm: { [weak self] in self?.onHotkeyPreviewDisarm() },
             onOpenMainApp: { [weak self] in
                 self?.onOpenMainWindow()
             },

@@ -7,6 +7,10 @@ struct OnboardingFlowView: View {
     let onFinish: () -> Void
     let onOpenMainApp: () -> Void
     let onOpenSettings: () -> Void
+    /// Arms/disarms the no-STT hotkey rehearsal while the "Learn the Hotkey"
+    /// step is on screen. Defaults to no-ops so previews/tests can omit them.
+    var onHotkeyPreviewArm: () -> Void = {}
+    var onHotkeyPreviewDisarm: () -> Void = {}
 
     /// Triggers shown in onboarding copy — fall back to defaults when disabled
     /// so instructional text stays readable.
@@ -554,6 +558,26 @@ struct OnboardingFlowView: View {
                 )
             }
 
+            // Live rehearsal nudge — only when Accessibility is granted, since
+            // the preview taps can't arm without it (and dictation won't work
+            // anyway). No model is needed: this is a visual preview only.
+            if viewModel.accessibilityGranted {
+                HStack(spacing: 8) {
+                    Image(systemName: "hand.tap.fill")
+                        .foregroundStyle(DesignSystem.Colors.accent)
+                    Text("Try it now — tap \(handsFreeDisplayTrigger.shortSymbol) or hold \(pushToTalkDisplayTrigger.shortSymbol). A live preview appears at the bottom of your screen.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(DesignSystem.Spacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .fill(DesignSystem.Colors.accent.opacity(0.08))
+                )
+            }
+
             // Hands-free mode card
             onboardingCard {
                 HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
@@ -623,8 +647,14 @@ struct OnboardingFlowView: View {
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }
-        .onAppear { startAnimations() }
-        .onDisappear { stopAnimations() }
+        .onAppear {
+            startAnimations()
+            onHotkeyPreviewArm()
+        }
+        .onDisappear {
+            stopAnimations()
+            onHotkeyPreviewDisarm()
+        }
     }
 
     // MARK: - Hotkey Gesture Illustrations

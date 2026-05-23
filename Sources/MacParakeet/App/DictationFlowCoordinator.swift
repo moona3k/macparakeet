@@ -137,6 +137,10 @@ final class DictationFlowCoordinator {
     private let captionTiming: DictationProcessingLoadCaptionTiming
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
+    /// When true, `startDictation` is a no-op. Used to gate real dictation while
+    /// onboarding is visible (the model isn't ready yet and the hotkey step runs
+    /// its own no-STT rehearsal). Covers both the hotkey and idle-pill paths.
+    private let isStartSuppressed: () -> Bool
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onHistoryReload: () -> Void
     private let onPresentEntitlementsAlert: (Error) -> Void
@@ -193,6 +197,7 @@ final class DictationFlowCoordinator {
             DictationOverlayController(viewModel: $0)
         },
         shouldSuppressIdlePill: @escaping () -> Bool = { false },
+        isStartSuppressed: @escaping () -> Bool = { false },
         onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void,
         onHistoryReload: @escaping () -> Void,
         onPresentEntitlementsAlert: @escaping (Error) -> Void
@@ -207,6 +212,7 @@ final class DictationFlowCoordinator {
         self.captionTiming = captionTiming
         self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
+        self.isStartSuppressed = isStartSuppressed
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onHistoryReload = onHistoryReload
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
@@ -291,6 +297,9 @@ final class DictationFlowCoordinator {
         mode: FnKeyStateMachine.RecordingMode,
         trigger: TelemetryDictationTrigger = .hotkey
     ) {
+        // Suppressed while onboarding is up — the speech model isn't ready and
+        // the hotkey step runs its own no-STT rehearsal. Covers hotkey + pill.
+        guard !isStartSuppressed() else { return }
         currentTrigger = trigger
         sendEvent(.startRequested(mode: mode))
     }

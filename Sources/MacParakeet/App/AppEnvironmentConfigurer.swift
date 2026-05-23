@@ -28,6 +28,11 @@ final class AppEnvironmentConfigurer {
         let onHotkeyConflict: (HotkeyTrigger, [HotkeyTrigger]) -> Void
         let onRecoverPendingMeetingRecordings: () -> Void
         let isHotkeyRecordingActive: () -> Bool
+        /// True while the onboarding window is showing. Used to gate the real
+        /// dictation flow so a hotkey press during onboarding (e.g. the "Learn
+        /// the Hotkey" rehearsal, or a returning user whose taps are armed)
+        /// can never start a real, model-less dictation.
+        let isOnboardingVisible: () -> Bool
     }
 
     private let transcriptionViewModel: TranscriptionViewModel
@@ -234,6 +239,10 @@ final class AppEnvironmentConfigurer {
             shouldSuppressIdlePill: {
                 coordinatorRefs.meeting?.isMeetingRecordingActive == true
             },
+            // Gate every dictation start (hotkey *and* idle-pill click) while
+            // onboarding is up: the model isn't downloaded until a later step,
+            // and the "Learn the Hotkey" step runs its own no-STT rehearsal.
+            isStartSuppressed: { callbacks.isOnboardingVisible() },
             onMenuBarIconUpdate: { _ in callbacks.onMenuBarIconUpdate() },
             onHistoryReload: { [weak self] in self?.historyViewModel.loadDictations() },
             onPresentEntitlementsAlert: callbacks.onPresentEntitlementsAlert
