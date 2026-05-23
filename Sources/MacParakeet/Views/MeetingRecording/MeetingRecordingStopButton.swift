@@ -106,6 +106,73 @@ struct StopRecordingButton: View {
     }
 }
 
+// MARK: - Microphone Mute Button
+
+/// Meeting-local microphone mute. System audio keeps recording, so this is
+/// intentionally separate from pause.
+struct MeetingMicrophoneMuteButton: View {
+    var isMuted: Bool
+    var onToggle: () -> Void
+
+    @State private var isHovered = false
+
+    private static let trackHeight: CGFloat = 31
+
+    private var activeColor: Color {
+        isMuted ? DesignSystem.Colors.errorRed : DesignSystem.Colors.accent
+    }
+
+    var body: some View {
+        Button(action: onToggle) {
+            Image(systemName: isMuted ? "mic.slash.fill" : "mic.fill")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(
+                    isHovered || isMuted
+                        ? activeColor
+                        : DesignSystem.Colors.textSecondary
+                )
+                .frame(width: 13, height: 13)
+                .padding(9)
+                .background(
+                    Circle()
+                        .fill((isHovered || isMuted)
+                            ? activeColor.opacity(isMuted ? 0.18 : 0.12)
+                            : DesignSystem.Colors.surfaceElevated.opacity(0.6)
+                        )
+                        .overlay(
+                            Circle()
+                                .stroke(
+                                    (isHovered || isMuted)
+                                        ? activeColor.opacity(0.32)
+                                        : .clear,
+                                    lineWidth: 0.5
+                                )
+                        )
+                )
+                .shadow(
+                    color: isHovered
+                        ? activeColor.opacity(0.22)
+                        : .clear,
+                    radius: 6
+                )
+                .scaleEffect(isHovered ? 1.08 : 1.0)
+                .animation(.easeOut(duration: 0.15), value: isHovered)
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
+        .frame(height: Self.trackHeight)
+        .accessibilityLabel(isMuted ? "Unmute meeting microphone" : "Mute meeting microphone")
+        .help(
+            isMuted
+                ? "Unmute meeting microphone"
+                : "Mute your microphone in this recording — system audio keeps recording"
+        )
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+}
+
 // MARK: - Pause / Resume Button
 
 /// Pill-shaped pause/resume toggle for the meeting panel header (issue #235).

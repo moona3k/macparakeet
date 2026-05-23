@@ -231,6 +231,12 @@ struct MeetingRecordingPanelView: View {
                         .foregroundStyle(DesignSystem.Colors.textTertiary.opacity(0.8))
                 }
 
+                if viewModel.canToggleMicrophoneMute {
+                    MeetingMicrophoneMuteButton(isMuted: viewModel.isMicrophoneMuted) {
+                        viewModel.onMicrophoneMuteToggle?()
+                    }
+                }
+
                 if viewModel.canTogglePause {
                     PauseResumeButton(isPaused: viewModel.isPaused) {
                         viewModel.onPauseToggle?()

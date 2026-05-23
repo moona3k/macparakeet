@@ -22,6 +22,16 @@ public enum CaptureMode: Sendable, Equatable {
     case stopped
 }
 
+public struct MeetingMicrophoneMuteState: Sendable, Equatable {
+    public let isMuted: Bool
+    public let canMute: Bool
+
+    public init(isMuted: Bool, canMute: Bool) {
+        self.isMuted = isMuted
+        self.canMute = canMute
+    }
+}
+
 public protocol MeetingRecordingServiceProtocol: Sendable {
     /// `title` lets callers (e.g., the calendar auto-start path) pre-name
     /// the recording. `nil` or whitespace-only falls back to the default
@@ -44,6 +54,10 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     /// Resume a paused recording. No-op when no session is active or when
     /// not currently paused.
     func resumeRecording() async
+    /// Mute or unmute the meeting microphone source without pausing system
+    /// audio capture. No-op for system-only recordings.
+    @discardableResult
+    func setMicrophoneMuted(_ muted: Bool) async -> MeetingMicrophoneMuteState
     /// Persist the user's in-flight notepad text to the recording's lock file
     /// without changing the recording state. Called by the notes view model on
     /// every idle-debounce fire (ADR-020 §8). All `recording.lock` writes are
@@ -56,6 +70,9 @@ public protocol MeetingRecordingServiceProtocol: Sendable {
     var systemLevel: Float { get async }
     var elapsedSeconds: Int { get async }
     var captureMode: CaptureMode { get async }
+    var isMicrophoneMuted: Bool { get async }
+    var canMuteMicrophone: Bool { get async }
+    var microphoneMuteState: MeetingMicrophoneMuteState { get async }
     var transcriptUpdates: AsyncStream<MeetingTranscriptUpdate> { get async }
 }
 
@@ -153,6 +170,13 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var pausedHostTime: UInt64?
     private var completedPauseHostTimeRanges: [HostTimeRange] = []
     private var accumulatedPausedDuration: TimeInterval = 0
+    /// Meeting-local microphone mute. We keep the OS mic stream alive and
+    /// write silence into the mic source file while muted so the mic and
+    /// system tracks stay time-aligned for the final mix.
+    private var microphoneMuted = false
+    private var microphoneMutedHostTime: UInt64?
+    private var completedMicrophoneMuteHostTimeRanges: [HostTimeRange] = []
+    private var reusableMicrophoneSilentBuffer: AVAudioPCMBuffer?
     /// In-flight notes text for the current session. Mutated by `updateNotes`
     /// on each VM debounce; read at finalize time and surfaced via
     /// `MeetingRecordingOutput.userNotes`. `nil` when no notes have been
@@ -202,6 +226,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private static let syncLagEmaAlpha: Double = 0.2
     private static let syncLagLogBucketMs: Int = 20
     private static let syncLagWarningThresholdMs: Double = 120
+    private static let completedHostTimeRangeLimit = 512
 
     private static func currentAudioHostTime() -> UInt64 {
         AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime)
@@ -276,6 +301,21 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             return .stopped
         }
         return paused ? .paused : .full
+    }
+
+    public var isMicrophoneMuted: Bool {
+        microphoneMuted
+    }
+
+    public var canMuteMicrophone: Bool {
+        currentSession != nil
+            && !captureFailed
+            && captureHealthMetrics.sourceMode?.capturesMicrophone == true
+    }
+
+    public var microphoneMuteState: MeetingMicrophoneMuteState {
+        let canMute = canMuteMicrophone
+        return MeetingMicrophoneMuteState(isMuted: canMute && microphoneMuted, canMute: canMute)
     }
 
     /// Wallclock-since-start minus all pause time (completed + ongoing).
@@ -703,6 +743,31 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         )
     }
 
+    @discardableResult
+    public func setMicrophoneMuted(_ muted: Bool) async -> MeetingMicrophoneMuteState {
+        guard canMuteMicrophone, microphoneMuted != muted else { return microphoneMuteState }
+
+        microphoneMuted = muted
+        if muted {
+            microphoneMutedHostTime = Self.currentAudioHostTime()
+            latestLevels.microphone = 0
+            recentProcessedMicRms = 0
+        } else {
+            if let microphoneMutedHostTime {
+                appendCompletedMicrophoneMuteHostTimeRange(
+                    start: microphoneMutedHostTime,
+                    end: Self.currentAudioHostTime()
+                )
+            }
+            microphoneMutedHostTime = nil
+        }
+
+        AudioCaptureDiagnostics.append(
+            "meeting_microphone_\(muted ? "muted" : "unmuted") session=\(currentSession?.id.uuidString ?? "nil")"
+        )
+        return microphoneMuteState
+    }
+
     public func cancelRecording() async {
         guard let session = currentSession else { return }
 
@@ -778,11 +843,22 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             let handling = captureBufferHandling(time: time)
             guard handling != .drop else { return }
             do {
+                let muted = isMicrophoneMuted(at: time)
+                let recordingBuffer: AVAudioPCMBuffer
+                if muted {
+                    guard let silentBuffer = silentMicrophoneBufferLike(buffer) else {
+                        await failCapture(MeetingAudioError.captureRuntimeFailure("Failed to create muted microphone buffer"))
+                        return
+                    }
+                    recordingBuffer = silentBuffer
+                } else {
+                    recordingBuffer = buffer
+                }
                 recordCaptureMetrics(for: .microphone, time: time)
-                try writer?.write(buffer, source: .microphone)
+                try writer?.write(recordingBuffer, source: .microphone)
                 if handling == .recordAndProcess {
-                    latestLevels.microphone = buffer.rmsLevel
-                    if let samples = AudioChunker.extractAndResample(from: buffer) {
+                    latestLevels.microphone = muted ? 0 : recordingBuffer.rmsLevel
+                    if let samples = AudioChunker.extractAndResample(from: recordingBuffer) {
                         await ingestResampledSamples(
                             samples,
                             source: .microphone,
@@ -844,6 +920,9 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private func failCapture(_ error: Error) async {
         captureFailed = true
         latestLevels = MeetingAudioLevels()
+        microphoneMuted = false
+        microphoneMutedHostTime = nil
+        completedMicrophoneMuteHostTimeRanges = []
         logger.error("meeting_capture_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
         await audioCaptureService.stop()
     }
@@ -1005,7 +1084,47 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
 
     private func appendCompletedPauseHostTimeRange(start: UInt64, end: UInt64) {
         guard end > start else { return }
-        completedPauseHostTimeRanges.append(HostTimeRange(start: start, end: end))
+        appendBoundedCompletedHostTimeRange(
+            start: start,
+            end: end,
+            to: &completedPauseHostTimeRanges
+        )
+    }
+
+    private func appendCompletedMicrophoneMuteHostTimeRange(start: UInt64, end: UInt64) {
+        guard end > start else { return }
+        appendBoundedCompletedHostTimeRange(
+            start: start,
+            end: end,
+            to: &completedMicrophoneMuteHostTimeRanges
+        )
+    }
+
+    private func appendBoundedCompletedHostTimeRange(
+        start: UInt64,
+        end: UInt64,
+        to ranges: inout [HostTimeRange]
+    ) {
+        ranges.append(HostTimeRange(start: start, end: end))
+        let overflowCount = ranges.count - Self.completedHostTimeRangeLimit
+        if overflowCount > 0 {
+            ranges.removeFirst(overflowCount)
+        }
+    }
+
+    private func isMicrophoneMuted(at time: AVAudioTime) -> Bool {
+        guard time.isHostTimeValid else { return microphoneMuted }
+
+        let hostTime = time.hostTime
+        if completedMicrophoneMuteHostTimeRanges.contains(where: { $0.contains(hostTime) }) {
+            return true
+        }
+
+        if let microphoneMutedHostTime {
+            return hostTime >= microphoneMutedHostTime
+        }
+
+        return false
     }
 
     private func existingSourceURLs(for session: Session) throws -> [URL] {
@@ -1273,6 +1392,10 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         pausedHostTime = nil
         completedPauseHostTimeRanges = []
         accumulatedPausedDuration = 0
+        microphoneMuted = false
+        microphoneMutedHostTime = nil
+        completedMicrophoneMuteHostTimeRanges = []
+        reusableMicrophoneSilentBuffer = nil
         micConditioner = PassthroughMicConditioner()
         latestLevels = MeetingAudioLevels()
         sourceCaptureMetrics = [:]
@@ -1305,5 +1428,34 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         formatter.dateStyle = .medium
         formatter.timeStyle = .short
         return "Meeting \(formatter.string(from: date))"
+    }
+
+    private func silentMicrophoneBufferLike(_ buffer: AVAudioPCMBuffer) -> AVAudioPCMBuffer? {
+        if let cached = reusableMicrophoneSilentBuffer,
+           cached.format.isEqual(buffer.format),
+           cached.frameCapacity >= buffer.frameLength {
+            cached.frameLength = buffer.frameLength
+            Self.zeroPCMBuffer(cached)
+            return cached
+        }
+
+        guard let silent = AVAudioPCMBuffer(
+            pcmFormat: buffer.format,
+            frameCapacity: buffer.frameLength
+        ) else {
+            return nil
+        }
+        silent.frameLength = buffer.frameLength
+        Self.zeroPCMBuffer(silent)
+        reusableMicrophoneSilentBuffer = silent
+        return silent
+    }
+
+    private static func zeroPCMBuffer(_ buffer: AVAudioPCMBuffer) {
+        for audioBuffer in UnsafeMutableAudioBufferListPointer(buffer.mutableAudioBufferList) {
+            if let data = audioBuffer.mData {
+                memset(data, 0, Int(audioBuffer.mDataByteSize))
+            }
+        }
     }
 }

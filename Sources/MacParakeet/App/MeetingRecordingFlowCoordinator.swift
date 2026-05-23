@@ -58,6 +58,7 @@ final class MeetingRecordingFlowCoordinator {
     private var panelViewModel: MeetingRecordingPanelViewModel?
     private var actionTask: Task<Void, Never>?
     private var pauseToggleTask: Task<Void, Never>?
+    private var microphoneMuteToggleTask: Task<Void, Never>?
     private var autoDismissTask: Task<Void, Never>?
     private var pillPollingTask: Task<Void, Never>?
     private var transcriptObservationTask: Task<Void, Never>?
@@ -150,6 +151,18 @@ final class MeetingRecordingFlowCoordinator {
             guard self.pillViewModel.canTogglePause else { return }
             self.pillViewModel.state = wantPause ? .paused : .recording
             self.panelViewModel?.isPaused = wantPause
+        }
+    }
+
+    func toggleMicrophoneMute() {
+        guard panelViewModel?.canToggleMicrophoneMute == true else { return }
+        let wantMuted = !(panelViewModel?.isMicrophoneMuted ?? false)
+        microphoneMuteToggleTask?.cancel()
+        microphoneMuteToggleTask = Task { @MainActor [meetingRecordingService, weak self] in
+            let microphoneMuteState = await meetingRecordingService.setMicrophoneMuted(wantMuted)
+            guard !Task.isCancelled, let self else { return }
+            self.panelViewModel?.isMicrophoneMuted = microphoneMuteState.isMuted
+            self.panelViewModel?.canToggleMicrophoneMute = microphoneMuteState.canMute
         }
     }
 
@@ -333,10 +346,13 @@ final class MeetingRecordingFlowCoordinator {
             panelVM.micLevel = 0
             panelVM.systemLevel = 0
             panelVM.isPaused = false
+            panelVM.isMicrophoneMuted = false
+            panelVM.canToggleMicrophoneMute = (pendingAudioSourceMode ?? meetingAudioSourceModeProvider()).capturesMicrophone
             panelVM.updateLiveTranscriptStatus(.startingAudio)
             panelVM.updatePreviewLines([], isTranscriptionLagging: false)
             panelVM.onStop = { [weak self] in self?.toggleRecording() }
             panelVM.onPauseToggle = { [weak self] in self?.togglePause() }
+            panelVM.onMicrophoneMuteToggle = { [weak self] in self?.toggleMicrophoneMute() }
             panelVM.onClose = { [weak self] in self?.hideMeetingPanel() }
             // Configure live Ask: in-memory mode (no transcriptionId/conversationRepo).
             // Promotion to a persisted ChatConversation happens in .navigateToTranscription.
@@ -592,6 +608,8 @@ final class MeetingRecordingFlowCoordinator {
             stopSpeechWarmUpObservation()
             pauseToggleTask?.cancel()
             pauseToggleTask = nil
+            microphoneMuteToggleTask?.cancel()
+            microphoneMuteToggleTask = nil
             pillController?.hide()
             pillController = nil
             // Pill view model is long-lived (also drives the Transcribe-tab
@@ -710,6 +728,7 @@ final class MeetingRecordingFlowCoordinator {
                 let systemLevel = await meetingRecordingService.systemLevel
                 let elapsedSeconds = await meetingRecordingService.elapsedSeconds
                 let captureMode = await meetingRecordingService.captureMode
+                let microphoneMuteState = await meetingRecordingService.microphoneMuteState
 
                 guard !Task.isCancelled else { break }
                 pillViewModel.micLevel = micLevel
@@ -718,6 +737,8 @@ final class MeetingRecordingFlowCoordinator {
                 panelViewModel?.elapsedSeconds = elapsedSeconds
                 panelViewModel?.micLevel = micLevel
                 panelViewModel?.systemLevel = systemLevel
+                panelViewModel?.isMicrophoneMuted = microphoneMuteState.isMuted
+                panelViewModel?.canToggleMicrophoneMute = microphoneMuteState.canMute
                 // Pause/resume reconciliation (issue #235). The user-facing
                 // toggle does an optimistic flip; this poll is the
                 // authoritative source if the optimistic flip diverged from

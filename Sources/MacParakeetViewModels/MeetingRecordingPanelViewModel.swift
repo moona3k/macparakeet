@@ -43,6 +43,9 @@ public final class MeetingRecordingPanelViewModel {
     /// Mirrors `MeetingRecordingService.isPaused`, set by the flow
     /// coordinator's polling task.
     public var isPaused: Bool = false
+    /// Meeting-local mic mute. Unlike pause, system audio keeps recording.
+    public var isMicrophoneMuted: Bool = false
+    public var canToggleMicrophoneMute: Bool = false
     public var previewLines: [MeetingRecordingPreviewLine] = []
     public var isTranscriptionLagging: Bool = false
     public private(set) var liveTranscriptStatus: LiveTranscriptStatus = .listening
@@ -55,6 +58,7 @@ public final class MeetingRecordingPanelViewModel {
     public let quickPromptsViewModel: QuickPromptsViewModel = QuickPromptsViewModel()
     public var onStop: (() -> Void)?
     public var onPauseToggle: (() -> Void)?
+    public var onMicrophoneMuteToggle: (() -> Void)?
     public var onClose: (() -> Void)?
 
     private var copiedResetTask: Task<Void, Never>?
@@ -139,6 +143,8 @@ public final class MeetingRecordingPanelViewModel {
         micLevel = 0
         systemLevel = 0
         isPaused = false
+        isMicrophoneMuted = false
+        canToggleMicrophoneMute = false
         previewLines = []
         previewLineWordCounts = []
         wordCount = 0
