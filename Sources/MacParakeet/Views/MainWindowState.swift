@@ -18,6 +18,21 @@ final class MainWindowState {
         selectedItem = .settings
     }
 
+    func navigate(to item: SidebarItem) {
+        selectedItem = item
+    }
+
+    func startNewTranscription() {
+        selectedItem = .transcribe
+        showingProgressDetail = false
+    }
+
+    func beginCreatingTransform() {
+        editingTransform = nil
+        isCreatingTransform = true
+        selectedItem = .transforms
+    }
+
     func consumeRequestedSettingsTab() {
         requestedSettingsTab = nil
     }

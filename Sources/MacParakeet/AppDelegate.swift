@@ -232,14 +232,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingRecordingActiveProvider: { [weak self] in
             self?.meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true
         },
+        dictationCaptureActiveProvider: { [weak self] in
+            self?.dictationFlowCoordinator?.isCapturingAudio == true
+        },
         onOpenMainWindow: { [weak self] in
             self?.windowCoordinator.openMainWindow()
         },
         onOpenSettings: { [weak self] in
             self?.windowCoordinator.openMainWindowToSettings()
         },
+        onNavigate: { [weak self] item in
+            self?.mainWindowState.navigate(to: item)
+        },
+        onNewTranscription: { [weak self] in
+            self?.transcriptionViewModel.showInputPortal()
+            self?.mainWindowState.startNewTranscription()
+        },
+        onStartDictation: { [weak self] in
+            self?.dictationFlowCoordinator?.startDictation(mode: .persistent, trigger: .menuBar)
+        },
         onToggleMeetingRecording: { [weak self] in
             self?.toggleMeetingRecording(originatesFromWindow: false)
+        },
+        onCreateTransform: { [weak self] in
+            self?.mainWindowState.beginCreatingTransform()
         },
         onQuit: { [weak self] in
             self?.quitApp()

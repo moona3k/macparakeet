@@ -1,4 +1,5 @@
 import XCTest
+import MacParakeetCore
 import MacParakeetViewModels
 @testable import MacParakeet
 
@@ -33,5 +34,37 @@ final class MainWindowStateTests: XCTestCase {
         XCTAssertNil(state.requestedSettingsTab)
         XCTAssertEqual(state.requestedSettingsTabRevision, 1)
         XCTAssertEqual(state.selectedItem, .settings)
+    }
+
+    func testNavigateSelectsRequestedSidebarItem() {
+        let state = MainWindowState()
+
+        state.navigate(to: .library)
+
+        XCTAssertEqual(state.selectedItem, .library)
+    }
+
+    func testStartNewTranscriptionReturnsToTranscribeAndHidesProgressDetail() {
+        let state = MainWindowState()
+        state.selectedItem = .library
+        state.showingProgressDetail = true
+
+        state.startNewTranscription()
+
+        XCTAssertEqual(state.selectedItem, .transcribe)
+        XCTAssertFalse(state.showingProgressDetail)
+    }
+
+    func testBeginCreatingTransformSelectsTransformsAndClearsEditTarget() {
+        let state = MainWindowState()
+        state.selectedItem = .settings
+        state.editingTransform = Prompt.builtInPrompts().first { $0.category == .transform }
+        XCTAssertNotNil(state.editingTransform)
+
+        state.beginCreatingTransform()
+
+        XCTAssertEqual(state.selectedItem, .transforms)
+        XCTAssertNil(state.editingTransform)
+        XCTAssertTrue(state.isCreatingTransform)
     }
 }

@@ -15,20 +15,26 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let fileTranscriptionHotkeyTriggerProvider: () -> HotkeyTrigger
     private let youtubeTranscriptionHotkeyTriggerProvider: () -> HotkeyTrigger
     private let meetingRecordingActiveProvider: () -> Bool
+    private let dictationCaptureActiveProvider: () -> Bool
     private let onOpenMainWindow: () -> Void
     private let onOpenSettings: () -> Void
+    private let onNavigate: (SidebarItem) -> Void
+    private let onNewTranscription: () -> Void
+    private let onStartDictation: () -> Void
     private let onToggleMeetingRecording: () -> Void
+    private let onCreateTransform: () -> Void
     private let onQuit: () -> Void
     private let onShowAboutPanel: () -> Void
 
     private var statusItem: NSStatusItem?
+    private var startDictationMenuItem: NSMenuItem?
     private var pasteLastMenuItem: NSMenuItem?
     private var recentDictationsMenuItem: NSMenuItem?
     private var pasteLastTransformMenuItem: NSMenuItem?
     private var recentTransformsMenuItem: NSMenuItem?
-    private var recordMeetingMenuItem: NSMenuItem?
-    private var transcribeFileMenuItem: NSMenuItem?
-    private var transcribeYouTubeMenuItem: NSMenuItem?
+    private var recordMeetingMenuItems: [NSMenuItem] = []
+    private var transcribeFileMenuItems: [NSMenuItem] = []
+    private var transcribeYouTubeMenuItems: [NSMenuItem] = []
     private var hotkeyMenuItem: NSMenuItem?
 
     init(
@@ -41,9 +47,14 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         fileTranscriptionHotkeyTriggerProvider: @escaping () -> HotkeyTrigger,
         youtubeTranscriptionHotkeyTriggerProvider: @escaping () -> HotkeyTrigger,
         meetingRecordingActiveProvider: @escaping () -> Bool,
+        dictationCaptureActiveProvider: @escaping () -> Bool,
         onOpenMainWindow: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
+        onNavigate: @escaping (SidebarItem) -> Void,
+        onNewTranscription: @escaping () -> Void,
+        onStartDictation: @escaping () -> Void,
         onToggleMeetingRecording: @escaping () -> Void,
+        onCreateTransform: @escaping () -> Void,
         onQuit: @escaping () -> Void,
         onShowAboutPanel: @escaping () -> Void
     ) {
@@ -56,11 +67,28 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         self.fileTranscriptionHotkeyTriggerProvider = fileTranscriptionHotkeyTriggerProvider
         self.youtubeTranscriptionHotkeyTriggerProvider = youtubeTranscriptionHotkeyTriggerProvider
         self.meetingRecordingActiveProvider = meetingRecordingActiveProvider
+        self.dictationCaptureActiveProvider = dictationCaptureActiveProvider
         self.onOpenMainWindow = onOpenMainWindow
         self.onOpenSettings = onOpenSettings
+        self.onNavigate = onNavigate
+        self.onNewTranscription = onNewTranscription
+        self.onStartDictation = onStartDictation
         self.onToggleMeetingRecording = onToggleMeetingRecording
+        self.onCreateTransform = onCreateTransform
         self.onQuit = onQuit
         self.onShowAboutPanel = onShowAboutPanel
+    }
+
+    private static var appDisplayName: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String
+            ?? Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String
+            ?? "MacParakeet"
+    }
+
+    private func makeMenuItem(title: String, action: Selector, key: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+        item.target = self
+        return item
     }
 
     func setupMainMenu() {
@@ -68,15 +96,24 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
         let appMenuItem = NSMenuItem()
         let appMenu = NSMenu()
+        let appName = Self.appDisplayName
 
         let aboutItem = NSMenuItem(
-            title: "About MacParakeet",
+            title: "About \(appName)",
             action: #selector(showAboutPanel),
             keyEquivalent: ""
         )
         aboutItem.target = self
         appMenu.addItem(aboutItem)
         appMenu.addItem(NSMenuItem.separator())
+
+        let settingsItem = NSMenuItem(
+            title: "Settings...",
+            action: #selector(showSettingsWindow),
+            keyEquivalent: ","
+        )
+        settingsItem.target = self
+        appMenu.addItem(settingsItem)
 
         let checkForUpdatesItem = NSMenuItem(
             title: "Check for Updates...",
@@ -87,8 +124,41 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         appMenu.addItem(checkForUpdatesItem)
         appMenu.addItem(NSMenuItem.separator())
 
+        let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
+        let servicesMenu = NSMenu(title: "Services")
+        servicesItem.submenu = servicesMenu
+        appMenu.addItem(servicesItem)
+        NSApp.servicesMenu = servicesMenu
+        appMenu.addItem(NSMenuItem.separator())
+
+        let hideItem = NSMenuItem(
+            title: "Hide \(appName)",
+            action: #selector(NSApplication.hide(_:)),
+            keyEquivalent: "h"
+        )
+        hideItem.target = NSApp
+        appMenu.addItem(hideItem)
+
+        let hideOthersItem = NSMenuItem(
+            title: "Hide Others",
+            action: #selector(NSApplication.hideOtherApplications(_:)),
+            keyEquivalent: "h"
+        )
+        hideOthersItem.keyEquivalentModifierMask = [.command, .option]
+        hideOthersItem.target = NSApp
+        appMenu.addItem(hideOthersItem)
+
+        let showAllItem = NSMenuItem(
+            title: "Show All",
+            action: #selector(NSApplication.unhideAllApplications(_:)),
+            keyEquivalent: ""
+        )
+        showAllItem.target = NSApp
+        appMenu.addItem(showAllItem)
+        appMenu.addItem(NSMenuItem.separator())
+
         let quitItem = NSMenuItem(
-            title: "Quit MacParakeet",
+            title: "Quit \(appName)",
             action: #selector(quitApp),
             keyEquivalent: "q"
         )
@@ -97,6 +167,58 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
         appMenuItem.submenu = appMenu
         mainMenu.addItem(appMenuItem)
+
+        let captureMenuItem = NSMenuItem()
+        let captureMenu = NSMenu(title: "Capture")
+        captureMenu.autoenablesItems = false
+        captureMenu.delegate = self
+        captureMenu.addItem(makeMenuItem(
+            title: "New Transcription",
+            action: #selector(newTranscription),
+            key: "n"
+        ))
+        let startDictationItem = makeMenuItem(
+            title: "Start Dictation",
+            action: #selector(startDictationFromMenu),
+            key: ""
+        )
+        captureMenu.addItem(startDictationItem)
+        startDictationMenuItem = startDictationItem
+        captureMenu.addItem(NSMenuItem.separator())
+        let fileTranscriptionItem = makeMenuItem(
+            title: "Transcribe File...",
+            action: #selector(transcribeFileFromMenu),
+            key: "o"
+        )
+        transcribeFileMenuItems.append(fileTranscriptionItem)
+        captureMenu.addItem(fileTranscriptionItem)
+        let youtubeItem = makeMenuItem(
+            title: "Transcribe from YouTube...",
+            action: #selector(transcribeFromYouTubeMenu),
+            key: ""
+        )
+        transcribeYouTubeMenuItems.append(youtubeItem)
+        captureMenu.addItem(youtubeItem)
+        if AppFeatures.meetingRecordingEnabled {
+            let recordMeetingItem = makeMenuItem(
+                title: "Start Recording",
+                action: #selector(toggleMeetingRecordingFromMenu),
+                key: ""
+            )
+            applyChordShortcut(meetingHotkeyTriggerProvider(), to: recordMeetingItem)
+            captureMenu.addItem(recordMeetingItem)
+            recordMeetingMenuItems.append(recordMeetingItem)
+        }
+        if AppFeatures.transformsEnabled {
+            captureMenu.addItem(NSMenuItem.separator())
+            captureMenu.addItem(makeMenuItem(
+                title: "New Transform",
+                action: #selector(createTransformFromMenu),
+                key: ""
+            ))
+        }
+        captureMenuItem.submenu = captureMenu
+        mainMenu.addItem(captureMenuItem)
 
         let editMenuItem = NSMenuItem()
         let editMenu = NSMenu(title: "Edit")
@@ -109,6 +231,54 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         editMenu.addItem(NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
         editMenuItem.submenu = editMenu
         mainMenu.addItem(editMenuItem)
+
+        let goMenuItem = NSMenuItem()
+        let goMenu = NSMenu(title: "Go")
+        goMenu.addItem(makeMenuItem(title: "Transcribe", action: #selector(showTranscribe), key: ""))
+        goMenu.addItem(makeMenuItem(title: "Library", action: #selector(showLibrary), key: ""))
+        goMenu.addItem(makeMenuItem(title: "Dictations", action: #selector(showDictations), key: ""))
+        goMenu.addItem(NSMenuItem.separator())
+        goMenu.addItem(makeMenuItem(title: "Vocabulary", action: #selector(showVocabulary), key: ""))
+        if AppFeatures.transformsEnabled {
+            goMenu.addItem(makeMenuItem(title: "Transforms", action: #selector(showTransforms), key: ""))
+        }
+        goMenu.addItem(makeMenuItem(title: "Feedback", action: #selector(showFeedback), key: ""))
+        goMenu.addItem(makeMenuItem(title: "Settings", action: #selector(showSettingsWindow), key: ""))
+        goMenuItem.submenu = goMenu
+        mainMenu.addItem(goMenuItem)
+
+        let windowMenuItem = NSMenuItem()
+        let windowMenu = NSMenu(title: "Window")
+        windowMenu.addItem(NSMenuItem(
+            title: "Close Window",
+            action: #selector(NSWindow.performClose(_:)),
+            keyEquivalent: "w"
+        ))
+        windowMenu.addItem(NSMenuItem.separator())
+        windowMenu.addItem(NSMenuItem(
+            title: "Minimize",
+            action: #selector(NSWindow.performMiniaturize(_:)),
+            keyEquivalent: "m"
+        ))
+        windowMenu.addItem(NSMenuItem(
+            title: "Zoom",
+            action: #selector(NSWindow.performZoom(_:)),
+            keyEquivalent: ""
+        ))
+        windowMenu.addItem(NSMenuItem.separator())
+        windowMenu.addItem(makeMenuItem(title: "Show MacParakeet", action: #selector(openMainWindow), key: ""))
+        windowMenu.addItem(NSMenuItem(title: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: ""))
+        windowMenuItem.submenu = windowMenu
+        mainMenu.addItem(windowMenuItem)
+        NSApp.windowsMenu = windowMenu
+
+        let helpMenuItem = NSMenuItem()
+        let helpMenu = NSMenu(title: "Help")
+        helpMenu.addItem(makeMenuItem(title: "MacParakeet Help", action: #selector(openHelp), key: ""))
+        helpMenu.addItem(makeMenuItem(title: "View on GitHub", action: #selector(openGitHub), key: ""))
+        helpMenuItem.submenu = helpMenu
+        mainMenu.addItem(helpMenuItem)
+        NSApp.helpMenu = helpMenu
 
         NSApp.mainMenu = mainMenu
     }
@@ -196,7 +366,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         transcribeFileItem.target = self
         applyChordShortcut(fileTranscriptionHotkeyTriggerProvider(), to: transcribeFileItem)
         menu.addItem(transcribeFileItem)
-        transcribeFileMenuItem = transcribeFileItem
+        transcribeFileMenuItems.append(transcribeFileItem)
 
         let transcribeYouTubeItem = NSMenuItem(
             title: "Transcribe from YouTube...",
@@ -206,7 +376,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         transcribeYouTubeItem.target = self
         applyChordShortcut(youtubeTranscriptionHotkeyTriggerProvider(), to: transcribeYouTubeItem)
         menu.addItem(transcribeYouTubeItem)
-        transcribeYouTubeMenuItem = transcribeYouTubeItem
+        transcribeYouTubeMenuItems.append(transcribeYouTubeItem)
 
         if AppFeatures.meetingRecordingEnabled {
             let recordMeetingItem = NSMenuItem(
@@ -217,7 +387,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             recordMeetingItem.target = self
             applyChordShortcut(meetingHotkeyTriggerProvider(), to: recordMeetingItem)
             menu.addItem(recordMeetingItem)
-            recordMeetingMenuItem = recordMeetingItem
+            recordMeetingMenuItems.append(recordMeetingItem)
         }
 
         menu.addItem(NSMenuItem.separator())
@@ -276,17 +446,12 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     }
 
     func refreshMeetingHotkeyShortcut() {
-        guard let recordMeetingMenuItem else { return }
-        applyChordShortcut(meetingHotkeyTriggerProvider(), to: recordMeetingMenuItem)
+        recordMeetingMenuItems.forEach { applyChordShortcut(meetingHotkeyTriggerProvider(), to: $0) }
     }
 
     func refreshTranscriptionHotkeyShortcuts() {
-        if let transcribeFileMenuItem {
-            applyChordShortcut(fileTranscriptionHotkeyTriggerProvider(), to: transcribeFileMenuItem)
-        }
-        if let transcribeYouTubeMenuItem {
-            applyChordShortcut(youtubeTranscriptionHotkeyTriggerProvider(), to: transcribeYouTubeMenuItem)
-        }
+        transcribeFileMenuItems.forEach { applyChordShortcut(fileTranscriptionHotkeyTriggerProvider(), to: $0) }
+        transcribeYouTubeMenuItems.forEach { applyChordShortcut(youtubeTranscriptionHotkeyTriggerProvider(), to: $0) }
     }
 
     /// Entry point for the file-transcription global hotkey. Shares its
@@ -313,14 +478,70 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         onOpenMainWindow()
     }
 
+    @objc private func newTranscription() {
+        onNewTranscription()
+        onOpenMainWindow()
+    }
+
     // Named to avoid matching the macOS 14+ `openSettings:` system action,
     // which would trigger automatic gear SF Symbol decoration on the menu item.
     @objc private func showSettingsWindow() {
         onOpenSettings()
     }
 
+    @objc private func showTranscribe() {
+        navigate(to: .transcribe)
+    }
+
+    @objc private func showLibrary() {
+        navigate(to: .library)
+    }
+
+    @objc private func showDictations() {
+        navigate(to: .dictations)
+    }
+
+    @objc private func showVocabulary() {
+        navigate(to: .vocabulary)
+    }
+
+    @objc private func showTransforms() {
+        navigate(to: .transforms)
+    }
+
+    @objc private func showFeedback() {
+        navigate(to: .feedback)
+    }
+
+    @objc private func startDictationFromMenu() {
+        onStartDictation()
+    }
+
+    @objc private func createTransformFromMenu() {
+        onCreateTransform()
+        onOpenMainWindow()
+    }
+
+    @objc private func openHelp() {
+        openExternalURL("https://macparakeet.com")
+    }
+
+    @objc private func openGitHub() {
+        openExternalURL("https://github.com/moona3k/macparakeet")
+    }
+
     @objc private func quitApp() {
         onQuit()
+    }
+
+    private func navigate(to item: SidebarItem) {
+        onNavigate(item)
+        onOpenMainWindow()
+    }
+
+    private func openExternalURL(_ raw: String) {
+        guard let url = URL(string: raw) else { return }
+        NSWorkspace.shared.open(url)
     }
 
     #if DEBUG
@@ -402,6 +623,17 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
+        let environmentReady = environmentProvider() != nil
+        startDictationMenuItem?.isEnabled = environmentReady && !dictationCaptureActiveProvider()
+        transcribeFileMenuItems.forEach { $0.isEnabled = environmentReady }
+        transcribeYouTubeMenuItems.forEach { $0.isEnabled = environmentReady }
+        recordMeetingMenuItems.forEach {
+            $0.isEnabled = environmentReady
+            $0.title = meetingRecordingActiveProvider()
+                ? "Stop Recording"
+                : "Start Recording"
+        }
+
         guard let env = environmentProvider() else {
             pasteLastMenuItem?.isEnabled = false
             recentDictationsMenuItem?.isHidden = true
@@ -419,9 +651,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         pasteLastTransformMenuItem?.isHidden = transforms.isEmpty
         rebuildRecentTransformsSubmenu(with: transforms)
 
-        recordMeetingMenuItem?.title = meetingRecordingActiveProvider()
-            ? "Stop Recording"
-            : "Start Recording"
     }
 
     private func handleDroppedFile(_ url: URL) {
