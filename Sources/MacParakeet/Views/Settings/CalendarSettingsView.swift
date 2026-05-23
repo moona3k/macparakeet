@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Calendar auto-start section. Slotted into Settings between Meeting
 /// Recording and Transcription. Exposes all three modes — `.off`, `.notify`,
-/// and `.autoStart` (with the auto-stop sub-toggle) per ADR-017 Phases 1+2.
+/// and `.autoStart` per ADR-017 Phases 1+2.
 struct CalendarSettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @State private var availableCalendars: [CalendarInfo] = []

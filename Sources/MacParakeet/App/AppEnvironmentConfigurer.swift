@@ -313,7 +313,7 @@ final class AppEnvironmentConfigurer {
         dictationCoordinator.showIdlePill()
 
         // Calendar auto-start (ADR-017 Phases 1 + 2 — reminders +
-        // countdown toast + auto-stop). The coordinator is a no-op when
+        // pre-meeting countdown toast). The coordinator is a no-op when
         // `calendarAutoStartMode == .off` so it's safe to start
         // unconditionally; we still gate creation on the meeting-recording
         // feature flag because calendar integration only makes sense when

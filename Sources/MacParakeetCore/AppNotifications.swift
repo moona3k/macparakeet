@@ -25,7 +25,7 @@ public extension Notification.Name {
     /// the higher-level flow has already moved on.
     static let macParakeetAIFormatterDidFinish = Notification.Name("macparakeet.aiFormatterDidFinish")
     /// Posted when any calendar auto-start setting (mode, reminder lead time,
-    /// trigger filter, included calendars, auto-stop toggle) changes. The
+    /// trigger filter, included calendars) changes. The
     /// `MeetingAutoStartCoordinator` re-reads its config and re-evaluates on
     /// the next poll tick instead of waiting for the timer.
     static let macParakeetCalendarSettingsDidChange = Notification.Name("macparakeet.calendarSettingsDidChange")

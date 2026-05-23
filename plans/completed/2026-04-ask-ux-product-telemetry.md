@@ -1,13 +1,13 @@
 # Live Ask product telemetry
 
-**Status:** Active · unblocked
-**Date:** 2026-04-26
+**Status:** Completed — Ask telemetry events and call sites are shipped on `main`; the website Worker allowlist includes both event names.
+**Date:** 2026-04-26 · Completed 2026-05
 **ADRs:** ADR-012 (telemetry system), ADR-018 (live Ask tab)
-**Unblocked by:** Operation context plumbing is now present as `ObservabilityOperationContext`. The remaining work is to add the Ask-specific telemetry events and call sites.
+**Implementation:** `ask_menu_opened` and `ask_prompt_fired` are typed in `TelemetryEventName`, serialized in `TelemetryEventSpec`, fired from `LiveAskPaneView`, covered by `TelemetryServiceTests`, and allowlisted in `macparakeet-website/functions/api/telemetry.ts`.
 
 ## Why
 
-Commit `3e37a38b` (live Ask UX overhaul) added three new prompt invocation surfaces: the empty-state grouped pills, the `✨` menu button → popover, and the trimmed follow-up row. Hover-reveal expands prompt bodies inline. Right now we have **zero signal** on:
+Commit `3e37a38b` (live Ask UX overhaul) added three new prompt invocation surfaces: the empty-state grouped pills, the `✨` menu button → popover, and the trimmed follow-up row. Hover-reveal expands prompt bodies inline. At plan time, we had **zero signal** on:
 
 - Does anyone use the menu button mid-conversation, or do they ignore it and type?
 - Which prompts dominate? Which get clicked from never?
@@ -21,7 +21,7 @@ Without this, the next iteration is opinion-driven. With it, we have signal befo
 ### In scope
 - Two new event names: `ask_menu_opened`, `ask_prompt_fired`
 - Wire fires from `LiveAskPaneView` (current owner of all three surfaces)
-- Inherit `workflow_id` from #164's `ObservabilityOperationContext` so an `ask_prompt_fired` event chains to the resulting `llm_operation`
+- Keep prompt telemetry lightweight: source/group/label only, with no prompt body and no operation IDs
 - Worker allowlist update in `macparakeet-website/functions/api/telemetry.ts`
 - Tests in `TelemetryServiceTests` for serialization
 
@@ -33,7 +33,7 @@ Without this, the next iteration is opinion-driven. With it, we have signal befo
 
 ### Invariants
 - No prompt **text** in events — labels only (low cardinality, identifiable surface, no PII risk)
-- Allowlist gate (per memory `feedback_telemetry_allowlist.md`) — both events MUST land in `ALLOWED_EVENTS` in the Worker BEFORE the Swift PR ships, or the Worker silently drops the entire batch
+- Worker allowlist gate — both events MUST land in `ALLOWED_EVENTS` in the Worker BEFORE the Swift PR ships, or the Worker silently drops the entire batch
 
 ## Event contract
 
@@ -42,20 +42,16 @@ Fires when the user clicks `PromptMenuButton` to open the popover.
 
 | Field | Type | Notes |
 |---|---|---|
-| `workflow_id` | string | inherited from current ObservabilityOperationContext |
-| `parent_operation_id` | string? | the ambient meeting/dictation op, if any |
-| `surface` | enum | always `popover` (room for future menu shapes — e.g. slash menu — without renaming the event) |
+| — | — | No props. The event only records that the menu opened. |
 
 ### `ask_prompt_fired`
 Fires every time a `LiveAskPrompt` is sent to the LLM. Single event covers all three invocation surfaces.
 
 | Field | Type | Notes |
 |---|---|---|
-| `workflow_id` | string | inherited; matches the spawned `llm_operation` |
-| `parent_operation_id` | string? | ambient op |
-| `source` | enum | `empty_state` \| `popover` \| `followup` |
-| `label` | string | e.g. `"Decisions made"`, `"Tell me more"` — **label, never prompt body** |
-| `group` | enum? | `catch_up` \| `capture` \| `challenge` \| `nil` (nil for follow-up row, since it doesn't have groups) |
+| `source` | enum | `empty_state` \| `menu` \| `follow_up` |
+| `group` | enum | `catch_up` \| `capture` \| `challenge` \| `follow_up` \| `custom` |
+| `label` | enum | Stable built-in slug such as `decisions_made`; edited built-ins and custom prompts collapse to `custom`. Never prompt body text. |
 
 The shared `fire(_:)` path in `LiveAskPaneView` is the natural fire site — it already centralizes both pill-source paths. Pass `source` through as a parameter.
 
@@ -64,7 +60,7 @@ The shared `fire(_:)` path in `LiveAskPaneView` is the natural fire site — it 
 | File | Change |
 |---|---|
 | `Sources/MacParakeetCore/Services/TelemetryEvent.swift` | Add `askMenuOpened`, `askPromptFired` to `TelemetryEventName` |
-| `Sources/MacParakeet/Views/MeetingRecording/LiveAskPaneView.swift` | Add `source` param to `fire(_:)`; thread it from each call site (empty-state pill, popover, follow-up row); emit event via TelemetryService. Emit `ask_menu_opened` from `PromptMenuButton`. |
+| `Sources/MacParakeet/Views/MeetingRecording/LiveAskPaneView.swift` | Add `source` param to `fire(_:)`; thread it from each call site (empty-state pill, sparkle menu, follow-up row); emit event via TelemetryService. Emit `ask_menu_opened` from `PromptMenuButton`. |
 | `Tests/MacParakeetTests/TelemetryServiceTests.swift` | Serialization tests for both event names |
 | `macparakeet-website/functions/api/telemetry.ts` | Add both names to `ALLOWED_EVENTS` |
 
@@ -81,11 +77,11 @@ These are the questions the data should answer in the first week:
 
 1. Of users who get to a `messages.isEmpty == false` state, what % open the menu at least once?
 2. Top 3 / bottom 3 prompts by fire rate, broken down by `source`
-3. Do `popover` fires correlate with users who came from `empty_state` first (i.e. did the empty state teach them the menu)?
+3. Do `menu` fires correlate with users who came from `empty_state` first (i.e. did the empty state teach them the menu)?
 4. Group skew — does CAPTURE dominate as predicted, or do CHALLENGE prompts surprise us?
 
 ## Notes
 
-- The two-repo gotcha (`feedback_telemetry_allowlist.md` in memory) bites if the Swift PR ships before the Worker PR deploys. Sequence per step (2)→(3) above.
+- The two-repo allowlist gotcha bites if the Swift PR ships before the Worker PR deploys. Sequence per step (2)→(3) above.
 - This plan does **not** add slash-command telemetry. Slash is deferred until custom commands earn it (per session decision 2026-04-26); product telemetry should arrive bundled with that feature, not pre-built.
 - Keep cardinality low. `label` is identifiable but bounded (~14 starters + 5 follow-ups = ~19 distinct values). Adding free-text fields would break dashboard rollups.

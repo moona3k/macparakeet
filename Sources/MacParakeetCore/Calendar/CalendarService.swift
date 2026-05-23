@@ -178,9 +178,9 @@ public actor CalendarService {
             return nil
         }
 
-        // Drop zero-duration / inverted events. The auto-stop window math
-        // assumes endTime > startTime; a zero-duration event would satisfy
-        // its auto-stop window the instant it auto-starts.
+        // Drop zero-duration / inverted events. Calendar automation only acts
+        // on start windows, but later scheduling math still assumes a valid
+        // event interval.
         guard endDate > startDate else { return nil }
 
         // Capture the user's status *before* filtering them out of the

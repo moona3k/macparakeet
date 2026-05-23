@@ -1,7 +1,7 @@
 # Granola-style Meeting Recording Completion
 
-**Status:** Completed for the v0.6 shipping surface. Live Ask, meeting recording, notepad, recovery, and prompt handoff are shipped; calendar implementation exists but is hidden behind `AppFeatures.calendarEnabled = false` and is not a v0.6 release blocker. Moved from `plans/active` on 2026-05-03.
-**Date:** 2026-04-19 · Updated 2026-04-24
+**Status:** Completed for the v0.6 shipping surface. Live Ask, meeting recording, notepad, recovery, prompt handoff, calendar reminders, and opt-in calendar auto-start are shipped. Calendar is enabled on `main` (`AppFeatures.calendarEnabled = true`) and defaults to mode `.off`. Calendar-driven auto-stop was removed by the 2026-05-22 ADR-017 amendment; recordings stop manually.
+**Date:** 2026-04-19 · Updated 2026-05-22
 **ADRs:** ADR-017 (calendar auto-start), ADR-018 (live Ask tab — Insights dropped per amendment)
 **Blocks:** GitHub #57 "meeting recording v0.6" final closeout
 
@@ -19,7 +19,7 @@ This plan is the file-by-file breakdown. It is sequenced in phases so each phase
 ## Scope boundaries
 
 ### In scope
-- Calendar EventKit integration, polling coordinator, reminder + auto-start + auto-stop
+- Calendar EventKit integration, polling coordinator, reminder + opt-in auto-start
 - Port `CalendarService` / `MeetingMonitor` / `MeetingLinkParser` from `oatmeal` repo
 - ~~Add tabs to `MeetingRecordingPanelView`: Transcript / Insights / Ask~~ → shipped as **Transcript / Ask** (two tabs)
 - ~~New `MeetingLiveInsightsService` actor + viewmodel + pane~~ → dropped per ADR-018 amendment
@@ -108,23 +108,23 @@ Ported the four core files from Oatmeal (`MeetingMonitor`, `MeetingLinkParser`, 
 | `Sources/MacParakeetCore/Calendar/MeetingMonitor.swift` *(new, ported verbatim)* | Pure state machine: `evaluate(events, now, config, activeRecording, dismissedIds, remindedIds, countdownShownIds) -> [MonitorEvent]`. |
 | `Sources/MacParakeetCore/Calendar/CalendarAutoStartMode.swift` *(new)* | `.off` / `.notify` / `.autoStart`. |
 | `Sources/MacParakeetCore/Calendar/MeetingTriggerFilter.swift` *(new)* | `.withLink` / `.withParticipants` / `.allEvents`. |
-| `Sources/MacParakeetViewModels/SettingsViewModel.swift` | New properties: `calendarAutoStartMode`, `calendarReminderMinutes`, `meetingTriggerFilter`, `calendarAutoStopEnabled`, `calendarIncludedIdentifiers: Set<String>`. Persist via `UserDefaults` under a `CalendarAutoStart.*` namespace. `didSet` posts a new notification. |
+| `Sources/MacParakeetViewModels/SettingsViewModel.swift` | New properties: `calendarAutoStartMode`, `calendarReminderMinutes`, `meetingTriggerFilter`, `calendarIncludedIdentifiers: Set<String>`. Persist via `UserDefaults` under a `CalendarAutoStart.*` namespace. `didSet` posts a new notification. |
 | `Sources/MacParakeetCore/AppNotifications.swift` | Add `macParakeetCalendarSettingsDidChange`. |
 | `Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift` *(new)* | `@MainActor` class. 60s poll (5s near events). Subscribes to `.EKEventStoreChanged`. Calls `MeetingMonitor.evaluate`, fires `UNUserNotificationCenter` notifications for `.reminderDue`. Does **not** start recordings in this phase. Owned by `AppDelegate`, configured in `AppEnvironmentConfigurer`, observed via `AppSettingsObserverCoordinator`. |
 | `Sources/MacParakeet/Views/Settings/CalendarSettingsView.swift` *(new)* | Mode picker + reminder lead time picker + trigger filter picker + per-calendar checkboxes + permission CTA. |
 | `Sources/MacParakeet/Views/Settings/SettingsView.swift` | Mount `CalendarSettingsView` as a new section. |
 | `Sources/MacParakeet/Views/Onboarding/OnboardingCalendarView.swift` *(new)* | Explainer + "Grant Calendar access" button + "Skip" button. Sets `calendarAutoStartMode = .off` on skip. |
 | `Sources/MacParakeet/Views/Onboarding/OnboardingFlowView.swift` | Slot the new step after permissions, before model download. |
-| `Sources/MacParakeetCore/Services/TelemetryEvent.swift` | Add `.calendarPermissionGranted`, `.calendarPermissionDenied`, `.settingChanged(.calendarAutoStartMode)` etc. |
+| `Sources/MacParakeetCore/Services/TelemetryEvent.swift` | Add `.permissionGranted(permission: .calendar)`, `.permissionDenied(permission: .calendar)`, `.settingChanged(.calendarAutoStartMode)` etc. |
 | `../macparakeet-website/functions/api/telemetry.ts` | Mirror all new event names. |
 | `Tests/MacParakeetTests/Calendar/MeetingMonitorTests.swift` *(new)* | Ported from Oatmeal if available; otherwise write: reminder fires exactly once per event, auto-start window is T±30s, dismissed ids suppress further events, trigger filter correctness. |
 | `Tests/MacParakeetTests/Calendar/MeetingLinkParserTests.swift` *(new)* | Zoom/Meet/Teams URL extraction from location/notes/url fields. |
 
 **Ship criteria:** User grants Calendar permission through onboarding or Settings. At T-5min of a calendar event with a video link, a macOS notification appears. `.autoStart` mode is exposed in the UI but is a no-op (shows a "Coming soon" hint if selected, or clamp the picker to not expose it yet — plan says clamp).
 
-### Phase E — Calendar auto-start: countdown + auto-stop (ADR-017 phase 2) ✅ shipped 2026-04-25
+### Phase E — Calendar auto-start countdown (ADR-017 phase 2) ✅ shipped 2026-04-25, amended 2026-05-22
 
-Built `MeetingCountdownToastController` (5s pre-meeting + 30s end-of-meeting countdowns, `KeylessPanel` non-activating top-center floating panel with progress bar + Cancel/Start Now actions). Coordinator wires `.autoStartDue` → countdown → `MeetingRecordingFlowCoordinator.startFromCalendar()` and `.autoStopDue` (only for auto-started recordings) → countdown → `toggleRecording()`. Tracks `autoStartedEventId` binding; manual-stop detection via next-poll `isRecordingActive() == false` with binding still held. Settings Picker unclamped to all three modes; auto-stop toggle visible when mode == `.autoStart`. `CalendarServicing` protocol + `MockCalendarService` extracted; 8 new `MeetingAutoStartCoordinatorTests` cover routing, lifecycle, and the binding state machine. Four new telemetry events allowlisted on the website worker (`calendar_auto_start_triggered`, `calendar_auto_start_cancelled`, `calendar_auto_stop_shown`, `calendar_auto_stop_cancelled`); `meeting_recording_started` gained optional `trigger` prop.
+Built `MeetingCountdownToastController` for the 5s pre-meeting countdown. The current coordinator wires `.autoStartDue` -> countdown -> `MeetingRecordingFlowCoordinator.startFromCalendar()` and never stops recordings from calendar end times. The original auto-stop half of Phase E was removed by the ADR-017 amendment because scheduled event end times can truncate real meetings. Settings Picker remains unclamped to all three start modes; the auto-stop toggle and `calendar_auto_stop_*` telemetry are historical only. Current auto-start telemetry events are `calendar_auto_start_triggered`, `calendar_auto_start_cancelled`, and `calendar_auto_start_failed`; reminder delivery uses `calendar_reminder_shown`; `meeting_recording_started` gained optional `trigger` prop.
 
 **Original plan (kept for reference):**
 
@@ -134,14 +134,14 @@ Add the countdown toast and the actual recording triggers.
 |------|--------|
 | `Sources/MacParakeet/Views/MeetingRecording/MeetingCountdownToastController.swift` *(new)* | `NSPanel` subclass via `KeylessPanel`. 5-second countdown with cancel button. Public `show(title:subtitle:onConfirm:onCancel:)`. |
 | `Sources/MacParakeet/Views/MeetingRecording/MeetingCountdownToastView.swift` *(new)* | SwiftUI view for the toast body. Fills a progress bar over 5s. |
-| `Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift` | Handle `.autoStartDue` → show countdown toast → on confirm, call `MeetingRecordingFlowCoordinator.startRecording(triggeredBy: .calendar(event))`. Handle `.autoStopDue` → show "meeting ending" toast → on confirm, call `stopRecording()`. Respect `activeRecording` — do not fire a second start if manual start already took. |
+| `Sources/MacParakeet/App/MeetingAutoStartCoordinator.swift` | Handle `.autoStartDue` → show countdown toast → on confirm, call `MeetingRecordingFlowCoordinator.startRecording(triggeredBy: .calendar(event))`. Respect `activeRecording` — do not fire a second start if manual start already took. Calendar-driven stop is removed. |
 | `Sources/MacParakeet/App/MeetingRecordingFlowCoordinator.swift` | Accept an optional `triggeredBy: MeetingRecordingTrigger` parameter (`.manual` / `.hotkey` / `.calendar(CalendarEvent)`). Stash it on the session so title defaults use the calendar event title. |
-| `Sources/MacParakeet/Views/Settings/CalendarSettingsView.swift` | Unclamp `.autoStart` option and expose the auto-stop toggle. |
-| `Sources/MacParakeetCore/Services/TelemetryEvent.swift` | Add `.calendarAutoStartTriggered(mode:)`, `.calendarAutoStartCancelled(reason:)`, `.meetingRecordingStarted(trigger:)` (if not already present). |
+| `Sources/MacParakeet/Views/Settings/CalendarSettingsView.swift` | Unclamp `.autoStart` option. The original auto-stop toggle from this phase was later removed by the ADR-017 amendment. |
+| `Sources/MacParakeetCore/Services/TelemetryEvent.swift` | Add `.calendarReminderShown(mode:leadMinutes:hasMeetUrl:)`, `.calendarAutoStartTriggered(leadSeconds:hasMeetUrl:)`, `.calendarAutoStartCancelled(reason:)`, `.calendarAutoStartFailed(reason:)`, `.meetingRecordingStarted(trigger:)` (if not already present). |
 | `../macparakeet-website/functions/api/telemetry.ts` | Mirror. |
-| `Tests/MacParakeetTests/App/MeetingAutoStartCoordinatorTests.swift` *(new)* | Countdown countdown-cancel does not start recording. Active recording suppresses subsequent `.autoStartDue` for the same event. Auto-stop confirmation stops an active recording. |
+| `Tests/MacParakeetTests/App/MeetingAutoStartCoordinatorTests.swift` *(new)* | Countdown cancel does not start recording. Active recording suppresses subsequent `.autoStartDue` for the same event. Failed starts emit `calendar_auto_start_failed`. |
 
-**Ship criteria:** End-to-end: calendar event at T-5min fires notification; at T-0 shows a 5s cancellable toast; on confirm (or timeout) starts meeting recording; at event-end shows auto-stop toast; on confirm stops recording and runs the normal finalize pipeline.
+**Ship criteria:** End-to-end: calendar event at T-5min fires notification; at T-0 shows a 5s cancellable toast; on confirm (or timeout) starts meeting recording. Recording stop is manual.
 
 ### Phase F — Copy polish, naming unification, changelog
 
@@ -177,11 +177,11 @@ Low-value-per-unit cleanup that's better done in one pass.
 - ~~Phase B (Insights)~~ — dropped per ADR-018 amendment
 - Phase C (Live Ask) — ✅ shipped 2026-04-24
 - Phase D (Calendar notify-only) — ✅ shipped 2026-04-25
-- Phase E (Calendar countdown + auto-stop) — ✅ shipped 2026-04-25
-- Phase F (Polish, naming, changelog) — 0.5 day remaining
+- Phase E (Calendar countdown; auto-stop removed by ADR-017 amendment) — ✅ shipped 2026-04-25, amended 2026-05-22
+- Phase F (Polish, naming, changelog) — completed through later docs/spec updates
 
-Total remaining: ~0.5 engineering days for Phase F polish.
+Total remaining: none for this v0.6 closeout plan; future late-join and activity-based auto-stop work belongs in separate plans/ADRs.
 
 ## Changelog line (when all phases land)
 
-> **Meeting Recording (completed):** Meetings now open with Notes, Transcript, and Ask tabs so you can write meeting notes, chat with the rolling transcript, and use one-tap thinking-partner pills ("What did I miss?", "What's worth pushing back on?", "Action items?") without leaving the panel. Recordings save to the library with local final transcription, export, prompts, chat, and crash recovery. Calendar auto-start/reminder code exists behind `AppFeatures.calendarEnabled = false` and is not part of the v0.6 shipping surface.
+> **Meeting Recording (completed):** Meetings open with Notes, Transcript, and Ask tabs so you can write meeting notes, chat with the rolling transcript, and use one-tap thinking-partner pills ("What did I miss?", "What's worth pushing back on?", "Action items?") without leaving the panel. Recordings save to the library with local final transcription, export, prompts, chat, and crash recovery. Calendar reminders and opt-in auto-start are enabled on `main`; calendar-driven auto-stop was removed, so recordings stop manually.
