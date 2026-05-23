@@ -7,6 +7,7 @@ final class HotkeyManagerTests: XCTestCase {
     private let leftOptionMask = UInt64(NX_DEVICELALTKEYMASK)
     private let rightOptionMask = UInt64(NX_DEVICERALTKEYMASK)
     private let leftShiftMask = UInt64(NX_DEVICELSHIFTKEYMASK)
+    private let rightShiftMask = UInt64(NX_DEVICERSHIFTKEYMASK)
     private let leftCommandMask = UInt64(NX_DEVICELCMDKEYMASK)
     private let rightCommandMask = UInt64(NX_DEVICERCMDKEYMASK)
 
@@ -1589,6 +1590,42 @@ final class HotkeyManagerTests: XCTestCase {
                 timestampMs: 1_050
             ),
             [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap]
+        )
+    }
+
+    func testSideSpecificSameModifierChordRequiresBothRecordedSides() {
+        let trigger = HotkeyTrigger.modifierChord(
+            components: [
+                .init(modifierName: "shift", keyCode: 56),
+                .init(modifierName: "shift", keyCode: 60),
+            ]
+        )
+        let manager = HotkeyManager(trigger: trigger)
+
+        XCTAssertEqual(
+            manager.modifierChordFlagsChangedOutputsForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskShift.rawValue,
+                    leftShiftMask
+                ),
+                timestampMs: 1_000
+            ),
+            []
+        )
+
+        XCTAssertEqual(
+            manager.modifierChordFlagsChangedOutputsForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskShift.rawValue,
+                    leftShiftMask,
+                    rightShiftMask
+                ),
+                timestampMs: 1_025
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
         )
     }
 

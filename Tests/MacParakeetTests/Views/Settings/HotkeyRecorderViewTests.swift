@@ -17,6 +17,19 @@ final class HotkeyRecorderViewTests: XCTestCase {
         )
     }
 
+    func testStandardBareShiftCaptureRecordsPhysicalModifierSide() {
+        let candidate = HotkeyRecorderView.bareModifierTrigger(
+            for: "shift",
+            keyCode: 60,
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(
+            candidate,
+            HotkeyTrigger(kind: .modifier, modifierName: "shift", keyCode: nil, modifierKeyCode: 60)
+        )
+    }
+
     func testStandardModifierKeyChordCapturePreservesGenericChordBehavior() {
         let candidate = HotkeyRecorderView.keyChordTrigger(
             modifiers: ["command"],
@@ -25,6 +38,46 @@ final class HotkeyRecorderViewTests: XCTestCase {
         )
 
         XCTAssertEqual(candidate, .chord(modifiers: ["command"], keyCode: 8))
+    }
+
+    func testStandardModifierChordCaptureRecordsPhysicalModifierSides() {
+        let candidate = HotkeyRecorderView.modifierChordTrigger(
+            components: [
+                .init(modifierName: "option", keyCode: 58),
+                .init(modifierName: "command", keyCode: 55),
+            ],
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(
+            candidate,
+            .modifierChord(
+                components: [
+                    .init(modifierName: "option", keyCode: 58),
+                    .init(modifierName: "command", keyCode: 55),
+                ]
+            )
+        )
+    }
+
+    func testStandardSameModifierChordCaptureRecordsBothPhysicalSides() {
+        let candidate = HotkeyRecorderView.modifierChordTrigger(
+            components: [
+                .init(modifierName: "shift", keyCode: 56),
+                .init(modifierName: "shift", keyCode: 60),
+            ],
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(
+            candidate,
+            .modifierChord(
+                components: [
+                    .init(modifierName: "shift", keyCode: 56),
+                    .init(modifierName: "shift", keyCode: 60),
+                ]
+            )
+        )
     }
 
     func testGenericBareModifierCapturePreservesEitherSideBehavior() {

@@ -377,8 +377,8 @@ struct HotkeyRecorderView: View {
     }
 
     /// Map a modifier name + physical keyCode to a bare modifier trigger.
-    /// Generic capture preserves the legacy "either side" behavior. Side-specific capture
-    /// records the physical left/right key that was used during recording.
+    /// Generic capture preserves the legacy "either side" behavior. Standard
+    /// and side-specific capture record the physical left/right key used.
     static func bareModifierTrigger(
         for name: String,
         keyCode: UInt16,
@@ -403,13 +403,13 @@ struct HotkeyRecorderView: View {
     ) -> HotkeyTrigger? {
         let trigger: HotkeyTrigger
         switch captureMode {
-        case .standard, .generic:
+        case .generic:
             trigger = HotkeyTrigger.modifierChord(
                 components: components.map {
                     HotkeyTrigger.ModifierComponent(modifierName: $0.modifierName)
                 }
             )
-        case .sideSpecific:
+        case .standard, .sideSpecific:
             trigger = HotkeyTrigger.modifierChord(components: components)
         }
 

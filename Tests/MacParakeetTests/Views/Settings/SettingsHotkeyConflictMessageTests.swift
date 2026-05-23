@@ -57,6 +57,24 @@ final class SettingsHotkeyConflictMessageTests: XCTestCase {
         )
     }
 
+    func testDictationPeerValidationBlocksDuplicateSideSpecificShiftChord() {
+        let bothShifts = HotkeyTrigger.modifierChord(
+            components: [
+                .init(modifierName: "shift", keyCode: 56),
+                .init(modifierName: "shift", keyCode: 60),
+            ]
+        )
+
+        XCTAssertEqual(
+            SettingsDictationHotkeyConflictPolicy.validation(
+                candidate: bothShifts,
+                peer: bothShifts,
+                peerName: "push to talk"
+            ),
+            .blocked("Conflicts with push to talk (L⇧R⇧).")
+        )
+    }
+
     func testDictationPeerValidationAllowsDistinctDefaults() {
         XCTAssertNil(
             SettingsDictationHotkeyConflictPolicy.validation(
