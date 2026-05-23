@@ -107,7 +107,28 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         guard let variant else { return nil }
         let trimmed = variant.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        return trimmed.hasPrefix("whisper-") ? String(trimmed.dropFirst("whisper-".count)) : trimmed
+        let withoutPrefix = trimmed.hasPrefix("whisper-")
+            ? String(trimmed.dropFirst("whisper-".count))
+            : trimmed
+        return canonicalizeTurboSuffix(withoutPrefix)
+    }
+
+    /// Whisper "turbo" variants ship with both hyphen and underscore spellings
+    /// (`large-v3-turbo`, `large-v3_turbo`). Fold them to the underscore form so
+    /// one model resolves to a single id everywhere — on-disk folder lookup, the
+    /// stored preference, and optimized-flag tracking — instead of the mark-side
+    /// (engine) and query-side (UI) ids drifting apart.
+    private static func canonicalizeTurboSuffix(_ variant: String) -> String {
+        if variant.hasSuffix("-turbo") {
+            return String(variant.dropLast("-turbo".count)) + "_turbo"
+        }
+        if variant.contains("-turbo_") {
+            return variant.replacingOccurrences(of: "-turbo_", with: "_turbo_")
+        }
+        if variant.contains("-turbo-") {
+            return variant.replacingOccurrences(of: "-turbo-", with: "_turbo_")
+        }
+        return variant
     }
 
     /// Maps an internal Whisper variant id to a short, user-friendly label.

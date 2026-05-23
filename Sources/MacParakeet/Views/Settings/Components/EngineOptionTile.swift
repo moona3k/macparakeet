@@ -167,7 +167,7 @@ struct EngineOptionTile: View {
                     return StatusInfo(
                         color: DesignSystem.Colors.warningAmber,
                         label: "Setup needed",
-                        detail: "First switch: a minute or two"
+                        detail: "Optimizes on first switch"
                     )
                 }
                 return StatusInfo(

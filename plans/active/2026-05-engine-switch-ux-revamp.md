@@ -52,7 +52,7 @@ Copy guidance: avoid a hard minute count (slower Macs overrun it; the watchdog h
 
 ### Stage A — honest + safe (low risk, decision-independent, ship first)
 
-- **A1 + A2 — shipped (PR #335).** `whisperOptimizedVariants` persistence (per variant) in `SpeechEnginePreference`, set on the first successful `prepare()`; the engine tile splits the downloaded-but-inactive footer into cold (amber "Setup needed · First switch: a minute or two") vs warm (green "Downloaded · Loads in seconds") via a `needsFirstOptimize` tile input. The `LocalModelStatus` model is unchanged — the cold/warm split is a pure presentation concern, so no new enum case.
+- **A1 + A2 — shipped (PR #335).** `whisperOptimizedVariants` persistence (per variant) in `SpeechEnginePreference`, set on the first successful `prepare()`; the engine tile splits the downloaded-but-inactive footer into cold (amber "Setup needed · Optimizes on first switch") vs warm (green "Downloaded · Loads in seconds") via a `needsFirstOptimize` tile input. Static copy avoids a hard minute count (slower Macs overrun it); the in-switch watchdog handles time reassurance. The `LocalModelStatus` model is unchanged — the cold/warm split is a pure presentation concern, so no new enum case.
 - **A3. Disabled cards + named blocker (follow-up).** Surface engine-switch availability from the scheduler (it already holds `activeSpeechEngineSessionIDs` + `hasQueuedOrRunningJobs`, `STTScheduler.swift:186-187`) to the VM; gate `handleWhisperTileTap`/`selectEngine` with meeting/job-specific copy. High-value case is meetings (already tracked app-wide).
 
 ### Stage B — background optimize (the real cancel)
