@@ -171,10 +171,11 @@ enum CLITelemetry {
             return provider.cliTelemetryMetadata
         }
 
-        let path = commandPath(for: type(of: command)) ?? [
-            type(of: command).configuration.commandName ?? String(describing: type(of: command))
+        let commandType = type(of: command)
+        let path = commandPath(for: commandType) ?? [
+            commandType.configuration.commandName ?? String(describing: commandType)
         ]
-        let commandName = path.first ?? "unknown"
+        let commandName = path[0]
         let subcommand = path.dropFirst().isEmpty ? nil : path.dropFirst().joined(separator: " ")
         return OperationMetadata(command: commandName, subcommand: subcommand)
     }
@@ -229,13 +230,13 @@ enum CLITelemetry {
     }
 }
 
-private extension Result where Success == Void, Failure == Error {
+extension Result where Success == Void, Failure == Error {
     var cliTelemetryOutcome: ObservabilityOutcome {
         switch self {
         case .success:
             return .success
-        case .failure:
-            return .failure
+        case .failure(let error):
+            return CLI.normalizedExitCode(for: error).isSuccess ? .success : .failure
         }
     }
 

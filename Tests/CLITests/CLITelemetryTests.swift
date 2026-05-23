@@ -1,3 +1,4 @@
+import ArgumentParser
 import XCTest
 @testable import CLI
 @testable import MacParakeetCore
@@ -198,5 +199,12 @@ final class CLITelemetryTests: XCTestCase {
         XCTAssertEqual(metadata.outputFormat, "json")
         XCTAssertEqual(metadata.json, true)
         XCTAssertFalse(metadata.suppressEvent)
+    }
+
+    func testTelemetryOutcomeTreatsSuccessfulExitCodeAsSuccess() {
+        let result = Result<Void, Error>.failure(ExitCode.success)
+
+        XCTAssertEqual(result.cliTelemetryOutcome, .success)
+        XCTAssertEqual(result.cliTelemetryExitCode, 0)
     }
 }

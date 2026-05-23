@@ -93,7 +93,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
     var cliTelemetryMetadata: CLITelemetry.OperationMetadata {
         CLITelemetry.OperationMetadata(
-            command: "transcribe",
+            command: Self.configuration.commandName ?? "transcribe",
             inputKind: Self.telemetryInputKind(for: input),
             outputFormat: format.rawValue,
             json: format == .json

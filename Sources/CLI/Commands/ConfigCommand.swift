@@ -92,8 +92,8 @@ struct ConfigCommand: ParsableCommand {
 
         var cliTelemetryMetadata: CLITelemetry.OperationMetadata {
             CLITelemetry.OperationMetadata(
-                command: "config",
-                subcommand: "set",
+                command: ConfigCommand.configuration.commandName ?? "config",
+                subcommand: Self.configuration.commandName ?? "set",
                 json: json,
                 suppressEvent: Self.suppressesTelemetryEvent(key: key, value: value)
             )
