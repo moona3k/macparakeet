@@ -188,18 +188,19 @@ when the question is "what happened to this operation?"
 | `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
 | `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
 | `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `app_category`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt |
+| `dictation_first_load_caption_shown` | `first_install` | How often the first model-load caption is shown |
+| `dictation_first_load_caption_duration` | `duration_ms`, `outcome` | How long the first model-load caption stays visible, and whether it resolves, extends, or fails |
 
 > **Device props** (optional, included when available): `device_transport`, `device_sub_transport`, `device_sample_rate`, `device_channels`, `device_fallback`, `device_selected`. Raw device names and UIDs are intentionally not serialized.
 
-`app_category` (optional) is the coarse category of the frontmost app the
-dictation was pasted into — one of `messaging`, `email`, `browser`, `notes`,
-`docs`, `code`, `terminal`, `other`. Following item 10 below ("track
-structural category only"), the frontmost app's bundle identifier is mapped to
-a bucket on-device and **only the bucket is transmitted** — the bundle id never
-leaves the device, and any unrecognized app maps to `other`, so a niche or
-identifying app is never observable. The same prop appears on
-`transform_executed` / `transform_operation` (the app a Transform rewrote text
-in).
+`app_category` (optional) is the coarse category of the frontmost app selected
+as the dictation finish target — one of `messaging`, `email`, `browser`,
+`notes`, `docs`, `code`, `terminal`, `other`. The app's bundle identifier is
+mapped to a structural bucket on-device and **only the bucket is transmitted** —
+the bundle id never leaves the device, and any unrecognized app maps to
+`other`, so a niche or identifying app is never observable. The same prop
+appears on `transform_executed` / `transform_operation` (the app a Transform
+rewrote text in).
 
 `speech_engine` and `engine_variant` describe the STT engine that actually
 processed the audio. They come from `STTResult` attribution or persisted
@@ -256,6 +257,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `ask_prompt_fired` | `source`, `group`, `label` | Which built-in live Ask prompts are used, using stable built-in slugs. Edited built-ins and custom prompts collapse to `custom`. |
 | `llm_formatter_used` | `provider`, `source`, `duration_seconds`, `input_chars`, `output_chars`, `default_prompt_used`, `input_truncated` | Is transcript/dictation formatting useful, and how expensive is it? |
 | `llm_formatter_failed` | `provider`, `source`, `duration_seconds`, `error_type`, `default_prompt_used`, `input_truncated` | Formatter failure rates and prompt-shape correlations |
+| `llm_provider_unavailable` | `provider`, `error_type`, `feature`, `source` | Provider setup/config drift distinct from true LLM request failures |
 | `llm_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `feature`, `provider`, `streaming`, `outcome`, `duration_seconds`, `input_chars`, `output_chars`, `input_truncated`, `prompt_default_used`, `message_count`, `error_type` | One safe outcome event per LLM call, without prompts, responses, or provider error bodies |
 | `history_searched` | — | Is search useful? |
 | `history_replayed` | — | Do people re-listen to audio? |
@@ -353,6 +355,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `model_download_failed` | `error_type`, `model_kind`, `speech_engine`, `engine_variant` | Are downloads failing for Parakeet setup or Whisper downloads? |
 | `model_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `action`, `outcome`, `stage`, `model_kind`, `speech_engine`, `engine_variant`, `duration_seconds`, `error_type` | Canonical model lifecycle event for downloads, warm-up, repairs, cache clears, and cancellations |
 | `speech_engine_switch_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `from_engine`, `to_engine`, `outcome`, `duration_seconds`, `blocked_reason`, `error_type` | Why engine switches succeed, fail, cancel, or get blocked |
+| `stt_runtime_unhealthy` | `reason` | Whether the STT runtime watchdog detects a stuck speech runtime |
 
 ### 8. Permissions — "Is onboarding smooth?"
 

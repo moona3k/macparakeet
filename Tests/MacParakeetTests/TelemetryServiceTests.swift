@@ -942,6 +942,7 @@ final class TelemetryServiceTests: XCTestCase {
             ("com.microsoft.VSCodeInsiders", .code),      // prefix match
             ("com.jetbrains.intellij", .code),            // prefix match
             ("com.todesktop.230313mzl4w4u92", .code),     // Cursor
+            ("com.google.android.studio", .code),
             ("com.apple.Terminal", .terminal),
             ("com.googlecode.iterm2", .terminal),
         ]

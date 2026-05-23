@@ -14,19 +14,19 @@ After walking through this audit with the owner, three calls were made:
 
 1. **Auto Cleanup gradations — skip.** Keep `processingMode` as the current binary raw/clean deterministic pipeline. AI Formatter stays as a single optional polish layer with one customizable prompt. Don't ship Light/Medium/High named levels.
 2. **Undo AI edit — ship.** Surface a per-row affordance in the dictation history that swaps the displayed/exported text from `cleanTranscript` back to `rawTranscript`. Schema already stores both — pure UI work.
-3. **Transforms — prioritize.** Build the hotkey-driven version (Opt+N to rewrite selected text in any app) as the next major surface. Treated as foundation work for the already-planned voice-driven Command Mode (see `plans/active/2026-05-voice-command-agent-mode.md` candidate capability #1 and `docs/agent-mode-vision.md` lines 350–351). The hotkey and voice variants share the same underlying primitives — capture selection, run prompt through LLM, replace in place — so the hotkey form is the shortest path to those primitives.
+3. **Transforms — prioritized and shipped.** The hotkey-driven version (Opt+N-style bindings to rewrite selected text in any app) is now productized on `main`. It remains foundation work for the already-planned voice-driven Command Mode (see `plans/active/2026-05-voice-command-agent-mode.md` candidate capability #1 and `docs/agent-mode-vision.md` lines 350–351). The hotkey and voice variants share the same underlying primitives — capture selection, run prompt through LLM, replace in place.
 
 The full design exploration for Transforms lives in `transforms-design-2026-05.md`.
 
 ## TL;DR
 
-WisprFlow Pro now organizes its post-dictation cleanup into five sidebar sections: **Dictionary**, **Snippets**, **Style**, **Auto Cleanup**, and **Transforms**. We have rough parity on Dictionary and Snippets (different UI shape, same underlying capability). We have nothing comparable to Style (per-app tone routing) or Transforms (Opt+N hotkeys that LLM-rewrite selected text anywhere). Auto Cleanup is binary in MacParakeet (raw vs clean) where WisprFlow ships four gradations.
+WisprFlow Pro now organizes its post-dictation cleanup into five sidebar sections: **Dictionary**, **Snippets**, **Style**, **Auto Cleanup**, and **Transforms**. We have rough parity on Dictionary and Snippets (different UI shape, same underlying capability), productized core parity on Transforms, and no comparable Style routing. Auto Cleanup is binary in MacParakeet (raw vs clean) where WisprFlow ships four gradations.
 
 | WisprFlow surface | MacParakeet today | Coverage | Strategic fit |
 |---|---|---|---|
 | Dictionary (word teach + misspelling correction) | Custom Words (`word` + optional `replacement`) | Capability parity, UX-lite | Aligned — already shipped |
 | Snippets (trigger → expansion) | Text Snippets in Vocabulary panel | Capability parity, UX-lite | Aligned — already shipped |
-| Style (per-app tone: Slack vs Gmail vs Discord) | None | **Zero coverage** | Tension with local-first; LLM-dependent |
+| Style (per-app tone: Slack vs Gmail vs Discord) | No style routing; only coarse app-category telemetry/history context | No product coverage | Tension with local-first; LLM-dependent |
 | Auto Cleanup (None / Light / Medium / High) | `processingMode` raw/clean + binary AI Formatter | Partial — coarse | Easy to expand; aligned |
 | Transforms (Opt+N to rewrite selected text in any app) | Productized Transforms tab, hotkey registry, built-ins, history, and CLI | Core parity, lighter than WisprFlow | Aligned, but expands product scope |
 
@@ -125,7 +125,10 @@ The mechanism is clear: WisprFlow reads frontmost-app bundle ID, picks the match
 
 ### MacParakeet today
 
-Zero coverage. Confirmed by grep — we don't query `NSWorkspace.frontmostApplication` for routing, we have no per-app preference surface, and our `processingMode` is a single global enum.
+No style-routing coverage. MacParakeet now reads the frontmost app for local
+history and coarse, privacy-safe telemetry buckets, but not for choosing
+dictation cleanup behavior: we still have no per-app preference surface, and
+our `processingMode` is a single global enum.
 
 We do have `Sources/MacParakeetCore/TextProcessing/AIFormatter.swift` with a user-customizable prompt template that runs through whichever LLM provider the user has configured. But it's a single global prompt — no per-app branching.
 

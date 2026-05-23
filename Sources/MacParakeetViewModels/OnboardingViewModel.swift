@@ -104,9 +104,9 @@ public final class OnboardingViewModel {
     private let requiredDiarizationSetupDiskBytes: Int64 = 512 * 1_024 * 1_024
     private let requiredWhisperSetupDiskBytes: Int64 = 2 * 1_024 * 1_024 * 1_024
 
-    public static let onboardingCompletedKey = "onboarding.completedAtISO"
-    public static let meetingRecordingSkippedKey = "onboarding.meetingRecordingSkipped"
-    public static let calendarSkippedKey = "onboarding.calendarSkipped"
+    public nonisolated static let onboardingCompletedKey = "onboarding.completedAtISO"
+    public nonisolated static let meetingRecordingSkippedKey = "onboarding.meetingRecordingSkipped"
+    public nonisolated static let calendarSkippedKey = "onboarding.calendarSkipped"
 
     public init(
         permissionService: PermissionServiceProtocol,

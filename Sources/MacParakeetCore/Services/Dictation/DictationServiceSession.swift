@@ -46,6 +46,13 @@ public final class DictationServiceSession {
         try await service.stopRecording(sessionID: sessionID)
     }
 
+    public func updateTelemetryAppCategory(
+        _ appCategory: TelemetryAppCategory?,
+        sessionID: Int
+    ) async {
+        await service.updateTelemetryAppCategory(appCategory, sessionID: sessionID)
+    }
+
     public func cancelRecording(
         reason: TelemetryDictationCancelReason?,
         sessionID: Int

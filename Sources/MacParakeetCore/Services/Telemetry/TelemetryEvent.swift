@@ -39,9 +39,9 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     /// hotkey-bound Transform completes end-to-end. Properties:
     /// `transform_name` (built-in name or `custom`), `capture_path`
     /// (`ax | clipboard`), `replace_path` (`ax | clipboardPaste`),
-    /// `llm_ms`, `total_ms`. NO prompt body, NO selected text, NO output.
-    /// Custom-Transform names map to `custom` so a Transform named after
-    /// e.g. an employer never leaves the device.
+    /// `llm_ms`, `total_ms`, and optional `app_category`. NO prompt body, NO
+    /// selected text, NO output. Custom-Transform names map to `custom` so a
+    /// Transform named after e.g. an employer never leaves the device.
     case transformExecuted = "transform_executed"
     case transformFailed = "transform_failed"
     case transformOperation = "transform_operation"
@@ -1076,15 +1076,14 @@ extension TelemetryEventSpec {
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .transformExecuted(let name, let capture, let replace, let llmMs, let totalMs, let appCategory):
-            var props = [
-                "transform_name": name.rawValue,
-                "capture_path": capture.rawValue,
-                "replace_path": replace.rawValue,
-                "llm_ms": "\(llmMs)",
-                "total_ms": "\(totalMs)",
-            ]
-            if let appCategory { props["app_category"] = appCategory.rawValue }
-            return props
+            return Self.compactProps(
+                ("transform_name", name.rawValue),
+                ("capture_path", capture.rawValue),
+                ("replace_path", replace.rawValue),
+                ("llm_ms", "\(llmMs)"),
+                ("total_ms", "\(totalMs)"),
+                ("app_category", appCategory?.rawValue)
+            )
         case .transformFailed(let name, let reason):
             return [
                 "transform_name": name.rawValue,

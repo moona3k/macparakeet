@@ -3,9 +3,8 @@ import Foundation
 /// Coarse category of the macOS application a dictation was pasted into, or
 /// that a Transform rewrote text inside.
 ///
-/// Privacy contract (mirrors `docs/telemetry.md` item 10 — "track structural
-/// category only"): the frontmost app's bundle identifier is mapped to one of
-/// a small fixed set of buckets on-device, and **only the bucket** is
+/// Privacy contract: the frontmost app's bundle identifier is mapped to one of
+/// a small fixed set of structural buckets on-device, and **only the bucket** is
 /// transmitted. The bundle identifier itself never leaves the device, and any
 /// app we do not recognize maps to `.other` — so a user's niche or otherwise
 /// identifying app is never observable in telemetry.
@@ -119,6 +118,7 @@ public enum TelemetryAppCategory: String, Sendable, Equatable, CaseIterable {
         "dev.zed.zed",                        // Zed
         "com.panic.nova",                     // Nova
         "com.github.atom",                    // Atom
+        "com.google.android.studio",          // Android Studio
     ]
 
     private static let terminalIDs: Set<String> = [

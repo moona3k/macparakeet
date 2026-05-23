@@ -13,10 +13,10 @@ public enum DictationState: Sendable {
 public struct DictationTelemetryContext: Sendable, Equatable {
     public var trigger: TelemetryDictationTrigger?
     public var mode: TelemetryDictationMode?
-    /// Coarse category of the app that was frontmost when this dictation was
-    /// started — i.e. where the text will be pasted. Captured at the call site
-    /// (MainActor) since the overlay is non-activating, so frontmost stays the
-    /// user's target app. See `TelemetryAppCategory` for the privacy contract.
+    /// Coarse category of the app expected to receive the dictation paste.
+    /// The app layer refreshes this near stop/undo time so the value follows
+    /// the finish-target paste model instead of locking to the app active at
+    /// recording start. See `TelemetryAppCategory` for the privacy contract.
     public var appCategory: TelemetryAppCategory?
 
     public init(
@@ -139,6 +139,20 @@ public actor DictationService: DictationServiceProtocol {
 
     public func startRecording(context: DictationTelemetryContext = DictationTelemetryContext()) async throws {
         try await startRecording(context: context, sessionID: nil)
+    }
+
+    public func updateTelemetryAppCategory(
+        _ appCategory: TelemetryAppCategory?,
+        sessionID: Int? = nil
+    ) {
+        if let sessionID, sessionID != activeSessionID { return }
+        switch _state {
+        case .recording, .cancelled, .processing:
+            currentTelemetryContext.appCategory = appCategory
+            currentOperationTelemetryContext.appCategory = appCategory
+        case .idle, .success, .error:
+            return
+        }
     }
 
     public func startRecording(

@@ -815,10 +815,7 @@ final class DictationFlowCoordinator {
                     sessionID: sessionID,
                     context: DictationTelemetryContext(
                         trigger: trigger,
-                        mode: self.telemetryMode(for: mode),
-                        appCategory: TelemetryAppCategory(
-                            bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
-                        )
+                        mode: self.telemetryMode(for: mode)
                     )
                 )
                 let serviceState = await self.serviceSession.state
@@ -903,6 +900,12 @@ final class DictationFlowCoordinator {
                 self.dictationLog.notice(
                     "stop_recording_requested gen=\(generation) session=\(sessionID) flowState=\(self.describeState(self.stateMachine.state), privacy: .public) serviceState=\(self.describeServiceState(serviceState), privacy: .public)"
                 )
+                await self.serviceSession.updateTelemetryAppCategory(
+                    TelemetryAppCategory(
+                        bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                    ),
+                    sessionID: sessionID
+                )
                 let result = try await self.serviceSession.stopRecording(sessionID: sessionID)
                 guard !Task.isCancelled else { return }
                 self.consumeDictationResult(result)
@@ -916,6 +919,13 @@ final class DictationFlowCoordinator {
     private func undoCancelTask(generation: Int) {
         actionTask = Task { @MainActor in
             do {
+                let sessionID = self.serviceSession.currentSessionID
+                await self.serviceSession.updateTelemetryAppCategory(
+                    TelemetryAppCategory(
+                        bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                    ),
+                    sessionID: sessionID
+                )
                 let result = try await self.serviceSession.undoCancel()
                 guard !Task.isCancelled else { return }
                 self.consumeDictationResult(result)
