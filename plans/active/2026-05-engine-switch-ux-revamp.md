@@ -52,9 +52,8 @@ Copy guidance: avoid a hard minute count (slower Macs overrun it; the watchdog h
 
 ### Stage A — honest + safe (low risk, decision-independent, ship first)
 
-- **A1. `whisperOptimizedVariants` persistence** (per model variant) in `SpeechEnginePreference`; set on first successful `prepare()`. Drives the cold/warm copy split. *(this turn)*
-- **A2. Cold/warm tile state.** Split `notLoaded` presentation by the A1 flag (new `LocalModelStatus` case or a tile-level tone/label/detail override — decide during UI work).
-- **A3. Disabled cards + named blocker.** Surface engine-switch availability from the scheduler (it already holds `activeSpeechEngineSessionIDs` + `hasQueuedOrRunningJobs`, `STTScheduler.swift:186-187`) to the VM; gate `handleWhisperTileTap`/`selectEngine` with meeting/job-specific copy. High-value case is meetings (already tracked app-wide).
+- **A1 + A2 — shipped (PR #335).** `whisperOptimizedVariants` persistence (per variant) in `SpeechEnginePreference`, set on the first successful `prepare()`; the engine tile splits the downloaded-but-inactive footer into cold (amber "Setup needed · First switch: a minute or two") vs warm (green "Downloaded · Loads in seconds") via a `needsFirstOptimize` tile input. The `LocalModelStatus` model is unchanged — the cold/warm split is a pure presentation concern, so no new enum case.
+- **A3. Disabled cards + named blocker (follow-up).** Surface engine-switch availability from the scheduler (it already holds `activeSpeechEngineSessionIDs` + `hasQueuedOrRunningJobs`, `STTScheduler.swift:186-187`) to the VM; gate `handleWhisperTileTap`/`selectEngine` with meeting/job-specific copy. High-value case is meetings (already tracked app-wide).
 
 ### Stage B — background optimize (the real cancel)
 
@@ -68,7 +67,7 @@ Copy guidance: avoid a hard minute count (slower Macs overrun it; the watchdog h
 - Meeting starts mid-prepare → flip defers (`beginSpeechEngineSession` awaits the switch task, `STTScheduler.swift:211-216`).
 - Cancel then immediate re-tap → generation guard prevents stale completion from flipping.
 - Failed prepare → stay on Parakeet, surface Retry; never set optimized=true.
-- Re-download / delete Whisper model → clear the optimized flag for that variant so cold copy returns.
+- "Repair" (re-download) is a no-op when files are intact and does not invalidate the compiled cache, so the optimized flag correctly persists. There is no Whisper delete path today; if one is added, it should clear the flag for that variant.
 - Brief dual residency (Parakeet + 632 MB Whisper) during prepare — acceptable on Apple Silicon; already happens transiently on every switch via load-before-unload.
 
 ## 7. Telemetry
@@ -77,8 +76,8 @@ Copy guidance: avoid a hard minute count (slower Macs overrun it; the watchdog h
 
 ## 8. Tests
 
-- `SpeechEnginePreference` optimized-variant round-trip + normalization + idempotency (this turn).
-- VM cold/warm status mapping.
+- `SpeechEnginePreference` optimized-variant round-trip + normalization + idempotency + per-variant tracking (done).
+- VM cold/warm status mapping (done).
 - VM blocked-by-meeting copy + card disable.
 - Scheduler/runtime: background prepare does not block jobs; flip defers under active lease; cancel keeps previous engine.
 

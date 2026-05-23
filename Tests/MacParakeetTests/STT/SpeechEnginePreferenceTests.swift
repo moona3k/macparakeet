@@ -69,16 +69,13 @@ final class SpeechEnginePreferenceTests: XCTestCase {
         XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: bare, defaults: defaults))
     }
 
-    func testClearWhisperOptimizedRemovesOnlyThatVariant() {
+    func testWhisperOptimizedIsTrackedPerVariant() {
         let (defaults, suite) = makeIsolatedDefaults()
         defer { defaults.removePersistentDomain(forName: suite) }
 
         SpeechEnginePreference.markWhisperOptimized(variant: "large-v3-turbo", defaults: defaults)
-        SpeechEnginePreference.markWhisperOptimized(variant: "small", defaults: defaults)
 
-        SpeechEnginePreference.clearWhisperOptimized(variant: "large-v3-turbo", defaults: defaults)
-
-        XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: "large-v3-turbo", defaults: defaults))
-        XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: "small", defaults: defaults))
+        XCTAssertTrue(SpeechEnginePreference.hasOptimizedWhisper(variant: "large-v3-turbo", defaults: defaults))
+        XCTAssertFalse(SpeechEnginePreference.hasOptimizedWhisper(variant: "small", defaults: defaults))
     }
 }
