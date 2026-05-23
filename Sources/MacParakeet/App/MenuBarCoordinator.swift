@@ -27,7 +27,9 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
     private let onShowAboutPanel: () -> Void
 
     private var statusItem: NSStatusItem?
+    private var newTranscriptionMenuItem: NSMenuItem?
     private var startDictationMenuItem: NSMenuItem?
+    private var createTransformMenuItem: NSMenuItem?
     private var pasteLastMenuItem: NSMenuItem?
     private var recentDictationsMenuItem: NSMenuItem?
     private var pasteLastTransformMenuItem: NSMenuItem?
@@ -172,11 +174,13 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         let captureMenu = NSMenu(title: "Capture")
         captureMenu.autoenablesItems = false
         captureMenu.delegate = self
-        captureMenu.addItem(makeMenuItem(
+        let newTranscriptionItem = makeMenuItem(
             title: "New Transcription",
             action: #selector(newTranscription),
             key: "n"
-        ))
+        )
+        captureMenu.addItem(newTranscriptionItem)
+        newTranscriptionMenuItem = newTranscriptionItem
         let startDictationItem = makeMenuItem(
             title: "Start Dictation",
             action: #selector(startDictationFromMenu),
@@ -211,11 +215,13 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         }
         if AppFeatures.transformsEnabled {
             captureMenu.addItem(NSMenuItem.separator())
-            captureMenu.addItem(makeMenuItem(
+            let createTransformItem = makeMenuItem(
                 title: "New Transform",
                 action: #selector(createTransformFromMenu),
                 key: ""
-            ))
+            )
+            captureMenu.addItem(createTransformItem)
+            createTransformMenuItem = createTransformItem
         }
         captureMenuItem.submenu = captureMenu
         mainMenu.addItem(captureMenuItem)
@@ -266,14 +272,14 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             keyEquivalent: ""
         ))
         windowMenu.addItem(NSMenuItem.separator())
-        windowMenu.addItem(makeMenuItem(title: "Show MacParakeet", action: #selector(openMainWindow), key: ""))
+        windowMenu.addItem(makeMenuItem(title: "Show \(appName)", action: #selector(openMainWindow), key: ""))
         windowMenuItem.submenu = windowMenu
         mainMenu.addItem(windowMenuItem)
         NSApp.windowsMenu = windowMenu
 
         let helpMenuItem = NSMenuItem()
         let helpMenu = NSMenu(title: "Help")
-        helpMenu.addItem(makeMenuItem(title: "MacParakeet Help", action: #selector(openHelp), key: ""))
+        helpMenu.addItem(makeMenuItem(title: "\(appName) Help", action: #selector(openHelp), key: ""))
         helpMenu.addItem(makeMenuItem(title: "View on GitHub", action: #selector(openGitHub), key: ""))
         helpMenuItem.submenu = helpMenu
         mainMenu.addItem(helpMenuItem)
@@ -623,7 +629,9 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
     func menuNeedsUpdate(_ menu: NSMenu) {
         let environmentReady = environmentProvider() != nil
+        newTranscriptionMenuItem?.isEnabled = environmentReady
         startDictationMenuItem?.isEnabled = environmentReady && !dictationCaptureActiveProvider()
+        createTransformMenuItem?.isEnabled = environmentReady
         transcribeFileMenuItems.forEach { $0.isEnabled = environmentReady }
         transcribeYouTubeMenuItems.forEach { $0.isEnabled = environmentReady }
         recordMeetingMenuItems.forEach {
