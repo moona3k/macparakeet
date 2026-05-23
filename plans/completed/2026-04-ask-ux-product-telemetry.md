@@ -60,7 +60,7 @@ The shared `fire(_:)` path in `LiveAskPaneView` is the natural fire site — it 
 | File | Change |
 |---|---|
 | `Sources/MacParakeetCore/Services/TelemetryEvent.swift` | Add `askMenuOpened`, `askPromptFired` to `TelemetryEventName` |
-| `Sources/MacParakeet/Views/MeetingRecording/LiveAskPaneView.swift` | Add `source` param to `fire(_:)`; thread it from each call site (empty-state pill, sparkle menu, follow-up row); emit event via TelemetryService. Emit `ask_menu_opened` from `PromptMenuButton`. |
+| `Sources/MacParakeet/Views/MeetingRecording/LiveAskPaneView.swift` | Add `source` param to `fire(_:)`; thread it from each call site (empty-state pill, menu, follow-up row); emit event via TelemetryService. Emit `ask_menu_opened` from `PromptMenuButton`. |
 | `Tests/MacParakeetTests/TelemetryServiceTests.swift` | Serialization tests for both event names |
 | `macparakeet-website/functions/api/telemetry.ts` | Add both names to `ALLOWED_EVENTS` |
 
