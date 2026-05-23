@@ -163,25 +163,28 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         menu.addItem(recentItem)
         recentDictationsMenuItem = recentItem
 
-        let pasteTransformItem = NSMenuItem(
-            title: "Paste Last Transform",
-            action: #selector(pasteLastTransform),
-            keyEquivalent: ""
-        )
-        pasteTransformItem.isEnabled = false
-        pasteTransformItem.target = self
-        menu.addItem(pasteTransformItem)
-        pasteLastTransformMenuItem = pasteTransformItem
+        if AppFeatures.transformsEnabled {
+            let pasteTransformItem = NSMenuItem(
+                title: "Paste Last Transform",
+                action: #selector(pasteLastTransform),
+                keyEquivalent: ""
+            )
+            pasteTransformItem.isEnabled = false
+            pasteTransformItem.isHidden = true
+            pasteTransformItem.target = self
+            menu.addItem(pasteTransformItem)
+            pasteLastTransformMenuItem = pasteTransformItem
 
-        let recentTransformsItem = NSMenuItem(
-            title: "Recent Transforms",
-            action: nil,
-            keyEquivalent: ""
-        )
-        recentTransformsItem.submenu = NSMenu()
-        recentTransformsItem.isHidden = true
-        menu.addItem(recentTransformsItem)
-        recentTransformsMenuItem = recentTransformsItem
+            let recentTransformsItem = NSMenuItem(
+                title: "Recent Transforms",
+                action: nil,
+                keyEquivalent: ""
+            )
+            recentTransformsItem.submenu = NSMenu()
+            recentTransformsItem.isHidden = true
+            menu.addItem(recentTransformsItem)
+            recentTransformsMenuItem = recentTransformsItem
+        }
 
         menu.addItem(NSMenuItem.separator())
 
@@ -413,6 +416,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
 
         let transforms = (try? env.transformHistoryRepo.fetchRecent(limit: 5)) ?? []
         pasteLastTransformMenuItem?.isEnabled = !transforms.isEmpty
+        pasteLastTransformMenuItem?.isHidden = transforms.isEmpty
         rebuildRecentTransformsSubmenu(with: transforms)
 
         recordMeetingMenuItem?.title = meetingRecordingActiveProvider()
