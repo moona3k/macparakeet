@@ -602,13 +602,15 @@ struct SettingsView: View {
                 HStack(alignment: .center) {
                     rowText(
                         title: "Hands-free mode",
-                        detail: "Tap to start; tap again to stop."
+                        detail: handsFreeHotkeyDetail
                     )
                     Spacer(minLength: DesignSystem.Spacing.md)
                     VStack(alignment: .trailing, spacing: 4) {
                         HotkeyRecorderView(
                             trigger: $viewModel.hotkeyTrigger,
                             defaultTrigger: .defaultDictation,
+                            displayLabelOverride: handsFreeHotkeyDisplayLabelOverride,
+                            defaultLabelOverride: handsFreeHotkeyDefaultLabelOverride,
                             additionalValidation: { candidate in
                                 dictationHotkeyValidation(for: candidate)
                             },
@@ -2331,7 +2333,7 @@ struct SettingsView: View {
                 modeShortcutRow(
                     keys: [viewModel.hotkeyTrigger.shortSymbol],
                     separator: nil,
-                    verb: "Tap",
+                    verb: usesDefaultDictationGesturePreset ? "Double-tap" : "Tap",
                     action: "Hands-free mode",
                     detail: "Tap again to stop"
                 )
@@ -2342,6 +2344,31 @@ struct SettingsView: View {
             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .fill(DesignSystem.Colors.surfaceElevated)
         )
+    }
+
+    private var usesDefaultDictationGesturePreset: Bool {
+        HotkeyTrigger.isDefaultDictationGesturePreset(
+            handsFree: viewModel.hotkeyTrigger,
+            pushToTalk: viewModel.pushToTalkHotkeyTrigger
+        )
+    }
+
+    private var handsFreeHotkeyDetail: String {
+        if usesDefaultDictationGesturePreset {
+            return "Double-tap Fn to start; tap Fn again to stop."
+        }
+        return "Tap to start; tap again to stop."
+    }
+
+    private var handsFreeHotkeyDisplayLabelOverride: String? {
+        usesDefaultDictationGesturePreset ? "Double-tap Fn" : nil
+    }
+
+    private var handsFreeHotkeyDefaultLabelOverride: String? {
+        HotkeyTrigger.isDefaultDictationGesturePreset(
+            handsFree: .defaultDictation,
+            pushToTalk: viewModel.pushToTalkHotkeyTrigger
+        ) ? "Double-tap Fn" : nil
     }
 
     private func modeShortcutRow(

@@ -16,6 +16,8 @@ struct HotkeyRecorderView: View {
 
     @Binding var trigger: HotkeyTrigger
     var defaultTrigger: HotkeyTrigger = .fn
+    var displayLabelOverride: String? = nil
+    var defaultLabelOverride: String? = nil
     var additionalValidation: ((HotkeyTrigger) -> HotkeyTrigger.ValidationResult)? = nil
     /// Called with `true` when the user enters recording mode (just before
     /// the local NSEvent monitor is attached) and `false` when the matching
@@ -64,7 +66,7 @@ struct HotkeyRecorderView: View {
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(.secondary)
             } else {
-                Text(trigger.formattedLabel)
+                Text(displayLabelOverride ?? trigger.formattedLabel)
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(.primary)
             }
@@ -85,7 +87,7 @@ struct HotkeyRecorderView: View {
                     Divider()
                 }
 
-                Button("Reset to Default (\(Self.resetLabel(for: defaultTrigger)))") {
+                Button("Reset to Default (\(defaultLabelOverride ?? Self.resetLabel(for: defaultTrigger)))") {
                     resetToDefault()
                 }
                 .disabled(trigger == defaultTrigger)

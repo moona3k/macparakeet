@@ -68,7 +68,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     func testMenuTitleDescribesSharedDictationTrigger() {
         XCTAssertEqual(
             AppHotkeyCoordinator.menuTitle(handsFree: .fn, pushToTalk: .fn),
-            "Dictation: Hold Fn / Tap Fn"
+            "Dictation: Hold Fn / Double-tap Fn"
         )
     }
 
