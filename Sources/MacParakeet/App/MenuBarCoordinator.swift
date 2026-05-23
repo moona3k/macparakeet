@@ -267,7 +267,6 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         ))
         windowMenu.addItem(NSMenuItem.separator())
         windowMenu.addItem(makeMenuItem(title: "Show MacParakeet", action: #selector(openMainWindow), key: ""))
-        windowMenu.addItem(NSMenuItem(title: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: ""))
         windowMenuItem.submenu = windowMenu
         mainMenu.addItem(windowMenuItem)
         NSApp.windowsMenu = windowMenu
