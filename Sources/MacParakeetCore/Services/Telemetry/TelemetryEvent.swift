@@ -392,6 +392,8 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
 }
 
 public enum TelemetryEventSpec: Sendable {
+    static let maxCrashStackTraceCharacters = 1024
+
     case appLaunched
     case appQuit(sessionDurationSeconds: Double)
     case dictationStarted(trigger: TelemetryDictationTrigger?, mode: TelemetryDictationMode?)
@@ -1438,7 +1440,7 @@ extension TelemetryEventSpec {
                 ("uuid", uuid),
                 ("slide", slide),
                 ("reason", reason.map { String($0.prefix(512)) }),
-                ("stack_trace", String(stackTrace.prefix(2048)))
+                ("stack_trace", String(stackTrace.prefix(Self.maxCrashStackTraceCharacters)))
             )
         case .cliOperation(
             let operationID,

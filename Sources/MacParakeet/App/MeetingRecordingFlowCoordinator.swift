@@ -270,28 +270,35 @@ final class MeetingRecordingFlowCoordinator {
                 let sourceMode = meetingAudioSourceModeProvider()
                 self.pendingAudioSourceMode = sourceMode
                 let microphoneGranted: Bool
+                let microphonePrompted: Bool
                 if sourceMode.capturesMicrophone {
                     let microphoneStatus = await permissionService.checkMicrophonePermission()
                     switch microphoneStatus {
                     case .granted:
                         microphoneGranted = true
+                        microphonePrompted = false
                     case .denied:
                         microphoneGranted = false
+                        microphonePrompted = false
                     case .notDetermined:
                         Telemetry.send(.permissionPrompted(permission: .microphone))
+                        microphonePrompted = true
                         microphoneGranted = await permissionService.requestMicrophonePermission()
                     }
                 } else {
                     microphoneGranted = true
+                    microphonePrompted = false
                 }
 
                 if !microphoneGranted {
-                    Telemetry.send(.permissionDenied(permission: .microphone))
+                    if microphonePrompted {
+                        Telemetry.send(.permissionDenied(permission: .microphone))
+                    }
                     self.clearPendingStartContext(failureReason: "permission_denied")
                     self.sendEvent(.permissionsDenied(generation: gen, reason: .microphone))
                     return
                 }
-                if sourceMode.capturesMicrophone {
+                if microphonePrompted {
                     Telemetry.send(.permissionGranted(permission: .microphone))
                 }
 
@@ -306,7 +313,9 @@ final class MeetingRecordingFlowCoordinator {
                     self.sendEvent(.permissionsDenied(generation: gen, reason: .screenRecording))
                     return
                 }
-                Telemetry.send(.permissionGranted(permission: .screenRecording))
+                if !existingScreenGrant {
+                    Telemetry.send(.permissionGranted(permission: .screenRecording))
+                }
                 self.sendEvent(.permissionsGranted(generation: gen))
             }
 

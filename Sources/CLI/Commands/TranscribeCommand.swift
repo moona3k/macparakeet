@@ -39,15 +39,15 @@ enum SpeakerDetectionOption: String, ExpressibleByArgument, CaseIterable, Sendab
     case off
 }
 
-struct TranscribeCommand: AsyncParsableCommand {
+struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     static let configuration = CommandConfiguration(
         commandName: "transcribe",
         abstract: "Transcribe an audio/video file or YouTube URL.",
         discussion: """
-        Telemetry: emits one privacy-safe `cli_operation` event per invocation with \
-        allowlisted invocation metadata (command, outcome, duration, input_kind, \
-        output_format, json, exit_code, error_type). It never includes the path, \
-        URL, transcript, language value, or user content. Disable with \
+        Telemetry: the root CLI runner emits one privacy-safe `cli_operation` \
+        event per invocation; `transcribe` adds allowlisted input/output metadata \
+        (input_kind, output_format, json). It never includes the path, URL, \
+        transcript, language value, or user content. Disable with \
         `MACPARAKEET_TELEMETRY=0`, `DO_NOT_TRACK=1`, the persistent \
         `macparakeet-cli config set telemetry off`, or the GUI Settings toggle. \
         Auto-disabled in CI (CI/GITHUB_ACTIONS/etc.). See \
@@ -90,6 +90,15 @@ struct TranscribeCommand: AsyncParsableCommand {
 
     @Flag(name: .long, help: "Do not save the completed transcription to MacParakeet history. YouTube audio is temporary.")
     var noHistory: Bool = false
+
+    var cliTelemetryMetadata: CLITelemetry.OperationMetadata {
+        CLITelemetry.OperationMetadata(
+            command: "transcribe",
+            inputKind: Self.telemetryInputKind(for: input),
+            outputFormat: format.rawValue,
+            json: format == .json
+        )
+    }
 
     func validate() throws {
         if noHistory && downloadedAudio == .keep {
@@ -168,159 +177,158 @@ struct TranscribeCommand: AsyncParsableCommand {
         URL(fileURLWithPath: expandTilde(input))
     }
 
-    func run() async throws {
-        CLITelemetry.configureIfNeeded()
-        let cliOperationContext = ObservabilityOperationContext()
-        let cliOperationID = cliOperationContext.operationID
-        let cliStartedAt = cliOperationContext.startedAt
+    static func telemetryInputKind(for input: String) -> ObservabilityInputKind {
         let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
-        let inputKind: ObservabilityInputKind = YouTubeURLValidator.isYouTubeURL(trimmedInput)
-            ? .youtube
-            : (Observability.inputKind(for: Self.localFileURL(for: trimmedInput)) ?? .unknown)
+        if YouTubeURLValidator.isYouTubeURL(trimmedInput) {
+            return .youtube
+        }
+        return Observability.inputKind(for: Self.localFileURL(for: trimmedInput)) ?? .unknown
+    }
+
+    func run() async throws {
+        let trimmedInput = input.trimmingCharacters(in: .whitespacesAndNewlines)
 
         var sttClient: STTClient?
         var whisperEngine: WhisperEngine?
         let runResult: Result<Void, Error>
         do {
-            try await Observability.withOperationContext(cliOperationContext) {
-                try AppPaths.ensureDirectories()
-                let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
-                let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
-                let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
-                let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
-                let defaults = macParakeetAppDefaults()
-                let speechEngine = Self.resolveSpeechEngine(
-                    self.engine,
-                    storedEngine: defaults.string(forKey: SpeechEnginePreference.defaultsKey),
-                    storedLanguage: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults),
-                    explicitLanguage: self.language
-                )
-                let speakerDetectionEnabled = Self.resolveSpeakerDetection(
-                    self.speakerDetection,
-                    storedEnabled: defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool,
-                    noDiarize: self.noDiarize
-                )
-                let processingMode = Self.resolveProcessingMode(
-                    self.mode,
-                    storedMode: defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
-                )
-                let resolvedYouTubeAudioQuality = Self.resolveYouTubeAudioQuality(
-                    self.youtubeAudioQuality,
-                    storedQuality: defaults.string(forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
-                )
-                let configuredShouldKeepDownloadedAudio: Bool = switch self.downloadedAudio {
-                case .keep:
-                    true
-                case .delete:
-                    false
-                case .appDefault:
-                    defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
-                }
-                let shouldKeepDownloadedAudio = self.noHistory ? false : configuredShouldKeepDownloadedAudio
-                let sttTranscriber: STTTranscribing
-                switch speechEngine.engine {
-                case .parakeet:
-                    let createdSTTClient = STTClient()
-                    sttClient = createdSTTClient
-                    sttTranscriber = createdSTTClient
-                case .whisper:
-                    let createdWhisperEngine = WhisperEngine(language: speechEngine.language)
-                    whisperEngine = createdWhisperEngine
-                    sttTranscriber = createdWhisperEngine
-                }
-                let audioProcessor = AudioProcessor()
-                let youtubeDownloader = YouTubeDownloader(audioQuality: {
-                    resolvedYouTubeAudioQuality
-                })
-                let entitlementsService = enforceEntitlements ? makeEntitlementsService() : nil
+            try AppPaths.ensureDirectories()
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+            let transcriptionRepo = TranscriptionRepository(dbQueue: dbManager.dbQueue)
+            let customWordRepo = CustomWordRepository(dbQueue: dbManager.dbQueue)
+            let snippetRepo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
+            let defaults = macParakeetAppDefaults()
+            let speechEngine = Self.resolveSpeechEngine(
+                self.engine,
+                storedEngine: defaults.string(forKey: SpeechEnginePreference.defaultsKey),
+                storedLanguage: SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults),
+                explicitLanguage: self.language
+            )
+            let speakerDetectionEnabled = Self.resolveSpeakerDetection(
+                self.speakerDetection,
+                storedEnabled: defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool,
+                noDiarize: self.noDiarize
+            )
+            let processingMode = Self.resolveProcessingMode(
+                self.mode,
+                storedMode: defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey)
+            )
+            let resolvedYouTubeAudioQuality = Self.resolveYouTubeAudioQuality(
+                self.youtubeAudioQuality,
+                storedQuality: defaults.string(forKey: UserDefaultsAppRuntimePreferences.youtubeAudioQualityKey)
+            )
+            let configuredShouldKeepDownloadedAudio: Bool = switch self.downloadedAudio {
+            case .keep:
+                true
+            case .delete:
+                false
+            case .appDefault:
+                defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
+            }
+            let shouldKeepDownloadedAudio = self.noHistory ? false : configuredShouldKeepDownloadedAudio
+            let sttTranscriber: STTTranscribing
+            switch speechEngine.engine {
+            case .parakeet:
+                let createdSTTClient = STTClient()
+                sttClient = createdSTTClient
+                sttTranscriber = createdSTTClient
+            case .whisper:
+                let createdWhisperEngine = WhisperEngine(language: speechEngine.language)
+                whisperEngine = createdWhisperEngine
+                sttTranscriber = createdWhisperEngine
+            }
+            let audioProcessor = AudioProcessor()
+            let youtubeDownloader = YouTubeDownloader(audioQuality: {
+                resolvedYouTubeAudioQuality
+            })
+            let entitlementsService = enforceEntitlements ? makeEntitlementsService() : nil
 
-                if let entitlementsService {
-                    await entitlementsService.bootstrapTrialIfNeeded()
-                    await entitlementsService.refreshValidationIfNeeded()
-                }
+            if let entitlementsService {
+                await entitlementsService.bootstrapTrialIfNeeded()
+                await entitlementsService.refreshValidationIfNeeded()
+            }
 
-                let diarizationService: DiarizationService? = speakerDetectionEnabled ? DiarizationService() : nil
-                let service = TranscriptionService(
-                    audioProcessor: audioProcessor,
-                    sttTranscriber: sttTranscriber,
-                    transcriptionRepo: transcriptionRepo,
-                    entitlements: entitlementsService,
-                    customWordRepo: customWordRepo,
-                    snippetRepo: snippetRepo,
-                    processingMode: {
-                        processingMode
-                    },
-                    shouldKeepDownloadedAudio: {
-                        shouldKeepDownloadedAudio
-                    },
-                    shouldDiarize: { speakerDetectionEnabled },
-                    youtubeDownloader: youtubeDownloader,
-                    diarizationService: diarizationService
-                )
+            let diarizationService: DiarizationService? = speakerDetectionEnabled ? DiarizationService() : nil
+            let service = TranscriptionService(
+                audioProcessor: audioProcessor,
+                sttTranscriber: sttTranscriber,
+                transcriptionRepo: transcriptionRepo,
+                entitlements: entitlementsService,
+                customWordRepo: customWordRepo,
+                snippetRepo: snippetRepo,
+                processingMode: {
+                    processingMode
+                },
+                shouldKeepDownloadedAudio: {
+                    shouldKeepDownloadedAudio
+                },
+                shouldDiarize: { speakerDetectionEnabled },
+                youtubeDownloader: youtubeDownloader,
+                diarizationService: diarizationService
+            )
 
-                let result: Transcription
+            let result: Transcription
 
-                if YouTubeURLValidator.isYouTubeURL(trimmedInput) {
-                    let lastProgressLine = OSAllocatedUnfairLock(initialState: "")
-                    @Sendable func printProgressLine(_ line: String) {
-                        let shouldPrint = lastProgressLine.withLock { lastLine in
-                            guard lastLine != line else { return false }
-                            lastLine = line
-                            return true
-                        }
-                        if shouldPrint {
-                            printErr(line)
-                        }
+            if YouTubeURLValidator.isYouTubeURL(trimmedInput) {
+                let lastProgressLine = OSAllocatedUnfairLock(initialState: "")
+                @Sendable func printProgressLine(_ line: String) {
+                    let shouldPrint = lastProgressLine.withLock { lastLine in
+                        guard lastLine != line else { return false }
+                        lastLine = line
+                        return true
                     }
+                    if shouldPrint {
+                        printErr(line)
+                    }
+                }
 
-                    let progressHandler: @Sendable (TranscriptionProgress) -> Void = { progress in
-                        switch progress {
-                        case .converting: printProgressLine("Converting audio...")
-                        case .downloading(let pct): printProgressLine("Downloading audio... \(pct)%")
-                        case .transcribing(let pct): printProgressLine("Transcribing... \(pct)%")
-                        case .identifyingSpeakers: printProgressLine("Identifying speakers...")
-                        case .finalizing: printProgressLine("Finalizing...")
-                        }
+                let progressHandler: @Sendable (TranscriptionProgress) -> Void = { progress in
+                    switch progress {
+                    case .converting: printProgressLine("Converting audio...")
+                    case .downloading(let pct): printProgressLine("Downloading audio... \(pct)%")
+                    case .transcribing(let pct): printProgressLine("Transcribing... \(pct)%")
+                    case .identifyingSpeakers: printProgressLine("Identifying speakers...")
+                    case .finalizing: printProgressLine("Finalizing...")
                     }
-                    if self.noHistory {
-                        result = try await service.transcribeURLTransient(
-                            urlString: trimmedInput,
-                            onProgress: progressHandler
-                        )
-                    } else {
-                        result = try await service.transcribeURL(
-                            urlString: trimmedInput,
-                            onProgress: progressHandler
-                        )
-                    }
+                }
+                if self.noHistory {
+                    result = try await service.transcribeURLTransient(
+                        urlString: trimmedInput,
+                        onProgress: progressHandler
+                    )
                 } else {
-                    let url = Self.localFileURL(for: trimmedInput)
+                    result = try await service.transcribeURL(
+                        urlString: trimmedInput,
+                        onProgress: progressHandler
+                    )
+                }
+            } else {
+                let url = Self.localFileURL(for: trimmedInput)
 
-                    guard FileManager.default.fileExists(atPath: url.path) else {
-                        throw CLIError.fileNotFound(url.path)
-                    }
-
-                    let ext = url.pathExtension.lowercased()
-                    guard AudioFileConverter.supportedExtensions.contains(ext) else {
-                        throw CLIError.unsupportedFormat(ext)
-                    }
-
-                    printErr("Transcribing \(url.lastPathComponent) with \(speechEngine.engine.rawValue)...")
-                    if self.noHistory {
-                        result = try await service.transcribeTransient(fileURL: url)
-                    } else {
-                        result = try await service.transcribe(fileURL: url)
-                    }
+                guard FileManager.default.fileExists(atPath: url.path) else {
+                    throw CLIError.fileNotFound(url.path)
                 }
 
-                switch format {
-                case .json:
-                    try printJSON(result)
-                case .transcript:
-                    printTranscript(result)
-                case .text:
-                    printText(result)
+                let ext = url.pathExtension.lowercased()
+                guard AudioFileConverter.supportedExtensions.contains(ext) else {
+                    throw CLIError.unsupportedFormat(ext)
                 }
+
+                printErr("Transcribing \(url.lastPathComponent) with \(speechEngine.engine.rawValue)...")
+                if self.noHistory {
+                    result = try await service.transcribeTransient(fileURL: url)
+                } else {
+                    result = try await service.transcribe(fileURL: url)
+                }
+            }
+
+            switch format {
+            case .json:
+                try printJSON(result)
+            case .transcript:
+                printTranscript(result)
+            case .text:
+                printText(result)
             }
             runResult = .success(())
         } catch {
@@ -329,31 +337,6 @@ struct TranscribeCommand: AsyncParsableCommand {
 
         await sttClient?.shutdown()
         await whisperEngine?.unload()
-        let cliOutcome: ObservabilityOutcome
-        let exitCode: Int
-        let errorType: String?
-        switch runResult {
-        case .success:
-            cliOutcome = .success
-            exitCode = 0
-            errorType = nil
-        case .failure(let error):
-            cliOutcome = .failure
-            exitCode = 1
-            errorType = Observability.errorType(for: error)
-        }
-        await CLITelemetry.sendOperationAndFlush(
-            operationID: cliOperationID,
-            operationContext: cliOperationContext,
-            command: "transcribe",
-            outcome: cliOutcome,
-            startedAt: cliStartedAt,
-            inputKind: inputKind,
-            outputFormat: format.rawValue,
-            json: format == .json,
-            exitCode: exitCode,
-            errorType: errorType
-        )
         try emitJSONOrRethrow(json: format == .json) {
             try runResult.get()
         }

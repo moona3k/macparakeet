@@ -110,9 +110,10 @@ scripts; the alias remains documented here only while the CLI still exposes it.
 > a few newer meeting-note commands also accept `--json` for agent workflows.
 
 > **Telemetry convention**: CLI telemetry uses the same opt-out preference as
-> the GUI and does not change stdout/stderr contracts. `transcribe` emits a
-> privacy-safe `cli_operation` event with command, outcome, duration, output
-> format, coarse input kind, exit code, and low-cardinality error type. Disable
+> the GUI and does not change stdout/stderr contracts. After argument parsing
+> succeeds, the root runner emits one privacy-safe `cli_operation` event with
+> command, subcommand, outcome, duration, exit code, and low-cardinality error
+> type. `transcribe` also includes coarse input kind and output format. Disable
 > with `MACPARAKEET_TELEMETRY=0`, `DO_NOT_TRACK=1`, or
 > `macparakeet-cli config set telemetry off`.
 

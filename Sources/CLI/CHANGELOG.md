@@ -94,6 +94,11 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 ### Changed
 
+- CLI telemetry now lives in the root runner instead of the `transcribe`
+  command, so every successfully parsed command emits one privacy-safe
+  `cli_operation` event. `transcribe` keeps its extra coarse input/output
+  metadata; other commands report only command path, outcome, duration, exit
+  code, and error type.
 - `transcribe` now defaults `--speaker-detection` to `app-default`, so bare
   CLI transcription follows the saved GUI/CLI speaker-detection preference.
   Use `--speaker-detection on` to force diarization for one run, or

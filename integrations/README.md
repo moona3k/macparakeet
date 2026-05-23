@@ -451,7 +451,7 @@ macparakeet-cli prompts run "<prompt-name>" \
   `prompts run` or `llm` targets a hosted provider, or when a configured
   Local CLI command contacts its own service), Sparkle update checks (app,
   not CLI), and a single privacy-safe
-  `cli_operation` event per `transcribe` invocation, posted to the self-hosted
+  `cli_operation` event per successfully parsed CLI invocation, posted to the self-hosted
   endpoint at `https://macparakeet.com/api/telemetry`. The telemetry event
   ships only allowlisted invocation metadata (`operation_id`, `workflow_id`,
   `parent_operation_id`, `command`, `subcommand`, `outcome`,

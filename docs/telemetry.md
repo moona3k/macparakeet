@@ -378,8 +378,9 @@ events remain useful for diarization-specific timing and failure analysis.
 |---|---|---|
 | `cli_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `command`, `subcommand`, `outcome`, `duration_seconds`, `input_kind`, `output_format`, `json`, `exit_code`, `error_type` | Which CLI workflows are used by scripts/agents, and where they fail |
 
-CLI telemetry is initialized by `macparakeet-cli transcribe` and uses the same
-app preference as the GUI. Override resolution order (first match wins):
+CLI telemetry is initialized once by the root `macparakeet-cli` runner after
+argument parsing succeeds and uses the same app preference as the GUI. Override
+resolution order (first match wins):
 
 1. `MACPARAKEET_TELEMETRY=0/false/no/off` → force-off for this process
 2. `MACPARAKEET_TELEMETRY=1/true/yes/on` → force-on for this process

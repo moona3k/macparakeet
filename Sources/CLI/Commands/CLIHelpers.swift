@@ -5,6 +5,11 @@ import MacParakeetCore
 let macParakeetAppDefaultsSuiteName = "com.macparakeet.MacParakeet"
 let cliValidationMisuseExitCode = ExitCode(2)
 
+struct CLIJSONEnvelopeExit: Error {
+    let exitCode: ExitCode
+    let originalError: Error
+}
+
 func macParakeetAppDefaults() -> UserDefaults {
     UserDefaults(suiteName: macParakeetAppDefaultsSuiteName) ?? .standard
 }
@@ -393,13 +398,13 @@ private func rethrowWithOptionalJSONEnvelope(_ error: Error, json: Bool) throws 
     let envelope = CLIErrorEnvelope(error: error)
     try? printJSON(envelope)
     if error is ValidationError || error is CLIInputError {
-        throw cliValidationMisuseExitCode
+        throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
     }
     if let transforms = error as? CLITransformsError, transforms.isValidationMisuse {
-        throw cliValidationMisuseExitCode
+        throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
     }
     if let history = error as? CLITransformHistoryError, case .invalidPrefix = history {
-        throw cliValidationMisuseExitCode
+        throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
     }
-    throw ExitCode.failure
+    throw CLIJSONEnvelopeExit(exitCode: .failure, originalError: error)
 }

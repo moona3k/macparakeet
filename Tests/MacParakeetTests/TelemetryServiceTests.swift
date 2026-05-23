@@ -1169,6 +1169,26 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertFalse(AppPreferences.isTelemetryEnabled(defaults: defaults))
     }
 
+    func testCrashOccurredStackTracePropFitsTelemetryIngestLimit() {
+        let stackTrace = String(repeating: "A", count: TelemetryEventSpec.maxCrashStackTraceCharacters + 500)
+
+        let event = TelemetryEventSpec.crashOccurred(
+            crashType: "signal",
+            signal: "11",
+            name: "SIGSEGV",
+            crashTimestamp: "1711900000",
+            crashAppVer: "0.5.1",
+            crashOsVer: "15.3.1",
+            uuid: "A1B2C3D4",
+            slide: "0x100000",
+            reason: nil,
+            stackTrace: stackTrace
+        )
+
+        let props = event.props ?? [:]
+        XCTAssertEqual(props["stack_trace"]?.count, TelemetryEventSpec.maxCrashStackTraceCharacters)
+    }
+
     private func sampleEvents() -> [TelemetryEventSpec] {
         [
             .appLaunched,

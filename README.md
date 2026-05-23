@@ -62,7 +62,7 @@ The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the st
 | Stable DMG | Recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, optional WhisperKit, exports, vocabulary, AI features |
 | `main` branch | Development | v0.6 release scope plus productized Transforms and calendar auto-start (`AppFeatures.calendarEnabled = true`); calendar auto-start defaults to opt-in `.off` |
 
-Calendar reminders, auto-start, and auto-stop are implemented and enabled on `main`; calendar auto-start defaults to mode `.off`, so it stays opt-in until a user turns it on.
+Calendar reminders and auto-start are implemented and enabled on `main`; calendar auto-start defaults to mode `.off`, so it stays opt-in until a user turns it on. Calendar-driven auto-stop was removed by ADR-017; recordings stop manually.
 
 ## What it does
 
