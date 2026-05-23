@@ -1550,6 +1550,8 @@ struct SettingsView: View {
                         modelStatus: displayedWhisperModelStatus,
                         isSelected: viewModel.speechEnginePreference == .whisper,
                         isBusy: viewModel.speechEngineSwitching,
+                        needsFirstOptimize: displayedWhisperModelStatus == .notLoaded
+                            && !viewModel.whisperHasBeenOptimized,
                         onSelect: { handleWhisperTileTap() }
                     )
                 }

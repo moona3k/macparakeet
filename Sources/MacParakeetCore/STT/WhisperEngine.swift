@@ -301,6 +301,12 @@ public actor WhisperEngine: STTTranscribing {
                 download: false
             ))
             isLoaded = true
+            // Single chokepoint for "this variant compiled successfully on this
+            // Mac" — fires for every caller (Settings switch, onboarding,
+            // first meeting use, CLI). The UI reads this to show cold vs warm
+            // status. Only reached on a real compile, so it never fires in
+            // unit tests (which lack a downloaded model + WhisperKit).
+            SpeechEnginePreference.markWhisperOptimized(variant: variant)
             let duration = Observability.durationSeconds(since: startedAt)
             logger.notice("whisper_model_prepare_complete model=\(variant, privacy: .public) duration_s=\(duration, privacy: .public)")
             AudioCaptureDiagnostics.append(

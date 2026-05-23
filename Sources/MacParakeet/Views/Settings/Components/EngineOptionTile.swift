@@ -17,6 +17,10 @@ struct EngineOptionTile: View {
     let modelStatus: SettingsViewModel.LocalModelStatus
     let isSelected: Bool
     let isBusy: Bool
+    /// When the model is downloaded but has never paid its one-time on-device
+    /// optimize, the next load is slow (minutes). Splits the `.notLoaded`
+    /// footer into a cold "Setup needed" vs warm "Downloaded" presentation.
+    var needsFirstOptimize: Bool = false
     let onSelect: () -> Void
 
     @State private var isHovered = false
@@ -103,7 +107,7 @@ struct EngineOptionTile: View {
     }
 
     private var statusFooter: some View {
-        let info = StatusInfo.from(modelStatus)
+        let info = StatusInfo.from(modelStatus, needsFirstOptimize: needsFirstOptimize)
         return HStack(alignment: .center, spacing: DesignSystem.Spacing.xs) {
             Circle()
                 .fill(info.color)
@@ -147,7 +151,10 @@ struct EngineOptionTile: View {
         let label: String
         let detail: String
 
-        static func from(_ status: SettingsViewModel.LocalModelStatus) -> StatusInfo {
+        static func from(
+            _ status: SettingsViewModel.LocalModelStatus,
+            needsFirstOptimize: Bool = false
+        ) -> StatusInfo {
             switch status {
             case .ready:
                 return StatusInfo(
@@ -156,10 +163,17 @@ struct EngineOptionTile: View {
                     detail: "Loaded in memory"
                 )
             case .notLoaded:
+                if needsFirstOptimize {
+                    return StatusInfo(
+                        color: DesignSystem.Colors.warningAmber,
+                        label: "Setup needed",
+                        detail: "First switch optimizes — a minute or two"
+                    )
+                }
                 return StatusInfo(
                     color: DesignSystem.Colors.successGreen,
                     label: "Downloaded",
-                    detail: "May optimize on first load"
+                    detail: "Loads in seconds"
                 )
             case .notDownloaded:
                 return StatusInfo(

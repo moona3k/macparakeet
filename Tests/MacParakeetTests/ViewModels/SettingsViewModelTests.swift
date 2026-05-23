@@ -105,6 +105,25 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaultsSuiteName = nil
     }
 
+    // MARK: - Whisper cold/warm status
+
+    func testWhisperHasBeenOptimizedReflectsPersistedFlag() {
+        XCTAssertFalse(
+            viewModel.whisperHasBeenOptimized,
+            "Should read false before any Whisper variant has been optimized"
+        )
+
+        SpeechEnginePreference.markWhisperOptimized(
+            variant: SpeechEnginePreference.whisperModelVariant(defaults: testDefaults),
+            defaults: testDefaults
+        )
+
+        XCTAssertTrue(
+            viewModel.whisperHasBeenOptimized,
+            "Should read true once the active variant is marked optimized"
+        )
+    }
+
     // MARK: - Initial Values
 
     func testDefaultValues() {

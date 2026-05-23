@@ -275,6 +275,17 @@ public final class SettingsViewModel {
     public var isWhisperModelDownloaded: Bool {
         whisperModelStatus == .ready || whisperModelStatus == .notLoaded
     }
+    /// True once the active Whisper variant has paid its one-time on-device
+    /// optimize, so the next load is fast. Drives cold ("Setup needed",
+    /// minutes) vs warm ("Downloaded", seconds) status in the engine picker.
+    /// Reads through `defaults`; the value flips after the first successful
+    /// `WhisperEngine.prepare()`, surfaced on the next `refreshModelStatus()`.
+    public var whisperHasBeenOptimized: Bool {
+        SpeechEnginePreference.hasOptimizedWhisper(
+            variant: SpeechEnginePreference.whisperModelVariant(defaults: defaults),
+            defaults: defaults
+        )
+    }
     public private(set) var pendingMeetingRecoveryCount = 0
     public var onRecoverPendingMeetingRecordings: (() -> Void)?
 
@@ -1092,7 +1103,11 @@ public final class SettingsViewModel {
             // to `.ready` after asking the runtime if Whisper is the active
             // engine and currently loaded.
             whisperModelStatus = .notLoaded
-            whisperModelStatusDetail = "\(friendly) · Installed locally. First load may optimize for this Mac."
+            if whisperHasBeenOptimized {
+                whisperModelStatusDetail = "\(friendly) · Installed locally, loads in seconds."
+            } else {
+                whisperModelStatusDetail = "\(friendly) · Installed locally. First switch optimizes for this Mac (a minute or two)."
+            }
         } else {
             whisperModelStatus = .notDownloaded
             whisperModelStatusDetail = "\(friendly) · Needs download before use."

@@ -8,6 +8,14 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     public static let whisperDefaultLanguageKey = "whisperDefaultLanguage"
     public static let whisperModelVariantKey = "whisperModelVariant"
 
+    /// Variants whose one-time CoreML compile/ANE specialization has already
+    /// completed on this Mac. The first load of a Whisper variant pays a
+    /// multi-minute optimize (`WhisperKitConfig(load: true)`); subsequent loads
+    /// reuse the on-disk compiled artifacts and are fast. We persist which
+    /// variants are warm so the UI can distinguish a cold first switch
+    /// ("Setup needed", minutes) from a warm one ("Downloaded", seconds).
+    public static let whisperOptimizedVariantsKey = "whisperOptimizedVariants"
+
     public static let defaultWhisperModelVariant = "large-v3-v20240930_turbo_632MB"
 
     public var displayName: String {
@@ -63,6 +71,34 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
             return
         }
         defaults.set(normalized, forKey: whisperModelVariantKey)
+    }
+
+    /// Whether `variant` has already paid its one-time on-device optimize, so
+    /// the next load will be fast. Compares on the normalized variant id.
+    public static func hasOptimizedWhisper(variant: String, defaults: UserDefaults = .standard) -> Bool {
+        guard let normalized = normalizeModelVariant(variant) else { return false }
+        let optimized = defaults.stringArray(forKey: whisperOptimizedVariantsKey) ?? []
+        return optimized.contains(normalized)
+    }
+
+    /// Records that `variant` finished its one-time optimize on this Mac.
+    /// Idempotent; call after a successful `WhisperEngine.prepare()`.
+    public static func markWhisperOptimized(variant: String, defaults: UserDefaults = .standard) {
+        guard let normalized = normalizeModelVariant(variant) else { return }
+        var optimized = defaults.stringArray(forKey: whisperOptimizedVariantsKey) ?? []
+        guard !optimized.contains(normalized) else { return }
+        optimized.append(normalized)
+        defaults.set(optimized, forKey: whisperOptimizedVariantsKey)
+    }
+
+    /// Forgets the optimized flag for `variant` — call when the model is
+    /// deleted or re-downloaded so the cold "Setup needed" copy returns.
+    public static func clearWhisperOptimized(variant: String, defaults: UserDefaults = .standard) {
+        guard let normalized = normalizeModelVariant(variant) else { return }
+        var optimized = defaults.stringArray(forKey: whisperOptimizedVariantsKey) ?? []
+        let filtered = optimized.filter { $0 != normalized }
+        guard filtered.count != optimized.count else { return }
+        defaults.set(filtered, forKey: whisperOptimizedVariantsKey)
     }
 
     public static func normalizeLanguage(_ language: String?) -> String? {
