@@ -240,12 +240,16 @@ final class TransformsCoordinator {
                 self.panelController?.done(message: "Done")
                 let capturePath: TelemetryTransformCapturePath = result.captureTag == "ax" ? .ax : .clipboard
                 let replacePath: TelemetryTransformReplacePath = result.path == .ax ? .ax : .clipboardPaste
+                // The target captured at trigger time is the app the rewritten
+                // text was pasted back into — map it to a coarse category only.
+                let appCategory = TelemetryAppCategory(bundleIdentifier: result.target?.bundleIdentifier)
                 Telemetry.send(.transformExecuted(
                     transformName: telemetryName,
                     capturePath: capturePath,
                     replacePath: replacePath,
                     llmMs: result.llmElapsedMs,
-                    totalMs: result.totalElapsedMs
+                    totalMs: result.totalElapsedMs,
+                    appCategory: appCategory
                 ))
                 self.sendTransformOperation(
                     operationContext: operationContext,
@@ -256,6 +260,7 @@ final class TransformsCoordinator {
                     replacePath: replacePath,
                     llmMs: result.llmElapsedMs,
                     totalMs: result.totalElapsedMs,
+                    appCategory: appCategory,
                     errorType: nil
                 )
                 self.saveHistoryEntry(prompt: prompt, result: result)
@@ -370,6 +375,7 @@ final class TransformsCoordinator {
         replacePath: TelemetryTransformReplacePath? = nil,
         llmMs: Int? = nil,
         totalMs: Int? = nil,
+        appCategory: TelemetryAppCategory? = nil,
         errorType: TelemetryTransformFailureReason? = nil
     ) {
         Telemetry.send(.transformOperation(
@@ -384,6 +390,7 @@ final class TransformsCoordinator {
                 ?? Observability.durationSeconds(since: operationContext.startedAt),
             llmMs: llmMs,
             totalMs: totalMs,
+            appCategory: appCategory,
             errorType: errorType
         ))
     }

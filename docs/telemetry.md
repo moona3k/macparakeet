@@ -182,13 +182,24 @@ when the question is "what happened to this operation?"
 | Event | Props | Question It Answers |
 |---|---|---|
 | `dictation_started` | `trigger` (hotkey, pill_click, menu_bar) | How do people start dictating? |
-| `dictation_completed` | `duration_seconds`, `word_count`, `mode` (hold, persistent), `speech_engine`, `engine_variant`, `language`, `device_*` | How long are dictations? Which mode, language, and STT engine are popular? |
+| `dictation_completed` | `duration_seconds`, `word_count`, `mode` (hold, persistent), `speech_engine`, `engine_variant`, `language`, `app_category`, `device_*` | How long are dictations? Which mode, language, and STT engine are popular? Where do people dictate? |
+| `first_dictation_completed` | `activation_window` (under_1m, under_1h, under_1d, under_1w, over_1w, unknown) | Activation: do new users reach first value, and how fast? One-shot per install; counted against `onboarding_completed` |
 | `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, ui), `device_*` | Are people cancelling often? Why? |
 | `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
 | `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
-| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt |
+| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `app_category`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt |
 
 > **Device props** (optional, included when available): `device_transport`, `device_sub_transport`, `device_sample_rate`, `device_channels`, `device_fallback`, `device_selected`. Raw device names and UIDs are intentionally not serialized.
+
+`app_category` (optional) is the coarse category of the frontmost app the
+dictation was pasted into — one of `messaging`, `email`, `browser`, `notes`,
+`docs`, `code`, `terminal`, `other`. Following item 10 below ("track
+structural category only"), the frontmost app's bundle identifier is mapped to
+a bucket on-device and **only the bucket is transmitted** — the bundle id never
+leaves the device, and any unrecognized app maps to `other`, so a niche or
+identifying app is never observable. The same prop appears on
+`transform_executed` / `transform_operation` (the app a Transform rewrote text
+in).
 
 `speech_engine` and `engine_variant` describe the STT engine that actually
 processed the audio. They come from `STTResult` attribution or persisted
@@ -238,9 +249,9 @@ events remain useful for diarization-specific timing and failure analysis.
 | `llm_chat_failed` | `provider`, `source` (`meeting_ask`, `transcript_chat`), `error_type` | Chat failure rates per provider and surface |
 | `llm_transform_used` | `provider` | One-off transform feature usage |
 | `llm_transform_failed` | `provider`, `error_type` | One-off transform failure rates |
-| `transform_executed` | `transform_name`, `capture_path`, `replace_path`, `llm_ms`, `total_ms` | End-to-end system-wide Transform completions by built-in/custom bucket |
+| `transform_executed` | `transform_name`, `capture_path`, `replace_path`, `llm_ms`, `total_ms`, `app_category` | End-to-end system-wide Transform completions by built-in/custom bucket, and where they're used |
 | `transform_failed` | `transform_name`, `reason` | End-to-end system-wide Transform failure reasons (`empty_selection`, `no_provider`, `capture_failed`, `llm_failed`, `replacement_failed`, `cancelled`) |
-| `transform_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `transform_name`, `stage`, `capture_path`, `replace_path`, `duration_seconds`, `llm_ms`, `total_ms`, `error_type` | One safe outcome event per system-wide Transform attempt, without prompts, selected text, or output text |
+| `transform_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `transform_name`, `stage`, `capture_path`, `replace_path`, `duration_seconds`, `llm_ms`, `total_ms`, `app_category`, `error_type` | One safe outcome event per system-wide Transform attempt, without prompts, selected text, or output text |
 | `ask_menu_opened` | — | Whether users discover the live meeting Ask prompt menu |
 | `ask_prompt_fired` | `source`, `group`, `label` | Which built-in live Ask prompts are used, using stable built-in slugs. Edited built-ins and custom prompts collapse to `custom`. |
 | `llm_formatter_used` | `provider`, `source`, `duration_seconds`, `input_chars`, `output_chars`, `default_prompt_used`, `input_truncated` | Is transcript/dictation formatting useful, and how expensive is it? |

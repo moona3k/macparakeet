@@ -921,6 +921,115 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertNil(props?["output_text"])
     }
 
+    // MARK: - App Category (privacy-safe bucketing)
+
+    func testAppCategoryMapsKnownBundleIdentifiersToBuckets() {
+        let cases: [(String, TelemetryAppCategory)] = [
+            ("com.apple.Safari", .browser),
+            ("com.google.Chrome", .browser),
+            ("com.google.Chrome.canary", .browser),       // prefix match
+            ("company.thebrowser.Browser", .browser),     // Arc
+            ("com.tinyspeck.slackmacgap", .messaging),    // Slack
+            ("com.hnc.Discord", .messaging),
+            ("com.apple.mail", .email),
+            ("com.microsoft.Outlook", .email),
+            ("md.obsidian", .notes),
+            ("com.apple.Notes", .notes),
+            ("com.apple.iWork.Pages", .docs),
+            ("com.microsoft.Word", .docs),
+            ("com.apple.dt.Xcode", .code),
+            ("com.microsoft.VSCode", .code),
+            ("com.microsoft.VSCodeInsiders", .code),      // prefix match
+            ("com.jetbrains.intellij", .code),            // prefix match
+            ("com.todesktop.230313mzl4w4u92", .code),     // Cursor
+            ("com.apple.Terminal", .terminal),
+            ("com.googlecode.iterm2", .terminal),
+        ]
+        for (bundleID, expected) in cases {
+            XCTAssertEqual(
+                TelemetryAppCategory(bundleIdentifier: bundleID),
+                expected,
+                "Expected \(bundleID) -> \(expected.rawValue)"
+            )
+        }
+    }
+
+    func testAppCategoryMapsUnknownAndEmptyToOther() {
+        XCTAssertEqual(TelemetryAppCategory(bundleIdentifier: nil), .other)
+        XCTAssertEqual(TelemetryAppCategory(bundleIdentifier: ""), .other)
+        XCTAssertEqual(TelemetryAppCategory(bundleIdentifier: "   "), .other)
+        XCTAssertEqual(TelemetryAppCategory(bundleIdentifier: "com.example.SomeNicheApp"), .other)
+        // Our own app is not a meaningful external target.
+        XCTAssertEqual(TelemetryAppCategory(bundleIdentifier: "com.macparakeet"), .other)
+    }
+
+    func testActivationWindowBucketsSecondsCoarsely() {
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 0), .underMinute)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 59), .underMinute)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 60), .underHour)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 3_599), .underHour)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 3_600), .underDay)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 86_399), .underDay)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 86_400), .underWeek)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 604_799), .underWeek)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 604_800), .overWeek)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: nil), .unknown)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: -5), .unknown)
+    }
+
+    func testDictationCompletedSerializesAppCategoryButOmitsWhenNil() {
+        let withCategory = TelemetryEventSpec.dictationCompleted(
+            durationSeconds: 5.0,
+            wordCount: 12,
+            mode: .hold,
+            appCategory: .messaging
+        )
+        XCTAssertEqual(withCategory.props?["app_category"], "messaging")
+
+        let withoutCategory = TelemetryEventSpec.dictationCompleted(
+            durationSeconds: 5.0,
+            wordCount: 12,
+            mode: .hold
+        )
+        XCTAssertNil(withoutCategory.props?["app_category"])
+    }
+
+    func testTransformExecutedSerializesAppCategoryButOmitsWhenNil() {
+        let withCategory = TelemetryEventSpec.transformExecuted(
+            transformName: .polish,
+            capturePath: .ax,
+            replacePath: .clipboardPaste,
+            llmMs: 1200,
+            totalMs: 1500,
+            appCategory: .code
+        )
+        XCTAssertEqual(withCategory.props?["app_category"], "code")
+
+        let withoutCategory = TelemetryEventSpec.transformExecuted(
+            transformName: .polish,
+            capturePath: .ax,
+            replacePath: .clipboardPaste,
+            llmMs: 1200,
+            totalMs: 1500
+        )
+        XCTAssertNil(withoutCategory.props?["app_category"])
+    }
+
+    func testFirstDictationCompletedSerializesActivationWindow() {
+        let event = TelemetryEvent(
+            spec: .firstDictationCompleted(activationWindow: .underHour),
+            appVer: "0.6.9",
+            osVer: "15.4",
+            locale: "en-US",
+            chip: "Apple M4",
+            session: "session"
+        )
+
+        XCTAssertEqual(event.event, "first_dictation_completed")
+        XCTAssertEqual(event.props?["activation_window"], "under_1h")
+        XCTAssertEqual(Set(event.props?.keys ?? Dictionary<String, String>().keys), ["activation_window"])
+    }
+
     func testImplementedContractCoversEveryTypedEventName() {
         XCTAssertEqual(
             Set(TelemetryEventName.allCases),
@@ -1065,6 +1174,7 @@ final class TelemetryServiceTests: XCTestCase {
             .appQuit(sessionDurationSeconds: 12.5),
             .dictationStarted(trigger: .hotkey, mode: .persistent),
             .dictationCompleted(durationSeconds: 12.5, wordCount: 84, mode: .persistent),
+            .firstDictationCompleted(activationWindow: .underMinute),
             .dictationCancelled(durationSeconds: 1.5, reason: .escape),
             .dictationEmpty(durationSeconds: 1.5),
             .dictationFailed(errorType: "network"),

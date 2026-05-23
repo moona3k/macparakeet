@@ -13,7 +13,12 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
     var hasCompletedFirstDictation: Bool { get }
-    func markFirstDictationCompleted()
+    /// Flip the one-shot "first dictation completed" flag. Returns `true` only
+    /// the first time it transitions (so callers can fire a one-shot side
+    /// effect like the activation telemetry event); `false` on every
+    /// subsequent call.
+    @discardableResult
+    func markFirstDictationCompleted() -> Bool
 }
 
 public enum YouTubeAudioQuality: String, CaseIterable, Hashable, Sendable, Equatable {
@@ -168,8 +173,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         defaults.bool(forKey: Self.hasCompletedFirstDictationKey)
     }
 
-    public func markFirstDictationCompleted() {
-        guard !hasCompletedFirstDictation else { return }
+    @discardableResult
+    public func markFirstDictationCompleted() -> Bool {
+        guard !hasCompletedFirstDictation else { return false }
         defaults.set(true, forKey: Self.hasCompletedFirstDictationKey)
+        return true
     }
 }

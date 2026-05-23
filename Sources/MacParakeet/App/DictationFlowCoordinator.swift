@@ -813,7 +813,13 @@ final class DictationFlowCoordinator {
             do {
                 try await self.serviceSession.startRecording(
                     sessionID: sessionID,
-                    context: DictationTelemetryContext(trigger: trigger, mode: self.telemetryMode(for: mode))
+                    context: DictationTelemetryContext(
+                        trigger: trigger,
+                        mode: self.telemetryMode(for: mode),
+                        appCategory: TelemetryAppCategory(
+                            bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                        )
+                    )
                 )
                 let serviceState = await self.serviceSession.state
                 guard case .recording = serviceState else {

@@ -13,10 +13,20 @@ public enum DictationState: Sendable {
 public struct DictationTelemetryContext: Sendable, Equatable {
     public var trigger: TelemetryDictationTrigger?
     public var mode: TelemetryDictationMode?
+    /// Coarse category of the app that was frontmost when this dictation was
+    /// started — i.e. where the text will be pasted. Captured at the call site
+    /// (MainActor) since the overlay is non-activating, so frontmost stays the
+    /// user's target app. See `TelemetryAppCategory` for the privacy contract.
+    public var appCategory: TelemetryAppCategory?
 
-    public init(trigger: TelemetryDictationTrigger? = nil, mode: TelemetryDictationMode? = nil) {
+    public init(
+        trigger: TelemetryDictationTrigger? = nil,
+        mode: TelemetryDictationMode? = nil,
+        appCategory: TelemetryAppCategory? = nil
+    ) {
         self.trigger = trigger
         self.mode = mode
+        self.appCategory = appCategory
     }
 }
 
@@ -329,6 +339,7 @@ public actor DictationService: DictationServiceProtocol {
                 speechEngine: result.dictation.engine,
                 engineVariant: result.dictation.engineVariant,
                 language: result.dictation.language,
+                appCategory: currentTelemetryContext.appCategory,
                 device: device
             ))
             logger.debug(
@@ -487,6 +498,7 @@ public actor DictationService: DictationServiceProtocol {
                 speechEngine: result.dictation.engine,
                 engineVariant: result.dictation.engineVariant,
                 language: result.dictation.language,
+                appCategory: currentTelemetryContext.appCategory,
                 device: device
             ))
             try? await Task.sleep(for: .milliseconds(500))
@@ -835,6 +847,7 @@ public actor DictationService: DictationServiceProtocol {
             speechEngine: speechEngine,
             engineVariant: engineVariant,
             language: language,
+            appCategory: context.appCategory,
             device: device
         ))
     }

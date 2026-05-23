@@ -5,6 +5,12 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case appQuit = "app_quit"
     case dictationStarted = "dictation_started"
     case dictationCompleted = "dictation_completed"
+    /// One-shot activation milestone: fired exactly once per install, the
+    /// first time a dictation completes end-to-end. Forward-looking — existing
+    /// users already carry the `hasCompletedFirstDictation` flag, so this never
+    /// produces a retroactive spike. Counted against `onboarding_completed` to
+    /// derive the activation rate.
+    case firstDictationCompleted = "first_dictation_completed"
     case dictationCancelled = "dictation_cancelled"
     case dictationEmpty = "dictation_empty"
     case dictationFailed = "dictation_failed"
@@ -396,8 +402,13 @@ public enum TelemetryEventSpec: Sendable {
         speechEngine: String? = nil,
         engineVariant: String? = nil,
         language: String? = nil,
+        appCategory: TelemetryAppCategory? = nil,
         device: RecordingDeviceInfo? = nil
     )
+    /// First-ever completed dictation for this install (see
+    /// `TelemetryEventName.firstDictationCompleted`). `activationWindow` is the
+    /// bucketed time since onboarding completed — coarse buckets only.
+    case firstDictationCompleted(activationWindow: TelemetryActivationWindow)
     case dictationCancelled(durationSeconds: Double?, reason: TelemetryDictationCancelReason?, device: RecordingDeviceInfo? = nil)
     case dictationEmpty(durationSeconds: Double?, device: RecordingDeviceInfo? = nil)
     case dictationFailed(errorType: String, errorDetail: String? = nil, device: RecordingDeviceInfo? = nil)
@@ -414,6 +425,7 @@ public enum TelemetryEventSpec: Sendable {
         speechEngine: String? = nil,
         engineVariant: String? = nil,
         language: String? = nil,
+        appCategory: TelemetryAppCategory? = nil,
         device: RecordingDeviceInfo? = nil
     )
     case dictationFirstLoadCaptionShown(firstInstall: Bool)
@@ -482,7 +494,8 @@ public enum TelemetryEventSpec: Sendable {
         capturePath: TelemetryTransformCapturePath,
         replacePath: TelemetryTransformReplacePath,
         llmMs: Int,
-        totalMs: Int
+        totalMs: Int,
+        appCategory: TelemetryAppCategory? = nil
     )
     case transformFailed(
         transformName: TelemetryTransformName,
@@ -499,6 +512,7 @@ public enum TelemetryEventSpec: Sendable {
         durationSeconds: Double,
         llmMs: Int?,
         totalMs: Int?,
+        appCategory: TelemetryAppCategory? = nil,
         errorType: TelemetryTransformFailureReason?
     )
     case askMenuOpened
@@ -739,6 +753,7 @@ extension TelemetryEventSpec {
         case .appQuit: return .appQuit
         case .dictationStarted: return .dictationStarted
         case .dictationCompleted: return .dictationCompleted
+        case .firstDictationCompleted: return .firstDictationCompleted
         case .dictationCancelled: return .dictationCancelled
         case .dictationEmpty: return .dictationEmpty
         case .dictationFailed: return .dictationFailed
@@ -876,6 +891,7 @@ extension TelemetryEventSpec {
             let speechEngine,
             let engineVariant,
             let language,
+            let appCategory,
             let device
         ):
             return Self.mergeDevice(Self.compactProps(
@@ -884,8 +900,11 @@ extension TelemetryEventSpec {
                 ("mode", mode?.rawValue),
                 ("speech_engine", speechEngine),
                 ("engine_variant", Self.safeEngineVariant(engineVariant)),
-                ("language", Self.safeLanguageCode(language))
+                ("language", Self.safeLanguageCode(language)),
+                ("app_category", appCategory?.rawValue)
             ), device)
+        case .firstDictationCompleted(let activationWindow):
+            return ["activation_window": activationWindow.rawValue]
         case .dictationCancelled(let durationSeconds, let reason, let device):
             return Self.mergeDevice(Self.compactProps(
                 ("duration_seconds", durationSeconds.map(Self.format)),
@@ -912,6 +931,7 @@ extension TelemetryEventSpec {
             let speechEngine,
             let engineVariant,
             let language,
+            let appCategory,
             let device
         ):
             return Self.mergeDevice(Self.compactProps(
@@ -926,6 +946,7 @@ extension TelemetryEventSpec {
                 ("speech_engine", speechEngine),
                 ("engine_variant", Self.safeEngineVariant(engineVariant)),
                 ("language", Self.safeLanguageCode(language)),
+                ("app_category", appCategory?.rawValue),
                 ("error_type", errorType),
                 ("cancel_reason", cancelReason?.rawValue)
             ), device)
@@ -1054,14 +1075,16 @@ extension TelemetryEventSpec {
             var props = ["provider": provider, "error_type": errorType]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
-        case .transformExecuted(let name, let capture, let replace, let llmMs, let totalMs):
-            return [
+        case .transformExecuted(let name, let capture, let replace, let llmMs, let totalMs, let appCategory):
+            var props = [
                 "transform_name": name.rawValue,
                 "capture_path": capture.rawValue,
                 "replace_path": replace.rawValue,
                 "llm_ms": "\(llmMs)",
                 "total_ms": "\(totalMs)",
             ]
+            if let appCategory { props["app_category"] = appCategory.rawValue }
+            return props
         case .transformFailed(let name, let reason):
             return [
                 "transform_name": name.rawValue,
@@ -1078,6 +1101,7 @@ extension TelemetryEventSpec {
             let durationSeconds,
             let llmMs,
             let totalMs,
+            let appCategory,
             let errorType
         ):
             return Self.compactProps(
@@ -1092,6 +1116,7 @@ extension TelemetryEventSpec {
                 ("duration_seconds", Self.format(durationSeconds)),
                 ("llm_ms", llmMs.map(String.init)),
                 ("total_ms", totalMs.map(String.init)),
+                ("app_category", appCategory?.rawValue),
                 ("error_type", errorType?.rawValue)
             )
         case .askPromptFired(let source, let group, let label):
@@ -1521,6 +1546,7 @@ public enum TelemetryImplementedContract {
         .appQuit: ["session_duration_seconds"],
         .dictationStarted: [],
         .dictationCompleted: ["duration_seconds", "word_count"],
+        .firstDictationCompleted: ["activation_window"],
         .dictationCancelled: [],
         .dictationEmpty: [],
         .dictationFailed: ["error_type"],
