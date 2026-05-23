@@ -15,6 +15,34 @@ enum SettingsHotkeyConflictMessage {
     }
 }
 
+enum SettingsDictationHotkeyConflictPolicy {
+    static func validation(
+        candidate: HotkeyTrigger,
+        peer: HotkeyTrigger,
+        peerName: String
+    ) -> HotkeyTrigger.ValidationResult? {
+        guard !candidate.isDisabled else { return nil }
+        guard candidate == peer || candidate.overlaps(with: peer) else { return nil }
+        return .blocked(SettingsHotkeyConflictMessage.blocked(
+            conflictingWith: peerName,
+            trigger: peer
+        ))
+    }
+
+    static func existingConflictMessage(
+        trigger: HotkeyTrigger,
+        peer: HotkeyTrigger,
+        peerName: String
+    ) -> String? {
+        guard !trigger.isDisabled else { return nil }
+        guard trigger == peer || trigger.overlaps(with: peer) else { return nil }
+        return SettingsHotkeyConflictMessage.disabled(
+            conflictingWith: peerName,
+            trigger: peer
+        )
+    }
+}
+
 struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @Bindable var llmSettingsViewModel: LLMSettingsViewModel
@@ -528,12 +556,6 @@ struct SettingsView: View {
 
     // MARK: - Dictation
 
-    private var dictationShortcutsAreCombined: Bool {
-        let handsFree = viewModel.hotkeyTrigger
-        let pushToTalk = viewModel.pushToTalkHotkeyTrigger
-        return !handsFree.isDisabled && !pushToTalk.isDisabled && handsFree == pushToTalk
-    }
-
     private var dictationCard: some View {
         settingsCard(
             title: "Dictation",
@@ -568,9 +590,7 @@ struct SettingsView: View {
                 HStack(alignment: .center) {
                     rowText(
                         title: "Hands-free mode",
-                        detail: dictationShortcutsAreCombined
-                            ? "Double tap to start; tap once to stop."
-                            : "Tap to start; tap again to stop."
+                        detail: "Tap to start; tap again to stop."
                     )
                     Spacer(minLength: DesignSystem.Spacing.md)
                     VStack(alignment: .trailing, spacing: 4) {
@@ -948,12 +968,12 @@ struct SettingsView: View {
 
     private func dictationHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
         guard !candidate.isDisabled else { return .allowed }
-        if candidate != viewModel.pushToTalkHotkeyTrigger,
-           candidate.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "push to talk",
-                trigger: viewModel.pushToTalkHotkeyTrigger
-            ))
+        if let result = SettingsDictationHotkeyConflictPolicy.validation(
+            candidate: candidate,
+            peer: viewModel.pushToTalkHotkeyTrigger,
+            peerName: "push to talk"
+        ) {
+            return result
         }
         if AppFeatures.meetingRecordingEnabled,
            candidate.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
@@ -985,12 +1005,12 @@ struct SettingsView: View {
 
     private func pushToTalkHotkeyValidation(for candidate: HotkeyTrigger) -> HotkeyTrigger.ValidationResult {
         guard !candidate.isDisabled else { return .allowed }
-        if candidate != viewModel.hotkeyTrigger,
-           candidate.overlaps(with: viewModel.hotkeyTrigger) {
-            return .blocked(SettingsHotkeyConflictMessage.blocked(
-                conflictingWith: "hands-free mode",
-                trigger: viewModel.hotkeyTrigger
-            ))
+        if let result = SettingsDictationHotkeyConflictPolicy.validation(
+            candidate: candidate,
+            peer: viewModel.hotkeyTrigger,
+            peerName: "hands-free mode"
+        ) {
+            return result
         }
         if AppFeatures.meetingRecordingEnabled,
            candidate.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
@@ -1060,12 +1080,12 @@ struct SettingsView: View {
 
     private func dictationHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
         guard !trigger.isDisabled else { return nil }
-        if trigger != viewModel.pushToTalkHotkeyTrigger,
-           trigger.overlaps(with: viewModel.pushToTalkHotkeyTrigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "push to talk",
-                trigger: viewModel.pushToTalkHotkeyTrigger
-            )
+        if let conflict = SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
+            trigger: trigger,
+            peer: viewModel.pushToTalkHotkeyTrigger,
+            peerName: "push to talk"
+        ) {
+            return conflict
         }
         if AppFeatures.meetingRecordingEnabled,
            trigger.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
@@ -1097,12 +1117,12 @@ struct SettingsView: View {
 
     private func pushToTalkHotkeyConflictMessage(for trigger: HotkeyTrigger) -> String? {
         guard !trigger.isDisabled else { return nil }
-        if trigger != viewModel.hotkeyTrigger,
-           trigger.overlaps(with: viewModel.hotkeyTrigger) {
-            return SettingsHotkeyConflictMessage.disabled(
-                conflictingWith: "hands-free mode",
-                trigger: viewModel.hotkeyTrigger
-            )
+        if let conflict = SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
+            trigger: trigger,
+            peer: viewModel.hotkeyTrigger,
+            peerName: "hands-free mode"
+        ) {
+            return conflict
         }
         if AppFeatures.meetingRecordingEnabled,
            trigger.conflicts(with: viewModel.meetingHotkeyTrigger, selfMode: .bareModifierDictation) {
@@ -2283,9 +2303,9 @@ struct SettingsView: View {
                 modeShortcutRow(
                     keys: [viewModel.hotkeyTrigger.shortSymbol],
                     separator: nil,
-                    verb: dictationShortcutsAreCombined ? "Double tap" : "Tap",
+                    verb: "Tap",
                     action: "Hands-free mode",
-                    detail: dictationShortcutsAreCombined ? "Tap once to stop" : "Tap again to stop"
+                    detail: "Tap again to stop"
                 )
             }
         }

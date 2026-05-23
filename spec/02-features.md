@@ -137,14 +137,14 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 
 **Activation — Configurable Hotkey:**
 
-Dictation has two configurable shortcuts: push-to-talk defaults to `Fn`, and hands-free mode defaults to `Fn+Space`. The "record a shortcut" UI supports bare modifiers (Fn, Control, etc.), standalone keys (F5, Tab, etc.), modifier+key chords (Fn+Space, Cmd+9, Ctrl+Shift+D), and modifier-only chords (Command+Option, including side-specific variants like Right Command+Right Option). See ADR-009 for full details. If both dictation shortcuts are set to the same trigger, MacParakeet uses the legacy combined gesture: hold for push-to-talk and double-tap for hands-free mode.
+Dictation has two configurable shortcuts: push-to-talk defaults to `Fn`, and hands-free mode defaults to `Fn+Space`. The "record a shortcut" UI supports bare modifiers (Fn, Control, etc.), standalone keys (F5, Tab, etc.), modifier+key chords (Fn+Space, Cmd+9, Ctrl+Shift+D), and modifier-only chords (Command+Option, including side-specific variants like Right Command+Right Option). See ADR-009 for full details. The two dictation shortcuts must be distinct; Settings blocks assigning the same trigger to both roles.
 
 | Mode | Gesture | Behavior |
 |------|---------|----------|
 | **Hands-free** | Tap the hands-free shortcut | Persistent recording. Tap the shortcut again to stop. |
 | **Press-and-hold** | Hold the push-to-talk shortcut | Hold-to-talk. Release auto-stops and pastes. |
 
-New installs default to separate shortcuts, so there is no double-tap requirement. Existing or manually configured same-trigger shortcuts use double-tap for hands-free mode so the hold gesture can remain push-to-talk.
+Legacy single-hotkey installs are migrated to distinct shortcuts where possible: the old trigger becomes push-to-talk, while hands-free moves to the default `Fn+Space` or disables itself if that would conflict.
 
 **Implementation:**
 - `CGEvent` tap for system-wide key event interception
@@ -159,7 +159,7 @@ New installs default to separate shortcuts, so there is no double-tap requiremen
 - Chord validation: Escape blocked for all kinds. Modifier+key chords containing Command warn about system shortcut conflicts (Cmd+Tab, Cmd+Space, Cmd+Q/W/H/M). Fn is allowed in modifier+key chords such as Fn+Space.
 - Hands-free key-down: toggles persistent recording immediately for key and modifier+key triggers; bare modifier hands-free triggers toggle on bare release so normal modifier shortcuts are not captured.
 - Dedicated push-to-talk key-down: schedule only the startup debounce, then start hold-to-talk.
-- Combined same-trigger dictation shortcuts: one `HotkeyManager` runs double-tap-and-hold mode. Double-tap starts persistent recording, one tap while recording stops it, and hold remains push-to-talk.
+- Duplicate dictation shortcuts: exact same-trigger assignments are rejected in Settings and reported as conflicts at runtime instead of creating a hidden combined gesture.
 - On key-up: dedicated push-to-talk releases after startup debounce stop and process.
 - Escape is permanently reserved for cancel-dictation and cannot be assigned as hotkey
 - Requires Accessibility permission (prompted on first activation).
@@ -172,7 +172,6 @@ New installs default to separate shortcuts, so there is no double-tap requiremen
 ┌─────────────────────────────────────────────────────────────────┐
 │ 1. User activates recording:                                     │
 │    - Tap the hands-free shortcut (Fn+Space by default), OR       │
-│    - Double-tap the shared shortcut in combined mode, OR         │
 │    - Hold the push-to-talk shortcut (Fn by default)              │
 ├─────────────────────────────────────────────────────────────────┤
 │ 2. Overlay appears (bottom-center pill)                          │
@@ -185,7 +184,7 @@ New installs default to separate shortcuts, so there is no double-tap requiremen
 ├─────────────────────────────────────────────────────────────────┤
 │ 4. User stops recording:                                         │
 │    - Release the push-to-talk shortcut, OR                       │
-│    - Tap the hands-free/combined shortcut again, OR              │
+│    - Tap the hands-free shortcut again, OR                       │
 │    - Press Escape (soft cancel with undo window), OR             │
 │    - Silence auto-stop (2s default, if enabled in settings)      │
 │    - If stop is requested while startup is in-flight, stop is     │

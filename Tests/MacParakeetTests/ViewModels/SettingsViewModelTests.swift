@@ -1213,24 +1213,24 @@ final class SettingsViewModelTests: XCTestCase {
 
         let vm = SettingsViewModel(defaults: testDefaults)
 
-        XCTAssertEqual(vm.hotkeyTrigger, legacyTrigger)
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
         XCTAssertEqual(vm.pushToTalkHotkeyTrigger, legacyTrigger)
 
         let vm2 = SettingsViewModel(defaults: testDefaults)
-        XCTAssertEqual(vm2.hotkeyTrigger, legacyTrigger)
+        XCTAssertEqual(vm2.hotkeyTrigger, .defaultDictation)
         XCTAssertEqual(vm2.pushToTalkHotkeyTrigger, legacyTrigger)
     }
 
-    func testLegacyHotkeyOverlappingDefaultHandsFreeMigratesToCombinedMode() {
+    func testLegacyHotkeyOverlappingDefaultHandsFreeDisablesHandsFreeDuringMigration() {
         let legacyTrigger = HotkeyTrigger.fromKeyCode(49)
         testDefaults.removeObject(forKey: HotkeyTrigger.pushToTalkDefaultsKey)
         legacyTrigger.save(to: testDefaults)
 
         let vm = SettingsViewModel(defaults: testDefaults)
 
-        XCTAssertEqual(vm.hotkeyTrigger, legacyTrigger)
+        XCTAssertEqual(vm.hotkeyTrigger, .disabled)
         XCTAssertEqual(vm.pushToTalkHotkeyTrigger, legacyTrigger)
-        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), legacyTrigger)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .disabled)
         XCTAssertEqual(
             HotkeyTrigger.current(
                 defaults: testDefaults,
@@ -1260,22 +1260,22 @@ final class SettingsViewModelTests: XCTestCase {
         )
     }
 
-    func testLegacyDefaultFnHandsFreeMigratesToCombinedMode() {
+    func testLegacyDefaultFnHandsFreeMigratesToFnSpaceWithoutChangingPushToTalk() {
         testDefaults.removeObject(forKey: HotkeyTrigger.pushToTalkDefaultsKey)
         HotkeyTrigger.fn.save(to: testDefaults)
 
         let vm = SettingsViewModel(defaults: testDefaults)
 
-        XCTAssertEqual(vm.hotkeyTrigger, .fn)
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
         XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
-        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .fn)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
         XCTAssertEqual(
             HotkeyTrigger.current(
                 defaults: testDefaults,
                 defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
                 fallback: .defaultPushToTalk
             ),
-            .fn
+            .defaultPushToTalk
         )
     }
 
@@ -1311,14 +1311,42 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultDictation)
     }
 
-    func testStoredMatchingDedicatedDictationHotkeysPersistAsCombinedMode() {
+    func testStoredMatchingDedicatedDictationHotkeysRestoreHandsFreeDefault() {
         HotkeyTrigger.fn.save(to: testDefaults)
         HotkeyTrigger.fn.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
 
         let vm = SettingsViewModel(defaults: testDefaults)
 
-        XCTAssertEqual(vm.hotkeyTrigger, .fn)
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
         XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .fn)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .fn
+        )
+    }
+
+    func testStoredMatchingDefaultHandsFreeHotkeysRestorePushToTalkDefault() {
+        HotkeyTrigger.defaultDictation.save(to: testDefaults)
+        HotkeyTrigger.defaultDictation.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultPushToTalk
+        )
     }
 
     func testHotkeyTriggerBackwardCompatibleWithLegacyString() {
@@ -1327,7 +1355,7 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set("option", forKey: "hotkeyTrigger")
 
         let vm = SettingsViewModel(defaults: testDefaults)
-        XCTAssertEqual(vm.hotkeyTrigger, .option)
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
         XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .option)
     }
 

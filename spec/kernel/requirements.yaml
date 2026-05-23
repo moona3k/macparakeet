@@ -28,7 +28,7 @@ REQ-DICT-001:
   status: implemented
 
 REQ-DICT-002:
-  description: Hands-free tap-to-toggle and hold-to-talk shortcuts, with same-trigger double-tap compatibility
+  description: Distinct hands-free tap-to-toggle and hold-to-talk shortcuts
   version: v0.1
   status: implemented
 
