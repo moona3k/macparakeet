@@ -2,9 +2,22 @@ import Foundation
 import MacParakeetCore
 import MacParakeetViewModels
 
+// ISO8601DateFormatter is mutable/non-Sendable; the shared parser is used from
+// the DictationService actor callback.
+private final class LockedISO8601DateFormatter: @unchecked Sendable {
+    private let formatter = ISO8601DateFormatter()
+    private let lock = NSLock()
+
+    func date(from string: String) -> Date? {
+        lock.withLock { formatter.date(from: string) }
+    }
+}
+
 /// Service container: creates and wires up all dependencies.
 @MainActor
 final class AppEnvironment {
+    nonisolated private static let iso8601Formatter = LockedISO8601DateFormatter()
+
     let databaseManager: DatabaseManager
     let dictationRepo: DictationRepository
     let transcriptionRepo: TranscriptionRepository
@@ -200,7 +213,7 @@ final class AppEnvironment {
                 guard runtimePreferences.markFirstDictationCompleted() else { return }
                 let secondsSinceOnboarding = UserDefaults.standard
                     .string(forKey: OnboardingViewModel.onboardingCompletedKey)
-                    .flatMap { ISO8601DateFormatter().date(from: $0) }
+                    .flatMap { AppEnvironment.iso8601Formatter.date(from: $0) }
                     .map { Date().timeIntervalSince($0) }
                 Telemetry.send(.firstDictationCompleted(
                     activationWindow: TelemetryActivationWindow(secondsSinceOnboarding: secondsSinceOnboarding)
