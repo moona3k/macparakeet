@@ -89,6 +89,9 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 - `meetings results list|add` exposes saved meeting PromptResults through the
   CLI. `add` stores externally generated output as a `PromptResult` without
   invoking an LLM, preserving the meeting transcript as the canonical object.
+- `meetings list --json`, `meetings show --json`, and `meetings export --format json`
+  now include `hasPromptResults` and `promptResultCount`, so agents can tell
+  whether structured meeting outputs already exist before fetching result rows.
 - `llm` commands using `--provider lmstudio` now honor optional LM Studio API
   tokens via `--api-key`, `--api-key-env`, or `LM_API_TOKEN`.
 

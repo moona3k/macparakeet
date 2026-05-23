@@ -205,14 +205,14 @@ private extension CLISpecCommand {
             ["meetings", "list"],
             summary: "List recent meeting recordings.",
             options: [databaseOption],
-            output: "Array of meeting list objects."
+            output: "Array of meeting list objects with transcript, notes, and prompt-result availability."
         ),
         CLISpecCommand(
             ["meetings", "show"],
             summary: "Show one meeting artifact.",
             arguments: [.argument("meeting", summary: "Meeting UUID, UUID prefix, or exact title.")],
             options: [databaseOption],
-            output: "MeetingRecord object."
+            output: "MeetingRecord object with transcript, notes, and prompt-result count."
         ),
         CLISpecCommand(
             ["meetings", "transcript"],
@@ -269,7 +269,7 @@ private extension CLISpecCommand {
                 CLISpecParameter.flag("--stdout", summary: "Print export content to stdout."),
                 databaseOption,
             ],
-            output: "Markdown text or MeetingRecord JSON."
+            output: "Markdown text or MeetingRecord JSON with prompt-result count."
         ),
     ]
 }

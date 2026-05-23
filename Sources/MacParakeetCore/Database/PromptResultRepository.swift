@@ -71,4 +71,12 @@ public final class PromptResultRepository: PromptResultRepositoryProtocol {
                 .isEmpty(db)
         }
     }
+
+    public func count(transcriptionId: UUID) throws -> Int {
+        try dbQueue.read { db in
+            try PromptResult
+                .filter(PromptResult.Columns.transcriptionId == transcriptionId)
+                .fetchCount(db)
+        }
+    }
 }

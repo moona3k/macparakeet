@@ -112,6 +112,70 @@ final class MeetingsCommandTests: XCTestCase {
         XCTAssertEqual(saved[0].userNotesSnapshot, "Manual note")
     }
 
+    func testListAndShowExposePromptResultAvailability() async throws {
+        let dbURL = temporaryDatabaseURL()
+        defer { try? FileManager.default.removeItem(at: dbURL) }
+        let db = try DatabaseManager(path: dbURL.path)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: db.dbQueue)
+        let resultRepo = PromptResultRepository(dbQueue: db.dbQueue)
+        let meeting = Transcription(
+            fileName: "Agent Review",
+            rawTranscript: "We agreed to keep the CLI contract explicit.",
+            status: .completed,
+            sourceType: .meeting
+        )
+        try transcriptionRepo.save(meeting)
+        try resultRepo.save(PromptResult(
+            transcriptionId: meeting.id,
+            promptName: "Executive Summary",
+            promptContent: "Summarize the meeting.",
+            content: "Keep the CLI contract explicit."
+        ))
+
+        let listCommand = try MeetingsCommand.ListSubcommand.parse([
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let listOutput = try await captureStandardOutput {
+            try await listCommand.run()
+        }
+        let listPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(listOutput.utf8)) as? [[String: Any]]
+        )
+        let listItem = try XCTUnwrap(listPayload.first)
+        XCTAssertEqual(listItem["hasPromptResults"] as? Bool, true)
+        XCTAssertEqual(listItem["promptResultCount"] as? Int, 1)
+
+        let showCommand = try MeetingsCommand.ShowSubcommand.parse([
+            meeting.id.uuidString,
+            "--json",
+            "--database", dbURL.path,
+        ])
+        let showOutput = try await captureStandardOutput {
+            try await showCommand.run()
+        }
+        let showPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(showOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(showPayload["hasPromptResults"] as? Bool, true)
+        XCTAssertEqual(showPayload["promptResultCount"] as? Int, 1)
+
+        let exportCommand = try MeetingsCommand.ExportSubcommand.parse([
+            meeting.id.uuidString,
+            "--format", "json",
+            "--stdout",
+            "--database", dbURL.path,
+        ])
+        let exportOutput = try await captureStandardOutput {
+            try await exportCommand.run()
+        }
+        let exportPayload = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(exportOutput.utf8)) as? [String: Any]
+        )
+        XCTAssertEqual(exportPayload["hasPromptResults"] as? Bool, true)
+        XCTAssertEqual(exportPayload["promptResultCount"] as? Int, 1)
+    }
+
     func testFormatRawValues() {
         XCTAssertEqual(MeetingTranscriptFormat(rawValue: "text"), .text)
         XCTAssertEqual(MeetingTranscriptFormat(rawValue: "json"), .json)
