@@ -9,7 +9,7 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 | Requirement | Source Files | Test Files |
 |------------|-------------|------------|
 | REQ-DICT-001 | `MacParakeetCore/Services/Dictation/DictationService.swift`, `MacParakeetCore/DictationFlow/` | `DictationServiceTests.swift` |
-| REQ-DICT-002 | `MacParakeetCore/DictationFlow/FnKeyStateMachine.swift` | `FnKeyStateMachineTests.swift` |
+| REQ-DICT-002 | `MacParakeet/App/AppHotkeyCoordinator.swift`, `MacParakeet/Hotkey/HotkeyManager.swift`, `MacParakeet/Views/Settings/SettingsView.swift`, `MacParakeetViewModels/SettingsViewModel.swift`, `MacParakeetCore/STT/FnKeyStateMachine.swift`, `MacParakeetCore/STT/HotkeyGestureController.swift` | `AppHotkeyCoordinatorTests.swift`, `HotkeyManagerTests.swift`, `HotkeyGestureControllerTests.swift`, `FnKeyStateMachineTests.swift`, `SettingsViewModelTests.swift` |
 | REQ-DICT-003 | `MacParakeetCore/Services/System/ClipboardService.swift` | `ClipboardServiceTests.swift` |
 | REQ-TRANS-001 | `MacParakeetCore/Services/TranscriptionService.swift` | `TranscriptionServiceTests.swift` |
 | REQ-UI-001 | `MacParakeet/Views/Dictation/DictationOverlayView.swift` | (ViewModel tests) |

@@ -278,7 +278,7 @@ Tests/
 
 These flows must be tested manually after any overlay or hotkey changes. Automated unit tests cover the state machine logic, but the full UX requires human verification.
 
-> **Note:** "Fn+Space" below refers to the configured hands-free shortcut, and "Fn" refers to the configured push-to-talk shortcut. Defaults are Fn+Space for hands-free and Fn for push-to-talk. Test with at least two different trigger keys.
+> **Note:** "Fn+Space" below refers to the configured hands-free shortcut, and "Fn" refers to the configured push-to-talk shortcut. Defaults are Fn+Space for hands-free and Fn for push-to-talk. When both shortcuts are set to the same trigger, double-tap starts hands-free mode and hold remains push-to-talk. Test with at least two different trigger keys.
 
 ### Happy Path
 
@@ -310,6 +310,7 @@ These flows must be tested manually after any overlay or hotkey changes. Automat
 | 10d | Single-tap modifier filtering | Ctrl → type "hello" → release Ctrl | Does NOT trigger dictation |
 | 10e | Switch back to Fn+Space | Settings → Shortcuts → Hands-free mode → select Fn+Space | Fn+Space works again, Ctrl no longer triggers |
 | 10f | Dynamic UI text | Change to Option+Space → check overlay/pill/history | All say "Option+Space" instead of "Fn+Space" |
+| 10g | Combined same-trigger mode | Set both dictation shortcuts to Fn → double-tap Fn → speak → tap Fn | Double-tap starts hands-free mode, one tap stops, and Settings shows double-tap guidance |
 
 ### State Transitions
 

@@ -68,7 +68,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     func testMenuTitleDescribesSharedDictationTrigger() {
         XCTAssertEqual(
             AppHotkeyCoordinator.menuTitle(handsFree: .fn, pushToTalk: .fn),
-            "Dictation Shortcuts: Conflict on Fn"
+            "Dictation: Hold Fn / Double-tap Fn"
         )
     }
 
@@ -79,7 +79,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
-    func testDictationHotkeyPlanKeepsHandsFreeWhenSharedTriggerWouldConflict() {
+    func testDictationHotkeyPlanUsesCombinedModeForSharedTrigger() {
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
             handsFree: .fn,
             pushToTalk: .fn
@@ -89,9 +89,9 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .fn, gestureMode: .singleTapToggle),
+                    .init(trigger: .fn, gestureMode: .doubleTapAndHold),
                 ],
-                conflict: .init(trigger: .fn, conflicts: [.fn])
+                conflict: nil
             )
         )
     }
