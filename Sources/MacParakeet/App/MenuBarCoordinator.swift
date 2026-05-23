@@ -249,7 +249,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
             goMenu.addItem(makeMenuItem(title: "Transforms", action: #selector(showTransforms), key: ""))
         }
         goMenu.addItem(makeMenuItem(title: "Feedback", action: #selector(showFeedback), key: ""))
-        goMenu.addItem(makeMenuItem(title: "Settings", action: #selector(showSettingsWindow), key: ""))
+        goMenu.addItem(makeMenuItem(title: "Settings...", action: #selector(showSettingsWindow), key: ""))
         goMenuItem.submenu = goMenu
         mainMenu.addItem(goMenuItem)
 
@@ -307,9 +307,10 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         let menu = NSMenu()
         menu.autoenablesItems = false
         menu.delegate = self
+        let appName = Self.appDisplayName
 
         let openItem = NSMenuItem(
-            title: "Open MacParakeet",
+            title: "Open \(appName)",
             action: #selector(openMainWindow),
             keyEquivalent: "o"
         )
@@ -436,7 +437,7 @@ final class MenuBarCoordinator: NSObject, NSMenuDelegate {
         menu.addItem(NSMenuItem.separator())
 
         let quitItem = NSMenuItem(
-            title: "Quit MacParakeet",
+            title: "Quit \(appName)",
             action: #selector(quitApp),
             keyEquivalent: "q"
         )
