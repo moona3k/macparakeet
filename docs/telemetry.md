@@ -354,7 +354,7 @@ events remain useful for diarization-specific timing and failure analysis.
 | `model_download_completed` | `duration_seconds`, `model_kind`, `speech_engine`, `engine_variant` | How long do model downloads take by engine/model? |
 | `model_download_failed` | `error_type`, `model_kind`, `speech_engine`, `engine_variant` | Are downloads failing for Parakeet setup or Whisper downloads? |
 | `model_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `action`, `outcome`, `stage`, `model_kind`, `speech_engine`, `engine_variant`, `duration_seconds`, `error_type` | Canonical model lifecycle event for downloads, warm-up, repairs, cache clears, and cancellations |
-| `speech_engine_switch_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `from_engine`, `to_engine`, `outcome`, `duration_seconds`, `blocked_reason`, `error_type` | Why engine switches succeed, fail, cancel, or get blocked |
+| `speech_engine_switch_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `from_engine`, `to_engine`, `outcome`, `duration_seconds`, `blocked_reason`, `error_type`, `was_cold` | Why engine switches succeed, fail, cancel, or get blocked; whether Whisper switches are still paying first-use optimize cost |
 | `stt_runtime_unhealthy` | `reason` | Whether the STT runtime watchdog detects a stuck speech runtime |
 
 ### 8. Permissions — "Is onboarding smooth?"

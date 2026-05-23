@@ -268,6 +268,7 @@ public final class SettingsViewModel {
     public var speechEngineSwitching = false
     public var speechEngineSwitchTarget: SpeechEnginePreference?
     public var speechEngineSwitchDetail: String?
+    public var speechEngineSwitchAvailability: SpeechEngineSwitchAvailability = .available
     public var speechEngineError: String?
     public var whisperModelStatus: LocalModelStatus = .unknown
     public var whisperModelStatusDetail: String = "Not checked yet."
@@ -432,6 +433,7 @@ public final class SettingsViewModel {
     private var launchAtLoginService: LaunchAtLoginControlling?
     private var sttClient: STTClientProtocol?
     private var speechEngineSwitcher: SpeechEngineSwitching?
+    private var speechEngineSwitchAvailabilityProvider: SpeechEngineSwitchAvailabilityProviding?
     private var meetingRecoveryService: MeetingRecordingRecoveryServicing?
     private var sharedMicStream: SharedMicrophoneStream?
     private let defaults: UserDefaults
@@ -758,6 +760,7 @@ public final class SettingsViewModel {
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         sttClient: STTClientProtocol? = nil,
         speechEngineSwitcher: SpeechEngineSwitching? = nil,
+        speechEngineSwitchAvailabilityProvider: SpeechEngineSwitchAvailabilityProviding? = nil,
         meetingRecoveryService: MeetingRecordingRecoveryServicing? = nil,
         sharedMicStream: SharedMicrophoneStream? = nil
     ) {
@@ -772,6 +775,9 @@ public final class SettingsViewModel {
         self.snippetRepo = snippetRepo
         self.sttClient = sttClient
         self.speechEngineSwitcher = speechEngineSwitcher
+        self.speechEngineSwitchAvailabilityProvider = speechEngineSwitchAvailabilityProvider
+            ?? (speechEngineSwitcher as? SpeechEngineSwitchAvailabilityProviding)
+            ?? (sttClient as? SpeechEngineSwitchAvailabilityProviding)
         self.meetingRecoveryService = meetingRecoveryService
         self.sharedMicStream = sharedMicStream
         refreshLaunchAtLoginStatus()
@@ -779,6 +785,7 @@ public final class SettingsViewModel {
         refreshStats()
         refreshEntitlements()
         refreshModelStatus()
+        refreshSpeechEngineSwitchAvailability()
         refreshPendingMeetingRecoveries()
     }
 
@@ -977,12 +984,14 @@ public final class SettingsViewModel {
     public func startPermissionPolling() {
         guard permissionPollingTask == nil else { return }
         refreshPermissions()
+        refreshSpeechEngineSwitchAvailability()
         permissionPollingTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: self.permissionPollingInterval)
                 guard !Task.isCancelled else { break }
                 self.refreshPermissions()
+                self.refreshSpeechEngineSwitchAvailability()
             }
         }
     }
@@ -1004,6 +1013,44 @@ public final class SettingsViewModel {
         let (count, sizeBytes) = youtubeDownloadStats()
         youtubeDownloadCount = count
         youtubeDownloadStorageMB = Double(sizeBytes) / (1024.0 * 1024.0)
+    }
+
+    public func refreshSpeechEngineSwitchAvailability() {
+        Task { @MainActor [weak self] in
+            _ = await self?.refreshSpeechEngineSwitchAvailabilityNow()
+        }
+    }
+
+    @discardableResult
+    public func refreshSpeechEngineSwitchAvailabilityNow() async -> SpeechEngineSwitchAvailability {
+        guard let speechEngineSwitchAvailabilityProvider else {
+            speechEngineSwitchAvailability = .available
+            return .available
+        }
+        let availability = await speechEngineSwitchAvailabilityProvider.engineSwitchAvailability()
+        speechEngineSwitchAvailability = availability
+        return availability
+    }
+
+    public var speechEngineSwitchUnavailableMessage: String? {
+        Self.speechEngineSwitchUnavailableMessage(for: speechEngineSwitchAvailability)
+    }
+
+    public static func speechEngineSwitchUnavailableMessage(
+        for availability: SpeechEngineSwitchAvailability
+    ) -> String? {
+        switch availability {
+        case .available:
+            return nil
+        case .meetingActive:
+            return "Stop the meeting recording to switch engines"
+        case .transcribing:
+            return "Finishing transcription — switch when it completes"
+        case .switchInProgress:
+            return "Finishing engine switch — try again in a moment"
+        case .unavailable:
+            return "Speech engine is temporarily unavailable"
+        }
     }
 
     public func refreshEntitlements() {
@@ -1229,6 +1276,7 @@ public final class SettingsViewModel {
         speechEngineError = nil
         let previousPreference = SpeechEnginePreference.current(defaults: defaults)
         let operationContext = Observability.childOperationContext()
+        let switchWasCold = Self.speechEngineSwitchWasCold(to: preference, defaults: defaults)
 
         if preference == .whisper && !isWhisperModelDownloaded {
             speechEngineError = "Download the Whisper model before switching engines."
@@ -1240,7 +1288,8 @@ public final class SettingsViewModel {
                 outcome: .unavailable,
                 durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                 blockedReason: .modelNotDownloaded,
-                errorType: "model_not_downloaded"
+                errorType: "model_not_downloaded",
+                wasCold: switchWasCold
             ))
             isApplyingSpeechEngineState = true
             speechEnginePreference = .parakeet
@@ -1258,7 +1307,8 @@ public final class SettingsViewModel {
                 outcome: .success,
                 durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                 blockedReason: nil,
-                errorType: nil
+                errorType: nil,
+                wasCold: switchWasCold
             ))
             return
         }
@@ -1277,6 +1327,26 @@ public final class SettingsViewModel {
                 self.speechEngineSwitchDetail = nil
                 self.refreshModelStatus()
             }
+            let availability = await self.refreshSpeechEngineSwitchAvailabilityNow()
+            guard availability == .available else {
+                let blockedReason = Self.telemetrySpeechEngineSwitchBlockedReason(for: availability)
+                self.speechEngineError = Self.speechEngineSwitchUnavailableMessage(for: availability)
+                Telemetry.send(.speechEngineSwitchOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    fromEngine: previousPreference,
+                    toEngine: preference,
+                    outcome: .unavailable,
+                    durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                    blockedReason: blockedReason,
+                    errorType: blockedReason?.rawValue,
+                    wasCold: switchWasCold
+                ))
+                self.isApplyingSpeechEngineState = true
+                self.speechEnginePreference = SpeechEnginePreference.current(defaults: self.defaults)
+                self.isApplyingSpeechEngineState = false
+                return
+            }
             do {
                 try await Observability.withOperationContext(operationContext) {
                     try await speechEngineSwitcher.setSpeechEngine(preference) { [weak self] message in
@@ -1294,7 +1364,8 @@ public final class SettingsViewModel {
                     outcome: .success,
                     durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                     blockedReason: nil,
-                    errorType: nil
+                    errorType: nil,
+                    wasCold: switchWasCold
                 ))
             } catch is CancellationError {
                 Telemetry.send(.speechEngineSwitchOperation(
@@ -1305,7 +1376,8 @@ public final class SettingsViewModel {
                     outcome: .cancelled,
                     durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                     blockedReason: nil,
-                    errorType: "CancellationError"
+                    errorType: "CancellationError",
+                    wasCold: switchWasCold
                 ))
                 self.isApplyingSpeechEngineState = true
                 self.speechEnginePreference = SpeechEnginePreference.current(defaults: self.defaults)
@@ -1321,7 +1393,8 @@ public final class SettingsViewModel {
                     outcome: .failure,
                     durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                     blockedReason: Self.telemetrySpeechEngineSwitchBlockedReason(for: error),
-                    errorType: errorType
+                    errorType: errorType,
+                    wasCold: switchWasCold
                 ))
                 self.isApplyingSpeechEngineState = true
                 self.speechEnginePreference = SpeechEnginePreference.current(defaults: self.defaults)
@@ -1426,6 +1499,34 @@ public final class SettingsViewModel {
              .invalidResponse:
             return nil
         }
+    }
+
+    private static func telemetrySpeechEngineSwitchBlockedReason(
+        for availability: SpeechEngineSwitchAvailability
+    ) -> TelemetrySpeechEngineSwitchBlockedReason? {
+        switch availability {
+        case .available:
+            return nil
+        case .meetingActive:
+            return .meetingActive
+        case .transcribing:
+            return .transcribing
+        case .switchInProgress:
+            return .switchInProgress
+        case .unavailable:
+            return .unavailable
+        }
+    }
+
+    private static func speechEngineSwitchWasCold(
+        to preference: SpeechEnginePreference,
+        defaults: UserDefaults
+    ) -> Bool {
+        guard preference == .whisper else { return false }
+        return !SpeechEnginePreference.hasOptimizedWhisper(
+            variant: SpeechEnginePreference.whisperModelVariant(defaults: defaults),
+            defaults: defaults
+        )
     }
 
     private static func initialSpeechEngineSwitchDetail(

@@ -750,7 +750,8 @@ final class TelemetryServiceTests: XCTestCase {
                 outcome: .unavailable,
                 durationSeconds: 0.1,
                 blockedReason: .modelNotDownloaded,
-                errorType: "model_not_downloaded"
+                errorType: "model_not_downloaded",
+                wasCold: true
             ),
             appVer: "0.4.2",
             osVer: "15.3",
@@ -773,6 +774,7 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["duration_seconds"], "0.1")
         XCTAssertEqual(props["blocked_reason"], "model_not_downloaded")
         XCTAssertEqual(props["error_type"], "model_not_downloaded")
+        XCTAssertEqual(props["was_cold"], "true")
     }
 
     func testOperationContextSerializesWorkflowParentAndStage() throws {
@@ -1331,7 +1333,8 @@ final class TelemetryServiceTests: XCTestCase {
                 outcome: .success,
                 durationSeconds: 1.1,
                 blockedReason: nil,
-                errorType: nil
+                errorType: nil,
+                wasCold: true
             ),
             .feedbackOperation(
                 operationID: "op-feedback",

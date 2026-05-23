@@ -19,7 +19,7 @@ public enum STTSchedulerError: Error, LocalizedError, Equatable {
 ///
 /// Jobs execute independently per slot so dictation can remain responsive while
 /// meeting and file work share an explicitly prioritized background path.
-public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSessionManaging {
+public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding, SpeechEngineSessionManaging {
     private struct ScheduledJob: Sendable {
         let id: UUID
         let audioPath: String
@@ -205,6 +205,22 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
                 switchTask.cancel()
             }
         }
+    }
+
+    public func engineSwitchAvailability() async -> SpeechEngineSwitchAvailability {
+        if speechEngineSwitchTask != nil {
+            return .switchInProgress
+        }
+        if !activeSpeechEngineSessionIDs.isEmpty {
+            return .meetingActive
+        }
+        if hasQueuedOrRunningJobs {
+            return .transcribing
+        }
+        if !acceptsNewJobs {
+            return .unavailable
+        }
+        return .available
     }
 
     public func beginSpeechEngineSession() async -> SpeechEngineLease {

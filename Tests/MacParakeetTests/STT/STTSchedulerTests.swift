@@ -184,6 +184,71 @@ final class STTSchedulerTests: XCTestCase {
         XCTAssertEqual(count, 1)
     }
 
+    func testEngineSwitchAvailabilityReportsAvailableWhenIdle() async {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let availability = await scheduler.engineSwitchAvailability()
+
+        XCTAssertEqual(availability, .available)
+    }
+
+    func testEngineSwitchAvailabilityReportsMeetingActiveForSessionLease() async {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let lease = await scheduler.beginSpeechEngineSession()
+
+        let availability = await scheduler.engineSwitchAvailability()
+        XCTAssertEqual(availability, .meetingActive)
+
+        await scheduler.endSpeechEngineSession(lease)
+    }
+
+    func testEngineSwitchAvailabilityReportsTranscribingForActiveJob() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.block(path: "active")
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let activeTask = Task {
+            try await scheduler.transcribe(audioPath: "active", job: .fileTranscription)
+        }
+        try await waitForStartedPaths(runtime: runtime, count: 1)
+
+        let availability = await scheduler.engineSwitchAvailability()
+        XCTAssertEqual(availability, .transcribing)
+
+        await runtime.release(path: "active")
+        _ = try await activeTask.value
+    }
+
+    func testEngineSwitchAvailabilityReportsSwitchInProgress() async throws {
+        let runtime = MockSTTRuntime()
+        await runtime.blockNextSpeechEngineSwitch()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        let switchTask = Task {
+            try await scheduler.setSpeechEngine(.whisper)
+        }
+        try await waitForSpeechEngineSwitch(runtime: runtime, count: 1)
+
+        let availability = await scheduler.engineSwitchAvailability()
+        XCTAssertEqual(availability, .switchInProgress)
+
+        await runtime.releaseSpeechEngineSwitch()
+        _ = try await switchTask.value
+    }
+
+    func testEngineSwitchAvailabilityReportsUnavailableAfterShutdown() async {
+        let runtime = MockSTTRuntime()
+        let scheduler = STTScheduler(runtimeProvider: runtime)
+
+        await scheduler.shutdown()
+
+        let availability = await scheduler.engineSwitchAvailability()
+        XCTAssertEqual(availability, .unavailable)
+    }
+
     func testSpeechEngineSessionWaitsForInFlightEngineSwitch() async throws {
         let runtime = MockSTTRuntime()
         await runtime.blockNextSpeechEngineSwitch()

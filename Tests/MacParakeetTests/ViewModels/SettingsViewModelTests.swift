@@ -1057,6 +1057,86 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.speechEngineError)
     }
 
+    func testRefreshSpeechEngineSwitchAvailabilityStoresProviderResult() async {
+        let provider = MockSpeechEngineSwitchAvailabilityProvider(.transcribing)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitchAvailabilityProvider: provider
+        )
+
+        let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+
+        XCTAssertEqual(availability, .transcribing)
+        XCTAssertEqual(viewModel.speechEngineSwitchAvailability, .transcribing)
+        XCTAssertEqual(
+            SettingsViewModel.speechEngineSwitchUnavailableMessage(for: .transcribing),
+            "Finishing transcription — switch when it completes"
+        )
+    }
+
+    func testSpeechEngineChangeBlockedByAvailabilityShowsReasonAndTelemetry() async throws {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let switcher = MockSpeechEngineSwitcher()
+        let provider = MockSpeechEngineSwitchAvailabilityProvider(.meetingActive)
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher,
+            speechEngineSwitchAvailabilityProvider: provider
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.speechEnginePreference = .whisper
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
+        XCTAssertEqual(viewModel.speechEngineError, "Stop the meeting recording to switch engines")
+        let preferences = await switcher.preferences
+        XCTAssertTrue(preferences.isEmpty)
+
+        let event = try XCTUnwrap(speechEngineSwitchEvents(in: telemetry.snapshot()).last)
+        XCTAssertEqual(event.fromEngine, .parakeet)
+        XCTAssertEqual(event.toEngine, .whisper)
+        XCTAssertEqual(event.outcome, .unavailable)
+        XCTAssertEqual(event.blockedReason, .meetingActive)
+        XCTAssertEqual(event.errorType, "meeting_active")
+        XCTAssertEqual(event.wasCold, true)
+    }
+
+    func testSpeechEngineChangeTelemetryMarksColdWhisperSwitch() async throws {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let switcher = MockSpeechEngineSwitcher()
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.speechEnginePreference = .whisper
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        let event = try XCTUnwrap(speechEngineSwitchEvents(in: telemetry.snapshot()).last)
+        XCTAssertEqual(event.fromEngine, .parakeet)
+        XCTAssertEqual(event.toEngine, .whisper)
+        XCTAssertEqual(event.outcome, .success)
+        XCTAssertNil(event.blockedReason)
+        XCTAssertNil(event.errorType)
+        XCTAssertEqual(event.wasCold, true)
+    }
+
     func testSpeechEngineChangeShowsProgressAndClearsWhenDone() async throws {
         let switcher = MockSpeechEngineSwitcher(progressMessages: ["Optimizing Whisper for this Mac..."])
         await switcher.blockNextSwitch()
@@ -1146,6 +1226,43 @@ final class SettingsViewModelTests: XCTestCase {
                 return
             }
             try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    private struct SpeechEngineSwitchEventSnapshot {
+        let fromEngine: SpeechEnginePreference
+        let toEngine: SpeechEnginePreference
+        let outcome: ObservabilityOutcome
+        let blockedReason: TelemetrySpeechEngineSwitchBlockedReason?
+        let errorType: String?
+        let wasCold: Bool?
+    }
+
+    private func speechEngineSwitchEvents(
+        in events: [TelemetryEventSpec]
+    ) -> [SpeechEngineSwitchEventSnapshot] {
+        events.compactMap { event in
+            guard case .speechEngineSwitchOperation(
+                operationID: _,
+                operationContext: _,
+                fromEngine: let fromEngine,
+                toEngine: let toEngine,
+                outcome: let outcome,
+                durationSeconds: _,
+                blockedReason: let blockedReason,
+                errorType: let errorType,
+                wasCold: let wasCold
+            ) = event else {
+                return nil
+            }
+            return SpeechEngineSwitchEventSnapshot(
+                fromEngine: fromEngine,
+                toEngine: toEngine,
+                outcome: outcome,
+                blockedReason: blockedReason,
+                errorType: errorType,
+                wasCold: wasCold
+            )
         }
     }
 
@@ -1355,6 +1472,22 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm2.saveAudioRecordings)
         XCTAssertFalse(vm2.saveTranscriptionAudio)
         XCTAssertTrue(vm2.speakerDiarization)
+    }
+}
+
+private actor MockSpeechEngineSwitchAvailabilityProvider: SpeechEngineSwitchAvailabilityProviding {
+    private var availability: SpeechEngineSwitchAvailability
+
+    init(_ availability: SpeechEngineSwitchAvailability) {
+        self.availability = availability
+    }
+
+    func setAvailability(_ availability: SpeechEngineSwitchAvailability) {
+        self.availability = availability
+    }
+
+    func engineSwitchAvailability() async -> SpeechEngineSwitchAvailability {
+        availability
     }
 }
 

@@ -182,6 +182,10 @@ public enum TelemetryModelOperationStage: String, Sendable, Equatable {
 public enum TelemetrySpeechEngineSwitchBlockedReason: String, Sendable, Equatable {
     case modelNotDownloaded = "model_not_downloaded"
     case engineBusy = "engine_busy"
+    case meetingActive = "meeting_active"
+    case transcribing
+    case switchInProgress = "switch_in_progress"
+    case unavailable
 }
 
 public enum TelemetryCopySource: String, Sendable, Equatable {
@@ -634,7 +638,8 @@ public enum TelemetryEventSpec: Sendable {
         outcome: ObservabilityOutcome,
         durationSeconds: Double,
         blockedReason: TelemetrySpeechEngineSwitchBlockedReason?,
-        errorType: String?
+        errorType: String?,
+        wasCold: Bool? = nil
     )
     // Lifecycle actions
     case feedbackSubmitted(category: String)
@@ -1283,7 +1288,8 @@ extension TelemetryEventSpec {
             let outcome,
             let durationSeconds,
             let blockedReason,
-            let errorType
+            let errorType,
+            let wasCold
         ):
             return Self.compactProps(
                 ("operation_id", operationID),
@@ -1294,7 +1300,8 @@ extension TelemetryEventSpec {
                 ("outcome", outcome.rawValue),
                 ("duration_seconds", Self.format(durationSeconds)),
                 ("blocked_reason", blockedReason?.rawValue),
-                ("error_type", errorType)
+                ("error_type", errorType),
+                ("was_cold", wasCold.map(Self.boolString))
             )
         case .feedbackSubmitted(let category):
             return ["category": category]
@@ -1605,7 +1612,7 @@ public enum TelemetryImplementedContract {
         .modelDownloadCompleted: ["duration_seconds"],
         .modelDownloadFailed: ["error_type"],
         .modelOperation: ["operation_id", "action", "outcome", "duration_seconds"],
-        .speechEngineSwitchOperation: ["operation_id", "from_engine", "to_engine", "outcome", "duration_seconds"],
+        .speechEngineSwitchOperation: ["operation_id", "from_engine", "to_engine", "outcome", "duration_seconds", "was_cold"],
         .feedbackSubmitted: ["category"],
         .feedbackOperation: ["operation_id", "category", "outcome", "duration_seconds", "screenshot_attached", "system_info_included"],
         .transcriptionDeleted: [],

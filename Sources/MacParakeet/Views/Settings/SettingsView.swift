@@ -116,6 +116,7 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             viewModel.refreshPermissions()
+            viewModel.refreshSpeechEngineSwitchAvailability()
             Task { await viewModel.refreshCalendarNotificationAuthorization() }
         }
         .onAppear {
@@ -1546,6 +1547,7 @@ struct SettingsView: View {
                         modelStatus: displayedParakeetModelStatus,
                         isSelected: viewModel.speechEnginePreference == .parakeet,
                         isBusy: viewModel.speechEngineSwitching,
+                        unavailableReason: engineSwitchUnavailableReason(for: .parakeet),
                         onSelect: { selectEngine(.parakeet) }
                     )
 
@@ -1562,6 +1564,7 @@ struct SettingsView: View {
                         modelStatus: displayedWhisperModelStatus,
                         isSelected: viewModel.speechEnginePreference == .whisper,
                         isBusy: viewModel.speechEngineSwitching,
+                        unavailableReason: engineSwitchUnavailableReason(for: .whisper),
                         needsFirstOptimize: displayedWhisperModelStatus == .notLoaded
                             && !viewModel.whisperHasBeenOptimized,
                         onSelect: { handleWhisperTileTap() }
@@ -1680,6 +1683,11 @@ struct SettingsView: View {
         viewModel.speechEngineSwitchTarget ?? viewModel.speechEnginePreference
     }
 
+    private func engineSwitchUnavailableReason(for engine: SpeechEnginePreference) -> String? {
+        guard viewModel.speechEnginePreference != engine else { return nil }
+        return viewModel.speechEngineSwitchUnavailableMessage
+    }
+
     private var displayedParakeetModelStatus: SettingsViewModel.LocalModelStatus {
         guard viewModel.speechEngineSwitching,
               currentSpeechEngineSwitchTarget == .parakeet else {
@@ -1749,8 +1757,15 @@ struct SettingsView: View {
     private func selectEngine(_ engine: SpeechEnginePreference) {
         guard viewModel.speechEnginePreference != engine,
               !viewModel.speechEngineSwitching else { return }
-        withAnimation(DesignSystem.Animation.contentSwap) {
-            viewModel.speechEnginePreference = engine
+        Task { @MainActor in
+            let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+            guard availability == .available else {
+                viewModel.speechEngineError = SettingsViewModel.speechEngineSwitchUnavailableMessage(for: availability)
+                return
+            }
+            withAnimation(DesignSystem.Animation.contentSwap) {
+                viewModel.speechEnginePreference = engine
+            }
         }
     }
 

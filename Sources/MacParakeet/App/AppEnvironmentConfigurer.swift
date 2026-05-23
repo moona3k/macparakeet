@@ -117,6 +117,7 @@ final class AppEnvironmentConfigurer {
             snippetRepo: env.snippetRepo,
             sttClient: env.sttScheduler,
             speechEngineSwitcher: env.sttScheduler,
+            speechEngineSwitchAvailabilityProvider: env.sttScheduler,
             meetingRecoveryService: env.meetingRecordingRecoveryService,
             sharedMicStream: env.sharedMicStream
         )

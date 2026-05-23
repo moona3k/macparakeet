@@ -7,7 +7,7 @@ import Foundation
 ///   bypassing the process-wide singleton that ADR-016 requires.
 ///   **App code must never instantiate this type directly.**
 ///   Use the shared ``STTScheduler`` from `AppEnvironment` instead.
-public actor STTClient: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSessionManaging {
+public actor STTClient: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngineSwitching, SpeechEngineSwitchAvailabilityProviding, SpeechEngineSessionManaging {
     private let scheduler: STTScheduler
 
     public init(modelVersion: AsrModelVersion = .v3) {
@@ -74,6 +74,10 @@ public actor STTClient: STTManaging, SpeechEngineRoutedTranscribing, SpeechEngin
         onProgress: (@Sendable (String) -> Void)?
     ) async throws {
         try await scheduler.setSpeechEngine(preference, onProgress: onProgress)
+    }
+
+    public func engineSwitchAvailability() async -> SpeechEngineSwitchAvailability {
+        await scheduler.engineSwitchAvailability()
     }
 
     public func beginSpeechEngineSession() async -> SpeechEngineLease {
