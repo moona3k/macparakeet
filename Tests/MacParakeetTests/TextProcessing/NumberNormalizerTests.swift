@@ -250,4 +250,68 @@ final class NumberNormalizerTests: XCTestCase {
         XCTAssertEqual(NumberNormalizer.normalize("hold at 100"), "hold at 100")
         XCTAssertEqual(NumberNormalizer.normalize("around 4"), "around 4")
     }
+
+    // MARK: - Trailing countdown (cross-cue leak)
+
+    /// Real failure case from the export iteration: the speech
+    /// engine emits "in 3, 2, 1, let's go" as one sentence but the
+    /// cue-builder splits it across two cues. Cue N ends with
+    /// "...in 3," — a single digit with no second digit in the
+    /// same cue to anchor a sequence match. The trigger-word pass
+    /// catches "in N," directly.
+    func testInDigitCommaGetsSpelled() {
+        XCTAssertEqual(
+            NumberNormalizer.normalize("our pedals in 3,"),
+            "our pedals in three,"
+        )
+        XCTAssertEqual(
+            NumberNormalizer.normalize("next two minutes in 3,"),
+            "next two minutes in three,"
+        )
+        XCTAssertEqual(
+            NumberNormalizer.normalize("100 to 105 on your cadence in 3,"),
+            "100 to 105 on your cadence in three,"
+        )
+    }
+
+    func testInDigitPeriodGetsSpelled() {
+        XCTAssertEqual(
+            NumberNormalizer.normalize("we restart in 3."),
+            "we restart in three."
+        )
+    }
+
+    func testInDigitEndOfStringGetsSpelled() {
+        // No trailing punctuation, end-of-string anchor.
+        XCTAssertEqual(
+            NumberNormalizer.normalize("starting in 5"),
+            "starting in five"
+        )
+    }
+
+    /// "in N + unit" stays owned by the measurement pass and ends
+    /// up spelled correctly through that route — trigger pass
+    /// should NOT also fire here (would double-process or interfere).
+    /// The trailing pass requires `,` / `.` / end-of-string after
+    /// the digit; "in 3 minutes" has a space + word, so no match.
+    func testInDigitMeasurementGoesThroughMeasurementPath() {
+        XCTAssertEqual(
+            NumberNormalizer.normalize("in 3 minutes"),
+            "in three minutes"
+        )
+        XCTAssertEqual(
+            NumberNormalizer.normalize("in 4 reps"),
+            "in four reps"
+        )
+    }
+
+    /// Bare digits without the trigger word stay digits. The pass
+    /// is narrow on purpose — only "in/at/after + digit + punct"
+    /// is unambiguous enough to spell out without context.
+    func testNonTriggerWordContextStaysDigit() {
+        XCTAssertEqual(NumberNormalizer.normalize("level 4."), "level 4.")
+        XCTAssertEqual(NumberNormalizer.normalize("scored a 5,"), "scored a 5,")
+        XCTAssertEqual(NumberNormalizer.normalize("got a 3."), "got a 3.")
+    }
 }
+

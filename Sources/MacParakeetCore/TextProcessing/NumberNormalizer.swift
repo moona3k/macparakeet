@@ -126,6 +126,29 @@ public enum NumberNormalizer: Sendable {
         return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }()
 
+    /// Matches a SINGLE bare digit cardinal preceded by an instructional
+    /// trigger word (`in`, `at`, `after`) and followed by a comma,
+    /// period, or end of string. Catches the cross-cue countdown
+    /// leak where a sentence like "...in 3, 2, 1, let's go" gets
+    /// SPLIT by the cue-builder into:
+    ///   cue N:   "...in 3,"
+    ///   cue N+1: "2, 1, let's go."
+    /// The sequence regex catches "2, 1" in cue N+1 but the lone
+    /// "3," at the end of cue N has no second digit to anchor a
+    /// countdown match. Trigger-word context disambiguates: "in 3,"
+    /// almost always means a countdown starter, while bare "3,"
+    /// could be many things. We deliberately don't include "in 3
+    /// minutes" (no comma after the digit) so the measurement pass
+    /// still owns that case.
+    private static let digitTrailingCountdownRegex: NSRegularExpression? = {
+        // Capture group 1 = trigger word, group 2 = digit.
+        // Negative lookahead `(?=\s*[,.]|\s*$)` keeps the trailing
+        // punctuation out of the match so the replacement can swap
+        // the digit cleanly without re-emitting the comma/period.
+        let pattern = "\\b(in|at|after)\\s+([1-9])\\b(?=\\s*[,.]|\\s*$)"
+        return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
+
     /// Returns `text` with normalised cardinals. Idempotent — running on
     /// already-normalised text returns the same string.
     ///
@@ -144,6 +167,7 @@ public enum NumberNormalizer: Sendable {
         result = applyStandalonePass(result)
         result = applyDigitToSpelledPass(result)
         result = applyCountdownToSpelledPass(result)
+        result = applyTrailingCountdownToSpelledPass(result)
         return result
     }
 
@@ -223,6 +247,31 @@ public enum NumberNormalizer: Sendable {
             out = (out as NSString).replacingCharacters(
                 in: match.range,
                 with: "\(word)\(separator)\(unit)"
+            )
+        }
+        return out
+    }
+
+    /// Trailing-countdown pass: `...in 3,` → `...in three,`.
+    /// Catches the cross-cue leak where a sentence "in 3, 2, 1,
+    /// let's go" gets split by the cue-builder so one cue ends
+    /// with just "in 3," and the next starts with "2, 1, let's
+    /// go." — the sequence pass catches "2, 1" in the second cue
+    /// but the lone "3," in the first cue had no second digit to
+    /// anchor a countdown. The trigger word ("in", "at", "after")
+    /// disambiguates from bare digits like "level 4" or "scored a 5".
+    private static func applyTrailingCountdownToSpelledPass(_ text: String) -> String {
+        guard let regex = digitTrailingCountdownRegex else { return text }
+        let ns = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        var out = text
+        for match in matches.reversed() {
+            let trigger = (out as NSString).substring(with: match.range(at: 1))
+            let digit = (out as NSString).substring(with: match.range(at: 2))
+            guard let word = digitToWord[digit] else { continue }
+            out = (out as NSString).replacingCharacters(
+                in: match.range,
+                with: "\(trigger) \(word)"
             )
         }
         return out

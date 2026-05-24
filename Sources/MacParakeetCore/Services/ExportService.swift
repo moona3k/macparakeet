@@ -3076,12 +3076,23 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // looks bad whether or not number normalization is on.
         let dehyphenated = collapseWhisperHyphenArtifacts(in: unstuck)
 
+        // Flatten any embedded newlines to spaces BEFORE the
+        // normalizer runs. Merge passes that set `forcedText` to a
+        // pre-wrapped two-line form leave `\n` in the cue text, and
+        // `NumberNormalizer`'s patterns use `[- ]` separators — `\n`
+        // sneaks between a cardinal and its unit, the regex skips
+        // the match, and the digit form leaks into the final SRT.
+        // Real failure case: iter7 cue 293 had pre-wrap text
+        // `"hard over these 4\nminutes of speed drills,"` and the
+        // measurement pass missed `4\nminutes` even though
+        // `"4 minutes"` matches cleanly.
+        let flattened = dehyphenated.replacingOccurrences(of: "\n", with: " ")
+
         // Number normalisation runs *before* wrapping so the wrapped output
         // can take advantage of the shorter digit form when measuring against
         // the per-line budget. (Pure string transform — does not change word
         // count or timing.)
-        let prenormalised = config.normalizeNumbers ? NumberNormalizer.normalize(dehyphenated) : dehyphenated
-        let cleaned = prenormalised.replacingOccurrences(of: "\n", with: " ")
+        let cleaned = config.normalizeNumbers ? NumberNormalizer.normalize(flattened) : flattened
         let words = cleaned.split(separator: " ").map(String.init)
         guard !words.isEmpty else { return cleaned }
 
