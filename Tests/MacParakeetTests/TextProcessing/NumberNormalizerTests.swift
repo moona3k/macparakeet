@@ -192,11 +192,62 @@ final class NumberNormalizerTests: XCTestCase {
 
     /// Bare digits without a known measurement unit don't get
     /// touched — those could be levels, versions, scores, etc.
-    /// where the digit form is correct.
-    func testDigitWithoutMeasurementUnitStaysDigit() {
+    /// where the digit form is correct. NOTE: a *sequence* of bare
+    /// digits separated by commas IS converted (countdown pass) —
+    /// tests for that live below.
+    func testSingleDigitWithoutMeasurementUnitOrCountdownStaysDigit() {
         XCTAssertEqual(NumberNormalizer.normalize("level 4"), "level 4")
         XCTAssertEqual(NumberNormalizer.normalize("iPhone 5"), "iPhone 5")
         XCTAssertEqual(NumberNormalizer.normalize("4 PM"), "4 PM")
         XCTAssertEqual(NumberNormalizer.normalize("got a 4 today"), "got a 4 today")
+    }
+
+    // MARK: - Countdown sequence pass
+
+    /// SRT 37 feedback: Whisper sometimes outputs countdown phrases
+    /// as digits ("in 3, 2, 1, sit and recover") even when the
+    /// speaker said "three, two, one". The measurement pass doesn't
+    /// catch these because there's no unit after the digit. The
+    /// countdown pass converts any sequence of 2+ single-digit
+    /// cardinals separated by commas.
+    func testThreeTwoOneCountdownGetsSpelled() {
+        XCTAssertEqual(
+            NumberNormalizer.normalize("in 3, 2, 1, sit and recover"),
+            "in three, two, one, sit and recover"
+        )
+    }
+
+    func testCountdownWithAndBeforeLastGetsSpelled() {
+        XCTAssertEqual(
+            NumberNormalizer.normalize("high 80s in 3, 2, and 1."),
+            "high 80s in three, two, and one."
+        )
+    }
+
+    func testLongerCountdownGetsSpelled() {
+        XCTAssertEqual(
+            NumberNormalizer.normalize("5, 4, 3, 2, 1, let's go"),
+            "five, four, three, two, one, let's go"
+        )
+    }
+
+    func testTwoDigitCountdownGetsSpelled() {
+        // Real failure case (SRT 37 cue 349): "5, 4, weights go
+        // down. 3, 2, 1." — two separate countdowns interrupted by
+        // text; each one converts independently.
+        XCTAssertEqual(
+            NumberNormalizer.normalize("5, 4, weights go down. 3, 2, 1."),
+            "five, four, weights go down. three, two, one."
+        )
+    }
+
+    /// Cadence callouts and single bare digits stay as digits — the
+    /// `+` quantifier in the countdown regex requires at least one
+    /// `, N` after the first digit, so "85" or "100" alone don't
+    /// match.
+    func testCadenceCalloutsAndStandaloneDigitsStayDigit() {
+        XCTAssertEqual(NumberNormalizer.normalize("85, 90, 95, and 100"), "85, 90, 95, and 100")
+        XCTAssertEqual(NumberNormalizer.normalize("hold at 100"), "hold at 100")
+        XCTAssertEqual(NumberNormalizer.normalize("around 4"), "around 4")
     }
 }

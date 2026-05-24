@@ -112,6 +112,20 @@ public enum NumberNormalizer: Sendable {
         return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }()
 
+    /// Matches a sequence of two or more single-digit cardinals
+    /// separated by commas (with optional `and` before the last).
+    /// Catches countdown patterns like "3, 2, 1", "3, 2, and 1",
+    /// "5, 4", "5, 4, 3, 2, 1" — which `digitMeasurementRegex`
+    /// misses because countdowns aren't followed by a measurement
+    /// unit. A single digit alone DOESN'T match (the `+` quantifier
+    /// requires at least one additional `, N` group), so cadence
+    /// callouts ("85"), levels ("level 4"), and times ("4 PM") stay
+    /// as digits.
+    private static let digitCountdownRegex: NSRegularExpression? = {
+        let pattern = "\\b[1-9]\\b(\\s*,\\s*(and\\s+)?\\b[1-9]\\b)+"
+        return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
+
     /// Returns `text` with normalised cardinals. Idempotent — running on
     /// already-normalised text returns the same string.
     ///
@@ -129,6 +143,7 @@ public enum NumberNormalizer: Sendable {
         result = applyCompoundPass(result)
         result = applyStandalonePass(result)
         result = applyDigitToSpelledPass(result)
+        result = applyCountdownToSpelledPass(result)
         return result
     }
 
@@ -209,6 +224,47 @@ public enum NumberNormalizer: Sendable {
                 in: match.range,
                 with: "\(word)\(separator)\(unit)"
             )
+        }
+        return out
+    }
+
+    /// Sequence pass: `3, 2, 1` / `3, 2, and 1` / `5, 4, 3, 2, 1`
+    /// → spelled equivalents. Whisper / Parakeet sometimes emits
+    /// countdown phrases as digits even when the speaker said
+    /// "three, two, one" — and those don't trigger the measurement
+    /// pass because there's no unit after the digit. SRT 37
+    /// regression showed "in 3, 2, 1, recover" / "in 3, 2, and 1."
+    /// patterns scattered through the export.
+    ///
+    /// Walks each match's bare-digit substring via a tiny inner
+    /// regex so the comma/whitespace/"and" punctuation stays
+    /// exactly as it was in the input. Single digits alone never
+    /// match (the outer regex requires `+` repetition), so cadence
+    /// callouts like `85` and bare levels like `4` stay as digits.
+    private static func applyCountdownToSpelledPass(_ text: String) -> String {
+        guard let outerRegex = digitCountdownRegex,
+              let innerRegex = try? NSRegularExpression(pattern: "\\b[1-9]\\b") else {
+            return text
+        }
+        let ns = text as NSString
+        let matches = outerRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        var out = text
+        for match in matches.reversed() {
+            let matchText = (out as NSString).substring(with: match.range)
+            let innerNS = matchText as NSString
+            let innerMatches = innerRegex.matches(
+                in: matchText,
+                range: NSRange(location: 0, length: innerNS.length)
+            )
+            var rewritten = matchText
+            for inner in innerMatches.reversed() {
+                let digit = (rewritten as NSString).substring(with: inner.range)
+                guard let word = digitToWord[digit] else { continue }
+                rewritten = (rewritten as NSString).replacingCharacters(
+                    in: inner.range, with: word
+                )
+            }
+            out = (out as NSString).replacingCharacters(in: match.range, with: rewritten)
         }
         return out
     }
