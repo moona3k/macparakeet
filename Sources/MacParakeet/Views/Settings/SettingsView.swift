@@ -54,6 +54,63 @@ enum SettingsDictationHotkeyConflictPolicy {
     }
 }
 
+enum SettingsDictationHotkeyDisplay {
+    static func pushToTalkDisplayLabelOverride(
+        pushToTalk: HotkeyTrigger,
+        handsFree: HotkeyTrigger
+    ) -> String? {
+        guard HotkeyTrigger.isSharedDictationGesture(
+            handsFree: handsFree,
+            pushToTalk: pushToTalk
+        ) else {
+            return nil
+        }
+        guard !HotkeyTrigger.isDefaultDictationGesturePreset(
+            handsFree: handsFree,
+            pushToTalk: pushToTalk
+        ) else {
+            return nil
+        }
+        return "Hold \(sharedGestureKeyLabel(for: pushToTalk))"
+    }
+
+    static func handsFreeDisplayLabelOverride(
+        handsFree: HotkeyTrigger,
+        pushToTalk: HotkeyTrigger
+    ) -> String? {
+        guard HotkeyTrigger.isSharedDictationGesture(
+            handsFree: handsFree,
+            pushToTalk: pushToTalk
+        ) else {
+            return nil
+        }
+        return "Double-tap \(sharedGestureKeyLabel(for: handsFree))"
+    }
+
+    static func handsFreeDefaultLabelOverride(
+        pushToTalk: HotkeyTrigger
+    ) -> String? {
+        handsFreeDisplayLabelOverride(
+            handsFree: .defaultDictation,
+            pushToTalk: pushToTalk
+        )
+    }
+
+    private static func sharedGestureKeyLabel(for trigger: HotkeyTrigger) -> String {
+        switch trigger.kind {
+        case .disabled:
+            return "Disabled"
+        case .modifier:
+            if trigger.modifierName == "fn" {
+                return "Fn"
+            }
+            return trigger.shortSymbol
+        case .keyCode, .chord, .modifierChord:
+            return trigger.shortSymbol
+        }
+    }
+}
+
 struct SettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @Bindable var llmSettingsViewModel: LLMSettingsViewModel
@@ -585,6 +642,7 @@ struct SettingsView: View {
                         HotkeyRecorderView(
                             trigger: $viewModel.pushToTalkHotkeyTrigger,
                             defaultTrigger: .defaultPushToTalk,
+                            displayLabelOverride: pushToTalkHotkeyDisplayLabelOverride,
                             additionalValidation: { candidate in
                                 pushToTalkHotkeyValidation(for: candidate)
                             },
@@ -2361,13 +2419,6 @@ struct SettingsView: View {
         )
     }
 
-    private var usesDefaultDictationGesturePreset: Bool {
-        HotkeyTrigger.isDefaultDictationGesturePreset(
-            handsFree: viewModel.hotkeyTrigger,
-            pushToTalk: viewModel.pushToTalkHotkeyTrigger
-        )
-    }
-
     private var handsFreeHotkeyDetail: String {
         if usesSharedDictationGesture {
             return "Double-tap to start; tap again to stop."
@@ -2375,15 +2426,24 @@ struct SettingsView: View {
         return "Tap to start; tap again to stop."
     }
 
+    private var pushToTalkHotkeyDisplayLabelOverride: String? {
+        SettingsDictationHotkeyDisplay.pushToTalkDisplayLabelOverride(
+            pushToTalk: viewModel.pushToTalkHotkeyTrigger,
+            handsFree: viewModel.hotkeyTrigger
+        )
+    }
+
     private var handsFreeHotkeyDisplayLabelOverride: String? {
-        usesDefaultDictationGesturePreset ? "Double-tap Fn" : nil
+        SettingsDictationHotkeyDisplay.handsFreeDisplayLabelOverride(
+            handsFree: viewModel.hotkeyTrigger,
+            pushToTalk: viewModel.pushToTalkHotkeyTrigger
+        )
     }
 
     private var handsFreeHotkeyDefaultLabelOverride: String? {
-        HotkeyTrigger.isDefaultDictationGesturePreset(
-            handsFree: .defaultDictation,
+        SettingsDictationHotkeyDisplay.handsFreeDefaultLabelOverride(
             pushToTalk: viewModel.pushToTalkHotkeyTrigger
-        ) ? "Double-tap Fn" : nil
+        )
     }
 
     private func modeShortcutRow(
