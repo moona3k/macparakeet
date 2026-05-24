@@ -262,6 +262,16 @@ struct TranscriptResultView: View {
                 reloadVideoSubtitleCues()
             }
         }
+        // Export progress overlay lives at the BODY level so the
+        // card centers inside the whole transcript view. Was
+        // previously on the action bar (bottom HStack) and got
+        // bounded by its small frame — looked like a notch glued
+        // to the bottom of the window.
+        .overlay {
+            if isExporting {
+                exportProgressOverlay
+            }
+        }
     }
 
     @ViewBuilder
@@ -578,11 +588,13 @@ struct TranscriptResultView: View {
         .popover(item: $exportConfirmation, arrowEdge: .top) { confirmation in
             exportConfirmationPopover(confirmation)
         }
-        .overlay {
-            if isExporting {
-                exportProgressOverlay
-            }
-        }
+        // NOTE: the `exportProgressOverlay` `.overlay` is attached to
+        // the BODY (search for "if isExporting" near the end of
+        // `body`), not here on the action bar. Putting it on the
+        // action bar bounded the overlay to the bar's small frame
+        // and made the card look like a notch glued to the bottom
+        // of the window (SRT 36 feedback). It belongs at the
+        // top-level body so it can center inside the whole view.
     }
 
     /// AI-refined export progress overlay.
