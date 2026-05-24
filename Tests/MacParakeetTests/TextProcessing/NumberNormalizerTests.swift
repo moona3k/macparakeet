@@ -160,4 +160,43 @@ final class NumberNormalizerTests: XCTestCase {
         XCTAssertEqual(NumberNormalizer.normalize("forty-five reps"), "45 reps")
         XCTAssertEqual(NumberNormalizer.normalize("one hundred seconds"), "100 seconds")
     }
+
+    // MARK: - Digit → spelled reverse pass
+
+    /// SRT 36 feedback: Parakeet emits "4 minutes" / "3 minutes"
+    /// natively even when speaker says the spelled form. The reverse
+    /// pass converts single-digit cardinals followed by a measurement
+    /// unit back to spelled form.
+    func testDigitOneToNineWithSpaceUnitGetsSpelled() {
+        XCTAssertEqual(NumberNormalizer.normalize("4 minutes"), "four minutes")
+        XCTAssertEqual(NumberNormalizer.normalize("3 reps"), "three reps")
+        XCTAssertEqual(NumberNormalizer.normalize("1 minute"), "one minute")
+        XCTAssertEqual(NumberNormalizer.normalize("8 minutes of curls"), "eight minutes of curls")
+    }
+
+    func testDigitOneToNineWithHyphenUnitGetsSpelled() {
+        XCTAssertEqual(NumberNormalizer.normalize("4-minute warm-up"), "four-minute warm-up")
+        XCTAssertEqual(NumberNormalizer.normalize("9-second hold"), "nine-second hold")
+    }
+
+    /// 10+ digits stay as digits — the `[1-9]` upper bound in the
+    /// regex pins this so a future "spell everything" regression
+    /// would surface here.
+    func testDigit10AndAboveStaysDigit() {
+        XCTAssertEqual(NumberNormalizer.normalize("10 minutes"), "10 minutes")
+        XCTAssertEqual(NumberNormalizer.normalize("15 seconds"), "15 seconds")
+        XCTAssertEqual(NumberNormalizer.normalize("44 minutes"), "44 minutes")
+        XCTAssertEqual(NumberNormalizer.normalize("100 reps"), "100 reps")
+        XCTAssertEqual(NumberNormalizer.normalize("30-second hold"), "30-second hold")
+    }
+
+    /// Bare digits without a known measurement unit don't get
+    /// touched — those could be levels, versions, scores, etc.
+    /// where the digit form is correct.
+    func testDigitWithoutMeasurementUnitStaysDigit() {
+        XCTAssertEqual(NumberNormalizer.normalize("level 4"), "level 4")
+        XCTAssertEqual(NumberNormalizer.normalize("iPhone 5"), "iPhone 5")
+        XCTAssertEqual(NumberNormalizer.normalize("4 PM"), "4 PM")
+        XCTAssertEqual(NumberNormalizer.normalize("got a 4 today"), "got a 4 today")
+    }
 }

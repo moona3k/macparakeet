@@ -388,21 +388,27 @@ final class ApplyTimingPostProcessingTests: XCTestCase {
             normalizeNumbers: true
         )
         let out = service.applyTimingPostProcessingForTesting(llmCues, config: config)
-        // The fix is "the `4` and `minute` end up in the SAME cue
-        // and adjacent, regardless of which cue absorbs the other"
-        // — pre-fix they sat on opposite sides of a cue boundary.
-        // Treat a wrap-pass newline as whitespace; we care that no
-        // *word* sits between them.
+        // The fix is "the cardinal and `minute` end up in the SAME
+        // cue and adjacent, regardless of which cue absorbs the
+        // other" — pre-fix they sat on opposite sides of a cue
+        // boundary. Treat a wrap-pass newline as whitespace; we
+        // care that no *word* sits between them.
+        //
+        // NOTE: per SRT 36 feedback, the normalizer now spells out
+        // 1-9 digit cardinals followed by a unit, so "4 minute"
+        // becomes "four minute" in the output. Either surface form
+        // satisfies the structural fix — accept both.
         let normalized = out.map { $0.text.replacingOccurrences(of: "\n", with: " ") }
         let dump = normalized.enumerated()
             .map { "[\($0.offset)] \"\($0.element)\"" }
             .joined(separator: " | ")
         let foundPair = normalized.contains { txt in
             txt.contains("4 minute") || txt.contains("4-minute")
+                || txt.contains("four minute") || txt.contains("four-minute")
         }
         XCTAssertTrue(
             foundPair,
-            "No cue contains '4 minute' (or '4-minute') as adjacent tokens. Cues: \(dump)"
+            "No cue contains the cardinal+unit pair as adjacent tokens. Cues: \(dump)"
         )
     }
 

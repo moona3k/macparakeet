@@ -21,6 +21,15 @@ import Foundation
 /// which is a bit strange"). The other passes already cover every
 /// number ≥10 correctly via standalone / compound / hundred / oh
 /// patterns, so we just stop touching 1-9.
+///
+/// **Reverse pass for upstream-emitted digits.** Parakeet's native
+/// output sometimes emits "4 minutes" / "3 minutes" directly even
+/// when the speaker said the spelled form. SRT 36 feedback flagged
+/// these as still reading strange. `applyDigitToSpelledPass` runs
+/// at the end of `normalize`: it matches single-digit cardinal +
+/// (space or hyphen) + measurement unit, replaces the digit with
+/// its spelled form. `[1-9]` only — 10+ stays as digits per the
+/// same editorial rule.
 public enum NumberNormalizer: Sendable {
 
     /// Words that map to a tens (or teen) value on their own.
@@ -68,12 +77,50 @@ public enum NumberNormalizer: Sendable {
         return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }()
 
+    /// Measurement units that follow a cardinal in transcribed speech.
+    /// Used only by `applyDigitToSpelledPass` to disambiguate when
+    /// a bare `1-9` digit should be spelled out — without a known
+    /// unit immediately after, the digit may be a level / version /
+    /// score and shouldn't be touched. Plural forms are included
+    /// literally rather than via `s?` so the alternation stays
+    /// explicit and easy to grep for.
+    private static let measurementUnits = [
+        "minute", "minutes", "second", "seconds", "hour", "hours",
+        "day", "days", "week", "weeks", "month", "months",
+        "year", "years",
+        "pound", "pounds", "ounce", "ounces", "gram", "grams",
+        "foot", "feet", "inch", "inches",
+        "mile", "miles", "meter", "meters", "yard", "yards",
+        "step", "steps", "rep", "reps", "count", "counts",
+        "set", "sets", "round", "rounds",
+        "degree", "degrees"
+    ]
+    private static let measurementAlternation = measurementUnits.joined(separator: "|")
+
+    /// Spelled forms of digits 1-9 for the reverse pass.
+    private static let digitToWord: [String: String] = [
+        "1": "one", "2": "two", "3": "three", "4": "four", "5": "five",
+        "6": "six", "7": "seven", "8": "eight", "9": "nine"
+    ]
+
+    /// Matches a single-digit cardinal `[1-9]` followed by space or
+    /// hyphen and a measurement unit. The leading `\b` + restricted
+    /// `[1-9]` (not `[0-9]+`) means "44 minutes" doesn't match —
+    /// only a STANDALONE single digit.
+    private static let digitMeasurementRegex: NSRegularExpression? = {
+        let pattern = "\\b([1-9])([- ])(\(measurementAlternation))\\b"
+        return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
+
     /// Returns `text` with normalised cardinals. Idempotent — running on
     /// already-normalised text returns the same string.
     ///
     /// Pass order matters: the longer, more specific patterns ("one oh five",
     /// "one hundred", "twenty-five") run before the single-tens pass, so the
-    /// shared "twenty" / "one" component words aren't consumed early.
+    /// shared "twenty" / "one" component words aren't consumed early. The
+    /// digit-to-spelled pass runs LAST so any spelled→digit conversion
+    /// upstream of it has already happened (the digit→spelled rule only
+    /// fires on 1-9, which the upstream passes never touch anyway).
     public static func normalize(_ text: String) -> String {
         guard !text.isEmpty else { return text }
         var result = text
@@ -81,6 +128,7 @@ public enum NumberNormalizer: Sendable {
         result = applyHundredPass(result)
         result = applyCompoundPass(result)
         result = applyStandalonePass(result)
+        result = applyDigitToSpelledPass(result)
         return result
     }
 
@@ -137,6 +185,30 @@ public enum NumberNormalizer: Sendable {
             let word = (out as NSString).substring(with: match.range(at: 1)).lowercased()
             guard let value = tensMap[word] else { continue }
             out = (out as NSString).replacingCharacters(in: match.range, with: String(value))
+        }
+        return out
+    }
+
+    /// Reverse pass: `4 minutes` / `4-minute` → `four minutes` /
+    /// `four-minute`. Catches digits Parakeet emits natively that the
+    /// upstream spelled→digit passes wouldn't touch (those only run
+    /// on spelled cardinals). Bounded to 1-9 so 10+ stays digit per
+    /// AP / Chicago style. Preserves the original separator (space
+    /// vs hyphen) and the unit's original case.
+    private static func applyDigitToSpelledPass(_ text: String) -> String {
+        guard let regex = digitMeasurementRegex else { return text }
+        let ns = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        var out = text
+        for match in matches.reversed() {
+            let digit = (out as NSString).substring(with: match.range(at: 1))
+            let separator = (out as NSString).substring(with: match.range(at: 2))
+            let unit = (out as NSString).substring(with: match.range(at: 3))
+            guard let word = digitToWord[digit] else { continue }
+            out = (out as NSString).replacingCharacters(
+                in: match.range,
+                with: "\(word)\(separator)\(unit)"
+            )
         }
         return out
     }
