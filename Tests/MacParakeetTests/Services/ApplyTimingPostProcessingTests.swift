@@ -343,16 +343,23 @@ final class ApplyTimingPostProcessingTests: XCTestCase {
         )
         let out = service.applyTimingPostProcessingForTesting(llmCues, config: config)
         XCTAssertEqual(out.count, 2)
-        // Cue 1 must NOT end in a bare cardinal.
+        // Cue 1 must NOT end in a bare cardinal — either spelled
+        // ("four") OR digit ("4"), since the normalizer happens
+        // downstream and the structural fix here is about adjacency.
         let last = out[0].text.split(separator: " ").last.map(String.init) ?? ""
         XCTAssertNotEqual(last.lowercased(), "four",
                           "Cue 1 still ends with 'four': \(out[0].text)")
-        // Cue 2 (or whichever cue holds the pair after merging) must
-        // contain "four" and "minute" adjacent. Tolerate the wrap
-        // pass dropping a `\n` between cue lines.
+        XCTAssertNotEqual(last, "4",
+                          "Cue 1 still ends with '4': \(out[0].text)")
+        // Whichever cue holds the pair after merging must contain
+        // the cardinal + "minute" adjacent. Accept either surface
+        // form (spelled or digit) — normalizer direction is
+        // intentionally spelled→digit but the structural fix here
+        // works the same way regardless.
         let normalized = out.map { $0.text.replacingOccurrences(of: "\n", with: " ") }
         let pairAdjacent = normalized.contains {
             $0.contains("four minute") || $0.contains("four-minute")
+                || $0.contains("4 minute") || $0.contains("4-minute")
         }
         XCTAssertTrue(
             pairAdjacent,
