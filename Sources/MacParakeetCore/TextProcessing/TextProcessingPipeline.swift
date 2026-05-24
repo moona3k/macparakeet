@@ -12,7 +12,8 @@ public struct TextProcessingPipeline: Sendable {
     public func process(
         text: String,
         customWords: [CustomWord],
-        snippets: [TextSnippet]
+        snippets: [TextSnippet],
+        normalizeNumbers: Bool = false
     ) -> TextProcessingResult {
         guard !text.isEmpty else {
             return TextProcessingResult(text: "")
@@ -52,7 +53,16 @@ public struct TextProcessingPipeline: Sendable {
         // normalised alongside everything else.
         result = WordNumberSplitter.splitInText(result)
 
-        // Step 6: Whitespace cleanup
+        // Step 6: Number normalisation (opt-in). Converts unambiguous
+        // spelled-out cardinals to digits ("twenty-five" -> "25"). Runs
+        // after WordNumberSplitter so a freshly-split "next thirty" can
+        // also be normalised, and before whitespace cleanup so any
+        // collapsed runs are tidied at the same time.
+        if normalizeNumbers {
+            result = NumberNormalizer.normalize(result)
+        }
+
+        // Step 7: Whitespace cleanup
         result = cleanWhitespace(in: result)
 
         return TextProcessingResult(
@@ -212,6 +222,32 @@ public struct TextProcessingPipeline: Sendable {
                 in: result,
                 range: NSRange(result.startIndex..., in: result),
                 withTemplate: "$1"
+            )
+        }
+
+        // 5b2: Insert a missing space after punctuation when Parakeet emits
+        // glued tokens like `down,16`, `jog.100`, `85,90,95`, `it.70`.
+        //
+        // Two narrow rules, both look-behind-anchored to an alphanumeric so
+        // we don't disturb a leading period or a single punctuation mark:
+        //
+        //   (a) after `,;:` followed by ANY alphanumeric — these almost
+        //       never appear inside English abbreviations, so spacing them
+        //       is safe in transcribed prose ("85,90,95" → "85, 90, 95").
+        //   (b) after `.!?` followed by a digit — keeps abbreviations like
+        //       "I.B.M." intact while still fixing "jog.100" → "jog. 100".
+        if let regex = try? NSRegularExpression(pattern: "(?<=[\\p{L}\\d])([,;:])(\\p{L}|\\d)") {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: "$1 $2"
+            )
+        }
+        if let regex = try? NSRegularExpression(pattern: "(?<=[\\p{L}\\d])([.!?])(\\d)") {
+            result = regex.stringByReplacingMatches(
+                in: result,
+                range: NSRange(result.startIndex..., in: result),
+                withTemplate: "$1 $2"
             )
         }
 

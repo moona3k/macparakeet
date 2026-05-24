@@ -204,6 +204,57 @@ final class SubtitleLLMLayoutPlannerTests: XCTestCase {
         XCTAssertEqual(result[0], range)
     }
 
+    // MARK: - Prompt content
+
+    /// Pin the key rule fragments in the prompt so a future edit
+    /// (intentional or accidental) is visible in the diff. If you're
+    /// updating the prompt deliberately, update these assertions too.
+    func testPromptIncludesKeyRules() {
+        let ws = [
+            WordTimestamp(word: "We",     startMs: 0,   endMs: 100, confidence: 0.99),
+            WordTimestamp(word: "will",   startMs: 100, endMs: 200, confidence: 0.99),
+            WordTimestamp(word: "spend.", startMs: 200, endMs: 400, confidence: 0.99)
+        ]
+        let chunk = SubtitleLLMLayoutPlanner.Chunk(
+            startIndex: 0, endIndex: 2, words: ws
+        )
+        let prompt = SubtitleLLMLayoutPlanner.buildPrompt(chunk: chunk, config: .default)
+
+        // Existing rules.
+        XCTAssertTrue(prompt.contains("Max characters PER CUE"),
+                      "Budget rule missing")
+        XCTAssertTrue(prompt.contains("NEVER end a cue with a conjunction"),
+                      "Bad-ender rule missing")
+        XCTAssertTrue(prompt.contains("Keep number ranges intact"),
+                      "Number-range rule missing")
+        XCTAssertTrue(prompt.contains("Keep phrasal verbs intact"),
+                      "Phrasal-verb rule missing")
+
+        // New rules added in 2026-05-23 prompt tightening.
+        XCTAssertTrue(prompt.contains("Target cue length"),
+                      "Minimum-cue-length rule missing")
+        XCTAssertTrue(prompt.contains("Keep a number with its measurement unit"),
+                      "Number+unit rule missing")
+        XCTAssertTrue(prompt.contains("Do NOT split mid-clause"),
+                      "Mid-clause rule missing")
+        XCTAssertTrue(prompt.contains("EXAMPLES:"),
+                      "Few-shot examples missing")
+        XCTAssertTrue(prompt.contains("Correct output:")
+                      && prompt.contains("Wrong output"),
+                      "Correct/Wrong example pair missing")
+        // 2026-05-23 SRT 30 regression: the prompt must NOT model
+        // inline JSON annotations (←, // ...) — the LLM mimics them
+        // and breaks the whole-transcript parse.
+        XCTAssertFalse(prompt.contains("←"),
+                       "Prompt should not include ← arrow annotations next to JSON")
+        XCTAssertTrue(prompt.contains("no comments"),
+                      "Prompt should explicitly forbid // annotations")
+
+        // Words still emitted in [i] word format.
+        XCTAssertTrue(prompt.contains("[0] We"),
+                      "Word listing missing or malformed")
+    }
+
     // MARK: - Progress
 
     func testProgressFiresForEveryChunk() async {

@@ -172,6 +172,10 @@ final class AppEnvironment {
             runtimePreferences.aiFormatterPrompt
         }
 
+        let numberNormalizationClosure: @Sendable () -> Bool = { [runtimePreferences] in
+            runtimePreferences.numberNormalizationEnabled
+        }
+
         llmClient = RoutingLLMClient()
         llmConfigStore = LLMConfigStore()
         llmService = LLMService(
@@ -197,6 +201,7 @@ final class AppEnvironment {
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: aiFormatterEnabledClosure,
             aiFormatterPromptTemplate: aiFormatterPromptClosure,
+            shouldNormalizeNumbers: numberNormalizationClosure,
             markFirstDictationCompleted: { [runtimePreferences] in
                 runtimePreferences.markFirstDictationCompleted()
             }
@@ -222,6 +227,7 @@ final class AppEnvironment {
             llmRunRepo: llmRunRepo,
             shouldUseAIFormatter: aiFormatterEnabledClosure,
             aiFormatterPromptTemplate: aiFormatterPromptClosure,
+            shouldNormalizeNumbers: numberNormalizationClosure,
             shouldKeepDownloadedAudio: { [runtimePreferences] in runtimePreferences.shouldSaveTranscriptionAudio },
             shouldDiarize: { [runtimePreferences] in runtimePreferences.shouldDiarize },
             youtubeDownloader: youtubeDownloader,

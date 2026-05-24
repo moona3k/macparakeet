@@ -10,6 +10,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var shouldDiarize: Bool { get }
     var aiFormatterEnabled: Bool { get }
     var aiFormatterPrompt: String { get }
+    var numberNormalizationEnabled: Bool { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
     var hasCompletedFirstDictation: Bool { get }
@@ -105,6 +106,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let speakerDiarizationKey = "speakerDiarization"
     public static let aiFormatterEnabledKey = "aiFormatterEnabled"
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
+    public static let numberNormalizationEnabledKey = "numberNormalizationEnabled"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
     public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
@@ -154,6 +156,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public var aiFormatterPrompt: String {
         let prompt = defaults.string(forKey: Self.aiFormatterPromptKey) ?? ""
         return AIFormatter.normalizedPromptTemplate(prompt)
+    }
+
+    public var numberNormalizationEnabled: Bool {
+        defaults.object(forKey: Self.numberNormalizationEnabledKey) as? Bool ?? false
     }
 
     public var selectedMicrophoneDeviceUID: String? {

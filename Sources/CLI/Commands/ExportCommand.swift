@@ -42,6 +42,21 @@ struct ExportCommand: AsyncParsableCommand {
     @Option(help: "Path to SQLite database file (defaults to the app database).")
     var database: String?
 
+    @Flag(name: .long, help: "Convert spelled-out cardinals to digits in SRT/VTT cue text.")
+    var normalizeNumbers: Bool = false
+
+    @Flag(name: .long, help: "Use the LLM layout planner for SRT/VTT cue boundaries (reads the same stored LLM provider config as the app).")
+    var llmRefinement: Bool = false
+
+    /// SubtitleExportConfig with the CLI flag overlay applied. Used by the
+    /// SRT/VTT branches; the other formats ignore it.
+    private var subtitleConfig: SubtitleExportConfig {
+        var c = SubtitleExportConfig.default
+        c.normalizeNumbers = normalizeNumbers
+        c.useLLMRefinement = llmRefinement
+        return c
+    }
+
     func run() async throws {
         try await emitJSONOrRethrow(json: stdout && format == .json) {
             try AppPaths.ensureDirectories()
@@ -82,9 +97,9 @@ struct ExportCommand: AsyncParsableCommand {
         case .markdown:
             return await exportService.formatMarkdown(transcription: transcription)
         case .srt:
-            return await exportService.formatSRT(transcription: transcription)
+            return await exportService.formatSRT(transcription: transcription, config: subtitleConfig)
         case .vtt:
-            return await exportService.formatVTT(transcription: transcription)
+            return await exportService.formatVTT(transcription: transcription, config: subtitleConfig)
         case .json:
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
@@ -104,11 +119,59 @@ struct ExportCommand: AsyncParsableCommand {
         case .markdown:
             try await exportService.exportToMarkdown(transcription: transcription, url: url)
         case .srt:
-            try await exportService.exportToSRT(transcription: transcription, url: url)
+            if llmRefinement {
+                let llmService = buildLLMServiceFromGUIDefaults()
+                try await exportService.exportToSRT(
+                    transcription: transcription,
+                    url: url,
+                    config: subtitleConfig,
+                    llmService: llmService
+                )
+            } else {
+                try await exportService.exportToSRT(transcription: transcription, url: url, config: subtitleConfig)
+            }
         case .vtt:
-            try await exportService.exportToVTT(transcription: transcription, url: url)
+            if llmRefinement {
+                let llmService = buildLLMServiceFromGUIDefaults()
+                try await exportService.exportToVTT(
+                    transcription: transcription,
+                    url: url,
+                    config: subtitleConfig,
+                    llmService: llmService
+                )
+            } else {
+                try await exportService.exportToVTT(transcription: transcription, url: url, config: subtitleConfig)
+            }
         case .json:
             try await exportService.exportToJSON(transcription: transcription, url: url)
         }
+    }
+
+    /// LLMConfigStore defaults to `UserDefaults.standard`, which for a
+    /// bundle-less CLI binary resolves to a different domain than the
+    /// GUI app's. The GUI saves its provider config under either
+    /// `com.macparakeet.dev` (debug build) or `com.macparakeet.MacParakeet`
+    /// (release). Try both, prefer whichever has a saved config.
+    private func buildLLMServiceFromGUIDefaults() -> LLMService {
+        let candidates = [
+            "com.macparakeet.dev",
+            "com.macparakeet.MacParakeet",
+        ]
+        for suite in candidates {
+            guard let defaults = UserDefaults(suiteName: suite) else { continue }
+            if defaults.data(forKey: "llm_provider_config") != nil {
+                let store = LLMConfigStore(defaults: defaults)
+                return LLMService(
+                    client: RoutingLLMClient(),
+                    contextResolver: StoredLLMExecutionContextResolver(
+                        configStore: store,
+                        cliConfigStore: LocalCLIConfigStore()
+                    )
+                )
+            }
+        }
+        // No GUI config found — fall through to default-everything
+        // (which will throw `notConfigured` per chunk).
+        return LLMService()
     }
 }

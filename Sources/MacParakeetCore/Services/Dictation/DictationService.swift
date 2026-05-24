@@ -66,6 +66,7 @@ public actor DictationService: DictationServiceProtocol {
     private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
     private let aiFormatterPromptTemplate: @Sendable () -> String
+    private let shouldNormalizeNumbers: @Sendable () -> Bool
     private let markFirstDictationCompleted: (@Sendable () -> Void)?
     private let cancelWindow: Duration
 
@@ -105,6 +106,7 @@ public actor DictationService: DictationServiceProtocol {
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
+        shouldNormalizeNumbers: (@Sendable () -> Bool)? = nil,
         markFirstDictationCompleted: (@Sendable () -> Void)? = nil,
         cancelWindow: Duration = .seconds(5)
     ) {
@@ -123,6 +125,7 @@ public actor DictationService: DictationServiceProtocol {
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
         self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
+        self.shouldNormalizeNumbers = shouldNormalizeNumbers ?? { false }
         self.markFirstDictationCompleted = markFirstDictationCompleted
         self.cancelWindow = cancelWindow
     }
@@ -605,7 +608,8 @@ public actor DictationService: DictationServiceProtocol {
             rawText: result.text,
             mode: mode,
             customWords: words,
-            snippets: snippets
+            snippets: snippets,
+            normalizeNumbers: shouldNormalizeNumbers()
         )
         let cleanTranscript = refinement.text
         let expandedSnippetIDs = refinement.expandedSnippetIDs

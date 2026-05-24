@@ -95,13 +95,103 @@ final class LayoutPlanParserTests: XCTestCase {
         )
     }
 
-    func testOverlapBetweenCuesIsRejected() {
+    /// Wider overlaps (e.g. 3-index) also auto-correct now: the
+    /// shared indices stay with the previous cue and the next cue
+    /// starts right after. This is "good enough" — the LLM made a
+    /// mistake and any deterministic resolution beats falling back
+    /// the whole transcript to the deterministic builder.
+    func testWideOverlapAutoCorrects() {
         let ws = words(10)
+        // cue1={0,5}, cue2={3,9}. Auto-correct nudges cue2 to {6,9}.
         let json = #"{"cues":[{"start":0,"end":5},{"start":3,"end":9}]}"#
-        XCTAssertEqual(
-            LayoutPlanParser.parse(json, words: ws, perCueBudget: 100),
-            .failure(.overlapBetweenCues(prevEnd: 5, nextStart: 3))
-        )
+        let result = LayoutPlanParser.parse(json, words: ws, perCueBudget: 100)
+        guard case .success(let ranges) = result else {
+            XCTFail("Wider overlap should auto-correct; got: \(result)")
+            return
+        }
+        XCTAssertEqual(ranges, [.init(start: 0, end: 5), .init(start: 6, end: 9)])
+    }
+
+    /// SRT 29 regression: the LLM emitted
+    /// `[{0,11},{12,20},{21,47},{48,50},{51,57},{58,69},{70,78},{78,79}]`
+    /// for chunk 882-961 (word indices 0-79 in chunk-local space).
+    /// Index 78 appears in BOTH the last two cues — a one-index
+    /// overlap. The whole 30-min transcript fell back to deterministic
+    /// because of this one chunk. Parser now auto-corrects.
+    func testOneIndexOverlapIsAutoCorrected() {
+        let ws = words(80)
+        let json = #"{"cues":[{"start":0,"end":11},{"start":12,"end":20},{"start":21,"end":47},{"start":48,"end":50},{"start":51,"end":57},{"start":58,"end":69},{"start":70,"end":78},{"start":78,"end":79}]}"#
+        let result = LayoutPlanParser.parse(json, words: ws, perCueBudget: 100)
+        guard case .success(let ranges) = result else {
+            XCTFail("Parser should auto-correct one-index overlap; got: \(result)")
+            return
+        }
+        XCTAssertEqual(ranges.count, 8)
+        // Last cue's start should have been bumped from 78 to 79.
+        XCTAssertEqual(ranges[6], .init(start: 70, end: 78))
+        XCTAssertEqual(ranges[7], .init(start: 79, end: 79))
+    }
+
+    /// SRT 30 regression: the LLM emitted JSON with `// ...`
+    /// trailing comments annotating each cue. JSONSerialization
+    /// rejects this. Parser now strips JSONC-style comments first.
+    func testJSONWithLineCommentsIsAccepted() {
+        let ws = words(51)
+        let json = #"""
+        {
+          "cues": [
+            {"start": 0, "end": 8},   // We'll slow it down and we'll stand it up.
+            {"start": 9, "end": 15},  // 20 seconds away from our next jog.
+            {"start": 16, "end": 22}, // Just like before, hands will stay low.
+            {"start": 23, "end": 33}, // You're going to go tall over your pedals, 70 to 75.
+            {"start": 34, "end": 37}, // Slow it down now.
+            {"start": 38, "end": 42}, // Start to slow it down.
+            {"start": 43, "end": 44}, // Low 70s.
+            {"start": 45, "end": 50}  // Stand up in 3, 2, 1.
+          ]
+        }
+        """#
+        let result = LayoutPlanParser.parse(json, words: ws, perCueBudget: 100)
+        guard case .success(let ranges) = result else {
+            XCTFail("Parser should strip // comments and succeed; got: \(result)")
+            return
+        }
+        XCTAssertEqual(ranges.count, 8)
+        XCTAssertEqual(ranges.first, .init(start: 0, end: 8))
+        XCTAssertEqual(ranges.last, .init(start: 45, end: 50))
+    }
+
+    /// Block comments and string-internal `//` should also be handled.
+    func testJSONWithBlockCommentsAndStringSlashes() {
+        let ws = words(3)
+        // Block comment between cues + a `//` inside (escaped) string
+        // content — though there's no string field in CueRange the
+        // stripper must not eat slashes that are inside JSON strings
+        // in general.
+        let json = #"""
+        {
+          /* layout from LLM run 42 */
+          "cues": [{"start": 0, "end": 2}]
+        }
+        """#
+        let result = LayoutPlanParser.parse(json, words: ws, perCueBudget: 100)
+        XCTAssertNotNil(try? result.get())
+    }
+
+    /// Edge case: a cue that would auto-correct into an empty range
+    /// (start > end) is dropped; remaining cues still cover the words.
+    func testOverlapCollapsingToEmptyCueIsDropped() {
+        // [{0,5},{5,5}] — corrects start 5 → 6, but cue would be
+        // {6,5} (empty). Drop it. Single cue {0,5} still covers all 6 words.
+        let ws = words(6)
+        let json = #"{"cues":[{"start":0,"end":5},{"start":5,"end":5}]}"#
+        let result = LayoutPlanParser.parse(json, words: ws, perCueBudget: 100)
+        guard case .success(let ranges) = result else {
+            XCTFail("Expected single-cue success after dropping empty range; got: \(result)")
+            return
+        }
+        XCTAssertEqual(ranges.count, 1)
+        XCTAssertEqual(ranges[0], .init(start: 0, end: 5))
     }
 
     func testMustStartAtZero() {

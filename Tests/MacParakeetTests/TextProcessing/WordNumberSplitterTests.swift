@@ -28,11 +28,34 @@ final class WordNumberSplitterTests: XCTestCase {
         XCTAssertEqual(WordNumberSplitter.splitInText("iPad15 vs iPhone15"), "iPad15 vs iPhone15")
     }
 
-    func testLeavesShortDigitRunsAlone() {
-        // MP3 / v3 / H2O — digit run too short (< 2) or prefix too short.
+    func testLeavesShortPrefixesAlone() {
+        // MP3 — uppercase-only prefix doesn't match either branch.
+        // v3, H2O — single-letter prefix is shorter than the 2-letter minimum.
+        // The digit-run length no longer matters; the prefix shape is what
+        // protects these legitimate alphanumerics.
         XCTAssertEqual(WordNumberSplitter.splitInText("MP3 player"), "MP3 player")
         XCTAssertEqual(WordNumberSplitter.splitInText("v3.0 release"), "v3.0 release")
         XCTAssertEqual(WordNumberSplitter.splitInText("H2O bottle"), "H2O bottle")
+    }
+
+    func testSplitsSingleDigitFusion() {
+        // Fitness/exercise transcripts produce "and3", "add5", "in3" when
+        // counting reps or callouts — these single-digit fusions used to
+        // pass through and look terrible in subtitles. Now they split.
+        XCTAssertEqual(WordNumberSplitter.splitInText("and3 and2 and1"), "and 3 and 2 and 1")
+        XCTAssertEqual(WordNumberSplitter.splitInText("add5 to the cadence"), "add 5 to the cadence")
+        XCTAssertEqual(WordNumberSplitter.splitInText("in3, two, one"), "in 3, two, one")
+    }
+
+    func testSplitsIndefiniteArticleFusion() {
+        // Parakeet sometimes fuses the indefinite article "a" with the
+        // following number ("a90-degree hold", "a15 second recovery").
+        // The single-letter prefix is allowed only when the digit run is
+        // ≥ 2, so legit identifiers like "v3" / "H2O" stay untouched
+        // (covered by testLeavesShortPrefixesAlone).
+        XCTAssertEqual(WordNumberSplitter.splitInText("a90-degree hold"), "a 90-degree hold")
+        XCTAssertEqual(WordNumberSplitter.splitInText("with a10-second hold"), "with a 10-second hold")
+        XCTAssertEqual(WordNumberSplitter.splitInText("take a15 second recovery"), "take a 15 second recovery")
     }
 
     func testLeavesAllCapsAlphanumericsAlone() {

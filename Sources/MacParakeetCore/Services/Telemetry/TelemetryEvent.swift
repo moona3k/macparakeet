@@ -344,6 +344,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case launchAtLogin = "launch_at_login"
     case silenceAutoStop = "silence_auto_stop"
     case voiceReturn = "voice_return"
+    case numberNormalization = "number_normalization"
 
     // Calendar auto-start (ADR-017)
     case calendarAutoStartMode = "calendar_auto_start_mode"

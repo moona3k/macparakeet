@@ -94,6 +94,13 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
     /// Default: nil (millisecond precision, no snapping).
     public var snapToFrameRate: Double?
 
+    /// When `true`, the export pipeline runs `NumberNormalizer` over every
+    /// cue's final wrapped text, converting unambiguous spelled-out cardinals
+    /// to digits ("eighty-five to ninety" -> "85 to 90"). Default: false.
+    /// Mirrors the Vocabulary "Numbers" toggle so users who want it in their
+    /// dictation output also get it in their subtitle exports.
+    public var normalizeNumbers: Bool
+
     public init(
         maxWordsPerCue: Int = 12,
         maxCharsPerLine: Int = 42,
@@ -106,7 +113,8 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
         useLLMRefinement: Bool = false,
         maxCPS: Double = 17.0,
         endTimeBufferMs: Int = 0,
-        snapToFrameRate: Double? = nil
+        snapToFrameRate: Double? = nil,
+        normalizeNumbers: Bool = false
     ) {
         self.maxWordsPerCue = max(1, maxWordsPerCue)
         self.maxCharsPerLine = max(10, maxCharsPerLine)
@@ -120,6 +128,7 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
         self.maxCPS = max(0, maxCPS)
         self.endTimeBufferMs = max(0, endTimeBufferMs)
         self.snapToFrameRate = snapToFrameRate
+        self.normalizeNumbers = normalizeNumbers
     }
 
     public static let `default` = SubtitleExportConfig()
@@ -132,7 +141,7 @@ extension SubtitleExportConfig {
         case maxWordsPerCue, maxCharsPerLine, maxLinesPerCue, maxDurationMs,
              gapThresholdMs, breakOnPunctuation, minWordsBeforePunctuationBreak,
              preferBalancedLines, useLLMRefinement, maxCPS,
-             endTimeBufferMs, snapToFrameRate
+             endTimeBufferMs, snapToFrameRate, normalizeNumbers
     }
 
     public init(from decoder: Decoder) throws {
@@ -149,6 +158,7 @@ extension SubtitleExportConfig {
         maxCPS                       = try c.decode(Double.self, forKey: .maxCPS)
         endTimeBufferMs              = try c.decodeIfPresent(Int.self, forKey: .endTimeBufferMs) ?? 0
         snapToFrameRate              = try c.decodeIfPresent(Double.self, forKey: .snapToFrameRate)
+        normalizeNumbers             = try c.decodeIfPresent(Bool.self, forKey: .normalizeNumbers) ?? false
     }
 }
 
@@ -686,6 +696,20 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// and 90.". Running `mergeOrphanedCues` and friends on its output
     /// consolidates short orphans into their neighbours without
     /// throwing away the LLM's better boundary choices elsewhere.
+    /// Test-only entry point that exposes the LLM cue post-processing
+    /// pipeline (`mergeOrphanedCues` + `mergeAdjacentCuesForTwoLine` +
+    /// `absorbShortNeighbours` + timing passes + wrap). The behaviour is
+    /// identical to the in-pipeline call site; the only reason it's
+    /// nonprivate is so a regression test can drive realistic SRT
+    /// scenarios (LLM-fragmented cadence callouts, etc.) without having
+    /// to mock the whole layout planner.
+    func applyTimingPostProcessingForTesting(
+        _ cues: [SubtitleCue],
+        config: SubtitleExportConfig
+    ) -> [SubtitleCue] {
+        applyTimingPostProcessing(cues, config: config)
+    }
+
     private func applyTimingPostProcessing(
         _ cues: [SubtitleCue],
         config: SubtitleExportConfig
@@ -724,6 +748,26 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             maxChars: config.maxCharsPerLine,
             gapThresholdMs: config.gapThresholdMs
         )
+        // Post-LLM rebalance passes. The merge passes above handle "cue
+        // too short to display"; these handle "cue ends/starts on the
+        // wrong word" — e.g. cue ends with `the`/`our`/`and` (bad
+        // ender) or cue ends with a cardinal and the next cue starts
+        // with a measurement unit (`...next 30` / `minutes...`).
+        // Both are deterministic and engine-agnostic — they fix
+        // whatever the LLM emitted regardless of which model produced
+        // the split.
+        //
+        // Order matters: cardinal+unit runs FIRST because moving a
+        // cardinal forward can expose a new bad-ender at the tail of
+        // the previous cue (SRT 25 cue 5: moving "four" left "your"
+        // dangling). Bad-ender pass then picks that up.
+        // Bad-starter mirrors bad-ender from the other side — slides
+        // the OPENING words of cue N+1 back into cue N when they're
+        // function words ("of", "because", "and") that read better
+        // attached to the prior phrase.
+        mutable = rebalanceCardinalUnitPairs(mutable, maxChars: config.maxCharsPerLine)
+        mutable = rebalanceBadEnders(mutable, maxChars: config.maxCharsPerLine)
+        mutable = rebalanceBadStarters(mutable, maxChars: config.maxCharsPerLine)
         // Timing passes (after merges so they see the final cue list).
         if config.endTimeBufferMs > 0 {
             mutable = applyEndTimeBuffer(mutable, config: config)
@@ -1747,7 +1791,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 }
                 // Don't merge across a real silence — that's two
                 // utterances even if both happen to be short.
-                if (next.startMs - current.endMs) > gapThresholdMs {
+                //
+                // Same floor as `mergeOrphanedCues`: a user-set
+                // `gapThresholdMs: 0` shouldn't promote 30–200 ms
+                // word-timing artifacts to "real silence".
+                if (next.startMs - current.endMs) > max(gapThresholdMs, 500) {
                     i += 1
                     continue
                 }
@@ -1814,6 +1862,351 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     ///
     /// If the buffer would push a cue's endMs past the next cue's startMs, clamp it
     /// so there is at least a 1 ms gap (preventing invalid SRT ordering).
+    // MARK: - Post-LLM rebalance
+
+    /// Slide trailing words from cue N into cue N+1 when cue N ends on a
+    /// "bad ender" — `and`, `the`, `of`, `our`, `should`, etc. The LLM
+    /// is told not to do this in the prompt but doesn't reliably obey
+    /// abstract rules; this pass cleans up what's left.
+    ///
+    /// Rules:
+    ///   - Only move 1 or 2 trailing words at a time (we don't want to
+    ///     reshape sentences, just push the offending word forward).
+    ///   - Don't make cue N empty.
+    ///   - Don't push cue N+1 over budget (with the same +10 tolerance
+    ///     as the merge passes).
+    ///   - Don't introduce a NEW bad ender at the new tail.
+    ///   - Don't move across a long gap (>500 ms) — that's a real
+    ///     utterance boundary, not a layout slip.
+    private func rebalanceBadEnders(_ cues: [MutableCue], maxChars: Int) -> [MutableCue] {
+        guard cues.count > 1 else { return cues }
+        // Hard list: conjunctions, articles, prepositions, auxiliaries,
+        // short pronouns — words that almost never belong at a cue end.
+        // Soft list: common transitive verbs that often need an object
+        // (give, take, make, find...). Both get the same rebalance
+        // treatment; the soft list just expands coverage to catch
+        // verb-object splits like "It is great to have" / "you. ...".
+        let badEnders = SubtitleLLMLayoutPlanner.autoSplitBadEnders
+            .union(Self.softBadEnders)
+        let maxBudget = maxChars + 10
+        let maxGapMs = 500
+        // 10 char floor (was 12). "It is great" (11) is a valid reading
+        // unit; the looser floor lets a 2-word move into the next cue
+        // succeed when the previous cue is left at exactly that length.
+        let minCurrentChars = 10
+
+        var result = cues
+        var i = 0
+        while i < result.count - 1 {
+            let current = result[i]
+            let next = result[i + 1]
+
+            // Need at least 2 words in current to safely move one away.
+            guard current.words.count >= 2 else { i += 1; continue }
+
+            // Strip trailing punctuation when classifying the last word —
+            // "should." is a complete sentence, not a bad ender.
+            let lastRaw = current.words.last ?? ""
+            let endsWithStrongPunct = lastRaw.last.map { ".!?".contains($0) } ?? false
+            if endsWithStrongPunct { i += 1; continue }
+            let lastStripped = lastRaw.trimmingCharacters(in: .punctuationCharacters).lowercased()
+            guard badEnders.contains(lastStripped) else { i += 1; continue }
+
+            // Real utterance gap → leave alone.
+            if next.startMs - current.endMs > maxGapMs { i += 1; continue }
+
+            // Try moving 1, 2, then 3 words. The 3-word ceiling matters
+            // for chained bad-enders ("into it I" — SRT 25 cue 26) where
+            // shrinking by 1 or 2 leaves a NEW bad ender at the tail.
+            // 3-word moves are also bounded by the per-cue char budget,
+            // so we don't risk over-stuffing the next cue.
+            var moved = false
+            for moveCount in 1...min(3, current.words.count - 1) {
+                let pivot = current.words.count - moveCount
+                let movedWords = Array(current.words[pivot...])
+                let remainingWords = Array(current.words[0..<pivot])
+                let newCurrentText = remainingWords.joined(separator: " ")
+                let newNextText = (movedWords + next.words).joined(separator: " ")
+
+                // Budget check.
+                if newNextText.count > maxBudget { continue }
+                // Don't create a new bad ender at the new tail of cue N.
+                let newLast = remainingWords.last?
+                    .trimmingCharacters(in: .punctuationCharacters)
+                    .lowercased() ?? ""
+                if badEnders.contains(newLast) { continue }
+                // Don't leave cue N too short — see `minCurrentChars`.
+                if newCurrentText.count < minCurrentChars { continue }
+
+                result[i] = MutableCue(
+                    startMs: current.startMs,
+                    endMs: current.endMs,
+                    words: remainingWords,
+                    wordTimestamps: current.wordTimestamps,
+                    speakerId: current.speakerId
+                )
+                result[i + 1] = MutableCue(
+                    startMs: next.startMs,
+                    endMs: next.endMs,
+                    words: movedWords + next.words,
+                    wordTimestamps: next.wordTimestamps,
+                    speakerId: next.speakerId
+                )
+                moved = true
+                break
+            }
+            // Re-check current position even after a move — the new
+            // last word might still be a bad ender we can fix further.
+            if !moved { i += 1 }
+        }
+        return result
+    }
+
+    /// Detect a split between a spelled-out cardinal at the end of cue N
+    /// and a measurement unit at the start of cue N+1 (`...your four` /
+    /// `minute warm-up`) and slide the cardinal forward so the pair
+    /// stays together. The number-normalisation pass that runs in the
+    /// wrap step can then read "four minute" as one unit and digitize
+    /// it ("4-minute").
+    ///
+    /// Also catches the Whisper-tokenized case where the unit starts
+    /// with a leading hyphen (`-minute`) — same fix.
+    private func rebalanceCardinalUnitPairs(_ cues: [MutableCue], maxChars: Int) -> [MutableCue] {
+        guard cues.count > 1 else { return cues }
+        let cardinals: Set<String> = [
+            "one", "two", "three", "four", "five",
+            "six", "seven", "eight", "nine"
+        ]
+        // Mirrors NumberNormalizer.measurementUnits — kept inline so this
+        // pass doesn't depend on that module's private alternation.
+        let units: Set<String> = [
+            "minute", "minutes", "second", "seconds", "hour", "hours",
+            "day", "days", "week", "weeks", "month", "months",
+            "year", "years",
+            "pound", "pounds", "ounce", "ounces", "gram", "grams",
+            "foot", "feet", "inch", "inches",
+            "mile", "miles", "meter", "meters", "yard", "yards",
+            "step", "steps", "rep", "reps", "count", "counts",
+            "set", "sets", "round", "rounds",
+            "degree", "degrees"
+        ]
+        let maxBudget = maxChars + 10
+        let maxGapMs = 500
+
+        var result = cues
+        var i = 0
+        while i < result.count - 1 {
+            let current = result[i]
+            let next = result[i + 1]
+
+            guard current.words.count >= 2,
+                  let firstNextRaw = next.words.first else { i += 1; continue }
+
+            let lastRaw = current.words.last ?? ""
+            let lastStripped = lastRaw.trimmingCharacters(in: .punctuationCharacters).lowercased()
+            // Strip a leading hyphen so Whisper's "-minute" still
+            // classifies as the unit "minute".
+            let firstStripped = firstNextRaw
+                .trimmingCharacters(in: CharacterSet(charactersIn: "-"))
+                .trimmingCharacters(in: .punctuationCharacters)
+                .lowercased()
+
+            // Accept either spelled-out cardinals ("four") OR digit
+            // cardinals ("4"). Parakeet/Whisper emit digits directly for
+            // most numbers, and the LLM gets the digit form in the
+            // chunk's word array. Real failure case (D41D14D8 / iter2
+            // cue 8/9): the LLM split "...because your 4 minute" /
+            // "warm-up starts right now." — we want "4 minute warm-up"
+            // to stay glued so `NumberNormalizer` can join it as
+            // "4-minute warm-up" in the wrap step.
+            let lastIsDigitCardinal = lastStripped.count <= 2
+                && lastStripped.allSatisfy { $0.isNumber }
+            let isCardinal = cardinals.contains(lastStripped) || lastIsDigitCardinal
+            guard isCardinal,
+                  units.contains(firstStripped) else { i += 1; continue }
+
+            if next.startMs - current.endMs > maxGapMs { i += 1; continue }
+
+            // Move the cardinal from cue N to cue N+1.
+            let remainingCurrent = Array(current.words.dropLast())
+            let pushed = [lastRaw] + next.words
+            let newNextText = pushed.joined(separator: " ")
+            if newNextText.count > maxBudget { i += 1; continue }
+            // Cue N must remain at least 1 word.
+            if remainingCurrent.isEmpty { i += 1; continue }
+
+            result[i] = MutableCue(
+                startMs: current.startMs,
+                endMs: current.endMs,
+                words: remainingCurrent,
+                wordTimestamps: current.wordTimestamps,
+                speakerId: current.speakerId
+            )
+            result[i + 1] = MutableCue(
+                startMs: next.startMs,
+                endMs: next.endMs,
+                words: pushed,
+                wordTimestamps: next.wordTimestamps,
+                speakerId: next.speakerId
+            )
+            i += 1
+        }
+        return result
+    }
+
+    /// Common transitive verbs that often take an object and read
+    /// awkwardly when a cue ends on them ("It is great to have" /
+    /// "you. ..."). These get the same rebalance treatment as the
+    /// hard bad-enders BUT only when the move is genuinely free —
+    /// we don't want to disrupt cues like "We give." or "I told."
+    /// where the verb ends a complete short sentence.
+    private static let softBadEnders: Set<String> = [
+        "give", "gives", "gave",
+        "take", "takes", "took",
+        "make", "makes", "made",
+        "bring", "brings", "brought",
+        "find", "finds", "found",
+        "want", "wants", "wanted",
+        "let", "lets",
+        "keep", "keeps", "kept",
+        "put", "puts",
+        "tell", "tells", "told",
+        "show", "shows", "showed",
+        "send", "sends", "sent",
+        "get", "gets", "got",
+        "see", "sees", "saw",
+        "feel", "feels", "felt",
+        "need", "needs", "needed"
+    ]
+
+    /// Dedicated bad-STARTER set — much smaller than bad-enders.
+    /// Words that almost always read as a stranded fragment when they
+    /// open a cue (preposition + article + subordinator). Excludes
+    /// conjunctions like `and`/`but`/`so` and pronouns/auxiliaries
+    /// which CAN legitimately start a sentence in transcribed speech.
+    private static let badStarters: Set<String> = [
+        "of", "the", "a", "an",
+        "to", "at", "with", "from", "by", "into", "onto", "for",
+        "because", "although", "while", "since", "until", "though"
+    ]
+
+    /// Cardinals + measurement units used by `rebalanceCardinalUnitPairs`.
+    /// Surfaced here so `rebalanceBadStarters` can check whether a
+    /// candidate move would tear apart a cardinal+unit pair the
+    /// previous pass just glued together.
+    private static let cardinalWords: Set<String> = [
+        "one", "two", "three", "four", "five",
+        "six", "seven", "eight", "nine"
+    ]
+    private static let unitWords: Set<String> = [
+        "minute", "minutes", "second", "seconds", "hour", "hours",
+        "day", "days", "week", "weeks", "month", "months",
+        "year", "years",
+        "pound", "pounds", "ounce", "ounces", "gram", "grams",
+        "foot", "feet", "inch", "inches",
+        "mile", "miles", "meter", "meters", "yard", "yards",
+        "step", "steps", "rep", "reps", "count", "counts",
+        "set", "sets", "round", "rounds",
+        "degree", "degrees"
+    ]
+
+    /// Mirror of `rebalanceBadEnders` but operating on cue N+1's
+    /// HEAD. If cue N+1 starts with a word from `badStarters` (the
+    /// dedicated smaller set), slide the first 1-3 words backward
+    /// into cue N. Constraints:
+    ///   - Cue N must accept the new tail within budget.
+    ///   - Don't introduce a NEW bad ender on cue N's new tail.
+    ///   - Don't empty cue N+1 or leave it shorter than 12 chars.
+    ///   - Don't strand a NEW bad starter on cue N+1.
+    ///   - Don't separate a cardinal+unit pair that the earlier
+    ///     `rebalanceCardinalUnitPairs` deliberately joined (would
+    ///     re-fragment `4 minute` → `4` / `minute`).
+    ///   - Don't cross a long utterance gap (> 500 ms).
+    private func rebalanceBadStarters(_ cues: [MutableCue], maxChars: Int) -> [MutableCue] {
+        guard cues.count > 1 else { return cues }
+        let starters = Self.badStarters
+        let badEnders = SubtitleLLMLayoutPlanner.autoSplitBadEnders
+            .union(Self.softBadEnders)
+        let maxBudget = maxChars + 10
+        let maxGapMs = 500
+
+        var result = cues
+        var i = 0
+        while i < result.count - 1 {
+            let current = result[i]
+            let next = result[i + 1]
+
+            guard next.words.count >= 2 else { i += 1; continue }
+
+            let firstRaw = next.words.first ?? ""
+            let firstStripped = firstRaw
+                .trimmingCharacters(in: .punctuationCharacters)
+                .lowercased()
+            guard starters.contains(firstStripped) else { i += 1; continue }
+
+            if next.startMs - current.endMs > maxGapMs { i += 1; continue }
+
+            var moved = false
+            // 4-word max so chained bad-enders ("into it, I" all bad)
+            // can be cleared in one move. SRT 28 cue 25 needed this:
+            // "Now before we jump" / "into it, I wanna give..." with
+            // moveCount=3 leaves "I" at tail; moveCount=4 lands on
+            // "wanna" which is clean.
+            for moveCount in 1...min(4, next.words.count - 1) {
+                let movedWords = Array(next.words[0..<moveCount])
+                let remainingWords = Array(next.words[moveCount...])
+                let newCurrentText = (current.words + movedWords).joined(separator: " ")
+                let newNextText = remainingWords.joined(separator: " ")
+
+                if newCurrentText.count > maxBudget { continue }
+                // Don't move so much that cue N's NEW tail is a bad
+                // ender — that just trades one problem for another.
+                let newCurrentLast = movedWords.last?
+                    .trimmingCharacters(in: .punctuationCharacters)
+                    .lowercased() ?? ""
+                if badEnders.contains(newCurrentLast) { continue }
+                if newNextText.count < 12 { continue }
+                // Don't strand a new bad starter on cue N+1.
+                let newNextFirst = remainingWords.first?
+                    .trimmingCharacters(in: .punctuationCharacters)
+                    .lowercased() ?? ""
+                if starters.contains(newNextFirst) { continue }
+                // Don't separate a cardinal from its measurement unit
+                // (e.g. moving "because your four" back would leave
+                // "minute warm-up..." as cue N+1's head — re-breaks
+                // the pair that `rebalanceCardinalUnitPairs` joined).
+                // Same guard for digit cardinals ("4 minute") since
+                // `rebalanceCardinalUnitPairs` now accepts both forms.
+                let newCurrentLastIsDigit = newCurrentLast.count <= 2
+                    && !newCurrentLast.isEmpty
+                    && newCurrentLast.allSatisfy { $0.isNumber }
+                let newCurrentLastIsCardinal = Self.cardinalWords.contains(newCurrentLast)
+                    || newCurrentLastIsDigit
+                if newCurrentLastIsCardinal
+                    && Self.unitWords.contains(newNextFirst) { continue }
+
+                result[i] = MutableCue(
+                    startMs: current.startMs,
+                    endMs: current.endMs,
+                    words: current.words + movedWords,
+                    wordTimestamps: current.wordTimestamps,
+                    speakerId: current.speakerId
+                )
+                result[i + 1] = MutableCue(
+                    startMs: next.startMs,
+                    endMs: next.endMs,
+                    words: remainingWords,
+                    wordTimestamps: next.wordTimestamps,
+                    speakerId: next.speakerId
+                )
+                moved = true
+                break
+            }
+            if !moved { i += 1 }
+        }
+        return result
+    }
+
     private func applyEndTimeBuffer(_ cues: [MutableCue], config: SubtitleExportConfig) -> [MutableCue] {
         guard config.endTimeBufferMs > 0 else { return cues }
         var result = cues
@@ -1877,6 +2270,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     private func mergeOrphanedCues(_ cues: [MutableCue], maxChars: Int, maxLines: Int = 2, gapThresholdMs: Int = 800) -> [MutableCue] {
         guard cues.count > 1 else { return cues }
 
+        // Keep at 15: bumping to 18 would catch "Beautiful work."
+        // (15-char orphan) but collides with `enforceReadingSpeed` —
+        // that pass intentionally splits high-CPS cues into ~17-char
+        // pieces, and orphan-merge would just absorb them right back.
+        // See `testGapPreferredSplitPicksLargestPause`.
         let minChars = 15
         // Keep minWords at 3 so it doesn't reabsorb the 3-word tail
         // enforceReadingSpeed's orphan-guard intentionally leaves behind.
@@ -1886,8 +2284,17 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // alternative is an orphaned 1-word cue, which is far worse.
         let maxBudget = maxChars + 10
 
+        // Apply a sensible floor to the gap check so a user-set
+        // `gapThresholdMs: 0` (which exists in real configs) can't block
+        // every merge — typical inter-word gaps are 30–200 ms artifacts,
+        // not real utterance pauses, and treating them as "too long"
+        // leaves single-word orphan cues like "82 80" / "five." in the
+        // output where "82 85. Oh yeah." should have been.
+        // 500 ms is well below the long-pause threshold used elsewhere
+        // (3 s) and above the typical word-spacing artifact.
+        let effectiveGap = max(gapThresholdMs, 500)
         func crossesLongGapForTiny(_ a: MutableCue, _ b: MutableCue) -> Bool {
-            (b.startMs - a.endMs) > gapThresholdMs
+            (b.startMs - a.endMs) > effectiveGap
         }
 
         var result = cues
@@ -2043,7 +2450,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
             // Merge if EITHER the 2-line pre-formatted OR space-joined fits in budget,
             // and both individual cues are short enough to benefit from merging.
-            let crossesGap = (next.startMs - current.endMs) > gapThresholdMs
+            //
+            // Same floor as `mergeOrphanedCues`: a strict user-set
+            // `gapThresholdMs: 0` shouldn't treat sub-second word-timing
+            // gaps as utterance pauses.
+            let crossesGap = (next.startMs - current.endMs) > max(gapThresholdMs, 500)
             let shouldMerge = (mergedCount <= effectiveMax || spaceCount <= effectiveMax)
                 && current.text.count <= maxChars
                 && next.text.count <= maxChars
@@ -2094,7 +2505,26 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// somehow exceeds the total, lines beyond `maxLinesPerCue` are folded
     /// back onto the final line.
     nonisolated static func wrapSubtitleTextStatic(_ text: String, config: SubtitleExportConfig) -> String {
-        let cleaned = text.replacingOccurrences(of: "\n", with: " ")
+        // Cue text is joined from `[WordTimestamp]` and bypasses
+        // `TextProcessingPipeline.cleanWhitespace`, so Parakeet's
+        // punctuation-glued tokens (`down,16`, `jog.100`, `85,90,95`) need
+        // the same space-insertion pass applied here. Unconditional — the
+        // jams look bad regardless of the user's number toggle.
+        let unstuck = splitStickyPunctuationDigits(in: text)
+
+        // Whisper's BPE sometimes emits hyphenated compounds as two tokens
+        // with a leading hyphen on the second half — joining with spaces
+        // gives `warm -up`, `four -minute`, `90 -degree`. Stitch them back
+        // into clean hyphenated form. Unconditional cleanup; the artifact
+        // looks bad whether or not number normalization is on.
+        let dehyphenated = collapseWhisperHyphenArtifacts(in: unstuck)
+
+        // Number normalisation runs *before* wrapping so the wrapped output
+        // can take advantage of the shorter digit form when measuring against
+        // the per-line budget. (Pure string transform — does not change word
+        // count or timing.)
+        let prenormalised = config.normalizeNumbers ? NumberNormalizer.normalize(dehyphenated) : dehyphenated
+        let cleaned = prenormalised.replacingOccurrences(of: "\n", with: " ")
         let words = cleaned.split(separator: " ").map(String.init)
         guard !words.isEmpty else { return cleaned }
 
@@ -2122,6 +2552,55 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return clampLines(
             wrapSubtitleTextGreedy(words: words, perLineBudget: targetLineLength, maxLines: config.maxLinesPerCue),
             maxLines: config.maxLinesPerCue
+        )
+    }
+
+    /// Insert a missing space when Parakeet emits glued tokens like
+    /// `down,16`, `jog.100`, `85,90,95`, `it.70`. Mirrors the rule pair in
+    /// `TextProcessingPipeline.cleanWhitespace`, but runs on the cue text
+    /// (which is built directly from word timestamps and never sees the
+    /// deterministic pipeline).
+    ///
+    /// Two narrow rules, both anchored to a preceding alphanumeric:
+    ///   (a) after `,;:` followed by a letter or digit — safe in
+    ///       transcribed prose where commas don't appear inside
+    ///       abbreviations ("85,90,95" → "85, 90, 95").
+    ///   (b) after `.!?` followed by a digit — leaves "I.B.M." alone
+    ///       while still fixing "jog.100" → "jog. 100".
+    nonisolated static func splitStickyPunctuationDigits(in text: String) -> String {
+        var result = text
+        let range = { NSRange(result.startIndex..., in: result) }
+        if let regex = try? NSRegularExpression(pattern: "(?<=[\\p{L}\\d])([,;:])(\\p{L}|\\d)") {
+            result = regex.stringByReplacingMatches(
+                in: result, range: range(), withTemplate: "$1 $2"
+            )
+        }
+        if let regex = try? NSRegularExpression(pattern: "(?<=[\\p{L}\\d])([.!?])(\\d)") {
+            result = regex.stringByReplacingMatches(
+                in: result, range: range(), withTemplate: "$1 $2"
+            )
+        }
+        return result
+    }
+
+    /// Stitch Whisper's hyphen-tokenization artifacts: a token starting
+    /// with a hyphen (e.g. `-minute`, `-up`, `-degree`) preceded by a
+    /// regular word with a single space between them. The intended
+    /// display is the hyphenated compound (`four-minute`, `warm-up`,
+    /// `90-degree`), so collapse the `"<letter> -<letter>"` shape into
+    /// `"<letter>-<letter>"`.
+    ///
+    /// The pattern is anchored on a preceding word character so a
+    /// genuine sentence-leading dash (`- This is a list item`) at the
+    /// start of a cue isn't touched.
+    nonisolated static func collapseWhisperHyphenArtifacts(in text: String) -> String {
+        guard let regex = try? NSRegularExpression(
+            pattern: "(\\w) -(\\w)",
+            options: []
+        ) else { return text }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.stringByReplacingMatches(
+            in: text, range: range, withTemplate: "$1-$2"
         )
     }
 

@@ -27,6 +27,7 @@ struct VocabularyView: View {
                     rawModeCard
                 } else {
                     pipelineCard
+                    numbersCard
                     VocabularyBackupSection(
                         viewModel: backupViewModel,
                         wordCount: settingsViewModel.customWordCount,
@@ -229,6 +230,34 @@ struct VocabularyView: View {
                         .padding(.leading, 24)
                     }
 
+                }
+            }
+        }
+    }
+
+    // MARK: - Numbers
+
+    private var numbersCard: some View {
+        vocabularyCard(
+            title: "Numbers",
+            subtitle: "Use digits in place of spelled-out numbers — useful for subtitles and short-form text.",
+            icon: "number"
+        ) {
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                Toggle(isOn: $settingsViewModel.numberNormalizationEnabled) {
+                    Text("Convert spelled-out numbers to digits")
+                        .font(DesignSystem.Typography.body)
+                }
+                .toggleStyle(.switch)
+                .tint(DesignSystem.Colors.accent)
+
+                if settingsViewModel.numberNormalizationEnabled {
+                    VStack(alignment: .leading, spacing: 4) {
+                        exampleRow(input: "next thirty seconds", result: "next 30 seconds", fires: true)
+                        exampleRow(input: "forty-five reps", result: "45 reps", fires: true)
+                        exampleRow(input: "one of them", result: "one of them — single-digit words are skipped", fires: false)
+                    }
+                    .padding(.leading, 24)
                 }
             }
         }

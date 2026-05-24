@@ -2607,6 +2607,11 @@ struct TranscriptResultView: View {
         if !hasSpeakerLabelsForExport {
             options.includeSpeakerLabels = false
         }
+        // Mirror the Vocabulary "Numbers" toggle into subtitle exports —
+        // users who turn the toggle on expect it to affect SRT/VTT cue text
+        // too, not just their dictation/transcript output.
+        options.subtitleConfig.normalizeNumbers =
+            UserDefaultsAppRuntimePreferences().numberNormalizationEnabled
         return options
     }
 

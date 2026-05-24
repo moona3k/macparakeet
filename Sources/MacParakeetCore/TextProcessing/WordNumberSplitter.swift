@@ -2,33 +2,47 @@ import Foundation
 
 /// Splits Parakeet-style fused letter+digit tokens back into separate words.
 ///
-/// Parakeet (and occasionally Whisper) emits tokens like `next30`, `the980`,
-/// `high90s,` as a single word with no space between the alphabetic prefix
-/// and the numeric portion. This helper re-introduces the missing space.
+/// Parakeet (and occasionally Whisper) emits tokens like `next30`, `and3`,
+/// `add5`, `high90s,` as a single word with no space between the alphabetic
+/// prefix and the numeric portion. This helper re-introduces the missing
+/// space.
 ///
-/// Conservative on purpose — only splits when:
-///   - prefix is **all lowercase** (`next`, `the`, `arms`) or **title case**
-///     (`Next`, `The`, `Hello`) and at least 2 letters long, AND
-///   - digit run is at least 2 characters long.
+/// Conservative on purpose — splits when ANY of these three shapes match:
+///   - 2+ lowercase letters + 1+ digits (`next30`, `and3`, `add5`),
+///   - 1 uppercase + 1+ lowercase letters + 1+ digits (`Next30`, `Hello5`),
+///   - 1 lowercase letter + **2+** digits (`a90-degree`, `a15 second`).
+///
+/// The third shape is narrower (digit run must be ≥ 2) because a single
+/// letter glued to a single digit is much more likely to be a legitimate
+/// identifier than a Parakeet fusion error. Real transcripts produce
+/// `a90` / `a10` / `a15` after the indefinite article, never `a3`.
 ///
 /// This intentionally leaves legitimate alphanumerics alone:
-///   - `MP3`, `MP4` — digit run too short
+///   - `MP3`, `MP4` — prefix is two uppercase letters, not lower/title case
 ///   - `iPhone15` — prefix is mixed case (camelCase)
-///   - `H2O`, `v3` — prefix too short and digit run too short
+///   - `v3`, `H2O` — single-letter prefix with a single digit
 ///   - `1080p`, `90s` — tokens starting with digits
 ///
 /// If a real-world false-positive shows up later, prefer narrowing the
 /// regex over adding a denylist.
 public enum WordNumberSplitter: Sendable {
 
-    /// Matches the *start* of a fused token: letter prefix, then 2+ digits.
+    /// Matches the *start* of a fused token: letter prefix, then digits.
     /// Used by both the token-level and text-level entry points. Anything
     /// after the digit run is preserved verbatim by both code paths.
+    ///
+    /// The prefix alternation has three branches (see type doc for full
+    /// rationale):
+    ///   - 2+ lowercase letters, ANY digit count
+    ///   - 1 uppercase + 1+ lowercase, ANY digit count
+    ///   - exactly 1 lowercase letter, **2+** digit count (gated by the
+    ///     `(?=\d{2,})` lookahead so the actual digit capture in group 2
+    ///     stays consistent)
     ///
     /// `\b` anchors at a word boundary so we don't slice into the middle of
     /// surrounding text. `(?=\D|$)` (after the digits) keeps us from
     /// matching only part of a longer digit run.
-    private static let pattern = #"\b((?:[\p{Ll}]{2,})|(?:\p{Lu}\p{Ll}+))(\d{2,})(?=\D|$)"#
+    private static let pattern = #"\b((?:[\p{Ll}]{2,})|(?:\p{Lu}\p{Ll}+)|(?:[\p{Ll}](?=\d{2,})))(\d+)(?=\D|$)"#
 
     private static let regex: NSRegularExpression? = {
         try? NSRegularExpression(pattern: pattern, options: [])

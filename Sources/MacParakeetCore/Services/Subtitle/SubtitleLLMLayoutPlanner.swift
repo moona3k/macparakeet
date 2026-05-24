@@ -386,7 +386,10 @@ public actor SubtitleLLMLayoutPlanner {
         Every input word must appear in exactly one cue. Cues must be contiguous and non-overlapping.
         """
 
-    private static func buildPrompt(chunk: Chunk, config: SubtitleExportConfig) -> String {
+    /// Public for tests so prompt-fragment assertions can pin the rules
+    /// we care about without driving an LLM round-trip. Keep `internal`
+    /// rather than `public` — only the test target needs it.
+    static func buildPrompt(chunk: Chunk, config: SubtitleExportConfig) -> String {
         // `maxCharsPerLine` is the TOTAL cue budget across all rendered
         // lines (not a per-line cap) — same semantics as the deterministic
         // builder and the wrap pass. Earlier this multiplied by
@@ -394,21 +397,60 @@ public actor SubtitleLLMLayoutPlanner {
         // configured 65-char budget. SRT (17), block 15 was the smoking gun.
         let perCueBudget = config.maxCharsPerLine
         let perLineHint = max(10, config.maxCharsPerLine / max(1, config.maxLinesPerCue))
+        // Don't force a hard floor when the user's per-cue budget is
+        // already tight — half the budget is a safer "should be longer
+        // than this" target.
+        let minCueChars = min(20, max(12, perCueBudget / 2))
 
         var lines: [String] = []
         lines.append("RULES:")
         lines.append("- Max characters PER CUE (total across both lines): \(perCueBudget).")
         lines.append("- Max lines per cue: \(config.maxLinesPerCue).")
         lines.append("- Implied per-line cap: ~\(perLineHint) characters.")
+        // NEW: minimum length rule. The single biggest readability win in
+        // real exports — orphan cues like "pushes." / "Stand up." / "Woo!"
+        // were the most-flagged issue in SRT 23 user feedback.
+        lines.append("- Target cue length: AT LEAST \(minCueChars) characters AND at least 3 words, UNLESS the cue is a complete short sentence ending in `.`, `!`, or `?` (e.g. \"Oh, yes.\", \"Beautiful.\", \"Let's go.\" — these may stand alone).")
+        lines.append("- A cue with fewer than \(minCueChars) characters that is NOT a complete short sentence is a layout failure — merge it with an adjacent cue instead.")
         lines.append("- Each cue must end at a natural break: sentence terminator (.!?), comma/clause boundary (,;:), or end of a phrasal verb.")
         lines.append("- NEVER end a cue with a conjunction (and, but, or, so, yet, for, nor), article (the, a, an), determiner (this, that, these, those), preposition (in, on, at, to, of, with, from, by), auxiliary verb (is, are, was, were, be, been, being, have, has, had, do, does, did, will, would, can, could, should).")
         lines.append("- NEVER start a cue with a comma or a conjunction.")
         lines.append("- Respect sentence integrity: do NOT pack the end of one sentence (`.!?`) with the start of the next sentence inside the same cue. Always break between sentences.")
         lines.append("- Keep number ranges intact: do not split inside \"between X and Y\", \"X to Y\", \"from X to Y\".")
+        // NEW: number-unit rule. Targets SRT 23 / SRT 22 cases like
+        // "30 second" / "speed pushes" and "next 30" / "minutes".
+        lines.append("- Keep a number with its measurement unit on the SAME LINE AND IN THE SAME CUE: \"30 minutes\", \"4-minute warm-up\", \"45 reps\", \"90 degrees\", \"15 seconds\", \"8 minutes\". Never put the digit at the end of one cue and the unit at the start of the next. Includes the compound form: \"4 minute warm-up\" (3 words) stays together — do NOT split as \"4 minute\" + \"warm-up\".")
         lines.append("- Keep phrasal verbs intact: \"welcome in\", \"slow down\", \"bring up\", \"reach down\", \"take it up\", etc.")
+        // NEW: mid-clause guard. Targets "see all" / "of that today".
+        // If no punctuation, the only legal split is between phrases.
+        lines.append("- Do NOT split mid-clause: between two adjacent words with no punctuation, only break if the next cue would start with the head of a new phrase (a noun, a new verb, or a fresh prepositional phrase). \"You're going to see all\" / \"of that today\" is a layout failure — \"of that\" continues the same phrase.")
         lines.append("- Every word index from 0 to \(chunk.words.count - 1) must appear in exactly one cue.")
         lines.append("- Cues must be contiguous: cues[i].start == cues[i-1].end + 1.")
         lines.append("- Cues must be in order: ascending start indices.")
+        lines.append("")
+        // Two contrasting examples. NOTE: explanations go on SEPARATE
+        // lines (not inline with JSON) — when the prompt had `←`
+        // arrow annotations on the same line as the JSON, the LLM
+        // started mimicking that shape and emitting `{"start":0,
+        // "end":8}, // explanation` style comments, which broke
+        // parsing for the whole transcript (SRT 30 regression).
+        lines.append("EXAMPLES:")
+        lines.append("")
+        lines.append("Example 1 — keep numbers with their units:")
+        lines.append("Input words: [0]We [1]will [2]spend [3]the [4]next [5]30 [6]minutes [7]right [8]here.")
+        lines.append("Correct output:")
+        lines.append("{\"cues\":[{\"start\":0,\"end\":8}]}")
+        lines.append("Wrong output (would tear \"30\" from \"minutes\"):")
+        lines.append("{\"cues\":[{\"start\":0,\"end\":5},{\"start\":6,\"end\":8}]}")
+        lines.append("")
+        lines.append("Example 2 — merge tiny adjacent sentences:")
+        lines.append("Input words: [0]Stand [1]up. [2]Let's [3]go. [4]Low [5]70s.")
+        lines.append("Correct output:")
+        lines.append("{\"cues\":[{\"start\":0,\"end\":3},{\"start\":4,\"end\":5}]}")
+        lines.append("Wrong output (three orphan cues, each too short to display):")
+        lines.append("{\"cues\":[{\"start\":0,\"end\":1},{\"start\":2,\"end\":3},{\"start\":4,\"end\":5}]}")
+        lines.append("")
+        lines.append("REMINDER: output ONLY the JSON object — no comments, no `//` annotations, no markdown, no explanation text. Just the raw JSON.")
         lines.append("")
         lines.append("WORDS:")
         for (i, w) in chunk.words.enumerated() {

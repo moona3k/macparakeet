@@ -198,6 +198,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
     private let llmRunRecorder: LLMRunRecorder
     private let shouldUseAIFormatter: @Sendable () -> Bool
     private let aiFormatterPromptTemplate: @Sendable () -> String
+    private let shouldNormalizeNumbers: @Sendable () -> Bool
     private let shouldKeepDownloadedAudio: @Sendable () -> Bool
     private let shouldDiarize: @Sendable () -> Bool
     private let youtubeDownloader: YouTubeDownloading?
@@ -218,6 +219,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         llmRunRepo: LLMRunRepositoryProtocol? = nil,
         shouldUseAIFormatter: (@Sendable () -> Bool)? = nil,
         aiFormatterPromptTemplate: (@Sendable () -> String)? = nil,
+        shouldNormalizeNumbers: (@Sendable () -> Bool)? = nil,
         shouldKeepDownloadedAudio: (@Sendable () -> Bool)? = nil,
         shouldDiarize: (@Sendable () -> Bool)? = nil,
         youtubeDownloader: YouTubeDownloading? = nil,
@@ -238,6 +240,7 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
         self.llmRunRecorder = LLMRunRecorder(repository: llmRunRepo)
         self.shouldUseAIFormatter = shouldUseAIFormatter ?? { false }
         self.aiFormatterPromptTemplate = aiFormatterPromptTemplate ?? { AIFormatter.defaultPromptTemplate }
+        self.shouldNormalizeNumbers = shouldNormalizeNumbers ?? { false }
         self.shouldKeepDownloadedAudio = shouldKeepDownloadedAudio ?? { true }
         self.shouldDiarize = shouldDiarize ?? { true }
         self.youtubeDownloader = youtubeDownloader
@@ -1339,7 +1342,8 @@ public actor TranscriptionService: SpeechEngineOverrideTranscriptionService {
             rawText: rawText,
             mode: mode,
             customWords: customWords,
-            snippets: snippets
+            snippets: snippets,
+            normalizeNumbers: shouldNormalizeNumbers()
         )
         let baseText = refinement.text ?? rawText
         let formatterOutcome = try await formatTranscriptIfNeeded(
