@@ -122,24 +122,42 @@ final class NumberNormalizerTests: XCTestCase {
         )
     }
 
-    // MARK: - 1-9 + measurement units
+    // MARK: - 1-9 cardinals (intentionally left spelled out)
 
-    func testHyphenatedCardinalUnit() {
-        XCTAssertEqual(NumberNormalizer.normalize("four-minute warm-up"), "4-minute warm-up")
-        XCTAssertEqual(NumberNormalizer.normalize("one-minute intervals"), "1-minute intervals")
-        XCTAssertEqual(NumberNormalizer.normalize("nine-second hold"), "9-second hold")
+    /// SRT 35 feedback: digit-only forms like "4 minute" / "1 minute"
+    /// read awkwardly in subtitles. Per standard editorial convention
+    /// (AP / Chicago style: spell out one through nine, use digits
+    /// for 10+), 1-9 cardinals stay spelled — even when followed by
+    /// a measurement unit or hyphenated to one.
+    func testHyphenatedCardinalUnitStaysSpelled() {
+        XCTAssertEqual(NumberNormalizer.normalize("four-minute warm-up"), "four-minute warm-up")
+        XCTAssertEqual(NumberNormalizer.normalize("one-minute intervals"), "one-minute intervals")
+        XCTAssertEqual(NumberNormalizer.normalize("nine-second hold"), "nine-second hold")
     }
 
-    func testSpaceSeparatedCardinalUnit() {
-        XCTAssertEqual(NumberNormalizer.normalize("two minutes"), "2 minutes")
-        XCTAssertEqual(NumberNormalizer.normalize("eight minutes of curls"), "8 minutes of curls")
-        XCTAssertEqual(NumberNormalizer.normalize("three reps"), "3 reps")
+    func testSpaceSeparatedCardinalUnitStaysSpelled() {
+        XCTAssertEqual(NumberNormalizer.normalize("two minutes"), "two minutes")
+        XCTAssertEqual(NumberNormalizer.normalize("eight minutes of curls"), "eight minutes of curls")
+        XCTAssertEqual(NumberNormalizer.normalize("three reps"), "three reps")
     }
 
-    func testCardinalNotFollowedByUnitStillSkipped() {
-        // The pronoun reading is preserved when the next word isn't a known unit.
+    /// Pronoun / quantifier forms also stay spelled (still 1-9, so
+    /// nothing changes vs the prior behaviour here — these would
+    /// have been wrong to digitize whether or not a unit followed).
+    func testCardinalAsQuantifierStaysSpelled() {
         XCTAssertEqual(NumberNormalizer.normalize("two ways to go"), "two ways to go")
         XCTAssertEqual(NumberNormalizer.normalize("one of them"), "one of them")
         XCTAssertEqual(NumberNormalizer.normalize("five fingers"), "five fingers")
+    }
+
+    /// 10+ cardinals still digitize — the other passes (standalone /
+    /// compound / hundred / oh) handle these. Pinning here so a
+    /// future "spell out everything" regression would surface.
+    func testTensAndAboveStillDigitize() {
+        XCTAssertEqual(NumberNormalizer.normalize("ten minutes"), "10 minutes")
+        XCTAssertEqual(NumberNormalizer.normalize("fifteen reps"), "15 reps")
+        XCTAssertEqual(NumberNormalizer.normalize("thirty seconds"), "30 seconds")
+        XCTAssertEqual(NumberNormalizer.normalize("forty-five reps"), "45 reps")
+        XCTAssertEqual(NumberNormalizer.normalize("one hundred seconds"), "100 seconds")
     }
 }

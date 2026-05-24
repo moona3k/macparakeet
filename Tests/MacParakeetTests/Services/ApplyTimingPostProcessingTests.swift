@@ -312,7 +312,14 @@ final class ApplyTimingPostProcessingTests: XCTestCase {
 
     /// SRT 24 block 5/6: cue 5 ended with "four" and cue 6 started
     /// with "minute". The cardinal+unit pair should be reunited in
-    /// cue 6 so the number normalizer can fuse them to "4-minute".
+    /// the same cue so "four minute" reads as one phrase rather
+    /// than spanning a boundary.
+    ///
+    /// Note: per SRT 35 feedback, 1-9 cardinals stay SPELLED (we no
+    /// longer digitize "four minute" to "4 minute"). The cardinal+
+    /// unit rebalance is still valuable on its own — keeping the
+    /// pair adjacent is a readability win independent of the digit/
+    /// spelled choice.
     func testCardinalAndUnitGetReunited() async {
         let service = ExportService()
         let llmCues: [ExportService.SubtitleCue] = [
@@ -340,10 +347,16 @@ final class ApplyTimingPostProcessingTests: XCTestCase {
         let last = out[0].text.split(separator: " ").last.map(String.init) ?? ""
         XCTAssertNotEqual(last.lowercased(), "four",
                           "Cue 1 still ends with 'four': \(out[0].text)")
-        // Cue 2 must contain the normalized 4-minute compound.
+        // Cue 2 (or whichever cue holds the pair after merging) must
+        // contain "four" and "minute" adjacent. Tolerate the wrap
+        // pass dropping a `\n` between cue lines.
+        let normalized = out.map { $0.text.replacingOccurrences(of: "\n", with: " ") }
+        let pairAdjacent = normalized.contains {
+            $0.contains("four minute") || $0.contains("four-minute")
+        }
         XCTAssertTrue(
-            out[1].text.contains("4-minute") || out[1].text.contains("4 minute"),
-            "Cue 2 should contain the digitized cardinal+unit; got: \(out[1].text)"
+            pairAdjacent,
+            "Cardinal + unit pair not adjacent in any cue. Cues: \(normalized)"
         )
     }
 

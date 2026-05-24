@@ -3,22 +3,24 @@ import Foundation
 /// Rule-based conversion of unambiguous spelled-out English cardinal
 /// numbers to their digit form (e.g., `twenty-five` -> `25`).
 ///
-/// Scope (Phase 1, expanded after real-transcript review):
+/// Scope (Phase 1, refined after real-transcript review):
 ///   - teens (`ten`..`nineteen`),
 ///   - tens (`twenty`..`ninety`),
 ///   - hyphenated and space-separated tens+ones compounds
 ///     (`twenty-five`, `forty three`),
 ///   - hundred-cardinals (`one hundred`..`nine hundred` -> `100`..`900`),
 ///   - the "X oh Y" form fitness instructors use for 101–109, 201–209,
-///     etc. (`one oh five` -> `105`),
-///   - 1-9 + measurement units when the unit is unambiguous
-///     (`four-minute` -> `4-minute`, `two minutes` -> `2 minutes`).
+///     etc. (`one oh five` -> `105`).
 ///
-/// Standalone 1-9 (`one`, `two`, ...) are still deliberately skipped —
-/// too often pronouns or generic quantifiers ("one of them", "two
-/// ways") to swap blindly. Phase 2 (an LLM verifier for ambiguous
-/// tokens) is where those would land if real-world transcripts show
-/// the rules missing common cases.
+/// **1-9 cardinals are intentionally left spelled out**, per
+/// standard editorial convention (AP / Chicago style: spell out
+/// one through nine, use digits for 10+). An earlier version had a
+/// measurement-context pass that converted `four minutes` to `4
+/// minutes`, but the digit-only form read awkwardly in subtitles
+/// (SRT 35 feedback: "some of the numbers were converted to digits
+/// which is a bit strange"). The other passes already cover every
+/// number ≥10 correctly via standalone / compound / hundred / oh
+/// patterns, so we just stop touching 1-9.
 public enum NumberNormalizer: Sendable {
 
     /// Words that map to a tens (or teen) value on their own.
@@ -66,34 +68,6 @@ public enum NumberNormalizer: Sendable {
         return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }()
 
-    /// Common measurement units that follow a cardinal in transcribed
-    /// speech. Used to disambiguate the otherwise-skipped 1-9 range —
-    /// the pronoun reading ("two ways to go") doesn't make sense when
-    /// the cardinal is hyphenated to ("two-minute") or directly precedes
-    /// a known unit ("two minutes"). Plural forms are included literally
-    /// rather than via a `s?` suffix so the alternation stays explicit.
-    private static let measurementUnits = [
-        "minute", "minutes", "second", "seconds", "hour", "hours",
-        "day", "days", "week", "weeks", "month", "months",
-        "year", "years",
-        "pound", "pounds", "ounce", "ounces", "gram", "grams",
-        "foot", "feet", "inch", "inches",
-        "mile", "miles", "meter", "meters", "yard", "yards",
-        "step", "steps", "rep", "reps", "count", "counts",
-        "set", "sets", "round", "rounds",
-        "degree", "degrees"
-    ]
-    private static let measurementAlternation = measurementUnits.joined(separator: "|")
-
-    /// `<ones> <unit>` or `<ones>-<unit>` → `<digit> <unit>` / `<digit>-<unit>`.
-    /// Captures the cardinal in group 1, the literal separator (` ` or `-`)
-    /// in group 2, and the unit in group 3 so the rewrite preserves the
-    /// original spacing/hyphenation.
-    private static let measurementRegex: NSRegularExpression? = {
-        let pattern = "\\b(\(onesAlternation))([- ])(\(measurementAlternation))\\b"
-        return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-    }()
-
     /// Returns `text` with normalised cardinals. Idempotent — running on
     /// already-normalised text returns the same string.
     ///
@@ -106,7 +80,6 @@ public enum NumberNormalizer: Sendable {
         result = applyOhPass(result)
         result = applyHundredPass(result)
         result = applyCompoundPass(result)
-        result = applyMeasurementPass(result)
         result = applyStandalonePass(result)
         return result
     }
@@ -122,24 +95,6 @@ public enum NumberNormalizer: Sendable {
             let onesWord = (out as NSString).substring(with: match.range(at: 2)).lowercased()
             guard let t = tensMap[tensWord], let o = onesMap[onesWord] else { continue }
             out = (out as NSString).replacingCharacters(in: match.range, with: String(t + o))
-        }
-        return out
-    }
-
-    private static func applyMeasurementPass(_ text: String) -> String {
-        guard let regex = measurementRegex else { return text }
-        let ns = text as NSString
-        let matches = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
-        var out = text
-        for match in matches.reversed() {
-            let onesWord = (out as NSString).substring(with: match.range(at: 1)).lowercased()
-            let separator = (out as NSString).substring(with: match.range(at: 2))
-            let unit = (out as NSString).substring(with: match.range(at: 3))
-            guard let value = onesMap[onesWord] else { continue }
-            out = (out as NSString).replacingCharacters(
-                in: match.range,
-                with: "\(value)\(separator)\(unit)"
-            )
         }
         return out
     }
