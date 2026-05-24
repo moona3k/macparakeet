@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import OSLog
 import MacParakeetCore
 import MacParakeetViewModels
@@ -875,6 +876,17 @@ final class DictationFlowCoordinator {
     }
 
     private func presentMicPermissionAlert() async {
+        // If TCC state is .notDetermined (e.g. after a TCC reset or a reinstall
+        // where onboarding has already been completed), trigger the system prompt
+        // directly. Opening System Settings is a dead end here — macOS does not
+        // surface an entry in Privacy & Security → Microphone until the app has
+        // called requestAccess at least once.
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
+            if await AVCaptureDevice.requestAccess(for: .audio) {
+                return
+            }
+        }
+
         let alert = NSAlert()
         alert.messageText = "Microphone access required"
         alert.informativeText = "MacParakeet needs microphone access to record dictation. Open System Settings → Privacy & Security → Microphone to enable it, then try again."
