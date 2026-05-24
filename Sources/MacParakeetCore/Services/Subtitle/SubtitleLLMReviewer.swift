@@ -25,6 +25,11 @@ import OSLog
 /// silently skipped (the cue pair stays as it was).
 public actor SubtitleLLMReviewer {
 
+    /// Called once per completed pair with `(completed, total)`. Same
+    /// shape as `SubtitleLLMLayoutPlanner.ProgressHandler` so the
+    /// caller can wire both phases through a single progress model.
+    public typealias ProgressHandler = @Sendable (Int, Int) -> Void
+
     /// A snapshot of a cue's plain text and timing, sufficient for the
     /// reviewer to reason about it. Decoupled from `ExportService`'s
     /// private `MutableCue` so the caller can convert/apply suggestions
@@ -64,10 +69,12 @@ public actor SubtitleLLMReviewer {
     /// Walk every adjacent pair in `cues`, ask the LLM what to do,
     /// return one suggestion per pair (or `.keep` on any failure).
     /// Runs LLM calls in parallel up to `maxConcurrency` and stitches
-    /// results back in input order.
+    /// results back in input order. `onProgress` (if provided) fires
+    /// once per completed pair with `(completed, total)`.
     public func review(
         cues: [ReviewableCue],
-        config: SubtitleExportConfig
+        config: SubtitleExportConfig,
+        onProgress: ProgressHandler? = nil
     ) async -> [ReviewSuggestion] {
         guard cues.count >= 2 else { return [] }
         let pairs = (0..<(cues.count - 1))
@@ -95,6 +102,7 @@ public actor SubtitleLLMReviewer {
             while let suggestion = await group.next() {
                 resultsByIndex[suggestion.pairIndex] = suggestion
                 completed += 1
+                onProgress?(completed, total)
                 if nextPair < pairs.upperBound {
                     let i = nextPair
                     group.addTask { [llmService] in
@@ -108,8 +116,6 @@ public actor SubtitleLLMReviewer {
                     nextPair += 1
                 }
             }
-            _ = total
-            _ = completed
         }
 
         return pairs.map { resultsByIndex[$0] ?? ReviewSuggestion(pairIndex: $0, action: .keep) }

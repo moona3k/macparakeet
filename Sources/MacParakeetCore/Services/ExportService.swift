@@ -51,6 +51,34 @@ public protocol ExportServiceProtocol: Sendable {
     func formatForClipboard(transcription: Transcription) -> String
 }
 
+/// Progress event from the subtitle export pipeline.
+///
+/// LLM-driven exports run in TWO phases — first the layout planner
+/// picks cue boundaries from raw words (chunk-by-chunk), then the
+/// reviewer walks adjacent cue pairs voting keep/merge/shift. The
+/// UI shows separate progress bars for each so the user knows
+/// what's actually happening (and that the export hasn't stalled
+/// just because the bar paused between phases).
+public struct SubtitleExportProgress: Sendable, Equatable {
+    public enum Phase: String, Sendable, Equatable, Codable {
+        /// `SubtitleLLMLayoutPlanner` — N chunks of ~80 words each.
+        case layout
+        /// `SubtitleLLMReviewer` — N-1 cue pairs.
+        case review
+    }
+    public let phase: Phase
+    public let completed: Int
+    public let total: Int
+
+    public init(phase: Phase, completed: Int, total: Int) {
+        self.phase = phase
+        self.completed = completed
+        self.total = total
+    }
+}
+
+public typealias SubtitleExportProgressHandler = @Sendable (SubtitleExportProgress) -> Void
+
 public struct SubtitleExportConfig: Sendable, Equatable, Codable {
     /// Max words per subtitle cue.
     public var maxWordsPerCue: Int
@@ -304,7 +332,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         config: SubtitleExportConfig = .default,
         includeSpeakerLabels: Bool = false,
         llmService: LLMServiceProtocol?,
-        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil
+        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil,
+        onExportProgress: SubtitleExportProgressHandler? = nil
     ) async throws {
         if let text = editedTranscriptText(transcription: transcription) {
             let duration = transcription.durationMs ?? 0
@@ -326,6 +355,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             includeSpeakerLabels: includeSpeakerLabels,
             llmService: llmService,
             onRefinementProgress: onRefinementProgress,
+            onExportProgress: onExportProgress,
             cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript,
             engineSegments: transcription.transcriptSegments
         )
@@ -339,7 +369,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         config: SubtitleExportConfig = .default,
         includeSpeakerLabels: Bool = false,
         llmService: LLMServiceProtocol?,
-        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil
+        onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil,
+        onExportProgress: SubtitleExportProgressHandler? = nil
     ) async throws {
         if let text = editedTranscriptText(transcription: transcription) {
             let duration = transcription.durationMs ?? 0
@@ -361,6 +392,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             includeSpeakerLabels: includeSpeakerLabels,
             llmService: llmService,
             onRefinementProgress: onRefinementProgress,
+            onExportProgress: onExportProgress,
             cleanedTranscript: transcription.cleanTranscript ?? transcription.rawTranscript,
             engineSegments: transcription.transcriptSegments
         )
@@ -552,6 +584,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         includeSpeakerLabels: Bool = false,
         llmService: LLMServiceProtocol?,
         onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil,
+        onExportProgress: SubtitleExportProgressHandler? = nil,
         cleanedTranscript: String? = nil,
         engineSegments: [STTSegment]? = nil
     ) async throws -> String {
@@ -560,7 +593,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             config: config,
             includeSpeakerLabels: includeSpeakerLabels,
             llmService: llmService,
-            onProgress: onRefinementProgress,
+            onLegacyProgress: onRefinementProgress,
+            onExportProgress: onExportProgress,
             cleanedTranscript: cleanedTranscript,
             engineSegments: engineSegments
         )
@@ -584,6 +618,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         includeSpeakerLabels: Bool = false,
         llmService: LLMServiceProtocol?,
         onRefinementProgress: SubtitleLLMRefiner.ProgressHandler? = nil,
+        onExportProgress: SubtitleExportProgressHandler? = nil,
         cleanedTranscript: String? = nil,
         engineSegments: [STTSegment]? = nil
     ) async throws -> String {
@@ -592,7 +627,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             config: config,
             includeSpeakerLabels: includeSpeakerLabels,
             llmService: llmService,
-            onProgress: onRefinementProgress,
+            onLegacyProgress: onRefinementProgress,
+            onExportProgress: onExportProgress,
             cleanedTranscript: cleanedTranscript,
             engineSegments: engineSegments
         )
@@ -628,7 +664,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         config: SubtitleExportConfig,
         includeSpeakerLabels: Bool,
         llmService: LLMServiceProtocol?,
-        onProgress: SubtitleLLMRefiner.ProgressHandler?,
+        onLegacyProgress: SubtitleLLMRefiner.ProgressHandler?,
+        onExportProgress: SubtitleExportProgressHandler?,
         cleanedTranscript: String?,
         engineSegments: [STTSegment]?
     ) async -> [SubtitleCue] {
@@ -661,12 +698,22 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         }
 
         let planner = SubtitleLLMLayoutPlanner(llmService: llmService)
+        // Bridge planner progress to BOTH the legacy handler (so older
+        // callers that only know about the layout phase still work)
+        // and the new combined handler (which the GUI uses to drive
+        // its two-bar export overlay).
+        let layoutProgress: SubtitleLLMLayoutPlanner.ProgressHandler = { completed, total in
+            onLegacyProgress?(completed, total)
+            onExportProgress?(SubtitleExportProgress(
+                phase: .layout, completed: completed, total: total
+            ))
+        }
         let chunkResults = await planner.plan(
             words: sanitized,
             units: units,
             config: config,
             speakerId: nil,
-            onProgress: onProgress
+            onProgress: layoutProgress
         )
 
         // Any chunk fell back to nil → use deterministic for the whole
@@ -681,12 +728,18 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // Stitch chunk cues + timing post-processing.
         let llmCues = chunkResults.flatMap { $0.cues ?? [] }
         // When LLM service is configured, run the review pass between
-        // the rebalance and timing passes. Otherwise stick with the
-        // sync path (no review).
+        // the rebalance and timing passes. Reviewer progress fires
+        // through the new combined handler only — the legacy handler
+        // never knew about phase 2.
         return await applyTimingPostProcessingWithReview(
             llmCues,
             config: config,
-            llmService: llmService
+            llmService: llmService,
+            onReviewProgress: { completed, total in
+                onExportProgress?(SubtitleExportProgress(
+                    phase: .review, completed: completed, total: total
+                ))
+            }
         )
     }
 
@@ -737,10 +790,16 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     private func applyTimingPostProcessingWithReview(
         _ cues: [SubtitleCue],
         config: SubtitleExportConfig,
-        llmService: LLMServiceProtocol
+        llmService: LLMServiceProtocol,
+        onReviewProgress: SubtitleLLMReviewer.ProgressHandler? = nil
     ) async -> [SubtitleCue] {
         var mutable = mergeAndRebalancePasses(cues, config: config)
-        mutable = await applyLLMReview(mutable, config: config, llmService: llmService)
+        mutable = await applyLLMReview(
+            mutable,
+            config: config,
+            llmService: llmService,
+            onReviewProgress: onReviewProgress
+        )
         // Re-run the rebalance passes AFTER the reviewer to clean up
         // any new bad-enders / trailing fragments / cardinal-unit
         // splits the LLM may have introduced. The rebalance passes
@@ -868,7 +927,8 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     private func applyLLMReview(
         _ cues: [MutableCue],
         config: SubtitleExportConfig,
-        llmService: LLMServiceProtocol
+        llmService: LLMServiceProtocol,
+        onReviewProgress: SubtitleLLMReviewer.ProgressHandler? = nil
     ) async -> [MutableCue] {
         guard cues.count >= 2 else { return cues }
         let snapshot = cues.map {
@@ -877,7 +937,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             )
         }
         let reviewer = SubtitleLLMReviewer(llmService: llmService)
-        let suggestions = await reviewer.review(cues: snapshot, config: config)
+        let suggestions = await reviewer.review(
+            cues: snapshot,
+            config: config,
+            onProgress: onReviewProgress
+        )
         return applyReviewSuggestions(cues, suggestions: suggestions, config: config)
     }
 

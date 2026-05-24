@@ -83,6 +83,8 @@ struct TranscriptResultView: View {
     @State private var isExporting = false
     @State private var exportTask: Task<Void, Never>?
     @State private var refinementProgress: (completed: Int, total: Int)?
+    @State private var layoutProgress: (completed: Int, total: Int)?
+    @State private var reviewProgress: (completed: Int, total: Int)?
     @State private var selectedExportFormat: TranscriptExportFormat =
         TranscriptExportPreferences.loadLastFormat() ?? .srt
     @State private var transcriptExportOptions: TranscriptExportOptions =
@@ -578,37 +580,119 @@ struct TranscriptResultView: View {
         }
         .overlay {
             if isExporting {
-                ZStack {
-                    Color.black.opacity(0.35)
-                        .ignoresSafeArea()
-                    VStack(spacing: 12) {
-                        if let progress = refinementProgress, progress.total > 0 {
-                            ProgressView(value: Double(progress.completed), total: Double(progress.total))
-                                .progressViewStyle(.linear)
-                                .tint(.white)
-                                .frame(width: 220)
-                            Text("Refining \(progress.completed) of \(progress.total) batches…")
-                                .font(DesignSystem.Typography.body.weight(.medium))
-                                .foregroundStyle(.white)
-                        } else {
-                            ProgressView()
-                                .scaleEffect(1.2)
-                                .tint(.white)
-                            Text("Exporting with AI Refinement…")
-                                .font(DesignSystem.Typography.body.weight(.medium))
-                                .foregroundStyle(.white)
-                        }
-                        Button("Cancel") {
-                            exportTask?.cancel()
-                        }
-                        .parakeetAction(.secondary)
-                        .padding(.top, 4)
-                    }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 16)
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(12)
+                exportProgressOverlay
+            }
+        }
+    }
+
+    /// AI-refined export progress overlay.
+    ///
+    /// Replaces the old dark-scrim + white-tint dialog with a card
+    /// matching the rest of the app's surface treatment: ultra-thin
+    /// material panel on a soft scrim, coral accent for progress
+    /// bars, design-system typography, and a divider separating the
+    /// two LLM phases. Two phases are shown distinctly so the user
+    /// can see WHICH part of the export is currently working — bar
+    /// pauses between phases used to look like a stall.
+    @ViewBuilder
+    private var exportProgressOverlay: some View {
+        ZStack {
+            // Soft scrim, lighter than the old 35% black — lets the
+            // transcript bleed through enough that it doesn't feel
+            // like a modal lockup.
+            DesignSystem.Colors.cardBackground.opacity(0.55)
+                .ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                HStack(spacing: DesignSystem.Spacing.sm) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundStyle(DesignSystem.Colors.accent)
+                    Text("Exporting with AI Refinement")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
                 }
+
+                exportProgressRow(
+                    label: "Laying out cues",
+                    progress: layoutProgress,
+                    isActive: layoutProgress != nil && reviewProgress == nil
+                )
+
+                exportProgressRow(
+                    label: "Reviewing cue pairs",
+                    progress: reviewProgress,
+                    isActive: reviewProgress != nil
+                )
+
+                HStack {
+                    Spacer()
+                    Button("Cancel") {
+                        exportTask?.cancel()
+                    }
+                    .parakeetAction(.secondary)
+                }
+                .padding(.top, DesignSystem.Spacing.xs)
+            }
+            .padding(DesignSystem.Spacing.lg)
+            .frame(width: 320)
+            .background(.ultraThinMaterial)
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                    .strokeBorder(DesignSystem.Colors.divider, lineWidth: 0.5)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius))
+            .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+        }
+    }
+
+    /// One phase's progress row: a label, the bar, and an N/M counter.
+    /// `isActive` lights up the bar in the accent color; inactive
+    /// phases are dimmed so the active phase pops.
+    @ViewBuilder
+    private func exportProgressRow(
+        label: String,
+        progress: (completed: Int, total: Int)?,
+        isActive: Bool
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text(label)
+                    .font(DesignSystem.Typography.caption.weight(.medium))
+                    .foregroundStyle(
+                        isActive
+                            ? DesignSystem.Colors.textPrimary
+                            : DesignSystem.Colors.textSecondary
+                    )
+                Spacer()
+                if let progress, progress.total > 0 {
+                    Text("\(progress.completed) / \(progress.total)")
+                        .font(DesignSystem.Typography.micro.monospacedDigit())
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                } else {
+                    Text("waiting…")
+                        .font(DesignSystem.Typography.micro)
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                }
+            }
+            if let progress, progress.total > 0 {
+                ProgressView(
+                    value: Double(progress.completed),
+                    total: Double(progress.total)
+                )
+                .progressViewStyle(.linear)
+                .tint(
+                    isActive
+                        ? DesignSystem.Colors.accent
+                        : DesignSystem.Colors.accent.opacity(0.35)
+                )
+            } else {
+                // Empty bar placeholder so the row height doesn't jump
+                // when progress starts firing.
+                Capsule()
+                    .fill(DesignSystem.Colors.divider.opacity(0.6))
+                    .frame(height: 4)
+                    .accessibilityHidden(true)
             }
         }
     }
@@ -2719,17 +2803,31 @@ struct TranscriptResultView: View {
         // Use async path for LLM-refined subtitle exports
         if options.subtitleConfig.useLLMRefinement && (format == .srt || format == .vtt) {
             refinementProgress = nil
+            layoutProgress = nil
+            reviewProgress = nil
             exportTask?.cancel()
             exportTask = Task { @MainActor in
                 defer {
                     isExporting = false
                     refinementProgress = nil
+                    layoutProgress = nil
+                    reviewProgress = nil
                     exportTask = nil
                 }
                 do {
-                    let progressHandler: SubtitleLLMRefiner.ProgressHandler = { completed, total in
+                    let legacyProgressHandler: SubtitleLLMRefiner.ProgressHandler = { completed, total in
                         Task { @MainActor in
                             refinementProgress = (completed, total)
+                        }
+                    }
+                    let exportProgressHandler: SubtitleExportProgressHandler = { progress in
+                        Task { @MainActor in
+                            switch progress.phase {
+                            case .layout:
+                                layoutProgress = (progress.completed, progress.total)
+                            case .review:
+                                reviewProgress = (progress.completed, progress.total)
+                            }
                         }
                     }
                     let fileURL = try await TranscriptResultActions.exportTranscriptToDownloadsAsync(
@@ -2737,7 +2835,8 @@ struct TranscriptResultView: View {
                         format: format,
                         options: options,
                         llmService: promptResultsViewModel.llmService,
-                        onRefinementProgress: progressHandler
+                        onRefinementProgress: legacyProgressHandler,
+                        onExportProgress: exportProgressHandler
                     )
                     TranscriptExportPreferences.saveLastFormat(format)
                     TranscriptExportPreferences.saveOptions(transcriptExportOptions)
