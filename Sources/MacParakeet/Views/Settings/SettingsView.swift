@@ -660,6 +660,14 @@ struct SettingsView: View {
 
                 Divider()
 
+                settingsToggleRow(
+                    title: "Pause media while dictating",
+                    detail: "Pauses playing media during dictation and resumes it when capture stops.",
+                    isOn: $viewModel.pauseMediaDuringDictation
+                )
+
+                Divider()
+
                 // Relocated from the legacy `generalCard` during the IA
                 // refactor. The idle pill *is* the dictation summon button,
                 // so it belongs alongside the dictation hotkey, not in the
