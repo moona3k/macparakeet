@@ -106,6 +106,15 @@ final class DictationFlowCoordinator {
         }
     }
 
+    static func mediaPauseCaptureActive(for state: DictationFlowState) -> Bool {
+        switch state {
+        case .startingService, .recording, .pendingStop:
+            return true
+        case .idle, .ready, .checkingEntitlements, .processing, .cancelCountdown, .finishing:
+            return false
+        }
+    }
+
     static func pasteFailureMessage(for error: Error, copiedToClipboard copied: Bool) -> String {
         let clipboardError = error as? ClipboardServiceError
 
@@ -137,6 +146,7 @@ final class DictationFlowCoordinator {
     private let runtimePreferences: AppRuntimePreferencesProtocol
     private let permissionService: PermissionServiceProtocol
     private let captionTiming: DictationProcessingLoadCaptionTiming
+    private let mediaPauseCoordinator: any DictationMediaPauseCoordinating
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
     /// When true, `startDictation` is a no-op. Used to gate real dictation while
@@ -196,6 +206,7 @@ final class DictationFlowCoordinator {
         runtimePreferences: AppRuntimePreferencesProtocol,
         permissionService: PermissionServiceProtocol = PermissionService(),
         captionTiming: DictationProcessingLoadCaptionTiming = .production,
+        mediaPauseCoordinator: (any DictationMediaPauseCoordinating)? = nil,
         overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
             DictationOverlayController(viewModel: $0)
         },
@@ -214,6 +225,7 @@ final class DictationFlowCoordinator {
         self.runtimePreferences = runtimePreferences
         self.permissionService = permissionService
         self.captionTiming = captionTiming
+        self.mediaPauseCoordinator = mediaPauseCoordinator ?? NoOpDictationMediaPauseCoordinator()
         self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
         self.isStartSuppressed = isStartSuppressed
@@ -336,6 +348,10 @@ final class DictationFlowCoordinator {
         }
     }
 
+    func releaseMediaPauseForTermination() {
+        mediaPauseCoordinator.resumeForTermination()
+    }
+
     // MARK: - State Machine Core
 
     private func sendEvent(_ event: DictationFlowEvent) {
@@ -349,6 +365,13 @@ final class DictationFlowCoordinator {
         }
 
         executeEffects(effects)
+
+        if Self.mediaPauseCaptureActive(for: oldState),
+           !Self.mediaPauseCaptureActive(for: stateMachine.state) {
+            Task { @MainActor in
+                await self.mediaPauseCoordinator.resumeAfterDictationCapture()
+            }
+        }
     }
 
     // MARK: - Effect Executor
@@ -824,6 +847,9 @@ final class DictationFlowCoordinator {
         let trigger = currentTrigger
         recordingTask = Task { @MainActor in
             do {
+                try Task.checkCancellation()
+                await self.mediaPauseCoordinator.pauseBeforeDictationCapture()
+                try Task.checkCancellation()
                 try await self.serviceSession.startRecording(
                     sessionID: sessionID,
                     context: DictationTelemetryContext(
@@ -844,6 +870,9 @@ final class DictationFlowCoordinator {
                 guard !Task.isCancelled else { return }
                 self.sendEvent(.recordingStarted(generation: generation))
                 await self.runRecordingLevelLoop()
+            } catch is CancellationError {
+                await self.mediaPauseCoordinator.resumeAfterDictationCapture()
+                return
             } catch {
                 guard !Task.isCancelled else { return }
                 self.dictationLog.error(
@@ -881,7 +910,7 @@ final class DictationFlowCoordinator {
     private func presentMicPermissionAlert() async {
         // If TCC state is .notDetermined (e.g. after a TCC reset or a reinstall
         // where onboarding has already been completed), trigger the system prompt
-        // directly. Opening System Settings is a dead end here — macOS does not
+        // directly. Opening System Settings is a dead end here: macOS does not
         // surface an entry in Privacy & Security → Microphone until the app has
         // called requestAccess at least once.
         switch await permissionService.checkMicrophonePermission() {

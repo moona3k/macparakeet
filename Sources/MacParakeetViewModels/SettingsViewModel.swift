@@ -163,6 +163,15 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode))
         }
     }
+    public var pauseMediaDuringDictation: Bool {
+        didSet {
+            defaults.set(
+                pauseMediaDuringDictation,
+                forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
+            )
+            Telemetry.send(.settingChanged(setting: .pauseMediaDuringDictation))
+        }
+    }
     public var microphoneDeviceOptions: [MicrophoneDeviceOption] = []
     public var microphoneTestState: MicrophoneTestState = .idle
     public var microphoneTestLevel: Float = 0
@@ -504,6 +513,9 @@ public final class SettingsViewModel {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )
         meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
+        pauseMediaDuringDictation = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
+        ) as? Bool ?? false
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))

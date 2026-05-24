@@ -76,6 +76,28 @@ final class DictationFlowCoordinatorTests: XCTestCase {
         }
     }
 
+    func testMediaPauseCaptureActiveExcludesProcessing() {
+        XCTAssertTrue(DictationFlowCoordinator.mediaPauseCaptureActive(for: .startingService(mode: .persistent)))
+        XCTAssertTrue(DictationFlowCoordinator.mediaPauseCaptureActive(for: .recording(mode: .holdToTalk)))
+        XCTAssertTrue(DictationFlowCoordinator.mediaPauseCaptureActive(for: .pendingStop(mode: .persistent)))
+
+        let states: [DictationFlowState] = [
+            .idle,
+            .ready,
+            .checkingEntitlements(mode: .persistent),
+            .processing,
+            .cancelCountdown,
+            .finishing(outcome: .success),
+            .finishing(outcome: .noSpeech),
+            .finishing(outcome: .error("boom")),
+            .finishing(outcome: .pasteFailedCopied("Copied to clipboard. Press Cmd+V.")),
+        ]
+
+        for state in states {
+            XCTAssertFalse(DictationFlowCoordinator.mediaPauseCaptureActive(for: state), "Expected false for \(state)")
+        }
+    }
+
     func testPasteFailureMessagePreservesAccessibilityCauseWhenCopied() {
         let message = DictationFlowCoordinator.pasteFailureMessage(
             for: ClipboardServiceError.accessibilityPermissionRequired,
@@ -234,19 +256,14 @@ private struct AlwaysReadySTTReadinessChecker: DictationSTTReadinessChecking {
 @MainActor
 private final class MicPermissionSpyDictationOverlayController: DictationOverlayControlling {
     let viewModel: DictationOverlayViewModel
-    private(set) var isShown = false
 
     init(viewModel: DictationOverlayViewModel) {
         self.viewModel = viewModel
     }
 
-    func show() {
-        isShown = true
-    }
+    func show() {}
 
-    func hide() {
-        isShown = false
-    }
+    func hide() {}
 
     func resignKeyWindow() {}
 }

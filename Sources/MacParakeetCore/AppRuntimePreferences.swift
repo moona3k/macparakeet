@@ -12,6 +12,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var aiFormatterPrompt: String { get }
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
+    var pauseMediaDuringDictation: Bool { get }
     var hasCompletedFirstDictation: Bool { get }
     /// Flip the one-shot "first dictation completed" flag. Returns `true` only
     /// the first time it transitions (so callers can fire a one-shot side
@@ -112,6 +113,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let aiFormatterPromptKey = "aiFormatterPrompt"
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
+    public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
     public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
 
     private let defaults: UserDefaults
@@ -167,6 +169,10 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
 
     public var meetingAudioSourceMode: MeetingAudioSourceMode {
         MeetingAudioSourceMode.current(defaults: defaults)
+    }
+
+    public var pauseMediaDuringDictation: Bool {
+        defaults.object(forKey: Self.pauseMediaDuringDictationKey) as? Bool ?? false
     }
 
     public var hasCompletedFirstDictation: Bool {

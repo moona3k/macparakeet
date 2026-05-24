@@ -27,6 +27,7 @@ final class AppEnvironment {
     let youtubeDownloader: YouTubeDownloader
     let diarizationService: DiarizationService
     let clipboardService: ClipboardService
+    let systemMediaController: SystemMediaController
     let exportService: ExportService
     let permissionService: PermissionService
     let accessibilityService: AccessibilityService
@@ -103,6 +104,7 @@ final class AppEnvironment {
             sttTranscriber: sttScheduler
         )
         clipboardService = ClipboardService()
+        systemMediaController = SystemMediaController()
         exportService = ExportService()
         permissionService = PermissionService()
         accessibilityService = AccessibilityService()

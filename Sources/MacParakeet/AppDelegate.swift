@@ -326,6 +326,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Telemetry.flushForTermination() is handled by TelemetryService's own
         // NSApplicationWillTerminateNotification observer — calling it here too
         // would send duplicate appQuit events and double the termination delay.
+        dictationFlowCoordinator?.releaseMediaPauseForTermination()
         dictationFlowCoordinator?.hideIdlePill()
         hotkeyCoordinator?.stopAll()
         meetingAutoStartCoordinator?.stop()

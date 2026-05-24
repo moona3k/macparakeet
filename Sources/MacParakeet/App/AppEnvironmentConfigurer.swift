@@ -228,6 +228,13 @@ final class AppEnvironmentConfigurer {
         }
 
         let coordinatorRefs = CoordinatorRefs()
+        let mediaPauseCoordinator = DictationMediaPauseCoordinator(
+            settingsViewModel: settingsViewModel,
+            mediaController: env.systemMediaController,
+            isMeetingRecordingActive: {
+                coordinatorRefs.meeting?.isMeetingRecordingActive == true
+            }
+        )
 
         let dictationCoordinator = DictationFlowCoordinator(
             dictationService: env.dictationService,
@@ -238,6 +245,7 @@ final class AppEnvironmentConfigurer {
             sttRuntime: env.sttRuntime,
             runtimePreferences: env.runtimePreferences,
             permissionService: env.permissionService,
+            mediaPauseCoordinator: mediaPauseCoordinator,
             shouldSuppressIdlePill: {
                 coordinatorRefs.meeting?.isMeetingRecordingActive == true
             },

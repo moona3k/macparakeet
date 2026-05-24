@@ -132,6 +132,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.showIdlePill, "showIdlePill should default to true")
         XCTAssertFalse(viewModel.silenceAutoStop, "silenceAutoStop should default to false")
         XCTAssertEqual(viewModel.silenceDelay, 2.0, "silenceDelay should default to 2.0")
+        XCTAssertFalse(viewModel.pauseMediaDuringDictation, "pauseMediaDuringDictation should default to false")
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
         XCTAssertEqual(viewModel.youtubeAudioQuality, .m4a, "youtubeAudioQuality should default to Apple-friendly saved audio")
@@ -164,6 +165,7 @@ final class SettingsViewModelTests: XCTestCase {
             MeetingAudioSourceMode.systemOnly.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
         )
+        testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
         HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 46)
             .save(to: testDefaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
 
@@ -180,7 +182,26 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.speakerDiarization)
         XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "usb-mic-uid")
         XCTAssertEqual(vm.meetingAudioSourceMode, .systemOnly)
+        XCTAssertTrue(vm.pauseMediaDuringDictation)
         XCTAssertEqual(vm.meetingHotkeyTrigger, .chord(modifiers: ["control", "option"], keyCode: 46))
+    }
+
+    func testPauseMediaDuringDictationPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.pauseMediaDuringDictation = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey))
+
+        viewModel.pauseMediaDuringDictation = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.pauseMediaDuringDictation, .pauseMediaDuringDictation])
     }
 
     func testSelectedMicrophonePersistsUIDAndClearsForSystemDefault() {

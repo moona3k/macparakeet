@@ -38,4 +38,16 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(second.hasCompletedFirstDictation)
         XCTAssertFalse(second.markFirstDictationCompleted())
     }
+
+    func testPauseMediaDuringDictationDefaultsToFalseAndReadsPersistedValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertFalse(UserDefaultsAppRuntimePreferences(defaults: defaults).pauseMediaDuringDictation)
+
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
+
+        XCTAssertTrue(UserDefaultsAppRuntimePreferences(defaults: defaults).pauseMediaDuringDictation)
+    }
 }

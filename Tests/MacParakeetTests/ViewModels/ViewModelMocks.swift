@@ -964,14 +964,12 @@ final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendabl
     var requestMicResult: Bool = true
     var requestScreenRecordingResult: Bool = true
     var requestAccessibilityResult: Bool = true
-    var checkMicrophonePermissionCallCount = 0
     var requestMicrophonePermissionCallCount = 0
     var checkScreenRecordingPermissionCallCount = 0
     var openMicrophoneSettingsCallCount = 0
     var screenRecordingPermissionSequence: [Bool] = []
 
     func checkMicrophonePermission() async -> PermissionStatus {
-        checkMicrophonePermissionCallCount += 1
         return microphonePermission
     }
 
