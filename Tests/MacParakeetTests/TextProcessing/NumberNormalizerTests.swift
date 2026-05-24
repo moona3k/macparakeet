@@ -49,12 +49,36 @@ final class NumberNormalizerTests: XCTestCase {
         XCTAssertEqual(NumberNormalizer.normalize("sixty two"), "62")
     }
 
-    // MARK: - 1–9 NOT touched standalone
+    // MARK: - 1–9 in quantifier/pronoun context
 
-    func testSinglesAreNotNormalised() {
+    /// Pronoun contexts ("one of them", "X of Y" where Y isn't a
+    /// known unit) stay spelled — converting "one of them" → "1
+    /// of them" reads wrong.
+    func testPronounContextStaysSpelled() {
         XCTAssertEqual(NumberNormalizer.normalize("one of them"), "one of them")
-        XCTAssertEqual(NumberNormalizer.normalize("two ways to go"), "two ways to go")
-        XCTAssertEqual(NumberNormalizer.normalize("five"), "five")
+        XCTAssertEqual(NumberNormalizer.normalize("five fingers"), "five fingers")
+    }
+
+    /// "way" / "ways" / "thing" / "things" are in the measurement
+    /// units list now (catches "two ways to go" / "one thing I
+    /// want"). Digit form reads slightly less natural than
+    /// strict English but the goal is consistency-as-digits.
+    func testCommonNounUnitsDigitize() {
+        XCTAssertEqual(NumberNormalizer.normalize("two ways to go"), "2 ways to go")
+        XCTAssertEqual(NumberNormalizer.normalize("one thing I want"), "1 thing I want")
+        XCTAssertEqual(NumberNormalizer.normalize("three things to remember"), "3 things to remember")
+    }
+
+    /// A spelled cardinal that IS the entire cue text is treated
+    /// as a countdown remnant (fitness-instruction context) and
+    /// converted to digit. `applyStandaloneCardinalCuePass`.
+    func testStandaloneCardinalCueDigitizes() {
+        XCTAssertEqual(NumberNormalizer.normalize("five"), "5")
+        XCTAssertEqual(NumberNormalizer.normalize("two."), "2.")
+        // The regex's `^\s*...\s*$` consumes any padding whitespace
+        // (cue text shouldn't have leading/trailing whitespace in
+        // the real pipeline, but pin the behavior so it's explicit).
+        XCTAssertEqual(NumberNormalizer.normalize("  one,  "), "1,")
     }
 
     // MARK: - Idempotency
@@ -139,10 +163,12 @@ final class NumberNormalizerTests: XCTestCase {
         XCTAssertEqual(NumberNormalizer.normalize("three reps"), "3 reps")
     }
 
-    /// Pronoun / quantifier forms stay spelled — no measurement unit
-    /// follows, so the measurement pass doesn't match.
-    func testCardinalAsQuantifierStaysSpelled() {
-        XCTAssertEqual(NumberNormalizer.normalize("two ways to go"), "two ways to go")
+    /// Pronoun forms (`one of them`, `five fingers`) stay spelled
+    /// because "of" / "fingers" aren't in the measurement-unit
+    /// list. "way" / "ways" / "thing" / "things" ARE now in the
+    /// list per the digit-everywhere policy (see
+    /// testCommonNounUnitsDigitize).
+    func testPronounFormStaysSpelled() {
         XCTAssertEqual(NumberNormalizer.normalize("one of them"), "one of them")
         XCTAssertEqual(NumberNormalizer.normalize("five fingers"), "five fingers")
     }
@@ -221,12 +247,13 @@ final class NumberNormalizerTests: XCTestCase {
         )
     }
 
-    /// A SINGLE spelled cardinal in non-countdown context stays
-    /// spelled — the `+` quantifier requires at least one follow-up
-    /// `, N` to match.
-    func testSingleSpelledCardinalStaysSpelled() {
+    /// A SINGLE spelled cardinal in a PRONOUN context (followed by
+    /// non-unit non-cardinal words) stays spelled — the `+`
+    /// quantifier requires at least one follow-up `, N` for the
+    /// countdown pass, and pronoun contexts don't trigger
+    /// measurement either.
+    func testSingleSpelledCardinalInPronounContextStaysSpelled() {
         XCTAssertEqual(NumberNormalizer.normalize("one of them"), "one of them")
-        XCTAssertEqual(NumberNormalizer.normalize("two ways to go"), "two ways to go")
         XCTAssertEqual(NumberNormalizer.normalize("five fingers"), "five fingers")
     }
 }
