@@ -680,7 +680,14 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
         // Stitch chunk cues + timing post-processing.
         let llmCues = chunkResults.flatMap { $0.cues ?? [] }
-        return applyTimingPostProcessing(llmCues, config: config)
+        // When LLM service is configured, run the review pass between
+        // the rebalance and timing passes. Otherwise stick with the
+        // sync path (no review).
+        return await applyTimingPostProcessingWithReview(
+            llmCues,
+            config: config,
+            llmService: llmService
+        )
     }
 
     /// Run `endTimeBuffer`, `frameSnap`, `enforceMonotonicCues`, and
@@ -714,6 +721,36 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         _ cues: [SubtitleCue],
         config: SubtitleExportConfig
     ) -> [SubtitleCue] {
+        let mutable = mergeAndRebalancePasses(cues, config: config)
+        return applyTimingAndWrap(mutable, config: config)
+    }
+
+    /// Async variant that runs the LLM reviewer between the rebalance
+    /// passes and the timing passes. Used by the LLM-layout path when
+    /// `config.useLLMRefinement` is on AND an LLM service is configured.
+    ///
+    /// The reviewer looks at each adjacent cue pair, votes
+    /// keep/merge/shift, and we apply each valid suggestion before
+    /// running timing + wrap. Failures (bad JSON, invalid action,
+    /// budget violation) are silently skipped — the pair stays as
+    /// the rebalance passes left it.
+    private func applyTimingPostProcessingWithReview(
+        _ cues: [SubtitleCue],
+        config: SubtitleExportConfig,
+        llmService: LLMServiceProtocol
+    ) async -> [SubtitleCue] {
+        var mutable = mergeAndRebalancePasses(cues, config: config)
+        mutable = await applyLLMReview(mutable, config: config, llmService: llmService)
+        return applyTimingAndWrap(mutable, config: config)
+    }
+
+    /// Shared first phase: convert public `SubtitleCue` → internal
+    /// `MutableCue`, then run the merge passes and deterministic
+    /// rebalance passes. No timing changes, no text wrap.
+    private func mergeAndRebalancePasses(
+        _ cues: [SubtitleCue],
+        config: SubtitleExportConfig
+    ) -> [MutableCue] {
         // Convert to MutableCue. The merge passes read `.text` (derived
         // from `.words`), so populating `.words` by splitting the LLM
         // text on spaces gives them what they need without us needing
@@ -778,7 +815,17 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         mutable = rebalanceCardinalUnitPairs(mutable, maxChars: config.maxCharsPerLine)
         mutable = rebalanceBadEnders(mutable, maxChars: config.maxCharsPerLine)
         mutable = rebalanceBadStarters(mutable, maxChars: config.maxCharsPerLine)
-        // Timing passes (after merges so they see the final cue list).
+        return mutable
+    }
+
+    /// Shared final phase: end-time buffer, frame snap, monotonic
+    /// enforcement, then wrap each cue's text. Converts back to
+    /// `SubtitleCue` for the caller.
+    private func applyTimingAndWrap(
+        _ cues: [MutableCue],
+        config: SubtitleExportConfig
+    ) -> [SubtitleCue] {
+        var mutable = cues
         if config.endTimeBufferMs > 0 {
             mutable = applyEndTimeBuffer(mutable, config: config)
         }
@@ -797,6 +844,200 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 text: wrapSubtitleText(mut.text, config: config),
                 speakerId: mut.speakerId
             )
+        }
+    }
+
+    /// Collect suggestions from `SubtitleLLMReviewer`, then apply each
+    /// valid one to the cue list. Each suggestion is re-validated
+    /// against the CURRENT cue state (previous applications can shift
+    /// what's possible). Failures are silently skipped — the pair
+    /// stays as the rebalance passes left it.
+    private func applyLLMReview(
+        _ cues: [MutableCue],
+        config: SubtitleExportConfig,
+        llmService: LLMServiceProtocol
+    ) async -> [MutableCue] {
+        guard cues.count >= 2 else { return cues }
+        let snapshot = cues.map {
+            SubtitleLLMReviewer.ReviewableCue(
+                startMs: $0.startMs, endMs: $0.endMs, text: $0.text
+            )
+        }
+        let reviewer = SubtitleLLMReviewer(llmService: llmService)
+        let suggestions = await reviewer.review(cues: snapshot, config: config)
+        return applyReviewSuggestions(cues, suggestions: suggestions, config: config)
+    }
+
+    /// Test-only entry point: drive `applyReviewSuggestions` from a
+    /// pre-built suggestion list without going through the LLM. Lets
+    /// the regression tests pin specific shift/merge scenarios
+    /// deterministically. Takes/returns public `SubtitleCue` so the
+    /// test suite doesn't need access to the private `MutableCue`.
+    func applyReviewSuggestionsForTesting(
+        _ cues: [SubtitleCue],
+        suggestions: [SubtitleLLMReviewer.ReviewSuggestion],
+        config: SubtitleExportConfig
+    ) -> [SubtitleCue] {
+        let mutable = cues.map {
+            MutableCue(
+                startMs: $0.startMs,
+                endMs: $0.endMs,
+                words: $0.text.split(separator: " ").map(String.init),
+                wordTimestamps: [],
+                speakerId: $0.speakerId,
+                forcedText: nil
+            )
+        }
+        let applied = applyReviewSuggestions(mutable, suggestions: suggestions, config: config)
+        return applied.map {
+            SubtitleCue(
+                startMs: $0.startMs,
+                endMs: $0.endMs,
+                text: $0.text,
+                speakerId: $0.speakerId
+            )
+        }
+    }
+
+    /// Walk suggestions in pair-index order, applying each one that
+    /// still validates against the (possibly shifted) cue list.
+    private func applyReviewSuggestions(
+        _ cues: [MutableCue],
+        suggestions: [SubtitleLLMReviewer.ReviewSuggestion],
+        config: SubtitleExportConfig
+    ) -> [MutableCue] {
+        var result = cues
+        // Track how many cues have been removed/added relative to the
+        // original indices, so we can map a suggestion's `pairIndex`
+        // (an index into the snapshot the reviewer saw) into the
+        // current `result` indices.
+        var offset = 0
+        for suggestion in suggestions.sorted(by: { $0.pairIndex < $1.pairIndex }) {
+            let currentI = suggestion.pairIndex + offset
+            // Bounds check after offset adjustment.
+            guard currentI >= 0 && currentI + 1 < result.count else { continue }
+            let outcome = applyOne(
+                action: suggestion.action,
+                a: result[currentI],
+                b: result[currentI + 1],
+                maxChars: config.maxCharsPerLine
+            )
+            switch outcome {
+            case .keep:
+                continue
+            case .merged(let merged):
+                result[currentI] = merged
+                result.remove(at: currentI + 1)
+                offset -= 1
+            case .shifted(let newA, let newB):
+                result[currentI] = newA
+                result[currentI + 1] = newB
+                // Word count unchanged; offset stays.
+            case .rejected:
+                continue
+            }
+        }
+        return result
+    }
+
+    private enum ApplyOutcome {
+        case keep
+        case merged(MutableCue)
+        case shifted(MutableCue, MutableCue)
+        case rejected
+    }
+
+    /// Validate the action against the current cue state, return the
+    /// resulting cues (or `.rejected` if validation fails).
+    private func applyOne(
+        action: ReviewAction,
+        a: MutableCue,
+        b: MutableCue,
+        maxChars: Int
+    ) -> ApplyOutcome {
+        // Hard upper bound — never let the LLM-reviewed cues balloon
+        // past what the wrap pass can handle gracefully. 2× per-line
+        // budget covers a comfortable 2-line cue.
+        let maxBudget = max(maxChars * 2, maxChars + 30)
+        // Same utterance-gap floor the other rebalance passes use.
+        let maxGapMs = 500
+        // Minimum chars in a "kept" cue after a shift, so we don't
+        // strand a 5-char fragment by accident.
+        let minChars = 10
+
+        switch action {
+        case .keep:
+            return .keep
+
+        case .merge:
+            // Reject merges across a long pause — those are two
+            // genuinely separate utterances no matter what the LLM
+            // thinks.
+            if b.startMs - a.endMs > maxGapMs { return .rejected }
+            let combinedWords = a.words + b.words
+            let combinedText = combinedWords.joined(separator: " ")
+            if combinedText.count > maxBudget { return .rejected }
+            // Hard cap on word count to keep 2-line cues readable.
+            if combinedWords.count > 16 { return .rejected }
+            let merged = MutableCue(
+                startMs: a.startMs,
+                endMs: b.endMs,
+                words: combinedWords,
+                wordTimestamps: a.wordTimestamps + b.wordTimestamps,
+                speakerId: a.speakerId,
+                forcedText: nil
+            )
+            return .merged(merged)
+
+        case .shiftToA(let n):
+            // Move first n words of B to end of A.
+            guard n >= 1, n <= 3, b.words.count > n else { return .rejected }
+            if b.startMs - a.endMs > maxGapMs { return .rejected }
+            let moved = Array(b.words.prefix(n))
+            let newA = MutableCue(
+                startMs: a.startMs,
+                endMs: a.endMs,
+                words: a.words + moved,
+                wordTimestamps: a.wordTimestamps,
+                speakerId: a.speakerId,
+                forcedText: nil
+            )
+            let newB = MutableCue(
+                startMs: b.startMs,
+                endMs: b.endMs,
+                words: Array(b.words.dropFirst(n)),
+                wordTimestamps: b.wordTimestamps,
+                speakerId: b.speakerId,
+                forcedText: nil
+            )
+            if newA.text.count > maxBudget { return .rejected }
+            if newB.text.count < minChars { return .rejected }
+            return .shifted(newA, newB)
+
+        case .shiftToB(let n):
+            // Move last n words of A to start of B.
+            guard n >= 1, n <= 3, a.words.count > n else { return .rejected }
+            if b.startMs - a.endMs > maxGapMs { return .rejected }
+            let moved = Array(a.words.suffix(n))
+            let newA = MutableCue(
+                startMs: a.startMs,
+                endMs: a.endMs,
+                words: Array(a.words.dropLast(n)),
+                wordTimestamps: a.wordTimestamps,
+                speakerId: a.speakerId,
+                forcedText: nil
+            )
+            let newB = MutableCue(
+                startMs: b.startMs,
+                endMs: b.endMs,
+                words: moved + b.words,
+                wordTimestamps: b.wordTimestamps,
+                speakerId: b.speakerId,
+                forcedText: nil
+            )
+            if newA.text.count < minChars { return .rejected }
+            if newB.text.count > maxBudget { return .rejected }
+            return .shifted(newA, newB)
         }
     }
 
