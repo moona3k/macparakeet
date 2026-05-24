@@ -130,6 +130,184 @@ final class ApplyTimingPostProcessingTests: XCTestCase {
         )
     }
 
+    // MARK: - Trailing sentence fragment
+
+    /// SRT 31 cue 10/11 regression: the LLM packed the first word of
+    /// a new sentence ("Go") onto the tail of cue 10, leaving the
+    /// natural phrase "Go ahead" split across the cue boundary:
+    ///   10: "It is great to have you. Go"
+    ///   11: "ahead and find a cadence somewhere between 80 and 90."
+    /// Neither bad-ender ("Go" isn't a function word) nor bad-starter
+    /// ("ahead" isn't in `badStarters`) fires here — this is a
+    /// structural fix (sentence boundary should be cue boundary).
+    func testTrailingSentenceFragmentMovesForward() async {
+        let service = ExportService()
+        let llmCues: [ExportService.SubtitleCue] = [
+            ExportService.SubtitleCue(
+                startMs: 33_266, endMs: 34_100,
+                text: "It is great to have you. Go",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 34_134, endMs: 38_104,
+                text: "ahead and find a cadence somewhere between 80 and 90.",
+                speakerId: nil
+            )
+        ]
+        let config = SubtitleExportConfig(
+            maxWordsPerCue: 12,
+            maxCharsPerLine: 42,
+            maxLinesPerCue: 2,
+            gapThresholdMs: 800
+        )
+        let out = service.applyTimingPostProcessingForTesting(llmCues, config: config)
+        // Cue 1 ends cleanly at the sentence terminator — no fragment.
+        let cue1Normalized = out[0].text.replacingOccurrences(of: "\n", with: " ")
+        XCTAssertTrue(
+            cue1Normalized.trimmingCharacters(in: .whitespaces).hasSuffix("you."),
+            "Cue 1 should end at the sentence terminator. Got: \(cue1Normalized)"
+        )
+        XCTAssertFalse(
+            cue1Normalized.contains(" Go") || cue1Normalized.hasSuffix("Go"),
+            "Cue 1 should no longer carry the trailing 'Go'. Got: \(cue1Normalized)"
+        )
+        // Cue 2 starts with the moved word — "Go ahead" reunited.
+        // Whichever cue holds them, they must be adjacent (no word
+        // between them, line-break tolerated).
+        let joined = out.map { $0.text.replacingOccurrences(of: "\n", with: " ") }
+            .joined(separator: " ")
+        XCTAssertTrue(
+            joined.contains("Go ahead"),
+            "Output should contain 'Go ahead' as adjacent tokens. Got: \(joined)"
+        )
+    }
+
+    /// A cue that already ends cleanly at a sentence terminator
+    /// should be left alone — no spurious moves.
+    func testCleanlyEndingCueIsNotTouched() async {
+        let service = ExportService()
+        let llmCues: [ExportService.SubtitleCue] = [
+            ExportService.SubtitleCue(
+                startMs: 0, endMs: 1_000,
+                text: "This is fine.",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 1_100, endMs: 2_000,
+                text: "And so is this.",
+                speakerId: nil
+            )
+        ]
+        let config = SubtitleExportConfig(maxCharsPerLine: 42)
+        let out = service.applyTimingPostProcessingForTesting(llmCues, config: config)
+        // Both cues should be intact, possibly merged by absorbShort
+        // since both fit in budget — but the fragment pass shouldn't
+        // tear "And" off the second cue.
+        let joined = out.map { $0.text.replacingOccurrences(of: "\n", with: " ") }
+            .joined(separator: " | ")
+        XCTAssertTrue(
+            joined.contains("This is fine.") && joined.contains("And so is this."),
+            "Both complete sentences should survive intact. Got: \(joined)"
+        )
+    }
+
+    /// A self-contained mini-sentence trailing another sentence
+    /// ("Oh yes. Beautiful.") is NOT a fragment — both end cleanly.
+    /// Don't move "Beautiful." forward into the next cue.
+    func testCompleteTrailingMiniSentenceIsNotMoved() async {
+        let service = ExportService()
+        let llmCues: [ExportService.SubtitleCue] = [
+            ExportService.SubtitleCue(
+                startMs: 0, endMs: 1_500,
+                text: "Oh yes. Beautiful.",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 1_600, endMs: 3_000,
+                text: "Now back to the work at hand here.",
+                speakerId: nil
+            )
+        ]
+        let config = SubtitleExportConfig(maxCharsPerLine: 42)
+        let out = service.applyTimingPostProcessingForTesting(llmCues, config: config)
+        // Whichever cue holds "Beautiful." it must still end with the
+        // period — wasn't ripped of its terminator.
+        let joined = out.map { $0.text.replacingOccurrences(of: "\n", with: " ") }
+            .joined(separator: " ")
+        XCTAssertTrue(
+            joined.contains("Beautiful."),
+            "Complete mini-sentence should keep its period. Got: \(joined)"
+        )
+    }
+
+    /// CLI iter5–9 regression: the LLM emitted
+    ///   cue[13] = "with me. It is great to have"
+    ///   cue[14] = "you. Go ahead and find a cadence"
+    /// `rebalanceBadEnders` moved "to have" forward (cue[13] ended on
+    /// "have", a soft bad-ender). Then `rebalanceBadStarters` saw cue
+    /// [14] starting with "to" (bad starter) and tried moving leading
+    /// words back. moveCount=3 would have moved "to have you." — the
+    /// structurally-right answer — but the pass's bad-ender guard saw
+    /// "you" (after stripping punctuation) in `badEnders` and rejected
+    /// it. moveCount=4 then moved "to have you. Go" instead, dragging
+    /// the start of the NEXT sentence ("Go") back too. Result:
+    ///   "...have you. Go" + "ahead and find a cadence"
+    /// The fix: a word ending in `.!?` is a SENTENCE TERMINATOR, not
+    /// a bad ender — even when stripping punctuation reveals a
+    /// function word. Skip the bad-ender check for those.
+    func testBadStarterRespectsStrongPunctuationAtNewTail() async {
+        let service = ExportService()
+        let llmCues: [ExportService.SubtitleCue] = [
+            ExportService.SubtitleCue(
+                startMs: 30_880, endMs: 32_279,
+                text: "Thanks for spending this 30 minutes",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 32_280, endMs: 34_040,
+                text: "with me. It is great to have",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 34_150, endMs: 38_104,
+                text: "you. Go ahead and find a cadence",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 38_200, endMs: 41_859,
+                text: "somewhere between 80 and 90.",
+                speakerId: nil
+            )
+        ]
+        let config = SubtitleExportConfig(
+            maxWordsPerCue: 12,
+            maxCharsPerLine: 42,
+            maxLinesPerCue: 2,
+            gapThresholdMs: 800
+        )
+        let out = service.applyTimingPostProcessingForTesting(llmCues, config: config)
+        let normalized = out.map { $0.text.replacingOccurrences(of: "\n", with: " ") }
+        let dump = normalized.enumerated()
+            .map { "[\($0.offset)] \"\($0.element)\"" }
+            .joined(separator: " | ")
+        // "Go ahead" must end up adjacent in the SAME cue — that's the
+        // user-visible win. Tolerate a line break between them (wrap).
+        let goAheadAdjacent = normalized.contains { $0.contains("Go ahead") }
+        XCTAssertTrue(
+            goAheadAdjacent,
+            "'Go ahead' should stay adjacent in one cue. Cues: \(dump)"
+        )
+        // No cue should END with the bare word "Go" (the pre-fix
+        // failure mode).
+        for (idx, text) in normalized.enumerated() {
+            let lastToken = text.split(separator: " ").last.map(String.init) ?? ""
+            XCTAssertNotEqual(
+                lastToken, "Go",
+                "Cue \(idx) ends with stranded 'Go'. Cues: \(dump)"
+            )
+        }
+    }
+
     // MARK: - Cardinal + unit rebalance
 
     /// SRT 24 block 5/6: cue 5 ended with "four" and cue 6 started

@@ -765,6 +765,16 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // the OPENING words of cue N+1 back into cue N when they're
         // function words ("of", "because", "and") that read better
         // attached to the prior phrase.
+        //
+        // Trailing-sentence-fragment runs even before cardinal+unit:
+        // it's a structural fix (sentence boundaries should be cue
+        // boundaries) and the other passes assume sentences don't
+        // straddle the cue boundary by more than a function word.
+        // SRT 31 cue 10 was the smoking gun: "It is great to have
+        // you. Go" / "ahead and find a cadence somewhere between 80
+        // and 90." — the LLM put one word from the NEXT sentence at
+        // the tail of cue N.
+        mutable = rebalanceTrailingSentenceFragment(mutable, maxChars: config.maxCharsPerLine)
         mutable = rebalanceCardinalUnitPairs(mutable, maxChars: config.maxCharsPerLine)
         mutable = rebalanceBadEnders(mutable, maxChars: config.maxCharsPerLine)
         mutable = rebalanceBadStarters(mutable, maxChars: config.maxCharsPerLine)
@@ -1962,6 +1972,105 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         return result
     }
 
+    /// Detect a mid-cue sentence terminator (`. ! ?`) followed by
+    /// 1–3 trailing words that DON'T themselves end a sentence, and
+    /// slide those trailing words to the start of cue N+1.
+    ///
+    /// Real failure case (SRT 31 cue 10/11):
+    ///   "It is great to have you. Go"
+    ///   "ahead and find a cadence somewhere between 80 and 90."
+    /// The LLM packed the first word of the next sentence ("Go")
+    /// onto the tail of cue N, splitting the natural phrase "Go
+    /// ahead" across the cue boundary. The bad-ender pass doesn't
+    /// fire because "Go" isn't a function word; the bad-starter pass
+    /// doesn't fire because "ahead" isn't in `badStarters`. The
+    /// structurally-right thing is to put the sentence terminator AT
+    /// the cue boundary — cue N ends with "you.", cue N+1 begins
+    /// with "Go ahead..."
+    ///
+    /// Budget cap is generous (2× `maxCharsPerLine`) because cue
+    /// N+1 is a 2-line layout candidate — the wrap pass downstream
+    /// breaks naturally at the absorbed-fragment boundary, so even
+    /// a 60-char single-line target tolerates an 80-char two-line
+    /// cue here without harm.
+    private func rebalanceTrailingSentenceFragment(
+        _ cues: [MutableCue],
+        maxChars: Int
+    ) -> [MutableCue] {
+        guard cues.count > 1 else { return cues }
+        let maxBudget = max(maxChars * 2, maxChars + 30)
+        let maxGapMs = 500
+        let maxTrailingWords = 3
+        // Cue N must keep enough text to read as its own cue (don't
+        // strand a 5-char "Yes." just to fix cue N+1's prefix).
+        let minRemainingChars = 12
+
+        var result = cues
+        var i = 0
+        while i < result.count - 1 {
+            let current = result[i]
+            let next = result[i + 1]
+
+            // Need at least 3 words: 1+ sentence end + at least 1
+            // trailing word, plus margin so the cue doesn't collapse.
+            guard current.words.count >= 3 else { i += 1; continue }
+
+            // Walk backward from the SECOND-TO-LAST word to find the
+            // last word that ends in strong punctuation. We skip the
+            // very last word so a cue that already ends cleanly
+            // ("...have you.") isn't disturbed.
+            var lastSentenceEnd = -1
+            for j in stride(from: current.words.count - 2, through: 0, by: -1) {
+                if let c = current.words[j].last, ".!?".contains(c) {
+                    lastSentenceEnd = j
+                    break
+                }
+            }
+            guard lastSentenceEnd >= 0 else { i += 1; continue }
+
+            let trailingCount = current.words.count - 1 - lastSentenceEnd
+            guard trailingCount >= 1 && trailingCount <= maxTrailingWords else {
+                i += 1; continue
+            }
+
+            let trailingWords = Array(current.words[(lastSentenceEnd + 1)...])
+            let remainingWords = Array(current.words[0...lastSentenceEnd])
+
+            // The fragment itself must NOT end in `.!?` — if it does,
+            // it's a self-contained mini-sentence (like "Oh yes.") and
+            // belongs where it is.
+            if let last = trailingWords.last?.last, ".!?".contains(last) {
+                i += 1; continue
+            }
+
+            if next.startMs - current.endMs > maxGapMs { i += 1; continue }
+
+            let newCurrentText = remainingWords.joined(separator: " ")
+            guard newCurrentText.count >= minRemainingChars else { i += 1; continue }
+
+            let newNextWords = trailingWords + next.words
+            let newNextText = newNextWords.joined(separator: " ")
+            guard newNextText.count <= maxBudget else { i += 1; continue }
+
+            result[i] = MutableCue(
+                startMs: current.startMs,
+                endMs: current.endMs,
+                words: remainingWords,
+                wordTimestamps: current.wordTimestamps,
+                speakerId: current.speakerId
+            )
+            result[i + 1] = MutableCue(
+                startMs: next.startMs,
+                endMs: next.endMs,
+                words: newNextWords,
+                wordTimestamps: next.wordTimestamps,
+                speakerId: next.speakerId
+            )
+            i += 1
+        }
+        return result
+    }
+
     /// Detect a split between a spelled-out cardinal at the end of cue N
     /// and a measurement unit at the start of cue N+1 (`...your four` /
     /// `minute warm-up`) and slide the cardinal forward so the pair
@@ -2161,10 +2270,26 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 if newCurrentText.count > maxBudget { continue }
                 // Don't move so much that cue N's NEW tail is a bad
                 // ender — that just trades one problem for another.
-                let newCurrentLast = movedWords.last?
+                // A word ending in strong punctuation (".!?") is a
+                // sentence terminator, NOT a bad ender — even if
+                // stripping the punctuation reveals a function word
+                // like "you". Real failure case (iter5 cue 13/14):
+                // moving "to have you." back would leave cue N ending
+                // with "you." — `badEnders.contains("you")` was true
+                // so the pass kept going to moveCount=4, dragging the
+                // start of the NEXT sentence ("Go") back too. Result:
+                // "...have you. Go" + "ahead and find..." instead of
+                // the structurally-correct "...have you." + "Go ahead
+                // and find...". Skip the bad-ender check when the new
+                // tail already ends a sentence cleanly.
+                let newCurrentLastRaw = movedWords.last ?? ""
+                let newCurrentEndsSentence = newCurrentLastRaw.last
+                    .map { ".!?".contains($0) } ?? false
+                let newCurrentLast = newCurrentLastRaw
                     .trimmingCharacters(in: .punctuationCharacters)
-                    .lowercased() ?? ""
-                if badEnders.contains(newCurrentLast) { continue }
+                    .lowercased()
+                if !newCurrentEndsSentence
+                    && badEnders.contains(newCurrentLast) { continue }
                 if newNextText.count < 12 { continue }
                 // Don't strand a new bad starter on cue N+1.
                 let newNextFirst = remainingWords.first?
