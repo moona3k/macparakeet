@@ -597,10 +597,13 @@ struct TranscriptResultView: View {
     @ViewBuilder
     private var exportProgressOverlay: some View {
         ZStack {
-            // Soft scrim, lighter than the old 35% black — lets the
-            // transcript bleed through enough that it doesn't feel
-            // like a modal lockup.
-            DesignSystem.Colors.cardBackground.opacity(0.55)
+            // Translucent dark scrim — clearly distinct from the
+            // card's material so the card visibly floats above the
+            // transcript rather than blending into a single surface
+            // (the prior `cardBackground.opacity(0.55)` scrim shared
+            // the card's tint, making the floating card feel
+            // edge-locked).
+            Color.black.opacity(0.18)
                 .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
@@ -635,14 +638,20 @@ struct TranscriptResultView: View {
                 .padding(.top, DesignSystem.Spacing.xs)
             }
             .padding(DesignSystem.Spacing.lg)
-            .frame(width: 320)
+            // Cap the card width but let it shrink on narrow panes
+            // so the edge padding always has room to breathe.
+            .frame(maxWidth: 360)
             .background(.ultraThinMaterial)
             .overlay(
                 RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
                     .strokeBorder(DesignSystem.Colors.divider, lineWidth: 0.5)
             )
             .clipShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius))
-            .shadow(color: .black.opacity(0.18), radius: 18, y: 8)
+            .shadow(color: .black.opacity(0.22), radius: 22, y: 10)
+            // Explicit margin from the parent view's edges so the
+            // card always floats — never butts up against a window
+            // or pane edge, even when the transcript pane is narrow.
+            .padding(DesignSystem.Spacing.xl)
         }
     }
 
