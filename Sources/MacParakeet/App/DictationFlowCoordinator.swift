@@ -1,5 +1,4 @@
 import AppKit
-import AVFoundation
 import OSLog
 import MacParakeetCore
 import MacParakeetViewModels
@@ -41,6 +40,7 @@ private enum ProcessingLoadCaptionOutcome {
 @MainActor
 final class DictationFlowCoordinator {
     private static let silenceAutoStopThreshold: Float = 0.03
+    private static let microphoneAccessRequiredMessage = "Microphone access required"
 
     // MARK: - Public Interface
 
@@ -135,6 +135,7 @@ final class DictationFlowCoordinator {
     private let settingsViewModel: SettingsViewModel
     private let sttRuntime: any DictationSTTReadinessChecking
     private let runtimePreferences: AppRuntimePreferencesProtocol
+    private let permissionService: PermissionServiceProtocol
     private let captionTiming: DictationProcessingLoadCaptionTiming
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
@@ -193,6 +194,7 @@ final class DictationFlowCoordinator {
         settingsViewModel: SettingsViewModel,
         sttRuntime: any DictationSTTReadinessChecking,
         runtimePreferences: AppRuntimePreferencesProtocol,
+        permissionService: PermissionServiceProtocol = PermissionService(),
         captionTiming: DictationProcessingLoadCaptionTiming = .production,
         overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
             DictationOverlayController(viewModel: $0)
@@ -210,6 +212,7 @@ final class DictationFlowCoordinator {
         self.settingsViewModel = settingsViewModel
         self.sttRuntime = sttRuntime
         self.runtimePreferences = runtimePreferences
+        self.permissionService = permissionService
         self.captionTiming = captionTiming
         self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
@@ -848,7 +851,7 @@ final class DictationFlowCoordinator {
                 )
                 if Self.isMicrophonePermissionDenied(error) {
                     self.maybePresentMicPermissionAlert()
-                    self.sendEvent(.startFailed(generation: generation, message: "Microphone access required"))
+                    self.sendEvent(.startFailed(generation: generation, message: Self.microphoneAccessRequiredMessage))
                 } else {
                     self.sendEvent(.startFailed(generation: generation, message: error.localizedDescription))
                 }
@@ -881,23 +884,36 @@ final class DictationFlowCoordinator {
         // directly. Opening System Settings is a dead end here — macOS does not
         // surface an entry in Privacy & Security → Microphone until the app has
         // called requestAccess at least once.
-        if AVCaptureDevice.authorizationStatus(for: .audio) == .notDetermined {
-            if await AVCaptureDevice.requestAccess(for: .audio) {
+        switch await permissionService.checkMicrophonePermission() {
+        case .granted:
+            dismissStaleMicPermissionErrorIfNeeded()
+            return
+        case .notDetermined:
+            if await permissionService.requestMicrophonePermission() {
+                dismissStaleMicPermissionErrorIfNeeded()
                 return
             }
+        case .denied:
+            break
         }
 
         let alert = NSAlert()
-        alert.messageText = "Microphone access required"
+        alert.messageText = Self.microphoneAccessRequiredMessage
         alert.informativeText = "MacParakeet needs microphone access to record dictation. Open System Settings → Privacy & Security → Microphone to enable it, then try again."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")
         let response = await presentMicPermissionAlert(alert)
-        if response == .alertFirstButtonReturn,
-           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
-            NSWorkspace.shared.open(url)
+        if response == .alertFirstButtonReturn {
+            permissionService.openMicrophoneSettings()
         }
+    }
+
+    private func dismissStaleMicPermissionErrorIfNeeded() {
+        guard stateMachine.state == .finishing(outcome: .error(Self.microphoneAccessRequiredMessage)) else {
+            return
+        }
+        sendEvent(.dismissRequested)
     }
 
     private func presentMicPermissionAlert(_ alert: NSAlert) async -> NSApplication.ModalResponse {
