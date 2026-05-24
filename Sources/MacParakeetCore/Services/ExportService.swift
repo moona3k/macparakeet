@@ -741,6 +741,19 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     ) async -> [SubtitleCue] {
         var mutable = mergeAndRebalancePasses(cues, config: config)
         mutable = await applyLLMReview(mutable, config: config, llmService: llmService)
+        // Re-run the rebalance passes AFTER the reviewer to clean up
+        // any new bad-enders / trailing fragments / cardinal-unit
+        // splits the LLM may have introduced. The rebalance passes
+        // are idempotent — running them on already-clean cues is a
+        // no-op — but the reviewer can legitimately create a fresh
+        // bad pattern (SRT 33 regression: reviewer suggested merges
+        // that left "We", "have", "because" stranded at cue tails).
+        // Without this second cleanup pass, the damage would land in
+        // the final SRT.
+        mutable = rebalanceTrailingSentenceFragment(mutable, maxChars: config.maxCharsPerLine)
+        mutable = rebalanceCardinalUnitPairs(mutable, maxChars: config.maxCharsPerLine)
+        mutable = rebalanceBadEnders(mutable, maxChars: config.maxCharsPerLine)
+        mutable = rebalanceBadStarters(mutable, maxChars: config.maxCharsPerLine)
         return applyTimingAndWrap(mutable, config: config)
     }
 
@@ -949,6 +962,14 @@ public final class ExportService: ExportServiceProtocol, Sendable {
 
     /// Validate the action against the current cue state, return the
     /// resulting cues (or `.rejected` if validation fails).
+    ///
+    /// The validator deliberately mirrors the rebalance passes'
+    /// constraints — anything the rebalance passes would refuse to
+    /// emit, the reviewer can't emit either. Without this mirror, the
+    /// reviewer can undo work the deterministic passes did (SRT 33
+    /// regression: reviewer merged a cue's trailing sentence start
+    /// back in, creating "30. We" / "will spend..." — the exact
+    /// pattern `rebalanceTrailingSentenceFragment` exists to prevent).
     private func applyOne(
         action: ReviewAction,
         a: MutableCue,
@@ -964,6 +985,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // Minimum chars in a "kept" cue after a shift, so we don't
         // strand a 5-char fragment by accident.
         let minChars = 10
+        // Shared bad-ender set with the rebalance passes. If a
+        // suggested action would leave cue N's new tail on one of
+        // these words, reject — the rebalance passes would have
+        // moved it forward anyway.
+        let badEnders = SubtitleLLMLayoutPlanner.autoSplitBadEnders
+            .union(Self.softBadEnders)
 
         switch action {
         case .keep:
@@ -979,6 +1006,24 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             if combinedText.count > maxBudget { return .rejected }
             // Hard cap on word count to keep 2-line cues readable.
             if combinedWords.count > 16 { return .rejected }
+            // Reject merges that would pack a trailing-sentence-
+            // fragment into the combined cue. Real failure (SRT 33
+            // cue 1): merging "What is going on..." + "We will spend"
+            // produced "...arms 30. We" with "We" stranded. The
+            // pattern is: after merging, the combined cue contains
+            // a `.!?` followed by 1–3 trailing words that don't end
+            // a sentence themselves.
+            if hasTrailingSentenceFragment(words: combinedWords) {
+                return .rejected
+            }
+            // Reject merges across an existing sentence boundary
+            // when the merged cue would end up with a complete
+            // sentence packed against the start of the next. Less
+            // strict than the trailing-fragment check — this catches
+            // the "two complete thoughts crammed together" pattern.
+            if mergePacksMultipleSentences(a: a, b: b) {
+                return .rejected
+            }
             let merged = MutableCue(
                 startMs: a.startMs,
                 endMs: b.endMs,
@@ -1012,6 +1057,24 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             )
             if newA.text.count > maxBudget { return .rejected }
             if newB.text.count < minChars { return .rejected }
+            // Reject if cue A's new tail is a bad ender (matching
+            // the rebalance passes' constraint).
+            if endsOnBadEnder(words: newA.words, badEnders: badEnders) {
+                return .rejected
+            }
+            // Reject if cue A's new tail is the start of a new
+            // sentence — that's the trailing-sentence-fragment
+            // pattern we have a deterministic pass for.
+            if hasTrailingSentenceFragment(words: newA.words) {
+                return .rejected
+            }
+            // Reject if the moved word(s) include a hyphenated suffix
+            // ("-up", "-down"). Splitting "warm-up" so that "-up"
+            // stays in cue B leaves "warm" stranded on cue A's tail
+            // (SRT 33 cue 12/13: "...our warm" / "-up and...").
+            if movedWordsBeginWithHyphen(moved) {
+                return .rejected
+            }
             return .shifted(newA, newB)
 
         case .shiftToB(let n):
@@ -1037,8 +1100,72 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             )
             if newA.text.count < minChars { return .rejected }
             if newB.text.count > maxBudget { return .rejected }
+            // Reject if cue A's new tail is a bad ender (same
+            // constraint as shiftToA). Most likely path here: the
+            // LLM voted shiftToB to "fix" something but the move
+            // leaves cue A ending on a function word the rebalance
+            // passes would've caught.
+            if endsOnBadEnder(words: newA.words, badEnders: badEnders) {
+                return .rejected
+            }
             return .shifted(newA, newB)
         }
+    }
+
+    /// Does the cue's tail look like "[sentence-end] word1 [word2]"
+    /// where word1/2 don't end a sentence themselves? Mirror of the
+    /// detection in `rebalanceTrailingSentenceFragment`.
+    private func hasTrailingSentenceFragment(words: [String]) -> Bool {
+        guard words.count >= 2 else { return false }
+        // Last word ending sentence cleanly → not a fragment, exit.
+        if let last = words.last?.last, ".!?".contains(last) { return false }
+        // Walk backward from second-to-last looking for a sentence end.
+        for j in stride(from: words.count - 2, through: 0, by: -1) {
+            if let c = words[j].last, ".!?".contains(c) {
+                let trailing = words.count - 1 - j
+                return trailing >= 1 && trailing <= 3
+            }
+        }
+        return false
+    }
+
+    /// Would merging cue A and cue B pack two complete sentences into
+    /// one cue? Heuristic: both A and B end with `.!?` and A is at
+    /// least one full sentence on its own. Real failure (SRT 33 cue
+    /// 102): "Beautiful." + "Round 1 is done." + "We are now moving
+    /// on to round 2." all collapsed into one cue.
+    private func mergePacksMultipleSentences(a: MutableCue, b: MutableCue) -> Bool {
+        let aEndsSentence = a.words.last?.last.map { ".!?".contains($0) } ?? false
+        let bEndsSentence = b.words.last?.last.map { ".!?".contains($0) } ?? false
+        // If neither ends a sentence, the merge can't pack multiple
+        // sentences (it might just be continuing one).
+        guard aEndsSentence && bEndsSentence else { return false }
+        // Both end in `.!?` and both are substantial — merging packs
+        // two complete thoughts.
+        return a.words.count >= 2 && b.words.count >= 2
+    }
+
+    /// True if the cue's last word (stripped of punctuation) sits in
+    /// the bad-enders set AND doesn't end in `.!?` (which would mean
+    /// it's a clean sentence terminator, not a bad ender). Same
+    /// fix as `rebalanceBadStarters`' strong-punct guard.
+    private func endsOnBadEnder(words: [String], badEnders: Set<String>) -> Bool {
+        guard let lastRaw = words.last else { return false }
+        // Sentence terminator = clean break, never a bad ender.
+        if let c = lastRaw.last, ".!?".contains(c) { return false }
+        let stripped = lastRaw
+            .trimmingCharacters(in: .punctuationCharacters)
+            .lowercased()
+        return badEnders.contains(stripped)
+    }
+
+    /// True if any of the moved words starts with `-` (a hyphenated
+    /// suffix like "-up", "-down", "-minute"). Real failure (SRT 33
+    /// cue 12/13): the reviewer's shift left "warm" on cue A's tail
+    /// and "-up and over the course..." on cue B's head. The hyphen
+    /// makes it obvious the word was broken.
+    private func movedWordsBeginWithHyphen(_ moved: [String]) -> Bool {
+        moved.contains { $0.hasPrefix("-") }
     }
 
     /// Format word timestamps as WebVTT subtitle string

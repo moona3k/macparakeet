@@ -263,6 +263,149 @@ final class SubtitleLLMReviewerTests: XCTestCase {
         XCTAssertEqual(out[1].text, "really short.")
     }
 
+    // MARK: - SRT 33 regression: validator must mirror rebalance rules
+
+    /// SRT 33 cue 1: reviewer voted shift_to_a n=1 to pull "We" from
+    /// cue B ("We will spend...") onto cue A ("...arms 30."). That
+    /// would have created the trailing-sentence-fragment pattern
+    /// `rebalanceTrailingSentenceFragment` exists to prevent. The
+    /// validator must reject this move.
+    func testApplyShiftToAThatCreatesTrailingFragmentIsRejected() {
+        let service = ExportService()
+        let cues = [
+            ExportService.SubtitleCue(
+                startMs: 0, endMs: 9943,
+                text: "What is going on Echelon and welcome in to your intervals in arms 30.",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 10243, endMs: 13145,
+                text: "We will spend the next 30 minutes right here on our bike",
+                speakerId: nil
+            )
+        ]
+        let suggestions = [
+            SubtitleLLMReviewer.ReviewSuggestion(pairIndex: 0, action: .shiftToA(n: 1))
+        ]
+        let out = service.applyReviewSuggestionsForTesting(
+            cues,
+            suggestions: suggestions,
+            config: SubtitleExportConfig(maxCharsPerLine: 42)
+        )
+        // Cue A must not end with stranded "We".
+        XCTAssertFalse(
+            out[0].text.hasSuffix("We") || out[0].text.contains("30. We"),
+            "Cue A acquired stranded 'We'. Cues: \(out.map(\.text))"
+        )
+    }
+
+    /// SRT 33 cue 4: reviewer voted a shift that left cue A ending
+    /// on "because" — a subordinator that's a hard bad-ender. The
+    /// validator must reject this so the deterministic bad-ender
+    /// pass's invariant holds.
+    func testApplyShiftThatCreatesBadEnderIsRejected() {
+        let service = ExportService()
+        let cues = [
+            ExportService.SubtitleCue(
+                startMs: 17_817, endMs: 21_186,
+                text: "Let's get our hands to the handlebar, legs are moving because your",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 21_187, endMs: 22_822,
+                text: "4 minute warm-up starts right now.",
+                speakerId: nil
+            )
+        ]
+        // shift_to_b n=1 would remove "your" from cue A's tail,
+        // leaving cue A ending on "because" — bad ender.
+        let suggestions = [
+            SubtitleLLMReviewer.ReviewSuggestion(pairIndex: 0, action: .shiftToB(n: 1))
+        ]
+        let out = service.applyReviewSuggestionsForTesting(
+            cues,
+            suggestions: suggestions,
+            config: SubtitleExportConfig(maxCharsPerLine: 42)
+        )
+        // Cue A must not end on "because".
+        let lastA = out[0].text.split(separator: " ").last.map(String.init) ?? ""
+        XCTAssertNotEqual(
+            lastA.trimmingCharacters(in: .punctuationCharacters).lowercased(),
+            "because",
+            "Cue A acquired bad-ender 'because'. Cues: \(out.map(\.text))"
+        )
+    }
+
+    /// SRT 33 cue 12/13: reviewer's shift produced
+    ///   "...our warm"
+    ///   "-up and over the course..."
+    /// Splitting "warm-up" by leaving "-up" at the start of cue B is
+    /// always wrong. Validator must reject any shift_to_a where the
+    /// moved word(s) include a hyphen-prefixed token.
+    func testApplyShiftLeavingHyphenSuffixOnNewCueBIsRejected() {
+        let service = ExportService()
+        let cues = [
+            ExportService.SubtitleCue(
+                startMs: 0, endMs: 1000,
+                text: "That is where we will spend the first half of our warm",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 1100, endMs: 2000,
+                text: "-up and over the course of this 4 minutes we'll work",
+                speakerId: nil
+            )
+        ]
+        // shift_to_a n=1 would move "-up" to cue A's tail — but the
+        // moved word starting with `-` signals a hyphen-split word
+        // and the validator must reject.
+        let suggestions = [
+            SubtitleLLMReviewer.ReviewSuggestion(pairIndex: 0, action: .shiftToA(n: 1))
+        ]
+        let out = service.applyReviewSuggestionsForTesting(
+            cues,
+            suggestions: suggestions,
+            config: SubtitleExportConfig(maxCharsPerLine: 42)
+        )
+        // Cues stay as they were — the move was rejected. Cue A must
+        // NOT end with "-up" (which would mean we accepted the shift).
+        XCTAssertFalse(
+            out[0].text.hasSuffix("-up") || out[0].text.hasSuffix("warm -up"),
+            "Cue A acquired hyphen-suffix '-up'. Cues: \(out.map(\.text))"
+        )
+    }
+
+    /// SRT 33 cue 102: reviewer packed three complete sentences into
+    /// one cue ("Beautiful." + "Round 1 is done." + "We are now
+    /// moving on to round 2."). Validator must reject merges where
+    /// both A and B end with sentence terminators and are substantial.
+    func testApplyMergeOfTwoCompleteSentencesIsRejected() {
+        let service = ExportService()
+        let cues = [
+            ExportService.SubtitleCue(
+                startMs: 0, endMs: 1000,
+                text: "Round 1 is done.",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 1100, endMs: 2500,
+                text: "We are now moving on to round 2.",
+                speakerId: nil
+            )
+        ]
+        let suggestions = [
+            SubtitleLLMReviewer.ReviewSuggestion(pairIndex: 0, action: .merge)
+        ]
+        let out = service.applyReviewSuggestionsForTesting(
+            cues,
+            suggestions: suggestions,
+            config: SubtitleExportConfig(maxCharsPerLine: 65)
+        )
+        // Merge rejected — cues stay as two.
+        XCTAssertEqual(out.count, 2)
+        XCTAssertEqual(out[0].text, "Round 1 is done.")
+    }
+
     /// Index bookkeeping: when an earlier merge collapses two cues
     /// into one, later suggestions targeting subsequent pairs must
     /// still land on the right cues. The applier walks suggestions
