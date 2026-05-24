@@ -219,6 +219,12 @@ public final class SettingsViewModel {
     }
     public var customWordCount: Int = 0
     public var snippetCount: Int = 0
+    public var numberNormalizationEnabled: Bool {
+        didSet {
+            defaults.set(numberNormalizationEnabled, forKey: UserDefaultsAppRuntimePreferences.numberNormalizationEnabledKey)
+            Telemetry.send(.settingChanged(setting: .numberNormalization))
+        }
+    }
 
     // Storage
     public var saveDictationHistory: Bool {
@@ -270,10 +276,47 @@ public final class SettingsViewModel {
     public var whisperTuning: WhisperEngineTuning {
         didSet {
             SpeechEnginePreference.saveWhisperTuning(whisperTuning, defaults: defaults)
+            // Reflect into the preset selection. If the new values
+            // match a named preset, switch to it; otherwise the
+            // selection auto-flips to `.custom`. Guard the re-entry
+            // so applying a preset (which writes both `whisperTuning`
+            // and `whisperTuningPreset`) doesn't recurse.
+            guard !isApplyingWhisperPreset else { return }
+            let inferred = WhisperTuningPreset.matching(whisperTuning)
+            if whisperTuningPreset != inferred {
+                isApplyingWhisperPreset = true
+                whisperTuningPreset = inferred
+                isApplyingWhisperPreset = false
+            }
         }
     }
 
+    /// Currently selected preset. Picking a non-custom preset writes
+    /// its concrete values into `whisperTuning`; manually editing a
+    /// slider flips this back to `.custom` (via the `whisperTuning`
+    /// didSet above).
+    public var whisperTuningPreset: WhisperTuningPreset {
+        didSet {
+            guard !isApplyingWhisperPreset else { return }
+            // Persist the picker selection so it survives relaunches.
+            defaults.set(whisperTuningPreset.rawValue, forKey: Self.whisperTuningPresetKey)
+            // For non-custom presets, push the concrete tuning values
+            // into `whisperTuning`. For `.custom` keep the existing
+            // values — the user is moving INTO custom to tweak from
+            // wherever they were.
+            guard whisperTuningPreset != .custom else { return }
+            isApplyingWhisperPreset = true
+            whisperTuning = whisperTuningPreset.tuning
+            isApplyingWhisperPreset = false
+        }
+    }
+
+    /// Re-entrancy guard for the preset ↔ tuning two-way sync.
+    @ObservationIgnored private var isApplyingWhisperPreset = false
+    static let whisperTuningPresetKey = "whisperTuningPreset"
+
     public func resetWhisperTuning() {
+        whisperTuningPreset = .default
         whisperTuning = WhisperEngineTuning.default
     }
 
@@ -505,6 +548,7 @@ public final class SettingsViewModel {
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
+        numberNormalizationEnabled = defaults.object(forKey: UserDefaultsAppRuntimePreferences.numberNormalizationEnabledKey) as? Bool ?? false
         saveDictationHistory = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveDictationHistoryKey) as? Bool ?? true
         saveAudioRecordings = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveAudioRecordingsKey) as? Bool ?? true
         saveTranscriptionAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
@@ -513,6 +557,18 @@ public final class SettingsViewModel {
         speechEnginePreference = SpeechEnginePreference.current(defaults: defaults)
         whisperDefaultLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto"
         whisperTuning = SpeechEnginePreference.whisperTuning(defaults: defaults)
+        // Resolve the preset from either the persisted picker
+        // selection or — if there is none — by reverse-lookup from
+        // the current tuning values. Reverse-lookup matters for
+        // existing users who set their tuning before presets shipped.
+        if let raw = defaults.string(forKey: Self.whisperTuningPresetKey),
+           let saved = WhisperTuningPreset(rawValue: raw) {
+            whisperTuningPreset = saved
+        } else {
+            whisperTuningPreset = WhisperTuningPreset.matching(
+                SpeechEnginePreference.whisperTuning(defaults: defaults)
+            )
+        }
         // Ensure auto-save folders are configured before reading paths.
         // Idempotent: existing user-chosen folders are preserved; only
         // unset bookmarks get the default. This guarantees the read

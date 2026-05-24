@@ -1596,110 +1596,16 @@ struct SettingsView: View {
         if viewModel.speechEnginePreference == .whisper {
             SettingsCard(
                 title: "Whisper Tuning",
-                subtitle: "Fine-tune decoding behaviour for accuracy vs. speed trade-offs.",
+                subtitle: "Pick a preset that matches your audio. Switch to Custom to fine-tune.",
                 icon: "slider.horizontal.3"
             ) {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                    tuningSliderRow(
-                        title: "Temperature",
-                        detail: "0.0 = deterministic. Higher = more randomness.",
-                        value: .init(
-                            get: { viewModel.whisperTuning.temperature },
-                            set: { viewModel.whisperTuning.temperature = $0 }
-                        ),
-                        range: 0.0...1.0,
-                        step: 0.1,
-                        format: { String(format: "%.1f", $0) }
-                    )
+                    whisperPresetPicker
 
-                    Divider()
-
-                    tuningSliderRow(
-                        title: "Top-k",
-                        detail: "Lower = more conservative sampling. Default 5.",
-                        value: $viewModel.whisperTuning.topK,
-                        range: 1...20,
-                        step: 1,
-                        format: { "\($0)" }
-                    )
-
-                    Divider()
-
-                    tuningSliderRow(
-                        title: "Sample length",
-                        detail: "Max tokens per chunk. Default 224.",
-                        value: $viewModel.whisperTuning.sampleLength,
-                        range: 50...448,
-                        step: 16,
-                        format: { "\($0)" }
-                    )
-
-                    Divider()
-
-                    tuningSliderRow(
-                        title: "Temperature increment",
-                        detail: "Amount to raise temperature on each fallback retry.",
-                        value: .init(
-                            get: { viewModel.whisperTuning.temperatureIncrementOnFallback },
-                            set: { viewModel.whisperTuning.temperatureIncrementOnFallback = $0 }
-                        ),
-                        range: 0.0...1.0,
-                        step: 0.1,
-                        format: { String(format: "%.1f", $0) }
-                    )
-
-                    Divider()
-
-                    tuningSliderRow(
-                        title: "Fallback count",
-                        detail: "Max retries with increased temperature. Default 5.",
-                        value: $viewModel.whisperTuning.temperatureFallbackCount,
-                        range: 0...10,
-                        step: 1,
-                        format: { "\($0)" }
-                    )
-
-                    Divider()
-
-                    tuningSliderRow(
-                        title: "Log-prob threshold",
-                        detail: "Filters low-confidence tokens. -1.0 = permissive, -0.5 = strict.",
-                        value: .init(
-                            get: { viewModel.whisperTuning.logProbThreshold },
-                            set: { viewModel.whisperTuning.logProbThreshold = $0 }
-                        ),
-                        range: -2.0...0.0,
-                        step: 0.1,
-                        format: { String(format: "%.1f", $0) }
-                    )
-
-                    Divider()
-
-                    tuningSliderRow(
-                        title: "No-speech threshold",
-                        detail: "Segments below this are treated as silence.",
-                        value: .init(
-                            get: { viewModel.whisperTuning.noSpeechThreshold },
-                            set: { viewModel.whisperTuning.noSpeechThreshold = $0 }
-                        ),
-                        range: 0.0...1.0,
-                        step: 0.1,
-                        format: { String(format: "%.1f", $0) }
-                    )
-
-                    Divider()
-
-                    tuningSliderRow(
-                        title: "Compression ratio",
-                        detail: "Detects repetitive/garbled output. Default 2.4.",
-                        value: .init(
-                            get: { viewModel.whisperTuning.compressionRatioThreshold },
-                            set: { viewModel.whisperTuning.compressionRatioThreshold = $0 }
-                        ),
-                        range: 0.5...5.0,
-                        step: 0.1,
-                        format: { String(format: "%.1f", $0) }
-                    )
+                    if viewModel.whisperTuningPreset == .custom {
+                        Divider()
+                        whisperCustomSliders
+                    }
 
                     Divider()
 
@@ -1714,6 +1620,158 @@ struct SettingsView: View {
                 }
             }
             .transition(.opacity)
+        }
+    }
+
+    /// Preset chooser — renders one row per case so the description
+    /// is always visible (vs. a Picker which hides the summary).
+    private var whisperPresetPicker: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            ForEach(WhisperTuningPreset.allCases) { preset in
+                whisperPresetRow(preset)
+            }
+        }
+    }
+
+    private func whisperPresetRow(_ preset: WhisperTuningPreset) -> some View {
+        let isSelected = viewModel.whisperTuningPreset == preset
+        return Button {
+            viewModel.whisperTuningPreset = preset
+        } label: {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
+                Image(systemName: isSelected ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 16, weight: .regular))
+                    .foregroundStyle(isSelected ? DesignSystem.Colors.accent : .secondary)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(preset.displayName)
+                        .font(DesignSystem.Typography.body.weight(isSelected ? .semibold : .regular))
+                        .foregroundStyle(.primary)
+                    Text(preset.summary)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// The eight sliders, but with plain-English labels + one-sentence
+    /// descriptions that explain what each one ACTUALLY changes about
+    /// the transcription — no jargon, no decoder-internals.
+    @ViewBuilder
+    private var whisperCustomSliders: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            tuningSliderRow(
+                title: "Confidence filter",
+                detail: "How sure Whisper has to be before keeping a word. Move toward 0 to drop uncertain text — useful for catching hallucinations like random foreign phrases at the end of audio. Default −1.0 keeps almost everything.",
+                value: .init(
+                    get: { viewModel.whisperTuning.logProbThreshold },
+                    set: { viewModel.whisperTuning.logProbThreshold = $0 }
+                ),
+                range: -2.0...0.0,
+                step: 0.1,
+                format: { String(format: "%.1f", $0) }
+            )
+
+            Divider()
+
+            tuningSliderRow(
+                title: "Silence detection",
+                detail: "How confident Whisper has to be that audio actually contains speech. Higher = treats more borderline audio as silence. Raise this if you're getting transcribed noise during quiet parts. Default 0.6.",
+                value: .init(
+                    get: { viewModel.whisperTuning.noSpeechThreshold },
+                    set: { viewModel.whisperTuning.noSpeechThreshold = $0 }
+                ),
+                range: 0.0...1.0,
+                step: 0.1,
+                format: { String(format: "%.1f", $0) }
+            )
+
+            Divider()
+
+            tuningSliderRow(
+                title: "Repetition filter",
+                detail: "Detects when Whisper repeats itself (like \"I hope I hope you're ready\"). Lower = catches repetitions more aggressively. Try 2.0 for clean studio recordings; default 2.4 is fine for natural speech.",
+                value: .init(
+                    get: { viewModel.whisperTuning.compressionRatioThreshold },
+                    set: { viewModel.whisperTuning.compressionRatioThreshold = $0 }
+                ),
+                range: 0.5...5.0,
+                step: 0.1,
+                format: { String(format: "%.1f", $0) }
+            )
+
+            Divider()
+
+            tuningSliderRow(
+                title: "Max retries",
+                detail: "How many times Whisper retries with more creativity before giving up on uncertain audio. Higher = more thorough but slower. Default 5.",
+                value: $viewModel.whisperTuning.temperatureFallbackCount,
+                range: 0...10,
+                step: 1,
+                format: { "\($0)" }
+            )
+
+            Divider()
+
+            DisclosureGroup("Advanced (rarely change)") {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                    tuningSliderRow(
+                        title: "Creativity",
+                        detail: "How freely Whisper guesses words. 0 = sticks to the most likely word. Higher values invent more, which usually introduces errors. Almost always leave at 0.",
+                        value: .init(
+                            get: { viewModel.whisperTuning.temperature },
+                            set: { viewModel.whisperTuning.temperature = $0 }
+                        ),
+                        range: 0.0...1.0,
+                        step: 0.1,
+                        format: { String(format: "%.1f", $0) }
+                    )
+
+                    Divider()
+
+                    tuningSliderRow(
+                        title: "Word options",
+                        detail: "How many word choices Whisper considers at each step. Lower = more conservative. Default 5 works for almost everyone.",
+                        value: $viewModel.whisperTuning.topK,
+                        range: 1...20,
+                        step: 1,
+                        format: { "\($0)" }
+                    )
+
+                    Divider()
+
+                    tuningSliderRow(
+                        title: "Retry creativity bump",
+                        detail: "When Whisper isn't sure, it tries again with this much more creativity. Default 0.2.",
+                        value: .init(
+                            get: { viewModel.whisperTuning.temperatureIncrementOnFallback },
+                            set: { viewModel.whisperTuning.temperatureIncrementOnFallback = $0 }
+                        ),
+                        range: 0.0...1.0,
+                        step: 0.1,
+                        format: { String(format: "%.1f", $0) }
+                    )
+
+                    Divider()
+
+                    tuningSliderRow(
+                        title: "Chunk size",
+                        detail: "Maximum number of word-pieces processed in one go. Only change if transcripts are getting cut off mid-sentence. Default 224.",
+                        value: $viewModel.whisperTuning.sampleLength,
+                        range: 50...448,
+                        step: 16,
+                        format: { "\($0)" }
+                    )
+                }
+                .padding(.top, DesignSystem.Spacing.sm)
+            }
+            .font(DesignSystem.Typography.bodySmall.weight(.medium))
         }
     }
 
