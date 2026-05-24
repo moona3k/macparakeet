@@ -29,7 +29,8 @@ betraying it. Two principles govern every artifact in here:
 brand-assets/
 ├── README.md                       you are here
 ├── marks/                          the bird, as vector source
-│   └── parakeet-line.svg           the canonical brand mark — used everywhere
+│   ├── parakeet-line.svg           the canonical brand mark — used everywhere
+│   └── AppIcon.icon/               Icon Composer source for the macOS app icon
 ├── palette/                        the colors
 │   ├── palette.json                machine-readable hex + role + guidance
 │   ├── palette.css                 CSS variables for web
@@ -56,11 +57,12 @@ brand-assets/
 
 ## The mark
 
-There's one canonical mark: `marks/parakeet-line.svg`. It's a calligraphic
-single-stroke parakeet — head, beak, eye dot, body curve, looped tail — traced
-from `Assets/AppIcon-1024x1024.png`. It carries the brand voice (calm,
-confident, minimal) at every size: legible at 18 pt, beautiful at 4096 px,
-strong enough to tile in a Warhol grid and delicate enough for chrome.
+There's one canonical reusable mark: `marks/parakeet-line.svg`. It's a
+calligraphic single-stroke parakeet — head, beak, eye dot, body curve, looped
+tail — traced from the original white-on-near-black parakeet artwork. It carries
+the brand voice (calm, confident, minimal) at every size: legible at 18 pt,
+beautiful at 4096 px, strong enough to tile in a Warhol grid and delicate
+enough for chrome.
 
 The mark uses `fill="currentColor"`. Recolor by setting CSS `color`, by
 swapping `currentColor` for a hex literal, or via `<use color="…">` — pick the
@@ -177,18 +179,29 @@ SVG sources. Requires `librsvg` (`brew install librsvg`).
 
 ## Provenance
 
-The line mark (`parakeet-line.svg`) was traced from the canonical 1024×1024
-PNG (`Assets/AppIcon-1024x1024.png`) using `potrace` after a luminance
-threshold isolated the bird, then re-coordinated into a clean 0..1024
+The line mark (`parakeet-line.svg`) was traced from the original canonical
+1024×1024 white-on-near-black parakeet artwork using `potrace` after a
+luminance threshold isolated the bird, then re-coordinated into a clean 0..1024
 viewBox. Four paths: compound body with eye-hole (fill-rule evenodd), iris dot,
 beak, and the small cheek/tail-curve flourish.
 
-The SVG is independent of `Sources/MacParakeet/Resources/parakeet-mark.png` —
-that PNG remains the runtime asset path and source of truth for the shipping
-app. The vector source lives here for design work that PNG can't do (infinite
-scaling, recoloring, vector-native composition).
+The SVG is independent of `Sources/MacParakeet/Resources/parakeet-mark.png`;
+that PNG remains the app runtime asset for inline mark rendering. The vector
+source lives here for design work that PNG can't do (infinite scaling,
+recoloring, vector-native composition).
+
+The macOS app icon is a separate pipeline. `marks/AppIcon.icon/` is the Icon
+Composer source bundle, `../Assets/AppIcon-1024x1024.png` is the transparent
+padded 1024 px app-icon export, and `../Assets/AppIcon.icns` is the shipping
+multi-size icon. Icon Composer requires the SVG inside the bundle, so
+`marks/AppIcon.icon/Assets/parakeet-line.svg` is a vendored copy of
+`marks/parakeet-line.svg`; keep those two files byte-for-byte in sync.
 
 ## Don'ts (these match `docs/brand-identity.md`)
+
+These rules apply to the reusable mark and composition assets. The macOS app
+icon source bundle may carry platform icon metadata for the container; do not
+copy those effects back onto the reusable mark.
 
 - No gradients, drop shadows, glows, or "glassmorphism" on the mark.
 - No outlines or strokes added on top of the mark — it's already calligraphic.

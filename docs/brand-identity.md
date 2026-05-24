@@ -31,19 +31,21 @@ bird reads as one continuous gesture, like signing your name.
 4. **Timeless** — no trendy gradients, no 3D effects, no sharp corners
    beyond the beak
 
-## Canonical Asset
+## Canonical Assets
 
-The brand mark ships as a high-resolution white-on-near-black PNG. The PNG
-remains the runtime source of truth; the vector source lives in
-`brand-assets/marks/` for design work that raster can't do (infinite scaling,
-recoloring, poster-scale composition).
+The reusable brand mark and the macOS app icon now have separate source paths.
+Use the mark assets for inline UI, editorial work, and recoloring. Use the app
+icon assets only for Dock, Finder, Cmd+Tab, About, and installer surfaces where
+macOS expects a padded transparent icon shape.
 
 | File | Size | Use |
 |------|------|-----|
-| `Assets/AppIcon-1024x1024.png` | 1024×1024 | Runtime source of truth for the parakeet illustration; reference asset for design work |
-| `Sources/MacParakeet/Resources/parakeet-mark.png` | 1024×1024 | Same PNG copied into the SwiftPM runtime bundle so app code can load it via `Bundle.module` |
+| `brand-assets/marks/parakeet-line.svg` | vector | Canonical reusable vector mark — used everywhere from chrome to Pop tiles. Recolorable via `currentColor`. See `brand-assets/README.md`. |
+| `Sources/MacParakeet/Resources/parakeet-mark.png` | 1024×1024 | Runtime source for inline SwiftUI mark rendering via `Bundle.module`; white-on-near-black so `BreathWaveIcon.brandMark` can convert luminance to alpha. |
+| `brand-assets/marks/AppIcon.icon/` | bundle | Icon Composer source for the macOS app icon. Its bundled `Assets/parakeet-line.svg` is a required vendored copy of `brand-assets/marks/parakeet-line.svg`; keep them byte-for-byte in sync. |
+| `Assets/AppIcon-1024x1024.png` | 1024×1024 | Transparent padded macOS app-icon source image generated from the app icon source bundle; not the raw reusable mark. |
+| `Assets/AppIcon.icns` | multi-size | Shipping macOS icon copied into the app bundle by `scripts/dist/build_app_bundle.sh`. |
 | `Sources/MacParakeet/Resources/menubar-icon.png` / `@2x.png` | 18pt / 36px | Hand-tuned smaller variant for the macOS menu bar; not derived from the 1024px source — separate authored asset |
-| `brand-assets/marks/parakeet-line.svg` | vector | Vector trace of the canonical mark — used everywhere from chrome to Pop tiles. Recolorable via `currentColor`. See `brand-assets/README.md`. |
 
 ### Sizing & Legibility
 
@@ -51,7 +53,7 @@ recoloring, poster-scale composition).
 |---------|------|-------|
 | Menu bar | 18 px | Authored as a dedicated asset; tested target |
 | Inline (assistant avatars, status chips) | 18 pt | Bumped to 18 from 16 because head/eye/tail blur together below ~16 px |
-| Dock / About | 1024 px | Full canonical illustration |
+| Dock / About | 1024 px source, multi-size `.icns` output | Padded transparent macOS app icon, not the raw reusable mark |
 
 16 px is the practical legibility floor: the eye dot becomes a sub-pixel
 speck and the looped tail loses definition. Prefer 18 px and up.
@@ -70,16 +72,20 @@ The mark is consumed at runtime through three paths:
 
 - **Inline SwiftUI** — `BreathWaveLogo(size:tint:opacity:)` wraps
   `BreathWaveIcon.brandMark(pointSize:)` in an `Image` with
-  `.renderingMode(.template)`. Backed by the 1024×1024 parakeet PNG,
-  converted at first access from white-on-near-black to alpha-only via a
-  Rec. 709 luminance → alpha pass (one-shot, process-cached). SwiftUI then
-  downscales to the requested point size with `.interpolation(.high)`.
+  `.renderingMode(.template)`. Backed by
+  `Sources/MacParakeet/Resources/parakeet-mark.png`, converted at first access
+  from white-on-near-black to alpha-only via a Rec. 709 luminance → alpha pass
+  (one-shot, process-cached). SwiftUI then downscales to the requested point
+  size with `.interpolation(.high)`.
 - **Menu bar** — `BreathWaveIcon.menuBarIcon(pointSize:state:)` loads the
   hand-tuned 18 pt PNG, sets `isTemplate = true`, and lets macOS adapt it
   to light/dark menu bars. Recording / processing states overlay a colored
   status dot.
-- **App icon (dock / Finder)** — the 1024×1024 PNG is bundled via
-  `Assets/AppIcon.icns`; macOS handles all sizing.
+- **App icon (Dock / Finder / Cmd+Tab)** —
+  `brand-assets/marks/AppIcon.icon/` is the Icon Composer source,
+  `Assets/AppIcon-1024x1024.png` is the transparent padded 1024 px export, and
+  `Assets/AppIcon.icns` is the shipping multi-size icon. The build script copies
+  the `.icns` unchanged into the app bundle.
 
 > **Note:** `BreathWaveIcon.appIcon(size:)` is a programmatic Core Graphics
 > drawing of an *earlier* "cursive P" mark and is not used by any shipping
@@ -108,13 +114,15 @@ The mark is consumed at runtime through three paths:
 
 ### App Icon (Dock / App Store)
 
-The app icon is the parakeet illustration on a near-black background with
-macOS-standard rounded corners.
+The app icon uses the parakeet mark inside a macOS-specific icon container. The
+Icon Composer source may carry platform icon metadata such as container shadow,
+translucency, and tinted appearance support; those effects belong to the app
+icon container, not to the reusable mark assets above.
 
 ```text
 Background: near-black with a subtle radial vignette toward the center
 Mark: White (#FFFFFF), single-stroke parakeet illustration
-Corner radius: macOS standard (~22% of icon size)
+Shape: transparent padded macOS squircle baked into the 1024 px PNG and .icns
 ```
 
 ## Typography

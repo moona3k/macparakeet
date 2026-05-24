@@ -4,8 +4,8 @@ import { Img, staticFile } from 'remotion';
 interface AppIconProps {
   size: number;
   /**
-   * macOS app-icon corner radius is ~22% of icon size by convention.
-   * Disable for the raw square asset (e.g. when stacking inside other shapes).
+   * Optional clipping for compositions that place the app icon on a hard-edged
+   * surface. The source asset already carries transparent macOS icon corners.
    */
   rounded?: boolean;
   /**
@@ -16,17 +16,14 @@ interface AppIconProps {
 }
 
 /**
- * The canonical MacParakeet app icon — white calligraphic parakeet on
- * near-black with a subtle radial vignette, baked into a 1024×1024 PNG
- * (`Assets/AppIcon-1024x1024.png` in the main repo, mirrored into
- * `public/brand/app-icon.png` here).
+ * The MacParakeet macOS app icon — white calligraphic parakeet on near-black,
+ * padded into a transparent 1024×1024 icon source (`Assets/AppIcon-1024x1024.png`
+ * in the main repo, mirrored into `public/brand/app-icon.png` here).
  *
- * Per docs/brand-identity.md this is the canonical illustration — the
- * coral line mark used elsewhere is a vector trace of it. Use AppIcon
- * when you want the product to look like a Mac app the viewer is about
- * to install (closing cards, product feature beats), and the line mark
- * for chrome / wordmark contexts where the bird is one symbol among
- * type.
+ * Use AppIcon when you want the product to look like a Mac app the viewer is
+ * about to install (closing cards, product feature beats), and use the
+ * canonical line mark for chrome / wordmark contexts where the bird is one
+ * symbol among type.
  */
 export const AppIcon: React.FC<AppIconProps> = ({
   size,
