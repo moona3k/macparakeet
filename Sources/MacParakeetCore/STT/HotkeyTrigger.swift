@@ -371,6 +371,13 @@ public struct HotkeyTrigger: Sendable {
         handsFree == .defaultDictation && pushToTalk == .defaultPushToTalk
     }
 
+    public static func isSharedDictationGesture(
+        handsFree: HotkeyTrigger,
+        pushToTalk: HotkeyTrigger
+    ) -> Bool {
+        !handsFree.isDisabled && !pushToTalk.isDisabled && handsFree == pushToTalk
+    }
+
     // MARK: - Factory
 
     /// Create a trigger from a CGKeyCode.

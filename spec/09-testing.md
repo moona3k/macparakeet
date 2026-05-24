@@ -278,7 +278,7 @@ Tests/
 
 These flows must be tested manually after any overlay or hotkey changes. Automated unit tests cover the state machine logic, but the full UX requires human verification.
 
-> **Note:** The default dictation preset uses `Fn` for both roles: double-tap `Fn` for hands-free, and hold `Fn` for push-to-talk. `Fn+Space` is a supported custom hands-free chord and should remain recordable. Custom dictation shortcuts must be distinct and non-overlapping; Settings should reject conflicting triggers for the two roles. Test with at least two different trigger keys.
+> **Note:** The default dictation preset uses `Fn` for both roles: double-tap `Fn` for hands-free, and hold `Fn` for push-to-talk. `Fn+Space` is a supported custom hands-free chord and should remain recordable. Custom dictation shortcuts may be distinct, or both roles may share the exact same trigger for the shared hold/double-tap gesture. Settings should reject overlapping but non-identical triggers for the two roles. Test with at least two different trigger keys.
 
 ### Happy Path
 

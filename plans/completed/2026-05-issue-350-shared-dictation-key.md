@@ -1,6 +1,6 @@
 # Issue #350: Shared Dictation Key
 
-Status: **ACTIVE**
+Status: **COMPLETED** — implemented on 2026-05-24.
 Owner: Core app team
 Updated: 2026-05-24
 
@@ -70,7 +70,7 @@ When the rows use distinct triggers, retain the existing copy:
 
 1. Add a shared-dictation predicate.
    - Prefer a small helper such as
-     `HotkeyTrigger.isSharedDictationGesturePreset(handsFree:pushToTalk:)`.
+     `HotkeyTrigger.isSharedDictationGesture(handsFree:pushToTalk:)`.
    - Return true only when both triggers are enabled and exactly equal.
    - Keep the existing Fn helper as a compatibility/default-label convenience
      or fold it through the generalized helper if that keeps call sites clearer.

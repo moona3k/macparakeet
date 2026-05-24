@@ -1476,7 +1476,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultDictation)
     }
 
-    func testStoredMatchingDedicatedDictationHotkeysRestoreHandsFreeDefault() {
+    func testStoredMatchingDedicatedDictationHotkeysPreserveSharedFn() {
         HotkeyTrigger.fn.save(to: testDefaults)
         HotkeyTrigger.fn.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
 
@@ -1492,6 +1492,31 @@ final class SettingsViewModelTests: XCTestCase {
                 fallback: .defaultPushToTalk
             ),
             .fn
+        )
+    }
+
+    func testStoredMatchingCustomDictationHotkeysPreserveSharedTrigger() {
+        let rightCommand = HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+        rightCommand.save(to: testDefaults)
+        rightCommand.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, rightCommand)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, rightCommand)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), rightCommand)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            rightCommand
         )
     }
 

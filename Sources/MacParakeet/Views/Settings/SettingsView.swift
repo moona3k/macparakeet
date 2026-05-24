@@ -22,7 +22,7 @@ enum SettingsDictationHotkeyConflictPolicy {
         peerName: String
     ) -> HotkeyTrigger.ValidationResult? {
         guard candidate.overlaps(with: peer) else { return nil }
-        if HotkeyTrigger.isDefaultDictationGesturePreset(handsFree: candidate, pushToTalk: peer) {
+        if HotkeyTrigger.isSharedDictationGesture(handsFree: candidate, pushToTalk: peer) {
             return nil
         }
         return .blocked(SettingsHotkeyConflictMessage.blocked(
@@ -38,7 +38,7 @@ enum SettingsDictationHotkeyConflictPolicy {
         disablesTrigger: Bool
     ) -> String? {
         guard trigger.overlaps(with: peer) else { return nil }
-        if HotkeyTrigger.isDefaultDictationGesturePreset(handsFree: trigger, pushToTalk: peer) {
+        if HotkeyTrigger.isSharedDictationGesture(handsFree: trigger, pushToTalk: peer) {
             return nil
         }
         if disablesTrigger {
@@ -2333,7 +2333,7 @@ struct SettingsView: View {
                 modeShortcutRow(
                     keys: [viewModel.hotkeyTrigger.shortSymbol],
                     separator: nil,
-                    verb: usesDefaultDictationGesturePreset ? "Double-tap" : "Tap",
+                    verb: usesSharedDictationGesture ? "Double-tap" : "Tap",
                     action: "Hands-free mode",
                     detail: "Tap again to stop"
                 )
@@ -2346,6 +2346,13 @@ struct SettingsView: View {
         )
     }
 
+    private var usesSharedDictationGesture: Bool {
+        HotkeyTrigger.isSharedDictationGesture(
+            handsFree: viewModel.hotkeyTrigger,
+            pushToTalk: viewModel.pushToTalkHotkeyTrigger
+        )
+    }
+
     private var usesDefaultDictationGesturePreset: Bool {
         HotkeyTrigger.isDefaultDictationGesturePreset(
             handsFree: viewModel.hotkeyTrigger,
@@ -2354,8 +2361,8 @@ struct SettingsView: View {
     }
 
     private var handsFreeHotkeyDetail: String {
-        if usesDefaultDictationGesturePreset {
-            return "Double-tap Fn to start; tap Fn again to stop."
+        if usesSharedDictationGesture {
+            return "Double-tap to start; tap again to stop."
         }
         return "Tap to start; tap again to stop."
     }

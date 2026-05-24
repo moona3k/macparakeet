@@ -403,6 +403,46 @@ final class HotkeyTriggerTests: XCTestCase {
             handsFree: .defaultDictation,
             pushToTalk: .defaultPushToTalk
         ))
+        XCTAssertTrue(HotkeyTrigger.isSharedDictationGesture(
+            handsFree: .defaultDictation,
+            pushToTalk: .defaultPushToTalk
+        ))
+    }
+
+    func testSharedDictationGestureAllowsExactCustomTrigger() {
+        let rightCommand = HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+
+        XCTAssertTrue(HotkeyTrigger.isSharedDictationGesture(
+            handsFree: rightCommand,
+            pushToTalk: rightCommand
+        ))
+    }
+
+    func testSharedDictationGestureRejectsDisabledTriggers() {
+        XCTAssertFalse(HotkeyTrigger.isSharedDictationGesture(
+            handsFree: .disabled,
+            pushToTalk: .disabled
+        ))
+    }
+
+    func testSharedDictationGestureRejectsNonExactOverlap() {
+        let rightCommand = HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+
+        XCTAssertTrue(rightCommand.overlaps(with: .command))
+        XCTAssertFalse(HotkeyTrigger.isSharedDictationGesture(
+            handsFree: rightCommand,
+            pushToTalk: .command
+        ))
     }
 
     // MARK: - Chord Validation

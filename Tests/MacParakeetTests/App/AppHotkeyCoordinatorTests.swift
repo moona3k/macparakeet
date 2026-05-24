@@ -37,6 +37,15 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
+    private func rightCommandTrigger() -> HotkeyTrigger {
+        HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+    }
+
     func testSetupFileTranscriptionHotkeyReportsConflictInsteadOfSilentlyDropping() {
         let viewModel = makeViewModel()
         let conflictingTrigger = HotkeyTrigger.modifierChord(modifiers: ["command", "option"])
@@ -72,6 +81,15 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
+    func testMenuTitleDescribesSharedCustomDictationTrigger() {
+        let rightCommand = rightCommandTrigger()
+
+        XCTAssertEqual(
+            AppHotkeyCoordinator.menuTitle(handsFree: rightCommand, pushToTalk: rightCommand),
+            "Dictation: Hold Right Command / Double-tap Right Command"
+        )
+    }
+
     func testMenuTitleDescribesOverlappingDictationTriggers() {
         XCTAssertEqual(
             AppHotkeyCoordinator.menuTitle(
@@ -100,6 +118,24 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
                     .init(trigger: .fn, gestureMode: .doubleTapAndHold),
+                ],
+                conflict: nil
+            )
+        )
+    }
+
+    func testDictationHotkeyPlanUsesCombinedGestureForSharedRightCommand() {
+        let rightCommand = rightCommandTrigger()
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: rightCommand,
+            pushToTalk: rightCommand
+        )
+
+        XCTAssertEqual(
+            plan,
+            AppHotkeyCoordinator.DictationHotkeyPlan(
+                specs: [
+                    .init(trigger: rightCommand, gestureMode: .doubleTapAndHold),
                 ],
                 conflict: nil
             )

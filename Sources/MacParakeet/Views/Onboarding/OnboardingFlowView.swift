@@ -27,23 +27,23 @@ struct OnboardingFlowView: View {
         return current.isDisabled ? .defaultPushToTalk : current
     }
 
-    private var usesDefaultDictationGesturePreset: Bool {
-        HotkeyTrigger.isDefaultDictationGesturePreset(
+    private var usesSharedDictationGesture: Bool {
+        HotkeyTrigger.isSharedDictationGesture(
             handsFree: handsFreeDisplayTrigger,
             pushToTalk: pushToTalkDisplayTrigger
         )
     }
 
     private var handsFreeGestureTitle: String {
-        "\(usesDefaultDictationGesturePreset ? "Double-tap" : "Tap") \(handsFreeDisplayTrigger.shortSymbol)"
+        "\(usesSharedDictationGesture ? "Double-tap" : "Tap") \(handsFreeDisplayTrigger.shortSymbol)"
     }
 
     private var handsFreeInstructionPhrase: String {
-        "\(usesDefaultDictationGesturePreset ? "Double-tap" : "Tap") \(handsFreeDisplayTrigger.displayName)"
+        "\(usesSharedDictationGesture ? "Double-tap" : "Tap") \(handsFreeDisplayTrigger.displayName)"
     }
 
     private var handsFreeTryNowVerb: String {
-        usesDefaultDictationGesturePreset ? "double-tap" : "tap"
+        usesSharedDictationGesture ? "double-tap" : "tap"
     }
 
     private let windowWidth: CGFloat = 740
@@ -682,7 +682,7 @@ struct OnboardingFlowView: View {
             .opacity(reduceMotion || tapPhase == 1 ? 1.0 : 0.5)
             .animation(.easeInOut(duration: 0.15), value: tapPhase)
             .overlay(alignment: .topTrailing) {
-                if usesDefaultDictationGesturePreset {
+                if usesSharedDictationGesture {
                     Text("x2")
                         .font(DesignSystem.Typography.caption.weight(.semibold))
                         .foregroundStyle(DesignSystem.Colors.accent)
@@ -715,7 +715,7 @@ struct OnboardingFlowView: View {
     private func startAnimations() {
         guard !reduceMotion else { return }
         animationTask?.cancel()
-        let tapCount = usesDefaultDictationGesturePreset ? 2 : 1
+        let tapCount = usesSharedDictationGesture ? 2 : 1
         animationTask = Task { @MainActor in
             while !Task.isCancelled {
                 // Hands-free gesture.

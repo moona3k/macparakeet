@@ -730,10 +730,7 @@ public final class SettingsViewModel {
         if !storedHandsFree.isDisabled,
            !pushToTalk.isDisabled,
            storedHandsFree == pushToTalk {
-            if storedHandsFree == .defaultDictation {
-                return (storedHandsFree, .defaultPushToTalk, false, true)
-            }
-            return (defaultHandsFreeTrigger(avoiding: pushToTalk), pushToTalk, true, false)
+            return (storedHandsFree, pushToTalk, false, false)
         }
         if !storedHandsFree.isDisabled,
            !pushToTalk.isDisabled,

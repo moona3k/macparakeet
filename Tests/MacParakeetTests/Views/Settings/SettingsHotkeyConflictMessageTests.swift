@@ -38,14 +38,14 @@ final class SettingsHotkeyConflictMessageTests: XCTestCase {
         )
     }
 
-    func testDictationPeerValidationBlocksNonDefaultExactDuplicate() {
+    func testDictationPeerValidationAllowsNonDefaultExactDuplicate() {
         XCTAssertEqual(
             SettingsDictationHotkeyConflictPolicy.validation(
                 candidate: .control,
                 peer: .control,
                 peerName: "push to talk"
             ),
-            .blocked("Conflicts with push to talk (⌃ Control).")
+            nil
         )
     }
 
@@ -68,7 +68,7 @@ final class SettingsHotkeyConflictMessageTests: XCTestCase {
         )
     }
 
-    func testDictationPeerValidationBlocksDuplicateSideSpecificShiftChord() {
+    func testDictationPeerValidationAllowsDuplicateSideSpecificShiftChord() {
         let bothShifts = HotkeyTrigger.modifierChord(
             components: [
                 .init(modifierName: "shift", keyCode: 56),
@@ -82,7 +82,7 @@ final class SettingsHotkeyConflictMessageTests: XCTestCase {
                 peer: bothShifts,
                 peerName: "push to talk"
             ),
-            .blocked("Conflicts with push to talk (L⇧R⇧).")
+            nil
         )
     }
 
@@ -108,7 +108,7 @@ final class SettingsHotkeyConflictMessageTests: XCTestCase {
         )
     }
 
-    func testExistingDictationPeerConflictMessageCanNameActiveTrigger() {
+    func testExistingDictationPeerConflictMessageAllowsExactSharedTrigger() {
         XCTAssertEqual(
             SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
                 trigger: .control,
@@ -116,19 +116,26 @@ final class SettingsHotkeyConflictMessageTests: XCTestCase {
                 peerName: "push to talk",
                 disablesTrigger: false
             ),
-            "Conflicts with push to talk (⌃ Control)."
+            nil
         )
     }
 
     func testExistingDictationPeerConflictMessageCanNameDisabledTrigger() {
+        let rightCommand = HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+
         XCTAssertEqual(
             SettingsDictationHotkeyConflictPolicy.existingConflictMessage(
-                trigger: .control,
-                peer: .control,
+                trigger: rightCommand,
+                peer: .command,
                 peerName: "hands-free mode",
                 disablesTrigger: true
             ),
-            "Disabled — conflicts with hands-free mode (⌃ Control)."
+            "Disabled — conflicts with hands-free mode (⌘ Command)."
         )
     }
 }

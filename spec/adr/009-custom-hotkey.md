@@ -55,7 +55,7 @@ Community issue #17 requested modifier+key combos (e.g., Cmd+9) because Logitech
 7. **Modifier names stored as `[String]`** — Not raw `CGEventFlags.rawValue` (has phantom bits). Readable JSON: `{"kind":"chord","keyCode":25,"chordModifiers":["command"]}`.
 8. **HotkeyRecorderView two-phase capture** — Held modifiers show as preview (e.g. "⌘..."); pressing a key with modifiers held creates a chord; releasing all modifiers without a key press creates a bare modifier trigger.
 9. **Validation** — Chords are `.allowed` by default. Escape blocked. Cmd+Tab and Cmd+Space warned (system intercepts them).
-10. **Distinct dictation roles** — Hands-free and push-to-talk cannot be manually assigned overlapping triggers. Settings blocks conflicting assignments, except for the built-in shared Fn default gesture preset. Legacy single-hotkey installs migrate to the shared default gesture when appropriate, or to distinct shortcuts where possible.
+10. **Shared dictation gestures** — Hands-free and push-to-talk may share the exact same trigger, in which case that trigger uses the combined gesture model: hold for push-to-talk, double-tap for hands-free, and tap again to stop hands-free. Settings still blocks overlapping but non-identical triggers (for example, generic Command vs Right Command, or Right Command vs Right Command+Right Option). Legacy single-hotkey installs migrate to the shared default gesture when appropriate, or to distinct shortcuts where possible.
 
 ### Original decision preserved
 

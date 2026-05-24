@@ -137,11 +137,11 @@ See [00-vision.md](./00-vision.md) for positioning and market context.
 
 **Activation — Configurable Hotkey:**
 
-Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-to-talk, or double-tap `Fn` for hands-free mode. `Fn+Fn` is not a customizable recorded hotkey; choosing restore default returns to this preset. Each dictation role can still be assigned a custom shortcut. The "record a shortcut" UI supports bare modifiers (Fn, Control, etc.), standalone keys (F5, Tab, etc.), modifier+key chords (Fn+Space, Cmd+9, Ctrl+Shift+D), and modifier-only chords (Command+Option, including side-specific variants like Right Command+Right Option). See ADR-009 for full details. Custom dictation shortcuts must be distinct and non-overlapping; Settings blocks assigning conflicting triggers to both roles.
+Dictation defaults to a built-in shared `Fn` gesture preset: hold `Fn` for push-to-talk, or double-tap `Fn` for hands-free mode. `Fn+Fn` is not a customizable recorded hotkey; choosing restore default returns to this preset. Each dictation role can still be assigned a custom shortcut. The "record a shortcut" UI supports bare modifiers (Fn, Control, etc.), standalone keys (F5, Tab, etc.), modifier+key chords (Fn+Space, Cmd+9, Ctrl+Shift+D), and modifier-only chords (Command+Option, including side-specific variants like Right Command+Right Option). See ADR-009 for full details. Custom dictation shortcuts may be distinct, or both roles may share the exact same non-disabled trigger to reuse the hold/double-tap gesture model. Settings blocks overlapping but non-identical triggers.
 
 | Mode | Gesture | Behavior |
 |------|---------|----------|
-| **Hands-free** | Double-tap Fn by default, or tap the configured hands-free shortcut | Persistent recording. Tap the shortcut again to stop. |
+| **Hands-free** | Double-tap the shared Fn/custom trigger when both dictation roles share one, or tap the configured hands-free shortcut when roles are distinct | Persistent recording. Tap the shortcut again to stop. |
 | **Press-and-hold** | Hold the push-to-talk shortcut | Hold-to-talk. Release auto-stops and pastes. |
 
 Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migrate to the shared `Fn` gesture preset. Legacy single-hotkey installs are migrated to the shared default gesture when the stored trigger is `Fn`. Otherwise the old trigger becomes push-to-talk, while hands-free moves to the default `Fn` preset or disables itself if that would conflict.
@@ -159,7 +159,7 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 - Chord validation: Escape blocked for all kinds. Modifier+key chords containing Command warn about system shortcut conflicts (Cmd+Tab, Cmd+Space, Cmd+Q/W/H/M). Fn is allowed in modifier+key chords such as Fn+Space.
 - Hands-free key-down: toggles persistent recording immediately for key and modifier+key triggers; bare modifier hands-free triggers toggle on bare release so normal modifier shortcuts are not captured.
 - Dedicated push-to-talk key-down: schedule only the startup debounce, then start hold-to-talk.
-- Duplicate or overlapping dictation shortcuts: the built-in shared `Fn` default is allowed as a gesture preset; other conflicting assignments are rejected in Settings and reported at runtime instead of creating a hidden combined gesture.
+- Duplicate or overlapping dictation shortcuts: exact duplicate triggers are allowed and use the shared hold/double-tap gesture model; overlapping but non-identical assignments are rejected in Settings and reported at runtime instead of creating a hidden combined gesture.
 - On key-up: dedicated push-to-talk releases after startup debounce stop and process.
 - Escape is permanently reserved for cancel-dictation and cannot be assigned as hotkey
 - Requires Accessibility permission (prompted on first activation).
@@ -648,7 +648,7 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 |---------|---------|---------|
 | Launch at login | On / Off | Off |
 | Push-to-talk hotkey | Bare modifiers, standalone keys, modifier+key chords, and modifier-only chords with overlap checks | Fn |
-| Hands-free hotkey | Default shared Fn gesture preset; custom bare modifiers, standalone keys, modifier+key chords, and modifier-only chords with overlap checks | Fn |
+| Hands-free hotkey | Default shared Fn gesture preset; custom bare modifiers, standalone keys, modifier+key chords, and modifier-only chords; may exactly match push-to-talk for shared gesture behavior | Fn |
 | Stop mode | Auto-stop after silence / Manual | Manual |
 | Silence delay | 1s, 1.5s, 2s, 3s, 5s | 2s |
 | Save audio recordings | On / Off | On |
