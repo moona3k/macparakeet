@@ -3228,6 +3228,14 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // looks bad whether or not number normalization is on.
         let dehyphenated = collapseWhisperHyphenArtifacts(in: unstuck)
 
+        // Same shape, different punctuation: Whisper sometimes emits
+        // English contractions with a leading apostrophe on the second
+        // token (`Y 'all`, `don 't`, `I 've`, `we 're`). Collapse the
+        // stray space so the cue reads `Y'all`, `don't`, `I've`, etc.
+        // Real failure case: SRT (39) cue 310 came back as
+        // `"Y 'all feel that?"` instead of `"Y'all feel that?"`.
+        let decontracted = collapseWhisperApostropheArtifacts(in: dehyphenated)
+
         // Flatten any embedded newlines to spaces BEFORE the
         // normalizer runs. Merge passes that set `forcedText` to a
         // pre-wrapped two-line form leave `\n` in the cue text, and
@@ -3238,7 +3246,7 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         // `"hard over these 4\nminutes of speed drills,"` and the
         // measurement pass missed `4\nminutes` even though
         // `"4 minutes"` matches cleanly.
-        let flattened = dehyphenated.replacingOccurrences(of: "\n", with: " ")
+        let flattened = decontracted.replacingOccurrences(of: "\n", with: " ")
 
         // Number normalisation runs *before* wrapping so the wrapped output
         // can take advantage of the shorter digit form when measuring against
@@ -3321,6 +3329,30 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         let range = NSRange(text.startIndex..., in: text)
         return regex.stringByReplacingMatches(
             in: text, range: range, withTemplate: "$1-$2"
+        )
+    }
+
+    /// Collapse Whisper's apostrophe-tokenization artifact: English
+    /// contractions sometimes come out as two tokens with the
+    /// apostrophe leading the second one — `Y 'all`, `don 't`, `I 've`,
+    /// `we 're`, `let 's`. Joining with spaces leaves a visible gap
+    /// where the apostrophe should sit. We collapse the space only
+    /// when the right-hand side is a known contraction suffix, so
+    /// genuine quotes (`he said 'hello'`) are left alone.
+    ///
+    /// Suffix whitelist: `ll`, `ve`, `re`, `s`, `t`, `d`, `m`, `all`.
+    /// Covers `'ll` (will), `'ve` (have), `'re` (are), `'s` (is/has/
+    /// possessive), `'t` (n't / 'tis), `'d` (would/had), `'m` (am),
+    /// `'all` (y'all). Anchored with `\b` on the suffix so `'sand`
+    /// or `'reign` don't collapse.
+    nonisolated static func collapseWhisperApostropheArtifacts(in text: String) -> String {
+        guard let regex = try? NSRegularExpression(
+            pattern: "(\\w) '(ll|ve|re|all|s|t|d|m)\\b",
+            options: [.caseInsensitive]
+        ) else { return text }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.stringByReplacingMatches(
+            in: text, range: range, withTemplate: "$1'$2"
         )
     }
 
