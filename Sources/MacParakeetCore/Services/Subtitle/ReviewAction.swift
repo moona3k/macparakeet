@@ -37,6 +37,8 @@ public enum ReviewActionParseFailure: Error, Equatable, CustomStringConvertible 
     case unknownAction(String)
     case missingNForShift(String)
     case nOutOfRange(action: String, n: Int)
+    case missingDecisionsKey
+    case missingPairIndex
 
     public var description: String {
         switch self {
@@ -45,8 +47,23 @@ public enum ReviewActionParseFailure: Error, Equatable, CustomStringConvertible 
         case .unknownAction(let s):           return "unknownAction(\(s))"
         case .missingNForShift(let s):        return "missingNForShift(\(s))"
         case .nOutOfRange(let s, let n):      return "nOutOfRange(\(s),n=\(n))"
+        case .missingDecisionsKey:            return "missingDecisionsKey"
+        case .missingPairIndex:               return "missingPairIndex"
         }
     }
+}
+
+/// One decoded decision out of a batched reviewer response. `pairIndex`
+/// is BATCH-LOCAL (0-based within the batch the LLM was given); the
+/// caller maps it back to absolute cue-list indices.
+public struct ReviewBatchDecision: Equatable {
+    public let pairIndex: Int
+    public let action: ReviewAction
+}
+
+public enum ReviewBatchParseResult: Equatable {
+    case success([ReviewBatchDecision])
+    case failure(ReviewActionParseFailure)
 }
 
 /// Parses + validates a single LLM review response.
@@ -100,6 +117,62 @@ public enum ReviewActionParser {
         default:
             return .failure(.unknownAction(actionRaw))
         }
+    }
+
+    /// Parse a BATCHED LLM response shaped like
+    /// `{"decisions": [{"pair": 0, "action": "keep"}, {"pair": 1,
+    /// "action": "shift_to_a", "n": 2}, ...]}`.
+    ///
+    /// `pair` is the batch-local index (0 .. batchPairCount - 1). The
+    /// caller is responsible for mapping that back to absolute cue
+    /// indices and for filling in `.keep` for any pair the LLM omitted.
+    ///
+    /// Returns ONLY successfully-parsed decisions — a malformed
+    /// individual decision is silently dropped rather than failing the
+    /// whole batch. This matches the philosophy of `applyReviewSuggestions`
+    /// (which already re-validates every suggestion against deterministic
+    /// guards and skips invalid ones).
+    public static func parseBatch(_ response: String) -> ReviewBatchParseResult {
+        let defenced = stripCodeFences(response)
+        let decommented = LayoutPlanParser.stripJSONComments(defenced)
+        guard let data = decommented.data(using: .utf8) else {
+            return .failure(.malformedJSON)
+        }
+        let raw: Any
+        do {
+            raw = try JSONSerialization.jsonObject(with: data, options: [.allowFragments])
+        } catch {
+            return .failure(.malformedJSON)
+        }
+        guard let dict = raw as? [String: Any] else {
+            return .failure(.malformedJSON)
+        }
+        guard let arr = dict["decisions"] as? [[String: Any]] else {
+            return .failure(.missingDecisionsKey)
+        }
+        var out: [ReviewBatchDecision] = []
+        out.reserveCapacity(arr.count)
+        for item in arr {
+            // Accept `pair` or `index` (model drift tolerance).
+            let pairRaw = (item["pair"] as? NSNumber) ?? (item["index"] as? NSNumber)
+            guard let pair = pairRaw?.intValue, pair >= 0 else { continue }
+            guard let actionRaw = item["action"] as? String else { continue }
+            switch actionRaw.lowercased() {
+            case "keep":
+                out.append(ReviewBatchDecision(pairIndex: pair, action: .keep))
+            case "merge":
+                out.append(ReviewBatchDecision(pairIndex: pair, action: .merge))
+            case "shift_to_a":
+                guard let n = (item["n"] as? NSNumber)?.intValue, (1...3).contains(n) else { continue }
+                out.append(ReviewBatchDecision(pairIndex: pair, action: .shiftToA(n: n)))
+            case "shift_to_b":
+                guard let n = (item["n"] as? NSNumber)?.intValue, (1...3).contains(n) else { continue }
+                out.append(ReviewBatchDecision(pairIndex: pair, action: .shiftToB(n: n)))
+            default:
+                continue
+            }
+        }
+        return .success(out)
     }
 
     /// Strip ```...``` code fences if the model wrapped its response.

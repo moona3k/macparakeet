@@ -18,13 +18,12 @@ final class SubtitleLLMReviewerTests: XCTestCase {
 
     // MARK: - Reviewer with scripted LLM
 
-    /// 3 cues → 2 pairs. Mock returns "shift_to_a n=1" for the first
-    /// pair (matching the SRT 32 cue 6 failure shape) and "keep" for
-    /// the second. Assert both suggestions land at the right index.
+    /// 3 cues → 2 pairs. With default `pairsPerBatch = 5`, both pairs
+    /// fit in ONE batched LLM call. Mock returns a single response with
+    /// two decisions: shift_to_a for pair 0, keep for pair 1.
     func testReviewProducesOneSuggestionPerPair() async {
         let llm = ScriptedReviewerLLM(responses: [
-            #"{"action":"shift_to_a","n":1}"#,
-            #"{"action":"keep"}"#
+            #"{"decisions":[{"pair":0,"action":"shift_to_a","n":1},{"pair":1,"action":"keep"}]}"#
         ])
         let reviewer = SubtitleLLMReviewer(llmService: llm, maxConcurrency: 1)
         let cues = [
@@ -46,8 +45,8 @@ final class SubtitleLLMReviewerTests: XCTestCase {
         XCTAssertEqual(suggestions[1].action, .keep)
     }
 
-    /// Malformed JSON in the LLM response should land as a `.keep`
-    /// suggestion — never silently corrupt the cue layout.
+    /// Malformed JSON in the LLM response should land as `.keep` for
+    /// every pair in the batch — never silently corrupt the layout.
     func testReviewFallsBackToKeepOnMalformedResponse() async {
         let llm = ScriptedReviewerLLM(responses: ["this is not json"])
         let reviewer = SubtitleLLMReviewer(llmService: llm, maxConcurrency: 1)
@@ -73,6 +72,61 @@ final class SubtitleLLMReviewerTests: XCTestCase {
         XCTAssertEqual(s[0].action, .keep)
     }
 
+    // MARK: - Batching
+
+    /// 8 cues = 7 pairs. With `pairsPerBatch = 5` we get 2 batches: pairs
+    /// 0..4 in batch 1, pairs 5..6 in batch 2. Each batch is ONE LLM call.
+    /// Verifies the call count + that absolute pair indices come back
+    /// correctly mapped from each batch's local indices.
+    func testReviewBatchesPairsAndMapsIndicesBack() async {
+        let batch1 = #"{"decisions":[{"pair":0,"action":"keep"},{"pair":1,"action":"keep"},{"pair":2,"action":"shift_to_a","n":2},{"pair":3,"action":"keep"},{"pair":4,"action":"keep"}]}"#
+        let batch2 = #"{"decisions":[{"pair":0,"action":"merge"},{"pair":1,"action":"keep"}]}"#
+        let llm = ScriptedReviewerLLM(responses: [batch1, batch2])
+        let reviewer = SubtitleLLMReviewer(
+            llmService: llm,
+            maxConcurrency: 1,
+            pairsPerBatch: 5
+        )
+        var cues: [SubtitleLLMReviewer.ReviewableCue] = []
+        for i in 0..<8 {
+            cues.append(SubtitleLLMReviewer.ReviewableCue(
+                startMs: i * 1000, endMs: i * 1000 + 800, text: "Cue \(i) text content."
+            ))
+        }
+        let s = await reviewer.review(cues: cues, config: .default)
+        XCTAssertEqual(s.count, 7, "7 pairs in, 7 suggestions out")
+        XCTAssertEqual(s[2].action, .shiftToA(n: 2), "Pair 2 in batch 1 → absolute index 2")
+        XCTAssertEqual(s[5].action, .merge, "Pair 0 in batch 2 → absolute index 5")
+        // Only 2 LLM calls total (vs 7 in the old per-pair design).
+        XCTAssertEqual(llm.callCount, 2, "Should have made exactly 2 batched calls")
+    }
+
+    /// If the LLM returns FEWER decisions than the batch contains
+    /// (e.g. truncated response), the missing pairs default to `.keep`
+    /// rather than being dropped entirely. Caller relies on this for
+    /// progress accounting and final-cue stability.
+    func testMissingDecisionsInBatchedResponseDefaultToKeep() async {
+        // 3 pairs in the batch, but the response only contains pair 0.
+        let llm = ScriptedReviewerLLM(responses: [
+            #"{"decisions":[{"pair":0,"action":"shift_to_a","n":1}]}"#
+        ])
+        let reviewer = SubtitleLLMReviewer(
+            llmService: llm,
+            maxConcurrency: 1,
+            pairsPerBatch: 5
+        )
+        let cues = (0..<4).map { i in
+            SubtitleLLMReviewer.ReviewableCue(
+                startMs: i * 1000, endMs: i * 1000 + 800, text: "Cue \(i) text content."
+            )
+        }
+        let s = await reviewer.review(cues: cues, config: .default)
+        XCTAssertEqual(s.count, 3)
+        XCTAssertEqual(s[0].action, .shiftToA(n: 1))
+        XCTAssertEqual(s[1].action, .keep, "Pair 1 missing from response → defaults to keep")
+        XCTAssertEqual(s[2].action, .keep, "Pair 2 missing from response → defaults to keep")
+    }
+
     /// 1-cue input has 0 pairs to review.
     func testReviewWithFewerThanTwoCuesReturnsEmpty() async {
         let reviewer = SubtitleLLMReviewer(
@@ -93,13 +147,15 @@ final class SubtitleLLMReviewerTests: XCTestCase {
     func testPromptIncludesActionVocabulary() {
         let a = SubtitleLLMReviewer.ReviewableCue(startMs: 0, endMs: 1000, text: "Cue A")
         let b = SubtitleLLMReviewer.ReviewableCue(startMs: 1100, endMs: 2000, text: "Cue B")
-        let prompt = SubtitleLLMReviewer.buildPrompt(a: a, b: b, prev: nil, next: nil, config: .default)
+        let prompt = SubtitleLLMReviewer.buildBatchedPrompt(cues: [a, b], prev: nil, next: nil, config: .default)
         for token in [#""keep""#, #""merge""#, #""shift_to_a""#, #""shift_to_b""#] {
             XCTAssertTrue(prompt.contains(token),
                           "Prompt missing action token \(token)")
         }
         XCTAssertTrue(prompt.contains("DEFAULT to \"keep\""),
                       "Prompt should bias toward `keep`")
+        XCTAssertTrue(prompt.contains(#""decisions""#),
+                      "Batched prompt should describe the `decisions` response shape")
     }
 
     /// Context cues (prev/next) appear in the prompt when provided,
@@ -109,17 +165,38 @@ final class SubtitleLLMReviewerTests: XCTestCase {
         let b = SubtitleLLMReviewer.ReviewableCue(startMs: 1100, endMs: 2000, text: "Cue B")
         let prev = SubtitleLLMReviewer.ReviewableCue(startMs: -1000, endMs: 0, text: "Previous context")
         let next = SubtitleLLMReviewer.ReviewableCue(startMs: 2100, endMs: 3000, text: "Next context")
-        let promptWithCtx = SubtitleLLMReviewer.buildPrompt(
-            a: a, b: b, prev: prev, next: next, config: .default
+        let promptWithCtx = SubtitleLLMReviewer.buildBatchedPrompt(
+            cues: [a, b], prev: prev, next: next, config: .default
         )
         XCTAssertTrue(promptWithCtx.contains("Previous context"))
         XCTAssertTrue(promptWithCtx.contains("Next context"))
 
-        let promptNoCtx = SubtitleLLMReviewer.buildPrompt(
-            a: a, b: b, prev: nil, next: nil, config: .default
+        let promptNoCtx = SubtitleLLMReviewer.buildBatchedPrompt(
+            cues: [a, b], prev: nil, next: nil, config: .default
         )
         XCTAssertFalse(promptNoCtx.contains("Previous context"))
         XCTAssertFalse(promptNoCtx.contains("Next context"))
+    }
+
+    /// Batched prompt for a 4-cue window numbers boundaries 0..2 and
+    /// labels each cue with its bracketed index.
+    func testBatchedPromptNumbersBoundariesAndLabelsCues() {
+        let cues = (0..<4).map { i in
+            SubtitleLLMReviewer.ReviewableCue(
+                startMs: i * 1000, endMs: i * 1000 + 800, text: "Cue \(i) body text."
+            )
+        }
+        let prompt = SubtitleLLMReviewer.buildBatchedPrompt(
+            cues: cues, prev: nil, next: nil, config: .default
+        )
+        // 4 cues → 3 boundaries (pairs 0, 1, 2).
+        XCTAssertTrue(prompt.contains("pair 0:"))
+        XCTAssertTrue(prompt.contains("pair 1:"))
+        XCTAssertTrue(prompt.contains("pair 2:"))
+        XCTAssertFalse(prompt.contains("pair 3:"))
+        // Cue labels.
+        XCTAssertTrue(prompt.contains("[0]"))
+        XCTAssertTrue(prompt.contains("[3]"))
     }
 
     // MARK: - Apply suggestions
@@ -445,15 +522,24 @@ final class SubtitleLLMReviewerTests: XCTestCase {
 private final class ScriptedReviewerLLM: LLMServiceProtocol, @unchecked Sendable {
     private let lock = NSLock()
     private var responses: [String]
-    private var callCount = 0
+    private var _callCount = 0
 
     init(responses: [String]) { self.responses = responses }
 
+    /// Total `transform(...)` invocations. Lets batching tests assert
+    /// the reviewer made fewer LLM round-trips after the refactor.
+    var callCount: Int {
+        lock.lock(); defer { lock.unlock() }
+        return _callCount
+    }
+
     func transform(text: String, prompt: String) async throws -> String {
         lock.lock(); defer { lock.unlock() }
-        guard !responses.isEmpty else { return #"{"action":"keep"}"# }
-        let r = responses[callCount % responses.count]
-        callCount += 1
+        guard !responses.isEmpty else {
+            return #"{"decisions":[{"pair":0,"action":"keep"}]}"#
+        }
+        let r = responses[_callCount % responses.count]
+        _callCount += 1
         return r
     }
 
