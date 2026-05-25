@@ -2,7 +2,7 @@
 
 > Status: **ACTIVE** - Authoritative, current
 
-MacParakeet's default speech engine is Parakeet TDT 0.6B-v3 via FluidAudio CoreML on Apple's Neural Engine (ANE). WhisperKit is available as an optional local secondary engine for languages Parakeet does not cover. Both engines run on-device; there is no cloud STT path.
+MacParakeet's default speech engine is Parakeet TDT 0.6B-v3 via FluidAudio CoreML on Apple's Neural Engine (ANE). WhisperKit and VibeVoice-ASR are available as optional local secondary engines for languages or use-cases Parakeet does not cover. All three engines run on-device; there is no cloud STT path.
 
 ---
 
@@ -36,7 +36,25 @@ MacParakeet's default speech engine is Parakeet TDT 0.6B-v3 via FluidAudio CoreM
 
 Parakeet remains the default because it is faster, lower-latency, and lower-memory for supported languages. WhisperKit solves language coverage while preserving the local-first speech boundary.
 
-A third local engine, **VibeVoice-ASR** (via `vibevoice.cpp`), is implemented in `VibeVoiceCore` as a future engine; Phase 2.2 will wire it into `STTRuntime`/`STTScheduler`, at which point this document gets the full treatment.
+### VibeVoice-ASR Optional Engine
+
+| Property | Value |
+|----------|-------|
+| Model | VibeVoice-ASR Q4_K quantized GGUF (`vibevoice-asr-q4_k.gguf` ~9.7 GB) |
+| Runtime | `vibevoice.cpp` (LocalAI's C++ port, ggml + Metal) via `VibeVoiceCore` Swift wrapper |
+| Model cache | `~/Library/Application Support/MacParakeet/models/stt/vibevoice/` |
+| Output | Per-segment text with native speaker labels (no word-level timing) |
+| Languages | 50+ languages, auto-detected (no explicit hint) |
+| Selection | Explicit in Settings or CLI (`--engine vibevoice`); never auto-selected |
+| Real-time factor | ~0.39 on M1 Max (60s audio → 23s inference + 13s one-time load) |
+| Special feature | Native diarization — returns Who/When/What per segment without a separate speaker pass |
+
+VibeVoice complements Parakeet and Whisper rather than replacing either. It's the right choice for **long-form multi-speaker recordings** (meetings, interviews, podcasts) where native diarization is more valuable than raw speed, and for **languages outside Parakeet's coverage** where its segment-level output is acceptable. It is unsuitable for interactive dictation — the 13s one-time load alone exceeds typical dictation latency.
+
+The three engines form a deliberate spectrum:
+- **Parakeet** — fastest, lowest memory, English + 24 EU languages, word-level timing. Default for everything.
+- **Whisper** — multilingual coverage, word-level timing, language hint optional. Selectable per global or per-job.
+- **VibeVoice** — multilingual + native diarization, segment-level timing only, slower. Selectable per global or per-job.
 
 ### Three-Chip Architecture
 
@@ -46,9 +64,10 @@ Each ML workload runs on the chip it was designed for:
 CPU:  MacParakeet app (UI, shortcuts, clipboard, history)
 ANE:  Parakeet STT (via FluidAudio/CoreML) — dedicated ML accelerator
 CPU/GPU/CoreML as selected by WhisperKit: optional multilingual STT
+GPU (Metal/ggml): VibeVoice-ASR — optional multilingual + diarization STT
 ```
 
-The default Parakeet path runs on dedicated silicon, leaving CPU and GPU free for the app and macOS. WhisperKit uses the compute path selected by WhisperKit/CoreML for the downloaded model variant.
+The default Parakeet path runs on dedicated silicon, leaving CPU and GPU free for the app and macOS. WhisperKit uses the compute path selected by WhisperKit/CoreML for the downloaded model variant. VibeVoice-ASR runs on Metal via ggml, using the GPU path that Parakeet leaves free.
 
 ---
 
@@ -184,6 +203,7 @@ public typealias STTClientProtocol = STTManaging
 public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case parakeet
     case whisper
+    case vibevoice
 }
 
 public struct SpeechEngineSelection: Codable, Equatable, Sendable {
@@ -223,7 +243,7 @@ struct TimestampedWord: Sendable {
 
 ADR-016 defines MacParakeet's STT architecture as:
 
-- **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown across Parakeet and optional WhisperKit
+- **One process-wide `STTRuntime` owner** for model lifecycle and warm-up/shutdown across Parakeet, WhisperKit, and VibeVoice
 - **Two STT execution slots by default**
   - an **interactive slot** reserved for `dictation`
   - a **background slot** shared by `meetingFinalize`, `meetingLiveChunk`, and `fileTranscription`
@@ -272,7 +292,7 @@ Backpressure and queueing rules:
 - Progress reporting must be fanned out per job, not broadcast globally from the raw runtime stream
 - Cancellation is checked before scheduler admission so fast user cancels do not race into successful transcriptions
 - Speaker diarization remains a separate service and is not part of the two-slot speech scheduler
-- Switching Parakeet/Whisper is rejected while jobs are queued/running or a meeting speech-engine lease is active
+- Switching engines (Parakeet/Whisper/VibeVoice) is rejected while jobs are queued/running or a meeting speech-engine lease is active
 
 ### Data Flow
 
@@ -351,6 +371,39 @@ swift run macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
 
 The normalized Whisper variant is stored without the leading `whisper-` prefix in preferences; model files live under `AppPaths.whisperModelsDir`.
 
+### VibeVoice Model Download
+
+The VibeVoice model is downloaded via Settings (Engine Models section) or CLI (`macparakeet-cli models download vibevoice-asr-q4-k`). The download is gated behind explicit user action — there is no auto-download during transcription, and there is no first-run onboarding step for VibeVoice (it remains an optional engine that users opt into).
+
+```bash
+swift run macparakeet-cli models download vibevoice-asr-q4-k
+```
+
+The download fetches two files (`vibevoice-asr-q4_k.gguf` ~9.7 GB + `tokenizer.gguf` ~5.6 MB) from `huggingface.co/mudler/vibevoice.cpp-models`, with SHA-256 verification and resumable HTTP. Models live under `~/Library/Application Support/MacParakeet/models/stt/vibevoice/`.
+
+### Per-Feature Engine Selection (Phase 2.2)
+
+`SpeechEnginePreferences` extends the persisted speech-engine configuration with per-feature overrides. The container holds:
+
+- `global: SpeechEnginePreference` — the default engine
+- `dictation: FeatureEngineSelection` — override for dictation jobs
+- `fileTranscription: FeatureEngineSelection` — override for file transcription jobs
+- `meetingRecording: FeatureEngineSelection` — override for meeting recording jobs
+
+Each per-feature override is either `.global` (follow the default) or `.specific(SpeechEnginePreference)` (override with this engine). The scheduler resolves the engine per job:
+
+```swift
+let prefs = SpeechEnginePreferences.current()
+let engine = prefs.engine(for: jobKind)  // .dictation / .fileTranscription / .meetingFinalize / .meetingLiveChunk
+```
+
+Two scheduler guardrails apply to VibeVoice specifically:
+
+1. **VibeVoice never claims the dictation slot.** Even if a user configures `dictation: .specific(.vibevoice)`, the job routes to the background slot. The reserved dictation slot is for sub-second-latency engines (Parakeet, Whisper).
+2. **Only one VibeVoice job at a time.** The C library uses a single global engine — concurrent calls would queue inside the engine actor anyway. The scheduler tracks VibeVoice in-flight explicitly so the background slot stays available for Parakeet/Whisper jobs.
+
+Migration from pre-Phase-2.2: existing users with a single `SpeechEnginePreference` in UserDefaults get migrated to `SpeechEnginePreferences(global: <old value>, dictation: .global, fileTranscription: .global, meetingRecording: .global)` — zero behavior change.
+
 ### First-Run Experience
 
 During onboarding:
@@ -377,6 +430,7 @@ This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 - Resume partial downloads where possible (HuggingFace supports range requests)
 - Verify model integrity after download where the provider exposes enough metadata
 - If the Whisper model is missing, keep Parakeet usable and direct the user to the explicit Whisper download action
+- If the VibeVoice model is missing, keep Parakeet usable and direct the user to the explicit VibeVoice download action
 
 ### CoreML Errors
 
@@ -409,7 +463,7 @@ This replaces the previous Python venv bootstrap (~500 MB deps + ~2.5 GB model).
 | Short dictation (5-10 seconds audio) | <100ms transcription |
 | Long file transcription | ~23 seconds per hour of audio |
 
-These figures are Parakeet/FluidAudio targets. WhisperKit exists for language coverage and should not be described as matching Parakeet latency.
+These figures are Parakeet/FluidAudio targets. WhisperKit and VibeVoice exist for language coverage and diarization respectively and should not be described as matching Parakeet latency.
 
 ### Speed Comparison
 
