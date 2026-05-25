@@ -1,0 +1,4 @@
+module CVibeVoice {
+    header "vibevoice_capi.h"
+    export *
+}
