@@ -29,6 +29,14 @@ final class VibeVoiceASRTests: XCTestCase {
         }
     }
 
+    /// Returns the bundled `tiny_ted.wav` fixture. 15 seconds of 24 kHz
+    /// mono PCM trimmed from the TED talk source.
+    ///
+    /// Why 15s and not shorter: VibeVoice's ASR encoder crashes inside
+    /// `compute_graph` for inputs below ~12s on M1-class GPUs (the
+    /// encoder shape isn't set up for very-short clips). 15s is the
+    /// minimum reliable test length; using less makes the integration
+    /// test crash rather than fail cleanly.
     private func fixtureURL() throws -> URL {
         let url = Bundle.module.url(forResource: "tiny_ted", withExtension: "wav")
         guard let url else {
@@ -46,7 +54,7 @@ final class VibeVoiceASRTests: XCTestCase {
         let segments = try await asr.transcribe(wavPath: audio)
         await asr.unload()
 
-        // The 5-second TED excerpt opens with "So in college, I was a
+        // The 15-second TED excerpt opens with "So in college, I was a
         // government major". We assert non-empty + at least one segment
         // mentions "college" — looser than asserting exact text since
         // quantized inference is non-deterministic at the token level.

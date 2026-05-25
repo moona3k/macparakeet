@@ -103,9 +103,21 @@ public actor VibeVoiceASR {
                 // or a real error code. The C ABI doesn't distinguish in the
                 // value itself; we differentiate by checking whether the
                 // negated value is plausibly a buffer size.
+                //
+                // Defensive: Int32.min negation overflows in debug builds (Swift
+                // traps signed-integer overflow). The C ABI's documented error
+                // codes don't go anywhere near Int32.min, but we guard anyway
+                // so a misbehaving library can't crash us with a debug trap.
+                guard written != Int32.min else {
+                    throw VibeVoiceASRError.transcribeFailed(code: written)
+                }
                 let requiredOrError = -Int(written)
+                // Small pad above the reported required size so a slightly
+                // larger response on retry doesn't immediately trigger another
+                // grow round-trip.
+                let bufferPad = 1024
                 if requiredOrError > bufferSize && requiredOrError < Self.maxBufferSize * 2 {
-                    bufferSize = min(requiredOrError + 1024, Self.maxBufferSize)
+                    bufferSize = min(requiredOrError + bufferPad, Self.maxBufferSize)
                     continue  // Grow and retry.
                 } else {
                     throw VibeVoiceASRError.transcribeFailed(code: written)
