@@ -666,6 +666,47 @@ final class ApplyTimingPostProcessingTests: XCTestCase {
         )
     }
 
+    // MARK: - Whisper apostrophe artifact
+
+    /// SRT (39) cue 310 came back as "Y 'all feel that?" — Whisper's
+    /// BPE tokenizer split `y'all` into two tokens with the apostrophe
+    /// leading the second one. The cleaner collapses the stray space.
+    func testCollapsesWhisperApostropheArtifacts() {
+        let cases: [(String, String)] = [
+            ("Y 'all feel that?", "Y'all feel that?"),
+            ("don 't worry about it", "don't worry about it"),
+            ("I 've got this", "I've got this"),
+            ("we 're ready to go", "we're ready to go"),
+            ("you 're doing great", "you're doing great"),
+            ("Let 's go.", "Let's go."),
+            ("I 'm ready", "I'm ready"),
+            ("It 'll be fine", "It'll be fine"),
+            ("you 'd think so", "you'd think so")
+        ]
+        for (input, expected) in cases {
+            XCTAssertEqual(
+                ExportService.collapseWhisperApostropheArtifacts(in: input),
+                expected,
+                "Failed to collapse: \(input)"
+            )
+        }
+    }
+
+    /// Genuine quoted speech must NOT collapse — the right-hand side
+    /// of the apostrophe is a real word, not a contraction suffix.
+    func testApostropheCollapseLeavesQuotedSpeechAlone() {
+        // "hello" / "world" / "quoted" — no suffix on the whitelist
+        // immediately follows the apostrophe, so the regex skips.
+        XCTAssertEqual(
+            ExportService.collapseWhisperApostropheArtifacts(in: "he said 'hello' loudly"),
+            "he said 'hello' loudly"
+        )
+        XCTAssertEqual(
+            ExportService.collapseWhisperApostropheArtifacts(in: "the 'quoted' text"),
+            "the 'quoted' text"
+        )
+    }
+
     func testMergesAcrossSmallGapEvenWhenThresholdIsZero() async {
         let service = ExportService()
         let llmCues: [ExportService.SubtitleCue] = [
