@@ -116,6 +116,14 @@ if [[ -d "$RESOURCE_BUNDLE" ]]; then
   rsync -a --delete "$RESOURCE_BUNDLE" "$RESOURCES_DIR/"
 fi
 
+# Copy app icon into the bundle.
+ICON_SRC="$ROOT_DIR/Assets/AppIcon.icns"
+if [[ -f "$ICON_SRC" ]]; then
+  RESOURCES_DIR="$APP_BUNDLE/Contents/Resources"
+  mkdir -p "$RESOURCES_DIR"
+  cp -f "$ICON_SRC" "$RESOURCES_DIR/AppIcon.icns"
+fi
+
 # Copy frameworks into the bundle so dyld loads only bundle-local paths.
 BUNDLE_FW_DIR="$APP_BUNDLE/Contents/Frameworks"
 rm -rf "$BUNDLE_FW_DIR"
@@ -156,6 +164,8 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <string>MacParakeet needs system audio recording access for meeting recording.</string>
     <key>NSCalendarsFullAccessUsageDescription</key>
     <string>MacParakeet reads your calendar so it can remind you before a meeting starts and (optionally) begin recording for you. Events stay on your Mac.</string>
+    <key>CFBundleIconFile</key>
+    <string>AppIcon</string>
 </dict>
 </plist>
 PLIST
