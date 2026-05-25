@@ -1,0 +1,105 @@
+{
+  "version": 1,
+  "updated": "2026-05-25",
+  "profiles": [
+    {
+      "patterns": ["gemma4", "gemma3:27b", "gemma3:12b", "gemma3:4b", "gemma3", "gemma-4", "gemma-3"],
+      "displayName": "Gemma",
+      "architectureHint": "gemma",
+      "promptHint": "explicitJSON",
+      "parserLeniency": "lenient",
+      "quirks": ["addsLineComments", "skipsWordIndices"],
+      "batchSizes": {"small": 3, "medium": 5, "large": 8, "unknown": 5}
+    },
+    {
+      "patterns": ["llama4", "llama3.3", "llama3.2", "llama3.1", "llama3", "llama-4", "llama-3", "meta-llama"],
+      "displayName": "Llama",
+      "architectureHint": "llama",
+      "promptHint": "standard",
+      "parserLeniency": "normal",
+      "quirks": [],
+      "batchSizes": {"small": 3, "medium": 7, "large": 10, "unknown": 5}
+    },
+    {
+      "patterns": ["mistral-large", "mistral-nemo", "mistral-small", "mixtral", "mistral"],
+      "displayName": "Mistral",
+      "architectureHint": "llama",
+      "promptHint": "standard",
+      "parserLeniency": "normal",
+      "quirks": [],
+      "batchSizes": {"small": 3, "medium": 7, "large": 10, "unknown": 5}
+    },
+    {
+      "patterns": ["deepseek-v4", "deepseek-v3", "deepseek-v2", "deepseek-r2", "deepseek-r1", "deepseek"],
+      "displayName": "DeepSeek",
+      "architectureHint": "deepseek",
+      "promptHint": "standard",
+      "parserLeniency": "normal",
+      "quirks": [],
+      "batchSizes": {"small": 3, "medium": 8, "large": 10, "unknown": 7}
+    },
+    {
+      "patterns": ["qwen3.5", "qwen3", "qwen2.5", "qwen2", "qwen"],
+      "displayName": "Qwen",
+      "architectureHint": "qwen2",
+      "promptHint": "standard",
+      "parserLeniency": "normal",
+      "quirks": [],
+      "batchSizes": {"small": 3, "medium": 7, "large": 10, "unknown": 5}
+    },
+    {
+      "patterns": ["phi4", "phi3.5", "phi3", "phi-4", "phi-3"],
+      "displayName": "Phi",
+      "architectureHint": "phi3",
+      "promptHint": "explicitJSON",
+      "parserLeniency": "normal",
+      "quirks": [],
+      "batchSizes": {"small": 3, "medium": 6, "large": 8, "unknown": 4}
+    },
+    {
+      "patterns": ["claude-haiku-4", "claude-haiku-3", "claude-haiku"],
+      "displayName": "Claude Haiku",
+      "architectureHint": null,
+      "promptHint": "standard",
+      "parserLeniency": "strict",
+      "quirks": [],
+      "batchSizes": {"small": 5, "medium": 10, "large": 10, "unknown": 8}
+    },
+    {
+      "patterns": ["claude-sonnet-4", "claude-sonnet-3", "claude-opus-4", "claude-opus-3", "claude-sonnet", "claude-opus"],
+      "displayName": "Claude Sonnet/Opus",
+      "architectureHint": null,
+      "promptHint": "standard",
+      "parserLeniency": "strict",
+      "quirks": [],
+      "batchSizes": {"small": 5, "medium": 10, "large": 10, "unknown": 10}
+    },
+    {
+      "patterns": ["gpt-5-nano", "gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"],
+      "displayName": "GPT Mini",
+      "architectureHint": null,
+      "promptHint": "standard",
+      "parserLeniency": "strict",
+      "quirks": [],
+      "batchSizes": {"small": 5, "medium": 10, "large": 10, "unknown": 8}
+    },
+    {
+      "patterns": ["gpt-5.4", "gpt-5.3", "gpt-5", "gpt-4.1", "gpt-4o", "gpt-4"],
+      "displayName": "GPT-4",
+      "architectureHint": null,
+      "promptHint": "standard",
+      "parserLeniency": "strict",
+      "quirks": [],
+      "batchSizes": {"small": 5, "medium": 10, "large": 10, "unknown": 10}
+    },
+    {
+      "patterns": ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-3-flash", "gemini-3.1", "gemini"],
+      "displayName": "Gemini",
+      "architectureHint": null,
+      "promptHint": "standard",
+      "parserLeniency": "normal",
+      "quirks": [],
+      "batchSizes": {"small": 3, "medium": 7, "large": 10, "unknown": 7}
+    }
+  ]
+}

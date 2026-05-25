@@ -316,6 +316,11 @@ public final class LLMSettingsViewModel {
 
     public var onConfigurationChanged: (() -> Void)?
 
+    /// The resolved model profile for the currently configured LLM.
+    /// Populated after a successful connection test or config save.
+    /// `nil` until the first fetch completes.
+    public private(set) var activeModelProfile: ModelProfile?
+
     private var configStore: LLMConfigStoreProtocol?
     private var llmClient: LLMClientProtocol?
     private var cliConfigStore: LocalCLIConfigStore?
@@ -382,6 +387,13 @@ public final class LLMSettingsViewModel {
 
             saveState = .saved
             onConfigurationChanged?()
+            let savedConfig = config
+            Task {
+                activeModelProfile = await ModelProfileService.shared.fetchProfile(
+                    modelName: savedConfig.modelName,
+                    providerConfig: savedConfig
+                )
+            }
         } catch {
             saveState = .error(error.localizedDescription)
         }
@@ -412,6 +424,11 @@ public final class LLMSettingsViewModel {
                 try await llmClient.testConnection(context: context)
                 guard draft == snapshot else { return }
                 connectionTestState = .success
+                let config = context.providerConfig
+                activeModelProfile = await ModelProfileService.shared.fetchProfile(
+                    modelName: config.modelName,
+                    providerConfig: config
+                )
             } catch {
                 guard draft == snapshot else { return }
                 connectionTestState = .error(error.localizedDescription)
@@ -576,6 +593,14 @@ public final class LLMSettingsViewModel {
         }
         connectionTestState = .idle
         saveState = .idle
+        // Warm up the profile cache for the already-saved config
+        let existingConfig = config
+        Task {
+            activeModelProfile = await ModelProfileService.shared.fetchProfile(
+                modelName: existingConfig.modelName,
+                providerConfig: existingConfig
+            )
+        }
     }
 
     private func buildConfig(from draft: LLMSettingsDraft) throws -> LLMProviderConfig? {

@@ -1427,7 +1427,8 @@ struct SettingsView: View {
     private var subtitleRefinementCard: some View {
         SubtitleRefinementCard(
             currentModelName: llmSettingsViewModel.effectiveModelName,
-            isLLMConfigured: llmSettingsViewModel.isConfigured
+            isLLMConfigured: llmSettingsViewModel.isConfigured,
+            activeProfile: llmSettingsViewModel.activeModelProfile
         )
     }
 
