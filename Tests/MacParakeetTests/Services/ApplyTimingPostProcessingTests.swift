@@ -694,4 +694,130 @@ final class ApplyTimingPostProcessingTests: XCTestCase {
             "Merged + normalized cue should read '82 85', got: \(out[0].text)"
         )
     }
+
+    // MARK: - forceAbsorbMicroCues (SRT 38 fragmentation regression)
+
+    /// SRT (38) cue 33 was "95." alone — duration 1 ms, sandwiched between
+    /// a 668 ms gap behind and a 3.4 s gap ahead. The standard merge
+    /// passes refused to touch it because both gaps exceed the 500 ms
+    /// floor. `forceAbsorbMicroCues` recognises it as a fragment and
+    /// merges it backward into the previous cue (its sentence tail).
+    func testMicroSentenceTailMergesBackwardAcrossLongGap() async {
+        let service = ExportService()
+        let llmCues: [ExportService.SubtitleCue] = [
+            ExportService.SubtitleCue(
+                startMs: 81715,
+                endMs: 83683,
+                text: "Go ahead and bring your cadence somewhere between 90 and",
+                speakerId: nil
+            ),
+            // The orphan — 1 ms duration, single word ending in `.`.
+            ExportService.SubtitleCue(
+                startMs: 84351,
+                endMs: 84352,
+                text: "95.",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 87754,
+                endMs: 90000,
+                text: "Now before we jump into it",
+                speakerId: nil
+            )
+        ]
+        let config = SubtitleExportConfig(
+            maxWordsPerCue: 12,
+            maxCharsPerLine: 65,
+            maxLinesPerCue: 2,
+            gapThresholdMs: 0,
+            normalizeNumbers: false
+        )
+        let out = service.applyTimingPostProcessingForTesting(llmCues, config: config)
+        XCTAssertEqual(out.count, 2, "Micro tail should be absorbed into prev cue, leaving 2 cues")
+        XCTAssertTrue(
+            out[0].text.contains("90 and 95."),
+            "Prev cue should now end with the absorbed tail; got: \(out[0].text)"
+        )
+    }
+
+    /// SRT (38) cue 29 was "I" alone (1 ms, 1 word) sitting between a
+    /// sentence-ending prev cue ("...arm intervals in.") and a forward
+    /// continuation ("think today biceps..."). Prev ends in strong
+    /// punctuation → "I" starts the next sentence → merge forward.
+    func testMicroSentenceStarterMergesForward() async {
+        let service = ExportService()
+        let llmCues: [ExportService.SubtitleCue] = [
+            ExportService.SubtitleCue(
+                startMs: 75175,
+                endMs: 75775,
+                text: "get some arm intervals in.",
+                speakerId: nil
+            ),
+            // The orphan — sentence-starter alone, 1 ms.
+            ExportService.SubtitleCue(
+                startMs: 76676,
+                endMs: 76677,
+                text: "I",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 77110,
+                endMs: 79512,
+                text: "think today biceps are gonna be the major focus",
+                speakerId: nil
+            )
+        ]
+        let config = SubtitleExportConfig(
+            maxWordsPerCue: 12,
+            maxCharsPerLine: 65,
+            maxLinesPerCue: 2,
+            gapThresholdMs: 0,
+            normalizeNumbers: false
+        )
+        let out = service.applyTimingPostProcessingForTesting(llmCues, config: config)
+        XCTAssertEqual(out.count, 2, "Sentence-starter orphan should fold into the forward cue")
+        XCTAssertTrue(
+            out[1].text.hasPrefix("I think today"),
+            "Forward cue should now start with the absorbed orphan; got: \(out[1].text)"
+        )
+    }
+
+    /// A genuine short sentence ("Yes.", "Beautiful.") with a healthy
+    /// duration is NOT a micro cue — it has real audio behind it and
+    /// the prompt explicitly allows it to stand alone. The pass must
+    /// leave it untouched.
+    func testGenuineShortSentenceWithHealthyDurationStaysAlone() async {
+        let service = ExportService()
+        let llmCues: [ExportService.SubtitleCue] = [
+            ExportService.SubtitleCue(
+                startMs: 10000,
+                endMs: 11500,
+                text: "Bring your cadence up.",
+                speakerId: nil
+            ),
+            // ~1.5 s duration — real speech, not a 1 ms artifact.
+            ExportService.SubtitleCue(
+                startMs: 12200,
+                endMs: 13700,
+                text: "Beautiful.",
+                speakerId: nil
+            ),
+            ExportService.SubtitleCue(
+                startMs: 14500,
+                endMs: 17000,
+                text: "Let's start to bring it down now.",
+                speakerId: nil
+            )
+        ]
+        let config = SubtitleExportConfig(
+            maxWordsPerCue: 12,
+            maxCharsPerLine: 65,
+            maxLinesPerCue: 2,
+            gapThresholdMs: 0,
+            normalizeNumbers: false
+        )
+        let out = service.applyTimingPostProcessingForTesting(llmCues, config: config)
+        XCTAssertEqual(out.count, 3, "Healthy-duration short sentences must not be absorbed")
+        XCTAssertEqual(out[1].text, "Beautiful.", "Standalone short sentence should still read as its own cue")
+    }
 }

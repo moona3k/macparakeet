@@ -64,8 +64,29 @@ final class SubtitleLLMLayoutPlannerTests: XCTestCase {
         XCTAssertNil(results[0].cues)
     }
 
-    func testCoverageGapFallsBack() async {
-        // Response covers words 0–1 then 4–5, skipping 2–3.
+    /// A *wide* coverage gap (4+ skipped indices) still falls back —
+    /// silently absorbing that many missing words into the previous
+    /// cue would be a worse error than a chunk fallback. Small (1–3
+    /// word) gaps now auto-repair upstream in `LayoutPlanParser`; see
+    /// `LayoutPlanParserTests.testOneIndexGapAutoCorrects` for that
+    /// path.
+    func testWideCoverageGapFallsBack() async {
+        // Response covers words 0 then 5–9, skipping 1–4 (gap of 4).
+        let ws = words(10)
+        let units = [unit(0, 9)]
+        let llm = ScriptedLLM(responses: [
+            #"{"cues":[{"start":0,"end":0},{"start":5,"end":9}]}"#
+        ])
+        let planner = SubtitleLLMLayoutPlanner(llmService: llm, chunkTargetWords: 100, maxConcurrency: 1)
+        let results = await planner.plan(words: ws, units: units, config: .default)
+        XCTAssertNil(results[0].cues)
+    }
+
+    /// Narrow gaps (≤ 3 skipped indices) are silently auto-repaired
+    /// by extending the previous cue. Verifies the end-to-end path
+    /// from planner → parser → cue list works after the fix.
+    func testNarrowCoverageGapAutoRepairs() async {
+        // Response covers words 0–1 then 4–5, skipping 2–3 (gap of 2).
         let ws = words(6)
         let units = [unit(0, 5)]
         let llm = ScriptedLLM(responses: [
@@ -73,7 +94,11 @@ final class SubtitleLLMLayoutPlannerTests: XCTestCase {
         ])
         let planner = SubtitleLLMLayoutPlanner(llmService: llm, chunkTargetWords: 100, maxConcurrency: 1)
         let results = await planner.plan(words: ws, units: units, config: .default)
-        XCTAssertNil(results[0].cues)
+        XCTAssertNotNil(results[0].cues, "Narrow gap should auto-repair, not fall back")
+        XCTAssertEqual(results[0].cues?.count, 2)
+        // First cue should now cover words 0–3 (auto-repair extended end).
+        XCTAssertEqual(results[0].cues?[0].text, "w0 w1 w2 w3")
+        XCTAssertEqual(results[0].cues?[1].text, "w4 w5")
     }
 
     // MARK: - Chunking
