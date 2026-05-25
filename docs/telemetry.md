@@ -314,10 +314,9 @@ events remain useful for diarization-specific timing and failure analysis.
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
 
-> Calendar automation is implemented and enabled (`AppFeatures.calendarEnabled
-> = true`) after the post-#318 reliability hardening, so these events now fire
-> from the real UI. Auto-start defaults to mode `.off`, so volume reflects only
-> users who opt in via onboarding or Settings.
+> `AppFeatures.calendarEnabled = false`, so these events are contract-ready and
+> instrumented in the hidden code but will not fire from the real UI until the
+> flag is enabled. Volume will be zero until then.
 
 | Event | Props | Question It Answers |
 |---|---|---|
