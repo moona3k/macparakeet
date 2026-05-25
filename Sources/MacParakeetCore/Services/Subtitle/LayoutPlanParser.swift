@@ -199,10 +199,12 @@ enum LayoutPlanParser {
 
     /// Walk the range list once and extend `prev.end` to cover any
     /// missing indices between it and the next cue's start (LLM
-    /// dropped one or two word indices when emitting JSON). Bounded
-    /// to a maximum 3-word gap repair so a wildly broken response —
-    /// e.g. `{end:0},{start:50}` — still falls back to the
-    /// deterministic builder instead of mashing 49 words into one cue.
+    /// dropped one or two word indices when emitting JSON). Bounded by
+    /// `maxGapToRepair` so a wildly broken response — e.g.
+    /// `{end:0},{start:50}` — still falls back to the deterministic
+    /// builder instead of mashing 49 words into one cue. Default 3;
+    /// profile-driven `.lenient` raises this to 5 for Gemma 4-class
+    /// models that occasionally drop a small run of indices.
     private static func autoCorrectGaps(_ ranges: [CueRange], maxGapToRepair: Int) -> [CueRange] {
         guard ranges.count > 1 else { return ranges }
         // Cap the repair distance so wide gaps still fall through to

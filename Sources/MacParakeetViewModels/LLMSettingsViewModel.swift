@@ -388,11 +388,14 @@ public final class LLMSettingsViewModel {
             saveState = .saved
             onConfigurationChanged?()
             let savedConfig = config
+            let snapshot = draft
             Task {
-                activeModelProfile = await ModelProfileService.shared.fetchProfile(
+                let profile = await ModelProfileService.shared.fetchProfile(
                     modelName: savedConfig.modelName,
                     providerConfig: savedConfig
                 )
+                guard draft == snapshot else { return }
+                activeModelProfile = profile
             }
         } catch {
             saveState = .error(error.localizedDescription)
@@ -425,10 +428,12 @@ public final class LLMSettingsViewModel {
                 guard draft == snapshot else { return }
                 connectionTestState = .success
                 let config = context.providerConfig
-                activeModelProfile = await ModelProfileService.shared.fetchProfile(
+                let profile = await ModelProfileService.shared.fetchProfile(
                     modelName: config.modelName,
                     providerConfig: config
                 )
+                guard draft == snapshot else { return }
+                activeModelProfile = profile
             } catch {
                 guard draft == snapshot else { return }
                 connectionTestState = .error(error.localizedDescription)
@@ -593,13 +598,18 @@ public final class LLMSettingsViewModel {
         }
         connectionTestState = .idle
         saveState = .idle
-        // Warm up the profile cache for the already-saved config
+        // Warm up the profile cache for the already-saved config. Snapshot
+        // the draft we just hydrated so a fast provider-switch by the user
+        // doesn't let a stale profile fetch overwrite the new state.
         let existingConfig = config
+        let snapshot = draft
         Task {
-            activeModelProfile = await ModelProfileService.shared.fetchProfile(
+            let profile = await ModelProfileService.shared.fetchProfile(
                 modelName: existingConfig.modelName,
                 providerConfig: existingConfig
             )
+            guard draft == snapshot else { return }
+            activeModelProfile = profile
         }
     }
 

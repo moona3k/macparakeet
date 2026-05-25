@@ -120,12 +120,12 @@ public struct ModelProfile: Sendable, Equatable {
 
 // MARK: - Remote catalog types (shared by service + disk cache)
 
-public struct RemoteProfileCatalog: Codable, Sendable {
+public struct RemoteProfileCatalog: Codable, Sendable, Equatable {
     public let version: Int
     public let updated: String?
     public let profiles: [RemoteProfile]
 
-    public struct RemoteProfile: Codable, Sendable {
+    public struct RemoteProfile: Codable, Sendable, Equatable {
         public let patterns: [String]
         public let displayName: String
         public let architectureHint: String?
@@ -153,7 +153,12 @@ struct OllamaModelMetadata: Sendable {
         let details = json["details"] as? [String: Any]
         let modelInfo = json["model_info"] as? [String: Any]
 
-        architecture = (details?["family"] as? String)?.lowercased()
+        // Prefer the canonical key from model_info — details.family
+        // happens to match for the common architectures (gemma3, llama,
+        // qwen2) but is not guaranteed for custom Modelfiles.
+        let archFromModelInfo = modelInfo?["general.architecture"] as? String
+        let archFromDetails = details?["family"] as? String
+        architecture = (archFromModelInfo ?? archFromDetails)?.lowercased()
         quantization = details?["quantization_level"] as? String
 
         if let raw = modelInfo?["general.parameter_count"] {

@@ -40,7 +40,10 @@ public actor ModelProfileService {
         await refreshCatalogIfNeeded()
 
         var ollamaMeta: OllamaModelMetadata?
-        if providerConfig.id == .ollama || providerConfig.id == .lmstudio {
+        // Only Ollama exposes /api/show. LM Studio is OpenAI-compatible only —
+        // hitting /api/show against it just produces a 404 + log line every
+        // test-connection.
+        if providerConfig.id == .ollama {
             ollamaMeta = await fetchOllamaMetadata(modelName: modelName, baseURL: providerConfig.baseURL)
         }
 
@@ -89,10 +92,15 @@ public actor ModelProfileService {
     // MARK: - Ollama /api/show
 
     private func fetchOllamaMetadata(modelName: String, baseURL: URL) async -> OllamaModelMetadata? {
-        // /api/show lives at the Ollama server root, not under /v1
-        let base = baseURL.absoluteString
-        let serverRoot = base.hasSuffix("/v1") ? String(base.dropLast(3)) : base
-        guard let url = URL(string: serverRoot + "/api/show") else { return nil }
+        // /api/show lives at the Ollama server root, not under /v1. Build via
+        // URLComponents so a trailing slash or trailing /v1/ on the user's
+        // base URL doesn't produce a double-slash like ".../v1//api/show".
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        components.path = "/api/show"
+        components.query = nil
+        guard let url = components.url else { return nil }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -145,13 +153,10 @@ public actor ModelProfileService {
             }
         }
 
-        let displayName: String
-        let baseName = match?.displayName ?? modelName.components(separatedBy: ":").first ?? modelName
-        if let sizeStr = meta.flatMap({ OllamaModelMetadata.parameterSizeString(from: $0.parameterCount) }) {
-            displayName = "\(baseName) (\(sizeStr))"
-        } else {
-            displayName = baseName
-        }
+        // Bare base name only — `ModelProfile.badge` composes the size
+        // suffix from `parameterCount`. Composing it here too produced
+        // "Llama (8B) (8B)" in the Settings card.
+        let displayName = match?.displayName ?? modelName.components(separatedBy: ":").first ?? modelName
 
         return ModelProfile(
             displayName: displayName,
