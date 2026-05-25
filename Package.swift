@@ -40,7 +40,8 @@ let package = Package(
         .executable(name: "MacParakeet", targets: ["MacParakeet"]),
         .executable(name: "macparakeet-cli", targets: ["CLI"]),
         .library(name: "MacParakeetCore", targets: ["MacParakeetCore"]),
-        .library(name: "MacParakeetViewModels", targets: ["MacParakeetViewModels"])
+        .library(name: "MacParakeetViewModels", targets: ["MacParakeetViewModels"]),
+        .library(name: "VibeVoiceCore", targets: ["VibeVoiceCore"]),
     ],
     dependencies: packageDependencies,
     targets: [
@@ -76,15 +77,15 @@ let package = Package(
             path: "Sources/MacParakeetObjCShims",
             publicHeadersPath: "include"
         ),
-        // VibeVoiceCore — C-interop layer for the vibevoice.cpp ASR engine.
-        //
-        // The actual C++ library is built externally via the canonical
-        // `localai-org/vibevoice.cpp` CMake build (see scripts/dev/build_vibevoice.sh
-        // in a future task). At build time, this target only needs the header
-        // and a stub `.c` to keep SPM happy; the Swift target above is what
-        // actually links against the prebuilt static library.
+        // CVibeVoice — exposes the vendored vibevoice_capi.h to Swift via a
+        // module map. Contains only the module map + a stub .c; the real
+        // library is built externally from vibevoice-spike/vibevoice.cpp/
+        // (see docs/superpowers/plans/2026-05-25-vibevoice-swift-wrapper.md
+        // for the integration plan and spike findings). The Swift sibling
+        // target below links against the prebuilt static library via
+        // linkerSettings.
         .target(
-            name: "VibeVoiceCore",
+            name: "CVibeVoice",
             path: "Sources/VibeVoiceCore",
             exclude: [
                 "DiarizedSegment.swift",
@@ -92,6 +93,36 @@ let package = Package(
                 "VibeVoiceASR.swift",
             ],
             publicHeadersPath: "include"
+        ),
+
+        // VibeVoiceCore — Swift wrapper around the vibevoice.cpp C ABI.
+        // Depends on CVibeVoice for the FFI surface; links against the
+        // prebuilt libvibevoice.a + libggml*.dylib from the spike build.
+        .target(
+            name: "VibeVoiceCore",
+            dependencies: ["CVibeVoice"],
+            path: "Sources/VibeVoiceCore",
+            exclude: [
+                "include",
+                "CVibeVoiceShim.c",
+            ],
+            // TEMPORARY (Phase 2.1): hard-coded paths to the spike build
+            // output on the developer's local machine. These will be replaced
+            // in Phase 2.5 with a build script (scripts/dev/build_vibevoice.sh)
+            // and a sensible default install location. Do not assume these
+            // paths exist on other machines.
+            linkerSettings: [
+                .unsafeFlags([
+                    "-L", "/Users/Justin/Documents/Codex/2026-05-14/id-like-to-make-a-copy/vibevoice-spike/vibevoice.cpp/build",
+                    "-L", "/Users/Justin/Documents/Codex/2026-05-14/id-like-to-make-a-copy/vibevoice-spike/vibevoice.cpp/build/third_party/ggml/src",
+                    "-lvibevoice",
+                    "-lggml", "-lggml-base", "-lggml-cpu",
+                    "-framework", "Metal",
+                    "-framework", "MetalKit",
+                    "-framework", "Foundation",
+                    "-framework", "Accelerate",
+                ]),
+            ]
         ),
         // Shared core library (no UI dependencies)
         .target(
