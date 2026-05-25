@@ -134,7 +134,7 @@ let package = Package(
         // Shared core library (no UI dependencies)
         .target(
             name: "MacParakeetCore",
-            dependencies: coreDependencies,
+            dependencies: coreDependencies + ["VibeVoiceCore"],
             path: "Sources/MacParakeetCore",
             exclude: [
                 "Audio/README.md",
