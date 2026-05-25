@@ -274,6 +274,94 @@ public final class SettingsViewModel {
             applySpeechEngineChange(speechEnginePreference)
         }
     }
+
+    /// Phase 2.2 per-feature engine preferences. Replaces the legacy single
+    /// `speechEnginePreference` going forward; the legacy property is kept
+    /// in shadow mode so existing UI continues to work until Task 14
+    /// replaces the engine picker.
+    public var speechEnginePreferences: SpeechEnginePreferences {
+        didSet {
+            guard !isApplyingSpeechEnginePreferences else { return }
+            speechEnginePreferences.save(to: defaults)
+            // Mirror the global into the legacy single property so any
+            // existing reader (UI, scheduler fallback) keeps working.
+            if speechEnginePreference != speechEnginePreferences.global {
+                isApplyingSpeechEnginePreferences = true
+                speechEnginePreference = speechEnginePreferences.global
+                isApplyingSpeechEnginePreferences = false
+            }
+        }
+    }
+
+    private var isApplyingSpeechEnginePreferences = false
+
+    // Convenience getters/setters that funnel through `speechEnginePreferences`
+    // for the four-picker SwiftUI card (Task 13). Splitting them out keeps the
+    // view's @Bindable usage clean.
+    public var globalEngine: SpeechEnginePreference {
+        get { speechEnginePreferences.global }
+        set { speechEnginePreferences.global = newValue }
+    }
+    public var dictationEngineSelection: FeatureEngineSelection {
+        get { speechEnginePreferences.dictation }
+        set { speechEnginePreferences.dictation = newValue }
+    }
+    public var fileTranscriptionEngineSelection: FeatureEngineSelection {
+        get { speechEnginePreferences.fileTranscription }
+        set { speechEnginePreferences.fileTranscription = newValue }
+    }
+    public var meetingRecordingEngineSelection: FeatureEngineSelection {
+        get { speechEnginePreferences.meetingRecording }
+        set { speechEnginePreferences.meetingRecording = newValue }
+    }
+
+    // MARK: - VibeVoice model download
+
+    @ObservationIgnored
+    private var vibevoiceDownloader: VibeVoiceModelDownloader?
+
+    /// True when both VibeVoice model files exist on disk. Computed each access
+    /// (cheap — two FileManager.fileExists calls).
+    public var isVibeVoiceModelInstalled: Bool {
+        VibeVoiceModelDownloader.areModelsInstalled()
+    }
+
+    /// 0.0-1.0 during an active download; nil when no download is in progress.
+    /// Bound by the SettingsView download UI in Task 13.
+    public var vibevoiceDownloadProgress: Double? = nil
+
+    /// Starts a VibeVoice download. Idempotent — if a download is already in
+    /// progress, this is a no-op.
+    public func startVibeVoiceDownload() {
+        guard vibevoiceDownloader == nil else { return }
+        let downloader = VibeVoiceModelDownloader()
+        vibevoiceDownloader = downloader
+        vibevoiceDownloadProgress = 0
+        Task {
+            do {
+                try await downloader.downloadAll { @Sendable [weak self] done, total in
+                    Task { @MainActor in
+                        self?.vibevoiceDownloadProgress = total > 0 ? Double(done) / Double(total) : 0
+                    }
+                }
+                await MainActor.run {
+                    self.vibevoiceDownloadProgress = nil
+                    self.vibevoiceDownloader = nil
+                }
+            } catch {
+                await MainActor.run {
+                    self.vibevoiceDownloadProgress = nil
+                    self.vibevoiceDownloader = nil
+                }
+            }
+        }
+    }
+
+    /// Cancels an in-flight VibeVoice download. No-op if none is active.
+    public func cancelVibeVoiceDownload() {
+        Task { await vibevoiceDownloader?.cancel() }
+    }
+
     public var whisperDefaultLanguage: String {
         didSet {
             SpeechEnginePreference.saveWhisperDefaultLanguage(whisperDefaultLanguage, defaults: defaults)
@@ -580,6 +668,9 @@ public final class SettingsViewModel {
         saveTranscriptionAudio = defaults.object(forKey: UserDefaultsAppRuntimePreferences.saveTranscriptionAudioKey) as? Bool ?? true
         youtubeAudioQuality = YouTubeAudioQuality.current(defaults: defaults)
         speakerDiarization = defaults.object(forKey: UserDefaultsAppRuntimePreferences.speakerDiarizationKey) as? Bool ?? false
+        // Load preferences using the new container; the container's `current`
+        // migrates from the legacy key if no new-key blob is present yet.
+        speechEnginePreferences = SpeechEnginePreferences.current(defaults: defaults)
         speechEnginePreference = SpeechEnginePreference.current(defaults: defaults)
         whisperDefaultLanguage = SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults) ?? "auto"
         whisperTuning = SpeechEnginePreference.whisperTuning(defaults: defaults)
