@@ -736,6 +736,14 @@ struct SettingsView: View {
                         .frame(width: 140)
                     }
                 }
+
+                Divider()
+
+                settingsToggleRow(
+                    title: "Copy dictation to clipboard",
+                    detail: "After each dictation, leave the transcript on the clipboard so you can paste it again with ⌘V.",
+                    isOn: $viewModel.autoCopyDictationToClipboard
+                )
             }
         }
     }

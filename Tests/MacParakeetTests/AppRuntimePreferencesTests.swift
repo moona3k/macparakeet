@@ -25,6 +25,20 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.hasCompletedFirstDictation)
     }
 
+    func testAutoCopyDictationToClipboardDefaultsToFalse() {
+        let preferences = makePreferences()
+        XCTAssertFalse(preferences.shouldAutoCopyDictationToClipboard)
+    }
+
+    func testAutoCopyDictationToClipboardReadsStoredValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.set(true, forKey: UserDefaultsAppRuntimePreferences.autoCopyDictationToClipboardKey)
+
+        let preferences = UserDefaultsAppRuntimePreferences(defaults: defaults)
+        XCTAssertTrue(preferences.shouldAutoCopyDictationToClipboard)
+    }
+
     func testFirstDictationFlagPersistsAcrossInstances() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

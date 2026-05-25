@@ -136,6 +136,15 @@ public final class SettingsViewModel {
     public var silenceDelay: Double {
         didSet { defaults.set(silenceDelay, forKey: UserDefaultsAppRuntimePreferences.silenceDelayKey) }
     }
+    public var autoCopyDictationToClipboard: Bool {
+        didSet {
+            defaults.set(
+                autoCopyDictationToClipboard,
+                forKey: UserDefaultsAppRuntimePreferences.autoCopyDictationToClipboardKey
+            )
+            Telemetry.send(.settingChanged(setting: .autoCopyDictationToClipboard))
+        }
+    }
     public var selectedMicrophoneDeviceUID: String {
         didSet {
             let normalized = Self.normalizedMicrophoneSelection(selectedMicrophoneDeviceUID)
@@ -509,6 +518,9 @@ public final class SettingsViewModel {
         silenceAutoStop = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.silenceAutoStopKey)
         let delay = defaults.double(forKey: UserDefaultsAppRuntimePreferences.silenceDelayKey)
         silenceDelay = delay == 0 ? 2.0 : delay
+        autoCopyDictationToClipboard = defaults.bool(
+            forKey: UserDefaultsAppRuntimePreferences.autoCopyDictationToClipboardKey
+        )
         selectedMicrophoneDeviceUID = Self.normalizedMicrophoneSelection(
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )

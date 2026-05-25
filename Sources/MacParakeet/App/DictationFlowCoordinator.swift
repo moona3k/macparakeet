@@ -572,6 +572,18 @@ final class DictationFlowCoordinator {
                     }
                     guard !Task.isCancelled else { return }
 
+                    // Opt-in (Settings → Dictation → "Copy dictation to clipboard").
+                    // `pasteText` schedules a clipboard restore so the user's previous
+                    // clipboard returns after the paste lands. When the user explicitly
+                    // wants the transcript to stay on the clipboard, overwrite it: a
+                    // second write here cancels the pending restore inside
+                    // `ClipboardService` and leaves the transcript as the final value.
+                    // The transcript is the canonical text (no trailing space).
+                    if self.runtimePreferences.shouldAutoCopyDictationToClipboard,
+                       !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        await self.clipboardService.copyToClipboard(transcript)
+                    }
+
                     // Save pastedToApp metadata
                     if let pastedToApp = pastedToAppAtDispatch {
                         self.currentDictation?.pastedToApp = pastedToApp

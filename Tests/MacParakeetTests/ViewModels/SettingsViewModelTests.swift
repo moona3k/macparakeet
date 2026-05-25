@@ -133,6 +133,10 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.silenceAutoStop, "silenceAutoStop should default to false")
         XCTAssertEqual(viewModel.silenceDelay, 2.0, "silenceDelay should default to 2.0")
         XCTAssertFalse(viewModel.pauseMediaDuringDictation, "pauseMediaDuringDictation should default to false")
+        XCTAssertFalse(
+            viewModel.autoCopyDictationToClipboard,
+            "autoCopyDictationToClipboard should default to false (opt-in)"
+        )
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
         XCTAssertEqual(viewModel.youtubeAudioQuality, .m4a, "youtubeAudioQuality should default to Apple-friendly saved audio")
@@ -153,6 +157,7 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaults.set(false, forKey: "showIdlePill")
         testDefaults.set(true, forKey: "silenceAutoStop")
         testDefaults.set(3.0, forKey: "silenceDelay")
+        testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.autoCopyDictationToClipboardKey)
         testDefaults.set(false, forKey: "saveAudioRecordings")
         testDefaults.set(false, forKey: "saveTranscriptionAudio")
         testDefaults.set(
@@ -176,6 +181,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm.showIdlePill)
         XCTAssertTrue(vm.silenceAutoStop)
         XCTAssertEqual(vm.silenceDelay, 3.0)
+        XCTAssertTrue(vm.autoCopyDictationToClipboard)
         XCTAssertFalse(vm.saveAudioRecordings)
         XCTAssertFalse(vm.saveTranscriptionAudio)
         XCTAssertEqual(vm.youtubeAudioQuality, .bestAvailable)
@@ -471,6 +477,12 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.silenceDelay = 5.0
 
         XCTAssertEqual(testDefaults.double(forKey: "silenceDelay"), 5.0)
+    }
+
+    func testSettingAutoCopyDictationToClipboardPersists() {
+        viewModel.autoCopyDictationToClipboard = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.autoCopyDictationToClipboardKey))
     }
 
     func testSettingSaveAudioRecordingsPersists() {
