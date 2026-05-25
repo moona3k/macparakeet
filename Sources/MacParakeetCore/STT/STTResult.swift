@@ -46,11 +46,15 @@ public struct STTSegment: Sendable, Codable, Equatable {
     public let startMs: Int
     public let endMs: Int
     public let text: String
+    /// Speaker label when the engine performs diarization natively (VibeVoice).
+    /// `nil` for engines that don't provide this (Whisper, Parakeet).
+    public let speakerId: Int?
 
-    public init(startMs: Int, endMs: Int, text: String) {
+    public init(startMs: Int, endMs: Int, text: String, speakerId: Int? = nil) {
         self.startMs = startMs
         self.endMs = endMs
         self.text = text
+        self.speakerId = speakerId
     }
 }
 
