@@ -257,6 +257,29 @@ final class TranscribeCommandTests: XCTestCase {
         XCTAssertTrue((object["error"] as? String)?.contains("File not found") == true)
     }
 
+    // MARK: - Phase 2.2 — VibeVoice engine flag
+
+    func testAcceptsVibevoiceEngineFlag() throws {
+        // Parse-only test: the parser accepts `--engine vibevoice` without error
+        // and the parsed engine resolves to the new TranscribeSpeechEngine case.
+        let cmd = try TranscribeCommand.parse(["--engine", "vibevoice", "/tmp/foo.wav"])
+        XCTAssertEqual(cmd.engine, .vibevoice)
+    }
+
+    func testRejectsUnknownEngine() {
+        XCTAssertThrowsError(try TranscribeCommand.parse(["--engine", "bogus", "/tmp/foo.wav"]))
+    }
+
+    func testLanguageFlagWithVibeVoiceParsesWithoutError() throws {
+        // VibeVoice doesn't accept language hints, but the CLI should still
+        // parse the combination without error (it warns at run time, not parse
+        // time). We can't easily test the stderr warning in unit tests; this
+        // verifies the parser doesn't crash on the combination.
+        let cmd = try TranscribeCommand.parse(["--engine", "vibevoice", "--language", "ja", "/tmp/foo.wav"])
+        XCTAssertEqual(cmd.engine, .vibevoice)
+        XCTAssertEqual(cmd.language, "ja")
+    }
+
     private func temporaryDatabaseURL() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("macparakeet-cli-\(UUID().uuidString).db")

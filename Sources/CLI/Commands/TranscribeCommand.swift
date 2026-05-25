@@ -31,6 +31,7 @@ enum TranscribeSpeechEngine: String, ExpressibleByArgument, CaseIterable, Sendab
     case appDefault = "app-default"
     case parakeet
     case whisper
+    case vibevoice
 }
 
 enum SpeakerDetectionOption: String, ExpressibleByArgument, CaseIterable, Sendable {
@@ -64,7 +65,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
     @Option(help: "Processing mode: raw, clean, app-default.")
     var mode: TranscribeMode = .appDefault
 
-    @Option(help: "Speech engine: app-default, parakeet, whisper. Default: parakeet; app-default follows the saved GUI preference.")
+    @Option(help: "Speech engine: app-default, parakeet, whisper, vibevoice. Default: parakeet; app-default follows the saved GUI preference.")
     var engine: TranscribeSpeechEngine = .parakeet
 
     @Option(help: "Language hint for Whisper, as a Whisper code such as ko or en. Parakeet ignores this flag.")
@@ -153,6 +154,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
         case .whisper:
             preference = .whisper
             language = explicitLanguage
+        case .vibevoice:
+            preference = .vibevoice
+            language = nil
         }
         return SpeechEngineSelection(engine: preference, language: language)
     }
@@ -237,8 +241,13 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 whisperEngine = createdWhisperEngine
                 sttTranscriber = createdWhisperEngine
             case .vibevoice:
-                // TODO(Phase 2.2): wire up VibeVoice CLI path in Task 8
-                throw ValidationError("VibeVoice engine is not yet available in this build.")
+                // VibeVoice auto-detects language; --language is meaningless for it.
+                // Warn to stderr if the user passed one, then proceed.
+                if let language = self.language, !language.isEmpty {
+                    printErr("warning: --language is ignored when --engine vibevoice (auto-detected internally)")
+                }
+                let createdVibeVoiceEngine = VibeVoiceEngine()
+                sttTranscriber = createdVibeVoiceEngine
             }
             let audioProcessor = AudioProcessor()
             let youtubeDownloader = YouTubeDownloader(audioQuality: {

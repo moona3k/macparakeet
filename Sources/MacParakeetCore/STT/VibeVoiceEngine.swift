@@ -14,7 +14,7 @@ import VibeVoiceCore
 ///    doesn't expose words via its C ABI).
 /// 3. `unload()` — frees the underlying engine. Optional; process exit
 ///    also frees it.
-public actor VibeVoiceEngine {
+public actor VibeVoiceEngine: STTTranscribing {
     private let asr: VibeVoiceASR
     private let modelDirectory: URL
     private var isLoaded = false
@@ -44,7 +44,18 @@ public actor VibeVoiceEngine {
         isLoaded = true
     }
 
-    public func transcribe(audioPath: String, job: STTJobKind) async throws -> STTResult {
+    /// Transcribes an audio file. Conforms to `STTTranscribing` so this engine
+    /// can be used by the CLI's standalone engine path the same way Whisper is.
+    ///
+    /// `onProgress` is accepted for protocol conformance but never called —
+    /// VibeVoice's underlying C ABI doesn't expose intermediate progress; the
+    /// inference is an opaque load + run. Use the `STTRuntime.observeWarmUpProgress()`
+    /// stream for visibility into the load step instead.
+    public func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)? = nil
+    ) async throws -> STTResult {
         if !isLoaded { try await warmUp() }
 
         // VibeVoice requires 24 kHz mono WAV. If the input is something
