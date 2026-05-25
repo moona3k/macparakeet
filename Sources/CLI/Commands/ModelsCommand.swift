@@ -129,10 +129,18 @@ extension ModelsCommand {
             abstract: "Download a local speech model without starting a transcription."
         )
 
-        @Argument(help: "Model identifier. Use whisper-large-v3-v20240930-turbo-632MB for Whisper.")
+        @Argument(help: "Model identifier. Use whisper-large-v3-v20240930-turbo-632MB for Whisper, vibevoice-asr-q4-k for VibeVoice.")
         var variant: String
 
         func run() async throws {
+            let normalized = variant.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if normalized == "vibevoice-asr-q4-k" || normalized == "vibevoice" {
+                try await downloadVibeVoice()
+                return
+            }
+
+            // Whisper path (existing behavior)
             let model = try resolveWhisperDownloadModel(variant)
             print("Whisper: downloading \(model)...")
             let lastPercent = OSAllocatedUnfairLock(initialState: -1)
@@ -149,6 +157,30 @@ extension ModelsCommand {
                 }
             }
             print("Whisper: ready at \(modelURL.path)")
+        }
+
+        private func downloadVibeVoice() async throws {
+            let dir = VibeVoiceModelDownloader.defaultModelDirectory()
+            if VibeVoiceModelDownloader.areModelsInstalled(at: dir) {
+                print("VibeVoice: already installed at \(dir.path)")
+                return
+            }
+            print("VibeVoice: downloading ~10 GB to \(dir.path)...")
+            let downloader = VibeVoiceModelDownloader()
+            let lastPercent = OSAllocatedUnfairLock(initialState: -1)
+            try await downloader.downloadAll(to: dir) { done, total in
+                let percent = total > 0 ? Int((Double(done) / Double(total) * 100).rounded()) : 0
+                let clamped = min(max(percent, 0), 100)
+                let shouldPrint = lastPercent.withLock { last in
+                    guard last != clamped else { return false }
+                    last = clamped
+                    return true
+                }
+                if shouldPrint {
+                    print("VibeVoice: downloading \(clamped)%")
+                }
+            }
+            print("VibeVoice: ready at \(dir.path)")
         }
     }
 

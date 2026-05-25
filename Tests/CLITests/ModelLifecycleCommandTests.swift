@@ -311,6 +311,23 @@ final class ModelLifecycleCommandTests: XCTestCase {
         )
     }
 
+    // MARK: - Phase 2.2 — VibeVoice download
+
+    func testDownloadParsesVibeVoiceIdentifier() throws {
+        let cmd = try ModelsCommand.Download.parse(["vibevoice-asr-q4-k"])
+        XCTAssertEqual(cmd.variant, "vibevoice-asr-q4-k")
+    }
+
+    func testDownloadParsesVibeVoiceShortIdentifier() throws {
+        let cmd = try ModelsCommand.Download.parse(["vibevoice"])
+        XCTAssertEqual(cmd.variant, "vibevoice")
+    }
+
+    func testDownloadParsesWhisperVariantUnchanged() throws {
+        let cmd = try ModelsCommand.Download.parse(["whisper-large-v3-v20240930-turbo-632MB"])
+        XCTAssertEqual(cmd.variant, "whisper-large-v3-v20240930-turbo-632MB")
+    }
+
     func testLoadAudioInputDiagnosticsUsesInjectedDefaultsAndProviders() {
         let suiteName = "com.macparakeet.tests.cli.audio.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
