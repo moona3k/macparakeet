@@ -28,8 +28,12 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
         let enqueueOrder: UInt64
         let onProgress: (@Sendable (Int, Int) -> Void)?
 
-        var slot: SchedulerSlot {
-            SchedulerSlot(job: job)
+        var slot: Slot {
+            // When the engine is already resolved (explicit-engine path), use it
+            // to decide the slot. When nil (no-engine path), default to parakeet
+            // so dictation keeps the interactive slot until preferences are read.
+            let engine = speechEngine?.engine ?? .parakeet
+            return STTScheduler.preferredSlot(for: job, engine: engine)
         }
     }
 
@@ -47,13 +51,17 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
 
     private var enqueueCounter: UInt64 = 0
     private var continuations: [UUID: CheckedContinuation<STTResult, Error>] = [:]
-    private var slotStates: [SchedulerSlot: SlotState] = Dictionary(
-        uniqueKeysWithValues: SchedulerSlot.allCases.map { ($0, SlotState()) }
+    private var slotStates: [Slot: SlotState] = Dictionary(
+        uniqueKeysWithValues: Slot.allCases.map { ($0, SlotState()) }
     )
     private var cancelledJobIDs: Set<UUID> = []
     private var acceptsNewJobs = true
     private var activeSpeechEngineSessionIDs: Set<UUID> = []
     private var speechEngineSwitchTask: Task<Void, Error>?
+    // Single-flight guard for VibeVoice: the C library has one global engine,
+    // so only one job runs at a time. The actor serializes access, making the
+    // flag safe without additional locking.
+    private var vibevoiceInFlight = false
 
     /// - Parameter meetingLiveChunkBacklogLimit: Maximum pending live-preview chunks before the
     ///   oldest is dropped. 120 ≈ 4 minutes of dual-source 5-second chunks emitted every ~4
@@ -88,27 +96,18 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
         job: STTJobKind,
         onProgress: (@Sendable (Int, Int) -> Void)? = nil
     ) async throws -> STTResult {
-        let id = UUID()
-        try Task.checkCancellation()
-        return try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                enqueue(
-                    ScheduledJob(
-                        id: id,
-                        audioPath: audioPath,
-                        job: job,
-                        speechEngine: nil,
-                        enqueueOrder: nextEnqueueOrder(),
-                        onProgress: onProgress
-                    ),
-                    continuation: continuation
-                )
-            }
-        } onCancel: {
-            Task { [weak self] in
-                await self?.cancel(jobID: id)
-            }
-        }
+        // Resolve the engine per job from the current preferences. This means a
+        // call like `scheduler.transcribe(audioPath:job:)` honours per-feature
+        // overrides (e.g. dictation pinned to Parakeet even if global = Whisper).
+        let prefs = SpeechEnginePreferences.current()
+        let resolvedEngine = prefs.engine(for: job)
+        let selection = SpeechEngineSelection(engine: resolvedEngine, language: nil)
+        return try await transcribe(
+            audioPath: audioPath,
+            job: job,
+            speechEngine: selection,
+            onProgress: onProgress
+        )
     }
 
     public func transcribe(
@@ -277,11 +276,11 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
         return enqueueCounter
     }
 
-    private func slotState(for slot: SchedulerSlot) -> SlotState {
+    private func slotState(for slot: Slot) -> SlotState {
         slotStates[slot, default: SlotState()]
     }
 
-    private func setSlotState(_ slotState: SlotState, for slot: SchedulerSlot) {
+    private func setSlotState(_ slotState: SlotState, for slot: Slot) {
         slotStates[slot] = slotState
     }
 
@@ -309,7 +308,7 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
         return slotState.pendingJobs.remove(at: index)
     }
 
-    private func startNextJobIfNeeded(in slot: SchedulerSlot) {
+    private func startNextJobIfNeeded(in slot: Slot) {
         var currentSlotState = slotState(for: slot)
         guard currentSlotState.currentJob == nil else { return }
         guard let next = dequeueNextJob(in: &currentSlotState) else {
@@ -318,17 +317,40 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
         }
 
         currentSlotState.currentJob = next
-        currentSlotState.currentExecutionTask = Task {
-            if let speechEngine = next.speechEngine {
-                try await runtime.transcribe(
-                    audioPath: next.audioPath,
-                    job: next.job,
-                    speechEngine: speechEngine,
-                    onProgress: next.onProgress
+        currentSlotState.currentExecutionTask = Task { [weak self] in
+            guard let self else { throw CancellationError() }
+
+            // All jobs come in with a resolved SpeechEngineSelection because the
+            // no-engine transcribe overload now resolves preferences before enqueue.
+            // The fallback branch below should not be reached in practice, but is
+            // retained for any direct callers of the legacy enqueue path.
+            guard let speechEngine = next.speechEngine else {
+                return try await runtime.transcribe(
+                    audioPath: next.audioPath, job: next.job, onProgress: next.onProgress
                 )
-            } else {
-                try await runtime.transcribe(audioPath: next.audioPath, job: next.job, onProgress: next.onProgress)
             }
+
+            // VibeVoice single-flight: the C library owns a single global engine.
+            // Only one job may be active at a time. Wait for the flag to clear
+            // before acquiring it. The actor serialises access so no locks needed.
+            if speechEngine.engine == .vibevoice {
+                while await self.vibevoiceInFlight {
+                    try await Task.sleep(nanoseconds: 50_000_000)  // 50ms poll
+                }
+                await self.setVibeVoiceInFlight(true)
+            }
+            defer {
+                if speechEngine.engine == .vibevoice {
+                    Task { [weak self] in await self?.setVibeVoiceInFlight(false) }
+                }
+            }
+
+            return try await runtime.transcribe(
+                audioPath: next.audioPath,
+                job: next.job,
+                speechEngine: speechEngine,
+                onProgress: next.onProgress
+            )
         }
         currentSlotState.currentWaitTask = Task { [weak self] in
             await self?.awaitCurrentJobCompletion(jobID: next.id, in: slot)
@@ -350,7 +372,11 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
         return slotState.pendingJobs.remove(at: index)
     }
 
-    private func awaitCurrentJobCompletion(jobID: UUID, in slot: SchedulerSlot) async {
+    private func setVibeVoiceInFlight(_ value: Bool) {
+        vibevoiceInFlight = value
+    }
+
+    private func awaitCurrentJobCompletion(jobID: UUID, in slot: Slot) async {
         let slotState = slotState(for: slot)
         guard slotState.currentJob?.id == jobID, let executionTask = slotState.currentExecutionTask else { return }
 
@@ -364,7 +390,7 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
         finishCurrentJob(jobID: jobID, in: slot, result: result)
     }
 
-    private func finishCurrentJob(jobID: UUID, in slot: SchedulerSlot, result: Result<STTResult, Error>) {
+    private func finishCurrentJob(jobID: UUID, in slot: Slot, result: Result<STTResult, Error>) {
         var slotState = slotState(for: slot)
         guard slotState.currentJob?.id == jobID else { return }
 
@@ -386,7 +412,7 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     }
 
     private func cancel(jobID: UUID) {
-        for slot in SchedulerSlot.allCases {
+        for slot in Slot.allCases {
             var currentSlotState = slotState(for: slot)
             if let index = currentSlotState.pendingJobs.firstIndex(where: { $0.id == jobID }) {
                 currentSlotState.pendingJobs.remove(at: index)
@@ -408,8 +434,8 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     }
 
     private func cancelAllPendingJobs() {
-        let pendingIDs = SchedulerSlot.allCases.flatMap { slotState(for: $0).pendingJobs.map(\.id) }
-        for slot in SchedulerSlot.allCases {
+        let pendingIDs = Slot.allCases.flatMap { slotState(for: $0).pendingJobs.map(\.id) }
+        for slot in Slot.allCases {
             var currentSlotState = slotState(for: slot)
             currentSlotState.pendingJobs.removeAll()
             setSlotState(currentSlotState, for: slot)
@@ -429,7 +455,7 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     }
 
     private func cancelAndDrainRunningJobs() async {
-        let waitTasks = SchedulerSlot.allCases.compactMap { slot -> Task<Void, Never>? in
+        let waitTasks = Slot.allCases.compactMap { slot -> Task<Void, Never>? in
             let slotState = slotState(for: slot)
             slotState.currentExecutionTask?.cancel()
             return slotState.currentWaitTask
@@ -483,16 +509,29 @@ public actor STTScheduler: STTManaging, SpeechEngineRoutedTranscribing, SpeechEn
     }
 }
 
-private enum SchedulerSlot: CaseIterable, Sendable {
-    case interactive
-    case background
+extension STTScheduler {
+    /// The two execution slots. `.interactive` is reserved for dictation;
+    /// `.background` handles all other work (meetings, file transcription,
+    /// and any VibeVoice job — see `preferredSlot(for:engine:)`).
+    public enum Slot: CaseIterable, Sendable {
+        case interactive   // reserved for fast-latency dictation
+        case background    // everything else
+    }
 
-    init(job: STTJobKind) {
-        switch job {
+    /// Routes a job to the right slot, taking the engine into account.
+    ///
+    /// VibeVoice never claims the interactive slot — its ~13 s load time
+    /// would block dictation latency. Even when the user has configured
+    /// VibeVoice for dictation, those jobs go to the background slot.
+    public nonisolated static func preferredSlot(
+        for jobKind: STTJobKind,
+        engine: SpeechEnginePreference
+    ) -> Slot {
+        switch jobKind {
         case .dictation:
-            self = .interactive
-        case .meetingFinalize, .meetingLiveChunk, .fileTranscription:
-            self = .background
+            return engine == .vibevoice ? .background : .interactive
+        case .fileTranscription, .meetingFinalize, .meetingLiveChunk:
+            return .background
         }
     }
 }
