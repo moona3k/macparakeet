@@ -76,6 +76,23 @@ let package = Package(
             path: "Sources/MacParakeetObjCShims",
             publicHeadersPath: "include"
         ),
+        // VibeVoiceCore — C-interop layer for the vibevoice.cpp ASR engine.
+        //
+        // The actual C++ library is built externally via the canonical
+        // `localai-org/vibevoice.cpp` CMake build (see scripts/dev/build_vibevoice.sh
+        // in a future task). At build time, this target only needs the header
+        // and a stub `.c` to keep SPM happy; the Swift target above is what
+        // actually links against the prebuilt static library.
+        .target(
+            name: "VibeVoiceCore",
+            path: "Sources/VibeVoiceCore",
+            exclude: [
+                "DiarizedSegment.swift",
+                "VibeVoiceASRError.swift",
+                "VibeVoiceASR.swift",
+            ],
+            publicHeadersPath: "include"
+        ),
         // Shared core library (no UI dependencies)
         .target(
             name: "MacParakeetCore",
