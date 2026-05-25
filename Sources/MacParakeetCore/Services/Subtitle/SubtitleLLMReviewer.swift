@@ -104,9 +104,8 @@ public actor SubtitleLLMReviewer {
             var nextBatch = 0
             while nextBatch < batches.count && nextBatch < maxConcurrency {
                 let batch = batches[nextBatch]
-                group.addTask { [llmService, pairsPerBatch] in
-                    _ = pairsPerBatch  // capture explicitly to silence warning
-                    return await Self.reviewBatch(
+                group.addTask { [llmService] in
+                    await Self.reviewBatch(
                         startPairIndex: batch.start,
                         endPairIndex: batch.end,
                         cues: cues,

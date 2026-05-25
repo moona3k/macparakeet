@@ -2971,6 +2971,15 @@ public final class ExportService: ExportServiceProtocol, Sendable {
     /// the 16-word combined cap. A merge that would blow either is
     /// rejected and the orphan stays put — it's better to leave a tiny
     /// cue alone than to produce an unreadable 80-char one.
+    ///
+    /// **Pass ordering invariant**: this runs AFTER
+    /// `mergeAdjacentCuesForTwoLine` (which is the only pass that sets
+    /// `forcedText`). The merge reconstructions below intentionally
+    /// drop `forcedText` because the authored two-line break was based
+    /// on the pre-absorb content; the final wrap pass will re-decide
+    /// the line breaks based on the new combined text. If a future
+    /// refactor inverts this order, the `forcedText` two-line layout
+    /// will need to be preserved here.
     private func forceAbsorbMicroCues(_ cues: [MutableCue], maxChars: Int) -> [MutableCue] {
         guard cues.count > 1 else { return cues }
         // Trigger thresholds. A cue is a "micro" candidate only if it
