@@ -302,6 +302,41 @@ final class SubtitleLLMLayoutPlannerTests: XCTestCase {
         XCTAssertEqual(snaps.last?.done, 2)
         XCTAssertEqual(snaps.last?.total, 2)
     }
+
+    // MARK: - Profile-driven prompt + leniency
+
+    /// `.explicitJSON` system prompt prepends a stronger anti-comment
+    /// warning. Pins the literal phrasing so tweaks here are intentional —
+    /// the whole point is that this preamble stops Gemma 4 from emitting
+    /// `// ...` comments.
+    func testExplicitJSONPromptPrependsAntiCommentWarning() {
+        let prompt = SubtitleLLMLayoutPlanner.systemPrompt(for: .explicitJSON)
+        XCTAssertTrue(prompt.contains("CRITICAL OUTPUT FORMAT"))
+        XCTAssertTrue(prompt.contains("NO `// ...` comments"))
+        // Base prompt content survives — we're prepending, not replacing.
+        XCTAssertTrue(prompt.contains("subtitle captioning specialist"))
+    }
+
+    func testStandardPromptIsTheBasePrompt() {
+        let prompt = SubtitleLLMLayoutPlanner.systemPrompt(for: .standard)
+        XCTAssertFalse(prompt.contains("CRITICAL OUTPUT FORMAT"))
+        XCTAssertTrue(prompt.contains("subtitle captioning specialist"))
+    }
+
+    func testMinimalPromptIsShorterThanStandard() {
+        let standard = SubtitleLLMLayoutPlanner.systemPrompt(for: .standard)
+        let minimal = SubtitleLLMLayoutPlanner.systemPrompt(for: .minimal)
+        XCTAssertLessThan(minimal.count, standard.count)
+    }
+
+    /// Maps each `ParserLeniency` to the right `maxGapToRepair` value.
+    /// Strict (1) for capable models, normal (3) is the default, lenient
+    /// (5) widens auto-repair for Gemma 4-class models.
+    func testParserLeniencyMapping() {
+        XCTAssertEqual(SubtitleLLMLayoutPlanner.maxGapToRepair(for: .strict), 1)
+        XCTAssertEqual(SubtitleLLMLayoutPlanner.maxGapToRepair(for: .normal), 3)
+        XCTAssertEqual(SubtitleLLMLayoutPlanner.maxGapToRepair(for: .lenient), 5)
+    }
 }
 
 // MARK: - Test doubles

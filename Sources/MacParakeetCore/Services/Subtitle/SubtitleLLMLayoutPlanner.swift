@@ -24,11 +24,13 @@ public actor SubtitleLLMLayoutPlanner {
     private let llmService: LLMServiceProtocol
     private let chunkTargetWords: Int
     private let maxConcurrency: Int
+    private let modelProfile: ModelProfile?
 
     public init(
         llmService: LLMServiceProtocol,
         chunkTargetWords: Int = 80,
-        maxConcurrency: Int = 4
+        maxConcurrency: Int = 4,
+        modelProfile: ModelProfile? = nil
     ) {
         self.llmService = llmService
         // No upper-bound floor: tests pass small values to exercise the
@@ -36,6 +38,7 @@ public actor SubtitleLLMLayoutPlanner {
         // dividing by zero or looping forever.
         self.chunkTargetWords = max(1, chunkTargetWords)
         self.maxConcurrency = max(1, maxConcurrency)
+        self.modelProfile = modelProfile
     }
 
     /// One chunk's result: either a list of cues (LLM laid out OK) or
@@ -72,13 +75,13 @@ public actor SubtitleLLMLayoutPlanner {
             while nextChunk < min(maxConcurrency, total) {
                 let idx = nextChunk
                 let chunk = chunks[idx]
-                group.addTask { [llmService, chunkTargetWords] in
-                    _ = chunkTargetWords  // capture to silence warning
+                group.addTask { [llmService, modelProfile] in
                     let result = await Self.runOne(
                         chunk: chunk,
                         llmService: llmService,
                         config: config,
-                        speakerId: speakerId
+                        speakerId: speakerId,
+                        modelProfile: modelProfile
                     )
                     return (idx, result)
                 }
@@ -93,12 +96,13 @@ public actor SubtitleLLMLayoutPlanner {
                 if nextChunk < total {
                     let next = nextChunk
                     let chunk = chunks[next]
-                    group.addTask { [llmService] in
+                    group.addTask { [llmService, modelProfile] in
                         let result = await Self.runOne(
                             chunk: chunk,
                             llmService: llmService,
                             config: config,
-                            speakerId: speakerId
+                            speakerId: speakerId,
+                            modelProfile: modelProfile
                         )
                         return (next, result)
                     }
@@ -161,12 +165,14 @@ public actor SubtitleLLMLayoutPlanner {
         chunk: Chunk,
         llmService: LLMServiceProtocol,
         config: SubtitleExportConfig,
-        speakerId: String?
+        speakerId: String?,
+        modelProfile: ModelProfile?
     ) async -> ChunkResult {
         let prompt = buildPrompt(chunk: chunk, config: config)
+        let resolvedSystemPrompt = systemPrompt(for: modelProfile?.promptHint ?? .standard)
         let response: String
         do {
-            response = try await llmService.transform(text: prompt, prompt: systemPrompt)
+            response = try await llmService.transform(text: prompt, prompt: resolvedSystemPrompt)
         } catch {
             log.warning("layout_planner_chunk_fallback reason=llm_threw range=\(chunk.startIndex)-\(chunk.endIndex) error=\(String(describing: error), privacy: .public)")
             return ChunkResult(
@@ -182,7 +188,8 @@ public actor SubtitleLLMLayoutPlanner {
         // `maxLinesPerCue`, which let the LLM produce ~128-char cues at a
         // configured 65-char budget. SRT (17), block 15 was the smoking gun.
         let perCueBudget = config.maxCharsPerLine
-        switch LayoutPlanParser.parse(response, words: chunk.words, perCueBudget: perCueBudget) {
+        let maxGap = maxGapToRepair(for: modelProfile?.parserLeniency ?? .normal)
+        switch LayoutPlanParser.parse(response, words: chunk.words, perCueBudget: perCueBudget, maxGapToRepair: maxGap) {
         case .success(let rawRanges):
             // Auto-split any LLM-produced cue whose text exceeds the
             // configured budget (with a small tolerance). The LLM tends
@@ -377,14 +384,49 @@ public actor SubtitleLLMLayoutPlanner {
 
     // MARK: - Prompt
 
-    private static let systemPrompt = """
-        You are a subtitle captioning specialist. You decide where to break a spoken transcript into subtitle cues.
-        You receive a numbered list of words from one section of a transcript and a set of layout rules.
-        You return ONLY a JSON object with the shape {"cues":[{"start":<int>,"end":<int>}, ...]} — no commentary, no markdown fences, no explanation.
-        Each "start" and "end" is the inclusive word index into the input list.
-        You never modify the words and you never invent text. You only choose where the cue boundaries go.
-        Every input word must appear in exactly one cue. Cues must be contiguous and non-overlapping.
-        """
+    /// Map a `ModelProfile.ParserLeniency` to the LayoutPlanParser
+    /// `maxGapToRepair` cap. Strict (1) for capable models that rarely
+    /// skip indices; lenient (5) for models like Gemma 4 that occasionally
+    /// drop a small run of word indices.
+    static func maxGapToRepair(for leniency: ModelProfile.ParserLeniency) -> Int {
+        switch leniency {
+        case .strict: return 1
+        case .normal: return 3
+        case .lenient: return 5
+        }
+    }
+
+    /// Profile-aware system prompt. `.explicitJSON` adds a stronger
+    /// anti-comment preamble for models like Gemma 4 that habitually
+    /// emit `// annotation` after JSON values. `.minimal` strips the
+    /// "never invent text" boilerplate for small models with tight
+    /// effective contexts. `.standard` is the original prompt.
+    static func systemPrompt(for hint: ModelProfile.PromptHint) -> String {
+        let basePrompt = """
+            You are a subtitle captioning specialist. You decide where to break a spoken transcript into subtitle cues.
+            You receive a numbered list of words from one section of a transcript and a set of layout rules.
+            You return ONLY a JSON object with the shape {"cues":[{"start":<int>,"end":<int>}, ...]} — no commentary, no markdown fences, no explanation.
+            Each "start" and "end" is the inclusive word index into the input list.
+            You never modify the words and you never invent text. You only choose where the cue boundaries go.
+            Every input word must appear in exactly one cue. Cues must be contiguous and non-overlapping.
+            """
+        switch hint {
+        case .standard:
+            return basePrompt
+        case .explicitJSON:
+            // Strong anti-comment preamble for Gemma 4-class models.
+            return """
+                CRITICAL OUTPUT FORMAT: Your entire response MUST be a single valid JSON object. NO `// ...` comments, NO `/* */` blocks, NO trailing annotations, NO markdown code fences. Comments break the parser and cause your entire response to be discarded. If you write a comment, your work is wasted.
+
+                """ + basePrompt
+        case .minimal:
+            return """
+                You break a numbered word list into subtitle cues.
+                Return ONLY {"cues":[{"start":<int>,"end":<int>}, ...]} — no markdown, no comments, no explanation.
+                Every word index appears in exactly one cue. Cues are contiguous and non-overlapping.
+                """
+        }
+    }
 
     /// Public for tests so prompt-fragment assertions can pin the rules
     /// we care about without driving an LLM round-trip. Keep `internal`

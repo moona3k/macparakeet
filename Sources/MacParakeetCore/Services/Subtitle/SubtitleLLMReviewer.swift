@@ -59,20 +59,27 @@ public actor SubtitleLLMReviewer {
     private let llmService: LLMServiceProtocol
     private let maxConcurrency: Int
     private let pairsPerBatch: Int
+    private let modelProfile: ModelProfile?
 
     /// Default `pairsPerBatch = 5` cuts ~400 single-pair calls per 30-min
     /// export down to ~80 batched calls. Smaller batches give the model
     /// less surrounding context per call (cheaper but slightly worse
     /// judgment); larger batches risk JSON drift as the response gets
     /// longer. 5 is the sweet spot in informal testing.
+    ///
+    /// `modelProfile` is optional. When supplied, its `promptHint` selects
+    /// a prompt variant tuned to the model's known quirks (e.g. Gemma 4
+    /// gets a stronger anti-comment preamble).
     public init(
         llmService: LLMServiceProtocol,
         maxConcurrency: Int = 4,
-        pairsPerBatch: Int = 5
+        pairsPerBatch: Int = 5,
+        modelProfile: ModelProfile? = nil
     ) {
         self.llmService = llmService
         self.maxConcurrency = max(1, maxConcurrency)
         self.pairsPerBatch = max(1, pairsPerBatch)
+        self.modelProfile = modelProfile
     }
 
     private static let log = Logger(subsystem: "com.macparakeet.core", category: "SubtitleLLMReviewer")
@@ -104,13 +111,14 @@ public actor SubtitleLLMReviewer {
             var nextBatch = 0
             while nextBatch < batches.count && nextBatch < maxConcurrency {
                 let batch = batches[nextBatch]
-                group.addTask { [llmService] in
+                group.addTask { [llmService, modelProfile] in
                     await Self.reviewBatch(
                         startPairIndex: batch.start,
                         endPairIndex: batch.end,
                         cues: cues,
                         config: config,
-                        llmService: llmService
+                        llmService: llmService,
+                        modelProfile: modelProfile
                     )
                 }
                 nextBatch += 1
@@ -122,13 +130,14 @@ public actor SubtitleLLMReviewer {
                 onProgress?(min(completed, totalPairs), totalPairs)
                 if nextBatch < batches.count {
                     let batch = batches[nextBatch]
-                    group.addTask { [llmService] in
+                    group.addTask { [llmService, modelProfile] in
                         await Self.reviewBatch(
                             startPairIndex: batch.start,
                             endPairIndex: batch.end,
                             cues: cues,
                             config: config,
-                            llmService: llmService
+                            llmService: llmService,
+                            modelProfile: modelProfile
                         )
                     }
                     nextBatch += 1
@@ -151,7 +160,8 @@ public actor SubtitleLLMReviewer {
         endPairIndex: Int,
         cues: [ReviewableCue],
         config: SubtitleExportConfig,
-        llmService: LLMServiceProtocol
+        llmService: LLMServiceProtocol,
+        modelProfile: ModelProfile?
     ) async -> [ReviewSuggestion] {
         // Pairs covered: startPairIndex..<endPairIndex. Each pair touches
         // cues at index `i` and `i+1`, so the batch involves cues
@@ -167,10 +177,11 @@ public actor SubtitleLLMReviewer {
             next: next,
             config: config
         )
+        let resolvedSystemPrompt = systemPrompt(for: modelProfile?.promptHint ?? .standard)
 
         let response: String
         do {
-            response = try await llmService.transform(text: prompt, prompt: systemPrompt)
+            response = try await llmService.transform(text: prompt, prompt: resolvedSystemPrompt)
         } catch {
             log.warning("reviewer_batch_fallback reason=llm_threw range=\(startPairIndex)-\(endPairIndex) error=\(String(describing: error), privacy: .public)")
             // Whole-batch failure → return empty; caller defaults all to .keep.
@@ -201,11 +212,31 @@ public actor SubtitleLLMReviewer {
     /// System prompt: keep it terse + scoped. The reviewer's job is to
     /// vote on each boundary in a small window of adjacent cues — not
     /// to be a general subtitle critic.
-    static let systemPrompt = """
-        You are a subtitle quality reviewer. You see a small window of adjacent subtitle cues with the boundaries numbered. For each numbered boundary, you decide whether the pair on either side reads cleanly or whether the boundary should shift slightly.
-        You return ONLY a JSON object with the shape {"decisions":[{"pair":<int>,"action":"<verb>","n":<int?>}, ...]} — no commentary, no markdown fences, no explanation.
-        You never modify cue text. You only vote on boundaries.
-        """
+    /// Profile-aware system prompt. `.explicitJSON` prepends a stronger
+    /// anti-comment warning for models like Gemma 4 that habitually annotate
+    /// JSON output with `// ...`. `.minimal` strips the boilerplate for
+    /// small models with tight effective contexts.
+    static func systemPrompt(for hint: ModelProfile.PromptHint) -> String {
+        let basePrompt = """
+            You are a subtitle quality reviewer. You see a small window of adjacent subtitle cues with the boundaries numbered. For each numbered boundary, you decide whether the pair on either side reads cleanly or whether the boundary should shift slightly.
+            You return ONLY a JSON object with the shape {"decisions":[{"pair":<int>,"action":"<verb>","n":<int?>}, ...]} — no commentary, no markdown fences, no explanation.
+            You never modify cue text. You only vote on boundaries.
+            """
+        switch hint {
+        case .standard:
+            return basePrompt
+        case .explicitJSON:
+            return """
+                CRITICAL OUTPUT FORMAT: Your entire response MUST be a single valid JSON object. NO `// ...` comments, NO `/* */` blocks, NO trailing annotations, NO markdown code fences. Comments break the parser and cause your entire response to be discarded.
+
+                """ + basePrompt
+        case .minimal:
+            return """
+                You vote on subtitle boundaries. Return ONLY {"decisions":[{"pair":<int>,"action":"<verb>","n":<int?>}, ...]}.
+                No comments, no markdown, no explanation.
+                """
+        }
+    }
 
     /// Builds the batched prompt: one window of up to ~6 cues + a prev
     /// and next context cue, with the boundaries between consecutive

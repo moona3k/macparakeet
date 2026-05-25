@@ -709,7 +709,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             )
         }
 
-        let planner = SubtitleLLMLayoutPlanner(llmService: llmService)
+        // Profile is populated by `LLMSettingsViewModel` on connection
+        // test / save. May be nil if the user hasn't tested yet — planner
+        // falls back to standard prompt + normal leniency in that case.
+        let modelProfile = await ModelProfileService.shared.currentProfile
+        let planner = SubtitleLLMLayoutPlanner(llmService: llmService, modelProfile: modelProfile)
         // Bridge planner progress to BOTH the legacy handler (so older
         // callers that only know about the layout phase still work)
         // and the new combined handler (which the GUI uses to drive
@@ -960,9 +964,11 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 startMs: $0.startMs, endMs: $0.endMs, text: $0.text
             )
         }
+        let modelProfile = await ModelProfileService.shared.currentProfile
         let reviewer = SubtitleLLMReviewer(
             llmService: llmService,
-            pairsPerBatch: config.reviewerPairsPerBatch
+            pairsPerBatch: config.reviewerPairsPerBatch,
+            modelProfile: modelProfile
         )
         let suggestions = await reviewer.review(
             cues: snapshot,

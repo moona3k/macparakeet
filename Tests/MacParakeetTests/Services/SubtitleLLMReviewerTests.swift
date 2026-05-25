@@ -513,6 +513,29 @@ final class SubtitleLLMReviewerTests: XCTestCase {
         XCTAssertEqual(out[0].text, "Hello there friend.")
         XCTAssertEqual(out[1].text, "How are you today?")
     }
+
+    // MARK: - Profile-driven prompt
+
+    /// `.explicitJSON` system prompt prepends a stronger anti-comment
+    /// warning for models like Gemma 4 that habitually annotate JSON.
+    func testReviewerExplicitJSONPromptPrependsAntiCommentWarning() {
+        let prompt = SubtitleLLMReviewer.systemPrompt(for: .explicitJSON)
+        XCTAssertTrue(prompt.contains("CRITICAL OUTPUT FORMAT"))
+        XCTAssertTrue(prompt.contains("NO `// ...` comments"))
+        XCTAssertTrue(prompt.contains("subtitle quality reviewer"))
+    }
+
+    func testReviewerStandardPromptIsTheBasePrompt() {
+        let prompt = SubtitleLLMReviewer.systemPrompt(for: .standard)
+        XCTAssertFalse(prompt.contains("CRITICAL OUTPUT FORMAT"))
+        XCTAssertTrue(prompt.contains("subtitle quality reviewer"))
+    }
+
+    func testReviewerMinimalPromptIsShorterThanStandard() {
+        let standard = SubtitleLLMReviewer.systemPrompt(for: .standard)
+        let minimal = SubtitleLLMReviewer.systemPrompt(for: .minimal)
+        XCTAssertLessThan(minimal.count, standard.count)
+    }
 }
 
 // MARK: - Test doubles

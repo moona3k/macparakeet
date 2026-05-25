@@ -53,11 +53,17 @@ enum LayoutPlanParser {
     ///   - perCueBudget: total cue character budget (e.g.
     ///     `maxCharsPerLine * maxLinesPerCue`). The parser allows up to
     ///     1.15× this before rejecting.
+    ///   - maxGapToRepair: max number of consecutive missing word indices
+    ///     the parser will silently roll into the previous cue. Defaults to
+    ///     3; a `ModelProfile` with `parserLeniency = .lenient` raises this
+    ///     to 5 (Gemma 4-class models that occasionally drop 4 indices),
+    ///     `.strict` lowers it to 1.
     /// - Returns: validated cue ranges, or a failure reason.
     static func parse(
         _ response: String,
         words: [WordTimestamp],
-        perCueBudget: Int
+        perCueBudget: Int,
+        maxGapToRepair: Int = 3
     ) -> Result<[CueRange], LayoutFailure> {
         // Two pre-parse passes:
         //   - strip ```json fences some models add
@@ -140,7 +146,7 @@ enum LayoutPlanParser {
         // (38) had 4 chunks fall back to deterministic layout because
         // Gemma 4 occasionally drops a single index — each fallback
         // produced ~50 extra cues vs the LLM's intended layout.
-        ranges = autoCorrectGaps(ranges)
+        ranges = autoCorrectGaps(ranges, maxGapToRepair: maxGapToRepair)
         // After correction, drop any cue that became empty (start > end).
         ranges = ranges.filter { $0.start <= $0.end }
         // Re-validate coverage now that ranges may have shifted.
@@ -197,13 +203,13 @@ enum LayoutPlanParser {
     /// to a maximum 3-word gap repair so a wildly broken response —
     /// e.g. `{end:0},{start:50}` — still falls back to the
     /// deterministic builder instead of mashing 49 words into one cue.
-    private static func autoCorrectGaps(_ ranges: [CueRange]) -> [CueRange] {
+    private static func autoCorrectGaps(_ ranges: [CueRange], maxGapToRepair: Int) -> [CueRange] {
         guard ranges.count > 1 else { return ranges }
         // Cap the repair distance so wide gaps still fall through to
-        // the chunk fallback path. 3 indices matches the largest gap
-        // we've observed in the wild (Gemma 4 skipping a single word,
-        // worst-case ~2 in a row).
-        let maxGapToRepair = 3
+        // the chunk fallback path. The default of 3 indices matches the
+        // largest gap we've observed in the wild (Gemma 4 skipping a
+        // single word, worst-case ~2 in a row). A profile-driven
+        // `.lenient` setting raises this to 5 for models that drop more.
         var out: [CueRange] = []
         out.reserveCapacity(ranges.count)
         out.append(ranges[0])

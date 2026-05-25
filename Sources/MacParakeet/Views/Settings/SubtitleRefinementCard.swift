@@ -59,6 +59,10 @@ struct SubtitleRefinementCard: View {
 
                     if let profile = activeProfile {
                         modelProfileBadge(profile)
+                        Text("Refreshes when you run **Test Connection** in AI Setup. Tunes prompt style, parser tolerance, and the suggested batch size below.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 

@@ -262,4 +262,47 @@ final class LayoutPlanParserTests: XCTestCase {
         let json = #"{"cues":[{"start":0,"end":4}]}"#
         XCTAssertNotNil(try? LayoutPlanParser.parse(json, words: ws, perCueBudget: 10).get())
     }
+
+    // MARK: - Profile-driven leniency
+
+    /// A 4-index gap normally falls through to the fallback path
+    /// (default `maxGapToRepair = 3`), but a `lenient` profile raises
+    /// the cap to 5 so Gemma 4-class models that drop a small run of
+    /// word indices still get auto-repaired.
+    func testLenientLeniencyRepairsFourIndexGap() {
+        let ws = words(10)
+        // Skips indices 4,5,6,7: gap of 4 — only repairs with maxGapToRepair >= 4.
+        let json = #"{"cues":[{"start":0,"end":3},{"start":8,"end":9}]}"#
+
+        // Default cap = 3 → falls through with a gap failure.
+        XCTAssertEqual(
+            LayoutPlanParser.parse(json, words: ws, perCueBudget: 100),
+            .failure(.gapBetweenCues(prevEnd: 3, nextStart: 8))
+        )
+
+        // Lenient cap (5) → repairs by extending prev cue to swallow the run.
+        let lenient = LayoutPlanParser.parse(json, words: ws, perCueBudget: 100, maxGapToRepair: 5)
+        guard case .success(let ranges) = lenient else {
+            XCTFail("Expected lenient parser to repair a 4-index gap; got: \(lenient)")
+            return
+        }
+        XCTAssertEqual(ranges, [.init(start: 0, end: 7), .init(start: 8, end: 9)])
+    }
+
+    /// A strict profile (cap = 1) rejects two-index gaps that the
+    /// default repair would have handled.
+    func testStrictLeniencyRejectsTwoIndexGap() {
+        let ws = words(10)
+        // Skips indices 4, 5: a 2-word gap that the default cap (3) repairs.
+        let json = #"{"cues":[{"start":0,"end":3},{"start":6,"end":9}]}"#
+
+        // Default succeeds.
+        XCTAssertNotNil(try? LayoutPlanParser.parse(json, words: ws, perCueBudget: 100).get())
+
+        // Strict (cap = 1) rejects.
+        XCTAssertEqual(
+            LayoutPlanParser.parse(json, words: ws, perCueBudget: 100, maxGapToRepair: 1),
+            .failure(.gapBetweenCues(prevEnd: 3, nextStart: 6))
+        )
+    }
 }

@@ -115,16 +115,26 @@ struct LLMSettingsView: View {
                 Divider()
 
                 // Test connection + status
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    Button("Test Connection") {
-                        viewModel.testConnection()
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
+                    HStack(spacing: DesignSystem.Spacing.sm) {
+                        Button("Test Connection") {
+                            viewModel.testConnection()
+                        }
+                        .parakeetAction(.secondary)
+                        .disabled(viewModel.connectionTestState == .testing || !viewModel.canTestConnection)
+
+                        connectionStatusIndicator
+
+                        Spacer()
                     }
-                    .parakeetAction(.secondary)
-                    .disabled(viewModel.connectionTestState == .testing || !viewModel.canTestConnection)
-
-                    connectionStatusIndicator
-
-                    Spacer()
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkle")
+                            .font(.system(size: 10))
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        Text("Also refreshes the model profile used to tune subtitle refinement.")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
 
                 if let validationMessage = viewModel.validationMessage {
