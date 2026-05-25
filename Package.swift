@@ -115,6 +115,13 @@ let package = Package(
                 .unsafeFlags([
                     "-L", "/Users/Justin/Documents/Codex/2026-05-14/id-like-to-make-a-copy/vibevoice-spike/vibevoice.cpp/build",
                     "-L", "/Users/Justin/Documents/Codex/2026-05-14/id-like-to-make-a-copy/vibevoice-spike/vibevoice.cpp/build/third_party/ggml/src",
+                    // Embed the same paths as rpath so the dynamic linker can resolve
+                    // libggml*.dylib at xctest / app runtime without needing symlinks
+                    // in .build/. Mirrors the -L pair above.
+                    // SPM passes unsafeFlags to the Swift compiler driver, which
+                    // requires -Xlinker per-token rather than the -Wl,... comma form.
+                    "-Xlinker", "-rpath", "-Xlinker", "/Users/Justin/Documents/Codex/2026-05-14/id-like-to-make-a-copy/vibevoice-spike/vibevoice.cpp/build",
+                    "-Xlinker", "-rpath", "-Xlinker", "/Users/Justin/Documents/Codex/2026-05-14/id-like-to-make-a-copy/vibevoice-spike/vibevoice.cpp/build/third_party/ggml/src",
                     "-lvibevoice",
                     "-lggml", "-lggml-base", "-lggml-cpu",
                     "-framework", "Metal",
@@ -154,6 +161,12 @@ let package = Package(
             name: "CLITests",
             dependencies: ["CLI", "MacParakeetCore"],
             path: "Tests/CLITests"
-        )
+        ),
+        .testTarget(
+            name: "VibeVoiceCoreTests",
+            dependencies: ["VibeVoiceCore"],
+            path: "Tests/VibeVoiceCoreTests",
+            resources: [.copy("Resources")]
+        ),
     ]
 )
