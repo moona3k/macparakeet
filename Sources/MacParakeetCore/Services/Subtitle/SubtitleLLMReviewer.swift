@@ -58,192 +58,246 @@ public actor SubtitleLLMReviewer {
 
     private let llmService: LLMServiceProtocol
     private let maxConcurrency: Int
+    private let pairsPerBatch: Int
 
-    public init(llmService: LLMServiceProtocol, maxConcurrency: Int = 4) {
+    /// Default `pairsPerBatch = 5` cuts ~400 single-pair calls per 30-min
+    /// export down to ~80 batched calls. Smaller batches give the model
+    /// less surrounding context per call (cheaper but slightly worse
+    /// judgment); larger batches risk JSON drift as the response gets
+    /// longer. 5 is the sweet spot in informal testing.
+    public init(
+        llmService: LLMServiceProtocol,
+        maxConcurrency: Int = 4,
+        pairsPerBatch: Int = 5
+    ) {
         self.llmService = llmService
         self.maxConcurrency = max(1, maxConcurrency)
+        self.pairsPerBatch = max(1, pairsPerBatch)
     }
 
     private static let log = Logger(subsystem: "com.macparakeet.core", category: "SubtitleLLMReviewer")
 
     /// Walk every adjacent pair in `cues`, ask the LLM what to do,
     /// return one suggestion per pair (or `.keep` on any failure).
-    /// Runs LLM calls in parallel up to `maxConcurrency` and stitches
-    /// results back in input order. `onProgress` (if provided) fires
-    /// once per completed pair with `(completed, total)`.
+    /// Pairs are grouped into batches of `pairsPerBatch`; each batch is
+    /// one LLM call returning an array of decisions. Batches run in
+    /// parallel up to `maxConcurrency`. `onProgress` (if provided)
+    /// fires once per completed PAIR (not per batch) with
+    /// `(completed, total)` so the UI stays smooth.
     public func review(
         cues: [ReviewableCue],
         config: SubtitleExportConfig,
         onProgress: ProgressHandler? = nil
     ) async -> [ReviewSuggestion] {
         guard cues.count >= 2 else { return [] }
-        let pairs = (0..<(cues.count - 1))
-        let total = pairs.count
+        let totalPairs = cues.count - 1
+        // Build batches as half-open ranges of pair indices [start, end).
+        var batches: [(start: Int, end: Int)] = []
+        var b = 0
+        while b < totalPairs {
+            batches.append((start: b, end: min(b + pairsPerBatch, totalPairs)))
+            b += pairsPerBatch
+        }
         var resultsByIndex: [Int: ReviewSuggestion] = [:]
 
-        await withTaskGroup(of: ReviewSuggestion.self) { group in
-            var nextPair = pairs.lowerBound
-            // Seed up to maxConcurrency tasks.
-            while nextPair < pairs.upperBound
-                && (nextPair - pairs.lowerBound) < maxConcurrency {
-                let i = nextPair
-                group.addTask { [llmService] in
-                    await Self.reviewOne(
-                        pairIndex: i,
+        await withTaskGroup(of: [ReviewSuggestion].self) { group in
+            var nextBatch = 0
+            while nextBatch < batches.count && nextBatch < maxConcurrency {
+                let batch = batches[nextBatch]
+                group.addTask { [llmService, pairsPerBatch] in
+                    _ = pairsPerBatch  // capture explicitly to silence warning
+                    return await Self.reviewBatch(
+                        startPairIndex: batch.start,
+                        endPairIndex: batch.end,
                         cues: cues,
                         config: config,
                         llmService: llmService
                     )
                 }
-                nextPair += 1
+                nextBatch += 1
             }
-            // Drain + refill.
             var completed = 0
-            while let suggestion = await group.next() {
-                resultsByIndex[suggestion.pairIndex] = suggestion
-                completed += 1
-                onProgress?(completed, total)
-                if nextPair < pairs.upperBound {
-                    let i = nextPair
+            while let suggestions = await group.next() {
+                for s in suggestions { resultsByIndex[s.pairIndex] = s }
+                completed += suggestions.count
+                onProgress?(min(completed, totalPairs), totalPairs)
+                if nextBatch < batches.count {
+                    let batch = batches[nextBatch]
                     group.addTask { [llmService] in
-                        await Self.reviewOne(
-                            pairIndex: i,
+                        await Self.reviewBatch(
+                            startPairIndex: batch.start,
+                            endPairIndex: batch.end,
                             cues: cues,
                             config: config,
                             llmService: llmService
                         )
                     }
-                    nextPair += 1
+                    nextBatch += 1
                 }
             }
         }
 
-        return pairs.map { resultsByIndex[$0] ?? ReviewSuggestion(pairIndex: $0, action: .keep) }
+        return (0..<totalPairs).map {
+            resultsByIndex[$0] ?? ReviewSuggestion(pairIndex: $0, action: .keep)
+        }
     }
 
-    private static func reviewOne(
-        pairIndex i: Int,
+    /// Issue ONE LLM call covering pairs `[startPairIndex, endPairIndex)`,
+    /// parse the batched response, and map batch-local pair indices back
+    /// to absolute cue-list indices. Any pair the LLM omits silently
+    /// defaults to `.keep` (handled by the caller via the
+    /// `resultsByIndex` fallback in `review`).
+    private static func reviewBatch(
+        startPairIndex: Int,
+        endPairIndex: Int,
         cues: [ReviewableCue],
         config: SubtitleExportConfig,
         llmService: LLMServiceProtocol
-    ) async -> ReviewSuggestion {
-        let a = cues[i]
-        let b = cues[i + 1]
-        let prev = i > 0 ? cues[i - 1] : nil
-        let next = (i + 2) < cues.count ? cues[i + 2] : nil
-        let prompt = buildPrompt(a: a, b: b, prev: prev, next: next, config: config)
+    ) async -> [ReviewSuggestion] {
+        // Pairs covered: startPairIndex..<endPairIndex. Each pair touches
+        // cues at index `i` and `i+1`, so the batch involves cues
+        // [startPairIndex ... endPairIndex] (inclusive on both ends).
+        let cueRangeStart = startPairIndex
+        let cueRangeEnd = endPairIndex          // inclusive
+        let batchCues = Array(cues[cueRangeStart...cueRangeEnd])
+        let prev = startPairIndex > 0 ? cues[startPairIndex - 1] : nil
+        let next = (endPairIndex + 1) < cues.count ? cues[endPairIndex + 1] : nil
+        let prompt = buildBatchedPrompt(
+            cues: batchCues,
+            prev: prev,
+            next: next,
+            config: config
+        )
 
         let response: String
         do {
             response = try await llmService.transform(text: prompt, prompt: systemPrompt)
         } catch {
-            log.warning("reviewer_pair_fallback reason=llm_threw pair=\(i) error=\(String(describing: error), privacy: .public)")
-            return ReviewSuggestion(pairIndex: i, action: .keep)
+            log.warning("reviewer_batch_fallback reason=llm_threw range=\(startPairIndex)-\(endPairIndex) error=\(String(describing: error), privacy: .public)")
+            // Whole-batch failure → return empty; caller defaults all to .keep.
+            return []
         }
 
-        switch ReviewActionParser.parse(response) {
-        case .success(let action):
-            log.debug("reviewer_pair_ok pair=\(i) action=\(String(describing: action), privacy: .public)")
-            return ReviewSuggestion(pairIndex: i, action: action)
+        switch ReviewActionParser.parseBatch(response) {
+        case .success(let decisions):
+            log.debug("reviewer_batch_ok range=\(startPairIndex)-\(endPairIndex) decisions=\(decisions.count)")
+            // Map batch-local pair indices into absolute indices.
+            let pairCount = endPairIndex - startPairIndex
+            return decisions.compactMap { d in
+                guard d.pairIndex >= 0 && d.pairIndex < pairCount else { return nil }
+                return ReviewSuggestion(
+                    pairIndex: startPairIndex + d.pairIndex,
+                    action: d.action
+                )
+            }
         case .failure(let reason):
-            let preview = response.prefix(300).replacingOccurrences(of: "\n", with: " ")
-            log.warning("reviewer_pair_fallback reason=\(String(describing: reason), privacy: .public) pair=\(i) response=\(preview, privacy: .public)")
-            return ReviewSuggestion(pairIndex: i, action: .keep)
+            let preview = response.prefix(400).replacingOccurrences(of: "\n", with: " ")
+            log.warning("reviewer_batch_fallback reason=\(String(describing: reason), privacy: .public) range=\(startPairIndex)-\(endPairIndex) response=\(preview, privacy: .public)")
+            return []
         }
     }
 
     // MARK: - Prompt
 
-    /// System prompt: keep it terse + scoped. The reviewer has ONE job
-    /// (vote on a single cue pair), not a general subtitle critic.
+    /// System prompt: keep it terse + scoped. The reviewer's job is to
+    /// vote on each boundary in a small window of adjacent cues — not
+    /// to be a general subtitle critic.
     static let systemPrompt = """
-        You are a subtitle quality reviewer. You see one pair of adjacent subtitle cues at a time, plus a little surrounding context. You decide whether the pair reads cleanly or whether the cue boundary should shift slightly.
-        You return ONLY a JSON object with the shape {"action": "<verb>", "n": <int>} — no commentary, no markdown fences, no explanation.
-        You never modify cue text. You only vote on the boundary.
+        You are a subtitle quality reviewer. You see a small window of adjacent subtitle cues with the boundaries numbered. For each numbered boundary, you decide whether the pair on either side reads cleanly or whether the boundary should shift slightly.
+        You return ONLY a JSON object with the shape {"decisions":[{"pair":<int>,"action":"<verb>","n":<int?>}, ...]} — no commentary, no markdown fences, no explanation.
+        You never modify cue text. You only vote on boundaries.
         """
 
+    /// Builds the batched prompt: one window of up to ~6 cues + a prev
+    /// and next context cue, with the boundaries between consecutive
+    /// `cues` numbered 0..(cues.count - 2). The model returns one
+    /// decision per numbered boundary.
+    ///
     /// Public for tests so prompt-fragment assertions can pin the rules
     /// we care about without driving an LLM round-trip.
-    static func buildPrompt(
-        a: ReviewableCue,
-        b: ReviewableCue,
+    static func buildBatchedPrompt(
+        cues: [ReviewableCue],
         prev: ReviewableCue?,
         next: ReviewableCue?,
         config: SubtitleExportConfig
     ) -> String {
+        precondition(cues.count >= 2, "batched prompt needs at least 2 cues (1 pair)")
+        let pairCount = cues.count - 1
+
+        func flat(_ c: ReviewableCue) -> String {
+            c.text.replacingOccurrences(of: "\n", with: " ")
+        }
+
         var lines: [String] = []
-        lines.append("Review this cue pair.")
+        lines.append("Review the boundaries in this cue window. There are \(pairCount) boundaries to vote on (numbered 0 through \(pairCount - 1)).")
         lines.append("")
         if let prev {
-            lines.append("Previous cue (context, do not modify):")
-            lines.append("  \(prev.text.replacingOccurrences(of: "\n", with: " "))")
+            lines.append("Previous cue (context only, do not modify, no boundary here):")
+            lines.append("  \(flat(prev))")
+            lines.append("")
         }
-        lines.append("Cue A:")
-        lines.append("  \(a.text.replacingOccurrences(of: "\n", with: " "))")
-        lines.append("Cue B:")
-        lines.append("  \(b.text.replacingOccurrences(of: "\n", with: " "))")
-        if let next {
-            lines.append("Next cue (context, do not modify):")
-            lines.append("  \(next.text.replacingOccurrences(of: "\n", with: " "))")
+        lines.append("CUES:")
+        for (idx, c) in cues.enumerated() {
+            lines.append("  [\(idx)] \(flat(c))")
         }
         lines.append("")
-        lines.append("ACTIONS:")
+        lines.append("BOUNDARIES:")
+        for p in 0..<pairCount {
+            lines.append("  pair \(p): between cue [\(p)] and cue [\(p + 1)]")
+        }
+        if let next {
+            lines.append("")
+            lines.append("Next cue (context only, do not modify, no boundary here):")
+            lines.append("  \(flat(next))")
+        }
+        lines.append("")
+        lines.append("ACTIONS per boundary:")
         lines.append("- \"keep\" — both cues read fine; no change. THIS IS THE DEFAULT.")
-        lines.append("- \"merge\" — A and B should be one cue (combined length must stay under ~\(config.maxCharsPerLine * 2) chars).")
-        lines.append("- \"shift_to_a\" + n (1-3) — move the first n words of B to the end of A. Use this when the start of B is the tail of A's sentence (e.g. compound modifier split, stranded preposition).")
-        lines.append("- \"shift_to_b\" + n (1-3) — move the last n words of A to the start of B. Use this when the end of A is the head of B's sentence (e.g. \"...have you. Go\" / \"ahead and...\").")
+        lines.append("- \"merge\" — the two cues should be one (combined length must stay under ~\(config.maxCharsPerLine * 2) chars).")
+        lines.append("- \"shift_to_a\" + n (1-3) — move the first n words of the right cue to the end of the left cue. Use when the start of the right cue is the tail of the left cue's sentence (compound modifier split, stranded preposition).")
+        lines.append("- \"shift_to_b\" + n (1-3) — move the last n words of the left cue to the start of the right cue. Use when the end of the left cue is the head of the right cue's sentence (\"...have you. Go\" / \"ahead and...\").")
         lines.append("")
         lines.append("RULES:")
         lines.append("- DEFAULT to \"keep\". Only vote a change when there is a clear readability win.")
         lines.append("- A cue that already ends cleanly at `.!?` and the next cue starts a new sentence is almost always \"keep\".")
         lines.append("- Respect sentence integrity: `.!?` should align with a cue boundary, not sit mid-cue.")
         lines.append("- Never propose a change that would cross a long pause or pack two unrelated thoughts.")
+        lines.append("- Each pair is independent. Do not chain reasoning across boundaries.")
         lines.append("")
         lines.append("DO NOT — common bad patterns to avoid:")
-        lines.append("- DO NOT pull the start of a new sentence backward into the previous cue. \"30. We\" / \"will spend...\" is a layout failure — \"We\" starts the next sentence and belongs with cue B.")
-        lines.append("- DO NOT leave cue A ending on a conjunction (\"and\", \"but\", \"or\", \"so\"), article (\"the\", \"a\", \"an\"), preposition (\"of\", \"to\", \"with\", \"into\"), auxiliary verb (\"is\", \"are\", \"was\", \"have\", \"has\"), or subordinator (\"because\", \"while\", \"since\", \"if\", \"when\"). Those are bad enders.")
-        lines.append("- DO NOT split a hyphenated word across cues. \"warm-up\", \"4-minute\", \"30-second\" must stay whole — never put \"-up\" or \"-minute\" at the start of cue B.")
+        lines.append("- DO NOT pull the start of a new sentence backward into the previous cue. \"30. We\" / \"will spend...\" is a layout failure — \"We\" starts the next sentence and stays with the right cue.")
+        lines.append("- DO NOT leave the left cue ending on a conjunction (\"and\", \"but\", \"or\", \"so\"), article (\"the\", \"a\", \"an\"), preposition (\"of\", \"to\", \"with\", \"into\"), auxiliary verb (\"is\", \"are\", \"was\", \"have\", \"has\"), or subordinator (\"because\", \"while\", \"since\", \"if\", \"when\"). Those are bad enders.")
+        lines.append("- DO NOT split a hyphenated word across cues. \"warm-up\", \"4-minute\", \"30-second\" must stay whole — never put \"-up\" or \"-minute\" at the start of the right cue.")
         lines.append("- DO NOT split a number range. \"85 to 90\", \"between 10 and 15\", \"100 to 105\" must stay together.")
-        lines.append("- DO NOT merge two complete sentences into one cue when both already end with `.!?`. \"Beautiful.\" + \"Round 1 is done.\" should stay as two cues.")
-        lines.append("- DO NOT vote a change just because cue B is short. A standalone short sentence (\"Oh, yeah.\", \"Beautiful.\", \"Let's go.\") may legitimately stand alone.")
+        lines.append("- DO NOT merge two complete sentences when both already end with `.!?`. \"Beautiful.\" + \"Round 1 is done.\" stays as two cues.")
+        lines.append("- DO NOT vote a change just because one cue is short. A standalone short sentence (\"Oh, yeah.\", \"Beautiful.\", \"Let's go.\") may legitimately stand alone.")
         lines.append("")
-        lines.append("EXAMPLES:")
+        lines.append("EXAMPLES (single-boundary illustrations; same rules apply to each numbered pair):")
         lines.append("")
-        lines.append("Example 1 — compound modifier split (vote shift_to_a):")
-        lines.append("Cue A: \"because your 4 minute\"")
-        lines.append("Cue B: \"warm-up starts right now.\"")
-        lines.append("Correct output:")
-        lines.append("{\"action\":\"shift_to_a\",\"n\":1}")
+        lines.append("Example — compound modifier split (vote shift_to_a):")
+        lines.append("Left: \"because your 4 minute\"   Right: \"warm-up starts right now.\"")
+        lines.append("→ {\"action\":\"shift_to_a\",\"n\":1}")
         lines.append("")
-        lines.append("Example 2 — fragment at end of A is start of next sentence (vote shift_to_b):")
-        lines.append("Cue A: \"It is great to have you. Go\"")
-        lines.append("Cue B: \"ahead and find a cadence somewhere between 80 and 90.\"")
-        lines.append("Correct output:")
-        lines.append("{\"action\":\"shift_to_b\",\"n\":1}")
+        lines.append("Example — fragment at end of left cue is start of next sentence (vote shift_to_b):")
+        lines.append("Left: \"It is great to have you. Go\"   Right: \"ahead and find a cadence somewhere between 80 and 90.\"")
+        lines.append("→ {\"action\":\"shift_to_b\",\"n\":1}")
         lines.append("")
-        lines.append("Example 3 — clean pair, no change needed (vote keep):")
-        lines.append("Cue A: \"Thank you for being here today.\"")
-        lines.append("Cue B: \"Thanks for spending this 30 minutes with me.\"")
-        lines.append("Correct output:")
-        lines.append("{\"action\":\"keep\"}")
+        lines.append("Example — clean pair (vote keep):")
+        lines.append("Left: \"Thank you for being here today.\"   Right: \"Thanks for spending this 30 minutes with me.\"")
+        lines.append("→ {\"action\":\"keep\"}")
         lines.append("")
-        lines.append("Example 4 — WRONG: do NOT pull start of new sentence backward.")
-        lines.append("Cue A: \"in to your intervals in arms 30.\"")
-        lines.append("Cue B: \"We will spend the next 30 minutes\"")
-        lines.append("Correct output (cue A ends cleanly, cue B starts a new sentence):")
-        lines.append("{\"action\":\"keep\"}")
-        lines.append("WRONG output (would strand \"We\" at the tail of cue A):")
-        lines.append("{\"action\":\"shift_to_a\",\"n\":1}")
+        lines.append("Example — WRONG: do NOT pull start of new sentence backward.")
+        lines.append("Left: \"in to your intervals in arms 30.\"   Right: \"We will spend the next 30 minutes\"")
+        lines.append("Correct: {\"action\":\"keep\"}    Wrong: {\"action\":\"shift_to_a\",\"n\":1}")
         lines.append("")
-        lines.append("Example 5 — WRONG: do NOT merge two complete sentences.")
-        lines.append("Cue A: \"Beautiful.\"")
-        lines.append("Cue B: \"Round 1 is done.\"")
-        lines.append("Correct output (each is a complete short sentence):")
-        lines.append("{\"action\":\"keep\"}")
-        lines.append("WRONG output:")
-        lines.append("{\"action\":\"merge\"}")
+        lines.append("Example — WRONG: do NOT merge two complete sentences.")
+        lines.append("Left: \"Beautiful.\"   Right: \"Round 1 is done.\"")
+        lines.append("Correct: {\"action\":\"keep\"}    Wrong: {\"action\":\"merge\"}")
         lines.append("")
-        lines.append("REMINDER: output ONLY the JSON object — no comments, no `//` annotations, no markdown, no explanation text. Just the raw JSON. Default to \"keep\" when in doubt.")
+        lines.append("RESPONSE SHAPE — return ONE JSON object with a \"decisions\" array, ONE entry per numbered pair. \"n\" is required only for shift actions. Example response shape (for a 3-boundary window):")
+        lines.append("{\"decisions\":[{\"pair\":0,\"action\":\"keep\"},{\"pair\":1,\"action\":\"shift_to_a\",\"n\":1},{\"pair\":2,\"action\":\"keep\"}]}")
+        lines.append("")
+        lines.append("REMINDER: output ONLY the JSON object — no comments, no `//` annotations, no markdown, no explanation text. One entry per pair index 0..\(pairCount - 1). Default to \"keep\" when in doubt.")
         lines.append("")
         lines.append("OUTPUT (JSON only):")
         return lines.joined(separator: "\n")
