@@ -2,7 +2,7 @@ import Foundation
 
 /// One feature's engine choice: either follow the global default, or
 /// override with a specific engine. Used in `SpeechEnginePreferences`.
-public enum FeatureEngineSelection: Codable, Sendable, Equatable {
+public enum FeatureEngineSelection: Codable, Sendable, Equatable, Hashable {
     case global
     case specific(SpeechEnginePreference)
 }
