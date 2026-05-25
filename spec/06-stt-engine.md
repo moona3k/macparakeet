@@ -36,6 +36,8 @@ MacParakeet's default speech engine is Parakeet TDT 0.6B-v3 via FluidAudio CoreM
 
 Parakeet remains the default because it is faster, lower-latency, and lower-memory for supported languages. WhisperKit solves language coverage while preserving the local-first speech boundary.
 
+A third local engine, **VibeVoice-ASR** (via `vibevoice.cpp`), is implemented in `VibeVoiceCore` as a future engine; Phase 2.2 will wire it into `STTRuntime`/`STTScheduler`, at which point this document gets the full treatment.
+
 ### Three-Chip Architecture
 
 Each ML workload runs on the chip it was designed for:
