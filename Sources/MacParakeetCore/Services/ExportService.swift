@@ -813,6 +813,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         mutable = rebalanceCardinalUnitPairs(mutable, maxChars: config.maxCharsPerLine)
         mutable = rebalanceBadEnders(mutable, maxChars: config.maxCharsPerLine)
         mutable = rebalanceBadStarters(mutable, maxChars: config.maxCharsPerLine)
+        // Same last-resort net as `mergeAndRebalancePasses` — the reviewer
+        // can shift words across boundaries but never invokes the merge
+        // passes, so a fragment produced by the LLM layout pass that
+        // survived the first round of merges (because of the 500 ms gap
+        // floor) needs another chance to absorb after the reviewer runs.
+        mutable = forceAbsorbMicroCues(mutable, maxChars: config.maxCharsPerLine)
         return applyTimingAndWrap(mutable, config: config)
     }
 
@@ -887,6 +893,12 @@ public final class ExportService: ExportServiceProtocol, Sendable {
         mutable = rebalanceCardinalUnitPairs(mutable, maxChars: config.maxCharsPerLine)
         mutable = rebalanceBadEnders(mutable, maxChars: config.maxCharsPerLine)
         mutable = rebalanceBadStarters(mutable, maxChars: config.maxCharsPerLine)
+        // Last-resort net: absorb cues that are obviously fragments (sub-
+        // 250 ms duration AND ≤ 3 words) into the better neighbour even
+        // across the 500 ms gap floor the other merge passes respect.
+        // Targets the SRT (38) fragmentation regression Gemma 4 layouts
+        // produced — see `forceAbsorbMicroCues` docs.
+        mutable = forceAbsorbMicroCues(mutable, maxChars: config.maxCharsPerLine)
         return mutable
     }
 
@@ -2915,6 +2927,146 @@ public final class ExportService: ExportServiceProtocol, Sendable {
             }
         }
 
+        return result
+    }
+
+    /// Last-resort pass that absorbs cues which are clearly fragments
+    /// (very short duration AND ≤ 3 words) into the better neighbour,
+    /// even when the 500 ms gap floor the other merge passes use would
+    /// have blocked the merge.
+    ///
+    /// Why this exists: less-strict LLM layout planners (Gemma 4 was the
+    /// trigger) sometimes emit single-word cues whose audio duration is
+    /// ~1 ms because Whisper attributed a near-zero duration to the
+    /// underlying word. Those orphans often sit between long pauses, so
+    /// the standard merge passes refuse to absorb them — the 500 ms gap
+    /// floor exists to protect *normal-sized* cues from being merged
+    /// across a real utterance boundary, but a 1 ms / 1-word cue is
+    /// almost certainly a layout artefact, not a real utterance.
+    ///
+    /// Direction picking:
+    ///   - If the orphan ends in `.!?` → it's the tail of the previous
+    ///     sentence ("95.", "Beautiful.") → merge backward.
+    ///   - If the previous cue ends in `.!?` → orphan starts a new
+    ///     sentence ("I", "Now before") → merge forward.
+    ///   - Otherwise → pick whichever neighbour has the smaller time
+    ///     gap to the orphan.
+    ///
+    /// Still respected: the standard budget cap (`maxChars + 10`) and
+    /// the 16-word combined cap. A merge that would blow either is
+    /// rejected and the orphan stays put — it's better to leave a tiny
+    /// cue alone than to produce an unreadable 80-char one.
+    private func forceAbsorbMicroCues(_ cues: [MutableCue], maxChars: Int) -> [MutableCue] {
+        guard cues.count > 1 else { return cues }
+        // Trigger thresholds. A cue is a "micro" candidate only if it
+        // hits BOTH — a 200 ms, 5-word cue is probably real speech
+        // ("Three two one, go!") and should stay alone.
+        let microDurationMs = 250
+        let microWordCount = 3
+        let maxBudget = maxChars + 10
+        let maxCombinedWords = 16
+
+        var result = cues
+        var didMerge = true
+        var safetyIterations = 0
+        while didMerge && safetyIterations < 8 {
+            didMerge = false
+            safetyIterations += 1
+            var i = 0
+            while i < result.count {
+                let cue = result[i]
+                let duration = cue.endMs - cue.startMs
+                let isMicro = duration < microDurationMs && cue.words.count <= microWordCount
+                guard isMicro else { i += 1; continue }
+
+                let hasPrev = i > 0
+                let hasNext = i + 1 < result.count
+
+                // Budget-safety check for each direction.
+                func canMerge(into prev: MutableCue, from cur: MutableCue) -> Bool {
+                    let combined = prev.text + " " + cur.text
+                    let combinedWords = prev.words.count + cur.words.count
+                    return combined.count <= maxBudget && combinedWords <= maxCombinedWords
+                }
+                let canBackward = hasPrev && canMerge(into: result[i - 1], from: cue)
+                let canForward = hasNext && canMerge(into: cue, from: result[i + 1])
+
+                // Decide preferred direction by punctuation cue.
+                func endsSentence(_ c: MutableCue) -> Bool {
+                    guard let last = c.words.last?.last else { return false }
+                    return ".!?".contains(last)
+                }
+                let prefersBackward: Bool
+                if endsSentence(cue) {
+                    prefersBackward = true
+                } else if hasPrev && endsSentence(result[i - 1]) {
+                    prefersBackward = false
+                } else if hasPrev && hasNext {
+                    let gapPrev = cue.startMs - result[i - 1].endMs
+                    let gapNext = result[i + 1].startMs - cue.endMs
+                    prefersBackward = gapPrev <= gapNext
+                } else {
+                    prefersBackward = hasPrev
+                }
+
+                // Apply the merge in the preferred direction; fall back
+                // to the other side if that one's blocked by budget.
+                if prefersBackward && canBackward {
+                    let prev = result[i - 1]
+                    result[i - 1] = MutableCue(
+                        startMs: prev.startMs,
+                        endMs: cue.endMs,
+                        words: prev.words + cue.words,
+                        wordTimestamps: prev.wordTimestamps + cue.wordTimestamps,
+                        speakerId: prev.speakerId
+                    )
+                    result.remove(at: i)
+                    didMerge = true
+                    continue
+                }
+                if !prefersBackward && canForward {
+                    let next = result[i + 1]
+                    result[i] = MutableCue(
+                        startMs: cue.startMs,
+                        endMs: next.endMs,
+                        words: cue.words + next.words,
+                        wordTimestamps: cue.wordTimestamps + next.wordTimestamps,
+                        speakerId: cue.speakerId
+                    )
+                    result.remove(at: i + 1)
+                    didMerge = true
+                    continue
+                }
+                // Preferred direction was blocked — try the other side.
+                if canBackward {
+                    let prev = result[i - 1]
+                    result[i - 1] = MutableCue(
+                        startMs: prev.startMs,
+                        endMs: cue.endMs,
+                        words: prev.words + cue.words,
+                        wordTimestamps: prev.wordTimestamps + cue.wordTimestamps,
+                        speakerId: prev.speakerId
+                    )
+                    result.remove(at: i)
+                    didMerge = true
+                    continue
+                }
+                if canForward {
+                    let next = result[i + 1]
+                    result[i] = MutableCue(
+                        startMs: cue.startMs,
+                        endMs: next.endMs,
+                        words: cue.words + next.words,
+                        wordTimestamps: cue.wordTimestamps + next.wordTimestamps,
+                        speakerId: cue.speakerId
+                    )
+                    result.remove(at: i + 1)
+                    didMerge = true
+                    continue
+                }
+                i += 1
+            }
+        }
         return result
     }
 

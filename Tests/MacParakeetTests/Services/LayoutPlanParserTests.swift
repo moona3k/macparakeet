@@ -86,13 +86,47 @@ final class LayoutPlanParserTests: XCTestCase {
 
     // MARK: - Coverage validation
 
-    func testGapBetweenCuesIsRejected() {
+    /// Gaps wider than the auto-repair cap (3 indices) still fall back
+    /// to the deterministic builder — silently dropping 4+ words would
+    /// be a worse error than a chunk fallback.
+    func testWideGapBetweenCuesIsRejected() {
         let ws = words(10)
-        let json = #"{"cues":[{"start":0,"end":3},{"start":6,"end":9}]}"#
+        // Skips indices 4, 5, 6, 7, 8 → 5-word gap, > maxGapToRepair.
+        let json = #"{"cues":[{"start":0,"end":3},{"start":9,"end":9}]}"#
         XCTAssertEqual(
             LayoutPlanParser.parse(json, words: ws, perCueBudget: 100),
-            .failure(.gapBetweenCues(prevEnd: 3, nextStart: 6))
+            .failure(.gapBetweenCues(prevEnd: 3, nextStart: 9))
         )
+    }
+
+    /// SRT (38) regression: Gemma 4 occasionally skipped a single
+    /// index when emitting cue ranges — `{end:9},{start:11}` (word 10
+    /// missing). Before the fix, the whole 80-word chunk fell back to
+    /// deterministic layout, producing ~50 extra cues. Now the parser
+    /// extends the previous cue to swallow the missing index(es).
+    func testOneIndexGapAutoCorrects() {
+        let ws = words(10)
+        // Skips index 5: gap of 1 → autoCorrectGaps extends prev to {0,5}.
+        let json = #"{"cues":[{"start":0,"end":4},{"start":6,"end":9}]}"#
+        let result = LayoutPlanParser.parse(json, words: ws, perCueBudget: 100)
+        guard case .success(let ranges) = result else {
+            XCTFail("One-index gap should auto-repair; got: \(result)")
+            return
+        }
+        XCTAssertEqual(ranges, [.init(start: 0, end: 5), .init(start: 6, end: 9)])
+    }
+
+    /// Two-index gap is still inside the repair cap.
+    func testTwoIndexGapAutoCorrects() {
+        let ws = words(10)
+        // Skips indices 4, 5: gap of 2 → autoCorrectGaps extends prev to {0,5}.
+        let json = #"{"cues":[{"start":0,"end":3},{"start":6,"end":9}]}"#
+        let result = LayoutPlanParser.parse(json, words: ws, perCueBudget: 100)
+        guard case .success(let ranges) = result else {
+            XCTFail("Two-index gap should auto-repair; got: \(result)")
+            return
+        }
+        XCTAssertEqual(ranges, [.init(start: 0, end: 5), .init(start: 6, end: 9)])
     }
 
     /// Wider overlaps (e.g. 3-index) also auto-correct now: the

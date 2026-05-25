@@ -129,9 +129,18 @@ enum LayoutPlanParser {
         // re-validate. Overlap auto-correction is safe because the
         // shared index unambiguously belongs to one cue or the other —
         // we keep it in the previous cue and bump the current cue's
-        // start forward. Gap (skipped words) stays a hard failure
-        // because it would silently drop transcript content.
+        // start forward.
         ranges = autoCorrectOverlaps(ranges)
+        // Auto-correct gaps the same way (LLM skipped one or two word
+        // indices, e.g. `{end:9},{start:11}` — word 10 missing). We
+        // extend the previous cue's end so the missing word(s) land in
+        // it. This is safe content-wise (no transcript loss), and the
+        // downstream `autoSplitOversizedRanges` will break the result
+        // if extending pushes prev over budget. Real failure case: SRT
+        // (38) had 4 chunks fall back to deterministic layout because
+        // Gemma 4 occasionally drops a single index — each fallback
+        // produced ~50 extra cues vs the LLM's intended layout.
+        ranges = autoCorrectGaps(ranges)
         // After correction, drop any cue that became empty (start > end).
         ranges = ranges.filter { $0.start <= $0.end }
         // Re-validate coverage now that ranges may have shifted.
@@ -178,6 +187,38 @@ enum LayoutPlanParser {
                 curr = CueRange(start: prev.end + 1, end: curr.end)
             }
             out.append(curr)
+        }
+        return out
+    }
+
+    /// Walk the range list once and extend `prev.end` to cover any
+    /// missing indices between it and the next cue's start (LLM
+    /// dropped one or two word indices when emitting JSON). Bounded
+    /// to a maximum 3-word gap repair so a wildly broken response —
+    /// e.g. `{end:0},{start:50}` — still falls back to the
+    /// deterministic builder instead of mashing 49 words into one cue.
+    private static func autoCorrectGaps(_ ranges: [CueRange]) -> [CueRange] {
+        guard ranges.count > 1 else { return ranges }
+        // Cap the repair distance so wide gaps still fall through to
+        // the chunk fallback path. 3 indices matches the largest gap
+        // we've observed in the wild (Gemma 4 skipping a single word,
+        // worst-case ~2 in a row).
+        let maxGapToRepair = 3
+        var out: [CueRange] = []
+        out.reserveCapacity(ranges.count)
+        out.append(ranges[0])
+        for i in 1..<ranges.count {
+            let prev = out.removeLast()
+            let curr = ranges[i]
+            let gap = curr.start - (prev.end + 1)
+            if gap > 0 && gap <= maxGapToRepair {
+                // Roll the missing index(es) into prev.
+                out.append(CueRange(start: prev.start, end: curr.start - 1))
+                out.append(curr)
+            } else {
+                out.append(prev)
+                out.append(curr)
+            }
         }
         return out
     }
