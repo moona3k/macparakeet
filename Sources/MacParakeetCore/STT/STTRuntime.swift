@@ -105,6 +105,9 @@ public actor STTRuntime: STTRuntimeProtocol {
             return try await transcribeWithParakeet(audioPath: audioPath, job: job, onProgress: onProgress)
         case .whisper:
             return try await transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
+        case .vibevoice:
+            // TODO(Phase 2.2): wire up VibeVoice transcription path in Task 6
+            throw STTError.engineNotRunning
         }
     }
 
@@ -211,6 +214,9 @@ public actor STTRuntime: STTRuntimeProtocol {
                 let engine = whisperEngine ?? WhisperEngine(model: whisperModelVariant)
                 whisperEngine = engine
                 try await engine.prepare(onProgress: onProgress)
+            case .vibevoice:
+                // TODO(Phase 2.2): wire up VibeVoice warm-up path in Task 6
+                break
             }
             let elapsed = start.duration(to: .now)
             let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
@@ -435,6 +441,11 @@ public actor STTRuntime: STTRuntimeProtocol {
             )
             try await engine.prepare(onProgress: onProgress)
             preparedWhisper = engine
+        case .vibevoice:
+            // TODO(Phase 2.2): wire up VibeVoice engine-switch preparation in Task 6.
+            // No user-facing string until Task 13/14 makes VibeVoice selectable from
+            // the Settings UI.
+            break
         }
 
         if let preparedWhisper {
@@ -692,9 +703,15 @@ public actor STTRuntime: STTRuntimeProtocol {
     private func telemetryModelKind(for engine: SpeechEnginePreference) -> TelemetryModelKind {
         switch engine {
         case .parakeet:
-            .parakeetSTT
+            return .parakeetSTT
         case .whisper:
-            .whisperSTT
+            return .whisperSTT
+        case .vibevoice:
+            // TODO(Phase 2.2): wire up VibeVoice telemetry kind in Task 6.
+            // Until Task 6 lands, fall back to .whisperSTT so the build compiles.
+            // If this fires, telemetry events get miscategorized — log so it's noticed.
+            logger.warning("VibeVoice telemetry placeholder firing; events will be reported as whisperSTT until Task 6")
+            return .whisperSTT
         }
     }
 
@@ -704,6 +721,9 @@ public actor STTRuntime: STTRuntimeProtocol {
             nil
         case .whisper:
             whisperModelVariant
+        case .vibevoice:
+            // TODO(Phase 2.2): return the VibeVoice model variant in Task 6
+            nil
         }
     }
 

@@ -702,6 +702,9 @@ public final class TranscriptionViewModel {
             case .whisper:
                 let friendly = SpeechEnginePreference.friendlyVariantName(whisperVariant)
                 return "Whisper \(friendly) \u{00B7} Neural Engine"
+            case .vibevoice:
+                // TODO(Phase 2.2): update label once VibeVoice model variants are known (Task 11)
+                return "VibeVoice \u{00B7} Metal"
             }
         case .identifyingSpeakers:
             return "May take several minutes per hour of audio. Speaker labels are approximate \u{2014} click to rename."

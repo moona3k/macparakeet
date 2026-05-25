@@ -3,6 +3,7 @@ import Foundation
 public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     case parakeet
     case whisper
+    case vibevoice
 
     public static let defaultsKey = "speechRecognitionEngine"
     public static let whisperDefaultLanguageKey = "whisperDefaultLanguage"
@@ -24,15 +25,20 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
             "Parakeet"
         case .whisper:
             "Whisper"
+        case .vibevoice:
+            "VibeVoice"
         }
     }
 
+    /// Deprecated: only meaningful with two engines. Returns Parakeet for any
+    /// non-Parakeet input. Phase 2.2+ callers should use `SpeechEnginePreferences`
+    /// per-feature resolution instead.
+    @available(*, deprecated, message: "Use SpeechEnginePreferences per-feature resolution")
     public var alternative: SpeechEnginePreference {
         switch self {
-        case .parakeet:
-            .whisper
-        case .whisper:
-            .parakeet
+        case .parakeet: return .whisper
+        case .whisper: return .parakeet
+        case .vibevoice: return .parakeet
         }
     }
 

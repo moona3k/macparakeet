@@ -236,6 +236,9 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                 let createdWhisperEngine = WhisperEngine(language: speechEngine.language)
                 whisperEngine = createdWhisperEngine
                 sttTranscriber = createdWhisperEngine
+            case .vibevoice:
+                // TODO(Phase 2.2): wire up VibeVoice CLI path in Task 8
+                throw ValidationError("VibeVoice engine is not yet available in this build.")
             }
             let audioProcessor = AudioProcessor()
             let youtubeDownloader = YouTubeDownloader(audioQuality: {

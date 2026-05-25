@@ -25,6 +25,9 @@ enum SettingsStatusRules {
         switch activeEngine {
         case .parakeet: activeStatus = parakeet
         case .whisper: activeStatus = whisper
+        case .vibevoice:
+            // TODO(Phase 2.2): pass vibevoice status once SettingsViewModel exposes it (Task 11)
+            activeStatus = .notLoaded
         }
 
         if activeStatus == .notDownloaded {

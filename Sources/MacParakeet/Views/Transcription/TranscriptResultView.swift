@@ -829,6 +829,9 @@ struct TranscriptResultView: View {
                 return "Whisper"
             }
             return "Whisper \(SpeechEnginePreference.friendlyVariantName(variant))"
+        case .vibevoice:
+            // TODO(Phase 2.2): refine attribution label when VibeVoice model variant is available (Task 14)
+            return "VibeVoice"
         }
     }
 
@@ -2973,6 +2976,9 @@ private struct EngineOptionCard: View {
         switch selection.engine {
         case .parakeet: "bolt.fill"
         case .whisper: "globe"
+        case .vibevoice:
+            // TODO(Phase 2.2): pick final icon for VibeVoice in Task 13
+            "waveform"
         }
     }
 
@@ -2982,6 +2988,9 @@ private struct EngineOptionCard: View {
             "Fast • 25 European languages, including English"
         case .whisper:
             "Broader languages • Korean, Chinese, Japanese, and more"
+        case .vibevoice:
+            // TODO(Phase 2.2): update subtitle with final VibeVoice language coverage in Task 13
+            "VibeVoice • Metal-accelerated"
         }
     }
 
