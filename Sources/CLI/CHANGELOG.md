@@ -117,6 +117,19 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
   Existing scripts that intentionally target a non-loopback HTTP endpoint can
   keep that behavior by adding the explicit flag.
 
+## [2.4.0] - 2026-05-25
+
+### Added
+
+- `transcribe --engine vibevoice` — transcribe via VibeVoice-ASR (third local engine alongside Parakeet and Whisper). 10 GB model, ~RTF 0.4 on Apple Silicon, returns diarized segments with native speaker labels.
+- `models download vibevoice-asr-q4-k` (also accepts the short form `vibevoice`) — download VibeVoice model files to the conventional location `~/Library/Application Support/MacParakeet/models/stt/vibevoice/`. Skips with a clear message if already installed.
+- `health` now reports VibeVoice model installation status alongside Parakeet and Whisper, in both human-readable and `--json` output. The new `vibevoiceModelInstalled` field in the JSON payload is additive and non-breaking.
+
+### Notes
+
+- `--language` is accepted-but-ignored when paired with `--engine vibevoice` (the model auto-detects language internally). A warning is printed to stderr.
+- VibeVoice's per-segment diarized output flows through the existing `STTResult.segments` field — `STTSegment.speakerId` is now optional and populated only when the engine performs native diarization.
+
 ## [2.3.1] -- 2026-05-19
 
 ### Changed

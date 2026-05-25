@@ -169,7 +169,8 @@ final class ModelLifecycleCommandTests: XCTestCase {
             diarizationService: diarization,
             isSpeechModelCached: { true },
             whisperModelVariant: "large-v3-v20240930_turbo_632MB",
-            isWhisperModelDownloaded: { $0 == "large-v3-v20240930_turbo_632MB" }
+            isWhisperModelDownloaded: { $0 == "large-v3-v20240930_turbo_632MB" },
+            isVibeVoiceModelInstalled: { false }
         )
 
         XCTAssertEqual(
@@ -180,7 +181,8 @@ final class ModelLifecycleCommandTests: XCTestCase {
                 speakerModelsCached: false,
                 speakerModelsPrepared: false,
                 whisperModelVariant: "large-v3-v20240930_turbo_632MB",
-                whisperModelDownloaded: true
+                whisperModelDownloaded: true,
+                vibevoiceModelInstalled: false
             )
         )
         XCTAssertEqual(status.summary, "Speech model present, speaker models missing")

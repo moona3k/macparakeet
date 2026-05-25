@@ -278,6 +278,7 @@ struct SpeechStackPayload: Encodable {
     let speakerModelsPrepared: Bool
     let whisperModelVariant: String
     let whisperModelDownloaded: Bool
+    let vibevoiceModelInstalled: Bool
     let summary: String
 
     init(status: SpeechStackStatus) {
@@ -287,6 +288,7 @@ struct SpeechStackPayload: Encodable {
         self.speakerModelsPrepared = status.speakerModelsPrepared
         self.whisperModelVariant = status.whisperModelVariant
         self.whisperModelDownloaded = status.whisperModelDownloaded
+        self.vibevoiceModelInstalled = status.vibevoiceModelInstalled
         self.summary = status.summary
     }
 }
@@ -298,6 +300,7 @@ struct SpeechStackStatus: Sendable, Equatable {
     let speakerModelsPrepared: Bool
     let whisperModelVariant: String
     let whisperModelDownloaded: Bool
+    let vibevoiceModelInstalled: Bool
 
     var summary: String {
         if speechRuntimeReady && speakerModelsPrepared {
@@ -328,7 +331,8 @@ func loadSpeechStackStatus(
     diarizationService: DiarizationServiceProtocol,
     isSpeechModelCached: @escaping @Sendable () -> Bool = { STTClient.isModelCached() },
     whisperModelVariant: String = SpeechEnginePreference.whisperModelVariant(defaults: macParakeetAppDefaults()),
-    isWhisperModelDownloaded: @escaping @Sendable (String) -> Bool = { WhisperEngine.isModelDownloaded(model: $0) }
+    isWhisperModelDownloaded: @escaping @Sendable (String) -> Bool = { WhisperEngine.isModelDownloaded(model: $0) },
+    isVibeVoiceModelInstalled: @escaping @Sendable () -> Bool = { VibeVoiceModelDownloader.areModelsInstalled() }
 ) async -> SpeechStackStatus {
     async let speechRuntimeReady = sttClient.isReady()
     async let speakerModelsCached = diarizationService.hasCachedModels()
@@ -340,7 +344,8 @@ func loadSpeechStackStatus(
         speakerModelsCached: speakerModelsCached,
         speakerModelsPrepared: speakerModelsPrepared,
         whisperModelVariant: whisperModelVariant,
-        whisperModelDownloaded: isWhisperModelDownloaded(whisperModelVariant)
+        whisperModelDownloaded: isWhisperModelDownloaded(whisperModelVariant),
+        vibevoiceModelInstalled: isVibeVoiceModelInstalled()
     )
 }
 
@@ -354,6 +359,11 @@ func printSpeechStackStatus(_ status: SpeechStackStatus, includeHeader: Bool = t
     print("  Speaker models prepared: \(status.speakerModelsPrepared ? "Yes" : "No")")
     print("  Whisper model variant: \(status.whisperModelVariant)")
     print("  Whisper model downloaded: \(status.whisperModelDownloaded ? "Yes" : "No")")
+    if status.vibevoiceModelInstalled {
+        print("  VibeVoice model: installed")
+    } else {
+        print("  VibeVoice model: not installed (run `models download vibevoice-asr-q4-k`)")
+    }
     print("  Status: \(status.summary)")
 }
 
