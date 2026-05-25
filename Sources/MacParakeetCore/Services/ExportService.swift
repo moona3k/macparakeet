@@ -129,6 +129,14 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
     /// dictation output also get it in their subtitle exports.
     public var normalizeNumbers: Bool
 
+    /// How many adjacent cue pairs the LLM reviewer bundles into ONE
+    /// API call when `useLLMRefinement` is on. Smaller = more calls but
+    /// tighter per-cue context; larger = fewer calls but the model has
+    /// to track more boundaries at once. Default 5 is the sweet spot
+    /// from informal testing on Gemma 4 / DeepSeek V4. Clamped to 1...10
+    /// so a stray very-large value can't blow the model's response.
+    public var reviewerPairsPerBatch: Int
+
     public init(
         maxWordsPerCue: Int = 12,
         maxCharsPerLine: Int = 42,
@@ -142,7 +150,8 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
         maxCPS: Double = 17.0,
         endTimeBufferMs: Int = 0,
         snapToFrameRate: Double? = nil,
-        normalizeNumbers: Bool = false
+        normalizeNumbers: Bool = false,
+        reviewerPairsPerBatch: Int = 5
     ) {
         self.maxWordsPerCue = max(1, maxWordsPerCue)
         self.maxCharsPerLine = max(10, maxCharsPerLine)
@@ -157,6 +166,7 @@ public struct SubtitleExportConfig: Sendable, Equatable, Codable {
         self.endTimeBufferMs = max(0, endTimeBufferMs)
         self.snapToFrameRate = snapToFrameRate
         self.normalizeNumbers = normalizeNumbers
+        self.reviewerPairsPerBatch = min(10, max(1, reviewerPairsPerBatch))
     }
 
     public static let `default` = SubtitleExportConfig()
@@ -169,7 +179,8 @@ extension SubtitleExportConfig {
         case maxWordsPerCue, maxCharsPerLine, maxLinesPerCue, maxDurationMs,
              gapThresholdMs, breakOnPunctuation, minWordsBeforePunctuationBreak,
              preferBalancedLines, useLLMRefinement, maxCPS,
-             endTimeBufferMs, snapToFrameRate, normalizeNumbers
+             endTimeBufferMs, snapToFrameRate, normalizeNumbers,
+             reviewerPairsPerBatch
     }
 
     public init(from decoder: Decoder) throws {
@@ -187,6 +198,7 @@ extension SubtitleExportConfig {
         endTimeBufferMs              = try c.decodeIfPresent(Int.self, forKey: .endTimeBufferMs) ?? 0
         snapToFrameRate              = try c.decodeIfPresent(Double.self, forKey: .snapToFrameRate)
         normalizeNumbers             = try c.decodeIfPresent(Bool.self, forKey: .normalizeNumbers) ?? false
+        reviewerPairsPerBatch        = try c.decodeIfPresent(Int.self, forKey: .reviewerPairsPerBatch) ?? 5
     }
 }
 
@@ -948,7 +960,10 @@ public final class ExportService: ExportServiceProtocol, Sendable {
                 startMs: $0.startMs, endMs: $0.endMs, text: $0.text
             )
         }
-        let reviewer = SubtitleLLMReviewer(llmService: llmService)
+        let reviewer = SubtitleLLMReviewer(
+            llmService: llmService,
+            pairsPerBatch: config.reviewerPairsPerBatch
+        )
         let suggestions = await reviewer.review(
             cues: snapshot,
             config: config,

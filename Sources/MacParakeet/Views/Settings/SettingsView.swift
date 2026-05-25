@@ -292,6 +292,7 @@ struct SettingsView: View {
     private var aiTabContent: some View {
         scrollableTabBody {
             aiProviderCard.id("ai.provider")
+            subtitleRefinementCard.id("ai.subtitle-refinement")
         }
     }
 
@@ -1296,6 +1297,19 @@ struct SettingsView: View {
             return SettingsCardStatus(.ok, label: "Ready")
         }
         return nil
+    }
+
+    /// Subtitle refinement card — surfaces the `useLLMRefinement` feature
+    /// (otherwise buried in the Export Options popover) and exposes the
+    /// reviewer batch size knob. Larger batch = fewer LLM calls = lower
+    /// Ollama/OpenAI bill at the cost of slightly weaker per-cue
+    /// judgment. Persisted via `TranscriptExportPreferences` so the
+    /// Export popover reads the same value.
+    private var subtitleRefinementCard: some View {
+        SubtitleRefinementCard(
+            currentModelName: llmSettingsViewModel.effectiveModelName,
+            isLLMConfigured: llmSettingsViewModel.isConfigured
+        )
     }
 
     // MARK: - Storage
