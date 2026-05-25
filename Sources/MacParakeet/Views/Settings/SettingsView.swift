@@ -1640,69 +1640,15 @@ struct SettingsView: View {
     // MARK: - Engine
 
     private var engineSelectorCard: some View {
-        SettingsCard(
-            title: "Speech Recognition",
-            subtitle: "Choose the engine that powers dictation, file transcription, and meetings.",
-            icon: "cpu",
-            status: engineSelectorCardStatus
-        ) {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                if let banner = speechEngineSwitchBannerState {
-                    speechEngineSwitchBanner(title: banner.title, detail: banner.detail)
-                }
-
-                HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                    EngineOptionTile(
-                        icon: "bolt.fill",
-                        name: "Parakeet",
-                        tagline: "Fastest local engine",
-                        strengths: [
-                            "English + 24 European languages",
-                            "155× realtime on Apple Silicon",
-                            "Runs on the Neural Engine"
-                        ],
-                        helpText: "Best for English and other European languages including Spanish, French, German, and Italian. Runs on the Neural Engine for the lowest latency on Apple Silicon.",
-                        modelStatus: displayedParakeetModelStatus,
-                        isSelected: viewModel.speechEnginePreference == .parakeet,
-                        isBusy: viewModel.speechEngineSwitching,
-                        unavailableReason: engineSwitchUnavailableReason(for: .parakeet),
-                        onSelect: { selectEngine(.parakeet) }
-                    )
-
-                    EngineOptionTile(
-                        icon: "globe",
-                        name: "Whisper",
-                        tagline: "Multilingual coverage",
-                        strengths: [
-                            "Korean, Japanese, Chinese, Thai +95 more",
-                            "Auto language detection",
-                            "Whisper Large v3 Turbo (632 MB)"
-                        ],
-                        helpText: "Best for languages outside Parakeet's coverage. Adds Korean, Japanese, Chinese, Thai, Hindi, Arabic, Vietnamese, and 80+ more — any language Whisper supports.",
-                        modelStatus: displayedWhisperModelStatus,
-                        isSelected: viewModel.speechEnginePreference == .whisper,
-                        isBusy: viewModel.speechEngineSwitching,
-                        unavailableReason: engineSwitchUnavailableReason(for: .whisper),
-                        needsFirstOptimize: displayedWhisperModelStatus == .notLoaded
-                            && !viewModel.whisperHasBeenOptimized,
-                        onSelect: { handleWhisperTileTap() }
-                    )
-                }
-
-                if let banner = whisperDownloadBannerState {
-                    EngineDownloadBanner(
-                        title: "Whisper Large v3 Turbo",
-                        subtitle: banner.subtitle,
-                        mode: banner.mode,
-                        action: { viewModel.downloadWhisperModel() }
-                    )
-                }
-
-                if let error = viewModel.speechEngineError {
-                    Text(error)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.errorRed)
-                }
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            if let banner = speechEngineSwitchBannerState {
+                speechEngineSwitchBanner(title: banner.title, detail: banner.detail)
+            }
+            SpeechEngineCard(viewModel: viewModel)
+            if let error = viewModel.speechEngineError {
+                Text(error)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
             }
         }
     }
