@@ -213,7 +213,7 @@ File/URL/meeting action -> MainWindowView/TranscribeView -> TranscriptionService
 - `SettingsView` — Tabbed/searchable shell (`Modes`, `Engine`, `AI`, `System`) with per-tab scroll bodies
 - `SettingsRootViewModel` — Owns active-tab persistence and search state
 - `SettingsTab` — Stable tab identifiers shared by search and view routing
-- `SettingsSearchIndex` — Cross-tab search entries; hides calendar entries while `AppFeatures.calendarEnabled` is `false`
+- `SettingsSearchIndex` — Cross-tab search entries; includes calendar rows while `AppFeatures.calendarEnabled` is `true`, and hides them when the flag is off
 - `SettingsViewModel` — Manages settings state, permissions, model status, speech-engine selection, calendar preferences, and legacy entitlement state
 
 **Dependencies:** `UserDefaults`, `CustomWordRepository`, `TextSnippetRepository`, `STTModelManager`, `WhisperModelManager`, `SPUUpdater`

@@ -16,6 +16,7 @@
 #   PLAY  - Video/audio playback
 #   LIB   - Transcription library
 #   MEET  - Meeting recording
+#   CAL   - Calendar auto-start
 #   CLI   - Public command-line surface
 #   XFORM - System-wide selected-text Transforms
 
@@ -27,7 +28,7 @@ REQ-DICT-001:
   status: implemented
 
 REQ-DICT-002:
-  description: Double-tap for persistent recording, hold for push-to-talk
+  description: Hands-free tap-to-toggle and hold-to-talk shortcuts, allowing exact shared triggers and blocking non-identical overlaps
   version: v0.1
   status: implemented
 
@@ -286,6 +287,18 @@ REQ-XFORM-001:
 
 REQ-XFORM-002:
   description: Completed Transform runs can be stored locally with input/output/source-app/timing history, and the CLI can list, show, delete, and clear that history
+  version: v0.6
+  status: implemented
+
+# --- v0.6 Calendar Auto-Start (ADR-017) ---
+
+REQ-CAL-001:
+  description: Calendar auto-start monitors EventKit calendars via adaptive polling and, per a user-selected mode (off/notify/auto-start, default off and strictly opt-in), notifies of upcoming meetings and/or auto-starts meeting recording with a pre-meeting countdown; RSVP-declined and zero-duration events are excluded and the whole surface is gated by Calendar permission and AppFeatures.calendarEnabled. Calendar-driven auto-stop was removed (ADR-017 amendment, 2026-05) — recordings stop manually; activity-based auto-stop is a future ADR
+  version: v0.6
+  status: implemented
+
+REQ-CAL-002:
+  description: Calendar settings and a skippable onboarding step let users grant Calendar access, choose the auto-start mode and lead time, and include specific calendars; calendar rows appear in Settings search only when enabled, and the CLI exposes upcoming calendar events for headless verification
   version: v0.6
   status: implemented
 

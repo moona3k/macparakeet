@@ -1,5 +1,7 @@
+import ArgumentParser
 import XCTest
 @testable import CLI
+@testable import MacParakeetCore
 
 final class CLITelemetryTests: XCTestCase {
 
@@ -154,5 +156,55 @@ final class CLITelemetryTests: XCTestCase {
         XCTAssertTrue(
             CLITelemetry.isCIEnvironment(env: ["JENKINS_URL": "https://ci.example.com/"])
         )
+    }
+
+    // MARK: - operation metadata
+
+    func testMetadataUsesCanonicalNestedCommandPath() throws {
+        let command = try CLI.parseAsRoot(["config", "set", "telemetry", "off"])
+
+        let metadata = CLITelemetry.metadata(for: command)
+
+        XCTAssertEqual(metadata.command, "config")
+        XCTAssertEqual(metadata.subcommand, "set")
+        XCTAssertNil(metadata.inputKind)
+        XCTAssertNil(metadata.outputFormat)
+        XCTAssertEqual(metadata.json, false)
+        XCTAssertTrue(metadata.suppressEvent)
+    }
+
+    func testConfigSetTelemetryOnDoesNotSuppressTelemetryEvent() throws {
+        let command = try CLI.parseAsRoot(["config", "set", "telemetry", "on"])
+
+        let metadata = CLITelemetry.metadata(for: command)
+
+        XCTAssertEqual(metadata.command, "config")
+        XCTAssertEqual(metadata.subcommand, "set")
+        XCTAssertFalse(metadata.suppressEvent)
+    }
+
+    func testTranscribeMetadataKeepsPrivacySafeInputKindAndOutputFormat() throws {
+        let command = try CLI.parseAsRoot([
+            "transcribe",
+            "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+            "--format",
+            "json",
+        ])
+
+        let metadata = CLITelemetry.metadata(for: command)
+
+        XCTAssertEqual(metadata.command, "transcribe")
+        XCTAssertNil(metadata.subcommand)
+        XCTAssertEqual(metadata.inputKind, .youtube)
+        XCTAssertEqual(metadata.outputFormat, "json")
+        XCTAssertEqual(metadata.json, true)
+        XCTAssertFalse(metadata.suppressEvent)
+    }
+
+    func testTelemetryOutcomeTreatsSuccessfulExitCodeAsSuccess() {
+        let result = Result<Void, Error>.failure(ExitCode.success)
+
+        XCTAssertEqual(result.cliTelemetryOutcome, .success)
+        XCTAssertEqual(result.cliTelemetryExitCode, 0)
     }
 }

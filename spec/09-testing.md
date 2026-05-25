@@ -278,47 +278,48 @@ Tests/
 
 These flows must be tested manually after any overlay or hotkey changes. Automated unit tests cover the state machine logic, but the full UX requires human verification.
 
-> **Note:** "Fn" below refers to whichever trigger key is configured (Fn, Control, Option, Shift, or Command). Default is Fn. Test with at least two different trigger keys.
+> **Note:** The default dictation preset uses `Fn` for both roles: double-tap `Fn` for hands-free, and hold `Fn` for push-to-talk. `Fn+Space` is a supported custom hands-free chord and should remain recordable. Custom dictation shortcuts may be distinct, or both roles may share the exact same trigger for the shared hold/double-tap gesture. Settings should reject overlapping but non-identical triggers for the two roles. Test with at least two different trigger keys.
 
 ### Happy Path
 
 | # | Flow | Steps | Expected |
 |---|------|-------|----------|
-| 1 | Persistent recording | Fn+Fn → speak → Fn | Pill appears → waveform animates → checkmark → text pasted |
+| 1 | Persistent recording | Double-tap Fn → speak → tap Fn | Pill appears → waveform animates → checkmark → text pasted |
 | 2 | Hold-to-talk | Hold Fn (>400ms) → speak → release Fn | Pill appears → waveform → checkmark → text pasted |
 
 ### Cancel & Undo Flows
 
 | # | Flow | Steps | Expected |
 |---|------|-------|----------|
-| 3 | Cancel via Esc | Fn+Fn → Esc | Pill shows countdown ring (5s) → auto-dismiss |
-| 4 | Cancel via X button | Fn+Fn → click X | Same as Esc cancel — countdown → auto-dismiss |
-| 5 | Undo after Esc cancel | Fn+Fn → Esc → click Undo | Recording restarts, pill shows waveform again |
-| 6 | Undo after X cancel | Fn+Fn → click X → click Undo | Recording restarts, pill shows waveform again |
-| 7 | **Fn after undo** | Fn+Fn → cancel → Undo → Fn | Recording stops, checkmark, text pasted |
-| 8 | **Fn+Fn after undo** | Fn+Fn → cancel → Undo → Fn → Fn+Fn | New recording starts |
-| 9 | Fn blocked during cancel | Fn+Fn → Esc → Fn (during countdown) | Nothing happens — Fn is blocked |
-| 10 | Cancel countdown expires | Fn+Fn → Esc → wait 5s | Pill auto-dismisses, Fn+Fn works again |
+| 3 | Cancel via Esc | Double-tap Fn → Esc | Pill shows countdown ring (5s) → auto-dismiss |
+| 4 | Cancel via X button | Double-tap Fn → click X | Same as Esc cancel — countdown → auto-dismiss |
+| 5 | Undo after Esc cancel | Double-tap Fn → Esc → click Undo | Recording restarts, pill shows waveform again |
+| 6 | Undo after X cancel | Double-tap Fn → click X → click Undo | Recording restarts, pill shows waveform again |
+| 7 | **Hands-free after undo** | Double-tap Fn → cancel → Undo → tap Fn | Recording stops, checkmark, text pasted |
+| 8 | **New hands-free recording after undo** | Double-tap Fn → cancel → Undo → tap Fn → double-tap Fn | New recording starts |
+| 9 | Hands-free blocked during cancel | Double-tap Fn → Esc → Fn (during countdown) | Nothing happens — shortcut is blocked |
+| 10 | Cancel countdown expires | Double-tap Fn → Esc → wait 5s | Pill auto-dismisses, Fn works again |
 
 ### Configurable Hotkey
 
 | # | Flow | Steps | Expected |
 |---|------|-------|----------|
-| 10a | Change trigger key | Settings → Hotkey → select Control | Menu bar shows "Hotkey: Control (double-tap / hold)" |
-| 10b | New trigger works | Ctrl+Ctrl → speak → Ctrl | Recording starts/stops with new key |
+| 10a | Change hands-free shortcut | Settings → Shortcuts → Hands-free mode → select Control+Space | Menu bar shows "Tap Control+Space" for hands-free |
+| 10b | New trigger works | Ctrl+Space → speak → Ctrl+Space | Recording starts/stops with new shortcut |
 | 10c | Bare-tap filtering | Hold Ctrl → press C → release Ctrl | Does NOT trigger dictation (keyboard shortcut) |
-| 10d | Gesture interruption | Ctrl → type "hello" → Ctrl | Does NOT trigger double-tap (typing interrupted) |
-| 10e | Switch back to Fn | Settings → Hotkey → select Fn | Fn works again, Ctrl no longer triggers |
-| 10f | Dynamic UI text | Change to Option → check overlay/pill/history | All say "Option" instead of "Fn" |
+| 10d | Single-tap modifier filtering | Ctrl → type "hello" → release Ctrl | Does NOT trigger dictation |
+| 10e | Record Fn+Space custom chord | Settings → Shortcuts → Hands-free mode → record Fn+Space | Fn+Space works, Ctrl no longer triggers |
+| 10f | Dynamic UI text | Change to Option+Space → check overlay/pill/history | All say "Option+Space" instead of "Fn" |
+| 10g | Conflicting custom dictation shortcut blocked | Restore default so both roles use Fn, then try an overlapping custom pair such as Control and Control+Space | Default Fn preset is accepted; Settings rejects the custom conflict with a conflict message |
 
 ### State Transitions
 
 | # | Flow | Steps | Expected |
 |---|------|-------|----------|
-| 11 | Recording → Processing | Fn+Fn → speak → Fn | Pill smoothly transitions from waveform to spinner |
+| 11 | Recording → Processing | Double-tap Fn → speak → tap Fn | Pill smoothly transitions from waveform to spinner |
 | 12 | Processing → Success | (after transcription completes) | Animated checkmark appears, then text pastes |
 | 13 | Error display | (trigger STT error) | Error card (rounded rect, icon, title+subtitle, dismiss button) |
-| 13a | Delayed first-stop race | Fn+Fn, then immediately Fn while first start is still spinning up | Stop is deferred, then processing/paste completes once recording is active (no silent drop) |
+| 13a | Delayed first-stop race | Double-tap Fn, then immediately tap Fn while first start is still spinning up | Stop is deferred, then processing/paste completes once recording is active (no silent drop) |
 
 ### Hover Tooltips
 

@@ -145,7 +145,7 @@ struct TransformsView: View {
                 Label(viewModel.heroShortcutInstruction, systemImage: "2.circle.fill")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Label("The selection is rewritten in place. ⌘Z to undo.", systemImage: "3.circle.fill")
+                Label("The result is pasted into your current app. ⌘Z to undo where supported.", systemImage: "3.circle.fill")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
             }

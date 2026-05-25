@@ -97,9 +97,9 @@ per CONTRIBUTING quality standards.
 - **Open source for ~1 month**: GPL-3.0 since 2026-03-25
   ([open-source announcement](https://macparakeet.com/blog/macparakeet-open-source/)).
 - **Daily-driven by maintainer**: feature-complete for dictation,
-  file transcription, meeting recording, and optional local WhisperKit
-  multilingual STT; calendar auto-start code remains hidden behind
-  `AppFeatures.calendarEnabled = false`.
+  file transcription, meeting recording, optional local WhisperKit
+  multilingual STT, and calendar auto-start (shipped and enabled,
+  defaulting to opt-in mode `.off`).
 - **Multiple shipped releases**: Sparkle auto-updates from v0.1
   through the v0.6 release train. Public appcast at
   <https://macparakeet.com/appcast.xml>.

@@ -14,8 +14,8 @@ MacParakeet has these primary UI surfaces:
 7. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
 8. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
 9. **Menu Bar** -- Quick access and status
-10. **Calendar Countdown Toasts** -- Implemented but hidden from v0.6 by `AppFeatures.calendarEnabled = false`
-11. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls are hidden in v0.6
+10. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start
+11. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls appear once Calendar access is granted
 
 Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutter. The app should feel like part of macOS, not a web app in a wrapper.
 
@@ -223,7 +223,7 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 ```
   ╭────────────────────────────────────────────╮
-  │  Click or hold fn to start dictating       │  ← tooltip bubble
+  │  Click, tap fn or hold fn to dictate       │  ← tooltip bubble
   ╰────────────────────────────────────────────╯
 ┌──────────────────────────────────────────┐
 │    ╭──────────────────────────────╮      │
@@ -233,8 +233,8 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 - 148×30pt expanded dark capsule (black 85%)
 - 12 small dots (3pt, white 25%) inside pill
-- Tooltip bubble above: "Click or hold fn to start dictating"
-  - "fn" in pink (0.85, 0.55, 0.75)
+- Tooltip bubble above: "Click, tap fn or hold fn to dictate"
+  - Shortcut tokens in pink (0.85, 0.55, 0.75)
   - Dark capsule background (black 90%) with white 10% stroke
 ```
 
@@ -242,7 +242,7 @@ Persistent floating pill at the bottom-center of the screen, always visible when
 
 - **Show:** On app launch and after every dictation exit (stop, cancel, error, dismiss)
 - **Hide:** When dictation starts
-- **Click:** Starts persistent dictation (same as double-tap Fn)
+- **Click:** Starts persistent dictation (same as the hands-free shortcut)
 - **Hover:** Expands pill, shows tooltip
 - **Mouse exit:** Collapses pill, hides tooltip
 - **Focus:** Never steals focus (non-activating panel)
@@ -288,7 +288,7 @@ Compact dark pill overlay, always-on-top, bottom-center of screen. This is the p
 - [■] Stop button (SF Symbol: stop.circle.fill, white)
   - Hover: red glow (red 30% background), 10% scale-up
 - Tooltip on [✕]: "Cancel (Esc)"
-- Tooltip on [■]: "Stop & Paste (↵)"
+- Tooltip on [■]: "Stop & Paste"
 ```
 
 **2. Cancelled**
@@ -716,12 +716,12 @@ Row anatomy:
 
 Settings open in the content area when "Settings" is selected in the sidebar. The current information architecture is a four-tab shell with a persistent header, search field, and status-aware tab badges:
 
-- **Modes** — Audio Input, Dictation, Transcription, and Meeting Recording cards. Calendar controls are folded into Meeting Recording but hidden in v0.6 while `AppFeatures.calendarEnabled = false`.
+- **Modes** — Audio Input, Dictation, Transcription, and Meeting Recording cards. Calendar controls are folded into Meeting Recording and appear once Calendar access is granted (`AppFeatures.calendarEnabled = true`).
 - **Engine** — Speech engine selector, Whisper language picker, and local model status/management.
 - **AI** — Optional provider setup for summaries, transcript chat, prompt actions, and live Ask.
 - **System** — Startup, permissions, storage, updates, privacy/telemetry, onboarding reset, about, and fenced Reset & Cleanup actions.
 
-`SettingsRootViewModel` owns active-tab persistence and search state. `SettingsSearchIndex` provides cross-tab search results and hides calendar entries while the calendar feature flag is off. The legacy card sketches below are retained only as historical content references; their grouping is not the current v0.6 IA.
+`SettingsRootViewModel` owns active-tab persistence and search state. `SettingsSearchIndex` provides cross-tab search results and includes calendar entries while `AppFeatures.calendarEnabled` is `true` (currently enabled; they surface once Calendar access is granted), and hides them when the flag is off. The legacy card sketches below are retained only as historical content references; their grouping is not the current v0.6 IA.
 
 ### General (v0.1)
 
@@ -744,12 +744,11 @@ Settings open in the content area when "Settings" is selected in the sidebar. Th
 │  DICTATION                                                │
 │  ─────────────────────────────────────────────────────    │
 │                                                           │
-│  Hotkey                       [fn Fn        ▾]          │
-│  (Double-tap to start dictation)                         │
+│  Push to talk                [fn Fn        ▾]          │
+│  (Hold to dictate, release to stop)                       │
 │                                                           │
-│  Stop mode                    [● Hold to record]         │
-│                               [  Double-tap toggle]      │
-│  (Hold: release key to stop. Toggle: tap again to stop)  │
+│  Hands-free mode             [fn          ▾]          │
+│  (Tap to start, tap again to stop)                       │
 │                                                           │
 │  Silence threshold            [──●──────── 2.0s]        │
 │  (Auto-stop after this much silence)                     │

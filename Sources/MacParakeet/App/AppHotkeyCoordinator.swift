@@ -76,6 +76,17 @@ final class AppHotkeyCoordinator {
         struct Spec: Equatable {
             let trigger: HotkeyTrigger
             let gestureMode: HotkeyGestureController.Mode
+            let startupDebounceMs: Int
+
+            init(
+                trigger: HotkeyTrigger,
+                gestureMode: HotkeyGestureController.Mode,
+                startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs
+            ) {
+                self.trigger = trigger
+                self.gestureMode = gestureMode
+                self.startupDebounceMs = startupDebounceMs
+            }
         }
 
         struct Conflict: Equatable {
@@ -87,6 +98,16 @@ final class AppHotkeyCoordinator {
         let conflict: Conflict?
     }
 
+    struct HotkeyConflictCandidate: Equatable {
+        let trigger: HotkeyTrigger
+        let mode: HotkeyTrigger.ConflictMode
+
+        init(_ trigger: HotkeyTrigger, mode: HotkeyTrigger.ConflictMode = .exclusive) {
+            self.trigger = trigger
+            self.mode = mode
+        }
+    }
+
     static func menuTitle(for trigger: HotkeyTrigger) -> String {
         menuTitle(handsFree: trigger, pushToTalk: trigger)
     }
@@ -95,16 +116,22 @@ final class AppHotkeyCoordinator {
         if handsFree.isDisabled && pushToTalk.isDisabled {
             return "Dictation Shortcuts: Disabled"
         }
-        if !handsFree.isDisabled, handsFree == pushToTalk {
-            return "Dictation: \(handsFree.displayName) (hold or double-tap)"
+        if HotkeyTrigger.isSharedDictationGesture(handsFree: handsFree, pushToTalk: pushToTalk) {
+            return "Dictation: Hold \(pushToTalk.displayName) / Double-tap \(handsFree.displayName)"
+        }
+        if handsFree.overlaps(with: pushToTalk) {
+            let conflictName = handsFree == pushToTalk
+                ? handsFree.displayName
+                : "\(handsFree.displayName) / \(pushToTalk.displayName)"
+            return "Dictation Shortcuts: Conflict on \(conflictName)"
         }
         if handsFree.isDisabled {
             return "Push-to-talk: Hold \(pushToTalk.displayName)"
         }
         if pushToTalk.isDisabled {
-            return "Hands-free: Double-tap \(handsFree.displayName)"
+            return "Hands-free: Tap \(handsFree.displayName)"
         }
-        return "Dictation: Hold \(pushToTalk.displayName) / Double-tap \(handsFree.displayName)"
+        return "Dictation: Hold \(pushToTalk.displayName) / Tap \(handsFree.displayName)"
     }
 
     static func dictationHotkeyPlan(
@@ -115,25 +142,28 @@ final class AppHotkeyCoordinator {
             return DictationHotkeyPlan(specs: [], conflict: nil)
         }
 
-        if !handsFreeTrigger.isDisabled, !pushToTalkTrigger.isDisabled {
-            if handsFreeTrigger == pushToTalkTrigger {
-                return DictationHotkeyPlan(
-                    specs: [
-                        DictationHotkeyPlan.Spec(
-                            trigger: handsFreeTrigger,
-                            gestureMode: .doubleTapAndHold
-                        ),
-                    ],
-                    conflict: nil
-                )
-            }
+        if HotkeyTrigger.isSharedDictationGesture(
+            handsFree: handsFreeTrigger,
+            pushToTalk: pushToTalkTrigger
+        ) {
+            return DictationHotkeyPlan(
+                specs: [
+                    DictationHotkeyPlan.Spec(
+                        trigger: handsFreeTrigger,
+                        gestureMode: .doubleTapAndHold
+                    ),
+                ],
+                conflict: nil
+            )
+        }
 
+        if !handsFreeTrigger.isDisabled, !pushToTalkTrigger.isDisabled {
             if handsFreeTrigger.overlaps(with: pushToTalkTrigger) {
                 return DictationHotkeyPlan(
                     specs: [
                         DictationHotkeyPlan.Spec(
                             trigger: handsFreeTrigger,
-                            gestureMode: .doubleTapOnly
+                            gestureMode: .singleTapToggle
                         ),
                     ],
                     conflict: DictationHotkeyPlan.Conflict(
@@ -149,7 +179,7 @@ final class AppHotkeyCoordinator {
             specs.append(
                 DictationHotkeyPlan.Spec(
                     trigger: handsFreeTrigger,
-                    gestureMode: .doubleTapOnly
+                    gestureMode: .singleTapToggle
                 )
             )
         }
@@ -157,11 +187,28 @@ final class AppHotkeyCoordinator {
             specs.append(
                 DictationHotkeyPlan.Spec(
                     trigger: pushToTalkTrigger,
-                    gestureMode: .holdOnly
+                    gestureMode: .holdOnly,
+                    startupDebounceMs: pushToTalkStartupDebounceMs(
+                        handsFree: handsFreeTrigger,
+                        pushToTalk: pushToTalkTrigger
+                    )
                 )
             )
         }
         return DictationHotkeyPlan(specs: specs, conflict: nil)
+    }
+
+    private static func pushToTalkStartupDebounceMs(
+        handsFree handsFreeTrigger: HotkeyTrigger,
+        pushToTalk pushToTalkTrigger: HotkeyTrigger
+    ) -> Int {
+        guard pushToTalkTrigger.kind == .modifier,
+              pushToTalkTrigger.modifierName == "fn",
+              handsFreeTrigger.kind == .chord,
+              handsFreeTrigger.chordModifiers?.contains("fn") == true else {
+            return FnKeyStateMachine.defaultStartupDebounceMs
+        }
+        return FnKeyStateMachine.defaultTapThresholdMs
     }
 
     func setupDictationHotkeys() {
@@ -178,6 +225,7 @@ final class AppHotkeyCoordinator {
             startDictationHotkey(
                 trigger: spec.trigger,
                 gestureMode: spec.gestureMode,
+                startupDebounceMs: spec.startupDebounceMs,
                 resumeMode: Self.resumeMode(activeRecordingMode, for: spec.gestureMode),
                 suppressUntilReset: Self.shouldSuppressPeer(activeRecordingMode, for: spec.gestureMode)
             )
@@ -195,12 +243,17 @@ final class AppHotkeyCoordinator {
     private func startDictationHotkey(
         trigger: HotkeyTrigger,
         gestureMode: HotkeyGestureController.Mode,
+        startupDebounceMs: Int = FnKeyStateMachine.defaultStartupDebounceMs,
         resumeMode: FnKeyStateMachine.RecordingMode? = nil,
         suppressUntilReset: Bool = false
     ) -> HotkeyManager? {
         guard !trigger.isDisabled else { return nil }
 
-        let manager = HotkeyManager(trigger: trigger, gestureMode: gestureMode)
+        let manager = HotkeyManager(
+            trigger: trigger,
+            gestureMode: gestureMode,
+            startupDebounceMs: startupDebounceMs
+        )
         manager.onStartRecording = { [weak self, weak manager] mode in
             if let manager {
                 self?.suppressOtherDictationHotkeys(activeManager: manager)
@@ -257,10 +310,10 @@ final class AppHotkeyCoordinator {
         meetingHotkeyManager = startAuxiliaryHotkey(
             trigger: settingsViewModel.meetingHotkeyTrigger,
             conflicts: [
-                settingsViewModel.hotkeyTrigger,
-                settingsViewModel.pushToTalkHotkeyTrigger,
-                settingsViewModel.fileTranscriptionHotkeyTrigger,
-                settingsViewModel.youtubeTranscriptionHotkeyTrigger,
+                .init(settingsViewModel.hotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
+                .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onToggleMeetingRecording()
@@ -272,10 +325,10 @@ final class AppHotkeyCoordinator {
         fileTranscriptionHotkeyManager = startAuxiliaryHotkey(
             trigger: settingsViewModel.fileTranscriptionHotkeyTrigger,
             conflicts: [
-                settingsViewModel.hotkeyTrigger,
-                settingsViewModel.pushToTalkHotkeyTrigger,
-                settingsViewModel.meetingHotkeyTrigger,
-                settingsViewModel.youtubeTranscriptionHotkeyTrigger,
+                .init(settingsViewModel.hotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.meetingHotkeyTrigger),
+                .init(settingsViewModel.youtubeTranscriptionHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onTriggerFileTranscription()
@@ -287,10 +340,10 @@ final class AppHotkeyCoordinator {
         youtubeTranscriptionHotkeyManager = startAuxiliaryHotkey(
             trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger,
             conflicts: [
-                settingsViewModel.hotkeyTrigger,
-                settingsViewModel.pushToTalkHotkeyTrigger,
-                settingsViewModel.meetingHotkeyTrigger,
-                settingsViewModel.fileTranscriptionHotkeyTrigger,
+                .init(settingsViewModel.hotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.pushToTalkHotkeyTrigger, mode: .bareModifierDictation),
+                .init(settingsViewModel.meetingHotkeyTrigger),
+                .init(settingsViewModel.fileTranscriptionHotkeyTrigger),
             ],
             onTrigger: { [weak self] in
                 self?.onTriggerYouTubeTranscription()
@@ -303,12 +356,12 @@ final class AppHotkeyCoordinator {
     /// `GlobalShortcutManager`, and surface the availability callback.
     private func startAuxiliaryHotkey(
         trigger: HotkeyTrigger,
-        conflicts: [HotkeyTrigger],
+        conflicts: [HotkeyConflictCandidate],
         onTrigger: @escaping @MainActor () -> Void
     ) -> GlobalShortcutManager? {
         guard !trigger.isDisabled else { return nil }
         let overlappingTriggers = Self.uniqueTriggers(
-            conflicts.filter { !$0.isDisabled && $0.overlaps(with: trigger) }
+            Self.conflictingTriggers(for: trigger, among: conflicts)
         )
         if !overlappingTriggers.isEmpty {
             onHotkeyConflict(trigger, overlappingTriggers)
@@ -331,6 +384,19 @@ final class AppHotkeyCoordinator {
         }
     }
 
+    static func conflictingTriggers(
+        for trigger: HotkeyTrigger,
+        among conflicts: [HotkeyConflictCandidate]
+    ) -> [HotkeyTrigger] {
+        conflicts.compactMap { conflict in
+            guard !conflict.trigger.isDisabled,
+                  trigger.conflicts(with: conflict.trigger, otherMode: conflict.mode) else {
+                return nil
+            }
+            return conflict.trigger
+        }
+    }
+
     private static func uniqueTriggers(_ triggers: [HotkeyTrigger]) -> [HotkeyTrigger] {
         var unique: [HotkeyTrigger] = []
         for trigger in triggers where !unique.contains(trigger) {
@@ -345,12 +411,14 @@ final class AppHotkeyCoordinator {
     ) -> FnKeyStateMachine.RecordingMode? {
         guard let activeMode else { return nil }
         switch (activeMode, gestureMode) {
-        case (.persistent, .doubleTapOnly),
+        case (.persistent, .singleTapToggle),
+             (.persistent, .doubleTapOnly),
              (.persistent, .doubleTapAndHold),
              (.holdToTalk, .holdOnly),
              (.holdToTalk, .doubleTapAndHold):
             return activeMode
         case (.persistent, .holdOnly),
+             (.holdToTalk, .singleTapToggle),
              (.holdToTalk, .doubleTapOnly):
             return nil
         }

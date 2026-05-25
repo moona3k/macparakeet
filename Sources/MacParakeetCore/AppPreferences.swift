@@ -19,7 +19,6 @@ public enum CalendarAutoStartPreferences {
     public static let modeKey = "CalendarAutoStart.mode"
     public static let reminderMinutesKey = "CalendarAutoStart.reminderMinutes"
     public static let triggerFilterKey = "CalendarAutoStart.triggerFilter"
-    public static let autoStopEnabledKey = "CalendarAutoStart.autoStopEnabled"
     /// Set of `EKCalendar.calendarIdentifier` strings the user has *deselected*.
     /// Stored as the inverse so a fresh install / new calendar account is
     /// included by default — users opt out, not in.

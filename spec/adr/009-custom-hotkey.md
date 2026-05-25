@@ -14,7 +14,7 @@ Replace `TriggerKey` enum with a `HotkeyTrigger` struct that supports both modif
 
 ### Key Design Choices
 
-1. **Single keys only, no combos** — Key combos (Cmd+K) conflict with system shortcuts and create ambiguity for double-tap/hold gesture detection. Single keys fully cover the use case.
+1. **Initial single-key model** — The original design avoided key combos because common combos conflict with system shortcuts and created ambiguity for shared double-tap/hold detection. The chord-support amendments below add explicit modifier+key and modifier-only shortcuts.
 
 2. **`HotkeyTrigger` struct with `kind` discriminator** — A `.modifier` vs `.keyCode` discriminator cleanly separates the two event detection paths while sharing the same state machine.
 
@@ -49,12 +49,13 @@ Community issue #17 requested modifier+key combos (e.g., Cmd+9) because Logitech
 1. **New `.chord` kind** added to `HotkeyTrigger.Kind` — stores `chordModifiers: [String]` (e.g. `["command"]`) alongside `keyCode`.
 2. **Release-any-part stops** — For hold-to-talk with Cmd+9, releasing either Cmd or 9 ends dictation.
 3. **Key swallowed, modifiers passed** — The trigger key event is swallowed; modifier flag changes pass through to the active app.
-4. **Required modifiers must be present** — Mask to 4 relevant bits (⌃⌥⇧⌘) before comparing. Caps Lock, NumPad, etc. are stripped.
-5. **Fn excluded from chord modifiers** — Fn modifies F-key behavior on macOS. Stays as bare modifier only.
-6. **FnKeyStateMachine unchanged** — Key-agnostic. Chords generate the same down/up signals. Both hold-to-talk and double-tap work.
+4. **Required modifiers must be present** — Mask to 5 relevant bits (fn⌃⌥⇧⌘) before comparing. Caps Lock, NumPad, etc. are stripped.
+5. **Fn allowed in key chords** — Fn+Space is supported as a custom hands-free dictation shortcut. The default dictation behavior is a shared bare-Fn gesture preset: double-tap Fn for hands-free and hold Fn for push-to-talk.
+6. **FnKeyStateMachine unchanged** — Key-agnostic. Chords generate role-specific down/up signals, including hands-free single-tap toggle and hold-to-talk.
 7. **Modifier names stored as `[String]`** — Not raw `CGEventFlags.rawValue` (has phantom bits). Readable JSON: `{"kind":"chord","keyCode":25,"chordModifiers":["command"]}`.
 8. **HotkeyRecorderView two-phase capture** — Held modifiers show as preview (e.g. "⌘..."); pressing a key with modifiers held creates a chord; releasing all modifiers without a key press creates a bare modifier trigger.
 9. **Validation** — Chords are `.allowed` by default. Escape blocked. Cmd+Tab and Cmd+Space warned (system intercepts them).
+10. **Shared dictation gestures** — Hands-free and push-to-talk may share the exact same trigger, in which case that trigger uses the combined gesture model: hold for push-to-talk, double-tap for hands-free, and tap again to stop hands-free. Settings still blocks overlapping but non-identical triggers (for example, generic Command vs Right Command, or Right Command vs Right Command+Right Option). Legacy single-hotkey installs migrate to the shared default gesture when appropriate, or to distinct shortcuts where possible.
 
 ### Original decision preserved
 
@@ -77,4 +78,4 @@ Community issue #234 requested hotkeys such as Right Command+Right Option. The e
 
 ### Original decision preserved
 
-Existing `.modifier`, `.keyCode`, and `.chord` persisted values decode unchanged. Modifier-only chords are additive and use the existing key-agnostic gesture state machine for double-tap and hold-to-talk semantics.
+Existing `.modifier`, `.keyCode`, and `.chord` persisted values decode unchanged. Modifier-only chords are additive and use the existing key-agnostic gesture controller for the configured role semantics.

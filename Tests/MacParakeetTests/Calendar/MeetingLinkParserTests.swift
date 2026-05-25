@@ -41,6 +41,65 @@ final class MeetingLinkParserTests: XCTestCase {
         XCTAssertEqual(parser.extractMeetingUrl(from: text), "https://example.com/meet/room-1")
     }
 
+    // MARK: - Zoom variants (#4 — false negatives)
+
+    func testExtractsZoomPersonalRoom() {
+        XCTAssertEqual(
+            parser.extractMeetingUrl(from: "Join https://zoom.us/my/jane.doe"),
+            "https://zoom.us/my/jane.doe"
+        )
+    }
+
+    func testExtractsZoomWebinar() {
+        XCTAssertEqual(
+            parser.extractMeetingUrl(from: "https://company.zoom.us/w/1234567890"),
+            "https://company.zoom.us/w/1234567890"
+        )
+    }
+
+    func testExtractsZoomGov() {
+        XCTAssertEqual(
+            parser.extractMeetingUrl(from: "https://zoomgov.com/j/1234567890"),
+            "https://zoomgov.com/j/1234567890"
+        )
+    }
+
+    func testExtractsWhereby() {
+        XCTAssertEqual(
+            parser.extractMeetingUrl(from: "https://whereby.com/standup-room"),
+            "https://whereby.com/standup-room"
+        )
+    }
+
+    // MARK: - Generic precision (#4 — false positives)
+
+    func testGenericDoesNotMatchCallSubstringInRecall() {
+        XCTAssertFalse(parser.isMeetingUrl("https://example.com/recall"))
+        XCTAssertFalse(parser.isMeetingUrl("https://example.com/teamcall"))
+        XCTAssertFalse(parser.isMeetingUrl("https://site.com/page?utm_campaign=fallcall"))
+    }
+
+    func testGenericDoesNotMatchVideoSubstringInVideogame() {
+        XCTAssertFalse(parser.isMeetingUrl("https://videogame.com/play"))
+    }
+
+    func testGenericStillMatchesDelimitedTokens() {
+        XCTAssertTrue(parser.isMeetingUrl("https://example.com/video-call"))
+        XCTAssertTrue(parser.isMeetingUrl("https://acme.com/conference/room"))
+    }
+
+    func testGenericIgnoresKeywordInQueryString() {
+        // A keyword only in the query string (Jira/CRM links) is not a meeting.
+        XCTAssertFalse(parser.isMeetingUrl("https://jira.corp.com?type=conference&id=PROJ-123"))
+        XCTAssertFalse(parser.isMeetingUrl("https://helpdesk.com?mode=call&ticket=456"))
+        XCTAssertFalse(parser.isMeetingUrl("https://example.com?video=1"))
+    }
+
+    func testGenericMatchesPathTokenEvenWithQuery() {
+        // Token in the path is still a match, query after it is fine.
+        XCTAssertTrue(parser.isMeetingUrl("https://example.com/conference?id=1"))
+    }
+
     func testReturnsNilForPlainText() {
         XCTAssertNil(parser.extractMeetingUrl(from: "Just a calendar block, no link"))
     }
@@ -121,6 +180,8 @@ final class MeetingLinkParserTests: XCTestCase {
         XCTAssertEqual(parser.identifyService(from: "https://teams.microsoft.com/x"), "Microsoft Teams")
         XCTAssertEqual(parser.identifyService(from: "https://acme.webex.com/x"), "Webex")
         XCTAssertEqual(parser.identifyService(from: "https://around.co/r/x"), "Around")
+        XCTAssertEqual(parser.identifyService(from: "https://zoomgov.com/j/1"), "Zoom")
+        XCTAssertEqual(parser.identifyService(from: "https://whereby.com/room"), "Whereby")
         XCTAssertNil(parser.identifyService(from: "https://example.com"))
         XCTAssertNil(parser.identifyService(from: nil))
     }

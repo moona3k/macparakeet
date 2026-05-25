@@ -5,6 +5,12 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case appQuit = "app_quit"
     case dictationStarted = "dictation_started"
     case dictationCompleted = "dictation_completed"
+    /// One-shot activation milestone: fired exactly once per install, the
+    /// first time a dictation completes end-to-end. Forward-looking — existing
+    /// users already carry the `hasCompletedFirstDictation` flag, so this never
+    /// produces a retroactive spike. Counted against `onboarding_completed` to
+    /// derive the activation rate.
+    case firstDictationCompleted = "first_dictation_completed"
     case dictationCancelled = "dictation_cancelled"
     case dictationEmpty = "dictation_empty"
     case dictationFailed = "dictation_failed"
@@ -33,9 +39,9 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     /// hotkey-bound Transform completes end-to-end. Properties:
     /// `transform_name` (built-in name or `custom`), `capture_path`
     /// (`ax | clipboard`), `replace_path` (`ax | clipboardPaste`),
-    /// `llm_ms`, `total_ms`. NO prompt body, NO selected text, NO output.
-    /// Custom-Transform names map to `custom` so a Transform named after
-    /// e.g. an employer never leaves the device.
+    /// `llm_ms`, `total_ms`, and optional `app_category`. NO prompt body, NO
+    /// selected text, NO output. Custom-Transform names map to `custom` so a
+    /// Transform named after e.g. an employer never leaves the device.
     case transformExecuted = "transform_executed"
     case transformFailed = "transform_failed"
     case transformOperation = "transform_operation"
@@ -53,6 +59,7 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case customWordAdded = "custom_word_added"
     case customWordDeleted = "custom_word_deleted"
     case snippetAdded = "snippet_added"
+    case snippetEdited = "snippet_edited"
     case snippetDeleted = "snippet_deleted"
     case keystrokeSnippetFired = "keystroke_snippet_fired"
     case feedbackSubmitted = "feedback_submitted"
@@ -105,8 +112,6 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case calendarAutoStartTriggered = "calendar_auto_start_triggered"
     case calendarAutoStartCancelled = "calendar_auto_start_cancelled"
     case calendarAutoStartFailed = "calendar_auto_start_failed"
-    case calendarAutoStopShown = "calendar_auto_stop_shown"
-    case calendarAutoStopCancelled = "calendar_auto_stop_cancelled"
     // STT runtime observability
     case sttRuntimeUnhealthy = "stt_runtime_unhealthy"
     // Errors
@@ -178,6 +183,10 @@ public enum TelemetryModelOperationStage: String, Sendable, Equatable {
 public enum TelemetrySpeechEngineSwitchBlockedReason: String, Sendable, Equatable {
     case modelNotDownloaded = "model_not_downloaded"
     case engineBusy = "engine_busy"
+    case meetingActive = "meeting_active"
+    case transcribing
+    case switchInProgress = "switch_in_progress"
+    case unavailable
 }
 
 public enum TelemetryCopySource: String, Sendable, Equatable {
@@ -191,6 +200,20 @@ public enum TelemetryCopySource: String, Sendable, Equatable {
 public enum TelemetryFormatterSource: String, Sendable, Equatable {
     case dictation
     case transcription
+}
+
+/// Which chat surface a `llm_chat_used` / chat-feature LLM operation came
+/// from. Pre-2026-05-19 builds emitted `llm_chat_used` without a source,
+/// which collapsed live meeting Ask chat and post-transcription transcript
+/// chat into one unattributable bucket. New rows carry `source` so the two
+/// surfaces are separable in production telemetry.
+public enum TelemetryChatSource: String, Sendable, Equatable {
+    /// Live in-meeting Ask tab (ADR-018). `userNotesProvider` is bound by
+    /// `MeetingRecordingPanelViewModel`.
+    case meetingAsk = "meeting_ask"
+    /// Post-transcription chat surface — file, YouTube, dictation, or a
+    /// finalized meeting transcript shown in `TranscriptResultView`.
+    case transcriptChat = "transcript_chat"
 }
 
 /// Which Transform (ADR-022) ran. Built-in names are transmitted verbatim
@@ -267,6 +290,27 @@ public enum TelemetryLLMFeature: String, Sendable, Equatable {
     case transform
 }
 
+public enum TelemetryLLMSource: String, Sendable, Equatable {
+    case dictation
+    case transcription
+    case meetingAsk = "meeting_ask"
+    case transcriptChat = "transcript_chat"
+
+    public init(_ source: TelemetryFormatterSource) {
+        switch source {
+        case .dictation: self = .dictation
+        case .transcription: self = .transcription
+        }
+    }
+
+    public init(_ source: TelemetryChatSource) {
+        switch source {
+        case .meetingAsk: self = .meetingAsk
+        case .transcriptChat: self = .transcriptChat
+        }
+    }
+}
+
 /// Why a meeting recording started. Lets us distinguish manual user action
 /// from calendar-driven auto-start in adoption metrics.
 public enum TelemetryMeetingRecordingTrigger: String, Sendable, Equatable {
@@ -340,6 +384,7 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case youtubeTranscriptionHotkey = "youtube_transcription_hotkey"
     case microphoneSelection = "microphone_selection"
     case meetingAudioSourceMode = "meeting_audio_source_mode"
+    case pauseMediaDuringDictation = "pause_media_during_dictation"
 
     case launchAtLogin = "launch_at_login"
     case silenceAutoStop = "silence_auto_stop"
@@ -350,11 +395,12 @@ public enum TelemetrySettingName: String, Sendable, Equatable {
     case calendarAutoStartMode = "calendar_auto_start_mode"
     case calendarReminderMinutes = "calendar_reminder_minutes"
     case calendarTriggerFilter = "calendar_trigger_filter"
-    case calendarAutoStopEnabled = "calendar_auto_stop_enabled"
     case calendarIncludedCalendars = "calendar_included_calendars"
 }
 
 public enum TelemetryEventSpec: Sendable {
+    static let maxCrashStackTraceCharacters = 1024
+
     case appLaunched
     case appQuit(sessionDurationSeconds: Double)
     case dictationStarted(trigger: TelemetryDictationTrigger?, mode: TelemetryDictationMode?)
@@ -365,8 +411,13 @@ public enum TelemetryEventSpec: Sendable {
         speechEngine: String? = nil,
         engineVariant: String? = nil,
         language: String? = nil,
+        appCategory: TelemetryAppCategory? = nil,
         device: RecordingDeviceInfo? = nil
     )
+    /// First-ever completed dictation for this install (see
+    /// `TelemetryEventName.firstDictationCompleted`). `activationWindow` is the
+    /// bucketed time since onboarding completed — coarse buckets only.
+    case firstDictationCompleted(activationWindow: TelemetryActivationWindow)
     case dictationCancelled(durationSeconds: Double?, reason: TelemetryDictationCancelReason?, device: RecordingDeviceInfo? = nil)
     case dictationEmpty(durationSeconds: Double?, device: RecordingDeviceInfo? = nil)
     case dictationFailed(errorType: String, errorDetail: String? = nil, device: RecordingDeviceInfo? = nil)
@@ -383,6 +434,7 @@ public enum TelemetryEventSpec: Sendable {
         speechEngine: String? = nil,
         engineVariant: String? = nil,
         language: String? = nil,
+        appCategory: TelemetryAppCategory? = nil,
         device: RecordingDeviceInfo? = nil
     )
     case dictationFirstLoadCaptionShown(firstInstall: Bool)
@@ -438,8 +490,8 @@ public enum TelemetryEventSpec: Sendable {
     case exportUsed(format: String)
     case llmPromptResultUsed(provider: String)
     case llmPromptResultFailed(provider: String, errorType: String, errorDetail: String? = nil)
-    case llmChatUsed(provider: String, messageCount: Int)
-    case llmChatFailed(provider: String, errorType: String, errorDetail: String? = nil)
+    case llmChatUsed(provider: String, source: TelemetryChatSource, messageCount: Int)
+    case llmChatFailed(provider: String, source: TelemetryChatSource, errorType: String, errorDetail: String? = nil)
     case llmTransformUsed(provider: String)
     case llmTransformFailed(provider: String, errorType: String, errorDetail: String? = nil)
     /// Transforms (ADR-022) feature-level success. Fired by
@@ -451,7 +503,8 @@ public enum TelemetryEventSpec: Sendable {
         capturePath: TelemetryTransformCapturePath,
         replacePath: TelemetryTransformReplacePath,
         llmMs: Int,
-        totalMs: Int
+        totalMs: Int,
+        appCategory: TelemetryAppCategory? = nil
     )
     case transformFailed(
         transformName: TelemetryTransformName,
@@ -468,6 +521,7 @@ public enum TelemetryEventSpec: Sendable {
         durationSeconds: Double,
         llmMs: Int?,
         totalMs: Int?,
+        appCategory: TelemetryAppCategory? = nil,
         errorType: TelemetryTransformFailureReason?
     )
     case askMenuOpened
@@ -499,7 +553,7 @@ public enum TelemetryEventSpec: Sendable {
         provider: String,
         errorType: String,
         feature: TelemetryLLMFeature,
-        source: TelemetryFormatterSource? = nil
+        source: TelemetryLLMSource? = nil
     )
     case llmOperation(
         operationID: String,
@@ -527,6 +581,7 @@ public enum TelemetryEventSpec: Sendable {
     case customWordAdded
     case customWordDeleted
     case snippetAdded
+    case snippetEdited
     case snippetDeleted
     case settingChanged(setting: TelemetrySettingName)
     case telemetryOptedOut
@@ -589,7 +644,8 @@ public enum TelemetryEventSpec: Sendable {
         outcome: ObservabilityOutcome,
         durationSeconds: Double,
         blockedReason: TelemetrySpeechEngineSwitchBlockedReason?,
-        errorType: String?
+        errorType: String?,
+        wasCold: Bool
     )
     // Lifecycle actions
     case feedbackSubmitted(category: String)
@@ -664,11 +720,6 @@ public enum TelemetryEventSpec: Sendable {
     /// - `state_busy` — recording flow was non-idle (back-to-back meeting)
     /// - `service_threw` — `MeetingRecordingService.startRecording` errored
     case calendarAutoStartFailed(reason: String)
-    /// Auto-stop countdown shown for an event currently being recorded.
-    case calendarAutoStopShown(eventDurationSeconds: Double)
-    /// User extended past the calendar event's end time (suppressed
-    /// auto-stop). Tells us how often the 30s lead is wrong.
-    case calendarAutoStopCancelled
     // STT runtime observability. Fires when an STT runtime call (cancel-drain,
     // model-cache clear, shutdown, engine swap) exceeds the watchdog timeout.
     // Detection-only; the caller continues to await as today.
@@ -713,6 +764,7 @@ extension TelemetryEventSpec {
         case .appQuit: return .appQuit
         case .dictationStarted: return .dictationStarted
         case .dictationCompleted: return .dictationCompleted
+        case .firstDictationCompleted: return .firstDictationCompleted
         case .dictationCancelled: return .dictationCancelled
         case .dictationEmpty: return .dictationEmpty
         case .dictationFailed: return .dictationFailed
@@ -751,6 +803,7 @@ extension TelemetryEventSpec {
         case .customWordAdded: return .customWordAdded
         case .customWordDeleted: return .customWordDeleted
         case .snippetAdded: return .snippetAdded
+        case .snippetEdited: return .snippetEdited
         case .snippetDeleted: return .snippetDeleted
         case .settingChanged: return .settingChanged
         case .telemetryOptedOut: return .telemetryOptedOut
@@ -798,8 +851,6 @@ extension TelemetryEventSpec {
         case .calendarAutoStartTriggered: return .calendarAutoStartTriggered
         case .calendarAutoStartCancelled: return .calendarAutoStartCancelled
         case .calendarAutoStartFailed: return .calendarAutoStartFailed
-        case .calendarAutoStopShown: return .calendarAutoStopShown
-        case .calendarAutoStopCancelled: return .calendarAutoStopCancelled
         case .sttRuntimeUnhealthy: return .sttRuntimeUnhealthy
         case .errorOccurred: return .errorOccurred
         case .crashOccurred: return .crashOccurred
@@ -816,6 +867,7 @@ extension TelemetryEventSpec {
              .customWordAdded,
              .customWordDeleted,
              .snippetAdded,
+             .snippetEdited,
              .snippetDeleted,
              .telemetryOptedOut,
              .transcriptionDeleted,
@@ -852,6 +904,7 @@ extension TelemetryEventSpec {
             let speechEngine,
             let engineVariant,
             let language,
+            let appCategory,
             let device
         ):
             return Self.mergeDevice(Self.compactProps(
@@ -860,8 +913,11 @@ extension TelemetryEventSpec {
                 ("mode", mode?.rawValue),
                 ("speech_engine", speechEngine),
                 ("engine_variant", Self.safeEngineVariant(engineVariant)),
-                ("language", Self.safeLanguageCode(language))
+                ("language", Self.safeLanguageCode(language)),
+                ("app_category", appCategory?.rawValue)
             ), device)
+        case .firstDictationCompleted(let activationWindow):
+            return ["activation_window": activationWindow.rawValue]
         case .dictationCancelled(let durationSeconds, let reason, let device):
             return Self.mergeDevice(Self.compactProps(
                 ("duration_seconds", durationSeconds.map(Self.format)),
@@ -888,6 +944,7 @@ extension TelemetryEventSpec {
             let speechEngine,
             let engineVariant,
             let language,
+            let appCategory,
             let device
         ):
             return Self.mergeDevice(Self.compactProps(
@@ -902,6 +959,7 @@ extension TelemetryEventSpec {
                 ("speech_engine", speechEngine),
                 ("engine_variant", Self.safeEngineVariant(engineVariant)),
                 ("language", Self.safeLanguageCode(language)),
+                ("app_category", appCategory?.rawValue),
                 ("error_type", errorType),
                 ("cancel_reason", cancelReason?.rawValue)
             ), device)
@@ -1018,10 +1076,10 @@ extension TelemetryEventSpec {
             var props = ["provider": provider, "error_type": errorType]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
-        case .llmChatUsed(let provider, let messageCount):
-            return ["provider": provider, "message_count": "\(messageCount)"]
-        case .llmChatFailed(let provider, let errorType, let errorDetail):
-            var props = ["provider": provider, "error_type": errorType]
+        case .llmChatUsed(let provider, let source, let messageCount):
+            return ["provider": provider, "source": source.rawValue, "message_count": "\(messageCount)"]
+        case .llmChatFailed(let provider, let source, let errorType, let errorDetail):
+            var props = ["provider": provider, "source": source.rawValue, "error_type": errorType]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
         case .llmTransformUsed(let provider):
@@ -1030,14 +1088,15 @@ extension TelemetryEventSpec {
             var props = ["provider": provider, "error_type": errorType]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
-        case .transformExecuted(let name, let capture, let replace, let llmMs, let totalMs):
-            return [
-                "transform_name": name.rawValue,
-                "capture_path": capture.rawValue,
-                "replace_path": replace.rawValue,
-                "llm_ms": "\(llmMs)",
-                "total_ms": "\(totalMs)",
-            ]
+        case .transformExecuted(let name, let capture, let replace, let llmMs, let totalMs, let appCategory):
+            return Self.compactProps(
+                ("transform_name", name.rawValue),
+                ("capture_path", capture.rawValue),
+                ("replace_path", replace.rawValue),
+                ("llm_ms", "\(llmMs)"),
+                ("total_ms", "\(totalMs)"),
+                ("app_category", appCategory?.rawValue)
+            )
         case .transformFailed(let name, let reason):
             return [
                 "transform_name": name.rawValue,
@@ -1054,6 +1113,7 @@ extension TelemetryEventSpec {
             let durationSeconds,
             let llmMs,
             let totalMs,
+            let appCategory,
             let errorType
         ):
             return Self.compactProps(
@@ -1068,6 +1128,7 @@ extension TelemetryEventSpec {
                 ("duration_seconds", Self.format(durationSeconds)),
                 ("llm_ms", llmMs.map(String.init)),
                 ("total_ms", totalMs.map(String.init)),
+                ("app_category", appCategory?.rawValue),
                 ("error_type", errorType?.rawValue)
             )
         case .askPromptFired(let source, let group, let label):
@@ -1235,7 +1296,8 @@ extension TelemetryEventSpec {
             let outcome,
             let durationSeconds,
             let blockedReason,
-            let errorType
+            let errorType,
+            let wasCold
         ):
             return Self.compactProps(
                 ("operation_id", operationID),
@@ -1246,7 +1308,8 @@ extension TelemetryEventSpec {
                 ("outcome", outcome.rawValue),
                 ("duration_seconds", Self.format(durationSeconds)),
                 ("blocked_reason", blockedReason?.rawValue),
-                ("error_type", errorType)
+                ("error_type", errorType),
+                ("was_cold", Self.boolString(wasCold))
             )
         case .feedbackSubmitted(let category):
             return ["category": category]
@@ -1364,10 +1427,6 @@ extension TelemetryEventSpec {
             return ["reason": reason]
         case .calendarAutoStartFailed(let reason):
             return ["reason": reason]
-        case .calendarAutoStopShown(let eventDurationSeconds):
-            return ["event_duration_seconds": Self.format(eventDurationSeconds)]
-        case .calendarAutoStopCancelled:
-            return nil
         case .sttRuntimeUnhealthy(let reason):
             return ["reason": reason]
         case .errorOccurred(let domain, let code, let description):
@@ -1394,7 +1453,7 @@ extension TelemetryEventSpec {
                 ("uuid", uuid),
                 ("slide", slide),
                 ("reason", reason.map { String($0.prefix(512)) }),
-                ("stack_trace", String(stackTrace.prefix(2048)))
+                ("stack_trace", String(stackTrace.prefix(Self.maxCrashStackTraceCharacters)))
             )
         case .cliOperation(
             let operationID,
@@ -1501,6 +1560,7 @@ public enum TelemetryImplementedContract {
         .appQuit: ["session_duration_seconds"],
         .dictationStarted: [],
         .dictationCompleted: ["duration_seconds", "word_count"],
+        .firstDictationCompleted: ["activation_window"],
         .dictationCancelled: [],
         .dictationEmpty: [],
         .dictationFailed: ["error_type"],
@@ -1518,8 +1578,8 @@ public enum TelemetryImplementedContract {
         .exportUsed: ["format"],
         .llmPromptResultUsed: ["provider"],
         .llmPromptResultFailed: ["provider", "error_type"],
-        .llmChatUsed: ["provider", "message_count"],
-        .llmChatFailed: ["provider", "error_type"],
+        .llmChatUsed: ["provider", "source", "message_count"],
+        .llmChatFailed: ["provider", "source", "error_type"],
         .llmTransformUsed: ["provider"],
         .llmTransformFailed: ["provider", "error_type"],
         .transformExecuted: ["transform_name", "capture_path", "replace_path", "llm_ms", "total_ms"],
@@ -1539,6 +1599,7 @@ public enum TelemetryImplementedContract {
         .customWordAdded: [],
         .customWordDeleted: [],
         .snippetAdded: [],
+        .snippetEdited: [],
         .snippetDeleted: [],
         .settingChanged: ["setting"],
         .telemetryOptedOut: [],
@@ -1560,7 +1621,7 @@ public enum TelemetryImplementedContract {
         .modelDownloadCompleted: ["duration_seconds"],
         .modelDownloadFailed: ["error_type"],
         .modelOperation: ["operation_id", "action", "outcome", "duration_seconds"],
-        .speechEngineSwitchOperation: ["operation_id", "from_engine", "to_engine", "outcome", "duration_seconds"],
+        .speechEngineSwitchOperation: ["operation_id", "from_engine", "to_engine", "outcome", "duration_seconds", "was_cold"],
         .feedbackSubmitted: ["category"],
         .feedbackOperation: ["operation_id", "category", "outcome", "duration_seconds", "screenshot_attached", "system_info_included"],
         .transcriptionDeleted: [],
@@ -1586,8 +1647,6 @@ public enum TelemetryImplementedContract {
         .calendarAutoStartTriggered: ["lead_seconds", "has_meet_url"],
         .calendarAutoStartCancelled: ["reason"],
         .calendarAutoStartFailed: ["reason"],
-        .calendarAutoStopShown: ["event_duration_seconds"],
-        .calendarAutoStopCancelled: [],
         .sttRuntimeUnhealthy: ["reason"],
         .errorOccurred: ["domain", "code", "description"],
         .crashOccurred: ["crash_type", "signal", "name", "crash_ts", "crash_app_ver"],

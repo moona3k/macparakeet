@@ -38,7 +38,7 @@ struct DictationStatsView: View {
                     .foregroundStyle(.primary)
                 Text(HotkeyTrigger.current.isDisabled
                      ? "Click the dictation pill or set a hotkey in Settings to start dictating."
-                     : "Double-tap \(HotkeyTrigger.current.displayName) to start dictating from any app.")
+                     : "Tap \(HotkeyTrigger.current.displayName) to start dictating from any app.")
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

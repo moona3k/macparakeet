@@ -27,8 +27,8 @@ testing.
 - **Persisted history** -- list, search, and inspect prior dictations and
   transcriptions via the shared SQLite database.
 - **Prompt and meeting inspection** -- list and run prompt library entries
-  against transcriptions; list, show, transcript, notes append, and
-  export meeting recordings.
+  against transcriptions; list, show, transcript, notes append, prompt-result
+  write-back, and export meeting recordings.
 - **Headless verification hooks** -- agents can drive deterministic runs (pin
   all flags) or smoke-test GUI-default behavior with the explicit
   `app-default` flag group.
@@ -67,8 +67,9 @@ sitting at a keyboard, it lives in the .app.
   (OpenAI, Anthropic, Ollama, LM Studio, OpenAI-compatible local, or a
   configured CLI subprocess), or skip the LLM entirely and consume raw
   transcripts.
-- **JSON output everywhere** -- every read-only command supports `--json`
-  with a stable schema (see
+- **Machine-readable output** -- read-only query commands use `--json`,
+  format-selecting commands use `--format json`, and LLM/prompt commands use
+  `--json` for structured envelopes (see
   [`../Sources/CLI/CHANGELOG.md`](../Sources/CLI/CHANGELOG.md) for the
   contract).
 
@@ -84,6 +85,8 @@ macparakeet-cli health --json
 
 This installs the standalone CLI plus its Homebrew-managed `ffmpeg` and
 `yt-dlp` runtime dependencies. It does not require `MacParakeet.app`.
+Parakeet's CoreML cache is managed by FluidAudio. WhisperKit model downloads
+live under `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
 
 **Bundled app alternative:** after installing
 [MacParakeet](https://macparakeet.com), the same CLI surface is available at:
@@ -110,8 +113,18 @@ personal AI compute box -- unified memory, ANE, ~8W idle, silent.
 
 ## Common commands (the agent vocabulary)
 
-Every command below produces JSON when `--json` is passed. Schemas are stable
-per [`../Sources/CLI/CHANGELOG.md`](../Sources/CLI/CHANGELOG.md).
+The commands below show the machine-readable flag each command expects:
+`--json` for fixed-shape query/envelope commands, `--format json` for
+format-selecting commands. Schemas are stable per
+[`../Sources/CLI/CHANGELOG.md`](../Sources/CLI/CHANGELOG.md).
+
+Agents can discover the curated core automation surface at runtime. This spec
+is intentionally agent-facing and does not list every setup/helper command in
+this README:
+
+```bash
+macparakeet-cli spec --json
+```
 
 ### Health probe (run at agent init)
 
@@ -164,8 +177,10 @@ macparakeet-cli models select whisper-large-v3-v20240930-turbo-632MB --json
 macparakeet-cli transcribe /path/to/korean.mp3 --engine whisper --language ko --format json
 ```
 
-To test the same defaults a user selected in the GUI, opt into app-default
-resolution explicitly. This follows saved transcription defaults; it does not
+To test the same defaults a user selected in the GUI, make every app-default
+read explicit. Bare `transcribe` already follows the saved speaker-detection
+preference, but the full flag group below also opts into saved speech-engine,
+processing, audio-retention, and YouTube-quality defaults. This does not
 exercise GUI-only UI, playback, hotkey, export, or optional AI formatter output.
 
 ```bash
@@ -265,8 +280,18 @@ macparakeet-cli meetings transcript <id> --format json
 macparakeet-cli meetings notes get <id> --json
 macparakeet-cli meetings notes append <id> --text "Decision: ship the parser"
 macparakeet-cli meetings notes clear <id> --json
+macparakeet-cli meetings results list <id> --json
+macparakeet-cli meetings results add <id> \
+  --name "Agent Notes" \
+  --content "Decision: ship the parser" \
+  --json
 macparakeet-cli meetings export <id> --format md --stdout
 ```
+
+Use `meetings notes` for user-authored notes. Use `meetings results add` for
+externally generated summaries, decisions, action items, or other agent output;
+those rows are stored as `PromptResult` records rather than overwriting
+`userNotes`.
 
 Prompt and direct LLM JSON responses use an envelope with `output`, `provider`,
 `model`, optional `usage`, optional `stopReason`, and `latencyMs`.
@@ -341,6 +366,7 @@ user wants YouTube transcription, run
 ## Core Commands
 
 ```bash
+macparakeet-cli spec --json
 macparakeet-cli transcribe "<path-or-youtube-url>" --format json
 macparakeet-cli transcribe "<path-or-youtube-url>" --format transcript --no-history
 macparakeet-cli models download whisper-large-v3-v20240930-turbo-632MB
@@ -354,9 +380,9 @@ macparakeet-cli transcribe "<path-or-youtube-url>" \
   --downloaded-audio app-default \
   --youtube-audio-quality app-default \
   --format json
-macparakeet-cli config list
-macparakeet-cli config set speech-engine parakeet
-macparakeet-cli config set speaker-detection off
+macparakeet-cli config list --json
+macparakeet-cli config set speech-engine parakeet --json
+macparakeet-cli config set speaker-detection off --json
 macparakeet-cli history transcriptions --json
 macparakeet-cli history search-transcriptions "<query>" --json
 macparakeet-cli history search "<query>" --json
@@ -364,6 +390,7 @@ macparakeet-cli meetings list --json
 macparakeet-cli meetings show "<id-or-prefix-or-title>" --json
 macparakeet-cli meetings transcript "<id-or-prefix-or-title>" --format json
 macparakeet-cli meetings notes append "<id-or-prefix-or-title>" --text "<note>" --json
+macparakeet-cli meetings results add "<id-or-prefix-or-title>" --name "Agent Notes" --stdin --json
 macparakeet-cli meetings export "<id-or-prefix-or-title>" --format md --stdout
 ```
 
@@ -393,11 +420,11 @@ macparakeet-cli prompts run "<prompt-name>" \
 - Use the full app-default group (`--engine app-default`,
   `--speaker-detection app-default`, `--mode app-default`,
   `--downloaded-audio app-default`, and `--youtube-audio-quality app-default`)
-  only when you are intentionally checking GUI-default behavior. Pin explicit
-  flags for reproducible agent tests.
+  when you are intentionally checking GUI-default behavior. Pin explicit flags
+  for reproducible agent tests.
 - `config get speaker-detection` reports the saved app-default value. Bare
-  `transcribe` keeps speaker detection on for compatibility, so pass
-  `--speaker-detection app-default` when you want the saved GUI preference.
+  `transcribe` and `--speaker-detection app-default` use that value; pass
+  `--speaker-detection on` or `off` to override it for one run.
 ````
 
 ## Conventions
@@ -431,8 +458,8 @@ macparakeet-cli prompts run "<prompt-name>" \
   `prompts run` or `llm` targets a hosted provider, or when a configured
   Local CLI command contacts its own service), Sparkle update checks (app,
   not CLI), and a single privacy-safe
-  `cli_operation` event per `transcribe` invocation, posted to the self-hosted
-  endpoint at `https://macparakeet.com/api/telemetry`. The telemetry event
+  `cli_operation` event per successfully parsed CLI invocation, posted to the
+  self-hosted endpoint at `https://macparakeet.com/api/telemetry`. The telemetry event
   ships only allowlisted invocation metadata (`operation_id`, `workflow_id`,
   `parent_operation_id`, `command`, `subcommand`, `outcome`,
   `duration_seconds`, `input_kind`, `output_format`, `json`, `exit_code`,

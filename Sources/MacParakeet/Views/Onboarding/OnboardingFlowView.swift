@@ -7,12 +7,43 @@ struct OnboardingFlowView: View {
     let onFinish: () -> Void
     let onOpenMainApp: () -> Void
     let onOpenSettings: () -> Void
+    /// Arms/disarms the no-STT hotkey rehearsal while the "Learn the Hotkey"
+    /// step is on screen. Defaults to no-ops so previews/tests can omit them.
+    var onHotkeyPreviewArm: () -> Void = {}
+    var onHotkeyPreviewDisarm: () -> Void = {}
 
-    /// Trigger shown in onboarding copy — falls back to the default (.fn) when
-    /// the user has disabled their hotkey, so instructional text stays readable.
-    private var displayTrigger: HotkeyTrigger {
+    /// Triggers shown in onboarding copy — fall back to defaults when disabled
+    /// so instructional text stays readable.
+    private var handsFreeDisplayTrigger: HotkeyTrigger {
         let current = HotkeyTrigger.current
-        return current.isDisabled ? .fn : current
+        return current.isDisabled ? .defaultDictation : current
+    }
+
+    private var pushToTalkDisplayTrigger: HotkeyTrigger {
+        let current = HotkeyTrigger.current(
+            defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+            fallback: .defaultPushToTalk
+        )
+        return current.isDisabled ? .defaultPushToTalk : current
+    }
+
+    private var usesSharedDictationGesture: Bool {
+        HotkeyTrigger.isSharedDictationGesture(
+            handsFree: handsFreeDisplayTrigger,
+            pushToTalk: pushToTalkDisplayTrigger
+        )
+    }
+
+    private var handsFreeGestureTitle: String {
+        "\(usesSharedDictationGesture ? "Double-tap" : "Tap") \(handsFreeDisplayTrigger.shortSymbol)"
+    }
+
+    private var handsFreeInstructionPhrase: String {
+        "\(usesSharedDictationGesture ? "Double-tap" : "Tap") \(handsFreeDisplayTrigger.displayName)"
+    }
+
+    private var handsFreeTryNowVerb: String {
+        usesSharedDictationGesture ? "double-tap" : "tap"
     }
 
     private let windowWidth: CGFloat = 740
@@ -377,7 +408,7 @@ struct OnboardingFlowView: View {
                 featureRow(
                     icon: "mic.fill",
                     title: "Dictate anywhere",
-                    detail: "Double-tap \(displayTrigger.displayName) for persistent dictation, or hold-to-talk and release to stop. Text appears where your cursor is."
+                    detail: "\(handsFreeInstructionPhrase) for hands-free dictation, or hold \(pushToTalkDisplayTrigger.displayName) and release to stop. Text appears where your cursor is."
                 )
                 featureRow(
                     icon: "bolt.fill",
@@ -399,12 +430,8 @@ struct OnboardingFlowView: View {
         onboardingCard {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    HStack(spacing: DesignSystem.Spacing.sm) {
-                        Text("Meeting Recording (Optional)")
-                            .font(DesignSystem.Typography.sectionTitle)
-
-                        LabsBadge()
-                    }
+                    Text("Meeting Recording (Optional)")
+                        .font(DesignSystem.Typography.sectionTitle)
 
                     Spacer()
 
@@ -426,21 +453,12 @@ struct OnboardingFlowView: View {
                         )
                 }
 
-                Text(LabsBadge.message)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("To capture audio from calls, MacParakeet needs macOS's \"Screen & System Audio Recording\" permission.")
-                    .font(DesignSystem.Typography.bodySmall)
-                    .foregroundStyle(.secondary)
-
-                Text("MacParakeet never looks at or saves your screen. Apple bundles screen access into this permission, and it's the only way apps can capture system audio. We only use the audio.")
+                Text("Grant access to let MacParakeet record audio from meetings and calls.")
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
-                Text("You can skip this and enable it later if you don't plan to record meetings.")
+                Text("You can skip this and enable meeting recording later from Settings.")
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(.secondary)
 
@@ -485,7 +503,7 @@ struct OnboardingFlowView: View {
         onboardingCard {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
-                    Text("Calendar Reminders (Optional)")
+                    Text("Calendar Meetings (Optional)")
                         .font(DesignSystem.Typography.sectionTitle)
                     Spacer()
                     Text(viewModel.calendarPermissionGranted ? "Granted" : "Not granted")
@@ -506,7 +524,7 @@ struct OnboardingFlowView: View {
                         )
                 }
 
-                Text("MacParakeet can read your macOS calendar to send a quiet notification before each scheduled meeting — so you're ready to start the recording.")
+                Text("MacParakeet can read your macOS calendar to send a quiet notification before each scheduled meeting and, if you choose, start recording automatically.")
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -518,7 +536,7 @@ struct OnboardingFlowView: View {
 
                 HStack(spacing: 10) {
                     accentButton(
-                        viewModel.isBusy ? "Requesting..." : "Enable Calendar Reminders",
+                        viewModel.isBusy ? "Requesting..." : "Enable Calendar Access",
                         disabled: viewModel.isBusy || viewModel.calendarPermissionGranted
                     ) {
                         viewModel.requestCalendarAccess()
@@ -534,7 +552,7 @@ struct OnboardingFlowView: View {
         }
     }
 
-    @State private var doubleTapPhase = 0
+    @State private var tapPhase = 0
     @State private var holdPhase: CGFloat = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -544,7 +562,7 @@ struct OnboardingFlowView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "info.circle.fill")
                         .foregroundStyle(DesignSystem.Colors.accent)
-                    Text("Your dictation hotkey is currently disabled. The examples below show the default key (\(displayTrigger.shortSymbol)). You can set a hotkey anytime in Settings.")
+                    Text("Your hands-free hotkey is currently disabled. The examples below show the default shortcuts. You can set hotkeys anytime in Settings.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -555,24 +573,44 @@ struct OnboardingFlowView: View {
                 )
             }
 
-            // Persistent Mode card
+            // Live rehearsal nudge — only when Accessibility is granted, since
+            // the preview taps can't arm without it (and dictation won't work
+            // anyway). No model is needed: this is a visual preview only.
+            if viewModel.accessibilityGranted {
+                HStack(spacing: 8) {
+                    Image(systemName: "hand.tap.fill")
+                        .foregroundStyle(DesignSystem.Colors.accent)
+                    Text("Try it now — \(handsFreeTryNowVerb) \(handsFreeDisplayTrigger.shortSymbol) or hold \(pushToTalkDisplayTrigger.shortSymbol). A live preview appears at the bottom of your screen.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .padding(DesignSystem.Spacing.md)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                        .fill(DesignSystem.Colors.accent.opacity(0.08))
+                )
+            }
+
+            // Hands-free mode card
             onboardingCard {
                 HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                    doubleTapIllustration
+                    handsFreeIllustration
                         .frame(width: 80)
 
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("Persistent Mode")
+                        Text("Hands-free mode")
                             .font(DesignSystem.Typography.micro)
                             .foregroundStyle(DesignSystem.Colors.accent)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
 
-                        Text("Double-tap \(displayTrigger.shortSymbol)")
+                        Text(handsFreeGestureTitle)
                             .font(DesignSystem.Typography.sectionTitle)
 
-                        Text("Starts persistent recording.\nTap \(displayTrigger.shortSymbol) again to stop and paste.")
+                        Text("Starts persistent recording.\nTap \(handsFreeDisplayTrigger.shortSymbol) once more to stop and paste.")
                             .font(DesignSystem.Typography.bodySmall)
                             .foregroundStyle(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -595,7 +633,7 @@ struct OnboardingFlowView: View {
                             .padding(.vertical, 3)
                             .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
 
-                        Text("Hold \(displayTrigger.shortSymbol)")
+                        Text("Hold \(pushToTalkDisplayTrigger.shortSymbol)")
                             .font(DesignSystem.Typography.sectionTitle)
 
                         Text("Records while you hold the key.\nRelease to stop and paste.")
@@ -620,36 +658,45 @@ struct OnboardingFlowView: View {
                     .foregroundStyle(.tertiary)
             }
 
-            Text("Tip: If your keyboard doesn't send \(displayTrigger.displayName) events, you can still use file transcription from the main app window.")
+            Text("Click Next to keep these hotkeys for now. You can change them later in Settings > Dictation; if Fn is unavailable, file transcription still works from the main app.")
                 .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }
-        .onAppear { startAnimations() }
-        .onDisappear { stopAnimations() }
+        .onAppear {
+            startAnimations()
+            onHotkeyPreviewArm()
+        }
+        .onDisappear {
+            stopAnimations()
+            onHotkeyPreviewDisarm()
+        }
     }
 
     // MARK: - Hotkey Gesture Illustrations
 
     @State private var animationTask: Task<Void, Never>?
 
-    private var doubleTapIllustration: some View {
-        HStack(spacing: 4) {
-            keyCap(displayTrigger.shortSymbol)
-                .scaleEffect(doubleTapPhase == 1 ? 0.9 : 1.0)
-                .opacity(reduceMotion || doubleTapPhase == 1 ? 1.0 : 0.5)
-            Text("·")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(.tertiary)
-            keyCap(displayTrigger.shortSymbol)
-                .scaleEffect(doubleTapPhase == 2 ? 0.9 : 1.0)
-                .opacity(reduceMotion || doubleTapPhase == 2 ? 1.0 : 0.5)
-        }
-        .animation(.easeInOut(duration: 0.15), value: doubleTapPhase)
+    private var handsFreeIllustration: some View {
+        keyCap(handsFreeDisplayTrigger.shortSymbol)
+            .scaleEffect(tapPhase == 1 ? 0.9 : 1.0)
+            .opacity(reduceMotion || tapPhase == 1 ? 1.0 : 0.5)
+            .animation(.easeInOut(duration: 0.15), value: tapPhase)
+            .overlay(alignment: .topTrailing) {
+                if usesSharedDictationGesture {
+                    Text("x2")
+                        .font(DesignSystem.Typography.caption.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.accent)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.14)))
+                        .offset(x: 14, y: -10)
+                }
+            }
     }
 
     private var holdIllustration: some View {
         VStack(spacing: 6) {
-            keyCap(displayTrigger.shortSymbol)
+            keyCap(pushToTalkDisplayTrigger.shortSymbol)
                 .scaleEffect(holdPhase > 0 ? 0.93 : 1.0)
                 .opacity(reduceMotion || holdPhase > 0 ? 1.0 : 0.5)
                 .animation(.easeInOut(duration: 0.15), value: holdPhase > 0)
@@ -668,27 +715,28 @@ struct OnboardingFlowView: View {
     private func startAnimations() {
         guard !reduceMotion else { return }
         animationTask?.cancel()
+        let tapCount = usesSharedDictationGesture ? 2 : 1
         animationTask = Task { @MainActor in
             while !Task.isCancelled {
-                // Double-tap: press, pause, press
-                doubleTapPhase = 1
-                try? await Task.sleep(for: .milliseconds(200))
-                guard !Task.isCancelled else { break }
-                doubleTapPhase = 0
-                try? await Task.sleep(for: .milliseconds(150))
-                guard !Task.isCancelled else { break }
-                doubleTapPhase = 2
-                try? await Task.sleep(for: .milliseconds(200))
-                guard !Task.isCancelled else { break }
-                doubleTapPhase = 0
+                // Hands-free gesture.
+                for tapIndex in 0..<tapCount {
+                    tapPhase = 1
+                    try? await Task.sleep(for: .milliseconds(160))
+                    guard !Task.isCancelled else { return }
+                    tapPhase = 0
+                    if tapIndex < tapCount - 1 {
+                        try? await Task.sleep(for: .milliseconds(120))
+                        guard !Task.isCancelled else { return }
+                    }
+                }
 
                 // Hold: press and grow bar
                 holdPhase = 0.01 // trigger "pressed" state
                 try? await Task.sleep(for: .milliseconds(100))
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled else { return }
                 holdPhase = 1.0
                 try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled else { return }
                 holdPhase = 0
 
                 // Pause before repeat
@@ -856,7 +904,7 @@ struct OnboardingFlowView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     quickTip(icon: "mic.fill", text: HotkeyTrigger.current.isDisabled
                         ? "Click the dictation pill or set a hotkey in Settings to start dictating"
-                        : "Double-tap \(displayTrigger.displayName) to start dictating anywhere")
+                        : "\(handsFreeInstructionPhrase) to start dictating anywhere")
                     quickTip(icon: "doc.fill", text: "Drop an audio file onto the main window to transcribe")
                     quickTip(icon: "gearshape", text: "Visit Settings to customize your experience")
                 }
@@ -1006,7 +1054,7 @@ struct OnboardingFlowView: View {
         case .microphone: return "Enable Microphone Access"
         case .accessibility: return "Enable Accessibility"
         case .meetingRecording: return "Meeting Recording (Optional)"
-        case .calendar: return "Calendar Reminders (Optional)"
+        case .calendar: return "Calendar Meetings (Optional)"
         case .hotkey: return "Learn the Hotkey"
         case .engine: return "Prepare Speech Model"
         case .done: return "All Set"
@@ -1024,7 +1072,7 @@ struct OnboardingFlowView: View {
         case .meetingRecording:
             return "Optional. This is only needed to capture system audio during meeting recording."
         case .calendar:
-            return "Optional. Lets MacParakeet remind you before scheduled meetings so you never miss the start of a recording."
+            return "Optional. Lets MacParakeet remind you before scheduled meetings and enable opt-in auto-start."
         case .hotkey:
             return "Two ways to dictate — pick whichever feels natural."
         case .engine:

@@ -3,7 +3,7 @@ import MacParakeetCore
 import MacParakeetViewModels
 
 /// Persistent floating pill shown when idle — always visible at bottom of screen.
-/// Expands on hover to show "Click or hold <trigger key> to start dictating" tooltip.
+/// Expands on hover to show the available dictation entry points.
 struct IdlePillView: View {
     @Bindable var viewModel: IdlePillViewModel
 
@@ -63,19 +63,33 @@ struct IdlePillView: View {
 
     private var tooltip: some View {
         Group {
-            if HotkeyTrigger.current.isDisabled {
+            let handsFreeTrigger = HotkeyTrigger.current
+            let pushToTalkTrigger = HotkeyTrigger.current(
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            )
+            if handsFreeTrigger.isDisabled, pushToTalkTrigger.isDisabled {
                 Text("Click to start dictating")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.white.opacity(0.9))
             } else {
                 HStack(spacing: 0) {
-                    Text("Click or hold ")
+                    Text("Click")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.white.opacity(0.9))
-                    Text(HotkeyTrigger.current.shortSymbol)
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(Color(nsColor: NSColor(red: 0.85, green: 0.55, blue: 0.75, alpha: 1.0)))
-                    Text(" to start dictating")
+                    if !handsFreeTrigger.isDisabled {
+                        Text(", tap ")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.9))
+                        shortcutText(handsFreeTrigger.shortSymbol)
+                    }
+                    if !pushToTalkTrigger.isDisabled {
+                        Text(" or hold ")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.9))
+                        shortcutText(pushToTalkTrigger.shortSymbol)
+                    }
+                    Text(" to dictate")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundStyle(.white.opacity(0.9))
                 }
@@ -92,6 +106,12 @@ struct IdlePillView: View {
                 )
                 .shadow(color: .black.opacity(0.3), radius: 8, y: 4)
         )
+    }
+
+    private func shortcutText(_ value: String) -> some View {
+        Text(value)
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundStyle(Color(nsColor: NSColor(red: 0.85, green: 0.55, blue: 0.75, alpha: 1.0)))
     }
 }
 

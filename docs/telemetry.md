@@ -182,13 +182,25 @@ when the question is "what happened to this operation?"
 | Event | Props | Question It Answers |
 |---|---|---|
 | `dictation_started` | `trigger` (hotkey, pill_click, menu_bar) | How do people start dictating? |
-| `dictation_completed` | `duration_seconds`, `word_count`, `mode` (hold, persistent), `speech_engine`, `engine_variant`, `language`, `device_*` | How long are dictations? Which mode, language, and STT engine are popular? |
+| `dictation_completed` | `duration_seconds`, `word_count`, `mode` (hold, persistent), `speech_engine`, `engine_variant`, `language`, `app_category`, `device_*` | How long are dictations? Which mode, language, and STT engine are popular? Where do people dictate? |
+| `first_dictation_completed` | `activation_window` (under_1m, under_1h, under_1d, under_1w, over_1w, unknown) | Activation: do new users reach first value, and how fast? One-shot per install; counted against `onboarding_completed` |
 | `dictation_cancelled` | `duration_seconds`, `reason` (escape, hotkey, ui), `device_*` | Are people cancelling often? Why? |
 | `dictation_empty` | `duration_seconds`, `device_*` | Are people getting empty results? (quality signal) |
 | `dictation_failed` | `error_type`, `device_*` | Core feature failures — blind spot without this |
-| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt |
+| `dictation_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `trigger`, `mode`, `duration_seconds`, `word_count`, `speech_engine`, `engine_variant`, `language`, `app_category`, `error_type`, `cancel_reason`, `device_*` | One wide outcome event per dictation attempt |
+| `dictation_first_load_caption_shown` | `first_install` | How often the first model-load caption is shown |
+| `dictation_first_load_caption_duration` | `duration_ms`, `outcome` | How long the first model-load caption stays visible, and whether it resolves, extends, or fails |
 
 > **Device props** (optional, included when available): `device_transport`, `device_sub_transport`, `device_sample_rate`, `device_channels`, `device_fallback`, `device_selected`. Raw device names and UIDs are intentionally not serialized.
+
+`app_category` (optional) is the coarse category of the frontmost app selected
+as the dictation finish target — one of `messaging`, `email`, `browser`,
+`notes`, `docs`, `code`, `terminal`, `other`. The app's bundle identifier is
+mapped to a structural bucket on-device and **only the bucket is transmitted** —
+the bundle id never leaves the device, and any unrecognized app maps to
+`other`, so a niche or identifying app is never observable. The same prop
+appears on `transform_executed` / `transform_operation` (the app a Transform
+rewrote text in).
 
 `speech_engine` and `engine_variant` describe the STT engine that actually
 processed the audio. They come from `STTResult` attribution or persisted
@@ -234,17 +246,18 @@ events remain useful for diarization-specific timing and failure analysis.
 | `export_used` | `format` (txt, md, srt, vtt, docx, pdf, json) | Which export formats matter? |
 | `llm_prompt_result_used` | `provider` | Are prompt-library results and generated summaries being used? Which providers matter? |
 | `llm_prompt_result_failed` | `provider`, `error_type` | Failure rates for prompt-library result generation per provider |
-| `llm_chat_used` | `provider`, `message_count` | Do people chat with transcripts? |
-| `llm_chat_failed` | `provider`, `error_type` | Chat failure rates per provider |
+| `llm_chat_used` | `provider`, `source` (`meeting_ask`, `transcript_chat`), `message_count` | Do people chat with transcripts? Live meeting Ask is separable from post-transcription chat. |
+| `llm_chat_failed` | `provider`, `source` (`meeting_ask`, `transcript_chat`), `error_type` | Chat failure rates per provider and surface |
 | `llm_transform_used` | `provider` | One-off transform feature usage |
 | `llm_transform_failed` | `provider`, `error_type` | One-off transform failure rates |
-| `transform_executed` | `transform_name`, `capture_path`, `replace_path`, `llm_ms`, `total_ms` | End-to-end system-wide Transform completions by built-in/custom bucket |
+| `transform_executed` | `transform_name`, `capture_path`, `replace_path`, `llm_ms`, `total_ms`, `app_category` | End-to-end system-wide Transform completions by built-in/custom bucket, and where they're used |
 | `transform_failed` | `transform_name`, `reason` | End-to-end system-wide Transform failure reasons (`empty_selection`, `no_provider`, `capture_failed`, `llm_failed`, `replacement_failed`, `cancelled`) |
-| `transform_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `transform_name`, `stage`, `capture_path`, `replace_path`, `duration_seconds`, `llm_ms`, `total_ms`, `error_type` | One safe outcome event per system-wide Transform attempt, without prompts, selected text, or output text |
+| `transform_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `outcome`, `transform_name`, `stage`, `capture_path`, `replace_path`, `duration_seconds`, `llm_ms`, `total_ms`, `app_category`, `error_type` | One safe outcome event per system-wide Transform attempt, without prompts, selected text, or output text |
 | `ask_menu_opened` | — | Whether users discover the live meeting Ask prompt menu |
-| `ask_prompt_fired` | `source`, `group`, `label` | Which built-in live Ask prompts are used, with custom prompts collapsed to `custom` |
+| `ask_prompt_fired` | `source`, `group`, `label` | Which built-in live Ask prompts are used, using stable built-in slugs. Edited built-ins and custom prompts collapse to `custom`. |
 | `llm_formatter_used` | `provider`, `source`, `duration_seconds`, `input_chars`, `output_chars`, `default_prompt_used`, `input_truncated` | Is transcript/dictation formatting useful, and how expensive is it? |
 | `llm_formatter_failed` | `provider`, `source`, `duration_seconds`, `error_type`, `default_prompt_used`, `input_truncated` | Formatter failure rates and prompt-shape correlations |
+| `llm_provider_unavailable` | `provider`, `error_type`, `feature`, `source` | Provider setup/config drift distinct from true LLM request failures |
 | `llm_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `feature`, `provider`, `streaming`, `outcome`, `duration_seconds`, `input_chars`, `output_chars`, `input_truncated`, `prompt_default_used`, `message_count`, `error_type` | One safe outcome event per LLM call, without prompts, responses, or provider error bodies |
 | `history_searched` | — | Is search useful? |
 | `history_replayed` | — | Do people re-listen to audio? |
@@ -296,14 +309,15 @@ events remain useful for diarization-specific timing and failure analysis.
 | `prompt_created` | — | Are custom prompt templates used? |
 | `prompt_updated` | — | Are custom prompts actively maintained? |
 | `prompt_deleted` | — | Are custom prompts abandoned or cleaned up? |
-| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, youtube_audio_quality, speaker_diarization, whisper_default_language, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_auto_stop_enabled, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. The Whisper language picker and CJK first-run setup emit only the setting name; the selected language is observed from actual STT usage rows. |
+| `setting_changed` | `setting` (save_history, audio_retention, menu_bar_only, hide_pill, save_transcription_audio, youtube_audio_quality, speaker_diarization, whisper_default_language, auto_save, meeting_auto_save, microphone_selection, meeting_audio_source_mode, pause_media_during_dictation, launch_at_login, silence_auto_stop, voice_return, calendar_auto_start_mode, calendar_reminder_minutes, calendar_trigger_filter, calendar_included_calendars) | Which non-hotkey settings get toggled? Hotkey changes use `hotkey_customized`. The Whisper language picker and CJK first-run setup emit only the setting name; the selected language is observed from actual STT usage rows. Media pause does not log source app, title, URL, artist, or Now Playing metadata. |
 | `telemetry_opted_out` | — | How many opt out? (send this one last event, then stop) |
 
 ### 5b. Calendar Auto-Start — "Do calendar-driven meetings work?"
 
-> v0.6 note: Calendar automation is implemented in source but hidden behind
-> `AppFeatures.calendarEnabled = false`, so these events are contract-ready and
-> should not be expected from the v0.6 shipping UI until that flag is enabled.
+> Calendar automation is implemented and enabled (`AppFeatures.calendarEnabled
+> = true`) after the post-#318 reliability hardening, so these events now fire
+> from the real UI. Auto-start defaults to mode `.off`, so volume reflects only
+> users who opt in via onboarding or Settings.
 
 | Event | Props | Question It Answers |
 |---|---|---|
@@ -311,8 +325,6 @@ events remain useful for diarization-specific timing and failure analysis.
 | `calendar_auto_start_triggered` | `lead_seconds`, `has_meet_url` | How often countdowns reach auto-start |
 | `calendar_auto_start_cancelled` | `reason` | How often users cancel the countdown |
 | `calendar_auto_start_failed` | `reason` (`permission_denied`, `state_busy`, `service_threw`) | What blocks auto-start |
-| `calendar_auto_stop_shown` | `event_duration_seconds` | How often auto-stop countdowns are shown |
-| `calendar_auto_stop_cancelled` | — | How often users extend beyond the calendar event end |
 
 ### 6. Licensing — "Is the business working?"
 
@@ -342,7 +354,8 @@ events remain useful for diarization-specific timing and failure analysis.
 | `model_download_completed` | `duration_seconds`, `model_kind`, `speech_engine`, `engine_variant` | How long do model downloads take by engine/model? |
 | `model_download_failed` | `error_type`, `model_kind`, `speech_engine`, `engine_variant` | Are downloads failing for Parakeet setup or Whisper downloads? |
 | `model_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `action`, `outcome`, `stage`, `model_kind`, `speech_engine`, `engine_variant`, `duration_seconds`, `error_type` | Canonical model lifecycle event for downloads, warm-up, repairs, cache clears, and cancellations |
-| `speech_engine_switch_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `from_engine`, `to_engine`, `outcome`, `duration_seconds`, `blocked_reason`, `error_type` | Why engine switches succeed, fail, cancel, or get blocked |
+| `speech_engine_switch_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `from_engine`, `to_engine`, `outcome`, `duration_seconds`, `blocked_reason`, `error_type`, `was_cold` | Why engine switches succeed, fail, cancel, or get blocked; whether Whisper switches are still paying first-use optimize cost |
+| `stt_runtime_unhealthy` | `reason` | Whether the STT runtime watchdog detects a stuck speech runtime |
 
 ### 8. Permissions — "Is onboarding smooth?"
 
@@ -365,8 +378,9 @@ events remain useful for diarization-specific timing and failure analysis.
 |---|---|---|
 | `cli_operation` | `operation_id`, `workflow_id`, `parent_operation_id`, `command`, `subcommand`, `outcome`, `duration_seconds`, `input_kind`, `output_format`, `json`, `exit_code`, `error_type` | Which CLI workflows are used by scripts/agents, and where they fail |
 
-CLI telemetry is initialized by `macparakeet-cli transcribe` and uses the same
-app preference as the GUI. Override resolution order (first match wins):
+CLI telemetry is initialized once by the root `macparakeet-cli` runner after
+argument parsing succeeds and uses the same app preference as the GUI. Override
+resolution order (first match wins):
 
 1. `MACPARAKEET_TELEMETRY=0/false/no/off` → force-off for this process
 2. `MACPARAKEET_TELEMETRY=1/true/yes/on` → force-on for this process

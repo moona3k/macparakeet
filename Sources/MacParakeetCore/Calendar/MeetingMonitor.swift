@@ -21,10 +21,6 @@ public enum MeetingMonitor {
         /// Fires in the window `(T + 30s, T + lateJoinGraceMinutes]`. Phase D
         /// keeps the case but does not wire UI — see ADR-017.
         case lateJoinAvailable(CalendarEvent)
-
-        /// Fires in the window `[endTime - autoStopLeadSeconds, endTime]`.
-        /// Only emitted when `activeRecording == true`.
-        case autoStopDue(CalendarEvent)
     }
 
     public struct Config: Codable, Sendable, Equatable {
@@ -34,8 +30,6 @@ public enum MeetingMonitor {
         /// Phase 2 — countdown duration before auto-start fires. Held here so
         /// the future coordinator wiring doesn't need a separate config type.
         public var countdownSeconds: Int
-        public var autoStopEnabled: Bool
-        public var autoStopLeadSeconds: Int
         public var triggerFilter: MeetingTriggerFilter
         public var lateJoinGraceMinutes: Int
 
@@ -43,16 +37,12 @@ public enum MeetingMonitor {
             mode: CalendarAutoStartMode = .notify,
             reminderMinutes: Int = 5,
             countdownSeconds: Int = 5,
-            autoStopEnabled: Bool = true,
-            autoStopLeadSeconds: Int = 30,
             triggerFilter: MeetingTriggerFilter = .withLink,
             lateJoinGraceMinutes: Int = 10
         ) {
             self.mode = mode
             self.reminderMinutes = reminderMinutes
             self.countdownSeconds = countdownSeconds
-            self.autoStopEnabled = autoStopEnabled
-            self.autoStopLeadSeconds = autoStopLeadSeconds
             self.triggerFilter = triggerFilter
             self.lateJoinGraceMinutes = lateJoinGraceMinutes
         }
@@ -62,6 +52,9 @@ public enum MeetingMonitor {
 
     /// Evaluate calendar events and return any pending monitor events.
     /// Pure function — all state passed in, no side effects.
+    ///
+    /// The three suppression sets hold `CalendarEvent.dedupeKey` values (id +
+    /// start time), not bare ids — so a rescheduled occurrence re-fires.
     public static func evaluate(
         events: [CalendarEvent],
         now: Date,
@@ -76,14 +69,14 @@ public enum MeetingMonitor {
         let candidates = events.filter { event in
             guard !event.isAllDay else { return false }
             guard event.userStatus != .declined else { return false }
-            guard !dismissedEventIds.contains(event.id) else { return false }
+            guard !dismissedEventIds.contains(event.dedupeKey) else { return false }
             return passesFilter(event, filter: config.triggerFilter)
         }
 
         var result: [MonitorEvent] = []
 
         for event in candidates {
-            if config.reminderMinutes > 0 && !remindedEventIds.contains(event.id) {
+            if config.reminderMinutes > 0 && !remindedEventIds.contains(event.dedupeKey) {
                 let reminderTime = event.startTime.addingTimeInterval(-Double(config.reminderMinutes * 60))
                 let reminderWindowEnd = reminderTime.addingTimeInterval(90)
                 if now >= reminderTime && now <= reminderWindowEnd {
@@ -92,9 +85,14 @@ public enum MeetingMonitor {
             }
 
             // Auto-start and late-join only fire when mode allows it AND we're
-            // not already recording. Phase D keeps these as harmless no-ops
-            // because the coordinator only handles `.reminderDue`.
-            if config.mode == .autoStart && !activeRecording && !countdownShownEventIds.contains(event.id) {
+            // not already recording. They are *also* gated on RSVP: we don't
+            // auto-record an invite the user declined or hasn't accepted
+            // (`.pending`). Reminders stay lenient (declined-only) since a
+            // notification is low-cost, but auto-recording a meeting you might
+            // not attend is a surprise.
+            if config.mode == .autoStart && !activeRecording
+                && !countdownShownEventIds.contains(event.dedupeKey)
+                && shouldAutoStart(forStatus: event.userStatus) {
                 let autoStartBegin = event.startTime.addingTimeInterval(-5)
                 let autoStartEnd = event.startTime.addingTimeInterval(30)
                 if now >= autoStartBegin && now <= autoStartEnd {
@@ -107,17 +105,23 @@ public enum MeetingMonitor {
                     result.append(.lateJoinAvailable(event))
                 }
             }
-
-            if config.mode == .autoStart && config.autoStopEnabled && activeRecording {
-                let autoStopBegin = event.endTime.addingTimeInterval(-Double(config.autoStopLeadSeconds))
-                let autoStopEnd = event.endTime
-                if now >= autoStopBegin && now <= autoStopEnd {
-                    result.append(.autoStopDue(event))
-                }
-            }
         }
 
         return result
+    }
+
+    /// Whether an event is eligible for *auto-start* (and late-join) based on
+    /// the user's RSVP. `.declined` is already filtered out of candidates;
+    /// this additionally blocks `.pending` (invited, not yet accepted). Own
+    /// meetings and personal blocks surface as `.unknown`/`nil` and remain
+    /// eligible.
+    private static func shouldAutoStart(forStatus status: EventParticipant.ParticipantStatus?) -> Bool {
+        switch status {
+        case .declined, .pending:
+            return false
+        case .accepted, .tentative, .unknown, .none:
+            return true
+        }
     }
 
     private static func passesFilter(_ event: CalendarEvent, filter: MeetingTriggerFilter) -> Bool {

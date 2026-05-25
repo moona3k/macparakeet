@@ -151,7 +151,7 @@ ffmpeg -y -i /tmp/demo.mov -i /tmp/narration.aiff \
   outside the app, and other apps never bleed in.
 - `cliclick kp:f18` deterministically fires the dictation hotkey — F18 is
   unbound by macOS and matches ADR-009 single-key support; no
-  accidental modifier collisions like the Fn-double-tap chord case.
+  accidental modifier collisions like the Fn-chord case.
 - `afplay -d BlackHole2ch` is the magic step: it sends a pre-recorded
   utterance to the BlackHole virtual output, which MacParakeet sees as a
   mic input. Same Parakeet pipeline, fully scripted, byte-identical every run.

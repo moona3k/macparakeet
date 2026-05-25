@@ -69,6 +69,7 @@ public final class PromptResultsViewModel {
     public var onModelChanged: (() -> Void)?
     public var onPromptResultsChanged: ((UUID, Bool) -> Void)?
     public var onGenerationCompleted: ((UUID, UUID) -> Void)?
+    public var onGenerationFailed: ((UUID, UUID?) -> Void)?
     public var onDeletedPromptResult: ((UUID) -> Void)?
     public var shouldMarkPromptResultUnread: ((UUID) -> Bool)?
 
@@ -441,6 +442,9 @@ public final class PromptResultsViewModel {
         }
 
         let generation = pendingGenerations[index]
+        guard generation.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+            throw LLMError.streamingError("prompt result returned an empty response")
+        }
         let timestamp = Date()
         let promptResult = PromptResult(
             id: generation.id,
@@ -462,6 +466,7 @@ public final class PromptResultsViewModel {
 
         pendingGenerations.remove(at: index)
         streamingTask = nil
+        errorMessage = nil
 
         if currentTranscriptionID == generation.transcriptionId {
             if let replacingPromptResultID = generation.replacingPromptResultID {
@@ -493,11 +498,15 @@ public final class PromptResultsViewModel {
 
     private func finishFailedGeneration(id generationID: UUID, error: Error) {
         logger.error("Failed to generate prompt result error=\(error.localizedDescription, privacy: .public)")
+        let replacingPromptResultID = pendingGenerations
+            .first(where: { $0.id == generationID })?
+            .replacingPromptResultID
         if let index = pendingGenerations.firstIndex(where: { $0.id == generationID }) {
             pendingGenerations.remove(at: index)
         }
         streamingTask = nil
         errorMessage = error.localizedDescription
+        onGenerationFailed?(generationID, replacingPromptResultID)
         processNextQueuedGeneration()
     }
 

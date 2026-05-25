@@ -91,6 +91,7 @@ struct MainWindowView: View {
                     }
                 }
                 .listStyle(.sidebar)
+                .tint(DesignSystem.Colors.accent)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     DiscoverSidebarCard(
                         viewModel: discoverViewModel,
@@ -266,8 +267,16 @@ struct MainWindowView: View {
 
     private var transformReservedHotkeys: [TransformShortcutReservedHotkey] {
         var reserved: [TransformShortcutReservedHotkey] = [
-            TransformShortcutReservedHotkey(name: "hands-free dictation", trigger: settingsViewModel.hotkeyTrigger),
-            TransformShortcutReservedHotkey(name: "push to talk", trigger: settingsViewModel.pushToTalkHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "hands-free dictation",
+                trigger: settingsViewModel.hotkeyTrigger,
+                conflictMode: .bareModifierDictation
+            ),
+            TransformShortcutReservedHotkey(
+                name: "push to talk",
+                trigger: settingsViewModel.pushToTalkHotkeyTrigger,
+                conflictMode: .bareModifierDictation
+            ),
             TransformShortcutReservedHotkey(name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(name: "YouTube transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
         ]

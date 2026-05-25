@@ -390,7 +390,7 @@ final class TelemetryServiceTests: XCTestCase {
             .transcriptionFailed(source: .file, stage: .stt, errorType: "runtime", errorDetail: rawDetail),
             .diarizationFailed(source: .meeting, errorType: "runtime", errorDetail: rawDetail),
             .llmPromptResultFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
-            .llmChatFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
+            .llmChatFailed(provider: "openai", source: .transcriptChat, errorType: "provider", errorDetail: rawDetail),
             .llmTransformFailed(provider: "openai", errorType: "provider", errorDetail: rawDetail),
             .licenseActivationFailed(errorType: "network", errorDetail: rawDetail),
             .restoreFailed(errorType: "network", errorDetail: rawDetail),
@@ -750,7 +750,8 @@ final class TelemetryServiceTests: XCTestCase {
                 outcome: .unavailable,
                 durationSeconds: 0.1,
                 blockedReason: .modelNotDownloaded,
-                errorType: "model_not_downloaded"
+                errorType: "model_not_downloaded",
+                wasCold: true
             ),
             appVer: "0.4.2",
             osVer: "15.3",
@@ -773,6 +774,7 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(props["duration_seconds"], "0.1")
         XCTAssertEqual(props["blocked_reason"], "model_not_downloaded")
         XCTAssertEqual(props["error_type"], "model_not_downloaded")
+        XCTAssertEqual(props["was_cold"], "true")
     }
 
     func testOperationContextSerializesWorkflowParentAndStage() throws {
@@ -921,6 +923,116 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertNil(props?["output_text"])
     }
 
+    // MARK: - App Category (privacy-safe bucketing)
+
+    func testAppCategoryMapsKnownBundleIdentifiersToBuckets() {
+        let cases: [(String, TelemetryAppCategory)] = [
+            ("com.apple.Safari", .browser),
+            ("com.google.Chrome", .browser),
+            ("com.google.Chrome.canary", .browser),       // prefix match
+            ("company.thebrowser.Browser", .browser),     // Arc
+            ("com.tinyspeck.slackmacgap", .messaging),    // Slack
+            ("com.hnc.Discord", .messaging),
+            ("com.apple.mail", .email),
+            ("com.microsoft.Outlook", .email),
+            ("md.obsidian", .notes),
+            ("com.apple.Notes", .notes),
+            ("com.apple.iWork.Pages", .docs),
+            ("com.microsoft.Word", .docs),
+            ("com.apple.dt.Xcode", .code),
+            ("com.microsoft.VSCode", .code),
+            ("com.microsoft.VSCodeInsiders", .code),      // prefix match
+            ("com.jetbrains.intellij", .code),            // prefix match
+            ("com.todesktop.230313mzl4w4u92", .code),     // Cursor
+            ("com.google.android.studio", .code),
+            ("com.apple.Terminal", .terminal),
+            ("com.googlecode.iterm2", .terminal),
+        ]
+        for (bundleID, expected) in cases {
+            XCTAssertEqual(
+                TelemetryAppCategory(bundleIdentifier: bundleID),
+                expected,
+                "Expected \(bundleID) -> \(expected.rawValue)"
+            )
+        }
+    }
+
+    func testAppCategoryMapsUnknownAndEmptyToOther() {
+        XCTAssertEqual(TelemetryAppCategory(bundleIdentifier: nil), .other)
+        XCTAssertEqual(TelemetryAppCategory(bundleIdentifier: ""), .other)
+        XCTAssertEqual(TelemetryAppCategory(bundleIdentifier: "   "), .other)
+        XCTAssertEqual(TelemetryAppCategory(bundleIdentifier: "com.example.SomeNicheApp"), .other)
+        // Our own app is not a meaningful external target.
+        XCTAssertEqual(TelemetryAppCategory(bundleIdentifier: "com.macparakeet"), .other)
+    }
+
+    func testActivationWindowBucketsSecondsCoarsely() {
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 0), .underMinute)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 59), .underMinute)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 60), .underHour)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 3_599), .underHour)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 3_600), .underDay)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 86_399), .underDay)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 86_400), .underWeek)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 604_799), .underWeek)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: 604_800), .overWeek)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: nil), .unknown)
+        XCTAssertEqual(TelemetryActivationWindow(secondsSinceOnboarding: -5), .unknown)
+    }
+
+    func testDictationCompletedSerializesAppCategoryButOmitsWhenNil() {
+        let withCategory = TelemetryEventSpec.dictationCompleted(
+            durationSeconds: 5.0,
+            wordCount: 12,
+            mode: .hold,
+            appCategory: .messaging
+        )
+        XCTAssertEqual(withCategory.props?["app_category"], "messaging")
+
+        let withoutCategory = TelemetryEventSpec.dictationCompleted(
+            durationSeconds: 5.0,
+            wordCount: 12,
+            mode: .hold
+        )
+        XCTAssertNil(withoutCategory.props?["app_category"])
+    }
+
+    func testTransformExecutedSerializesAppCategoryButOmitsWhenNil() {
+        let withCategory = TelemetryEventSpec.transformExecuted(
+            transformName: .polish,
+            capturePath: .ax,
+            replacePath: .clipboardPaste,
+            llmMs: 1200,
+            totalMs: 1500,
+            appCategory: .code
+        )
+        XCTAssertEqual(withCategory.props?["app_category"], "code")
+
+        let withoutCategory = TelemetryEventSpec.transformExecuted(
+            transformName: .polish,
+            capturePath: .ax,
+            replacePath: .clipboardPaste,
+            llmMs: 1200,
+            totalMs: 1500
+        )
+        XCTAssertNil(withoutCategory.props?["app_category"])
+    }
+
+    func testFirstDictationCompletedSerializesActivationWindow() {
+        let event = TelemetryEvent(
+            spec: .firstDictationCompleted(activationWindow: .underHour),
+            appVer: "0.6.9",
+            osVer: "15.4",
+            locale: "en-US",
+            chip: "Apple M4",
+            session: "session"
+        )
+
+        XCTAssertEqual(event.event, "first_dictation_completed")
+        XCTAssertEqual(event.props?["activation_window"], "under_1h")
+        XCTAssertEqual(Set(event.props?.keys ?? Dictionary<String, String>().keys), ["activation_window"])
+    }
+
     func testImplementedContractCoversEveryTypedEventName() {
         XCTAssertEqual(
             Set(TelemetryEventName.allCases),
@@ -1059,12 +1171,33 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertFalse(AppPreferences.isTelemetryEnabled(defaults: defaults))
     }
 
+    func testCrashOccurredStackTracePropFitsTelemetryIngestLimit() {
+        let stackTrace = String(repeating: "A", count: TelemetryEventSpec.maxCrashStackTraceCharacters + 500)
+
+        let event = TelemetryEventSpec.crashOccurred(
+            crashType: "signal",
+            signal: "11",
+            name: "SIGSEGV",
+            crashTimestamp: "1711900000",
+            crashAppVer: "0.5.1",
+            crashOsVer: "15.3.1",
+            uuid: "A1B2C3D4",
+            slide: "0x100000",
+            reason: nil,
+            stackTrace: stackTrace
+        )
+
+        let props = event.props ?? [:]
+        XCTAssertEqual(props["stack_trace"]?.count, TelemetryEventSpec.maxCrashStackTraceCharacters)
+    }
+
     private func sampleEvents() -> [TelemetryEventSpec] {
         [
             .appLaunched,
             .appQuit(sessionDurationSeconds: 12.5),
             .dictationStarted(trigger: .hotkey, mode: .persistent),
             .dictationCompleted(durationSeconds: 12.5, wordCount: 84, mode: .persistent),
+            .firstDictationCompleted(activationWindow: .underMinute),
             .dictationCancelled(durationSeconds: 1.5, reason: .escape),
             .dictationEmpty(durationSeconds: 1.5),
             .dictationFailed(errorType: "network"),
@@ -1111,8 +1244,8 @@ final class TelemetryServiceTests: XCTestCase {
             .exportUsed(format: "txt"),
             .llmPromptResultUsed(provider: "openai"),
             .llmPromptResultFailed(provider: "openai", errorType: "auth"),
-            .llmChatUsed(provider: "openai", messageCount: 3),
-            .llmChatFailed(provider: "openai", errorType: "network"),
+            .llmChatUsed(provider: "openai", source: .transcriptChat, messageCount: 3),
+            .llmChatFailed(provider: "openai", source: .transcriptChat, errorType: "network"),
             .llmTransformUsed(provider: "openai"),
             .llmTransformFailed(provider: "openai", errorType: "network"),
             .transformExecuted(
@@ -1136,7 +1269,7 @@ final class TelemetryServiceTests: XCTestCase {
                 errorType: nil
             ),
             .askMenuOpened,
-            .askPromptFired(source: .emptyState, group: "CAPTURE", label: "Action items"),
+            .askPromptFired(source: .emptyState, group: "capture", label: "action_items"),
             .llmFormatterUsed(
                 provider: "lmstudio",
                 source: .dictation,
@@ -1182,6 +1315,7 @@ final class TelemetryServiceTests: XCTestCase {
             .customWordAdded,
             .customWordDeleted,
             .snippetAdded,
+            .snippetEdited,
             .snippetDeleted,
             .promptCreated,
             .promptUpdated,
@@ -1220,7 +1354,8 @@ final class TelemetryServiceTests: XCTestCase {
                 outcome: .success,
                 durationSeconds: 1.1,
                 blockedReason: nil,
-                errorType: nil
+                errorType: nil,
+                wasCold: true
             ),
             .feedbackOperation(
                 operationID: "op-feedback",

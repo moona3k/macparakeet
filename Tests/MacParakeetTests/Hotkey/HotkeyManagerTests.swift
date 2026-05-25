@@ -7,6 +7,7 @@ final class HotkeyManagerTests: XCTestCase {
     private let leftOptionMask = UInt64(NX_DEVICELALTKEYMASK)
     private let rightOptionMask = UInt64(NX_DEVICERALTKEYMASK)
     private let leftShiftMask = UInt64(NX_DEVICELSHIFTKEYMASK)
+    private let rightShiftMask = UInt64(NX_DEVICERSHIFTKEYMASK)
     private let leftCommandMask = UInt64(NX_DEVICELCMDKEYMASK)
     private let rightCommandMask = UInt64(NX_DEVICERCMDKEYMASK)
 
@@ -69,6 +70,92 @@ final class HotkeyManagerTests: XCTestCase {
                 .cancelStartupDebounce,
                 .cancelHoldWindow,
                 .stopRecording,
+            ]
+        )
+    }
+
+    func testSingleTapToggleModifierStartsOnBareReleaseAndStopsOnNextBareRelease() {
+        let manager = HotkeyManager(trigger: .fn, gestureMode: .singleTapToggle)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_000
+            ),
+            []
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050
+            ),
+            [.startRecording(mode: .persistent)]
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_200
+            ),
+            []
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_250
+            ),
+            [.stopRecording]
+        )
+    }
+
+    func testSingleTapToggleModifierIgnoresNonBareShortcutUse() {
+        let manager = HotkeyManager(trigger: .command, gestureMode: .singleTapToggle)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000
+            ),
+            []
+        )
+        XCTAssertEqual(
+            manager.modifierKeyDownOutputsForTesting(keyCode: 8, timestampMs: 1_025),
+            []
+        )
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050
+            ),
+            []
+        )
+    }
+
+    func testHoldOnlyCommandCancelsBeforeStartupWhenUsedAsChord() {
+        let manager = HotkeyManager(trigger: .command, gestureMode: .holdOnly)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(
+            manager.modifierKeyDownOutputsForTesting(keyCode: 8, timestampMs: 1_025),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050
+            ),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
             ]
         )
     }
@@ -168,6 +255,35 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertTrue(keyUp.shouldSwallow)
     }
 
+    func testSingleTapToggleGestureModeWorksForKeyCodeTriggers() {
+        let trigger = HotkeyTrigger.fromKeyCode(119)
+        let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
+
+        let firstDown = manager.keyCodeEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 119,
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(firstDown.outputs, [.startRecording(mode: .persistent)])
+        XCTAssertTrue(firstDown.shouldSwallow)
+
+        let firstUp = manager.keyCodeEventDecisionForTesting(
+            type: .keyUp,
+            keyCode: 119,
+            timestampMs: 1_050
+        )
+        XCTAssertEqual(firstUp.outputs, [])
+        XCTAssertTrue(firstUp.shouldSwallow)
+
+        let secondDown = manager.keyCodeEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 119,
+            timestampMs: 1_200
+        )
+        XCTAssertEqual(secondDown.outputs, [.stopRecording])
+        XCTAssertTrue(secondDown.shouldSwallow)
+    }
+
     func testHoldOnlyGestureModeStopsChordWhenRequiredModifierReleasesFirst() {
         let trigger = HotkeyTrigger.chord(modifiers: ["control", "shift"], keyCode: 15)
         let manager = HotkeyManager(trigger: trigger, gestureMode: .holdOnly)
@@ -211,6 +327,73 @@ final class HotkeyManagerTests: XCTestCase {
         XCTAssertTrue(keyUp.shouldSwallow)
     }
 
+    func testSingleTapToggleGestureModeWorksForFnSpaceChord() {
+        let trigger = HotkeyTrigger.fnSpace
+        let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
+
+        let firstDown = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 49,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_000
+        )
+        XCTAssertEqual(firstDown.outputs, [.startRecording(mode: .persistent)])
+        XCTAssertTrue(firstDown.shouldSwallow)
+
+        let firstUp = manager.chordEventDecisionForTesting(
+            type: .keyUp,
+            keyCode: 49,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_050
+        )
+        XCTAssertEqual(firstUp.outputs, [])
+        XCTAssertTrue(firstUp.shouldSwallow)
+
+        let secondDown = manager.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 49,
+            flags: trigger.chordEventFlags,
+            timestampMs: 1_200
+        )
+        XCTAssertEqual(secondDown.outputs, [.stopRecording])
+        XCTAssertTrue(secondDown.shouldSwallow)
+    }
+
+    func testDefaultFnSpaceChordCancelsPendingPushToTalkBeforeHandsFreeStarts() {
+        let pushToTalk = HotkeyManager(
+            trigger: .defaultPushToTalk,
+            gestureMode: .holdOnly,
+            startupDebounceMs: FnKeyStateMachine.defaultTapThresholdMs
+        )
+        let handsFree = HotkeyManager(trigger: .fnSpace, gestureMode: .singleTapToggle)
+
+        XCTAssertEqual(
+            pushToTalk.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskSecondaryFn],
+                timestampMs: 1_000
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultTapThresholdMs)]
+        )
+
+        XCTAssertEqual(
+            pushToTalk.modifierKeyDownOutputsForTesting(keyCode: 49, timestampMs: 1_200),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+        XCTAssertEqual(pushToTalk.startupDebounceElapsedForTesting(), [])
+
+        let handsFreeStart = handsFree.chordEventDecisionForTesting(
+            type: .keyDown,
+            keyCode: 49,
+            flags: HotkeyTrigger.fnSpace.chordEventFlags,
+            timestampMs: 1_200
+        )
+        XCTAssertEqual(handsFreeStart.outputs, [.startRecording(mode: .persistent)])
+        XCTAssertTrue(handsFreeStart.shouldSwallow)
+    }
+
     func testHoldOnlyGestureModeWorksForModifierChordTriggers() {
         let trigger = HotkeyTrigger.modifierChord(modifiers: ["control", "option"])
         let manager = HotkeyManager(trigger: trigger, gestureMode: .holdOnly)
@@ -233,6 +416,26 @@ final class HotkeyManagerTests: XCTestCase {
                 .cancelHoldWindow,
                 .stopRecording,
             ]
+        )
+    }
+
+    func testSingleTapToggleModifierChordStartsOnBareRelease() {
+        let trigger = HotkeyTrigger.modifierChord(modifiers: ["control", "option"])
+        let manager = HotkeyManager(trigger: trigger, gestureMode: .singleTapToggle)
+
+        XCTAssertEqual(
+            manager.modifierChordFlagsChangedOutputsForTesting(
+                flags: [.maskControl, .maskAlternate],
+                timestampMs: 1_000
+            ),
+            []
+        )
+        XCTAssertEqual(
+            manager.modifierChordFlagsChangedOutputsForTesting(
+                flags: [.maskControl],
+                timestampMs: 1_050
+            ),
+            [.startRecording(mode: .persistent)]
         )
     }
 
@@ -755,6 +958,79 @@ final class HotkeyManagerTests: XCTestCase {
 
     // MARK: - Side-Specific Modifier Detection
 
+    func testSideSpecificRightCommandTriggersFromChangedKeyCodeWhenSideFlagsAreMissing() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = HotkeyManager(trigger: trigger)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000,
+                changedKeyCode: 54
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
+        )
+    }
+
+    func testSideSpecificRightCommandIgnoresLeftCommandWhenSideFlagsAreMissing() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = HotkeyManager(trigger: trigger)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000,
+                changedKeyCode: 55
+            ),
+            []
+        )
+    }
+
+    func testSideSpecificRightCommandReleaseFromChangedKeyCodeWhenSideFlagsAreMissing() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = HotkeyManager(trigger: trigger)
+
+        _ = manager.modifierFlagsChangedOutputsForTesting(
+            flags: [.maskCommand],
+            timestampMs: 1_000,
+            changedKeyCode: 54
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050,
+                changedKeyCode: 54
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap]
+        )
+    }
+
+    func testHoldOnlySideSpecificCommandCancelsBeforeStartupWhenUsedAsChord() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = HotkeyManager(trigger: trigger, gestureMode: .holdOnly)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000,
+                changedKeyCode: 54
+            ),
+            [.scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs)]
+        )
+        XCTAssertEqual(
+            manager.modifierKeyDownOutputsForTesting(keyCode: 8, timestampMs: 1_025),
+            [
+                .cancelStartupDebounce,
+                .cancelHoldWindow,
+            ]
+        )
+        XCTAssertEqual(manager.startupDebounceElapsedForTesting(), [])
+    }
+
     func testSideSpecificRightOptionOnlyTriggersOnRightKey() {
         let trigger = HotkeyTrigger(kind: .modifier, modifierName: "option", keyCode: nil, modifierKeyCode: 61)
         let manager = HotkeyManager(trigger: trigger)
@@ -891,6 +1167,62 @@ final class HotkeyManagerTests: XCTestCase {
                     rightOptionMask
                 ),
                 timestampMs: 1_200
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
+        )
+    }
+
+    func testSideSpecificOppositeSideTapCancelsPendingSecondTapWhenSideFlagsAreMissing() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = HotkeyManager(trigger: trigger)
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_000,
+                changedKeyCode: 54
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_050,
+                changedKeyCode: 54
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap]
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_100,
+                changedKeyCode: 55
+            ),
+            [.cancelStartupDebounce, .cancelHoldWindow]
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [],
+                timestampMs: 1_150,
+                changedKeyCode: 55
+            ),
+            []
+        )
+
+        XCTAssertEqual(
+            manager.modifierFlagsChangedOutputsForTesting(
+                flags: [.maskCommand],
+                timestampMs: 1_200,
+                changedKeyCode: 54
             ),
             [
                 .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
@@ -1258,6 +1590,42 @@ final class HotkeyManagerTests: XCTestCase {
                 timestampMs: 1_050
             ),
             [.cancelStartupDebounce, .cancelHoldWindow, .showReadyForSecondTap]
+        )
+    }
+
+    func testSideSpecificSameModifierChordRequiresBothRecordedSides() {
+        let trigger = HotkeyTrigger.modifierChord(
+            components: [
+                .init(modifierName: "shift", keyCode: 56),
+                .init(modifierName: "shift", keyCode: 60),
+            ]
+        )
+        let manager = HotkeyManager(trigger: trigger)
+
+        XCTAssertEqual(
+            manager.modifierChordFlagsChangedOutputsForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskShift.rawValue,
+                    leftShiftMask
+                ),
+                timestampMs: 1_000
+            ),
+            []
+        )
+
+        XCTAssertEqual(
+            manager.modifierChordFlagsChangedOutputsForTesting(
+                flags: sideSpecificFlags(
+                    CGEventFlags.maskShift.rawValue,
+                    leftShiftMask,
+                    rightShiftMask
+                ),
+                timestampMs: 1_025
+            ),
+            [
+                .scheduleStartupDebounce(milliseconds: FnKeyStateMachine.defaultStartupDebounceMs),
+                .scheduleHoldWindow(milliseconds: FnKeyStateMachine.defaultTapThresholdMs),
+            ]
         )
     }
 

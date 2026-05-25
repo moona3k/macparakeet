@@ -237,6 +237,21 @@ final class GlobalShortcutManagerTests: XCTestCase {
         XCTAssertEqual(triggerCount, 2)
     }
 
+    func testSideSpecificRightCommandTriggersFromChangedKeyCodeWhenSideFlagsAreMissing() {
+        let trigger = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let manager = GlobalShortcutManager(trigger: trigger)
+        var triggerCount = 0
+        manager.onTrigger = { triggerCount += 1 }
+
+        manager.modifierFlagsChangedForTesting(flags: [.maskCommand], changedKeyCode: 55)
+        manager.modifierFlagsChangedForTesting(flags: [.maskCommand], changedKeyCode: 54)
+        manager.modifierFlagsChangedForTesting(flags: [.maskCommand], changedKeyCode: 54)
+        manager.modifierFlagsChangedForTesting(flags: [], changedKeyCode: 54)
+        manager.modifierFlagsChangedForTesting(flags: [.maskCommand], changedKeyCode: 54)
+
+        XCTAssertEqual(triggerCount, 2)
+    }
+
     func testSideSpecificModifierChordDoesNotTriggerAfterOppositeSideIsReleased() {
         let trigger = HotkeyTrigger.modifierChord(
             components: [

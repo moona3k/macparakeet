@@ -32,8 +32,7 @@ struct TranscriptionLibraryView: View {
                 Spacer()
 
                 if let primaryActionTitle, let onPrimaryAction {
-                    Button(primaryActionTitle, action: onPrimaryAction)
-                        .parakeetAction(.primaryProminent)
+                    LibraryPrimaryActionButton(title: primaryActionTitle, action: onPrimaryAction)
                 }
             }
             .padding(.horizontal, DesignSystem.Spacing.lg)
@@ -44,31 +43,11 @@ struct TranscriptionLibraryView: View {
             if showsFilterBar {
                 HStack(spacing: 0) {
                     ForEach(visibleLibraryFilters, id: \.self) { filter in
-                        Button {
-                            viewModel.filter = filter
-                        } label: {
-                            HStack(spacing: 6) {
-                                Text(filter.rawValue)
-                                    .font(DesignSystem.Typography.bodySmall.weight(
-                                        viewModel.filter == filter ? .semibold : .regular
-                                    ))
-                                if filter == .meeting {
-                                    LabsBadge()
-                                        .scaleEffect(0.82)
-                                        .help(LabsBadge.message)
-                                }
-                            }
-                            .padding(.horizontal, DesignSystem.Spacing.md)
-                            .padding(.vertical, 8)
-                            .background(
-                                Capsule()
-                                    .fill(viewModel.filter == filter
-                                          ? DesignSystem.Colors.accent.opacity(0.12)
-                                          : .clear)
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(viewModel.filter == filter ? DesignSystem.Colors.accent : DesignSystem.Colors.textSecondary)
+                        LibraryFilterChip(
+                            filter: filter,
+                            isSelected: viewModel.filter == filter,
+                            onTap: { viewModel.filter = filter }
+                        )
                     }
                     Spacer()
                 }
@@ -334,5 +313,95 @@ struct TranscriptionLibraryView: View {
         isMeetingListMode
             ? "Press Record Meeting on the Transcribe tab to capture system audio and transcribe locally."
             : emptyMessage
+    }
+}
+
+// MARK: - Library filter chip
+
+/// One pill in the Library filter bar (All / YouTube / Local / Meetings /
+/// Favorites). Three-tier visual hierarchy keeps "hovered" clearly subordinate
+/// to "selected": idle is plain text, hover adds a faint *neutral* wash and
+/// brightens the label toward primary, and only the selected chip wears the
+/// coral pill + coral text. Hover deliberately avoids the accent so it never
+/// masquerades as the active filter. Owns its own `isHovered` so each chip in
+/// the `ForEach` tracks the cursor independently — matching the hover idiom used
+/// by the Browse Files and Start buttons.
+private struct LibraryFilterChip: View {
+    let filter: LibraryFilter
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    @State private var isHovered = false
+
+    private var foreground: Color {
+        if isSelected { return DesignSystem.Colors.accent }
+        return isHovered ? DesignSystem.Colors.textPrimary : DesignSystem.Colors.textSecondary
+    }
+
+    private var fill: Color {
+        if isSelected { return DesignSystem.Colors.accent.opacity(0.12) }
+        return isHovered ? DesignSystem.Colors.textPrimary.opacity(0.06) : .clear
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 6) {
+                Text(filter.rawValue)
+                    .font(DesignSystem.Typography.bodySmall.weight(isSelected ? .semibold : .regular))
+            }
+            .foregroundStyle(foreground)
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.vertical, 8)
+            .background(Capsule().fill(fill))
+            .animation(DesignSystem.Animation.hoverTransition, value: isHovered)
+            .animation(DesignSystem.Animation.hoverTransition, value: isSelected)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+    }
+}
+
+/// The Library header's primary "New Transcription" CTA — a filled coral capsule
+/// with a create glyph and a soft coral shadow that lifts on hover. Filled (not
+/// outline) because it's the single highest-priority action on the surface, and
+/// it carries the same hover idiom (scale + pointing-hand cursor) as the other
+/// polished buttons so the header reads as one system.
+private struct LibraryPrimaryActionButton: View {
+    let title: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: "plus")
+                    .font(.system(size: 12, weight: .bold))
+                Text(title)
+                    .font(DesignSystem.Typography.bodySmall.weight(.semibold))
+            }
+            .foregroundStyle(DesignSystem.Colors.onAccent)
+            .padding(.horizontal, DesignSystem.Spacing.md)
+            .padding(.vertical, 9)
+            .background(Capsule().fill(DesignSystem.Colors.accent))
+            .shadow(
+                color: DesignSystem.Colors.accent.opacity(isHovered ? 0.45 : 0.26),
+                radius: isHovered ? 12 : 6,
+                x: 0,
+                y: isHovered ? 5 : 3
+            )
+            .scaleEffect(isHovered ? 1.035 : 1.0)
+            .animation(DesignSystem.Animation.hoverTransition, value: isHovered)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+        .accessibilityLabel(title)
+        .accessibilityHint("Starts a new transcription")
     }
 }

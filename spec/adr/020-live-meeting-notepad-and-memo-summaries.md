@@ -246,6 +246,8 @@ The Ask conversation persistence sketched as Future Work in ADR-018 is **not** a
 
 ### 10. Rich pre-meeting countdown toast for calendar-triggered starts
 
+> **Amendment (2026-05-22):** The toast was redesigned as a minimal top-right "countdown halo" (sacred-geometry rosette inside a coral countdown ring). The rich variant now surfaces only the meeting service in the subtitle (e.g. "Recording · Zoom"); the explicit attendee-count row and the `{{userNotes}}` steering hint were dropped for the minimal layout (the `calendarContext` plumbing — attendee count + steering hint — is retained for accessibility / future use). The mock below is the original ADR-020 design, kept for historical context.
+
 When the auto-start countdown (ADR-017 Phase 2) fires from a `MeetingMonitor` event with attached calendar metadata, `MeetingCountdownToastView` renders a richer variant:
 
 ```

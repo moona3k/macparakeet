@@ -43,6 +43,9 @@ public final class MeetingRecordingPanelViewModel {
     /// Mirrors `MeetingRecordingService.isPaused`, set by the flow
     /// coordinator's polling task.
     public var isPaused: Bool = false
+    /// Meeting-local mic mute. Unlike pause, system audio keeps recording.
+    public var isMicrophoneMuted: Bool = false
+    public var canToggleMicrophoneMute: Bool = false
     public var previewLines: [MeetingRecordingPreviewLine] = []
     public var isTranscriptionLagging: Bool = false
     public private(set) var liveTranscriptStatus: LiveTranscriptStatus = .listening
@@ -55,12 +58,19 @@ public final class MeetingRecordingPanelViewModel {
     public let quickPromptsViewModel: QuickPromptsViewModel = QuickPromptsViewModel()
     public var onStop: (() -> Void)?
     public var onPauseToggle: (() -> Void)?
+    public var onMicrophoneMuteToggle: (() -> Void)?
     public var onClose: (() -> Void)?
 
     private var copiedResetTask: Task<Void, Never>?
     private var previewLineWordCounts: [Int] = []
 
     public init() {
+        // Mark the chat VM as the live in-meeting Ask surface so
+        // `llm_chat_used` telemetry distinguishes Ask chat from
+        // post-transcription transcript chat. Without this the two sources
+        // collapse into one bucket and Ask adoption is invisible.
+        chatViewModel.markAsMeetingAskSurface()
+
         // Thread the live notepad into the live Ask chat: the closure is
         // called by `TranscriptChatViewModel` at chat-send time, so the
         // freshest keystroke up to the moment the user hits Send is what the
@@ -133,6 +143,8 @@ public final class MeetingRecordingPanelViewModel {
         micLevel = 0
         systemLevel = 0
         isPaused = false
+        isMicrophoneMuted = false
+        canToggleMicrophoneMute = false
         previewLines = []
         previewLineWordCounts = []
         wordCount = 0

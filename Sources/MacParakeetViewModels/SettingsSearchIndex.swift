@@ -88,8 +88,8 @@ public enum SettingsSearchIndex {
     ]
 
     /// Ids gated on `AppFeatures.calendarEnabled` independently of meeting
-    /// recording. Filtered when calendar is hidden so search doesn't land
-    /// on the (currently invisible) calendar subsection.
+    /// recording. Filtered out when the flag is off so search doesn't land
+    /// on a hidden calendar subsection.
     private static let calendarGatedIds: Set<String> = [
         "meeting.calendar"
     ]
@@ -244,7 +244,7 @@ public enum SettingsSearchIndex {
             id: "ai.provider",
             tab: .ai,
             title: "AI Setup",
-            subtitle: "Optional. Powers summaries, chat, and meeting Ask.",
+            subtitle: "Optional. Powers summaries, chat, meeting Ask, and Transforms.",
             keywords: [
                 "ai", "llm", "openai", "anthropic", "claude", "gpt", "lm studio", "ollama",
                 "openai compatible", "summary", "summaries", "chat", "ask", "api key",

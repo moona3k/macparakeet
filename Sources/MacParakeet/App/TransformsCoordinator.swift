@@ -147,7 +147,10 @@ final class TransformsCoordinator {
         var bindings: [UUID: KeyboardShortcut] = [:]
         for prompt in prompts {
             if let shortcut = prompt.shortcut {
-                if let conflict = reservedHotkeys.first(where: { shortcut.hotkeyTrigger.overlaps(with: $0.trigger) }) {
+                let trigger = shortcut.hotkeyTrigger
+                if let conflict = reservedHotkeys.first(where: {
+                    trigger.conflicts(with: $0.trigger, otherMode: $0.conflictMode)
+                }) {
                     logger.notice(
                         "transforms: skipping binding for \(prompt.name, privacy: .public); conflicts with \(conflict.name, privacy: .public) \(conflict.trigger.formattedLabel, privacy: .public)"
                     )
@@ -237,12 +240,16 @@ final class TransformsCoordinator {
                 self.panelController?.done(message: "Done")
                 let capturePath: TelemetryTransformCapturePath = result.captureTag == "ax" ? .ax : .clipboard
                 let replacePath: TelemetryTransformReplacePath = result.path == .ax ? .ax : .clipboardPaste
+                // The target captured at trigger time is the app the rewritten
+                // text was pasted back into — map it to a coarse category only.
+                let appCategory = TelemetryAppCategory(bundleIdentifier: result.target?.bundleIdentifier)
                 Telemetry.send(.transformExecuted(
                     transformName: telemetryName,
                     capturePath: capturePath,
                     replacePath: replacePath,
                     llmMs: result.llmElapsedMs,
-                    totalMs: result.totalElapsedMs
+                    totalMs: result.totalElapsedMs,
+                    appCategory: appCategory
                 ))
                 self.sendTransformOperation(
                     operationContext: operationContext,
@@ -253,6 +260,7 @@ final class TransformsCoordinator {
                     replacePath: replacePath,
                     llmMs: result.llmElapsedMs,
                     totalMs: result.totalElapsedMs,
+                    appCategory: appCategory,
                     errorType: nil
                 )
                 self.saveHistoryEntry(prompt: prompt, result: result)
@@ -339,7 +347,13 @@ final class TransformsCoordinator {
         operationContext: ObservabilityOperationContext
     ) {
         panelController?.show()
-        panelController?.fail(message: "Opening AI settings...")
+        // Name the problem + where to fix it. The old "Opening AI settings..."
+        // described a side-effect, not what the user needs to do — and when the
+        // hotkey is fired from another app the Settings window opens behind
+        // focus, so it read as "nothing happened" and users re-fired the hotkey
+        // (see the no_provider telemetry cluster). The Settings → AI window
+        // still opens automatically alongside this message.
+        panelController?.fail(message: "Add an LLM provider in Settings to use Transforms")
         onLLMProviderRequired()
         Telemetry.send(.transformFailed(transformName: telemetryName, reason: .noProvider))
         sendTransformOperation(
@@ -361,6 +375,7 @@ final class TransformsCoordinator {
         replacePath: TelemetryTransformReplacePath? = nil,
         llmMs: Int? = nil,
         totalMs: Int? = nil,
+        appCategory: TelemetryAppCategory? = nil,
         errorType: TelemetryTransformFailureReason? = nil
     ) {
         Telemetry.send(.transformOperation(
@@ -375,6 +390,7 @@ final class TransformsCoordinator {
                 ?? Observability.durationSeconds(since: operationContext.startedAt),
             llmMs: llmMs,
             totalMs: totalMs,
+            appCategory: appCategory,
             errorType: errorType
         ))
     }

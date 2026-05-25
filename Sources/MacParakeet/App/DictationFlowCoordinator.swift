@@ -40,6 +40,7 @@ private enum ProcessingLoadCaptionOutcome {
 @MainActor
 final class DictationFlowCoordinator {
     private static let silenceAutoStopThreshold: Float = 0.03
+    private static let microphoneAccessRequiredMessage = "Microphone access required"
 
     // MARK: - Public Interface
 
@@ -105,6 +106,15 @@ final class DictationFlowCoordinator {
         }
     }
 
+    static func mediaPauseCaptureActive(for state: DictationFlowState) -> Bool {
+        switch state {
+        case .startingService, .recording, .pendingStop:
+            return true
+        case .idle, .ready, .checkingEntitlements, .processing, .cancelCountdown, .finishing:
+            return false
+        }
+    }
+
     static func pasteFailureMessage(for error: Error, copiedToClipboard copied: Bool) -> String {
         let clipboardError = error as? ClipboardServiceError
 
@@ -134,9 +144,15 @@ final class DictationFlowCoordinator {
     private let settingsViewModel: SettingsViewModel
     private let sttRuntime: any DictationSTTReadinessChecking
     private let runtimePreferences: AppRuntimePreferencesProtocol
+    private let permissionService: PermissionServiceProtocol
     private let captionTiming: DictationProcessingLoadCaptionTiming
+    private let mediaPauseCoordinator: any DictationMediaPauseCoordinating
     private let overlayControllerFactory: @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling
     private let shouldSuppressIdlePill: () -> Bool
+    /// When true, `startDictation` is a no-op. Used to gate real dictation while
+    /// onboarding is visible (the model isn't ready yet and the hotkey step runs
+    /// its own no-STT rehearsal). Covers both the hotkey and idle-pill paths.
+    private let isStartSuppressed: () -> Bool
     private let onMenuBarIconUpdate: (BreathWaveIcon.MenuBarState) -> Void
     private let onHistoryReload: () -> Void
     private let onPresentEntitlementsAlert: (Error) -> Void
@@ -188,11 +204,14 @@ final class DictationFlowCoordinator {
         settingsViewModel: SettingsViewModel,
         sttRuntime: any DictationSTTReadinessChecking,
         runtimePreferences: AppRuntimePreferencesProtocol,
+        permissionService: PermissionServiceProtocol = PermissionService(),
         captionTiming: DictationProcessingLoadCaptionTiming = .production,
+        mediaPauseCoordinator: (any DictationMediaPauseCoordinating)? = nil,
         overlayControllerFactory: @escaping @MainActor (DictationOverlayViewModel) -> any DictationOverlayControlling = {
             DictationOverlayController(viewModel: $0)
         },
         shouldSuppressIdlePill: @escaping () -> Bool = { false },
+        isStartSuppressed: @escaping () -> Bool = { false },
         onMenuBarIconUpdate: @escaping (BreathWaveIcon.MenuBarState) -> Void,
         onHistoryReload: @escaping () -> Void,
         onPresentEntitlementsAlert: @escaping (Error) -> Void
@@ -204,9 +223,12 @@ final class DictationFlowCoordinator {
         self.settingsViewModel = settingsViewModel
         self.sttRuntime = sttRuntime
         self.runtimePreferences = runtimePreferences
+        self.permissionService = permissionService
         self.captionTiming = captionTiming
+        self.mediaPauseCoordinator = mediaPauseCoordinator ?? NoOpDictationMediaPauseCoordinator()
         self.overlayControllerFactory = overlayControllerFactory
         self.shouldSuppressIdlePill = shouldSuppressIdlePill
+        self.isStartSuppressed = isStartSuppressed
         self.onMenuBarIconUpdate = onMenuBarIconUpdate
         self.onHistoryReload = onHistoryReload
         self.onPresentEntitlementsAlert = onPresentEntitlementsAlert
@@ -291,6 +313,9 @@ final class DictationFlowCoordinator {
         mode: FnKeyStateMachine.RecordingMode,
         trigger: TelemetryDictationTrigger = .hotkey
     ) {
+        // Suppressed while onboarding is up — the speech model isn't ready and
+        // the hotkey step runs its own no-STT rehearsal. Covers hotkey + pill.
+        guard !isStartSuppressed() else { return }
         currentTrigger = trigger
         sendEvent(.startRequested(mode: mode))
     }
@@ -323,6 +348,10 @@ final class DictationFlowCoordinator {
         }
     }
 
+    func releaseMediaPauseForTermination() {
+        mediaPauseCoordinator.resumeForTermination()
+    }
+
     // MARK: - State Machine Core
 
     private func sendEvent(_ event: DictationFlowEvent) {
@@ -336,6 +365,13 @@ final class DictationFlowCoordinator {
         }
 
         executeEffects(effects)
+
+        if Self.mediaPauseCaptureActive(for: oldState),
+           !Self.mediaPauseCaptureActive(for: stateMachine.state) {
+            Task { @MainActor in
+                await self.mediaPauseCoordinator.resumeAfterDictationCapture()
+            }
+        }
     }
 
     // MARK: - Effect Executor
@@ -811,9 +847,15 @@ final class DictationFlowCoordinator {
         let trigger = currentTrigger
         recordingTask = Task { @MainActor in
             do {
+                try Task.checkCancellation()
+                await self.mediaPauseCoordinator.pauseBeforeDictationCapture()
+                try Task.checkCancellation()
                 try await self.serviceSession.startRecording(
                     sessionID: sessionID,
-                    context: DictationTelemetryContext(trigger: trigger, mode: self.telemetryMode(for: mode))
+                    context: DictationTelemetryContext(
+                        trigger: trigger,
+                        mode: self.telemetryMode(for: mode)
+                    )
                 )
                 let serviceState = await self.serviceSession.state
                 guard case .recording = serviceState else {
@@ -828,6 +870,9 @@ final class DictationFlowCoordinator {
                 guard !Task.isCancelled else { return }
                 self.sendEvent(.recordingStarted(generation: generation))
                 await self.runRecordingLevelLoop()
+            } catch is CancellationError {
+                await self.mediaPauseCoordinator.resumeAfterDictationCapture()
+                return
             } catch {
                 guard !Task.isCancelled else { return }
                 self.dictationLog.error(
@@ -835,7 +880,7 @@ final class DictationFlowCoordinator {
                 )
                 if Self.isMicrophonePermissionDenied(error) {
                     self.maybePresentMicPermissionAlert()
-                    self.sendEvent(.startFailed(generation: generation, message: "Microphone access required"))
+                    self.sendEvent(.startFailed(generation: generation, message: Self.microphoneAccessRequiredMessage))
                 } else {
                     self.sendEvent(.startFailed(generation: generation, message: error.localizedDescription))
                 }
@@ -863,17 +908,41 @@ final class DictationFlowCoordinator {
     }
 
     private func presentMicPermissionAlert() async {
+        // If TCC state is .notDetermined (e.g. after a TCC reset or a reinstall
+        // where onboarding has already been completed), trigger the system prompt
+        // directly. Opening System Settings is a dead end here: macOS does not
+        // surface an entry in Privacy & Security → Microphone until the app has
+        // called requestAccess at least once.
+        switch await permissionService.checkMicrophonePermission() {
+        case .granted:
+            dismissStaleMicPermissionErrorIfNeeded()
+            return
+        case .notDetermined:
+            if await permissionService.requestMicrophonePermission() {
+                dismissStaleMicPermissionErrorIfNeeded()
+                return
+            }
+        case .denied:
+            break
+        }
+
         let alert = NSAlert()
-        alert.messageText = "Microphone access required"
+        alert.messageText = Self.microphoneAccessRequiredMessage
         alert.informativeText = "MacParakeet needs microphone access to record dictation. Open System Settings → Privacy & Security → Microphone to enable it, then try again."
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Open System Settings")
         alert.addButton(withTitle: "Cancel")
         let response = await presentMicPermissionAlert(alert)
-        if response == .alertFirstButtonReturn,
-           let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
-            NSWorkspace.shared.open(url)
+        if response == .alertFirstButtonReturn {
+            permissionService.openMicrophoneSettings()
         }
+    }
+
+    private func dismissStaleMicPermissionErrorIfNeeded() {
+        guard stateMachine.state == .finishing(outcome: .error(Self.microphoneAccessRequiredMessage)) else {
+            return
+        }
+        sendEvent(.dismissRequested)
     }
 
     private func presentMicPermissionAlert(_ alert: NSAlert) async -> NSApplication.ModalResponse {
@@ -897,6 +966,12 @@ final class DictationFlowCoordinator {
                 self.dictationLog.notice(
                     "stop_recording_requested gen=\(generation) session=\(sessionID) flowState=\(self.describeState(self.stateMachine.state), privacy: .public) serviceState=\(self.describeServiceState(serviceState), privacy: .public)"
                 )
+                await self.serviceSession.updateTelemetryAppCategory(
+                    TelemetryAppCategory(
+                        bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                    ),
+                    sessionID: sessionID
+                )
                 let result = try await self.serviceSession.stopRecording(sessionID: sessionID)
                 guard !Task.isCancelled else { return }
                 self.consumeDictationResult(result)
@@ -910,6 +985,13 @@ final class DictationFlowCoordinator {
     private func undoCancelTask(generation: Int) {
         actionTask = Task { @MainActor in
             do {
+                let sessionID = self.serviceSession.currentSessionID
+                await self.serviceSession.updateTelemetryAppCategory(
+                    TelemetryAppCategory(
+                        bundleIdentifier: NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                    ),
+                    sessionID: sessionID
+                )
                 let result = try await self.serviceSession.undoCancel()
                 guard !Task.isCancelled else { return }
                 self.consumeDictationResult(result)

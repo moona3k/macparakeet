@@ -13,10 +13,20 @@ public enum DictationState: Sendable {
 public struct DictationTelemetryContext: Sendable, Equatable {
     public var trigger: TelemetryDictationTrigger?
     public var mode: TelemetryDictationMode?
+    /// Coarse category of the app expected to receive the dictation paste.
+    /// The app layer refreshes this near stop/undo time so the value follows
+    /// the finish-target paste model instead of locking to the app active at
+    /// recording start. See `TelemetryAppCategory` for the privacy contract.
+    public var appCategory: TelemetryAppCategory?
 
-    public init(trigger: TelemetryDictationTrigger? = nil, mode: TelemetryDictationMode? = nil) {
+    public init(
+        trigger: TelemetryDictationTrigger? = nil,
+        mode: TelemetryDictationMode? = nil,
+        appCategory: TelemetryAppCategory? = nil
+    ) {
         self.trigger = trigger
         self.mode = mode
+        self.appCategory = appCategory
     }
 }
 
@@ -132,6 +142,20 @@ public actor DictationService: DictationServiceProtocol {
 
     public func startRecording(context: DictationTelemetryContext = DictationTelemetryContext()) async throws {
         try await startRecording(context: context, sessionID: nil)
+    }
+
+    public func updateTelemetryAppCategory(
+        _ appCategory: TelemetryAppCategory?,
+        sessionID: Int? = nil
+    ) {
+        if let sessionID, sessionID != activeSessionID { return }
+        switch _state {
+        case .recording, .cancelled, .processing:
+            currentTelemetryContext.appCategory = appCategory
+            currentOperationTelemetryContext.appCategory = appCategory
+        case .idle, .success, .error:
+            return
+        }
     }
 
     public func startRecording(
@@ -332,6 +356,7 @@ public actor DictationService: DictationServiceProtocol {
                 speechEngine: result.dictation.engine,
                 engineVariant: result.dictation.engineVariant,
                 language: result.dictation.language,
+                appCategory: currentTelemetryContext.appCategory,
                 device: device
             ))
             logger.debug(
@@ -490,6 +515,7 @@ public actor DictationService: DictationServiceProtocol {
                 speechEngine: result.dictation.engine,
                 engineVariant: result.dictation.engineVariant,
                 language: result.dictation.language,
+                appCategory: currentTelemetryContext.appCategory,
                 device: device
             ))
             try? await Task.sleep(for: .milliseconds(500))
@@ -839,6 +865,7 @@ public actor DictationService: DictationServiceProtocol {
             speechEngine: speechEngine,
             engineVariant: engineVariant,
             language: language,
+            appCategory: context.appCategory,
             device: device
         ))
     }

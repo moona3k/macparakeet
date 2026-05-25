@@ -14,6 +14,8 @@ set -euo pipefail
 #   SIGN_IDENTITY         (default: Developer ID Application: Daniel Moon (FYAF2ZD7RM))
 #   NOTARYTOOL_PROFILE    (required to notarize)
 #   CREATE_DMG            (default: 1)
+#   NOTARY_TIMEOUT_SECONDS       (default: 1800)
+#   NOTARY_POLL_INTERVAL_SECONDS (default: 15)
 #
 # Outputs:
 #   dist/MacParakeet.app (signed + stapled)
@@ -27,6 +29,55 @@ APP_PATH="$DIST_DIR/${APP_NAME}.app"
 SIGN_IDENTITY="${SIGN_IDENTITY:-Developer ID Application: Daniel Moon (FYAF2ZD7RM)}"
 NOTARYTOOL_PROFILE="${NOTARYTOOL_PROFILE:-AC_PASSWORD}"
 CREATE_DMG="${CREATE_DMG:-1}"
+NOTARY_TIMEOUT_SECONDS="${NOTARY_TIMEOUT_SECONDS:-1800}"
+NOTARY_POLL_INTERVAL_SECONDS="${NOTARY_POLL_INTERVAL_SECONDS:-15}"
+
+if ! [[ "$NOTARY_TIMEOUT_SECONDS" =~ ^[0-9]+$ ]] || [[ "$NOTARY_TIMEOUT_SECONDS" -le 0 ]]; then
+  echo "NOTARY_TIMEOUT_SECONDS must be a positive integer" >&2
+  exit 1
+fi
+
+if ! [[ "$NOTARY_POLL_INTERVAL_SECONDS" =~ ^[0-9]+$ ]] || [[ "$NOTARY_POLL_INTERVAL_SECONDS" -le 0 ]]; then
+  echo "NOTARY_POLL_INTERVAL_SECONDS must be a positive integer" >&2
+  exit 1
+fi
+
+poll_notarization() {
+  local submission_id="$1"
+  local artifact_label="$2"
+  local started_at
+  started_at="$(date +%s)"
+
+  echo "Polling ${artifact_label} notarization status for $submission_id..."
+  while true; do
+    local status
+    status="$(xcrun notarytool info "$submission_id" --keychain-profile "$NOTARYTOOL_PROFILE" 2>&1)"
+
+    if echo "$status" | grep -q "status: Accepted"; then
+      echo "${artifact_label} notarization accepted!"
+      return 0
+    elif echo "$status" | grep -Eq "status: (Invalid|Rejected)"; then
+      echo "${artifact_label} notarization REJECTED:"
+      echo "$status"
+      exit 1
+    fi
+
+    local now elapsed status_line
+    now="$(date +%s)"
+    elapsed=$((now - started_at))
+    if [[ "$elapsed" -ge "$NOTARY_TIMEOUT_SECONDS" ]]; then
+      echo "${artifact_label} notarization timed out after ${elapsed}s:"
+      echo "$status"
+      exit 1
+    fi
+
+    status_line="$(echo "$status" | grep 'status:' | head -1 | sed 's/^ *//')"
+    if [[ -n "$status_line" ]]; then
+      echo "  ${status_line} (${elapsed}s elapsed)"
+    fi
+    sleep "$NOTARY_POLL_INTERVAL_SECONDS"
+  done
+}
 
 if [[ ! -d "$APP_PATH" ]]; then
   echo "Missing app bundle: $APP_PATH" >&2
@@ -64,6 +115,14 @@ if [[ -d "$SPARKLE_FW" ]]; then
   echo "  Signing: Sparkle.framework"
   codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$SPARKLE_FW"
 fi
+
+# Sign optional model-backed meeting echo-suppression dylibs.
+while IFS= read -r -d '' dylib; do
+  echo "Signing bundled dylib: $dylib"
+  codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp "$dylib"
+done < <(
+  find "$APP_PATH/Contents/Frameworks" -maxdepth 1 -type f -name "*.dylib" -print0 2>/dev/null || true
+)
 
 # Sign helper binaries under Resources.
 NODE_RUNTIME_ENTITLEMENTS="$ROOT_DIR/scripts/dist/NodeRuntime.entitlements"
@@ -104,6 +163,7 @@ codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp \
 
 echo "[4/8] Verifying signature…"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+VERIFY_CODE_SIGNATURES=1 "$ROOT_DIR/scripts/dist/verify_meeting_echo_assets.sh" "$APP_PATH"
 
 ZIP_PATH="$DIST_DIR/${APP_NAME}.app.zip"
 rm -f "$ZIP_PATH"
@@ -125,19 +185,7 @@ if [[ -z "$SUBMISSION_ID" ]]; then
   echo "Error: Failed to extract submission ID"
   exit 1
 fi
-echo "Polling notarization status for $SUBMISSION_ID..."
-while true; do
-  STATUS=$(xcrun notarytool info "$SUBMISSION_ID" --keychain-profile "$NOTARYTOOL_PROFILE" 2>&1)
-  if echo "$STATUS" | grep -q "status: Accepted"; then
-    echo "Notarization accepted!"
-    break
-  elif echo "$STATUS" | grep -q "status: Invalid"; then
-    echo "Notarization REJECTED:"
-    echo "$STATUS"
-    exit 1
-  fi
-  sleep 15
-done
+poll_notarization "$SUBMISSION_ID" "App"
 
 echo "[7/8] Stapling app…"
 xcrun stapler staple "$APP_PATH"
@@ -245,19 +293,7 @@ APPLESCRIPT
     echo "Error: Failed to extract DMG submission ID"
     exit 1
   fi
-  echo "Polling DMG notarization status for $DMG_SUBMISSION_ID..."
-  while true; do
-    DMG_STATUS=$(xcrun notarytool info "$DMG_SUBMISSION_ID" --keychain-profile "$NOTARYTOOL_PROFILE" 2>&1)
-    if echo "$DMG_STATUS" | grep -q "status: Accepted"; then
-      echo "DMG notarization accepted!"
-      break
-    elif echo "$DMG_STATUS" | grep -q "status: Invalid"; then
-      echo "DMG notarization REJECTED:"
-      echo "$DMG_STATUS"
-      exit 1
-    fi
-    sleep 15
-  done
+  poll_notarization "$DMG_SUBMISSION_ID" "DMG"
 
   echo "Stapling DMG…"
   xcrun stapler staple "$DMG_PATH"

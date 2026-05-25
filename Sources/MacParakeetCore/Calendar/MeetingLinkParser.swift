@@ -8,12 +8,23 @@ import Foundation
 public struct MeetingLinkParser: Sendable {
     public init() {}
 
-    private static let zoomPattern = #"https?://(?:[\w-]+\.)?zoom\.us/j/\d+(?:\?[^\s]*)?"#
+    // Zoom: join (`/j/`), webinar (`/w/`), and personal-room (`/my/`) links,
+    // on both zoom.us and the government tenant zoomgov.com. The old pattern
+    // only matched `/j/<digits>`, silently missing `/w/`, `/my/`, and gov.
+    private static let zoomPattern = #"https?://(?:[\w-]+\.)?(?:zoom\.us|zoomgov\.com)/(?:j|w|my)/[\w.@-]+(?:\?[^\s]*)?"#
     private static let meetPattern = #"https?://meet\.google\.com/[\w-]+"#
     private static let teamsPattern = #"https?://teams\.microsoft\.com/[\w/.%-]+"#
     private static let webexPattern = #"https?://[\w-]+\.webex\.com/[\w/.%-]+"#
     private static let aroundPattern = #"https?://around\.co/[\w/-]+"#
-    private static let genericVideoPattern = #"https?://[^\s]+(?:meet|video|call|conference)[^\s]*"#
+    private static let wherebyPattern = #"https?://(?:[\w-]+\.)?whereby\.com/[\w/.-]+"#
+    // Word-boundaried tokens so the generic fallback no longer matches
+    // `call` inside `recall`/`teamcall`/`?utm_campaign=fallcall` or `video`
+    // inside `videogame.com`. The keyword must appear in the host/path
+    // (the `[^\s?#]*` prefix stops at `?`/`#`) so a query param like
+    // `?type=conference` on a non-meeting link (Jira, CRM) doesn't count.
+    // Still catches delimited path tokens like `/meet/`, `/video-call`,
+    // `/conference?id=1`.
+    private static let genericVideoPattern = #"https?://[^\s?#]*\b(?:meet|video|call|conference)\b[^\s]*"#
 
     private static let patterns: [(name: String, pattern: String)] = [
         ("zoom", zoomPattern),
@@ -21,6 +32,7 @@ public struct MeetingLinkParser: Sendable {
         ("teams", teamsPattern),
         ("webex", webexPattern),
         ("around", aroundPattern),
+        ("whereby", wherebyPattern),
         ("generic", genericVideoPattern),
     ]
 
@@ -66,11 +78,12 @@ public struct MeetingLinkParser: Sendable {
     /// Friendly service name for UI ("Zoom", "Google Meet", …).
     public func identifyService(from url: String?) -> String? {
         guard let url, !url.isEmpty else { return nil }
-        if url.contains("zoom.us") { return "Zoom" }
+        if url.contains("zoom.us") || url.contains("zoomgov.com") { return "Zoom" }
         if url.contains("meet.google.com") { return "Google Meet" }
         if url.contains("teams.microsoft.com") { return "Microsoft Teams" }
         if url.contains("webex.com") { return "Webex" }
         if url.contains("around.co") { return "Around" }
+        if url.contains("whereby.com") { return "Whereby" }
         return nil
     }
 

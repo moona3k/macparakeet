@@ -1,0 +1,47 @@
+{
+  "name": "macparakeet-video",
+  "version": "0.1.0",
+  "private": true,
+  "description": "MacParakeet marketing video pipeline. Programmatic rendering via Remotion + local TTS (Kokoro-82M, optional Higgs Audio V2).",
+  "type": "module",
+  "scripts": {
+    "preview": "remotion studio src/index.ts",
+    "render:hook": "remotion render src/index.ts Hook out/hook.mp4",
+    "render:hook-4k": "remotion render src/index.ts Hook out/hook-4k.mp4 --scale=2",
+    "render:hero": "remotion render src/index.ts HeroLoop30 out/hero-loop-30.mp4",
+    "render:hero-4k": "remotion render src/index.ts HeroLoop30 out/hero-loop-30-4k.mp4 --scale=2",
+    "render:demo": "remotion render src/index.ts Demo60 out/demo-60.mp4",
+    "render:demo-4k": "remotion render src/index.ts Demo60 out/demo-60-4k.mp4 --scale=2",
+    "render:brand": "remotion render src/index.ts BrandShow30 out/brand-show-30.mp4",
+    "render:brand-4k": "remotion render src/index.ts BrandShow30 out/brand-show-30-4k.mp4 --scale=2",
+    "render:brand-audio": "remotion render src/index.ts BrandShow30 out/brand-show-30-audio.mp4 --props='{\"audioReady\":true}'",
+    "render:portrait": "remotion render src/index.ts BrandShow15Portrait out/brand-show-15-portrait.mp4",
+    "render:portrait-audio": "remotion render src/index.ts BrandShow15Portrait out/brand-show-15-portrait-audio.mp4 --props='{\"audioReady\":true}'",
+    "still:keyart": "remotion still src/index.ts KeyArt out/key-art.png",
+    "still:keyart-2x": "remotion still src/index.ts KeyArt out/key-art-2x.png --scale=2",
+    "voice": "tsx scripts/generate-voice.ts",
+    "voice:hq": "tsx scripts/dump-script.ts && uv run python scripts/generate-voice-hq.py",
+    "audition": "tsx scripts/audition-voices.ts",
+    "script:dump": "tsx scripts/dump-script.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/bundler": "^4.0.0",
+    "@remotion/cli": "^4.0.0",
+    "@remotion/renderer": "^4.0.0",
+    "kokoro-js": "^1.2.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "remotion": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

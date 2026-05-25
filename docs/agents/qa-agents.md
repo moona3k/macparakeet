@@ -6,7 +6,7 @@
 
 Every quarter someone pitches an "AI does QA" tool. Most are web-first or
 mobile-first. MacParakeet is a menu-bar macOS app with a non-activating
-`KeylessPanel` overlay, a global Fn-double-tap hotkey, and TCC-gated
+`KeylessPanel` overlay, global dictation hotkeys, and TCC-gated
 microphone/screen-recording flows. The general AI-QA frontier doesn't speak
 our shape yet. This doc tracks who's close, where the real gaps are, and the
 hybrid 2026 play that actually works for us today.
@@ -46,7 +46,7 @@ beat:
 | **`mediar-ai/mcp-server-macos-use`** (Swift MCP server) | Promising, active 2026 | Walks `AXUIElement` trees, posts `AXPress`/`AXSetValue`; structured KB-sized AX trees instead of pixels | No assertion harness — it's a control surface, not a test framework |
 | **`l-priebe/XCUITestAgent`** | Experimental, single-dev | LLM watches debug+screen state, taps elements without `accessibilityIdentifier` | Demo-quality; GPT-4o-pinned; no macOS-target story |
 | **AgentSkill** (Jan 2026) | Promising SaaS | Plain-English → flake-free XCUITest **and** patches the app to add missing identifiers — closes the testability loop | iOS-focused; not validated on menu-bar/NSPanel/hotkey shapes |
-| **Hammerspoon** (Lua + `hs.eventtap`) | Mature classic | Synthesizes Fn double-taps, drives menu-bar items, watches system events | Not LLM-aware; no assertion library; **but the only reliable Fn-chord simulator in existence** |
+| **Hammerspoon** (Lua + `hs.eventtap`) | Mature classic | Synthesizes Fn holds and Fn+key chords, drives menu-bar items, watches system events | Not LLM-aware; no assertion library; **but the only reliable Fn-chord simulator in existence** |
 | Maestro, Sauce Labs, BrowserStack, TestSprite, testRigor | Mobile/web-first | — | None target macOS-app native; Sauce's Apple Silicon support is browser-only |
 
 ## What blocks "describe a flow → agent verifies it" for MacParakeet today
@@ -58,7 +58,7 @@ in 2026:
    address it via the AX tree, but `canBecomeKey == false` plus
    `.activeAlways` tracking-area workarounds make SwiftUI gestures and
    inspectors flaky.
-2. **Global hotkey, especially Fn double-tap.** XCUITest cannot generate
+2. **Global hotkeys, especially Fn and Fn+key chords.** XCUITest cannot generate
    `CGEventTap`-level Fn presses outside the app under test. Hammerspoon's
    `hs.eventtap` is the only reliable simulator — or bind to F18/F19 via
    ADR-009 so a single keypress works.
@@ -98,7 +98,7 @@ four-layer hybrid:
    exists for Mac native today; speaks structured AX trees instead of slow
    screenshots. ~90 minutes to wire up locally.
 4. **A small Hammerspoon harness** (~200 lines of Lua + osascript) as the
-   stopgap for the things AI agents can't do — Fn double-tap, drag-drop,
+   stopgap for the things AI agents can't do — Fn holds/chords, drag-drop,
    menu-bar interaction. Buys 12–18 months until native-Mac AI test agents
    mature.
 

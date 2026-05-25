@@ -75,6 +75,25 @@ public final class LLMSettingsViewModel {
         return defaultURL.isEmpty ? fallback : defaultURL
     }
 
+    public var apiKeyPlaceholder: String {
+        switch draft.providerID {
+        case .lmstudio:
+            return "LM Studio token"
+        case .anthropic:
+            return "sk-ant-..."
+        case .gemini:
+            return "Gemini API key"
+        case .openrouter:
+            return "sk-or-..."
+        case .openaiCompatible:
+            return "Optional API key"
+        case .openai:
+            return "sk-..."
+        case .ollama, .localCLI, nil:
+            return ""
+        }
+    }
+
     public var useCustomModel: Bool {
         get { draft.useCustomModel }
         set {

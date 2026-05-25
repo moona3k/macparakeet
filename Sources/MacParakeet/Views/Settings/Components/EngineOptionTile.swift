@@ -17,6 +17,11 @@ struct EngineOptionTile: View {
     let modelStatus: SettingsViewModel.LocalModelStatus
     let isSelected: Bool
     let isBusy: Bool
+    let unavailableReason: String?
+    /// When the model is downloaded but has never paid its one-time on-device
+    /// optimize, the next load is slow (minutes). Splits the `.notLoaded`
+    /// footer into a cold "Setup needed" vs warm "Downloaded" presentation.
+    var needsFirstOptimize: Bool = false
     let onSelect: () -> Void
 
     @State private var isHovered = false
@@ -56,16 +61,20 @@ struct EngineOptionTile: View {
             .contentShape(RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius))
         }
         .buttonStyle(.plain)
-        .disabled(isBusy)
-        .help(helpText)
+        .disabled(isBusy || isUnavailable)
+        .help(unavailableReason ?? helpText)
         .onHover { hovering in
             withAnimation(DesignSystem.Animation.hoverTransition) {
                 isHovered = hovering
             }
         }
         .accessibilityLabel("\(name) engine. \(tagline).")
-        .accessibilityHint(helpText)
+        .accessibilityHint(unavailableReason ?? helpText)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private var isUnavailable: Bool {
+        !isSelected && unavailableReason != nil
     }
 
     private func handleTileTap() {
@@ -103,7 +112,11 @@ struct EngineOptionTile: View {
     }
 
     private var statusFooter: some View {
-        let info = StatusInfo.from(modelStatus)
+        let info = StatusInfo.from(
+            modelStatus,
+            needsFirstOptimize: needsFirstOptimize,
+            unavailableReason: isUnavailable ? unavailableReason : nil
+        )
         return HStack(alignment: .center, spacing: DesignSystem.Spacing.xs) {
             Circle()
                 .fill(info.color)
@@ -114,8 +127,9 @@ struct EngineOptionTile: View {
             Text(info.detail)
                 .font(DesignSystem.Typography.micro)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
-                .lineLimit(1)
+                .lineLimit(isUnavailable ? 2 : 1)
                 .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: isUnavailable)
             Spacer(minLength: DesignSystem.Spacing.xs)
         }
         .padding(.top, DesignSystem.Spacing.xs)
@@ -124,14 +138,24 @@ struct EngineOptionTile: View {
 
     private var background: some View {
         RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-            .fill(isSelected
-                  ? DesignSystem.Colors.accent.opacity(0.13)
-                  : DesignSystem.Colors.surfaceElevated.opacity(isHovered ? 0.7 : 0.4))
+            .fill(backgroundColor)
+    }
+
+    private var backgroundColor: Color {
+        if isSelected {
+            return DesignSystem.Colors.accent.opacity(0.13)
+        }
+        if isUnavailable {
+            return DesignSystem.Colors.surfaceElevated.opacity(0.25)
+        }
+        return DesignSystem.Colors.surfaceElevated.opacity(isHovered ? 0.7 : 0.4)
     }
 
     private var border: some View {
         let strokeColor: Color = if isSelected {
             DesignSystem.Colors.accent.opacity(0.8)
+        } else if isUnavailable {
+            DesignSystem.Colors.border.opacity(0.45)
         } else if isHovered {
             DesignSystem.Colors.accent.opacity(0.3)
         } else {
@@ -147,7 +171,18 @@ struct EngineOptionTile: View {
         let label: String
         let detail: String
 
-        static func from(_ status: SettingsViewModel.LocalModelStatus) -> StatusInfo {
+        static func from(
+            _ status: SettingsViewModel.LocalModelStatus,
+            needsFirstOptimize: Bool = false,
+            unavailableReason: String? = nil
+        ) -> StatusInfo {
+            if let unavailableReason {
+                return StatusInfo(
+                    color: DesignSystem.Colors.textSecondary,
+                    label: "Unavailable",
+                    detail: unavailableReason
+                )
+            }
             switch status {
             case .ready:
                 return StatusInfo(
@@ -156,10 +191,17 @@ struct EngineOptionTile: View {
                     detail: "Loaded in memory"
                 )
             case .notLoaded:
+                if needsFirstOptimize {
+                    return StatusInfo(
+                        color: DesignSystem.Colors.warningAmber,
+                        label: "Setup needed",
+                        detail: "Optimizes on first switch"
+                    )
+                }
                 return StatusInfo(
                     color: DesignSystem.Colors.successGreen,
                     label: "Downloaded",
-                    detail: "May optimize on first load"
+                    detail: "Loads in seconds"
                 )
             case .notDownloaded:
                 return StatusInfo(
@@ -308,6 +350,7 @@ struct EngineDownloadBanner: View {
                 modelStatus: .ready,
                 isSelected: true,
                 isBusy: false,
+                unavailableReason: nil,
                 onSelect: {}
             )
 
@@ -324,6 +367,7 @@ struct EngineDownloadBanner: View {
                 modelStatus: .notDownloaded,
                 isSelected: false,
                 isBusy: false,
+                unavailableReason: nil,
                 onSelect: {}
             )
         }

@@ -586,6 +586,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var formatTranscriptStopReason: String?
     var formatTranscriptLatencyMs = 0
     var streamTokens: [String] = ["Hello", " world"]
+    var streamTokenBatches: [[String]] = []
     var streamDelayNs: UInt64 = 0
     var errorToThrow: Error?
     var summarizeCallCount = 0
@@ -594,6 +595,7 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     var lastChatQuestion: String?
     var lastChatHistory: [ChatMessage]?
     var lastChatUserNotes: String?
+    var lastChatSource: TelemetryChatSource?
     var lastSummarySystemPrompt: String?
     var lastFormattedTranscript: String?
     var lastFormatterPromptTemplate: String?
@@ -607,9 +609,10 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         return summarizeResult
     }
 
-    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String {
+    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String {
         chatCallCount += 1
         lastChatUserNotes = userNotes
+        lastChatSource = source
         if let error = errorToThrow { throw error }
         return chatResult
     }
@@ -624,8 +627,8 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
     }
 
-    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult {
-        let output = try await chat(question: question, transcript: transcript, userNotes: userNotes, history: history)
+    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> LLMResult {
+        let output = try await chat(question: question, transcript: transcript, userNotes: userNotes, history: history, source: source)
         return LLMResult(output: output, provider: "mock", model: "mock-model", latencyMs: 0)
     }
 
@@ -681,7 +684,12 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         summarizeCallCount += 1
         lastSummarySystemPrompt = systemPrompt
-        let tokens = streamTokens
+        let tokens: [String]
+        if streamTokenBatches.isEmpty {
+            tokens = streamTokens
+        } else {
+            tokens = streamTokenBatches.removeFirst()
+        }
         let error = errorToThrow
         let delay = streamDelayNs
         return AsyncThrowingStream { continuation in
@@ -703,11 +711,12 @@ final class MockLLMService: LLMServiceProtocol, @unchecked Sendable {
         }
     }
 
-    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
+    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) -> AsyncThrowingStream<String, Error> {
         chatCallCount += 1
         lastChatQuestion = question
         lastChatHistory = history
         lastChatUserNotes = userNotes
+        lastChatSource = source
         let tokens = streamTokens
         let error = errorToThrow
         let delay = streamDelayNs
@@ -868,6 +877,10 @@ final class MockPromptResultRepository: PromptResultRepositoryProtocol, @uncheck
     func hasPromptResults(transcriptionId: UUID) throws -> Bool {
         promptResults.contains { $0.transcriptionId == transcriptionId }
     }
+
+    func count(transcriptionId: UUID) throws -> Int {
+        promptResults.filter { $0.transcriptionId == transcriptionId }.count
+    }
 }
 
 // MARK: - MockChatConversationRepository
@@ -951,14 +964,17 @@ final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendabl
     var requestMicResult: Bool = true
     var requestScreenRecordingResult: Bool = true
     var requestAccessibilityResult: Bool = true
+    var requestMicrophonePermissionCallCount = 0
     var checkScreenRecordingPermissionCallCount = 0
+    var openMicrophoneSettingsCallCount = 0
     var screenRecordingPermissionSequence: [Bool] = []
 
     func checkMicrophonePermission() async -> PermissionStatus {
-        microphonePermission
+        return microphonePermission
     }
 
     func requestMicrophonePermission() async -> Bool {
+        requestMicrophonePermissionCallCount += 1
         microphonePermission = requestMicResult ? .granted : .denied
         return requestMicResult
     }
@@ -977,7 +993,9 @@ final class MockPermissionService: PermissionServiceProtocol, @unchecked Sendabl
         return screenRecordingPermission
     }
 
-    func openMicrophoneSettings() {}
+    func openMicrophoneSettings() {
+        openMicrophoneSettingsCallCount += 1
+    }
 
     func openScreenRecordingSettings() {}
 

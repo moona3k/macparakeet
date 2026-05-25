@@ -103,6 +103,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingPillViewModel: meetingPillViewModel
     )
 
+    /// Drives the live, no-STT hotkey rehearsal on the onboarding "Learn the
+    /// Hotkey" step. Reads the user's configured triggers + shared mic at arm
+    /// time via providers, since the environment is set asynchronously after
+    /// launch.
+    private lazy var onboardingHotkeyPreviewController = OnboardingHotkeyPreviewController(
+        planProvider: { [weak self] in
+            guard let self else { return .init(specs: [], conflict: nil) }
+            return AppHotkeyCoordinator.dictationHotkeyPlan(
+                handsFree: self.settingsViewModel.hotkeyTrigger,
+                pushToTalk: self.settingsViewModel.pushToTalkHotkeyTrigger
+            )
+        },
+        micLevelingProvider: { [weak self] in
+            guard let stream = self?.appEnvironment?.sharedMicStream else { return nil }
+            return SharedMicLeveling(stream: stream)
+        },
+        suspendProductionHotkeys: { [weak self] in self?.hotkeyCoordinator?.suspend() },
+        resumeProductionHotkeys: { [weak self] in self?.hotkeyCoordinator?.resume() }
+    )
+
     private lazy var onboardingCoordinator = OnboardingCoordinator(
         onboardingWindowController: onboardingWindowController,
         onRefreshHotkeys: { [weak self] in
@@ -121,6 +141,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onCompleted: { [weak self] in
             guard let self, let env = self.appEnvironment else { return }
             self.scheduleDeferredSpeechPreWarm(environment: env)
+        },
+        onHotkeyPreviewArm: { [weak self] in
+            self?.onboardingHotkeyPreviewController.arm()
+        },
+        onHotkeyPreviewDisarm: { [weak self] in
+            self?.onboardingHotkeyPreviewController.disarm()
         }
     )
 
@@ -206,14 +232,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         meetingRecordingActiveProvider: { [weak self] in
             self?.meetingRecordingFlowCoordinator?.isMeetingRecordingActive == true
         },
+        dictationCaptureActiveProvider: { [weak self] in
+            self?.dictationFlowCoordinator?.isCapturingAudio == true
+        },
         onOpenMainWindow: { [weak self] in
             self?.windowCoordinator.openMainWindow()
         },
         onOpenSettings: { [weak self] in
             self?.windowCoordinator.openMainWindowToSettings()
         },
+        onNavigate: { [weak self] item in
+            self?.mainWindowState.navigate(to: item)
+        },
+        onNewTranscription: { [weak self] in
+            self?.transcriptionViewModel.showInputPortal()
+            self?.mainWindowState.startNewTranscription()
+        },
+        onStartDictation: { [weak self] in
+            self?.dictationFlowCoordinator?.startDictation(mode: .persistent, trigger: .menuBar)
+        },
         onToggleMeetingRecording: { [weak self] in
             self?.toggleMeetingRecording(originatesFromWindow: false)
+        },
+        onCreateTransform: { [weak self] in
+            self?.mainWindowState.beginCreatingTransform()
         },
         onQuit: { [weak self] in
             self?.quitApp()
@@ -284,6 +326,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Telemetry.flushForTermination() is handled by TelemetryService's own
         // NSApplicationWillTerminateNotification observer — calling it here too
         // would send duplicate appQuit events and double the termination delay.
+        dictationFlowCoordinator?.releaseMediaPauseForTermination()
         dictationFlowCoordinator?.hideIdlePill()
         hotkeyCoordinator?.stopAll()
         meetingAutoStartCoordinator?.stop()
@@ -368,13 +411,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     self?.windowCoordinator.openMainWindow()
                 },
                 onToggleMeetingRecordingFromHotkey: { [weak self] in
-                    self?.toggleMeetingRecording(originatesFromWindow: false, trigger: .hotkey)
+                    guard let self, !self.onboardingWindowController.isVisible else { return }
+                    self.toggleMeetingRecording(originatesFromWindow: false, trigger: .hotkey)
                 },
                 onTriggerFileTranscriptionFromHotkey: { [weak self] in
-                    self?.triggerFileTranscriptionFromHotkey()
+                    guard let self, !self.onboardingWindowController.isVisible else { return }
+                    self.triggerFileTranscriptionFromHotkey()
                 },
                 onTriggerYouTubeTranscriptionFromHotkey: { [weak self] in
-                    self?.triggerYouTubeTranscriptionFromHotkey()
+                    guard let self, !self.onboardingWindowController.isVisible else { return }
+                    self.triggerYouTubeTranscriptionFromHotkey()
                 },
                 onHotkeyBecameAvailable: { [weak self] in
                     self?.hasPresentedHotkeyUnavailableAlert = false
@@ -391,6 +437,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 },
                 isHotkeyRecordingActive: { [weak self] in
                     self?.isHotkeyRecorderActive == true
+                },
+                isOnboardingVisible: { [weak self] in
+                    self?.onboardingWindowController.isVisible ?? false
                 }
             )
         )
@@ -538,8 +587,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func transformReservedHotkeysForTransforms() -> [TransformShortcutReservedHotkey] {
         var reserved: [TransformShortcutReservedHotkey] = [
-            TransformShortcutReservedHotkey(name: "hands-free dictation", trigger: settingsViewModel.hotkeyTrigger),
-            TransformShortcutReservedHotkey(name: "push to talk", trigger: settingsViewModel.pushToTalkHotkeyTrigger),
+            TransformShortcutReservedHotkey(
+                name: "hands-free dictation",
+                trigger: settingsViewModel.hotkeyTrigger,
+                conflictMode: .bareModifierDictation
+            ),
+            TransformShortcutReservedHotkey(
+                name: "push to talk",
+                trigger: settingsViewModel.pushToTalkHotkeyTrigger,
+                conflictMode: .bareModifierDictation
+            ),
             TransformShortcutReservedHotkey(name: "file transcription", trigger: settingsViewModel.fileTranscriptionHotkeyTrigger),
             TransformShortcutReservedHotkey(name: "YouTube transcription", trigger: settingsViewModel.youtubeTranscriptionHotkeyTrigger),
         ]

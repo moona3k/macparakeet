@@ -887,13 +887,16 @@ private func shortcutsMatch(_ lhs: KeyboardShortcut, _ rhs: KeyboardShortcut) ->
     lhs.keyCode == rhs.keyCode && lhs.modifiers == rhs.modifiers
 }
 
-private func appHotkeyCollision(for shortcut: KeyboardShortcut) -> CLITransformsError? {
-    let defaults = macParakeetAppDefaults()
+func appHotkeyCollision(
+    for shortcut: KeyboardShortcut,
+    defaults: UserDefaults = macParakeetAppDefaults()
+) -> CLITransformsError? {
     let candidate = shortcut.hotkeyTrigger
-    let reservedHotkeys: [(name: String, trigger: HotkeyTrigger)] = [
+    let reservedHotkeys: [(name: String, trigger: HotkeyTrigger, mode: HotkeyTrigger.ConflictMode)] = [
         (
             "hands-free dictation",
-            HotkeyTrigger.current(defaults: defaults)
+            HotkeyTrigger.current(defaults: defaults),
+            .bareModifierDictation
         ),
         (
             "push-to-talk",
@@ -901,7 +904,8 @@ private func appHotkeyCollision(for shortcut: KeyboardShortcut) -> CLITransforms
                 defaults: defaults,
                 defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
                 fallback: .defaultPushToTalk
-            )
+            ),
+            .bareModifierDictation
         ),
         (
             "meeting recording",
@@ -909,7 +913,8 @@ private func appHotkeyCollision(for shortcut: KeyboardShortcut) -> CLITransforms
                 defaults: defaults,
                 defaultsKey: HotkeyTrigger.meetingDefaultsKey,
                 fallback: .defaultMeetingRecording
-            )
+            ),
+            .exclusive
         ),
         (
             "file transcription",
@@ -917,7 +922,8 @@ private func appHotkeyCollision(for shortcut: KeyboardShortcut) -> CLITransforms
                 defaults: defaults,
                 defaultsKey: HotkeyTrigger.fileTranscriptionDefaultsKey,
                 fallback: .disabled
-            )
+            ),
+            .exclusive
         ),
         (
             "YouTube transcription",
@@ -925,11 +931,12 @@ private func appHotkeyCollision(for shortcut: KeyboardShortcut) -> CLITransforms
                 defaults: defaults,
                 defaultsKey: HotkeyTrigger.youtubeTranscriptionDefaultsKey,
                 fallback: .disabled
-            )
+            ),
+            .exclusive
         ),
     ]
     for reserved in reservedHotkeys where !reserved.trigger.isDisabled {
-        if candidate.overlaps(with: reserved.trigger) {
+        if candidate.conflicts(with: reserved.trigger, otherMode: reserved.mode) {
             return .shortcutConflictsWithAppHotkey(shortcut.displayString, reserved.name)
         }
     }

@@ -105,6 +105,25 @@ final class SettingsViewModelTests: XCTestCase {
         testDefaultsSuiteName = nil
     }
 
+    // MARK: - Whisper cold/warm status
+
+    func testWhisperHasBeenOptimizedReflectsPersistedFlag() {
+        XCTAssertFalse(
+            viewModel.whisperHasBeenOptimized,
+            "Should read false before any Whisper variant has been optimized"
+        )
+
+        SpeechEnginePreference.markWhisperOptimized(
+            variant: SpeechEnginePreference.whisperModelVariant(defaults: testDefaults),
+            defaults: testDefaults
+        )
+
+        XCTAssertTrue(
+            viewModel.whisperHasBeenOptimized,
+            "Should read true once the active variant is marked optimized"
+        )
+    }
+
     // MARK: - Initial Values
 
     func testDefaultValues() {
@@ -113,6 +132,7 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.showIdlePill, "showIdlePill should default to true")
         XCTAssertFalse(viewModel.silenceAutoStop, "silenceAutoStop should default to false")
         XCTAssertEqual(viewModel.silenceDelay, 2.0, "silenceDelay should default to 2.0")
+        XCTAssertFalse(viewModel.pauseMediaDuringDictation, "pauseMediaDuringDictation should default to false")
         XCTAssertTrue(viewModel.saveAudioRecordings, "saveAudioRecordings should default to true")
         XCTAssertTrue(viewModel.saveTranscriptionAudio, "saveTranscriptionAudio should default to true")
         XCTAssertEqual(viewModel.youtubeAudioQuality, .m4a, "youtubeAudioQuality should default to Apple-friendly saved audio")
@@ -145,6 +165,7 @@ final class SettingsViewModelTests: XCTestCase {
             MeetingAudioSourceMode.systemOnly.rawValue,
             forKey: UserDefaultsAppRuntimePreferences.meetingAudioSourceModeKey
         )
+        testDefaults.set(true, forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey)
         HotkeyTrigger.chord(modifiers: ["control", "option"], keyCode: 46)
             .save(to: testDefaults, defaultsKey: HotkeyTrigger.meetingDefaultsKey)
 
@@ -161,7 +182,26 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertTrue(vm.speakerDiarization)
         XCTAssertEqual(vm.selectedMicrophoneDeviceUID, "usb-mic-uid")
         XCTAssertEqual(vm.meetingAudioSourceMode, .systemOnly)
+        XCTAssertTrue(vm.pauseMediaDuringDictation)
         XCTAssertEqual(vm.meetingHotkeyTrigger, .chord(modifiers: ["control", "option"], keyCode: 46))
+    }
+
+    func testPauseMediaDuringDictationPersistsAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+
+        viewModel.pauseMediaDuringDictation = true
+
+        XCTAssertTrue(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey))
+
+        viewModel.pauseMediaDuringDictation = false
+
+        XCTAssertFalse(testDefaults.bool(forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey))
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.pauseMediaDuringDictation, .pauseMediaDuringDictation])
     }
 
     func testSelectedMicrophonePersistsUIDAndClearsForSystemDefault() {
@@ -1038,6 +1078,86 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.speechEngineError)
     }
 
+    func testRefreshSpeechEngineSwitchAvailabilityStoresProviderResult() async {
+        let provider = MockSpeechEngineSwitchAvailabilityProvider(.transcribing)
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitchAvailabilityProvider: provider
+        )
+
+        let availability = await viewModel.refreshSpeechEngineSwitchAvailabilityNow()
+
+        XCTAssertEqual(availability, .transcribing)
+        XCTAssertEqual(viewModel.speechEngineSwitchAvailability, .transcribing)
+        XCTAssertEqual(
+            SettingsViewModel.speechEngineSwitchUnavailableMessage(for: .transcribing),
+            "Finishing transcription — switch when it completes"
+        )
+    }
+
+    func testSpeechEngineChangeBlockedByAvailabilityShowsReasonAndTelemetry() async throws {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let switcher = MockSpeechEngineSwitcher()
+        let provider = MockSpeechEngineSwitchAvailabilityProvider(.meetingActive)
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher,
+            speechEngineSwitchAvailabilityProvider: provider
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.speechEnginePreference = .whisper
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        XCTAssertEqual(viewModel.speechEnginePreference, .parakeet)
+        XCTAssertEqual(SpeechEnginePreference.current(defaults: testDefaults), .parakeet)
+        XCTAssertEqual(viewModel.speechEngineError, "Stop the meeting recording to switch engines")
+        let preferences = await switcher.preferences
+        XCTAssertTrue(preferences.isEmpty)
+
+        let event = try XCTUnwrap(speechEngineSwitchEvents(in: telemetry.snapshot()).last)
+        XCTAssertEqual(event.fromEngine, .parakeet)
+        XCTAssertEqual(event.toEngine, .whisper)
+        XCTAssertEqual(event.outcome, .unavailable)
+        XCTAssertEqual(event.blockedReason, .meetingActive)
+        XCTAssertEqual(event.errorType, "meeting_active")
+        XCTAssertEqual(event.wasCold, true)
+    }
+
+    func testSpeechEngineChangeTelemetryMarksColdWhisperSwitch() async throws {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let switcher = MockSpeechEngineSwitcher()
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.configure(
+            permissionService: mockPermissions,
+            dictationRepo: mockRepo,
+            entitlementsService: entitlements,
+            checkoutURL: nil,
+            speechEngineSwitcher: switcher
+        )
+
+        viewModel.whisperModelStatus = .notLoaded
+        viewModel.speechEnginePreference = .whisper
+        try await waitForSpeechEngineSwitchingToFinish()
+
+        let event = try XCTUnwrap(speechEngineSwitchEvents(in: telemetry.snapshot()).last)
+        XCTAssertEqual(event.fromEngine, .parakeet)
+        XCTAssertEqual(event.toEngine, .whisper)
+        XCTAssertEqual(event.outcome, .success)
+        XCTAssertNil(event.blockedReason)
+        XCTAssertNil(event.errorType)
+        XCTAssertEqual(event.wasCold, true)
+    }
+
     func testSpeechEngineChangeShowsProgressAndClearsWhenDone() async throws {
         let switcher = MockSpeechEngineSwitcher(progressMessages: ["Optimizing Whisper for this Mac..."])
         await switcher.blockNextSwitch()
@@ -1130,14 +1250,67 @@ final class SettingsViewModelTests: XCTestCase {
         }
     }
 
+    private struct SpeechEngineSwitchEventSnapshot {
+        let fromEngine: SpeechEnginePreference
+        let toEngine: SpeechEnginePreference
+        let outcome: ObservabilityOutcome
+        let blockedReason: TelemetrySpeechEngineSwitchBlockedReason?
+        let errorType: String?
+        let wasCold: Bool
+    }
+
+    private func speechEngineSwitchEvents(
+        in events: [TelemetryEventSpec]
+    ) -> [SpeechEngineSwitchEventSnapshot] {
+        events.compactMap { event in
+            guard case .speechEngineSwitchOperation(
+                operationID: _,
+                operationContext: _,
+                fromEngine: let fromEngine,
+                toEngine: let toEngine,
+                outcome: let outcome,
+                durationSeconds: _,
+                blockedReason: let blockedReason,
+                errorType: let errorType,
+                wasCold: let wasCold
+            ) = event else {
+                return nil
+            }
+            return SpeechEngineSwitchEventSnapshot(
+                fromEngine: fromEngine,
+                toEngine: toEngine,
+                outcome: outcome,
+                blockedReason: blockedReason,
+                errorType: errorType,
+                wasCold: wasCold
+            )
+        }
+    }
+
     // MARK: - Hotkey Trigger
 
     func testHotkeyTriggerDefaultsToFn() {
-        XCTAssertEqual(viewModel.hotkeyTrigger, .fn)
+        XCTAssertEqual(viewModel.hotkeyTrigger, .defaultDictation)
     }
 
     func testPushToTalkHotkeyTriggerDefaultsToFn() {
         XCTAssertEqual(viewModel.pushToTalkHotkeyTrigger, .fn)
+    }
+
+    func testDefaultDictationAndPushToTalkHotkeysPersistForFreshDefaults() {
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultPushToTalk
+        )
     }
 
     func testHotkeyTriggerPersistsKeyCode() {
@@ -1178,11 +1351,118 @@ final class SettingsViewModelTests: XCTestCase {
 
         let vm = SettingsViewModel(defaults: testDefaults)
 
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
         XCTAssertEqual(vm.pushToTalkHotkeyTrigger, legacyTrigger)
 
-        vm.hotkeyTrigger = .control
         let vm2 = SettingsViewModel(defaults: testDefaults)
+        XCTAssertEqual(vm2.hotkeyTrigger, .defaultDictation)
         XCTAssertEqual(vm2.pushToTalkHotkeyTrigger, legacyTrigger)
+    }
+
+    func testLegacyFnHotkeyMigratesToCombinedDefaultGesture() {
+        let legacyTrigger = HotkeyTrigger.fn
+        testDefaults.removeObject(forKey: HotkeyTrigger.pushToTalkDefaultsKey)
+        legacyTrigger.save(to: testDefaults)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, legacyTrigger)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            legacyTrigger
+        )
+    }
+
+    func testLegacyFnSpaceDefaultPairMigratesToCombinedDefaultGesture() {
+        HotkeyTrigger.fnSpace.save(to: testDefaults)
+        HotkeyTrigger.defaultPushToTalk.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultPushToTalk
+        )
+    }
+
+    func testLegacyFnSpaceDefaultWithoutDedicatedPushToTalkMigratesToCombinedDefaultGesture() {
+        testDefaults.removeObject(forKey: HotkeyTrigger.pushToTalkDefaultsKey)
+        HotkeyTrigger.fnSpace.save(to: testDefaults)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultPushToTalk
+        )
+    }
+
+    func testStoredFnSpaceHandsFreePersistsWhenDedicatedPushToTalkIsCustom() {
+        HotkeyTrigger.fnSpace.save(to: testDefaults)
+        HotkeyTrigger.control.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .fnSpace)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .control)
+    }
+
+    func testMissingHandsFreeKeyUsesCombinedDefaultWhenDedicatedPushToTalkIsDefault() {
+        testDefaults.removeObject(forKey: HotkeyTrigger.defaultsKey)
+        HotkeyTrigger.defaultDictation.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultDictation
+        )
+    }
+
+    func testLegacyDefaultFnHandsFreeMigratesToCombinedDefaultGesture() {
+        testDefaults.removeObject(forKey: HotkeyTrigger.pushToTalkDefaultsKey)
+        HotkeyTrigger.fn.save(to: testDefaults)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultPushToTalk
+        )
     }
 
     func testPushToTalkDedicatedDefaultsKeyWinsOverLegacyDictationHotkey() {
@@ -1196,13 +1476,98 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertEqual(vm.pushToTalkHotkeyTrigger, dedicatedTrigger)
     }
 
+    func testStoredFnHandsFreePersistsWhenDedicatedPushToTalkDiffers() {
+        let dedicatedTrigger = HotkeyTrigger.fromKeyCode(119)
+        HotkeyTrigger.fn.save(to: testDefaults)
+        dedicatedTrigger.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .fn)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, dedicatedTrigger)
+    }
+
+    func testStoredFnHandsFreePersistsWhenDedicatedPushToTalkUsesDefaultFn() {
+        HotkeyTrigger.fn.save(to: testDefaults)
+        HotkeyTrigger.defaultDictation.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .fn)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultDictation)
+    }
+
+    func testStoredMatchingDedicatedDictationHotkeysPreserveSharedFn() {
+        HotkeyTrigger.fn.save(to: testDefaults)
+        HotkeyTrigger.fn.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .fn)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .fn
+        )
+    }
+
+    func testStoredMatchingCustomDictationHotkeysPreserveSharedTrigger() {
+        let rightCommand = HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+        rightCommand.save(to: testDefaults)
+        rightCommand.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, rightCommand)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, rightCommand)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), rightCommand)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            rightCommand
+        )
+    }
+
+    func testStoredMatchingDefaultHandsFreeHotkeysRestorePushToTalkDefault() {
+        HotkeyTrigger.defaultDictation.save(to: testDefaults)
+        HotkeyTrigger.defaultDictation.save(to: testDefaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+
+        let vm = SettingsViewModel(defaults: testDefaults)
+
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .defaultPushToTalk)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
+        XCTAssertEqual(
+            HotkeyTrigger.current(
+                defaults: testDefaults,
+                defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                fallback: .defaultPushToTalk
+            ),
+            .defaultPushToTalk
+        )
+    }
+
     func testHotkeyTriggerBackwardCompatibleWithLegacyString() {
         // Simulate a legacy UserDefaults value from the old TriggerKey enum
+        testDefaults.removeObject(forKey: HotkeyTrigger.pushToTalkDefaultsKey)
         testDefaults.set("option", forKey: "hotkeyTrigger")
 
         let vm = SettingsViewModel(defaults: testDefaults)
-        XCTAssertEqual(vm.hotkeyTrigger, .option)
-        XCTAssertEqual(vm.hotkeyTrigger.displayName, "Option")
+        XCTAssertEqual(vm.hotkeyTrigger, .defaultDictation)
+        XCTAssertEqual(vm.pushToTalkHotkeyTrigger, .option)
     }
 
     // MARK: - Round-trip
@@ -1229,6 +1594,22 @@ final class SettingsViewModelTests: XCTestCase {
         XCTAssertFalse(vm2.saveAudioRecordings)
         XCTAssertFalse(vm2.saveTranscriptionAudio)
         XCTAssertTrue(vm2.speakerDiarization)
+    }
+}
+
+private actor MockSpeechEngineSwitchAvailabilityProvider: SpeechEngineSwitchAvailabilityProviding {
+    private var availability: SpeechEngineSwitchAvailability
+
+    init(_ availability: SpeechEngineSwitchAvailability) {
+        self.availability = availability
+    }
+
+    func setAvailability(_ availability: SpeechEngineSwitchAvailability) {
+        self.availability = availability
+    }
+
+    func engineSwitchAvailability() async -> SpeechEngineSwitchAvailability {
+        availability
     }
 }
 

@@ -1,9 +1,13 @@
 import Foundation
 
 /// Pure-function deriver that produces a display-ready title string from a raw
-/// transcript. The first substantive sentence (filler-stripped) becomes the row
-/// title in the Meetings list. Falls back through several tiers so that even
-/// short or filler-heavy transcripts get a usable title.
+/// transcript. The first substantive sentence (filler-stripped) becomes the
+/// headline for file/YouTube rows in the Library thumbnail grid — sources that
+/// have no inherent title. Meeting rows use their own editable meeting name
+/// (`Transcription.fileName`) instead; for meetings this derived value only
+/// feeds the snippet preview and the "Save Audio As…" export-filename helper.
+/// Falls back through several tiers so even short or filler-heavy transcripts
+/// get a usable title.
 ///
 /// Deterministic and synchronous — runs on the transcription completion path
 /// and persists into `Transcription.derivedTitle`.

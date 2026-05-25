@@ -72,8 +72,9 @@ final class ExportCommandTests: XCTestCase {
             }
         }
 
-        let exit = try XCTUnwrap(thrownError as? ExitCode)
-        XCTAssertEqual(exit, .failure)
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), .failure)
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
         )

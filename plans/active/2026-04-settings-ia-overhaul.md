@@ -22,8 +22,8 @@
 - `SettingsView` has a persistent header shell with tab bar + search.
 - `SettingsTab` defines the four top-level destinations: `Modes`, `Engine`, `AI`, and `System`.
 - `SettingsRootViewModel` owns active-tab persistence and search state.
-- `SettingsSearchIndex` provides indexed results across all four tabs, with calendar entries hidden while `AppFeatures.calendarEnabled = false`.
-- Calendar controls are folded into the Meeting Recording card but hidden in v0.6 by the feature flag.
+- `SettingsSearchIndex` provides indexed results across all four tabs, including calendar entries now that `AppFeatures.calendarEnabled = true` (they surface once Calendar access is granted).
+- Calendar controls are folded into the Meeting Recording card and visible once Calendar access is granted; auto-start defaults to opt-in mode `.off`.
 
 ### Target experience
 

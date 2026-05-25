@@ -101,12 +101,32 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .lmstudio
         XCTAssertFalse(viewModel.requiresAPIKey)
+        XCTAssertTrue(viewModel.supportsAPIKey)
     }
 
     func testCloudProviderRequiresAPIKey() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openai
         XCTAssertTrue(viewModel.requiresAPIKey)
+    }
+
+    func testAPIKeyPlaceholderIsProviderSpecific() {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .lmstudio
+        XCTAssertEqual(viewModel.apiKeyPlaceholder, "LM Studio token")
+
+        viewModel.selectedProviderID = .anthropic
+        XCTAssertEqual(viewModel.apiKeyPlaceholder, "sk-ant-...")
+
+        viewModel.selectedProviderID = .openrouter
+        XCTAssertEqual(viewModel.apiKeyPlaceholder, "sk-or-...")
+
+        viewModel.selectedProviderID = .gemini
+        XCTAssertEqual(viewModel.apiKeyPlaceholder, "Gemini API key")
+
+        viewModel.selectedProviderID = .openaiCompatible
+        XCTAssertEqual(viewModel.apiKeyPlaceholder, "Optional API key")
     }
 
     func testOpenAICompatibleProviderStartsInCustomModelMode() {
@@ -414,6 +434,21 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.useCustomModel)
         XCTAssertEqual(viewModel.modelName, "llama-3.2")
         XCTAssertNil(viewModel.modelListErrorMessage)
+    }
+
+    func testLMStudioSavesOptionalAPIKey() async throws {
+        mockClient.modelsList = ["local-model"]
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .lmstudio
+        try await Task.sleep(nanoseconds: 100_000_000)
+        viewModel.apiKeyInput = "lm-token"
+        viewModel.saveConfiguration()
+
+        let saved = mockConfigStore.config
+        XCTAssertEqual(saved?.id, .lmstudio)
+        XCTAssertEqual(saved?.apiKey, "lm-token")
+        XCTAssertEqual(saved?.modelName, "local-model")
     }
 
     func testOllamaLoadsAvailableModelsAndDefaultsToFirstResult() async throws {

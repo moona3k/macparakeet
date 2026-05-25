@@ -32,9 +32,8 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
   shape as the Parakeet path.
 
 **Hotkey state (lives here for testability)**
-- `FnKeyStateMachine.swift` — pure state machine for combined
-  dictation gestures (double-tap → persistent, hold → push-to-talk,
-  Esc → cancel window).
+- `FnKeyStateMachine.swift` — pure state machine for legacy combined
+  dictation gestures and shared timing constants.
 - `HotkeyGestureController.swift` — wraps the state machine for the
   app's hotkey driver and scopes behavior to combined, hands-free-only,
   or push-to-talk-only roles.

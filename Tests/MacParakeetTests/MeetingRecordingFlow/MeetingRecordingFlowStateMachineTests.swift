@@ -12,6 +12,20 @@ final class MeetingRecordingFlowStateMachineTests: XCTestCase {
         XCTAssertEqual(effects, [.checkPermissions])
     }
 
+    func testStopRequestedWhileIdleIsNoOp() {
+        // Invariant: `.stopRequested` from `.idle` must be a no-op — a stop
+        // must NEVER start a recording. (Privacy fix: a blind toggle would
+        // silently begin mic + system-audio capture nobody asked for.)
+        var machine = MeetingRecordingFlowStateMachine()
+
+        let effects = machine.handle(.stopRequested)
+
+        XCTAssertEqual(machine.state, .idle)
+        XCTAssertTrue(effects.isEmpty)
+        XCTAssertEqual(machine.generation, 0,
+                       "No generation bump means no recording was started")
+    }
+
     func testPermissionDeniedReturnsToIdleAndPresentsAlert() {
         var machine = MeetingRecordingFlowStateMachine()
         _ = machine.handle(.startRequested)

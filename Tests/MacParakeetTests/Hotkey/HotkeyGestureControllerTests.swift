@@ -231,6 +231,39 @@ final class HotkeyGestureControllerTests: XCTestCase {
         )
     }
 
+    func testSingleTapToggleStartsAndStopsPersistentRecordingOnPresses() {
+        let controller = HotkeyGestureController(mode: .singleTapToggle)
+
+        XCTAssertEqual(
+            controller.triggerPressed(timestampMs: 1_000),
+            [.startRecording(mode: .persistent)]
+        )
+        XCTAssertEqual(controller.triggerReleased(timestampMs: 1_050), [])
+        XCTAssertEqual(
+            controller.triggerPressed(timestampMs: 1_200),
+            [.stopRecording]
+        )
+        XCTAssertEqual(controller.triggerReleased(timestampMs: 1_250), [])
+    }
+
+    func testSingleTapToggleDoesNotUseStartupOrHoldTimers() {
+        let controller = HotkeyGestureController(mode: .singleTapToggle)
+
+        XCTAssertEqual(controller.triggerPressed(timestampMs: 1_000), [.startRecording(mode: .persistent)])
+        XCTAssertEqual(controller.startupDebounceElapsed(), [])
+        XCTAssertEqual(controller.holdWindowElapsed(), [])
+    }
+
+    func testSingleTapToggleEscapeCancelsActiveRecording() {
+        let controller = HotkeyGestureController(mode: .singleTapToggle)
+        _ = controller.triggerPressed(timestampMs: 1_000)
+
+        XCTAssertEqual(controller.escapePressed(), [.cancelRecording])
+        XCTAssertEqual(controller.triggerPressed(timestampMs: 1_100), [])
+        controller.reset()
+        XCTAssertEqual(controller.triggerPressed(timestampMs: 1_200), [.startRecording(mode: .persistent)])
+    }
+
     func testNotifyCancelledByUIBlocksDoubleTapOnlyUntilReset() {
         let controller = HotkeyGestureController(mode: .doubleTapOnly)
 

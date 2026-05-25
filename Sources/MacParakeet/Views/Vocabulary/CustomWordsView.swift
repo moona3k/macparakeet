@@ -5,20 +5,38 @@ import MacParakeetViewModels
 struct CustomWordsView: View {
     @Bindable var viewModel: CustomWordsViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var hoveredCardTitle: String?
     @State private var hoveredWordID: UUID?
+    @FocusState private var wordFieldFocused: Bool
+    @FocusState private var replacementFieldFocused: Bool
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                headerCard
-                searchCard
-                wordsCard
-                addWordCard
+        VStack(spacing: 0) {
+            SheetAutoFocusSuppressor()
+                .frame(width: 0, height: 0)
+
+            VocabSheetHeader(
+                title: "Custom Words",
+                subtitle: "Teach MacParakeet how you say things.",
+                onDone: { dismiss() }
+            )
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+                    ParakeetTextField(
+                        placeholder: "Search words…",
+                        text: $viewModel.searchText,
+                        leadingSystemImage: "magnifyingglass",
+                        showsClearButton: true
+                    )
+
+                    wordsSection
+                    addSection
+                }
+                .padding(DesignSystem.Spacing.lg)
             }
-            .padding(DesignSystem.Spacing.lg)
         }
-        .background(.thickMaterial)
         .alert(
             "Delete Word?",
             isPresented: Binding(
@@ -39,89 +57,102 @@ struct CustomWordsView: View {
         }
     }
 
-    // MARK: - Cards
+    // MARK: - Sections
 
-    private var headerCard: some View {
-        managementCard(
-            title: "Custom Words",
-            subtitle: "Teach MacParakeet how you say things.",
-            icon: "character.book.closed"
-        ) {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 100), spacing: DesignSystem.Spacing.sm)],
-                spacing: DesignSystem.Spacing.sm
-            ) {
-                metricChip(title: "Total", value: "\(viewModel.words.count)")
-                metricChip(title: "Visible", value: "\(viewModel.filteredWords.count)")
-                metricChip(title: "Enabled", value: "\(viewModel.words.filter(\.isEnabled).count)")
+    private var wordsSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            VocabSectionHeader(title: "Word Rules") {
+                Text(wordsCountLabel)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
             }
 
-            HStack {
-                Spacer()
-                Button("Done") { dismiss() }
-                    .parakeetAction(.primaryProminent)
-                    .keyboardShortcut(.cancelAction)
-            }
-        }
-    }
-
-    private var searchCard: some View {
-        managementCard(
-            title: "Search",
-            subtitle: "Filter by source word or replacement.",
-            icon: "magnifyingglass"
-        ) {
-            TextField("Search words...", text: $viewModel.searchText)
-                .textFieldStyle(.roundedBorder)
-        }
-    }
-
-    private var wordsCard: some View {
-        managementCard(
-            title: "Word Rules",
-            subtitle: "Toggle to enable or disable each rule.",
-            icon: "list.bullet"
-        ) {
             if viewModel.filteredWords.isEmpty {
                 emptyWordsState
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, DesignSystem.Spacing.xl)
+                    .vocabGroup()
             } else {
-                VStack(spacing: DesignSystem.Spacing.sm) {
-                    ForEach(viewModel.filteredWords) { word in
+                VStack(spacing: 0) {
+                    ForEach(Array(viewModel.filteredWords.enumerated()), id: \.element.id) { index, word in
+                        if index > 0 {
+                            Divider().padding(.leading, VocabMetrics.rowDividerInset)
+                        }
                         wordRow(word)
                     }
                 }
+                .vocabGroup()
             }
         }
     }
 
-    private var addWordCard: some View {
-        managementCard(
-            title: "Add Rule",
-            subtitle: "Add a word to correct, or leave replacement blank to enforce its spelling.",
-            icon: "plus.circle"
-        ) {
-            VStack(spacing: DesignSystem.Spacing.sm) {
-                if let error = viewModel.errorMessage {
-                    Text(error)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(DesignSystem.Colors.errorRed)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+    private var addSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            VocabSectionHeader(
+                title: "Add Rule",
+                subtitle: "Replace a word, or leave the replacement blank to lock its spelling and capitalization."
+            )
 
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    TextField("Word or phrase", text: $viewModel.newWord)
-                        .textFieldStyle(.roundedBorder)
-                        .focused($wordFieldFocused)
-                    TextField("Replacement (optional)", text: $viewModel.newReplacement)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Add") {
-                        viewModel.addWord()
-                    }
+            if let error = viewModel.errorMessage {
+                Text(error)
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(DesignSystem.Colors.errorRed)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                ParakeetTextField(
+                    placeholder: "Word or phrase",
+                    text: $viewModel.newWord,
+                    onSubmit: { replacementFieldFocused = true },
+                    externalFocus: $wordFieldFocused
+                )
+                ParakeetTextField(
+                    placeholder: "Replacement (optional)",
+                    text: $viewModel.newReplacement,
+                    onSubmit: attemptAdd,
+                    externalFocus: $replacementFieldFocused
+                )
+                Button("Add", action: attemptAdd)
                     .parakeetAction(.primaryProminent)
+                    .controlSize(.large)
                     .disabled(viewModel.newWord.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
+            }
+
+            if !viewModel.newWord.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                rulePreview
+                    .transition(.opacity)
             }
         }
+        .animation(DesignSystem.Animation.hoverTransition, value: viewModel.newWord.isEmpty)
+    }
+
+    @ViewBuilder
+    private var rulePreview: some View {
+        let word = viewModel.newWord.trimmingCharacters(in: .whitespacesAndNewlines)
+        let replacement = viewModel.newReplacement.trimmingCharacters(in: .whitespacesAndNewlines)
+        HStack(spacing: DesignSystem.Spacing.xs) {
+            if replacement.isEmpty {
+                Text("“\(word)”")
+                    .font(DesignSystem.Typography.caption.monospaced())
+                    .foregroundStyle(.primary)
+                Text("kept exactly — fixes spelling & capitalization")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("“\(word)”")
+                    .font(DesignSystem.Typography.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                Image(systemName: "arrow.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+                Text("“\(replacement)”")
+                    .font(DesignSystem.Typography.caption.monospaced())
+                    .foregroundStyle(.primary)
+            }
+        }
+        .padding(.leading, 2)
     }
 
     // MARK: - Rows
@@ -135,7 +166,7 @@ struct CustomWordsView: View {
                 set: { _ in viewModel.toggleEnabled(word) }
             ))
             .labelsHidden()
-            .toggleStyle(.switch)
+            .parakeetSwitch()
             .controlSize(.small)
             .accessibilityLabel("Enable \(word.word)")
             .accessibilityHint(toggleHint)
@@ -156,24 +187,19 @@ struct CustomWordsView: View {
                 }
             }
 
-            Spacer()
+            Spacer(minLength: DesignSystem.Spacing.sm)
 
-            Button(role: .destructive) {
+            DeleteIconButton(
+                helpText: "Delete \(word.word)",
+                accessibilityName: "Delete \(word.word)"
+            ) {
                 viewModel.pendingDeleteWord = word
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 12, weight: .medium))
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            .help("Delete \(word.word)")
-            .accessibilityLabel("Delete \(word.word)")
         }
-        .padding(DesignSystem.Spacing.sm)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(isHovered ? DesignSystem.Colors.rowHoverBackground : DesignSystem.Colors.surfaceElevated)
-        )
+        .padding(.horizontal, DesignSystem.Spacing.md)
+        .padding(.vertical, DesignSystem.Spacing.sm + 2)
+        .background(isHovered ? DesignSystem.Colors.rowHoverBackground : Color.clear)
+        .contentShape(Rectangle())
         .onHover { hovering in
             withAnimation(DesignSystem.Animation.hoverTransition) {
                 hoveredWordID = hovering ? word.id : nil
@@ -181,12 +207,10 @@ struct CustomWordsView: View {
         }
     }
 
-    @FocusState private var wordFieldFocused: Bool
-
     private var emptyWordsState: some View {
         VStack(spacing: DesignSystem.Spacing.sm) {
             Image(systemName: "character.textbox")
-                .font(.system(size: 28))
+                .font(.system(size: 26))
                 .foregroundStyle(.secondary)
             Text(viewModel.words.isEmpty ? "No custom words yet" : "No matches")
                 .font(DesignSystem.Typography.body)
@@ -196,83 +220,34 @@ struct CustomWordsView: View {
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
+                    .frame(maxWidth: 320)
                 Button("Add Your First Rule") {
                     wordFieldFocused = true
                 }
-                .parakeetAction(.primaryProminent)
+                .parakeetAction(.primary)
                 .controlSize(.small)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, DesignSystem.Spacing.lg)
-    }
-
-    // MARK: - Reusable
-
-    private func managementCard<Content: View>(
-        title: String,
-        subtitle: String,
-        icon: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        let isHovered = hoveredCardTitle == title
-        return VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(DesignSystem.Colors.accent)
-                    .frame(width: 30, height: 30)
-                    .background(
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(DesignSystem.Colors.accent.opacity(0.12))
-                    )
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(DesignSystem.Typography.sectionTitle)
-                    Text(subtitle)
-                        .font(DesignSystem.Typography.caption)
-                        .foregroundStyle(.secondary)
-                }
-            }
-
-            content()
-        }
-        .padding(DesignSystem.Spacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                .fill(DesignSystem.Colors.cardBackground)
-                .cardShadow(isHovered ? DesignSystem.Shadows.cardHover : DesignSystem.Shadows.cardRest)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                .strokeBorder(
-                    isHovered ? DesignSystem.Colors.accent.opacity(0.2) : DesignSystem.Colors.border.opacity(0.6),
-                    lineWidth: 0.5
-                )
-        )
-        .onHover { hovering in
-            withAnimation(DesignSystem.Animation.hoverTransition) {
-                hoveredCardTitle = hovering ? title : nil
+                .padding(.top, 2)
             }
         }
     }
 
-    private func metricChip(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(DesignSystem.Typography.micro)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(DesignSystem.Typography.body.weight(.semibold))
-                .contentTransition(.numericText())
+    // MARK: - Helpers
+
+    private var wordsCountLabel: String {
+        let total = viewModel.words.count
+        let searching = !viewModel.searchText.trimmingCharacters(in: .whitespaces).isEmpty
+        if searching {
+            return "\(viewModel.filteredWords.count) of \(total)"
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(DesignSystem.Colors.surfaceElevated)
-        )
+        let disabled = viewModel.words.filter { !$0.isEnabled }.count
+        if disabled > 0 {
+            return "\(total) · \(disabled) off"
+        }
+        return total == 1 ? "1 rule" : "\(total) rules"
+    }
+
+    private func attemptAdd() {
+        guard !viewModel.newWord.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        viewModel.addWord()
     }
 }

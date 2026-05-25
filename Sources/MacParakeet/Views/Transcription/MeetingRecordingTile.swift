@@ -38,7 +38,7 @@ struct MeetingRecordingTile: View {
         var title: String {
             switch self {
             case .ready:
-                return "Record Meeting"
+                return "Record a meeting"
             case .missing:
                 return "Enable meeting recording"
             }
@@ -48,8 +48,8 @@ struct MeetingRecordingTile: View {
             switch self {
             case .ready(let capturesMicrophone):
                 return capturesMicrophone
-                    ? "Capture system audio + mic, transcribed locally."
-                    : "Capture system audio, transcribed locally."
+                    ? "Transcribes the whole conversation, privately on your Mac."
+                    : "Transcribes the call audio, privately on your Mac."
             case .missing(let microphone, let screenRecording):
                 switch (microphone, screenRecording) {
                 case (true, true):
@@ -155,7 +155,7 @@ struct MeetingRecordingTile: View {
 
             Spacer()
 
-            startButton
+            StartRecordingButton(permissionState: permissionState, onTap: onTap)
         }
     }
 
@@ -311,36 +311,6 @@ struct MeetingRecordingTile: View {
         }
     }
 
-    private var startButton: some View {
-        Button(action: onTap) {
-            HStack(spacing: 6) {
-                Image(systemName: permissionState.isReady ? "record.circle.fill" : "lock.open")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(permissionState.isReady ? "Start" : "Enable")
-                    .font(DesignSystem.Typography.caption.weight(.semibold))
-            }
-            .foregroundStyle(permissionState.isReady ? DesignSystem.Colors.recordingRed : DesignSystem.Colors.warningAmber)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
-            .background(
-                Capsule()
-                    .fill((permissionState.isReady ? DesignSystem.Colors.recordingRed : DesignSystem.Colors.warningAmber).opacity(0.10))
-            )
-            .overlay(
-                Capsule()
-                    .strokeBorder(
-                        (permissionState.isReady ? DesignSystem.Colors.recordingRed : DesignSystem.Colors.warningAmber).opacity(0.22),
-                        lineWidth: 0.8
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(permissionState.isReady ? "Start recording" : "Enable meeting recording")
-        .accessibilityHint(permissionState.isReady
-            ? "Captures system audio and microphone, then transcribes locally."
-            : "Opens the required macOS permission flow before recording.")
-    }
-
     private var stopButton: some View {
         StopConfirmCapsule(onStop: onTap)
     }
@@ -368,6 +338,62 @@ struct MeetingRecordingTile: View {
         // Tile body is informational; Start / Stop buttons carry the
         // action hints themselves.
         ""
+    }
+}
+
+// MARK: - Start / Enable button
+
+/// The tile's primary record control. Idle reads as a soft outline-tinted
+/// capsule — red when ready to record, amber when permissions are still
+/// missing. On hover it commits to a solid capsule with a white glyph + label
+/// and lifts `1.03`: the same outline→fill polish the co-visible "Browse Files"
+/// button uses, paired with the same lift the sibling `TilePauseResumeButton`
+/// and `StopConfirmCapsule` use — so the whole capture surface answers the
+/// cursor in one voice. The solid-red hover also pre-echoes the recording-state
+/// Stop pill, reinforcing that this is the record control.
+private struct StartRecordingButton: View {
+    var permissionState: MeetingRecordingTile.PermissionState
+    var onTap: () -> Void
+
+    @State private var isHovered = false
+
+    private var accent: Color {
+        permissionState.isReady
+            ? DesignSystem.Colors.recordingRed
+            : DesignSystem.Colors.warningAmber
+    }
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(spacing: 6) {
+                Image(systemName: permissionState.isReady ? "record.circle.fill" : "lock.open")
+                    .font(.system(size: 11, weight: .semibold))
+                Text(permissionState.isReady ? "Start" : "Enable")
+                    .font(DesignSystem.Typography.caption.weight(.semibold))
+            }
+            .foregroundStyle(isHovered ? Color.white : accent)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(
+                Capsule()
+                    .fill(isHovered ? accent : accent.opacity(0.10))
+            )
+            .overlay(
+                Capsule()
+                    .strokeBorder(accent.opacity(isHovered ? 0 : 0.22), lineWidth: 0.8)
+            )
+            .scaleEffect(isHovered ? 1.03 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isHovered)
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
+            if hovering { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+        }
+        .accessibilityLabel(permissionState.isReady ? "Start recording" : "Enable meeting recording")
+        .accessibilityHint(permissionState.isReady
+            ? "Captures system audio and microphone, then transcribes locally."
+            : "Opens the required macOS permission flow before recording.")
     }
 }
 

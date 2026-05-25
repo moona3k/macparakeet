@@ -382,11 +382,12 @@ public final class TranscriptionRepository: TranscriptionRepositoryProtocol, @un
         try dbQueue.write { db in
             guard var transcription = try Transcription.fetchOne(db, key: id) else { return }
             transcription.fileName = fileName
-            // A user-driven rename is the source of truth for the display
-            // title. Mirror it into `derivedTitle` so the Meetings list
-            // doesn't keep showing the auto-derived title from the
-            // transcript content. Without this the rename is silently
-            // masked by the smart-title path.
+            // A user-driven rename (meetings only) is the source of truth for
+            // the meeting's name. The Library rows already read `fileName` for
+            // meetings, but `derivedTitle` still feeds the "Save Audio As…"
+            // export-filename helper — mirror the rename into it so the
+            // suggested export name follows the new title instead of the stale
+            // transcript-content title.
             transcription.derivedTitle = fileName
             transcription.updatedAt = Date()
             try transcription.update(db)

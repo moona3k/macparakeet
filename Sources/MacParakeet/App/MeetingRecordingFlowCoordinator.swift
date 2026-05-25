@@ -58,6 +58,7 @@ final class MeetingRecordingFlowCoordinator {
     private var panelViewModel: MeetingRecordingPanelViewModel?
     private var actionTask: Task<Void, Never>?
     private var pauseToggleTask: Task<Void, Never>?
+    private var microphoneMuteToggleTask: Task<Void, Never>?
     private var autoDismissTask: Task<Void, Never>?
     private var pillPollingTask: Task<Void, Never>?
     private var transcriptObservationTask: Task<Void, Never>?
@@ -124,14 +125,6 @@ final class MeetingRecordingFlowCoordinator {
     /// back to its date-based default title.
     private var pendingTitle: String?
 
-    /// Optional callback fired when an auto-start attempt couldn't actually
-    /// start a recording — either because the state machine wasn't idle
-    /// (back-to-back meeting, previous wrap-up still in progress) or the
-    /// underlying `startRecording()` threw. The auto-start coordinator
-    /// uses this to clear its `autoStartedEventId` binding so a stale id
-    /// doesn't suppress the *next* meeting's auto-stop.
-    var onAutoStartFailed: (() -> Void)?
-
     /// Pause / resume the in-flight recording. The state flip happens AFTER
     /// the service confirms — an optimistic flip before the await would race
     /// with the 150ms polling reconciler (which reads `captureMode` from the
@@ -158,6 +151,18 @@ final class MeetingRecordingFlowCoordinator {
             guard self.pillViewModel.canTogglePause else { return }
             self.pillViewModel.state = wantPause ? .paused : .recording
             self.panelViewModel?.isPaused = wantPause
+        }
+    }
+
+    func toggleMicrophoneMute() {
+        guard panelViewModel?.canToggleMicrophoneMute == true else { return }
+        let wantMuted = !(panelViewModel?.isMicrophoneMuted ?? false)
+        microphoneMuteToggleTask?.cancel()
+        microphoneMuteToggleTask = Task { @MainActor [meetingRecordingService, weak self] in
+            let microphoneMuteState = await meetingRecordingService.setMicrophoneMuted(wantMuted)
+            guard !Task.isCancelled, let self else { return }
+            self.panelViewModel?.isMicrophoneMuted = microphoneMuteState.isMuted
+            self.panelViewModel?.canToggleMicrophoneMute = microphoneMuteState.canMute
         }
     }
 
@@ -199,20 +204,21 @@ final class MeetingRecordingFlowCoordinator {
     /// telemetry distinguishes it and pre-names the recording with the
     /// event title, then enters the normal start flow. No-op if a recording
     /// is already in progress (manual recording wins by arriving first —
-    /// see ADR-017 §10). When non-idle, fires `onAutoStartFailed` so the
-    /// calendar coordinator can drop its binding, and emits
+    /// see ADR-017 §10), in which case it emits
     /// `calendar_auto_start_failed{reason=state_busy}` so we can see how
-    /// often back-to-back meetings actually collide in the wild.
-    func startFromCalendar(title: String? = nil) {
+    /// often back-to-back meetings actually collide in the wild. Returns the
+    /// recording generation on success (or `nil` when the state was busy).
+    @discardableResult
+    func startFromCalendar(title: String? = nil) -> Int? {
         guard stateMachine.state == .idle else {
             Telemetry.send(.calendarAutoStartFailed(reason: "state_busy"))
-            onAutoStartFailed?()
-            return
+            return nil
         }
         pendingTrigger = .calendarAutoStart
         pendingTitle = title
         currentMeetingOperationContext = ObservabilityOperationContext()
         sendEvent(.startRequested)
+        return stateMachine.generation
     }
 
     /// Discard the pending start context (trigger + title) when the start
@@ -221,10 +227,7 @@ final class MeetingRecordingFlowCoordinator {
     /// effect handler clears these inline because it needs to snapshot
     /// them first to fire telemetry; this helper is for the paths that
     /// bail out earlier. If the bailing-out start was calendar-driven,
-    /// emits `calendar_auto_start_failed{reason}` and notifies the
-    /// calendar coordinator so its `autoStartedEventId` binding doesn't
-    /// strand (it self-heals on the next poll, but notifying immediately
-    /// keeps the two coordinators in lockstep).
+    /// emits `calendar_auto_start_failed{reason}` for observability.
     private func clearPendingStartContext(failureReason: String) {
         let wasCalendarTriggered = pendingTrigger == .calendarAutoStart
         sendMeetingOperation(
@@ -240,7 +243,6 @@ final class MeetingRecordingFlowCoordinator {
         currentMeetingTrigger = nil
         if wasCalendarTriggered {
             Telemetry.send(.calendarAutoStartFailed(reason: failureReason))
-            onAutoStartFailed?()
         }
     }
 
@@ -281,28 +283,35 @@ final class MeetingRecordingFlowCoordinator {
                 let sourceMode = meetingAudioSourceModeProvider()
                 self.pendingAudioSourceMode = sourceMode
                 let microphoneGranted: Bool
+                let microphonePrompted: Bool
                 if sourceMode.capturesMicrophone {
                     let microphoneStatus = await permissionService.checkMicrophonePermission()
                     switch microphoneStatus {
                     case .granted:
                         microphoneGranted = true
+                        microphonePrompted = false
                     case .denied:
                         microphoneGranted = false
+                        microphonePrompted = false
                     case .notDetermined:
                         Telemetry.send(.permissionPrompted(permission: .microphone))
+                        microphonePrompted = true
                         microphoneGranted = await permissionService.requestMicrophonePermission()
                     }
                 } else {
                     microphoneGranted = true
+                    microphonePrompted = false
                 }
 
                 if !microphoneGranted {
-                    Telemetry.send(.permissionDenied(permission: .microphone))
+                    if microphonePrompted {
+                        Telemetry.send(.permissionDenied(permission: .microphone))
+                    }
                     self.clearPendingStartContext(failureReason: "permission_denied")
                     self.sendEvent(.permissionsDenied(generation: gen, reason: .microphone))
                     return
                 }
-                if sourceMode.capturesMicrophone {
+                if microphonePrompted {
                     Telemetry.send(.permissionGranted(permission: .microphone))
                 }
 
@@ -317,7 +326,9 @@ final class MeetingRecordingFlowCoordinator {
                     self.sendEvent(.permissionsDenied(generation: gen, reason: .screenRecording))
                     return
                 }
-                Telemetry.send(.permissionGranted(permission: .screenRecording))
+                if !existingScreenGrant {
+                    Telemetry.send(.permissionGranted(permission: .screenRecording))
+                }
                 self.sendEvent(.permissionsGranted(generation: gen))
             }
 
@@ -335,10 +346,13 @@ final class MeetingRecordingFlowCoordinator {
             panelVM.micLevel = 0
             panelVM.systemLevel = 0
             panelVM.isPaused = false
+            panelVM.isMicrophoneMuted = false
+            panelVM.canToggleMicrophoneMute = (pendingAudioSourceMode ?? meetingAudioSourceModeProvider()).capturesMicrophone
             panelVM.updateLiveTranscriptStatus(.startingAudio)
             panelVM.updatePreviewLines([], isTranscriptionLagging: false)
             panelVM.onStop = { [weak self] in self?.toggleRecording() }
             panelVM.onPauseToggle = { [weak self] in self?.togglePause() }
+            panelVM.onMicrophoneMuteToggle = { [weak self] in self?.toggleMicrophoneMute() }
             panelVM.onClose = { [weak self] in self?.hideMeetingPanel() }
             // Configure live Ask: in-memory mode (no transcriptionId/conversationRepo).
             // Promotion to a persisted ChatConversation happens in .navigateToTranscription.
@@ -430,15 +444,12 @@ final class MeetingRecordingFlowCoordinator {
                         errorType: TelemetryErrorClassifier.classify(error),
                         errorDetail: TelemetryErrorClassifier.errorDetail(error)
                     ))
-                    // If this start was driven by calendar auto-start, tell
-                    // the coordinator so it can drop the binding it set
-                    // optimistically when the countdown completed, and emit
+                    // If this start was driven by calendar auto-start, emit
                     // the dedicated failure event so analysts can see *why*
                     // (vs just inferring "silent failure" by subtraction
                     // from `.calendarAutoStartTriggered`).
                     if trigger == .calendarAutoStart {
                         Telemetry.send(.calendarAutoStartFailed(reason: "service_threw"))
-                        self.onAutoStartFailed?()
                     }
                     self.sendMeetingOperation(
                         outcome: .failure,
@@ -597,6 +608,8 @@ final class MeetingRecordingFlowCoordinator {
             stopSpeechWarmUpObservation()
             pauseToggleTask?.cancel()
             pauseToggleTask = nil
+            microphoneMuteToggleTask?.cancel()
+            microphoneMuteToggleTask = nil
             pillController?.hide()
             pillController = nil
             // Pill view model is long-lived (also drives the Transcribe-tab
@@ -715,6 +728,7 @@ final class MeetingRecordingFlowCoordinator {
                 let systemLevel = await meetingRecordingService.systemLevel
                 let elapsedSeconds = await meetingRecordingService.elapsedSeconds
                 let captureMode = await meetingRecordingService.captureMode
+                let microphoneMuteState = await meetingRecordingService.microphoneMuteState
 
                 guard !Task.isCancelled else { break }
                 pillViewModel.micLevel = micLevel
@@ -723,6 +737,8 @@ final class MeetingRecordingFlowCoordinator {
                 panelViewModel?.elapsedSeconds = elapsedSeconds
                 panelViewModel?.micLevel = micLevel
                 panelViewModel?.systemLevel = systemLevel
+                panelViewModel?.isMicrophoneMuted = microphoneMuteState.isMuted
+                panelViewModel?.canToggleMicrophoneMute = microphoneMuteState.canMute
                 // Pause/resume reconciliation (issue #235). The user-facing
                 // toggle does an optimistic flip; this poll is the
                 // authoritative source if the optimistic flip diverged from

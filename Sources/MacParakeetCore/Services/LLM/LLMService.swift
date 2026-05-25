@@ -4,7 +4,7 @@ import Foundation
 
 public protocol LLMServiceProtocol: Sendable {
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String
-    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String
+    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String
     func transform(text: String, prompt: String) async throws -> String
     func formatTranscript(
         transcript: String,
@@ -14,7 +14,7 @@ public protocol LLMServiceProtocol: Sendable {
     ) async throws -> String
 
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error>
-    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) -> AsyncThrowingStream<String, Error>
+    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) -> AsyncThrowingStream<String, Error>
     func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error>
 
     // MARK: Envelope variants
@@ -25,7 +25,7 @@ public protocol LLMServiceProtocol: Sendable {
     // `String`-returning callers (the GUI) are unaffected.
 
     func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult
-    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult
+    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> LLMResult
     func transformDetailed(text: String, prompt: String) async throws -> LLMResult
     func formatTranscriptDetailed(
         transcript: String,
@@ -78,6 +78,16 @@ public extension LLMServiceProtocol {
 public final class LLMService: LLMServiceProtocol, Sendable {
     private let client: LLMClientProtocol
     private let contextResolver: any LLMExecutionContextResolving
+    private struct MessageAssembly {
+        let messages: [ChatMessage]
+        let inputTruncated: Bool
+    }
+
+    private struct ChatSystemPromptBuild {
+        let prompt: String
+        let inputTruncated: Bool
+    }
+
     private static let lmStudioFormatterSchema = ChatJSONSchema(
         type: "object",
         properties: [
@@ -95,6 +105,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     // un-truncated. ~3.5 chars/token in English.
     internal static let cloudContextBudget = 500_000   // ≈140K tokens
     internal static let localContextBudget =  80_000   // ≈ 22K tokens
+    internal static let lmStudioContextBudget = 8_000  // ≈2K tokens; LM Studio defaults vary by loaded model
 
     public init(
         client: LLMClientProtocol = RoutingLLMClient(),
@@ -129,8 +140,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         try await generatePromptResultDetailed(transcript: transcript, systemPrompt: systemPrompt).output
     }
 
-    public func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String {
-        try await chatDetailed(question: question, transcript: transcript, userNotes: userNotes, history: history).output
+    public func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String {
+        try await chatDetailed(question: question, transcript: transcript, userNotes: userNotes, history: history, source: source).output
     }
 
     public func transform(text: String, prompt: String) async throws -> String {
@@ -167,12 +178,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             messageCount: 2
         )
         let config = context.providerConfig
-        let budget = contextBudget(for: config)
-        let truncated = Self.truncateMiddle(transcript, limit: budget)
-        let messages = [
-            ChatMessage(role: .system, content: resolveSummaryPrompt(systemPrompt)),
-            ChatMessage(role: .user, content: truncated),
-        ]
+        let assembly = buildPromptResultMessages(transcript: transcript, systemPrompt: systemPrompt, config: config)
+        let messages = assembly.messages
         do {
             let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
             let latencyMs = Self.latencyMs(since: startedAt)
@@ -186,7 +193,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 startedAt: startedAt,
                 inputChars: transcript.count,
                 outputChars: response.content.count,
-                inputTruncated: transcript.count > budget,
+                inputTruncated: assembly.inputTruncated,
                 promptDefaultUsed: promptDefaultUsed,
                 messageCount: messages.count
             )
@@ -201,7 +208,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     outcome: .cancelled,
                     startedAt: startedAt,
                     inputChars: transcript.count,
-                    inputTruncated: transcript.count > budget,
+                    inputTruncated: assembly.inputTruncated,
                     promptDefaultUsed: promptDefaultUsed,
                     messageCount: messages.count
                 )
@@ -222,10 +229,10 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     feature: "prompt_result",
                     provider: config.id.rawValue,
                     streaming: false,
-                    outcome: .failure,
+                    outcome: Self.outcomeForLLMError(error),
                     startedAt: startedAt,
                     inputChars: transcript.count,
-                    inputTruncated: transcript.count > budget,
+                    inputTruncated: assembly.inputTruncated,
                     promptDefaultUsed: promptDefaultUsed,
                     messageCount: messages.count,
                     errorType: kind
@@ -235,7 +242,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         }
     }
 
-    public func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult {
+    public func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> LLMResult {
         let operationID = Observability.operationID()
         let startedAt = Date()
         let context = try loadContextForLLMOperation(
@@ -247,12 +254,18 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             messageCount: history.count + 1
         )
         let config = context.providerConfig
-        let messages = buildChatMessages(question: question, transcript: transcript, userNotes: userNotes, history: history, config: config)
-        let budget = contextBudget(for: config)
+        let assembly = buildChatMessages(
+            question: question,
+            transcript: transcript,
+            userNotes: userNotes,
+            history: history,
+            config: config
+        )
+        let messages = assembly.messages
         do {
             let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
             let latencyMs = Self.latencyMs(since: startedAt)
-            Telemetry.send(.llmChatUsed(provider: config.id.rawValue, messageCount: history.count + 1))
+            Telemetry.send(.llmChatUsed(provider: config.id.rawValue, source: source, messageCount: history.count + 1))
             sendLLMOperation(
                 operationID: operationID,
                 feature: "chat",
@@ -262,7 +275,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 startedAt: startedAt,
                 inputChars: question.count + transcript.count,
                 outputChars: response.content.count,
-                inputTruncated: transcript.count > budget,
+                inputTruncated: assembly.inputTruncated,
                 messageCount: history.count + 1
             )
             return LLMResult(response: response, provider: config.id, latencyMs: latencyMs)
@@ -276,7 +289,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     outcome: .cancelled,
                     startedAt: startedAt,
                     inputChars: question.count + transcript.count,
-                    inputTruncated: transcript.count > budget,
+                    inputTruncated: assembly.inputTruncated,
                     messageCount: history.count + 1
                 )
             } else {
@@ -286,20 +299,21 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     Telemetry.send(.llmProviderUnavailable(
                         provider: config.id.rawValue,
                         errorType: kind,
-                        feature: .chat
+                        feature: .chat,
+                        source: TelemetryLLMSource(source)
                     ))
                 } else {
-                    Telemetry.send(.llmChatFailed(provider: config.id.rawValue, errorType: kind))
+                    Telemetry.send(.llmChatFailed(provider: config.id.rawValue, source: source, errorType: kind))
                 }
                 sendLLMOperation(
                     operationID: operationID,
                     feature: "chat",
                     provider: config.id.rawValue,
                     streaming: false,
-                    outcome: .failure,
+                    outcome: Self.outcomeForLLMError(error),
                     startedAt: startedAt,
                     inputChars: question.count + transcript.count,
-                    inputTruncated: transcript.count > budget,
+                    inputTruncated: assembly.inputTruncated,
                     messageCount: history.count + 1,
                     errorType: kind
                 )
@@ -320,12 +334,8 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             messageCount: 2
         )
         let config = context.providerConfig
-        let budget = contextBudget(for: config)
-        let truncated = Self.truncateMiddle(text, limit: budget)
-        let messages = [
-            ChatMessage(role: .system, content: Prompts.transform),
-            ChatMessage(role: .user, content: "Transform the following text according to this instruction: \(prompt)\n\n---\n\n\(truncated)"),
-        ]
+        let assembly = buildTransformMessages(text: text, prompt: prompt, config: config)
+        let messages = assembly.messages
         do {
             let response = try await client.chatCompletion(messages: messages, context: context, options: .default)
             let latencyMs = Self.latencyMs(since: startedAt)
@@ -339,7 +349,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 startedAt: startedAt,
                 inputChars: text.count + prompt.count,
                 outputChars: response.content.count,
-                inputTruncated: text.count > budget,
+                inputTruncated: assembly.inputTruncated,
                 messageCount: messages.count
             )
             return LLMResult(response: response, provider: config.id, latencyMs: latencyMs)
@@ -353,7 +363,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     outcome: .cancelled,
                     startedAt: startedAt,
                     inputChars: text.count + prompt.count,
-                    inputTruncated: text.count > budget,
+                    inputTruncated: assembly.inputTruncated,
                     messageCount: messages.count
                 )
             } else {
@@ -373,10 +383,10 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     feature: "transform",
                     provider: config.id.rawValue,
                     streaming: false,
-                    outcome: .failure,
+                    outcome: Self.outcomeForLLMError(error),
                     startedAt: startedAt,
                     inputChars: text.count + prompt.count,
-                    inputTruncated: text.count > budget,
+                    inputTruncated: assembly.inputTruncated,
                     messageCount: messages.count,
                     errorType: kind
                 )
@@ -521,7 +531,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                         provider: config.id.rawValue,
                         errorType: kind,
                         feature: .formatter,
-                        source: source
+                        source: TelemetryLLMSource(source)
                     ))
                 } else {
                     Telemetry.send(.llmFormatterFailed(
@@ -538,7 +548,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     feature: "formatter_\(source.rawValue)",
                     provider: config.id.rawValue,
                     streaming: false,
-                    outcome: .failure,
+                    outcome: Self.outcomeForLLMError(error),
                     startedAt: startedAt,
                     inputChars: inputChars,
                     inputTruncated: inputTruncated,
@@ -583,13 +593,13 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     }
                     let config = context.providerConfig
                     provider = config.id.rawValue
-                    let budget = self.contextBudget(for: config)
-                    inputTruncated = transcript.count > budget
-                    let truncated = Self.truncateMiddle(transcript, limit: budget)
-                    let messages = [
-                        ChatMessage(role: .system, content: self.resolveSummaryPrompt(systemPrompt)),
-                        ChatMessage(role: .user, content: truncated),
-                    ]
+                    let assembly = self.buildPromptResultMessages(
+                        transcript: transcript,
+                        systemPrompt: systemPrompt,
+                        config: config
+                    )
+                    inputTruncated = assembly.inputTruncated
+                    let messages = assembly.messages
                     let stream = self.client.chatCompletionStream(messages: messages, context: context, options: .default)
                     for try await token in stream {
                         outputChars += token.count
@@ -633,7 +643,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                             feature: "prompt_result",
                             provider: provider,
                             streaming: true,
-                            outcome: error is CancellationError ? .cancelled : .failure,
+                            outcome: Self.outcomeForLLMError(error),
                             startedAt: startedAt,
                             inputChars: transcript.count,
                             outputChars: outputChars,
@@ -650,7 +660,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         }
     }
 
-    public func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
+    public func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let operationID = Observability.operationID()
             let startedAt = Date()
@@ -679,14 +689,21 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     }
                     let config = context.providerConfig
                     provider = config.id.rawValue
-                    inputTruncated = transcript.count > self.contextBudget(for: config)
-                    let messages = self.buildChatMessages(question: question, transcript: transcript, userNotes: userNotes, history: history, config: config)
+                    let assembly = self.buildChatMessages(
+                        question: question,
+                        transcript: transcript,
+                        userNotes: userNotes,
+                        history: history,
+                        config: config
+                    )
+                    inputTruncated = assembly.inputTruncated
+                    let messages = assembly.messages
                     let stream = self.client.chatCompletionStream(messages: messages, context: context, options: .default)
                     for try await token in stream {
                         outputChars += token.count
                         continuation.yield(token)
                     }
-                    Telemetry.send(.llmChatUsed(provider: config.id.rawValue, messageCount: history.count + 1))
+                    Telemetry.send(.llmChatUsed(provider: config.id.rawValue, source: source, messageCount: history.count + 1))
                     self.sendLLMOperation(
                         operationID: operationID,
                         feature: "chat",
@@ -708,11 +725,13 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                             Telemetry.send(.llmProviderUnavailable(
                                 provider: provider,
                                 errorType: kind,
-                                feature: .chat
+                                feature: .chat,
+                                source: TelemetryLLMSource(source)
                             ))
                         } else {
                             Telemetry.send(.llmChatFailed(
                                 provider: provider,
+                                source: source,
                                 errorType: kind
                             ))
                         }
@@ -723,7 +742,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                             feature: "chat",
                             provider: provider,
                             streaming: true,
-                            outcome: error is CancellationError ? .cancelled : .failure,
+                            outcome: Self.outcomeForLLMError(error),
                             startedAt: startedAt,
                             inputChars: question.count + transcript.count,
                             outputChars: outputChars,
@@ -767,13 +786,9 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                     }
                     let config = context.providerConfig
                     provider = config.id.rawValue
-                    let budget = self.contextBudget(for: config)
-                    inputTruncated = text.count > budget
-                    let truncated = Self.truncateMiddle(text, limit: budget)
-                    let messages = [
-                        ChatMessage(role: .system, content: Prompts.transform),
-                        ChatMessage(role: .user, content: "Transform the following text according to this instruction: \(prompt)\n\n---\n\n\(truncated)"),
-                    ]
+                    let assembly = self.buildTransformMessages(text: text, prompt: prompt, config: config)
+                    inputTruncated = assembly.inputTruncated
+                    let messages = assembly.messages
                     let stream = self.client.chatCompletionStream(messages: messages, context: context, options: .default)
                     for try await token in stream {
                         outputChars += token.count
@@ -816,7 +831,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                             feature: "transform",
                             provider: provider,
                             streaming: true,
-                            outcome: error is CancellationError ? .cancelled : .failure,
+                            outcome: Self.outcomeForLLMError(error),
                             startedAt: startedAt,
                             inputChars: text.count + prompt.count,
                             outputChars: outputChars,
@@ -870,7 +885,61 @@ public final class LLMService: LLMServiceProtocol, Sendable {
     }
 
     private func contextBudget(for config: LLMProviderConfig) -> Int {
-        config.isLocal ? Self.localContextBudget : Self.cloudContextBudget
+        if config.id == .lmstudio {
+            return Self.lmStudioContextBudget
+        }
+        return config.isLocal ? Self.localContextBudget : Self.cloudContextBudget
+    }
+
+    private func transcriptBudget(totalBudget: Int, systemPrompt: String) -> Int {
+        max(0, totalBudget - systemPrompt.count)
+    }
+
+    private func buildPromptResultMessages(
+        transcript: String,
+        systemPrompt: String?,
+        config: LLMProviderConfig
+    ) -> MessageAssembly {
+        let budget = contextBudget(for: config)
+        let resolvedPrompt = resolveSummaryPrompt(systemPrompt)
+        let promptWasTruncated = resolvedPrompt.count > budget
+        let boundedPrompt = promptWasTruncated
+            ? Self.truncateMiddle(resolvedPrompt, limit: budget)
+            : resolvedPrompt
+        let transcriptBudget = transcriptBudget(totalBudget: budget, systemPrompt: boundedPrompt)
+        let truncated = Self.truncateMiddle(transcript, limit: transcriptBudget)
+        return MessageAssembly(
+            messages: [
+                ChatMessage(role: .system, content: boundedPrompt),
+                ChatMessage(role: .user, content: truncated),
+            ],
+            inputTruncated: promptWasTruncated || transcript.count > transcriptBudget
+        )
+    }
+
+    private func buildTransformMessages(
+        text: String,
+        prompt: String,
+        config: LLMProviderConfig
+    ) -> MessageAssembly {
+        let systemPrompt = Prompts.transform
+        let instructionPrefix = "Transform the following text according to this instruction: "
+        let separator = "\n\n---\n\n"
+        let available = max(
+            0,
+            contextBudget(for: config) - systemPrompt.count - instructionPrefix.count - separator.count
+        )
+        let promptBudget = prompt.count <= available ? prompt.count : available / 2
+        let boundedPrompt = Self.truncateMiddle(prompt, limit: promptBudget)
+        let textBudget = max(0, available - boundedPrompt.count)
+        let truncated = Self.truncateMiddle(text, limit: textBudget)
+        return MessageAssembly(
+            messages: [
+                ChatMessage(role: .system, content: systemPrompt),
+                ChatMessage(role: .user, content: "\(instructionPrefix)\(boundedPrompt)\(separator)\(truncated)"),
+            ],
+            inputTruncated: prompt.count > promptBudget || text.count > textBudget
+        )
     }
 
     private func resolveSummaryPrompt(_ systemPrompt: String?) -> String {
@@ -937,6 +1006,13 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         return .failure
     }
 
+    private static func outcomeForLLMError(_ error: Error) -> ObservabilityOutcome {
+        if error is CancellationError {
+            return .cancelled
+        }
+        return isProviderUnavailable(error) ? .unavailable : .failure
+    }
+
     private func sendLLMOperation(
         operationID: String,
         feature: String,
@@ -975,14 +1051,15 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         userNotes: String?,
         history: [ChatMessage],
         config: LLMProviderConfig
-    ) -> [ChatMessage] {
+    ) -> MessageAssembly {
         let budget = contextBudget(for: config)
-        let systemPrompt = Self.buildChatSystemPrompt(
+        let systemPromptBuild = Self.buildChatSystemPrompt(
             transcript: transcript,
             userNotes: userNotes,
             question: question,
             budget: budget
         )
+        let systemPrompt = systemPromptBuild.prompt
 
         var messages = [ChatMessage(role: .system, content: systemPrompt)]
 
@@ -1015,10 +1092,14 @@ public final class LLMService: LLMServiceProtocol, Sendable {
                 keptTurns.insert([message], at: 0)
             }
         }
-        messages.append(contentsOf: keptTurns.flatMap { $0 })
+        let keptHistory = keptTurns.flatMap { $0 }
+        messages.append(contentsOf: keptHistory)
 
         messages.append(ChatMessage(role: .user, content: question))
-        return messages
+        return MessageAssembly(
+            messages: messages,
+            inputTruncated: systemPromptBuild.inputTruncated || keptHistory.count < history.count
+        )
     }
 
     private static func requestMessage(from message: ChatMessage) -> ChatMessage {
@@ -1030,7 +1111,7 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         userNotes: String?,
         question: String,
         budget: Int
-    ) -> String {
+    ) -> ChatSystemPromptBuild {
         let trimmedNotes = userNotes?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let transcriptHeader = "\n\n---\nTranscript:\n"
         let notesHeader = "\n\n---\nUser's notes from the meeting (treat these as what the user thinks matters; the transcript is the source of truth for facts):\n"
@@ -1038,11 +1119,14 @@ public final class LLMService: LLMServiceProtocol, Sendable {
         let contextBudget = max(0, budget - Prompts.chat.count - question.count - historyReserve)
 
         let notesBlock: String
+        let notesWasTruncated: Bool
         if trimmedNotes.isEmpty {
             notesBlock = ""
+            notesWasTruncated = false
         } else {
             let notesTextBudget = max(0, min(trimmedNotes.count, contextBudget / 4))
             notesBlock = notesHeader + truncateMiddle(trimmedNotes, limit: notesTextBudget)
+            notesWasTruncated = trimmedNotes.count > notesTextBudget
         }
 
         let transcriptBudget = max(0, contextBudget - notesBlock.count - transcriptHeader.count)
@@ -1052,7 +1136,10 @@ public final class LLMService: LLMServiceProtocol, Sendable {
             ? truncateMiddle(context, limit: contextBudget)
             : context
 
-        return Prompts.chat + boundedContext
+        return ChatSystemPromptBuild(
+            prompt: Prompts.chat + boundedContext,
+            inputTruncated: notesWasTruncated || transcript.count > transcriptBudget || context.count > contextBudget
+        )
     }
 
     /// Truncate text from the middle, keeping the head and tail within the limit.

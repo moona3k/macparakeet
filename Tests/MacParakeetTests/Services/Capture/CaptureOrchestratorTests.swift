@@ -199,6 +199,27 @@ final class CaptureOrchestratorTests: XCTestCase {
         )
     }
 
+    func testProcessedMicrophoneSamplesFeedMicrophoneChunker() async {
+        let orchestrator = CaptureOrchestrator()
+        let conditioner = ConstantMicConditioner(sampleValue: 0.125)
+
+        let chunks = await driveCycles(
+            orchestrator: orchestrator,
+            conditioner: conditioner,
+            cycles: cyclesForOneChunk,
+            micHostTimeBaseSeconds: 92_721.0,
+            systemHostTimeBaseSeconds: 92_721.0
+        )
+
+        let micChunk = try? XCTUnwrap(chunks.first(where: { $0.source == .microphone })?.chunk)
+        guard let micChunk else { return }
+        XCTAssertTrue(
+            micChunk.samples.allSatisfy { abs($0 - 0.125) < 0.0001 },
+            "microphone chunker must receive conditioned mic samples, not raw mic samples"
+        )
+        XCTAssertEqual(conditioner.callCount, cyclesForOneChunk)
+    }
+
     // MARK: - helpers
 
     /// Push `cycles` paired 8 k-sample batches through the orchestrator so the
@@ -209,7 +230,7 @@ final class CaptureOrchestratorTests: XCTestCase {
     /// across the entire stream.
     private func driveCycles(
         orchestrator: CaptureOrchestrator,
-        conditioner: PassthroughMicConditioner,
+        conditioner: any MicConditioning,
         cycles: Int,
         micHostTimeBaseSeconds: Double?,
         systemHostTimeBaseSeconds: Double?
@@ -242,5 +263,25 @@ final class CaptureOrchestratorTests: XCTestCase {
             collected.append(contentsOf: outB.chunks)
         }
         return collected
+    }
+}
+
+private final class ConstantMicConditioner: MicConditioning, @unchecked Sendable {
+    private let sampleValue: Float
+    private(set) var callCount = 0
+    private(set) var diagnostics = MeetingEchoSuppressionDiagnostics.passthrough()
+
+    init(sampleValue: Float) {
+        self.sampleValue = sampleValue
+    }
+
+    func condition(microphone: [Float], speaker: [Float], hasSpeakerReference: Bool) -> [Float] {
+        callCount += 1
+        return [Float](repeating: sampleValue, count: microphone.count)
+    }
+
+    func reset() {
+        callCount = 0
+        diagnostics = MeetingEchoSuppressionDiagnostics.passthrough()
     }
 }

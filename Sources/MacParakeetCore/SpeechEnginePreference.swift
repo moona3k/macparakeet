@@ -8,6 +8,14 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
     public static let whisperDefaultLanguageKey = "whisperDefaultLanguage"
     public static let whisperModelVariantKey = "whisperModelVariant"
 
+    /// Variants whose one-time CoreML compile/ANE specialization has already
+    /// completed on this Mac. The first load of a Whisper variant pays a
+    /// multi-minute optimize (`WhisperKitConfig(load: true)`); subsequent loads
+    /// reuse the on-disk compiled artifacts and are fast. We persist which
+    /// variants are warm so the UI can distinguish a cold first switch
+    /// ("Setup needed", minutes) from a warm one ("Downloaded", seconds).
+    public static let whisperOptimizedVariantsKey = "whisperOptimizedVariants"
+
     public static let defaultWhisperModelVariant = "large-v3-v20240930_turbo_632MB"
 
     public var displayName: String {
@@ -65,6 +73,29 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         defaults.set(normalized, forKey: whisperModelVariantKey)
     }
 
+    /// Whether `variant` has already paid its one-time on-device optimize, so
+    /// the next load will be fast. Compares on the normalized variant id.
+    public static func hasOptimizedWhisper(variant: String, defaults: UserDefaults = .standard) -> Bool {
+        guard let normalized = normalizeModelVariant(variant) else { return false }
+        let optimized = defaults.stringArray(forKey: whisperOptimizedVariantsKey) ?? []
+        return optimized.contains(normalized)
+    }
+
+    public static func isColdSwitch(to preference: SpeechEnginePreference, defaults: UserDefaults = .standard) -> Bool {
+        guard preference == .whisper else { return false }
+        return !hasOptimizedWhisper(variant: whisperModelVariant(defaults: defaults), defaults: defaults)
+    }
+
+    /// Records that `variant` finished its one-time optimize on this Mac.
+    /// Idempotent; call after a successful `WhisperEngine.prepare()`.
+    public static func markWhisperOptimized(variant: String, defaults: UserDefaults = .standard) {
+        guard let normalized = normalizeModelVariant(variant) else { return }
+        var optimized = defaults.stringArray(forKey: whisperOptimizedVariantsKey) ?? []
+        guard !optimized.contains(normalized) else { return }
+        optimized.append(normalized)
+        defaults.set(optimized, forKey: whisperOptimizedVariantsKey)
+    }
+
     public static func normalizeLanguage(_ language: String?) -> String? {
         WhisperLanguageCatalog.canonicalCode(for: language)
     }
@@ -81,7 +112,28 @@ public enum SpeechEnginePreference: String, CaseIterable, Codable, Sendable {
         guard let variant else { return nil }
         let trimmed = variant.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        return trimmed.hasPrefix("whisper-") ? String(trimmed.dropFirst("whisper-".count)) : trimmed
+        let withoutPrefix = trimmed.hasPrefix("whisper-")
+            ? String(trimmed.dropFirst("whisper-".count))
+            : trimmed
+        return canonicalizeTurboSuffix(withoutPrefix)
+    }
+
+    /// Whisper "turbo" variants ship with both hyphen and underscore spellings
+    /// (`large-v3-turbo`, `large-v3_turbo`). Fold them to the underscore form so
+    /// one model resolves to a single id everywhere — on-disk folder lookup, the
+    /// stored preference, and optimized-flag tracking — instead of the mark-side
+    /// (engine) and query-side (UI) ids drifting apart.
+    private static func canonicalizeTurboSuffix(_ variant: String) -> String {
+        if variant.hasSuffix("-turbo") {
+            return String(variant.dropLast("-turbo".count)) + "_turbo"
+        }
+        if variant.contains("-turbo_") {
+            return variant.replacingOccurrences(of: "-turbo_", with: "_turbo_")
+        }
+        if variant.contains("-turbo-") {
+            return variant.replacingOccurrences(of: "-turbo-", with: "_turbo_")
+        }
+        return variant
     }
 
     /// Maps an internal Whisper variant id to a short, user-friendly label.

@@ -124,4 +124,16 @@ final class WhisperLanguageCatalogTests: XCTestCase {
         XCTAssertNil(SpeechEnginePreference.normalizeKnownLanguage("auto"))
         XCTAssertNil(SpeechEnginePreference.normalizeKnownLanguage("/Users/alice/private-model"))
     }
+
+    /// Defensive: engine attributions sometimes arrive as the English name
+    /// (e.g. WhisperKit's fallback path emits "english" / "korean" rather
+    /// than "en" / "ko"). The catalog must canonicalize those back to the
+    /// ISO-2 code so language-attribution telemetry survives the path.
+    func testCanonicalCodeAcceptsEnglishLanguageNames() {
+        XCTAssertEqual(WhisperLanguageCatalog.canonicalCode(for: "english"), "en")
+        XCTAssertEqual(WhisperLanguageCatalog.canonicalCode(for: "Korean"), "ko")
+        XCTAssertEqual(WhisperLanguageCatalog.canonicalCode(for: "  Japanese  "), "ja")
+        XCTAssertEqual(SpeechEnginePreference.normalizeKnownLanguage("english"), "en")
+        XCTAssertEqual(SpeechEnginePreference.normalizeKnownLanguage("Japanese"), "ja")
+    }
 }

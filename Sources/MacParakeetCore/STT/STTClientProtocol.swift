@@ -52,6 +52,18 @@ public protocol SpeechEngineSwitching: Sendable {
     ) async throws
 }
 
+public enum SpeechEngineSwitchAvailability: Sendable, Equatable {
+    case available
+    case meetingActive
+    case transcribing
+    case switchInProgress
+    case unavailable
+}
+
+public protocol SpeechEngineSwitchAvailabilityProviding: Sendable {
+    func engineSwitchAvailability() async -> SpeechEngineSwitchAvailability
+}
+
 extension SpeechEngineSwitching {
     public func setSpeechEngine(
         _ preference: SpeechEnginePreference,

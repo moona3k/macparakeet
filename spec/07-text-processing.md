@@ -156,6 +156,9 @@ macparakeet-cli vocab snippets list
 # Add a snippet (trigger is a natural phrase, not an abbreviation)
 macparakeet-cli vocab snippets add "my signature" "Best regards, David"
 
+# Edit a snippet
+macparakeet-cli vocab snippets edit <id> --trigger "my signature" --expansion "Best regards, Daniel"
+
 # Delete a snippet
 macparakeet-cli vocab snippets delete <id>
 ```

@@ -130,6 +130,21 @@ public enum WhisperLanguageCatalog {
         uniqueKeysWithValues: all.map { ($0.code, $0) }
     )
 
+    /// Reverse lookup keyed by lower-cased English name so an engine result
+    /// arriving as "english" / "korean" / "japanese" — instead of the ISO-2
+    /// code — still resolves to a known catalog entry. WhisperKit's higher
+    /// layers occasionally fall back to the language NAME token instead of
+    /// the code when the model emits an unfamiliar token; without this map
+    /// `normalizeKnownLanguage("english")` returns nil and the language
+    /// attribution silently disappears from telemetry.
+    // English names are not guaranteed unique the way ISO codes are, so use the
+    // collision-tolerant initializer rather than `uniqueKeysWithValues:` (which
+    // traps at static-init time on a duplicate). Keep the first/canonical entry.
+    private static let byEnglishName: [String: WhisperLanguage] = Dictionary(
+        all.map { ($0.englishName.lowercased(), $0) },
+        uniquingKeysWith: { first, _ in first }
+    )
+
     /// WhisperKit accepts a handful of alternate names for the same language
     /// token. Keep those searchable so the UI does not hide supported inputs
     /// behind one preferred English label.
@@ -163,6 +178,14 @@ public enum WhisperLanguageCatalog {
         if let primarySubtag = normalized.split(separator: "-", maxSplits: 1).first.map(String.init),
            byCode[primarySubtag] != nil {
             return primarySubtag
+        }
+
+        // Engine attributions sometimes arrive as the English language name
+        // ("english", "korean", "japanese") instead of the ISO-2 code. Resolve
+        // those back to the catalog code so downstream telemetry and UI work
+        // unchanged.
+        if let byName = byEnglishName[normalized] {
+            return byName.code
         }
 
         return normalized

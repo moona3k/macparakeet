@@ -17,6 +17,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         sttClient: STTClientProtocol,
         diarizationService: DiarizationServiceProtocol? = nil,
         onFinish: @escaping () -> Void,
+        onHotkeyPreviewArm: @escaping () -> Void = {},
+        onHotkeyPreviewDisarm: @escaping () -> Void = {},
         onOpenMainApp: @escaping () -> Void,
         onOpenSettings: @escaping () -> Void,
         onIncompleteDismiss: @escaping () -> Void
@@ -33,6 +35,11 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
             diarizationService: diarizationService
         )
         viewModel = vm
+        // Retained so the rehearsal taps/overlay are torn down if the window
+        // closes while the user is on the hotkey step (SwiftUI `onDisappear`
+        // can lag window teardown). `disarm()` is idempotent.
+        onHotkeyPreviewDisarmHandler = onHotkeyPreviewDisarm
+
         let view = OnboardingFlowView(
             viewModel: vm,
             onFinish: { [weak self] in
@@ -41,7 +48,9 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
                 onFinish()
             },
             onOpenMainApp: onOpenMainApp,
-            onOpenSettings: onOpenSettings
+            onOpenSettings: onOpenSettings,
+            onHotkeyPreviewArm: onHotkeyPreviewArm,
+            onHotkeyPreviewDisarm: onHotkeyPreviewDisarm
         )
 
         let hosting = NSHostingView(rootView: view)
@@ -84,6 +93,7 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     }
 
     private var onIncompleteDismiss: (() -> Void)?
+    private var onHotkeyPreviewDisarmHandler: (() -> Void)?
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
         if allowCloseWithoutCompletion {
@@ -101,6 +111,8 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
         allowCloseWithoutCompletion = false
         onIncompleteDismiss = nil
+        onHotkeyPreviewDisarmHandler?()
+        onHotkeyPreviewDisarmHandler = nil
         viewModel?.stopObservingWarmUp()
         viewModel = nil
         // Defer teardown to the next run-loop tick so we don't destroy the

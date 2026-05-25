@@ -397,7 +397,7 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
     }
 
     func generatePromptResult(transcript: String, systemPrompt: String?) async throws -> String { "" }
-    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> String { "" }
+    func chat(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> String { "" }
     func transform(text: String, prompt: String) async throws -> String { "" }
     func formatTranscript(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> String { "" }
     func formatTranscriptDetailed(transcript: String, promptTemplate: String, source: TelemetryFormatterSource, defaultPromptUsed: Bool) async throws -> LLMFormatterResult {
@@ -414,7 +414,7 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
     func generatePromptResultStream(transcript: String, systemPrompt: String?) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { $0.finish() }
     }
-    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) -> AsyncThrowingStream<String, Error> {
+    func chatStream(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { $0.finish() }
     }
     func transformStream(text: String, prompt: String) -> AsyncThrowingStream<String, Error> {
@@ -433,7 +433,7 @@ final class MockTransformLLMService: LLMServiceProtocol, @unchecked Sendable {
     func generatePromptResultDetailed(transcript: String, systemPrompt: String?) async throws -> LLMResult {
         LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0)
     }
-    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage]) async throws -> LLMResult {
+    func chatDetailed(question: String, transcript: String, userNotes: String?, history: [ChatMessage], source: TelemetryChatSource) async throws -> LLMResult {
         LLMResult(output: "", provider: "mock", model: "mock", latencyMs: 0)
     }
     func transformDetailed(text: String, prompt: String) async throws -> LLMResult {

@@ -1,0 +1,25 @@
+node_modules/
+out/
+.env
+.env.local
+*.log
+.DS_Store
+
+# Auto-generated JSON mirror of src/content/script.ts (consumed by the
+# Higgs Audio Python pipeline). Regenerated on demand via `npm run script:dump`.
+src/content/script.json
+
+# Generated voice + raw screencast binaries live in public/ for Remotion's
+# staticFile() to resolve. They're large and reproducible, so we don't
+# track them — regenerate voice via `npm run voice`, drop screencasts in
+# from Screen Studio. Music (brand-track + logo-sting) is user-supplied
+# from a royalty-free source — see public/audio/music/README.md.
+public/audio/**/*.wav
+public/audio/**/*.mp3
+public/audio/**/*.m4a
+public/audio/audition/
+public/screencasts/
+
+# Python venv if user creates one for the HQ pipeline
+.venv/
+__pycache__/

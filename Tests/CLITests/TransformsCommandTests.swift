@@ -157,8 +157,9 @@ final class TransformsCommandTests: XCTestCase {
             }
         }
 
-        let exit = try XCTUnwrap(thrownError as? ExitCode)
-        XCTAssertEqual(exit.rawValue, 2)
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), cliValidationMisuseExitCode)
 
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
@@ -189,8 +190,9 @@ final class TransformsCommandTests: XCTestCase {
             }
         }
 
-        let exit = try XCTUnwrap(thrownError as? ExitCode)
-        XCTAssertEqual(exit.rawValue, 1)
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), .failure)
 
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
@@ -436,6 +438,31 @@ final class TransformsCommandTests: XCTestCase {
             XCTAssertTrue(message.contains("already used"), "Expected duplicate-shortcut error, got: \(message)")
             XCTAssertTrue(message.contains("Polish"), "Expected duplicate owner name, got: \(message)")
         }
+    }
+
+    func testAppHotkeyCollisionAllowsChordSharingBareModifierDictationHotkey() throws {
+        let suiteName = "com.macparakeet.tests.transforms.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        HotkeyTrigger.option.save(
+            to: defaults,
+            defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey
+        )
+
+        XCTAssertNil(
+            appHotkeyCollision(
+                for: try XCTUnwrap(KeyboardShortcut.parse("opt+5")),
+                defaults: defaults
+            )
+        )
+        // cmd+shift+m still conflicts because defaultMeetingRecording uses .exclusive mode.
+        XCTAssertNotNil(
+            appHotkeyCollision(
+                for: try XCTUnwrap(KeyboardShortcut.parse("cmd+shift+m")),
+                defaults: defaults
+            )
+        )
     }
 
     func testCreateRejectsMacOSDeadKeyShortcut() throws {
@@ -806,8 +833,9 @@ final class TransformsCommandTests: XCTestCase {
             }
         }
 
-        let exit = try XCTUnwrap(thrownError as? ExitCode)
-        XCTAssertEqual(exit.rawValue, 2)
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), cliValidationMisuseExitCode)
 
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
         XCTAssertEqual(object["ok"] as? Bool, false)
@@ -838,8 +866,9 @@ final class TransformsCommandTests: XCTestCase {
             }
         }
 
-        let exit = try XCTUnwrap(thrownError as? ExitCode)
-        XCTAssertEqual(exit, .failure)
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), .failure)
 
         let object = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
         XCTAssertEqual(object["ok"] as? Bool, false)

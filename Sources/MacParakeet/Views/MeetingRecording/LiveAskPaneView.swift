@@ -190,16 +190,11 @@ struct LiveAskPaneView: View {
     }
 
     private func telemetryGroup(for entry: QuickPrompt) -> String {
-        guard entry.isBuiltIn else { return "custom" }
-        guard let group = entry.groupLabel?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !group.isEmpty else {
-            return "ungrouped"
-        }
-        return group
+        entry.telemetryIdentity.group
     }
 
     private func telemetryLabel(for entry: QuickPrompt) -> String {
-        entry.isBuiltIn ? entry.label : "custom"
+        entry.telemetryIdentity.label
     }
 
     // MARK: - Messages

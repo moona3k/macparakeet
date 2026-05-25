@@ -9,12 +9,15 @@ import SwiftUI
 ///                    Warning text shown below.
 struct HotkeyRecorderView: View {
     enum ModifierCaptureMode {
+        case standard
         case generic
         case sideSpecific
     }
 
     @Binding var trigger: HotkeyTrigger
     var defaultTrigger: HotkeyTrigger = .fn
+    var displayLabelOverride: String? = nil
+    var defaultLabelOverride: String? = nil
     var additionalValidation: ((HotkeyTrigger) -> HotkeyTrigger.ValidationResult)? = nil
     /// Called with `true` when the user enters recording mode (just before
     /// the local NSEvent monitor is attached) and `false` when the matching
@@ -29,7 +32,7 @@ struct HotkeyRecorderView: View {
     /// Tracks held modifiers during recording for two-phase chord capture.
     @State private var pendingModifierComponents: [HotkeyTrigger.ModifierComponent] = []
     @State private var candidateModifierComponents: [HotkeyTrigger.ModifierComponent] = []
-    @State private var modifierCaptureMode: ModifierCaptureMode = .generic
+    @State private var modifierCaptureMode: ModifierCaptureMode = .standard
 
     var body: some View {
         VStack(alignment: .trailing, spacing: 4) {
@@ -63,13 +66,13 @@ struct HotkeyRecorderView: View {
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(.secondary)
             } else {
-                Text(trigger.formattedLabel)
+                Text(displayLabelOverride ?? trigger.formattedLabel)
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(.primary)
             }
 
             Button(trigger.isDisabled ? "Set Hotkey..." : "Change...") {
-                startRecording(modifierCaptureMode: .generic)
+                startRecording(modifierCaptureMode: .standard)
             }
             .parakeetAction(.secondary)
 
@@ -84,14 +87,18 @@ struct HotkeyRecorderView: View {
                     Divider()
                 }
 
-                Button("Reset to Default (\(Self.resetLabel(for: defaultTrigger)))") {
+                Button("Reset to Default (\(defaultLabelOverride ?? Self.resetLabel(for: defaultTrigger)))") {
                     resetToDefault()
                 }
                 .disabled(trigger == defaultTrigger)
 
                 Divider()
 
-                Button("Record Specific Modifier Side") {
+                Button("Record Either-Side Modifier") {
+                    startRecording(modifierCaptureMode: .generic)
+                }
+
+                Button("Record Specific-Side Modifier Chord") {
                     startRecording(modifierCaptureMode: .sideSpecific)
                 }
             } label: {
@@ -134,21 +141,22 @@ struct HotkeyRecorderView: View {
 
     /// Symbols for currently held modifiers in standard macOS order (⌃⌥⇧⌘).
     private var pendingModifierSymbols: String {
-        if modifierCaptureMode == .sideSpecific {
+        if modifierCaptureMode == .standard || modifierCaptureMode == .sideSpecific {
+            if pendingModifierComponents.map(\.modifierName) == ["fn"] { return "fn" }
             return HotkeyTrigger.modifierChord(components: pendingModifierComponents).shortSymbol
         }
 
-        let order = ["control", "option", "shift", "command"]
-        let symbols: [String: String] = ["control": "⌃", "option": "⌥", "shift": "⇧", "command": "⌘"]
+        let order = ["fn", "control", "option", "shift", "command"]
+        let symbols: [String: String] = ["fn": "fn", "control": "⌃", "option": "⌥", "shift": "⇧", "command": "⌘"]
         let names = pendingModifierComponents.map(\.modifierName)
-        return order.filter { names.contains($0) }
+        let parts = order.filter { names.contains($0) }
             .compactMap { symbols[$0] }
-            .joined()
+        return parts.joined(separator: names.contains("fn") ? "+" : "")
     }
 
     // MARK: - Recording Logic
 
-    private func startRecording(modifierCaptureMode: ModifierCaptureMode = .generic) {
+    private func startRecording(modifierCaptureMode: ModifierCaptureMode = .standard) {
         // Guard against double-start leaking the existing monitor
         if eventMonitor != nil { stopRecording() }
 
@@ -174,8 +182,11 @@ struct HotkeyRecorderView: View {
                     return nil
                 }
 
-                // Check if chord modifiers are held (Cmd, Ctrl, Option, Shift — excluding Fn/Caps Lock)
-                let heldModifiers = chordModifiersFromFlags(event.modifierFlags)
+                // Check if chord modifiers are held. Caps Lock remains excluded.
+                let heldModifiers = Self.chordModifierNames(
+                    flags: event.modifierFlags,
+                    pendingComponents: pendingModifierComponents
+                )
 
                 if !heldModifiers.isEmpty {
                     // Chord: modifier(s) + key
@@ -225,8 +236,12 @@ struct HotkeyRecorderView: View {
 
                 if let name = modifierName {
                     if name == "fn" {
-                        // Fn is bare modifier only — accept immediately on key-down
                         if event.modifierFlags.contains(.function) {
+                            pendingModifierComponents = [.init(modifierName: "fn")]
+                            candidateModifierComponents = pendingModifierComponents
+                        } else if candidateModifierComponents.contains(.init(modifierName: "fn")) {
+                            pendingModifierComponents = []
+                            candidateModifierComponents = []
                             switch combinedValidation(for: .fn) {
                             case .blocked(let msg):
                                 validationMessage = msg
@@ -298,14 +313,24 @@ struct HotkeyRecorderView: View {
     }
 
     /// Extract chord-eligible modifier names from NSEvent modifier flags.
-    /// Excludes Fn (bare modifier only per plan).
+    /// Caps Lock is intentionally excluded.
     private func chordModifiersFromFlags(_ flags: NSEvent.ModifierFlags) -> [String] {
-        var modifiers: [String] = []
-        if flags.contains(.control) { modifiers.append("control") }
-        if flags.contains(.option) { modifiers.append("option") }
-        if flags.contains(.shift) { modifiers.append("shift") }
-        if flags.contains(.command) { modifiers.append("command") }
-        return modifiers
+        Self.chordModifierNames(flags: flags, pendingComponents: [])
+    }
+
+    static func chordModifierNames(
+        flags: NSEvent.ModifierFlags,
+        pendingComponents: [HotkeyTrigger.ModifierComponent]
+    ) -> [String] {
+        let order = ["fn", "control", "option", "shift", "command"]
+        var names: Set<String> = []
+        if flags.contains(.function) { names.insert("fn") }
+        if flags.contains(.control) { names.insert("control") }
+        if flags.contains(.option) { names.insert("option") }
+        if flags.contains(.shift) { names.insert("shift") }
+        if flags.contains(.command) { names.insert("command") }
+        names.formUnion(pendingComponents.map(\.modifierName))
+        return order.filter { names.contains($0) }
     }
 
     private func modifierComponentsAfterFlagsChanged(
@@ -317,7 +342,7 @@ struct HotkeyRecorderView: View {
             return chordModifiersFromFlags(event.modifierFlags).map {
                 HotkeyTrigger.ModifierComponent(modifierName: $0)
             }
-        case .sideSpecific:
+        case .standard, .sideSpecific:
             return Self.sideSpecificModifierComponentsAfterFlagsChanged(
                 pending: pendingModifierComponents,
                 eventKeyCode: event.keyCode,
@@ -366,19 +391,22 @@ struct HotkeyRecorderView: View {
     }
 
     /// Map a modifier name + physical keyCode to a bare modifier trigger.
-    /// Generic capture preserves the legacy "either side" behavior. Side-specific capture
-    /// records the physical left/right key that was used during recording.
+    /// Generic capture preserves the legacy "either side" behavior. Standard
+    /// and side-specific capture record the physical left/right key used.
     static func bareModifierTrigger(
         for name: String,
         keyCode: UInt16,
         captureMode: ModifierCaptureMode
     ) -> HotkeyTrigger? {
-        let genericNames: Set<String> = ["control", "option", "shift", "command"]
+        let genericNames: Set<String> = ["fn", "control", "option", "shift", "command"]
         guard genericNames.contains(name) else { return nil }
+        if name == "fn" {
+            return .fn
+        }
         switch captureMode {
         case .generic:
             return HotkeyTrigger(kind: .modifier, modifierName: name, keyCode: nil)
-        case .sideSpecific:
+        case .standard, .sideSpecific:
             return HotkeyTrigger(kind: .modifier, modifierName: name, keyCode: nil, modifierKeyCode: keyCode)
         }
     }
@@ -395,7 +423,7 @@ struct HotkeyRecorderView: View {
                     HotkeyTrigger.ModifierComponent(modifierName: $0.modifierName)
                 }
             )
-        case .sideSpecific:
+        case .standard, .sideSpecific:
             trigger = HotkeyTrigger.modifierChord(components: components)
         }
 
@@ -411,7 +439,7 @@ struct HotkeyRecorderView: View {
         keyCode: UInt16,
         captureMode: ModifierCaptureMode
     ) -> HotkeyTrigger? {
-        guard captureMode == .generic else { return nil }
+        guard captureMode == .standard || captureMode == .generic else { return nil }
         return HotkeyTrigger.chord(modifiers: modifiers, keyCode: keyCode)
     }
 
@@ -443,7 +471,7 @@ struct HotkeyRecorderView: View {
         isRecording = false
         pendingModifierComponents = []
         candidateModifierComponents = []
-        modifierCaptureMode = .generic
+        modifierCaptureMode = .standard
         if let monitor = eventMonitor {
             NSEvent.removeMonitor(monitor)
             eventMonitor = nil

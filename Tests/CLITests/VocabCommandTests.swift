@@ -97,6 +97,92 @@ final class VocabCommandTests: XCTestCase {
         XCTAssertTrue(schema.json)
     }
 
+    func testVocabSnippetsEditUpdatesExistingSnippet() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
+        let createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+        let snippet = TextSnippet(
+            trigger: "my sig",
+            expansion: "Original",
+            isEnabled: false,
+            useCount: 4,
+            createdAt: createdAt,
+            updatedAt: createdAt
+        )
+        try repo.save(snippet)
+
+        let cmd = try VocabSnippetsCommand.EditSnippet.parse([
+            String(snippet.id.uuidString.prefix(8)),
+            "--trigger", "my signature",
+            "--expansion", "Best regards\\nDaniel",
+            "--database", dbPath,
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        let updated = try XCTUnwrap(try repo.fetch(id: snippet.id))
+        XCTAssertTrue(output.contains("Updated: Say \"my signature\""))
+        XCTAssertEqual(updated.id, snippet.id)
+        XCTAssertEqual(updated.trigger, "my signature")
+        XCTAssertEqual(updated.expansion, "Best regards\nDaniel")
+        XCTAssertEqual(updated.isEnabled, false)
+        XCTAssertEqual(updated.useCount, 4)
+        XCTAssertEqual(updated.createdAt, createdAt)
+        XCTAssertGreaterThan(updated.updatedAt, createdAt)
+    }
+
+    func testVocabSnippetsEditRejectsShortIDPrefix() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
+        let snippet = TextSnippet(trigger: "my sig", expansion: "Original")
+        try repo.save(snippet)
+
+        let cmd = try VocabSnippetsCommand.EditSnippet.parse([
+            String(snippet.id.uuidString.prefix(3)),
+            "--expansion", "Updated",
+            "--database", dbPath,
+        ])
+
+        do {
+            try await cmd.run()
+            XCTFail("Expected short ID prefix to be rejected")
+        } catch is ValidationError {
+            // Expected.
+        } catch {
+            XCTFail("Expected ValidationError, got \(type(of: error))")
+        }
+    }
+
+    func testVocabSnippetsDeletePreservesLegacyShortPrefixLookup() async throws {
+        let manager = try DatabaseManager(path: dbPath)
+        let repo = TextSnippetRepository(dbQueue: manager.dbQueue)
+        let snippet = TextSnippet(
+            id: try XCTUnwrap(UUID(uuidString: "a1111111-1111-1111-1111-111111111111")),
+            trigger: "my sig",
+            expansion: "Original"
+        )
+        let other = TextSnippet(
+            id: try XCTUnwrap(UUID(uuidString: "b2222222-2222-2222-2222-222222222222")),
+            trigger: "my address",
+            expansion: "123 Main"
+        )
+        try repo.save(snippet)
+        try repo.save(other)
+
+        let cmd = try VocabSnippetsCommand.DeleteSnippet.parse([
+            "a",
+            "--database", dbPath,
+        ])
+        let output = try await capturingStdout {
+            try await cmd.run()
+        }
+
+        XCTAssertTrue(output.contains("Deleted: \"my sig\""))
+        XCTAssertNil(try repo.fetch(id: snippet.id))
+        XCTAssertNotNil(try repo.fetch(id: other.id))
+    }
+
     // MARK: - Schema
 
     func testSchemaJSONIsParseable() async throws {

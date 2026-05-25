@@ -7,14 +7,16 @@ import MacParakeetViewModels
 struct FeedbackView: View {
     @Bindable var viewModel: FeedbackViewModel
 
-    @State private var hoveredCardTitle: String?
     @State private var hoveredCategory: FeedbackCategory?
     @State private var isDraggingScreenshot = false
+    @State private var isCommunityHovered = false
+    @FocusState private var messageFocused: Bool
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                categoryCard
+                pageHeader
+                categoryPicker
                 formCard
                 communityCard
             }
@@ -26,26 +28,51 @@ struct FeedbackView: View {
         }
     }
 
-    // MARK: - Category Selection
+    // MARK: - Page Header
 
-    private var categoryCard: some View {
-        feedbackCard(
-            title: "What would you like to share?",
-            subtitle: "Pick the type that best fits.",
-            icon: "tray.2"
+    private var pageHeader: some View {
+        HStack(alignment: .center, spacing: 12) {
+            // Brand glyph lock-up — the same coral-circle + Breath Wave mark
+            // that anchors the Dictation Stats hero, so this reads as one of
+            // the app's brand surfaces rather than a generic form.
+            ZStack {
+                Circle()
+                    .fill(DesignSystem.Colors.accent.opacity(0.12))
+                    .frame(width: 34, height: 34)
+                BreathWaveLogo(size: 22, tint: DesignSystem.Colors.accent)
+            }
+            .accessibilityHidden(true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Feedback")
+                    .font(DesignSystem.Typography.pageTitle)
+                Text("Found a bug, have an idea, or just want to say hi?")
+                    .font(DesignSystem.Typography.bodySmall)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, DesignSystem.Spacing.xs)
+    }
+
+    // MARK: - Category Picker
+
+    /// The three category tiles sit directly on the page — the choice *is* the
+    /// content, so it leads instead of hiding inside an icon-chip card. Selection
+    /// reads coral (check + border + tinted fill), matching the Vocabulary mode
+    /// picker rather than the old green check that fought the coral border.
+    private var categoryPicker: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.flexible(), spacing: DesignSystem.Spacing.md), count: 3),
+            spacing: DesignSystem.Spacing.md
         ) {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: DesignSystem.Spacing.md), count: 3),
-                spacing: DesignSystem.Spacing.md
-            ) {
-                ForEach(FeedbackCategory.allCases, id: \.rawValue) { category in
-                    categorySelectionCard(category)
-                }
+            ForEach(FeedbackCategory.allCases, id: \.rawValue) { category in
+                categoryTile(category)
             }
         }
     }
 
-    private func categorySelectionCard(_ category: FeedbackCategory) -> some View {
+    private func categoryTile(_ category: FeedbackCategory) -> some View {
         let isSelected = viewModel.category == category
         let isHovered = hoveredCategory == category
         return Button {
@@ -60,7 +87,7 @@ struct FeedbackView: View {
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 14))
-                            .foregroundStyle(DesignSystem.Colors.successGreen)
+                            .foregroundStyle(DesignSystem.Colors.accent)
                     }
                 }
 
@@ -94,22 +121,33 @@ struct FeedbackView: View {
                 hoveredCategory = hovering ? category : nil
             }
         }
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     // MARK: - Form
 
+    /// One calm container for the whole form — no repeated icon-chip header.
+    /// The first thing inside is the Message label, so the eye lands on the
+    /// only required field.
     private var formCard: some View {
-        feedbackCard(
-            title: "Details",
-            subtitle: "The more context, the better we can help.",
-            icon: "pencil.line"
-        ) {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
             if viewModel.submissionState == .success {
                 successBanner
             } else {
                 formContent
             }
         }
+        .padding(DesignSystem.Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .fill(DesignSystem.Colors.cardBackground)
+                .cardShadow(DesignSystem.Shadows.cardRest)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
+        )
     }
 
     private var successBanner: some View {
@@ -130,29 +168,38 @@ struct FeedbackView: View {
 
     private var formContent: some View {
         VStack(spacing: DesignSystem.Spacing.lg) {
-            // Message (hero — the only required field)
+            // Message — the hero, and the only required field. Coral focus ring
+            // and the same input material as every other field in the app.
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                 Text("Message")
                     .font(DesignSystem.Typography.body)
                     .fontWeight(.medium)
-                
+
                 ZStack(alignment: .topLeading) {
                     TextEditor(text: $viewModel.message)
                         .font(DesignSystem.Typography.body)
                         .scrollContentBackground(.hidden)
+                        .tint(DesignSystem.Colors.accent)
+                        .focused($messageFocused)
                         .padding(DesignSystem.Spacing.sm)
-                        .frame(minHeight: 100)
+                        .frame(minHeight: 120)
                         .background(
                             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                                .fill(DesignSystem.Colors.contentBackground)
+                                .fill(DesignSystem.Colors.surfaceElevated)
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                                .strokeBorder(DesignSystem.Colors.border.opacity(0.6), lineWidth: 0.5)
+                                .strokeBorder(
+                                    messageFocused
+                                        ? DesignSystem.Colors.accent.opacity(0.7)
+                                        : DesignSystem.Colors.border.opacity(0.7),
+                                    lineWidth: messageFocused ? 1.5 : 0.5
+                                )
                         )
-                    
+                        .animation(DesignSystem.Animation.hoverTransition, value: messageFocused)
+
                     if viewModel.message.isEmpty {
-                        Text("Describe the issue, share an idea, or just say hello...")
+                        Text(placeholderText)
                             .font(DesignSystem.Typography.body)
                             .foregroundStyle(.tertiary)
                             .padding(DesignSystem.Spacing.sm + 5)
@@ -161,22 +208,20 @@ struct FeedbackView: View {
                 }
             }
 
-            // Email + Screenshot side-by-side (both optional, visually secondary)
+            // Email + Screenshot — both optional, visually secondary, sharing
+            // the same input material so they read as a pair.
             HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-                // Email
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     Text("Email (optional)")
                         .font(DesignSystem.Typography.body)
                         .fontWeight(.medium)
-                    TextField("you@example.com", text: $viewModel.email)
-                        .textFieldStyle(.roundedBorder)
+                    ParakeetTextField(placeholder: "you@example.com", text: $viewModel.email)
                     Text("Provide your email if you need a direct response.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
                 }
                 .frame(maxWidth: .infinity)
 
-                // Screenshot
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.xs) {
                     Text("Screenshot (optional)")
                         .font(DesignSystem.Typography.body)
@@ -224,30 +269,30 @@ struct FeedbackView: View {
                     )
             }
             .font(DesignSystem.Typography.body)
-            .padding(.top, DesignSystem.Spacing.sm)
+            .tint(DesignSystem.Colors.accent)
 
             // Error banner
             if case .error(let errorMessage) = viewModel.submissionState {
                 errorBanner(errorMessage)
             }
 
-            // Action buttons
+            // Action buttons — one coral CTA on the surface.
             HStack {
                 Spacer()
-                Button("Cancel") {
+                Button("Clear") {
                     viewModel.resetForm()
                 }
                 .parakeetAction(.secondary)
                 .keyboardShortcut(.cancelAction)
 
-                Button(viewModel.submissionState == .submitting ? "Sending..." : "Send Feedback") {
+                Button(viewModel.submissionState == .submitting ? "Sending…" : "Send Feedback") {
                     viewModel.submit()
                 }
                 .parakeetAction(.primaryProminent)
                 .disabled(!viewModel.canSubmit)
                 .keyboardShortcut(.defaultAction)
             }
-            .padding(.top, DesignSystem.Spacing.sm)
+            .padding(.top, DesignSystem.Spacing.xs)
         }
     }
 
@@ -286,21 +331,22 @@ struct FeedbackView: View {
                     .font(.system(size: 13))
                     .foregroundStyle(isDraggingScreenshot ? DesignSystem.Colors.accent : .secondary)
                     .contentTransition(.symbolEffect(.replace))
-                Text("Attach...")
+                Text("Attach…")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(.secondary)
             }
             .frame(maxWidth: .infinity)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
             .background(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                     .fill(isDraggingScreenshot ? DesignSystem.Colors.accent.opacity(0.06) : DesignSystem.Colors.surfaceElevated)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                     .strokeBorder(
-                        isDraggingScreenshot ? DesignSystem.Colors.accent : DesignSystem.Colors.border,
-                        lineWidth: 0.5
+                        isDraggingScreenshot ? DesignSystem.Colors.accent : DesignSystem.Colors.border.opacity(0.7),
+                        lineWidth: isDraggingScreenshot ? 1.5 : 0.5
                     )
             )
         }
@@ -326,93 +372,102 @@ struct FeedbackView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, DesignSystem.Spacing.sm)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
         .background(
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
                 .fill(DesignSystem.Colors.surfaceElevated)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .strokeBorder(DesignSystem.Colors.border, lineWidth: 0.5)
+            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
+                .strokeBorder(DesignSystem.Colors.border.opacity(0.7), lineWidth: 0.5)
         )
     }
 
     // MARK: - Community
 
+    /// A community invitation, not fine print. The whole card is one clickable
+    /// destination, dressed in the same craft signature as the Dictation Stats
+    /// hero — diagonal-gradient material, a whisper-thin coral top-edge
+    /// highlight, shadow lift on hover — plus an external-arrow nudge for delight.
     private var communityCard: some View {
-        feedbackCard(
-            title: "Community",
-            subtitle: "See what others have reported, vote on ideas, or follow progress.",
-            icon: "person.2"
-        ) {
-            Button {
-                if let url = URL(string: "https://github.com/moona3k/macparakeet/issues") {
-                    NSWorkspace.shared.open(url)
-                }
-            } label: {
-                HStack(spacing: DesignSystem.Spacing.sm) {
-                    Image(systemName: "arrow.up.right.square")
-                        .font(.system(size: 13))
-                    Text("Open on GitHub")
-                        .font(DesignSystem.Typography.body)
-                }
+        Button {
+            if let url = URL(string: "https://github.com/moona3k/macparakeet/issues") {
+                NSWorkspace.shared.open(url)
             }
-            .parakeetAction(.secondary)
-        }
-    }
-
-    // MARK: - Reusable
-
-    private func feedbackCard<Content: View>(
-        title: String,
-        subtitle: String,
-        icon: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        let isHovered = hoveredCardTitle == title
-        return VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-            HStack(alignment: .top, spacing: DesignSystem.Spacing.sm) {
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
+        } label: {
+            HStack(spacing: DesignSystem.Spacing.md) {
+                Image(systemName: "person.2.fill")
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(DesignSystem.Colors.accent)
-                    .frame(width: 30, height: 30)
+                    .frame(width: 38, height: 38)
                     .background(
-                        RoundedRectangle(cornerRadius: 8)
+                        RoundedRectangle(cornerRadius: 10)
                             .fill(DesignSystem.Colors.accent.opacity(0.12))
                     )
+                    .accessibilityHidden(true)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(DesignSystem.Typography.sectionTitle)
-                    Text(subtitle)
+                    Text("Join the conversation on GitHub")
+                        .font(DesignSystem.Typography.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                    Text("See what's already reported and upvote the ideas you want next.")
                         .font(DesignSystem.Typography.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
-            }
 
-            content()
+                Spacer(minLength: DesignSystem.Spacing.md)
+
+                Image(systemName: "arrow.up.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(isCommunityHovered ? DesignSystem.Colors.accent : .secondary)
+                    .offset(x: isCommunityHovered ? 2 : 0, y: isCommunityHovered ? -2 : 0)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, DesignSystem.Spacing.lg)
+            .padding(.vertical, DesignSystem.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                DesignSystem.Colors.cardBackground,
+                                DesignSystem.Colors.surfaceElevated.opacity(0.45)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .cardShadow(isCommunityHovered ? DesignSystem.Shadows.cardHover : DesignSystem.Shadows.cardRest)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [
+                                DesignSystem.Colors.accent.opacity(isCommunityHovered ? 0.35 : 0.18),
+                                Color.primary.opacity(0.04)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        ),
+                        lineWidth: 0.5
+                    )
+            )
         }
-        .padding(DesignSystem.Spacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                .fill(DesignSystem.Colors.cardBackground)
-                .cardShadow(isHovered ? DesignSystem.Shadows.cardHover : DesignSystem.Shadows.cardRest)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.cardCornerRadius)
-                .strokeBorder(
-                    isHovered ? DesignSystem.Colors.accent.opacity(0.2) : DesignSystem.Colors.border.opacity(0.6),
-                    lineWidth: 0.5
-                )
-        )
+        .buttonStyle(.plain)
         .onHover { hovering in
             withAnimation(DesignSystem.Animation.hoverTransition) {
-                hoveredCardTitle = hovering ? title : nil
+                isCommunityHovered = hovering
             }
         }
+        .accessibilityLabel("Join the conversation on GitHub")
+        .accessibilityHint("Opens the MacParakeet issues page on GitHub in your browser")
     }
+
+    // MARK: - Category metadata
 
     private func categoryIcon(for category: FeedbackCategory) -> String {
         switch category {
@@ -427,6 +482,16 @@ struct FeedbackView: View {
         case .bug: return "Something isn't working right."
         case .featureRequest: return "An idea for improvement."
         case .other: return "General thoughts or questions."
+        }
+    }
+
+    /// Placeholder responds to the chosen category so the message box feels
+    /// like it's listening rather than showing one generic prompt.
+    private var placeholderText: String {
+        switch viewModel.category {
+        case .bug: return "What happened, and what did you expect instead?"
+        case .featureRequest: return "What would make MacParakeet better for you?"
+        case .other: return "What's on your mind?"
         }
     }
 }

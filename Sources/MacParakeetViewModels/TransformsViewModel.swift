@@ -491,7 +491,8 @@ private func reservedHotkeyConflict(
 ) -> TransformShortcutReservedHotkey? {
     let candidate = shortcut.hotkeyTrigger
     return reservedHotkeys.first { reserved in
-        !reserved.trigger.isDisabled && candidate.overlaps(with: reserved.trigger)
+        !reserved.trigger.isDisabled
+            && candidate.conflicts(with: reserved.trigger, otherMode: reserved.conflictMode)
     }
 }
 

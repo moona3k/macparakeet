@@ -38,6 +38,10 @@
 </p>
 
 <p align="center">
+  <img src="Assets/screenshots/youtube-transcript.png?v=1" width="720" alt="MacParakeet — YouTube transcript with synced video playback and timestamped transcript, summary, and chat tabs">
+</p>
+
+<p align="center">
   <img src="Assets/screenshots/dictations.png?v=4" width="720" alt="MacParakeet — Dictation Stats with streak heatmap and top apps">
 </p>
 
@@ -51,7 +55,7 @@
 
 ---
 
-MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The v0.6 release scope includes system-wide dictation, file/URL transcription, meeting recording, optional local WhisperKit recognition for languages Parakeet does not cover, and productized Transforms on `main`. All speech recognition happens on your Mac.
+MacParakeet runs NVIDIA's Parakeet TDT on Apple's Neural Engine via [FluidAudio](https://github.com/FluidInference/FluidAudio) CoreML. The current stable release includes system-wide dictation, file/URL transcription, meeting recording, meeting calendar support, optional local WhisperKit recognition for languages Parakeet does not cover, and Transforms for selected-text rewrites. All speech recognition happens on your Mac.
 
 ## Release status
 
@@ -59,18 +63,20 @@ The [notarized DMG](https://downloads.macparakeet.com/MacParakeet.dmg) is the st
 
 | Channel | Status | Includes |
 |---------|--------|----------|
-| Stable DMG | Recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, optional WhisperKit, exports, vocabulary, AI features |
-| `main` branch | Development | v0.6 release scope plus productized Transforms; hidden calendar auto-start code remains under `AppFeatures.calendarEnabled = false` |
+| Stable DMG | Recommended for normal use | Dictation, file/video/YouTube transcription, meeting recording, meeting calendar reminders and opt-in auto-start, Transforms, optional WhisperKit, exports, vocabulary, AI features |
+| `main` branch | Development | Latest stable release plus in-progress fixes and development changes, including beta media pause while dictating |
 
-Calendar reminders, auto-start, and auto-stop are implemented in source but hidden from the v0.6 product surface while they await end-to-end validation.
+Meeting calendar support is live in the stable DMG. MacParakeet reads upcoming meetings from the local macOS Calendar store through EventKit, can show reminders, and can optionally start a recording after a countdown. Auto-start defaults to `.off` and must be opted into; recordings still stop manually.
 
 ## What it does
 
-**Dictation** — Press a hotkey in any app, speak, text gets pasted. Hold for push-to-talk, double-tap for persistent recording. Works system-wide.
+**Dictation** — Press a hotkey in any app, speak, text gets pasted. Hold for push-to-talk, or tap the hands-free shortcut to start and stop longer dictations. Works system-wide. A beta setting can pause supported Now Playing media while you dictate and resume it when capture stops.
 
 **File transcription** — Drag audio or video files, or paste a YouTube URL. Full transcript with word-level timestamps, speaker labels, and export to 7 formats (TXT, Markdown, SRT, VTT, DOCX, PDF, JSON). Assign global hotkeys to trigger File or YouTube transcription from anywhere.
 
 **Meeting recording** — Record system audio and microphone together, see a live local transcript preview, take notes during the call, then save the finalized transcript to the library with export, prompts, and chat.
+
+**Meeting calendar support** — Grant Calendar access to get local reminders for upcoming meetings or opt into auto-start. MacParakeet uses calendars already configured in macOS Calendar through EventKit; it does not add Google or Microsoft sign-ins, and recordings still stop manually.
 
 **Text cleanup** — Filler word removal, custom word replacements, text snippets with triggers. Deterministic pipeline, no LLM needed.
 
@@ -209,11 +215,10 @@ All speech recognition runs locally. Parakeet uses the Neural Engine; the option
 
 ## Contributing
 
-- **Report bugs** — [Open an issue](https://github.com/moona3k/macparakeet/issues)
-- **Submit a PR** — Fork, make changes, `swift test`, open a PR
+- **Report bugs** — [Open an issue](https://github.com/moona3k/macparakeet/issues) with steps to reproduce and relevant logs or screenshots.
+- **Discuss new work first** — For features or behavior changes, open an issue before starting a PR so we can agree on scope and product fit.
+- **Submit scoped PRs** — Once the issue direction is clear, fork, make the scoped changes, run `swift test`, and link the issue in the PR.
 - **Read the specs** — Architecture decisions and feature specs live in `spec/`
-
-For larger changes, open an issue first.
 
 ## Support
 

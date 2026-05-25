@@ -135,10 +135,15 @@ struct MeetingRowCard<MenuContent: View>: View {
 
     // MARK: - Derived display values
 
+    /// A meeting carries a real, user-editable title (`fileName`) — the same
+    /// value shown in the detail header and set by the rename pencil, defaulting
+    /// to "Meeting <date>" at recording time. The Meetings list mirrors that
+    /// title so the row matches the detail view and honors renames. The
+    /// transcript-content-derived `derivedTitle` is only a snippet/export aid
+    /// for meetings (it still drives titles for file/YouTube grid rows).
     private var displayedTitle: String {
-        if let derived = transcription.derivedTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !derived.isEmpty {
-            return derived
-        }
+        let name = transcription.fileName.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !name.isEmpty { return name }
         if transcription.status == .processing { return "Transcribing…" }
         return transcription.fileName
     }

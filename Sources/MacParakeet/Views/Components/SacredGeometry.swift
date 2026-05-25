@@ -205,8 +205,8 @@ struct MerkabaDissipateView: View {
 // MARK: - Breathing Ring (Ready / Waiting)
 
 /// Gentle breath indicator for the dictation overlay's ephemeral `.ready`
-/// state — shown briefly (~800ms) between the first Fn tap and the double-tap
-/// window closing. A soft white ring inhales around a warm coral nexus: the
+/// state — shown briefly (~800ms) while dictation waits for a gesture to
+/// become active. A soft white ring inhales around a warm coral nexus: the
 /// smallest, lightest member of the sacred-geometry family, signalling
 /// "listening, poised, waiting" without competing with the active Merkaba
 /// (processing) or the dissolving Merkaba (no speech).

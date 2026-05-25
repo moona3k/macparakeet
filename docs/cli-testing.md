@@ -110,9 +110,10 @@ scripts; the alias remains documented here only while the CLI still exposes it.
 > a few newer meeting-note commands also accept `--json` for agent workflows.
 
 > **Telemetry convention**: CLI telemetry uses the same opt-out preference as
-> the GUI and does not change stdout/stderr contracts. `transcribe` emits a
-> privacy-safe `cli_operation` event with command, outcome, duration, output
-> format, coarse input kind, exit code, and low-cardinality error type. Disable
+> the GUI and does not change stdout/stderr contracts. After argument parsing
+> succeeds, the root runner emits one privacy-safe `cli_operation` event with
+> command, subcommand, outcome, duration, exit code, and low-cardinality error
+> type. `transcribe` also includes coarse input kind and output format. Disable
 > with `MACPARAKEET_TELEMETRY=0`, `DO_NOT_TRACK=1`, or
 > `macparakeet-cli config set telemetry off`.
 
@@ -124,7 +125,9 @@ Uses app defaults for processing mode, speech engine, speaker detection, and
 YouTube audio retention. This is the best CLI mode for checking GUI behavior
 without controlling the GUI, but it is not full GUI parity: the CLI does not
 exercise GUI-only windowing, playback, hotkeys, PDF/DOCX export, or optional
-AI formatter output.
+AI formatter output. Bare `transcribe` already follows the app-default speaker
+detection setting; the explicit flag below keeps the behavior visible in test
+commands.
 
 ```bash
 swift run macparakeet-cli transcribe "<FILE_OR_YOUTUBE_URL>" \
@@ -188,17 +191,18 @@ auto-detect; the saved Whisper language is only used by `--engine app-default`.
 
 ### Speaker Diarization
 
-Speaker detection runs by default for existing CLI compatibility. Disable with
-either the explicit option or the legacy alias:
+Speaker detection follows the saved app/CLI preference by default. A fresh
+preference store resolves to `off`, matching the GUI default. Pin a run with
+the explicit option, or use the legacy alias to force it off:
 
 ```bash
+swift run macparakeet-cli transcribe "<FILE>" --speaker-detection on
 swift run macparakeet-cli transcribe "<FILE>" --speaker-detection off
 swift run macparakeet-cli transcribe "<FILE>" --no-diarize
 ```
 
-Use `--speaker-detection app-default` when validating the GUI's saved speaker
-detection preference. `config get speaker-detection` reports that saved
-app-default value, not the no-flag CLI default.
+`config get speaker-detection` reports the saved app-default value used by
+bare `transcribe` and by `--speaker-detection app-default`.
 
 ### Shared Config
 
@@ -364,7 +368,7 @@ swift run macparakeet-cli meetings export <meeting> --format md --stdout
 
 ## Calendar
 
-Calendar commands inspect the same EventKit pipeline used by hidden calendar auto-start/reminder code. The v0.6 app surfaces are hidden behind `AppFeatures.calendarEnabled = false`, so this CLI surface is mainly for headless verification. Calendar permission must already be granted through a build with the GUI calendar permission surface enabled, a previous grant, or macOS Settings.
+Calendar commands inspect the same EventKit pipeline used by the calendar auto-start/reminder code, which is enabled (`AppFeatures.calendarEnabled = true`). This CLI surface remains useful for headless verification. Calendar permission must already be granted through the GUI calendar permission surface, a previous grant, or macOS Settings — the CLI is a separate TCC identity and won't prompt on its own.
 
 ```bash
 swift run macparakeet-cli calendar upcoming --days 1 --filter link
@@ -406,6 +410,7 @@ swift run macparakeet-cli vocab words delete <ID>
 
 swift run macparakeet-cli vocab snippets list
 swift run macparakeet-cli vocab snippets add "my signature" "Best regards, Daniel"
+swift run macparakeet-cli vocab snippets edit <ID> --trigger "my signature" --expansion "Best regards, Daniel Moon"
 swift run macparakeet-cli vocab snippets delete <ID>
 ```
 
@@ -413,7 +418,8 @@ swift run macparakeet-cli vocab snippets delete <ID>
 
 All LLM commands require `--provider`; `--api-key` is required only for providers
 that need one. Ollama, LM Studio, OpenAI-compatible local endpoints, and Local
-CLI can run without an API key.
+CLI can run without an API key; LM Studio also accepts an optional API token
+when its server-side authentication is enabled.
 
 ### Supported Providers
 
@@ -425,7 +431,7 @@ CLI can run without an API key.
 | `gemini` | gemini-2.5-flash | Yes |
 | `openrouter` | anthropic/claude-sonnet-4 | Yes |
 | `ollama` | qwen3.5:4b | No (local) |
-| `lmstudio` | user-selected in LM Studio | No (local) |
+| `lmstudio` | user-selected in LM Studio | Optional (local) |
 | `cli` | N/A (tool decides) | No (tool manages auth) |
 
 ### Test Connection
@@ -474,6 +480,9 @@ swift run macparakeet-cli llm test-connection --provider lmstudio --model qwen3.
 
 # Summarize via LM Studio's OpenAI-compatible endpoint
 swift run macparakeet-cli llm summarize transcript.txt --provider lmstudio --model qwen3.5-27b
+
+# Use an LM Studio API token when Require Authentication is enabled
+swift run macparakeet-cli llm summarize transcript.txt --provider lmstudio --model qwen3.5-27b --api-key-env LM_API_TOKEN
 ```
 
 ### Common Options

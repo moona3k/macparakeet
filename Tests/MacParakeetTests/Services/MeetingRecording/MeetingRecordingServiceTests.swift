@@ -402,6 +402,9 @@ final class MeetingRecordingServiceTests: XCTestCase {
         XCTAssertTrue(log.contains("system_chunks_low_signal_dropped=0"))
         XCTAssertTrue(log.contains("interrupted_sources=none"))
         XCTAssertTrue(log.contains("capture_failed=false"))
+        XCTAssertTrue(log.contains("meeting_echo_suppression_summary session=\(output.sessionID.uuidString)"))
+        XCTAssertTrue(log.contains("processor=passthrough"))
+        XCTAssertTrue(log.contains("loaded=true"))
     }
 
     func testCancelRecordingDeletesLockAndSessionFolder() async throws {
@@ -823,6 +826,67 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let counts = await sttClient.callCounts
         XCTAssertGreaterThanOrEqual(counts.microphone, 1)
         XCTAssertEqual(counts.system, 0)
+    }
+
+    func testLivePreviewUsesConditionedMicrophoneSamplesForSignalGate() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient,
+            micConditionerFactory: {
+                ZeroingMicConditioner()
+            }
+        )
+
+        try await service.startRecording()
+
+        let micBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            micBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let counts = await sttClient.callCounts
+        XCTAssertEqual(
+            counts.microphone,
+            0,
+            "live mic STT should see conditioned mic samples; the zeroed cleaned stream must be dropped as low signal"
+        )
+        XCTAssertNotNil(output.sourceAlignment.microphone, "raw mic source audio should still be retained")
+    }
+
+    func testStopRecordingWritesEchoSuppressionDiagnosticsForInjectedConditioner() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            micConditionerFactory: {
+                ZeroingMicConditioner()
+            }
+        )
+
+        try await service.startRecording()
+        let micBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            micBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let log = try String(contentsOf: AudioCaptureDiagnostics.diagnosticLogURL(), encoding: .utf8)
+        XCTAssertTrue(log.contains("meeting_echo_suppression_summary session=\(output.sessionID.uuidString)"))
+        XCTAssertTrue(log.contains("processor=zeroing-test"))
+        XCTAssertTrue(log.contains("processed_frames=1"))
+        XCTAssertTrue(log.contains("missing_reference_frames=1"))
     }
 
     func testSystemOnlyCaptureProducesSystemSourceOnly() async throws {
@@ -1255,6 +1319,168 @@ final class MeetingRecordingServiceTests: XCTestCase {
         let isPaused = await service.isPaused
         XCTAssertEqual(captureMode, .full)
         XCTAssertFalse(isPaused)
+    }
+
+    func testMicrophoneMuteWritesSilenceAndKeepsSystemAudioLive() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let audioConverter = MockMeetingAudioFileConverter()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: audioConverter,
+            sttTranscriber: sttClient,
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        let muteState = await service.setMicrophoneMuted(true)
+        XCTAssertEqual(muteState, MeetingMicrophoneMuteState(isMuted: true, canMute: true))
+
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
+        let systemBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
+        ))
+        await captureService.yield(.systemBuffer(
+            systemBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
+        ))
+        try await Task.sleep(for: .milliseconds(80))
+
+        let micLevel = await service.micLevel
+        let systemLevel = await service.systemLevel
+        XCTAssertEqual(micLevel, 0)
+        XCTAssertGreaterThan(systemLevel, 0)
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertGreaterThan(output.sourceAlignment.microphone?.writtenFrameCount ?? 0, 0)
+        XCTAssertGreaterThan(output.sourceAlignment.system?.writtenFrameCount ?? 0, 0)
+        let counts = await sttClient.callCounts
+        XCTAssertEqual(counts.microphone, 0)
+        XCTAssertGreaterThanOrEqual(counts.system, 1)
+
+        await service.completeTranscription(for: output)
+    }
+
+    func testMicrophoneMutePreservesQueuedPreMuteAudioByHostTime() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: sttClient,
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        let preMuteHostTime = AVAudioTime.hostTime(
+            forSeconds: max(0, ProcessInfo.processInfo.systemUptime - 1)
+        )
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: preMuteHostTime)
+        ))
+
+        await service.setMicrophoneMuted(true)
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        XCTAssertEqual(output.sourceAlignment.microphone?.firstHostTime, preMuteHostTime)
+        let counts = await sttClient.callCounts
+        XCTAssertGreaterThanOrEqual(counts.microphone, 1)
+
+        await service.completeTranscription(for: output)
+    }
+
+    func testMicrophoneMuteUnmuteAllowsLaterMicAudio() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let sttClient = CountingMeetingSTTClient()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: sttClient,
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        await service.setMicrophoneMuted(true)
+
+        let mutedBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.5))
+        await captureService.yield(.microphoneBuffer(
+            mutedBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.1))
+        ))
+        try await Task.sleep(for: .milliseconds(20))
+
+        await service.setMicrophoneMuted(false)
+
+        let unmutedBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 80_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            unmutedBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: ProcessInfo.processInfo.systemUptime + 0.3))
+        ))
+        try await Task.sleep(for: .milliseconds(80))
+
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let counts = await sttClient.callCounts
+        XCTAssertGreaterThanOrEqual(counts.microphone, 1)
+
+        await service.completeTranscription(for: output)
+    }
+
+    func testMicrophoneMuteIsUnavailableForSystemOnlyRecordings() async throws {
+        let captureService = MockMeetingAudioCaptureService(
+            startReport: MeetingAudioCaptureStartReport(sourceMode: .systemOnly)
+        )
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording(sourceMode: .systemOnly)
+        defer {
+            Task { await service.cancelRecording() }
+        }
+
+        let canMute = await service.canMuteMicrophone
+        XCTAssertFalse(canMute)
+        let muteState = await service.setMicrophoneMuted(true)
+        XCTAssertEqual(muteState, MeetingMicrophoneMuteState(isMuted: false, canMute: false))
+        let isMuted = await service.isMicrophoneMuted
+        XCTAssertFalse(isMuted)
+    }
+
+    func testMicrophoneMuteStateClearsAfterCaptureFailure() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            lockFileStore: RecordingLockFileStore()
+        )
+
+        try await service.startRecording()
+        let mutedState = await service.setMicrophoneMuted(true)
+        XCTAssertEqual(mutedState, MeetingMicrophoneMuteState(isMuted: true, canMute: true))
+
+        await captureService.yield(.error(.captureRuntimeFailure("simulated runtime failure")))
+        try await Task.sleep(for: .milliseconds(50))
+
+        let failedState = await service.microphoneMuteState
+        XCTAssertEqual(failedState, MeetingMicrophoneMuteState(isMuted: false, canMute: false))
+        let setStateAfterFailure = await service.setMicrophoneMuted(false)
+        XCTAssertEqual(setStateAfterFailure, MeetingMicrophoneMuteState(isMuted: false, canMute: false))
+
+        await service.cancelRecording()
     }
 
     func testPauseAndResumeAreNoOpsWhenNotRecording() async throws {
@@ -2105,6 +2331,45 @@ private actor CountingMeetingSTTClient: STTClientProtocol {
     func clearModelCache() async {}
 
     func shutdown() async {}
+}
+
+private final class ZeroingMicConditioner: MicConditioning, @unchecked Sendable {
+    private(set) var diagnostics = MeetingEchoSuppressionDiagnostics(
+        processorName: "zeroing-test",
+        loaded: true,
+        micFrames: 0,
+        processedFrames: 0,
+        rawFallbackFrames: 0,
+        fullReferenceFrames: 0,
+        partialReferenceFrames: 0,
+        missingReferenceFrames: 0,
+        processingFailures: 0
+    )
+
+    func condition(microphone: [Float], speaker: [Float], hasSpeakerReference: Bool) -> [Float] {
+        diagnostics.micFrames += 1
+        diagnostics.processedFrames += 1
+        if hasSpeakerReference {
+            diagnostics.fullReferenceFrames += 1
+        } else {
+            diagnostics.missingReferenceFrames += 1
+        }
+        return [Float](repeating: 0, count: microphone.count)
+    }
+
+    func reset() {
+        diagnostics = MeetingEchoSuppressionDiagnostics(
+            processorName: "zeroing-test",
+            loaded: true,
+            micFrames: 0,
+            processedFrames: 0,
+            rawFallbackFrames: 0,
+            fullReferenceFrames: 0,
+            partialReferenceFrames: 0,
+            missingReferenceFrames: 0,
+            processingFailures: 0
+        )
+    }
 }
 
 private actor LeasingMeetingSTTClient: STTClientProtocol, SpeechEngineRoutedTranscribing, SpeechEngineSessionManaging {

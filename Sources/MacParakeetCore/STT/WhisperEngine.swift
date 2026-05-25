@@ -112,6 +112,10 @@ public actor WhisperEngine: STTTranscribing {
     private let modelVariant: String
     private let defaultLanguage: String?
     private let downloadBase: URL
+    /// Store the optimized-flag write lands in; defaults to `.standard` to match
+    /// every production caller (runtime + CLI). Injected so the write-path and
+    /// the VM's read-path are coupled by construction, not by convention.
+    private let defaults: UserDefaults
     private let transcriptionPermit = AsyncPermit()
 
     #if canImport(WhisperKit)
@@ -122,11 +126,13 @@ public actor WhisperEngine: STTTranscribing {
     public init(
         model: String = WhisperEngine.defaultModelVariant,
         language: String? = nil,
-        downloadBase: URL? = nil
+        downloadBase: URL? = nil,
+        defaults: UserDefaults = .standard
     ) {
         self.modelVariant = Self.normalizeModelVariant(model)
         self.defaultLanguage = SpeechEnginePreference.normalizeLanguage(language)
         self.downloadBase = downloadBase ?? Self.defaultDownloadBase
+        self.defaults = defaults
     }
 
     public static func make(
@@ -141,17 +147,10 @@ public actor WhisperEngine: STTTranscribing {
     }
 
     public static func normalizeModelVariant(_ model: String) -> String {
-        let normalized = SpeechEnginePreference.normalizeModelVariant(model) ?? defaultModelVariant
-        if normalized.hasSuffix("-turbo") {
-            return String(normalized.dropLast("-turbo".count)) + "_turbo"
-        }
-        if normalized.contains("-turbo_") {
-            return normalized.replacingOccurrences(of: "-turbo_", with: "_turbo_")
-        }
-        if normalized.contains("-turbo-") {
-            return normalized.replacingOccurrences(of: "-turbo-", with: "_turbo_")
-        }
-        return normalized
+        // Turbo hyphen/underscore folding now lives in the shared
+        // `SpeechEnginePreference.normalizeModelVariant` so the engine, the
+        // stored preference, and the optimized-flag key all agree on one id.
+        SpeechEnginePreference.normalizeModelVariant(model) ?? defaultModelVariant
     }
 
     public static func isModelDownloaded(
@@ -306,6 +305,12 @@ public actor WhisperEngine: STTTranscribing {
                 download: false
             ))
             isLoaded = true
+            // Single chokepoint for "this variant compiled successfully on this
+            // Mac" — fires for every caller (Settings switch, onboarding,
+            // first meeting use, CLI). The UI reads this to show cold vs warm
+            // status. Only reached on a real compile, so it never fires in
+            // unit tests (which lack a downloaded model + WhisperKit).
+            SpeechEnginePreference.markWhisperOptimized(variant: variant, defaults: defaults)
             let duration = Observability.durationSeconds(since: startedAt)
             logger.notice("whisper_model_prepare_complete model=\(variant, privacy: .public) duration_s=\(duration, privacy: .public)")
             AudioCaptureDiagnostics.append(

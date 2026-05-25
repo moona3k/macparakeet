@@ -129,7 +129,9 @@ final class TransformSpikeProgressPanelController {
             context.timingFunction = CAMediaTimingFunction(name: .easeIn)
             panelRef.animator().alphaValue = 0
         }, completionHandler: {
-            panelRef.orderOut(nil)
+            MainActor.assumeIsolated {
+                panelRef.orderOut(nil)
+            }
         })
     }
 

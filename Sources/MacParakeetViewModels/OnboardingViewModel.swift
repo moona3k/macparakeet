@@ -104,9 +104,9 @@ public final class OnboardingViewModel {
     private let requiredDiarizationSetupDiskBytes: Int64 = 512 * 1_024 * 1_024
     private let requiredWhisperSetupDiskBytes: Int64 = 2 * 1_024 * 1_024 * 1_024
 
-    public static let onboardingCompletedKey = "onboarding.completedAtISO"
-    public static let meetingRecordingSkippedKey = "onboarding.meetingRecordingSkipped"
-    public static let calendarSkippedKey = "onboarding.calendarSkipped"
+    public nonisolated static let onboardingCompletedKey = "onboarding.completedAtISO"
+    public nonisolated static let meetingRecordingSkippedKey = "onboarding.meetingRecordingSkipped"
+    public nonisolated static let calendarSkippedKey = "onboarding.calendarSkipped"
 
     public init(
         permissionService: PermissionServiceProtocol,
@@ -340,15 +340,15 @@ public final class OnboardingViewModel {
         Telemetry.send(.permissionPrompted(permission: .calendar))
         Task {
             let granted = await CalendarService.shared.requestPermission()
-            if granted {
-                await CalendarNotificationAuthorization.requestIfNeeded()
-            }
+            let notificationsGranted = granted
+                ? await CalendarNotificationAuthorization.requestIfNeeded()
+                : false
             await MainActor.run {
                 self.isBusy = false
                 self.calendarPermissionGranted = granted
                 if granted {
                     Telemetry.send(.permissionGranted(permission: .calendar))
-                    self.applyCalendarMode(.notify)
+                    self.applyCalendarMode(notificationsGranted ? .notify : .off)
                 } else {
                     Telemetry.send(.permissionDenied(permission: .calendar))
                 }
@@ -652,6 +652,7 @@ public final class OnboardingViewModel {
 
         let previousPreference = SpeechEnginePreference.current(defaults: defaults)
         let operationContext = Observability.childOperationContext()
+        let switchWasCold = SpeechEnginePreference.isColdSwitch(to: .whisper, defaults: defaults)
         engineState = .working(message: "Preparing Whisper for this Mac...", progress: nil)
 
         do {
@@ -680,7 +681,8 @@ public final class OnboardingViewModel {
                 outcome: .success,
                 durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                 blockedReason: nil,
-                errorType: nil
+                errorType: nil,
+                wasCold: switchWasCold
             ))
         } catch {
             let errorType = TelemetryErrorClassifier.classify(error)
@@ -692,7 +694,8 @@ public final class OnboardingViewModel {
                 outcome: error is CancellationError ? .cancelled : .failure,
                 durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                 blockedReason: Self.telemetrySpeechEngineSwitchBlockedReason(for: error),
-                errorType: errorType
+                errorType: errorType,
+                wasCold: switchWasCold
             ))
             throw error
         }

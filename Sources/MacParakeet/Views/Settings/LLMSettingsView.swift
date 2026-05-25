@@ -29,7 +29,7 @@ struct LLMSettingsView: View {
             if viewModel.selectedProviderID != nil {
                 Divider()
 
-                // API key (hidden for local providers)
+                // API key (hidden for providers that cannot use one)
                 if viewModel.supportsAPIKey {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: 2) {
@@ -44,7 +44,7 @@ struct LLMSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                         Spacer(minLength: DesignSystem.Spacing.md)
-                        SecureField("sk-...", text: $viewModel.apiKeyInput)
+                        SecureField(viewModel.apiKeyPlaceholder, text: $viewModel.apiKeyInput)
                             .textFieldStyle(.roundedBorder)
                             .frame(width: 220)
                     }
@@ -182,7 +182,7 @@ struct LLMSettingsView: View {
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text("AI for summaries and chat")
+                Text("AI for summaries, chat, meeting Ask, and Transforms")
                     .font(DesignSystem.Typography.body.weight(.semibold))
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
                 Text(setupStatusCopy(for: status))
@@ -265,7 +265,7 @@ struct LLMSettingsView: View {
     private func setupStatusCopy(for status: LLMSettingsViewModel.AISetupStatus) -> String {
         switch status {
         case .setUpNeeded:
-            return "Choose how MacParakeet should run AI features. Transcription still works without this."
+            return "Choose how MacParakeet should run AI features. Transcription, dictation, and meeting recording still work without this."
         case .ready(let displayName):
             return "Ready: using \(displayName)."
         case .cannotConnect(let displayName, let message):
@@ -501,7 +501,7 @@ struct LLMSettingsView: View {
                 .foregroundStyle(isLocal ? DesignSystem.Colors.successGreen : DesignSystem.Colors.warningAmber)
 
             Text(isLocal
-                 ? "Transcript text stays on this Mac."
+                 ? "Transcript text is sent only to your local AI endpoint."
                  : isCLI
                     ? "Runs a command on this Mac. The command may contact its own service."
                     : "Transcription stays local. Transcript text is sent only when you run an AI action.")

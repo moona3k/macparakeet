@@ -3,8 +3,8 @@ import MacParakeetViewModels
 import SwiftUI
 
 /// Calendar auto-start section. Slotted into Settings between Meeting
-/// Recording and Transcription. Phase D — only `.off` and `.notify` modes
-/// are exposed; `.autoStart` ships in Phase E (ADR-017).
+/// Recording and Transcription. Exposes all three modes — `.off`, `.notify`,
+/// and `.autoStart` per ADR-017 Phases 1+2.
 struct CalendarSettingsView: View {
     @Bindable var viewModel: SettingsViewModel
     @State private var availableCalendars: [CalendarInfo] = []
@@ -20,15 +20,14 @@ struct CalendarSettingsView: View {
                 modeRow
 
                 if viewModel.calendarAutoStartMode != .off {
+                    if !viewModel.calendarNotificationsAuthorized {
+                        Divider()
+                        notificationWarningRow
+                    }
                     Divider()
                     reminderLeadRow
                     Divider()
                     triggerFilterRow
-
-                    if viewModel.calendarAutoStartMode == .autoStart {
-                        Divider()
-                        autoStopRow
-                    }
 
                     if !availableCalendars.isEmpty {
                         Divider()
@@ -37,8 +36,46 @@ struct CalendarSettingsView: View {
                 }
             }
         }
-        .onAppear { reloadCalendars() }
+        .onAppear {
+            reloadCalendars()
+            refreshNotificationAuth()
+        }
         .onChange(of: viewModel.calendarPermissionGranted) { _, _ in reloadCalendars() }
+        .onChange(of: viewModel.calendarAutoStartMode) { _, _ in refreshNotificationAuth() }
+    }
+
+    // MARK: - Notification permission warning
+
+    /// macOS notifications are a separate TCC scope from Calendar. When they're
+    /// off, `.notify` reminders (and the `.autoStart` pre-meeting reminder) are
+    /// silently dropped — surface that instead of letting the feature look on
+    /// but do nothing.
+    @ViewBuilder
+    private var notificationWarningRow: some View {
+        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+            // Match the established warning treatment used for provider
+            // validation and hotkey conflicts.
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(DesignSystem.Colors.warningAmber)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Notifications are off")
+                    .font(DesignSystem.Typography.body)
+                Text("Calendar reminders won't appear until you allow MacParakeet notifications in System Settings.")
+                    .font(DesignSystem.Typography.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: DesignSystem.Spacing.md)
+            Button("Open System Settings") {
+                viewModel.openNotificationSystemSettings()
+            }
+            .controlSize(.small)
+        }
+    }
+
+    private func refreshNotificationAuth() {
+        Task { await viewModel.refreshCalendarNotificationAuthorization() }
     }
 
     // MARK: - Permission
@@ -177,27 +214,6 @@ struct CalendarSettingsView: View {
             .labelsHidden()
             .pickerStyle(.menu)
             .frame(minWidth: 200)
-        }
-    }
-
-    // MARK: - Auto-stop toggle (only when mode == .autoStart)
-
-    @ViewBuilder
-    private var autoStopRow: some View {
-        HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Stop recording at meeting end")
-                    .font(DesignSystem.Typography.body)
-                Text("Shows a 30-second countdown when the meeting is scheduled to end. Click \"Keep Recording\" if it runs over.")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer(minLength: DesignSystem.Spacing.md)
-            Toggle("", isOn: $viewModel.calendarAutoStopEnabled)
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .accessibilityLabel("Stop recording at meeting end")
-                .accessibilityHint("Shows a 30-second countdown when the meeting is scheduled to end")
         }
     }
 

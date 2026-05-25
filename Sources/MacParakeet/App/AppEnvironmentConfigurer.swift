@@ -28,6 +28,11 @@ final class AppEnvironmentConfigurer {
         let onHotkeyConflict: (HotkeyTrigger, [HotkeyTrigger]) -> Void
         let onRecoverPendingMeetingRecordings: () -> Void
         let isHotkeyRecordingActive: () -> Bool
+        /// True while the onboarding window is showing. Used to gate the real
+        /// dictation flow so a hotkey press during onboarding (e.g. the "Learn
+        /// the Hotkey" rehearsal, or a returning user whose taps are armed)
+        /// can never start a real, model-less dictation.
+        let isOnboardingVisible: () -> Bool
     }
 
     private let transcriptionViewModel: TranscriptionViewModel
@@ -112,6 +117,7 @@ final class AppEnvironmentConfigurer {
             snippetRepo: env.snippetRepo,
             sttClient: env.sttScheduler,
             speechEngineSwitcher: env.sttScheduler,
+            speechEngineSwitchAvailabilityProvider: env.sttScheduler,
             meetingRecoveryService: env.meetingRecordingRecoveryService,
             sharedMicStream: env.sharedMicStream
         )
@@ -197,6 +203,13 @@ final class AppEnvironmentConfigurer {
             self?.transcriptionViewModel.handleGenerationCompleted(generationID, promptResultID: promptResultID)
         }
 
+        promptResultsViewModel.onGenerationFailed = { [weak self] generationID, replacingPromptResultID in
+            self?.transcriptionViewModel.handleGenerationFailed(
+                generationID,
+                replacingPromptResultID: replacingPromptResultID
+            )
+        }
+
         promptResultsViewModel.onDeletedPromptResult = { [weak self] promptResultID in
             self?.transcriptionViewModel.handlePromptResultDeleted(promptResultID)
         }
@@ -215,6 +228,13 @@ final class AppEnvironmentConfigurer {
         }
 
         let coordinatorRefs = CoordinatorRefs()
+        let mediaPauseCoordinator = DictationMediaPauseCoordinator(
+            settingsViewModel: settingsViewModel,
+            mediaController: env.systemMediaController,
+            isMeetingRecordingActive: {
+                coordinatorRefs.meeting?.isMeetingRecordingActive == true
+            }
+        )
 
         let dictationCoordinator = DictationFlowCoordinator(
             dictationService: env.dictationService,
@@ -224,9 +244,15 @@ final class AppEnvironmentConfigurer {
             settingsViewModel: settingsViewModel,
             sttRuntime: env.sttRuntime,
             runtimePreferences: env.runtimePreferences,
+            permissionService: env.permissionService,
+            mediaPauseCoordinator: mediaPauseCoordinator,
             shouldSuppressIdlePill: {
                 coordinatorRefs.meeting?.isMeetingRecordingActive == true
             },
+            // Gate every dictation start (hotkey *and* idle-pill click) while
+            // onboarding is up: the model isn't downloaded until a later step,
+            // and the "Learn the Hotkey" step runs its own no-STT rehearsal.
+            isStartSuppressed: { callbacks.isOnboardingVisible() },
             onMenuBarIconUpdate: { _ in callbacks.onMenuBarIconUpdate() },
             onHistoryReload: { [weak self] in self?.historyViewModel.loadDictations() },
             onPresentEntitlementsAlert: callbacks.onPresentEntitlementsAlert
@@ -306,7 +332,7 @@ final class AppEnvironmentConfigurer {
         dictationCoordinator.showIdlePill()
 
         // Calendar auto-start (ADR-017 Phases 1 + 2 — reminders +
-        // countdown toast + auto-stop). The coordinator is a no-op when
+        // pre-meeting countdown toast). The coordinator is a no-op when
         // `calendarAutoStartMode == .off` so it's safe to start
         // unconditionally; we still gate creation on the meeting-recording
         // feature flag because calendar integration only makes sense when
@@ -321,19 +347,8 @@ final class AppEnvironmentConfigurer {
                 },
                 onAutoStartConfirmed: { [weak meetingCoordinator] title in
                     meetingCoordinator?.startFromCalendar(title: title)
-                },
-                onAutoStopConfirmed: { [weak meetingCoordinator] in
-                    meetingCoordinator?.toggleRecording()
                 }
             )
-            // The recording flow tells the calendar coordinator when an
-            // auto-start attempt actually failed (state was non-idle, or
-            // the underlying start threw) so the optimistic binding gets
-            // dropped — otherwise the next meeting's auto-stop would be
-            // suppressed by a stale `autoStartedEventId`.
-            meetingCoordinator.onAutoStartFailed = { [weak coordinator] in
-                coordinator?.clearAutoStartBinding()
-            }
             coordinator.start()
             calendarCoordinator = coordinator
         } else {

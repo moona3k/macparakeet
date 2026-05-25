@@ -51,6 +51,13 @@ public struct QuickPrompt: Codable, Identifiable, Sendable, Hashable {
     }
 }
 
+public struct QuickPromptTelemetryIdentity: Sendable, Hashable {
+    public static let custom = QuickPromptTelemetryIdentity(group: "custom", label: "custom")
+
+    public let group: String
+    public let label: String
+}
+
 extension QuickPrompt: FetchableRecord, PersistableRecord {
     public static let databaseTableName = "quick_prompts"
 
@@ -81,11 +88,52 @@ extension QuickPrompt {
         builtInPrompts(now: now).first { $0.id == id }
     }
 
+    public var telemetryIdentity: QuickPromptTelemetryIdentity {
+        guard isBuiltIn,
+              let canonical = Self.builtInPrompt(id: id),
+              hasCanonicalTelemetryContent(matching: canonical),
+              let identity = Self.builtInTelemetryIdentities[id] else {
+            return .custom
+        }
+        return identity
+    }
+
     /// Set of canonical built-in UUIDs. Used by the export DTO to coerce a
     /// claimed `isBuiltIn: true` to `false` on import unless the id is genuinely
     /// one of ours — prevents a malicious or careless import file from forging
     /// "built-in" status on a custom row.
     public static let builtInIDs: Set<UUID> = Set(builtInPrompts().map(\.id))
+
+    private static let builtInTelemetryIdentities: [UUID: QuickPromptTelemetryIdentity] = [
+        UUID(uuidString: "242D9804-A7C5-4C0A-8A7A-B075957BC1E5")!: QuickPromptTelemetryIdentity(group: "catch_up", label: "summarize_so_far"),
+        UUID(uuidString: "7218D518-9B15-41C1-B5A9-060FD1BB5554")!: QuickPromptTelemetryIdentity(group: "catch_up", label: "what_did_i_miss"),
+        UUID(uuidString: "6D0E7D82-50C1-48A3-B485-6616DC273D18")!: QuickPromptTelemetryIdentity(group: "capture", label: "decisions_made"),
+        UUID(uuidString: "F678E4F0-4128-4FD5-80FC-96D6EDC330BF")!: QuickPromptTelemetryIdentity(group: "capture", label: "action_items"),
+        UUID(uuidString: "FEEDC4DD-D9B3-4AB0-BCCA-709A1517E23F")!: QuickPromptTelemetryIdentity(group: "capture", label: "who_owns_what"),
+        UUID(uuidString: "AE32274B-E3E7-4950-A16E-F1DF64660FB2")!: QuickPromptTelemetryIdentity(group: "challenge", label: "unresolved"),
+        UUID(uuidString: "7107DFB7-F2F0-44E6-864A-5FFD3BC45798")!: QuickPromptTelemetryIdentity(group: "challenge", label: "question_worth_asking"),
+        UUID(uuidString: "9A80A522-A54C-4A57-BA71-43F5F054714F")!: QuickPromptTelemetryIdentity(group: "challenge", label: "pushback"),
+        UUID(uuidString: "AFC8F517-E186-41C7-A39F-0BE0FAF4E9EA")!: QuickPromptTelemetryIdentity(group: "challenge", label: "going_in_circles"),
+        UUID(uuidString: "9EC1C9BC-92BC-417E-ACC4-7F7633102DB1")!: QuickPromptTelemetryIdentity(group: "follow_up", label: "tell_me_more"),
+        UUID(uuidString: "DE860BF2-E6B2-4E05-9A77-D678F68FA86D")!: QuickPromptTelemetryIdentity(group: "follow_up", label: "why"),
+        UUID(uuidString: "EB113B55-D5EE-44C1-A208-D5D5474CF4E2")!: QuickPromptTelemetryIdentity(group: "follow_up", label: "give_example"),
+        UUID(uuidString: "3256EB3B-7436-4019-9367-7AAB5698B3EC")!: QuickPromptTelemetryIdentity(group: "follow_up", label: "counter_argument"),
+        UUID(uuidString: "D7216011-7568-4B1E-87E0-F32A5EF0EAA3")!: QuickPromptTelemetryIdentity(group: "follow_up", label: "tldr"),
+    ]
+
+    private func hasCanonicalTelemetryContent(matching canonical: QuickPrompt) -> Bool {
+        label == canonical.label
+            && prompt == canonical.prompt
+            && Self.normalizedTelemetryGroup(groupLabel) == Self.normalizedTelemetryGroup(canonical.groupLabel)
+    }
+
+    private static func normalizedTelemetryGroup(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmed.isEmpty else {
+            return nil
+        }
+        return trimmed
+    }
 
     /// Default unpinned prompts — meeting-context starters that show up in the
     /// empty Ask state and the sparkle popover. Grouped via `groupLabel`.

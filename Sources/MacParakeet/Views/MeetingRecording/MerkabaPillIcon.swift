@@ -5,6 +5,11 @@ import SwiftUI
 struct MerkabaPillIcon: View {
     var isAnimating: Bool = false
     var audioLevel: Float = 0
+    /// When `false`, render only the Flower-of-Life head (no stem/leaves) —
+    /// used where the rosette is a compact standalone mark, e.g. inside the
+    /// calendar countdown halo. Defaults to `true` so the recording pill keeps
+    /// the full flower.
+    var showStem: Bool = true
 
     @State private var rotation: Double = 0
     @State private var sway: Double = -1
@@ -19,11 +24,13 @@ struct MerkabaPillIcon: View {
         VStack(spacing: 0) {
             flowerHead
                 .frame(width: 30, height: 30)
-                .padding(.top, 6)
+                .padding(.top, showStem ? 6 : 0)
 
-            stemAndLeaves
-                .frame(width: 30, height: 34)
-                .padding(.bottom, 4)
+            if showStem {
+                stemAndLeaves
+                    .frame(width: 30, height: 34)
+                    .padding(.bottom, 4)
+            }
         }
         .onChange(of: isAnimating) { _, animating in
             if animating {

@@ -4,6 +4,82 @@ import XCTest
 @testable import MacParakeetCore
 
 final class HotkeyRecorderViewTests: XCTestCase {
+    func testStandardBareModifierCaptureRecordsPhysicalModifierSide() {
+        let candidate = HotkeyRecorderView.bareModifierTrigger(
+            for: "command",
+            keyCode: 54,
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(
+            candidate,
+            HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        )
+    }
+
+    func testStandardBareShiftCaptureRecordsPhysicalModifierSide() {
+        let candidate = HotkeyRecorderView.bareModifierTrigger(
+            for: "shift",
+            keyCode: 60,
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(
+            candidate,
+            HotkeyTrigger(kind: .modifier, modifierName: "shift", keyCode: nil, modifierKeyCode: 60)
+        )
+    }
+
+    func testStandardModifierKeyChordCapturePreservesGenericChordBehavior() {
+        let candidate = HotkeyRecorderView.keyChordTrigger(
+            modifiers: ["command"],
+            keyCode: 8,
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(candidate, .chord(modifiers: ["command"], keyCode: 8))
+    }
+
+    func testStandardModifierChordCaptureRecordsPhysicalModifierSides() {
+        let candidate = HotkeyRecorderView.modifierChordTrigger(
+            components: [
+                .init(modifierName: "option", keyCode: 58),
+                .init(modifierName: "command", keyCode: 55),
+            ],
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(
+            candidate,
+            .modifierChord(
+                components: [
+                    .init(modifierName: "option", keyCode: 58),
+                    .init(modifierName: "command", keyCode: 55),
+                ]
+            )
+        )
+    }
+
+    func testStandardSameModifierChordCaptureRecordsBothPhysicalSides() {
+        let candidate = HotkeyRecorderView.modifierChordTrigger(
+            components: [
+                .init(modifierName: "shift", keyCode: 56),
+                .init(modifierName: "shift", keyCode: 60),
+            ],
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(
+            candidate,
+            .modifierChord(
+                components: [
+                    .init(modifierName: "shift", keyCode: 56),
+                    .init(modifierName: "shift", keyCode: 60),
+                ]
+            )
+        )
+    }
+
     func testGenericBareModifierCapturePreservesEitherSideBehavior() {
         let candidate = HotkeyRecorderView.bareModifierTrigger(
             for: "option",
@@ -85,6 +161,40 @@ final class HotkeyRecorderViewTests: XCTestCase {
         )
 
         XCTAssertEqual(candidate, .chord(modifiers: ["option"], keyCode: 8))
+    }
+
+    func testGenericRecordingAllowsFnKeyChords() {
+        let candidate = HotkeyRecorderView.keyChordTrigger(
+            modifiers: ["fn"],
+            keyCode: 49,
+            captureMode: .generic
+        )
+
+        XCTAssertEqual(candidate, .fnSpace)
+    }
+
+    func testKeyChordCaptureUsesPendingFnWhenKeyDownFlagsOmitFunction() {
+        let modifiers = HotkeyRecorderView.chordModifierNames(
+            flags: [],
+            pendingComponents: [.init(modifierName: "fn")]
+        )
+        let candidate = HotkeyRecorderView.keyChordTrigger(
+            modifiers: modifiers,
+            keyCode: 49,
+            captureMode: .standard
+        )
+
+        XCTAssertEqual(candidate, .fnSpace)
+    }
+
+    func testBareFnCaptureRemainsSupported() {
+        let candidate = HotkeyRecorderView.bareModifierTrigger(
+            for: "fn",
+            keyCode: 63,
+            captureMode: .generic
+        )
+
+        XCTAssertEqual(candidate, .fn)
     }
 
     func testSingleModifierDoesNotBecomeModifierChord() {

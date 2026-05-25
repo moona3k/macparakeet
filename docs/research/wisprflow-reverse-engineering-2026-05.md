@@ -421,7 +421,7 @@ This feeds back into personalization — WisprFlow learns from how users correct
 
 | Mode | Trigger | Behavior |
 |------|---------|----------|
-| PTT (push-to-talk) | Hold Fn (or double-tap Fn) | Hold to record, release to transcribe |
+| PTT (push-to-talk) | Hold Fn | Hold to record, release to transcribe |
 | Popo (tap-to-talk) | Fn+Space (macOS) / Ctrl+Win+Space (Windows) | Tap to start, tap to stop |
 
 The state machine tracks `ACTIVE_PTT` and `ACTIVE_POPO` as parallel states with separate debounce logic (`DebouncePTT` vs `DebouncePOPO`). The `transcriptCommand` column categorizes recordings as `"ptt"` or `"popo"` (or `"lens"` or `"command"`).

@@ -13,7 +13,8 @@
 
 Local speech-to-text, transcription, and prompt automation for a Hermes Agent
 running on Apple Silicon. Wraps `macparakeet-cli` so a Hermes skill can call
-the local Parakeet TDT pipeline without any cloud STT dependency.
+the local Parakeet TDT pipeline without any cloud STT dependency, inspect
+meeting artifacts, and store externally generated meeting results.
 
 ## Install
 
@@ -25,6 +26,8 @@ macparakeet-cli health --json
 
 If MacParakeet.app is already installed, the bundled CLI is also available at
 `/Applications/MacParakeet.app/Contents/MacOS/macparakeet-cli`.
+Parakeet's CoreML cache is managed by FluidAudio. WhisperKit model downloads
+live under `~/Library/Application Support/MacParakeet/models/stt/whisper/`.
 
 ## Suggested skill bindings (sketch)
 
@@ -39,24 +42,47 @@ when_to_use:
   - User asks "what was said in <past meeting / dictation>?"
   - User asks for action items / summary from a recorded transcript.
 commands:
+  spec: macparakeet-cli spec --json
+  health: macparakeet-cli health --json
   transcribe_file: macparakeet-cli transcribe "{path}" --format json
   transcribe_youtube: macparakeet-cli transcribe "{url}" --format json
+  transcribe_app_defaults: |
+    macparakeet-cli transcribe "{path}" \
+      --engine app-default \
+      --speaker-detection app-default \
+      --mode app-default \
+      --downloaded-audio app-default \
+      --youtube-audio-quality app-default \
+      --format json
+  list_models: macparakeet-cli models list --json
+  set_speaker_detection: macparakeet-cli config set speaker-detection "{value}" --json
   list_transcriptions: macparakeet-cli history transcriptions --json
   search_transcriptions: macparakeet-cli history search-transcriptions "{query}" --json
   search_dictations: macparakeet-cli history search "{query}" --json
+  list_meetings: macparakeet-cli meetings list --json
+  meeting_transcript: macparakeet-cli meetings transcript "{meeting_id_or_title}" --format json
+  add_meeting_result: |
+    macparakeet-cli meetings results add "{meeting_id_or_title}" \
+      --name "{result_name}" --stdin --json
   run_prompt: |
     macparakeet-cli prompts run "{prompt_id_or_name}" \
       --transcription {transcription_id} \
-      --provider {provider} --api-key-env "{api_key_env}" --model "{model}"
-  health: macparakeet-cli health --json
+      --provider {provider} --api-key-env "{api_key_env}" --model "{model}" \
+      --json
 ```
 
 ## Conventions
 
-JSON to stdout when `--json` is set; human-readable errors to stderr;
-non-zero exit on failure. JSON schemas are stable within a major CLI version
-(semver, see [`CHANGELOG.md`](../../Sources/CLI/CHANGELOG.md)). Lookup args
-accept full UUID, UUID prefix (>= 4 chars), or case-insensitive name.
+JSON to stdout when `--json` is set, or when `--format json` is used for
+format-selecting commands like `transcribe` and `meetings transcript`.
+Human-readable errors go to stderr; commands exit non-zero on failure. JSON
+schemas are stable within a major CLI version (semver, see
+[`CHANGELOG.md`](../../Sources/CLI/CHANGELOG.md)). Lookup args accept full
+UUID, UUID prefix (>= 4 chars), or case-insensitive name.
+
+Use `meetings` commands for deterministic local meeting workflows. Use
+`prompts run` only when the user explicitly asks for generated output, and
+include `--json` so Hermes receives the structured LLMResult envelope.
 
 For the full vocabulary, schema details, and privacy posture, see
 [`../README.md`](../README.md).

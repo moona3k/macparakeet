@@ -241,4 +241,24 @@ final class QuickPromptBundleTests: XCTestCase {
         XCTAssertTrue(s.contains("\"isPinned\":true"), "JSON should emit isPinned as boolean")
         XCTAssertFalse(s.contains("\"kind\""), "export must not emit kind field")
     }
+
+    func testTelemetryIdentityUsesStableBuiltInSlugs() {
+        let actionItems = QuickPrompt.builtInPrompts().first { $0.label == "Action items" }!
+
+        XCTAssertEqual(actionItems.telemetryIdentity.group, "capture")
+        XCTAssertEqual(actionItems.telemetryIdentity.label, "action_items")
+    }
+
+    func testTelemetryIdentityCollapsesEditedBuiltInsToCustom() {
+        var edited = QuickPrompt.builtInPrompts().first { $0.label == "Action items" }!
+        edited.label = "Ask about customer: Acme"
+
+        XCTAssertEqual(edited.telemetryIdentity, .custom)
+    }
+
+    func testTelemetryIdentityCollapsesCustomPromptsToCustom() {
+        let custom = QuickPrompt(label: "Customer: Acme", prompt: "Ask about Acme.", groupLabel: "Customer")
+
+        XCTAssertEqual(custom.telemetryIdentity, .custom)
+    }
 }

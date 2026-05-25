@@ -20,7 +20,7 @@ struct VocabularyView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
-                policyHeaderCard
+                pageHeader
                 modeSelectionCard
                 voiceReturnCard
                 if selectedMode == .raw {
@@ -42,13 +42,13 @@ struct VocabularyView: View {
             settingsViewModel.refreshStats()
         } content: {
             CustomWordsView(viewModel: customWordsViewModel)
-                .frame(minWidth: 620, minHeight: 460)
+                .frame(width: 640, height: 560)
         }
         .sheet(isPresented: $showTextSnippets) {
             settingsViewModel.refreshStats()
         } content: {
             TextSnippetsView(viewModel: textSnippetsViewModel)
-                .frame(minWidth: 620, minHeight: 460)
+                .frame(width: 640, height: 560)
         }
         .onAppear {
             settingsViewModel.refreshStats()
@@ -57,30 +57,16 @@ struct VocabularyView: View {
 
     // MARK: - Header
 
-    private var policyHeaderCard: some View {
-        vocabularyCard(
-            title: "Text Processing",
-            subtitle: "How your voice becomes text — entirely on your Mac.",
-            icon: "text.quote"
-        ) {
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 130), spacing: DesignSystem.Spacing.sm)],
-                spacing: DesignSystem.Spacing.sm
-            ) {
-                summaryChip(
-                    title: "Current Mode",
-                    value: selectedMode.displayName
-                )
-                summaryChip(
-                    title: "Custom Words",
-                    value: "\(settingsViewModel.customWordCount)"
-                )
-                summaryChip(
-                    title: "Snippets",
-                    value: "\(settingsViewModel.snippetCount)"
-                )
-            }
+    private var pageHeader: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Vocabulary")
+                .font(DesignSystem.Typography.pageTitle)
+            Text("How your voice becomes text — entirely on your Mac.")
+                .font(DesignSystem.Typography.bodySmall)
+                .foregroundStyle(.secondary)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.bottom, DesignSystem.Spacing.xs)
     }
 
     // MARK: - Mode Selection
@@ -190,9 +176,7 @@ struct VocabularyView: View {
                         Text("Enable Voice Return")
                             .font(DesignSystem.Typography.body)
                     }
-                    .toggleStyle(.switch)
-                    .tint(DesignSystem.Colors.accent)
-
+                    .parakeetSwitch()
                 }
 
                 if settingsViewModel.voiceReturnEnabled {
@@ -200,8 +184,7 @@ struct VocabularyView: View {
                         Text("Trigger phrase")
                             .font(DesignSystem.Typography.caption)
                             .foregroundStyle(.secondary)
-                        TextField("press return", text: $settingsViewModel.voiceReturnTrigger)
-                            .textFieldStyle(.roundedBorder)
+                        ParakeetTextField(placeholder: "press return", text: $settingsViewModel.voiceReturnTrigger)
                             .frame(maxWidth: 250)
                         if settingsViewModel.voiceReturnTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                             Text("Enter a trigger phrase to activate Voice Return.")
@@ -221,13 +204,13 @@ struct VocabularyView: View {
                         }
 
                         let trigger = settingsViewModel.voiceReturnTrigger.isEmpty ? "press return" : settingsViewModel.voiceReturnTrigger
-                        VStack(alignment: .leading, spacing: 4) {
+                        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
                             exampleRow(input: "git status \(trigger)", result: "Pastes \"git status\" + presses ⏎", fires: true)
                             exampleRow(input: "\(trigger)", result: "Just presses ⏎ (nothing to paste)", fires: true)
                             exampleRow(input: "the \(trigger) was broken", result: "Pastes as-is — trigger is mid-sentence", fires: false)
                             exampleRow(input: "git status", result: "Pastes as-is — no trigger spoken", fires: false)
                         }
-                        .padding(.leading, 24)
+                        .padding(.leading, DesignSystem.Spacing.lg)
                     }
 
                 }
@@ -332,37 +315,19 @@ struct VocabularyView: View {
         }
     }
 
-    private func summaryChip(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-                .font(DesignSystem.Typography.micro)
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(DesignSystem.Typography.body.weight(.semibold))
-                .contentTransition(.numericText())
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: DesignSystem.Layout.rowCornerRadius)
-                .fill(DesignSystem.Colors.surfaceElevated)
-        )
-    }
-
     private func exampleRow(input: String, result: String, fires: Bool) -> some View {
-        HStack(spacing: DesignSystem.Spacing.xs) {
+        HStack(alignment: .firstTextBaseline, spacing: DesignSystem.Spacing.sm) {
             Image(systemName: fires ? "checkmark.circle.fill" : "xmark.circle")
-                .font(.system(size: 11))
+                .font(.system(size: 12))
                 .foregroundStyle(fires ? DesignSystem.Colors.successGreen : .secondary)
             Text("\"\(input)\"")
-                .font(DesignSystem.Typography.micro.monospaced())
+                .font(DesignSystem.Typography.caption.monospaced())
                 .foregroundStyle(.primary)
             Text("→")
-                .font(DesignSystem.Typography.micro)
+                .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.tertiary)
             Text(result)
-                .font(DesignSystem.Typography.micro)
+                .font(DesignSystem.Typography.caption)
                 .foregroundStyle(.secondary)
         }
     }
@@ -386,7 +351,7 @@ struct VocabularyView: View {
                     if isSelected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: 14))
-                            .foregroundStyle(DesignSystem.Colors.successGreen)
+                            .foregroundStyle(DesignSystem.Colors.accent)
                     }
                 }
 

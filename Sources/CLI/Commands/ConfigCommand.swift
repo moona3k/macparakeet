@@ -75,7 +75,7 @@ struct ConfigCommand: ParsableCommand {
         }
     }
 
-    struct SetCommand: ParsableCommand {
+    struct SetCommand: ParsableCommand, CLITelemetryMetadataProviding {
         static let configuration = CommandConfiguration(
             commandName: "set",
             abstract: "Write a configuration value."
@@ -90,12 +90,26 @@ struct ConfigCommand: ParsableCommand {
         @Flag(name: .long, help: "Emit JSON instead of plain text.")
         var json: Bool = false
 
+        var cliTelemetryMetadata: CLITelemetry.OperationMetadata {
+            CLITelemetry.OperationMetadata(
+                command: ConfigCommand.configuration.commandName ?? "config",
+                subcommand: Self.configuration.commandName ?? "set",
+                json: json,
+                suppressEvent: Self.suppressesTelemetryEvent(key: key, value: value)
+            )
+        }
+
         func run() throws {
             try emitJSONOrRethrow(json: json) {
                 let canonicalKey = try ConfigCommand.canonicalKey(key)
                 let written = try ConfigCommand.write(key: canonicalKey, value: value)
                 try printResult(key: canonicalKey, value: written, json: json)
             }
+        }
+
+        static func suppressesTelemetryEvent(key: String, value: String) -> Bool {
+            (try? ConfigCommand.canonicalKey(key)) == "telemetry"
+                && (try? ConfigCommand.parseBool(value, key: key)) == false
         }
     }
 

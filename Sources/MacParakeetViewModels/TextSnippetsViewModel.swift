@@ -9,6 +9,22 @@ public final class TextSnippetsViewModel {
     public var newTrigger: String = ""
     public var newExpansion: String = ""
     public var errorMessage: String?
+    public var editingSnippetID: UUID?
+    public var editTrigger: String = "" {
+        didSet {
+            if oldValue != editTrigger {
+                editErrorMessage = nil
+            }
+        }
+    }
+    public var editExpansion: String = "" {
+        didSet {
+            if oldValue != editExpansion {
+                editErrorMessage = nil
+            }
+        }
+    }
+    public var editErrorMessage: String?
     public var pendingDeleteSnippet: TextSnippet?
 
     private var repo: TextSnippetRepositoryProtocol?
@@ -26,6 +42,11 @@ public final class TextSnippetsViewModel {
             $0.trigger.localizedCaseInsensitiveContains(searchText)
                 || $0.expansion.localizedCaseInsensitiveContains(searchText)
         }
+    }
+
+    public var canSaveEditing: Bool {
+        !editTrigger.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !processedExpansion(from: editExpansion).isEmpty
     }
 
     public func loadSnippets() {
@@ -78,6 +99,64 @@ public final class TextSnippetsViewModel {
         }
     }
 
+    public func beginEditing(_ snippet: TextSnippet) {
+        if let editingSnippetID, editingSnippetID != snippet.id {
+            editErrorMessage = "Save or cancel the current edit first"
+            return
+        }
+        editingSnippetID = snippet.id
+        editTrigger = snippet.trigger
+        editExpansion = editableExpansion(from: snippet.expansion)
+        editErrorMessage = nil
+        errorMessage = nil
+    }
+
+    public func cancelEditing() {
+        editingSnippetID = nil
+        editTrigger = ""
+        editExpansion = ""
+        editErrorMessage = nil
+    }
+
+    public func saveEditing() {
+        guard let repo, let editingSnippetID else { return }
+        let trimmedTrigger = editTrigger.trimmingCharacters(in: .whitespacesAndNewlines)
+        let processedExpansion = processedExpansion(from: editExpansion)
+        guard !trimmedTrigger.isEmpty else {
+            editErrorMessage = "Trigger phrase is required"
+            return
+        }
+        guard !processedExpansion.isEmpty else {
+            editErrorMessage = "Expansion is required"
+            return
+        }
+
+        if snippets.contains(where: {
+            $0.id != editingSnippetID
+                && $0.trigger.caseInsensitiveCompare(trimmedTrigger) == .orderedSame
+        }) {
+            editErrorMessage = "'\(trimmedTrigger)' already exists"
+            return
+        }
+
+        do {
+            guard var snippet = try repo.fetch(id: editingSnippetID) else {
+                cancelEditing()
+                loadSnippets()
+                return
+            }
+            snippet.trigger = trimmedTrigger
+            snippet.expansion = processedExpansion
+            snippet.updatedAt = Date()
+            try repo.save(snippet)
+            Telemetry.send(.snippetEdited)
+            cancelEditing()
+            loadSnippets()
+        } catch {
+            editErrorMessage = error.localizedDescription
+        }
+    }
+
     public func confirmDelete() {
         guard let snippet = pendingDeleteSnippet else { return }
         pendingDeleteSnippet = nil
@@ -89,9 +168,21 @@ public final class TextSnippetsViewModel {
         do {
             _ = try repo.delete(id: snippet.id)
             Telemetry.send(.snippetDeleted)
+            if editingSnippetID == snippet.id {
+                cancelEditing()
+            }
             loadSnippets()
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func processedExpansion(from raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: "\\n", with: "\n")
+    }
+
+    private func editableExpansion(from expansion: String) -> String {
+        expansion.replacingOccurrences(of: "\n", with: "\\n")
     }
 }

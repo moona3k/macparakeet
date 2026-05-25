@@ -158,6 +158,7 @@ final class LLMJSONOutputTests: XCTestCase {
         XCTAssertEqual(CLIErrorType.key(for: CLILookupError.emptyID), "lookup")
         XCTAssertEqual(CLIErrorType.key(for: CLILookupError.notFound("nope")), "lookup")
         XCTAssertEqual(CLIErrorType.key(for: CLIInputError.empty), "input_empty")
+        XCTAssertEqual(CLIErrorType.key(for: CLIInputError.invalidEncoding), "validation")
         XCTAssertEqual(CLIErrorType.key(for: ValidationError("bad combo")), "validation")
 
         struct UnknownError: Error {}
@@ -176,8 +177,9 @@ final class LLMJSONOutputTests: XCTestCase {
             }
         }
 
-        let exit = try XCTUnwrap(thrownError as? ExitCode)
-        XCTAssertEqual(exit, .failure)
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), .failure)
 
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
@@ -199,8 +201,9 @@ final class LLMJSONOutputTests: XCTestCase {
             }
         }
 
-        let exit = try XCTUnwrap(thrownError as? ExitCode)
-        XCTAssertEqual(exit.rawValue, 2)
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), cliValidationMisuseExitCode)
 
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]

@@ -137,11 +137,13 @@ struct VocabWordsCommand: AsyncParsableCommand {
 enum VocabError: Error, LocalizedError {
     case notFound(String)
     case ambiguous(String)
+    case duplicate(String)
 
     var errorDescription: String? {
         switch self {
         case .notFound(let msg): return msg
         case .ambiguous(let msg): return msg
+        case .duplicate(let msg): return msg
         }
     }
 }

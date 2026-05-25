@@ -77,7 +77,8 @@ actor CaptureOrchestrator {
             if pair.hasMicrophoneSignal {
                 let processedMic = micConditioner.condition(
                     microphone: pair.microphoneSamples,
-                    speaker: pair.systemSamples
+                    speaker: pair.systemSamples,
+                    hasSpeakerReference: pair.hasSystemSignal
                 )
                 processedMicrophoneRms = chunkRms(for: processedMic)
                 micSamples = processedMic

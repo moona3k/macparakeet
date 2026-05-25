@@ -9,6 +9,7 @@ struct VocabSnippetsCommand: AsyncParsableCommand {
         subcommands: [
             ListSnippets.self,
             AddSnippet.self,
+            EditSnippet.self,
             DeleteSnippet.self,
         ],
         defaultSubcommand: ListSnippets.self
@@ -84,6 +85,63 @@ struct VocabSnippetsCommand: AsyncParsableCommand {
         }
     }
 
+    struct EditSnippet: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "edit",
+            abstract: "Edit a text snippet by ID."
+        )
+
+        @Argument(help: "The UUID (or prefix) of the snippet to edit.")
+        var id: String
+
+        @Option(help: "Replacement trigger phrase. Omit to keep the existing trigger.")
+        var trigger: String?
+
+        @Option(help: "Replacement expansion text. Omit to keep the existing expansion.")
+        var expansion: String?
+
+        @Option(help: "Path to SQLite database file (defaults to the app database).")
+        var database: String?
+
+        func run() async throws {
+            guard trigger != nil || expansion != nil else {
+                throw ValidationError("Provide --trigger, --expansion, or both.")
+            }
+
+            try AppPaths.ensureDirectories()
+            let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+            let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
+            let snippets = try repo.fetchAll()
+            var snippet = try VocabSnippetsCommand.resolveSnippet(id: id, snippets: snippets)
+
+            if let trigger {
+                let trimmed = trigger.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else {
+                    throw ValidationError("Trigger cannot be empty.")
+                }
+                if snippets.contains(where: {
+                    $0.id != snippet.id
+                        && $0.trigger.caseInsensitiveCompare(trimmed) == .orderedSame
+                }) {
+                    throw VocabError.duplicate("Snippet trigger '\(trimmed)' already exists.")
+                }
+                snippet.trigger = trimmed
+            }
+
+            if let expansion {
+                let processed = VocabSnippetsCommand.processedExpansion(from: expansion)
+                guard !processed.isEmpty else {
+                    throw ValidationError("Expansion cannot be empty.")
+                }
+                snippet.expansion = processed
+            }
+
+            snippet.updatedAt = Date()
+            try repo.save(snippet)
+            print("Updated: Say \"\(snippet.trigger)\" -> \(snippet.expansion)")
+        }
+    }
+
     struct DeleteSnippet: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "delete",
@@ -101,19 +159,40 @@ struct VocabSnippetsCommand: AsyncParsableCommand {
             let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
             let repo = TextSnippetRepository(dbQueue: dbManager.dbQueue)
 
-            // Support UUID prefix matching
             let snippets = try repo.fetchAll()
-            let matches = snippets.filter { $0.id.uuidString.lowercased().hasPrefix(id.lowercased()) }
-
-            guard let snippet = matches.first else {
-                throw VocabError.notFound("No snippet matching '\(id)'")
-            }
-            guard matches.count == 1 else {
-                throw VocabError.ambiguous("Multiple snippets match '\(id)'. Be more specific.")
-            }
+            let snippet = try VocabSnippetsCommand.resolveSnippet(
+                id: id,
+                snippets: snippets,
+                minimumPrefixLength: 1
+            )
 
             _ = try repo.delete(id: snippet.id)
             print("Deleted: \"\(snippet.trigger)\"")
         }
+    }
+
+    private static func resolveSnippet(
+        id: String,
+        snippets: [TextSnippet],
+        minimumPrefixLength: Int = 4
+    ) throws -> TextSnippet {
+        let searchID = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard searchID.count >= minimumPrefixLength else {
+            throw ValidationError("ID prefix must be at least \(minimumPrefixLength) characters.")
+        }
+        let matches = snippets.filter { $0.id.uuidString.lowercased().hasPrefix(searchID) }
+
+        guard let snippet = matches.first else {
+            throw VocabError.notFound("No snippet matching '\(id)'")
+        }
+        guard matches.count == 1 else {
+            throw VocabError.ambiguous("Multiple snippets match '\(id)'. Be more specific.")
+        }
+        return snippet
+    }
+
+    private static func processedExpansion(from raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespaces)
+            .replacingOccurrences(of: "\\n", with: "\n")
     }
 }

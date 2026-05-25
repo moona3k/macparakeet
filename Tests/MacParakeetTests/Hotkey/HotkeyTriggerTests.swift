@@ -194,9 +194,9 @@ final class HotkeyTriggerTests: XCTestCase {
 
     // MARK: - Persistence
 
-    func testCurrentDefaultsToFn() {
+    func testCurrentDefaultsToHandsFreeShortcut() {
         testDefaults.removeObject(forKey: "hotkeyTrigger")
-        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .fn)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
     }
 
     func testSaveAndLoad() throws {
@@ -250,9 +250,9 @@ final class HotkeyTriggerTests: XCTestCase {
         )
     }
 
-    func testLegacyStringInvalidFallsBackToFn() {
+    func testLegacyStringInvalidFallsBackToHandsFreeDefault() {
         testDefaults.set("invalid_key", forKey: "hotkeyTrigger")
-        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .fn)
+        XCTAssertEqual(HotkeyTrigger.current(defaults: testDefaults), .defaultDictation)
     }
 
     // MARK: - Validation
@@ -384,6 +384,65 @@ final class HotkeyTriggerTests: XCTestCase {
         let trigger = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 96)
         XCTAssertEqual(trigger.displayName, "Option+F5")
         XCTAssertEqual(trigger.shortSymbol, "⌥F5")
+    }
+
+    func testFnSpaceChordDisplayAndFlags() {
+        let trigger = HotkeyTrigger.fnSpace
+
+        XCTAssertEqual(trigger.displayName, "Fn+Space")
+        XCTAssertEqual(trigger.shortSymbol, "fn+Space")
+        XCTAssertEqual(trigger.chordEventFlags, 0x00800000)
+        XCTAssertEqual(trigger.validation, .allowed)
+    }
+
+    func testDefaultHandsFreeAndPushToTalkUseCombinedFnGesturePreset() {
+        XCTAssertEqual(HotkeyTrigger.defaultDictation, .fn)
+        XCTAssertEqual(HotkeyTrigger.defaultPushToTalk, .fn)
+        XCTAssertTrue(HotkeyTrigger.defaultDictation.overlaps(with: .defaultPushToTalk))
+        XCTAssertTrue(HotkeyTrigger.isDefaultDictationGesturePreset(
+            handsFree: .defaultDictation,
+            pushToTalk: .defaultPushToTalk
+        ))
+        XCTAssertTrue(HotkeyTrigger.isSharedDictationGesture(
+            handsFree: .defaultDictation,
+            pushToTalk: .defaultPushToTalk
+        ))
+    }
+
+    func testSharedDictationGestureAllowsExactCustomTrigger() {
+        let rightCommand = HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+
+        XCTAssertTrue(HotkeyTrigger.isSharedDictationGesture(
+            handsFree: rightCommand,
+            pushToTalk: rightCommand
+        ))
+    }
+
+    func testSharedDictationGestureRejectsDisabledTriggers() {
+        XCTAssertFalse(HotkeyTrigger.isSharedDictationGesture(
+            handsFree: .disabled,
+            pushToTalk: .disabled
+        ))
+    }
+
+    func testSharedDictationGestureRejectsNonExactOverlap() {
+        let rightCommand = HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+
+        XCTAssertTrue(rightCommand.overlaps(with: .command))
+        XCTAssertFalse(HotkeyTrigger.isSharedDictationGesture(
+            handsFree: rightCommand,
+            pushToTalk: .command
+        ))
     }
 
     // MARK: - Chord Validation
@@ -899,6 +958,29 @@ final class HotkeyTriggerTests: XCTestCase {
 
         XCTAssertTrue(bareM.overlaps(with: commandM))
         XCTAssertTrue(commandM.overlaps(with: bareM))
+    }
+
+    func testBareModifierDictationCanShareModifierPlusKeyChord() {
+        let rightCommand = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+        let meeting = HotkeyTrigger.defaultMeetingRecording
+
+        XCTAssertTrue(rightCommand.overlaps(with: meeting))
+        XCTAssertFalse(rightCommand.conflicts(with: meeting, selfMode: .bareModifierDictation))
+        XCTAssertFalse(meeting.conflicts(with: rightCommand, otherMode: .bareModifierDictation))
+    }
+
+    func testBareModifierDictationCanShareTransformOptionChord() {
+        let optionOne = HotkeyTrigger.chord(modifiers: ["option"], keyCode: 0x12)
+
+        XCTAssertTrue(HotkeyTrigger.option.overlaps(with: optionOne))
+        XCTAssertFalse(HotkeyTrigger.option.conflicts(with: optionOne, selfMode: .bareModifierDictation))
+    }
+
+    func testBareModifierDictationStillConflictsWithBareModifier() {
+        let rightCommand = HotkeyTrigger(kind: .modifier, modifierName: "command", keyCode: nil, modifierKeyCode: 54)
+
+        XCTAssertTrue(rightCommand.conflicts(with: .command, selfMode: .bareModifierDictation))
+        XCTAssertTrue(rightCommand.conflicts(with: .command, otherMode: .bareModifierDictation))
     }
 
     // MARK: - Telemetry

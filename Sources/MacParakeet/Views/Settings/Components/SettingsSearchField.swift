@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Persistent top-of-panel search field used to find any setting.
 ///
@@ -44,7 +45,11 @@ struct SettingsSearchField: View {
                         query = ""
                         return .handled
                     }
-                    return .ignored
+                    // Empty query: yield focus rather than sit lit with a
+                    // caret. (Previously returned `.ignored` and stayed
+                    // focused — contradicting this field's own doc comment.)
+                    isFocused = false
+                    return .handled
                 }
 
             if hasActiveQuery {
@@ -73,7 +78,50 @@ struct SettingsSearchField: View {
                     lineWidth: isFocused ? 1 : 0.5
                 )
         )
+        // The bare `TextField` only takes focus when its (potentially tiny)
+        // text area is clicked. Make the whole capsule — icon and padding
+        // included — a focus target so the control is never a dead pill.
+        .contentShape(Capsule())
+        .onTapGesture {
+            isFocused = true
+        }
+        // Keep the field from auto-grabbing focus when Settings appears, so
+        // the panel opens calm instead of with a lit search box + caret.
+        .background(InitialFocusBlocker())
         .animation(DesignSystem.Animation.hoverTransition, value: isFocused)
+    }
+}
+
+/// Stops the enclosing window from auto-selecting this search field as its
+/// initial first responder, so Settings opens with nothing focused. Covers two
+/// cases:
+/// - **Window not yet key:** pointing `initialFirstResponder` at a non-editable
+///   view means the field isn't chosen when the window first becomes key.
+/// - **Window already key (e.g. switching tabs):** AppKit may have already made
+///   the shared field editor first responder, so clear it once on appear.
+///
+/// Only fires at mount, so it never fights a later, user-initiated focus
+/// (clicking the field or ⌘F).
+private struct InitialFocusBlocker: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView { BlockerView() }
+    func updateNSView(_ nsView: NSView, context: Context) {}
+
+    private final class BlockerView: NSView {
+        override var acceptsFirstResponder: Bool { false }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window else { return }
+            window.initialFirstResponder = self
+            DispatchQueue.main.async { [weak window] in
+                guard let window else { return }
+                // The field editor backing a focused NSTextField is an
+                // NSTextView; if it grabbed focus on mount, release it.
+                if window.firstResponder is NSTextView {
+                    window.makeFirstResponder(nil)
+                }
+            }
+        }
     }
 }
 

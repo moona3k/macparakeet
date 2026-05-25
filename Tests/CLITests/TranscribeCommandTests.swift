@@ -188,11 +188,11 @@ final class TranscribeCommandTests: XCTestCase {
         }
     }
 
-    func testParakeetRemainsDefaultEngine() throws {
+    func testNoFlagDefaultsKeepParakeetAndUseAppDefaultSpeakerDetection() throws {
         let command = try TranscribeCommand.parse(["sample.wav"])
         XCTAssertEqual(command.engine, .parakeet)
         XCTAssertNil(command.language)
-        XCTAssertEqual(command.speakerDetection, .on)
+        XCTAssertEqual(command.speakerDetection, .appDefault)
         XCTAssertEqual(command.youtubeAudioQuality, .appDefault)
     }
 
@@ -246,8 +246,9 @@ final class TranscribeCommandTests: XCTestCase {
             }
         }
 
-        let exit = try XCTUnwrap(thrownError as? ExitCode)
-        XCTAssertEqual(exit, .failure)
+        let error = try XCTUnwrap(thrownError)
+        XCTAssertTrue(error is CLIJSONEnvelopeExit)
+        XCTAssertEqual(CLI.normalizedExitCode(for: error), .failure)
         let object = try XCTUnwrap(
             JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any]
         )

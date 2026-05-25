@@ -1,0 +1,23 @@
+[project]
+name = "macparakeet-video-hq"
+version = "0.1.0"
+description = "Premium TTS upgrade path for MacParakeet marketing video pipeline (Higgs Audio V2)."
+requires-python = ">=3.10,<3.13"
+dependencies = [
+  # Higgs Audio V2 — the SOTA open-weight TTS pulled directly from upstream.
+  # If you pin a specific commit, replace @main with @<sha>.
+  "higgs-audio @ git+https://github.com/boson-ai/higgs-audio.git@main",
+  "torch>=2.4",
+  "torchaudio>=2.4",
+  "transformers>=4.45",
+  "accelerate>=0.34",
+]
+
+[tool.uv]
+# Apple Silicon users get the MPS-capable PyTorch wheels by default; no
+# special configuration needed for M-series Macs.
+package = false
+
+[tool.uv.sources]
+# Force git source resolution for higgs-audio.
+higgs-audio = { git = "https://github.com/boson-ai/higgs-audio.git", branch = "main" }

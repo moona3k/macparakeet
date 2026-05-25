@@ -80,6 +80,76 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.promptResults.first?.content, "Task one")
     }
 
+    func testGeneratePromptResultDoesNotPersistEmptyStream() async throws {
+        let transcriptionID = UUID()
+        let prompt = Prompt(
+            name: "Action Items",
+            content: "Extract action items only.",
+            category: .result,
+            isBuiltIn: false,
+            sortOrder: 99
+        )
+        promptRepo.prompts.append(prompt)
+
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo
+        )
+        viewModel.selectedPrompt = prompt
+        llm.streamTokens = []
+
+        viewModel.generatePromptResult(
+            transcript: "Alice will send the draft tomorrow.",
+            transcriptionId: transcriptionID
+        )
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertTrue(promptResultRepo.saveCalls.isEmpty)
+        XCTAssertTrue(viewModel.promptResults.isEmpty)
+        XCTAssertTrue(viewModel.pendingGenerations.isEmpty)
+        XCTAssertTrue(viewModel.errorMessage?.contains("empty response") == true)
+    }
+
+    func testSuccessfulQueuedGenerationClearsEarlierEmptyStreamError() async throws {
+        let transcriptionID = UUID()
+        let firstPrompt = Prompt(
+            name: "Action Items",
+            content: "Extract action items only.",
+            category: .result,
+            isBuiltIn: false,
+            sortOrder: 99
+        )
+        let secondPrompt = Prompt(
+            name: "Decisions",
+            content: "Extract decisions only.",
+            category: .result,
+            isBuiltIn: false,
+            sortOrder: 100
+        )
+        promptRepo.prompts.append(contentsOf: [firstPrompt, secondPrompt])
+
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo
+        )
+        llm.streamTokenBatches = [[], ["Recovered"]]
+
+        viewModel.selectedPrompt = firstPrompt
+        viewModel.generatePromptResult(transcript: "Transcript", transcriptionId: transcriptionID)
+        viewModel.selectedPrompt = secondPrompt
+        viewModel.generatePromptResult(transcript: "Transcript", transcriptionId: transcriptionID)
+
+        try await Task.sleep(for: .milliseconds(300))
+
+        XCTAssertEqual(promptResultRepo.saveCalls.count, 1)
+        XCTAssertEqual(promptResultRepo.saveCalls.first?.promptName, "Decisions")
+        XCTAssertEqual(promptResultRepo.saveCalls.first?.content, "Recovered")
+        XCTAssertNil(viewModel.errorMessage)
+    }
+
     func testUnreadPromptResultsTrackMultipleCompletedResults() async throws {
         let transcriptionID = UUID()
         let secondPrompt = Prompt(
@@ -163,6 +233,44 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertEqual(promptResultRepo.promptResults.first?.content, "New summary")
         XCTAssertEqual(viewModel.promptResults.first?.content, "New summary")
         XCTAssertEqual(viewModel.promptResults.first?.id, generationID)
+    }
+
+    func testRegenerateEmptyStreamKeepsExistingResultAndReportsFailedGeneration() async throws {
+        let transcriptionID = UUID()
+        let existing = PromptResult(
+            transcriptionId: transcriptionID,
+            promptName: "General Summary",
+            promptContent: Prompt.defaultPrompt.content,
+            content: "Old summary"
+        )
+        promptResultRepo.promptResults = [existing]
+
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo
+        )
+        viewModel.loadPromptResults(transcriptionId: transcriptionID)
+        llm.streamTokens = []
+        var failedGeneration: (UUID, UUID?)?
+        viewModel.onGenerationFailed = { generationID, replacingPromptResultID in
+            failedGeneration = (generationID, replacingPromptResultID)
+        }
+
+        let generationID = try XCTUnwrap(viewModel.regeneratePromptResult(existing, transcript: "Transcript"))
+
+        try await Task.sleep(for: .milliseconds(200))
+
+        XCTAssertTrue(promptResultRepo.replaceCalls.isEmpty)
+        XCTAssertEqual(promptResultRepo.promptResults.count, 1)
+        XCTAssertEqual(promptResultRepo.promptResults.first?.id, existing.id)
+        XCTAssertEqual(promptResultRepo.promptResults.first?.content, "Old summary")
+        XCTAssertEqual(viewModel.promptResults.count, 1)
+        XCTAssertEqual(viewModel.promptResults.first?.id, existing.id)
+        XCTAssertEqual(viewModel.promptResults.first?.content, "Old summary")
+        XCTAssertEqual(failedGeneration?.0, generationID)
+        XCTAssertEqual(failedGeneration?.1, existing.id)
+        XCTAssertTrue(viewModel.errorMessage?.contains("empty response") == true)
     }
 
     func testDeletePromptResultRemovesResultAndKeepsRemainingPromptResults() throws {

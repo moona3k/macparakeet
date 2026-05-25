@@ -48,4 +48,12 @@ extension View {
                 .foregroundStyle(.secondary)
         }
     }
+
+    /// Brand-consistent switch styling. Use for every `Toggle` styled as a
+    /// switch so on-state reads coral app-wide rather than the system blue that
+    /// an untinted `.switch` falls back to. Keeps sibling toggles consistent.
+    func parakeetSwitch() -> some View {
+        self.toggleStyle(.switch)
+            .tint(DesignSystem.Colors.accent)
+    }
 }

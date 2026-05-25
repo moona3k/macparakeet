@@ -19,6 +19,7 @@ struct CLI: AsyncParsableCommand {
             HistoryCommand.self,
             ExportCommand.self,
             StatsCommand.self,
+            SpecCommand.self,
             HealthCommand.self,
             ConfigCommand.self,
             ModelsCommand.self,
@@ -41,17 +42,16 @@ struct CLI: AsyncParsableCommand {
     static func main(_ arguments: [String]?) async {
         do {
             var command = try parseAsRoot(arguments)
-            if var asyncCommand = command as? AsyncParsableCommand {
-                try await asyncCommand.run()
-            } else {
-                try command.run()
-            }
+            try await CLITelemetry.runInstrumented(&command)
         } catch {
             exitWithNormalizedError(error)
         }
     }
 
     static func normalizedExitCode(for error: Error) -> ExitCode {
+        if let jsonExit = error as? CLIJSONEnvelopeExit {
+            return jsonExit.exitCode
+        }
         if let exitCode = error as? ExitCode {
             return normalizedExitCode(for: exitCode)
         }
@@ -64,6 +64,9 @@ struct CLI: AsyncParsableCommand {
 
     private static func exitWithNormalizedError(_ error: Error) -> Never {
         let exitCode = normalizedExitCode(for: error)
+        if error is CLIJSONEnvelopeExit {
+            Darwin.exit(exitCode.rawValue)
+        }
         let message = fullMessage(for: error)
         if !message.isEmpty {
             if exitCode.isSuccess {

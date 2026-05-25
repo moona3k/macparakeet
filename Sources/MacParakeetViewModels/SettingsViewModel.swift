@@ -163,6 +163,15 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .meetingAudioSourceMode))
         }
     }
+    public var pauseMediaDuringDictation: Bool {
+        didSet {
+            defaults.set(
+                pauseMediaDuringDictation,
+                forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
+            )
+            Telemetry.send(.settingChanged(setting: .pauseMediaDuringDictation))
+        }
+    }
     public var microphoneDeviceOptions: [MicrophoneDeviceOption] = []
     public var microphoneTestState: MicrophoneTestState = .idle
     public var microphoneTestLevel: Float = 0
@@ -323,12 +332,24 @@ public final class SettingsViewModel {
     public var speechEngineSwitching = false
     public var speechEngineSwitchTarget: SpeechEnginePreference?
     public var speechEngineSwitchDetail: String?
+    public var speechEngineSwitchAvailability: SpeechEngineSwitchAvailability = .available
     public var speechEngineError: String?
     public var whisperModelStatus: LocalModelStatus = .unknown
     public var whisperModelStatusDetail: String = "Not checked yet."
     public var whisperDownloading = false
     public var isWhisperModelDownloaded: Bool {
         whisperModelStatus == .ready || whisperModelStatus == .notLoaded
+    }
+    /// True once the active Whisper variant has paid its one-time on-device
+    /// optimize, so the next load is fast. Drives cold ("Setup needed",
+    /// minutes) vs warm ("Downloaded", seconds) status in the engine picker.
+    /// Reads through `defaults`; the value flips after the first successful
+    /// `WhisperEngine.prepare()`, surfaced on the next `refreshModelStatus()`.
+    public var whisperHasBeenOptimized: Bool {
+        SpeechEnginePreference.hasOptimizedWhisper(
+            variant: SpeechEnginePreference.whisperModelVariant(defaults: defaults),
+            defaults: defaults
+        )
     }
     public private(set) var pendingMeetingRecoveryCount = 0
     public var onRecoverPendingMeetingRecordings: (() -> Void)?
@@ -409,14 +430,6 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .calendarTriggerFilter))
         }
     }
-    public var calendarAutoStopEnabled: Bool {
-        didSet {
-            defaults.set(calendarAutoStopEnabled, forKey: CalendarAutoStartPreferences.autoStopEnabledKey)
-            guard !isResolvingCalendarSettings else { return }
-            NotificationCenter.default.post(name: .macParakeetCalendarSettingsDidChange, object: nil)
-            Telemetry.send(.settingChanged(setting: .calendarAutoStopEnabled))
-        }
-    }
     public var calendarExcludedIdentifiers: Set<String> {
         didSet {
             defaults.set(Array(calendarExcludedIdentifiers), forKey: CalendarAutoStartPreferences.excludedCalendarIdsKey)
@@ -435,6 +448,13 @@ public final class SettingsViewModel {
     public var calendarPermissionGranted: Bool {
         calendarPermissionStatus == .granted
     }
+    /// Whether macOS notification authorization is granted. Calendar reminders
+    /// (`.notify`, and the pre-meeting reminder in `.autoStart`) are delivered
+    /// via `UNUserNotificationCenter`, a *separate* TCC scope from Calendar —
+    /// so a user can grant Calendar yet have reminders silently dropped.
+    /// Settings surfaces this; refreshed by the view (defaults to `true` so the
+    /// warning never flashes before the first async check resolves).
+    public var calendarNotificationsAuthorized: Bool = true
 
     // Permission status
     public var microphoneGranted = false
@@ -477,6 +497,7 @@ public final class SettingsViewModel {
     private var launchAtLoginService: LaunchAtLoginControlling?
     private var sttClient: STTClientProtocol?
     private var speechEngineSwitcher: SpeechEngineSwitching?
+    private var speechEngineSwitchAvailabilityProvider: SpeechEngineSwitchAvailabilityProviding?
     private var meetingRecoveryService: MeetingRecordingRecoveryServicing?
     private var sharedMicStream: SharedMicrophoneStream?
     private let defaults: UserDefaults
@@ -522,12 +543,14 @@ public final class SettingsViewModel {
         menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
         showIdlePill = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey) as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
-        hotkeyTrigger = HotkeyTrigger.current(defaults: defaults)
-        let shouldPersistPushToTalkMigration = defaults.object(forKey: HotkeyTrigger.pushToTalkDefaultsKey) == nil
-        let resolvedPushToTalkHotkeyTrigger = Self.resolvePushToTalkHotkeyTrigger(defaults: defaults)
-        pushToTalkHotkeyTrigger = resolvedPushToTalkHotkeyTrigger
-        if shouldPersistPushToTalkMigration {
-            resolvedPushToTalkHotkeyTrigger.save(to: defaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
+        let resolvedDictationHotkeys = Self.resolveDictationHotkeyTriggers(defaults: defaults)
+        hotkeyTrigger = resolvedDictationHotkeys.handsFree
+        pushToTalkHotkeyTrigger = resolvedDictationHotkeys.pushToTalk
+        if resolvedDictationHotkeys.shouldPersistHandsFree {
+            resolvedDictationHotkeys.handsFree.save(to: defaults)
+        }
+        if resolvedDictationHotkeys.shouldPersistPushToTalk {
+            resolvedDictationHotkeys.pushToTalk.save(to: defaults, defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey)
         }
         meetingHotkeyTrigger = Self.resolveMeetingHotkeyTrigger(defaults: defaults)
         fileTranscriptionHotkeyTrigger = Self.resolveTranscriptionHotkeyTrigger(
@@ -545,6 +568,9 @@ public final class SettingsViewModel {
             defaults.string(forKey: UserDefaultsAppRuntimePreferences.selectedMicrophoneDeviceUIDKey)
         )
         meetingAudioSourceMode = MeetingAudioSourceMode.current(defaults: defaults)
+        pauseMediaDuringDictation = defaults.object(
+            forKey: UserDefaultsAppRuntimePreferences.pauseMediaDuringDictationKey
+        ) as? Bool ?? false
         voiceReturnEnabled = defaults.bool(forKey: UserDefaultsAppRuntimePreferences.voiceReturnEnabledKey)
         voiceReturnTrigger = defaults.string(forKey: UserDefaultsAppRuntimePreferences.voiceReturnTriggerKey) ?? "press return"
         processingMode = Self.normalizedProcessingMode(defaults.string(forKey: UserDefaultsAppRuntimePreferences.processingModeKey))
@@ -586,7 +612,6 @@ public final class SettingsViewModel {
         calendarAutoStartMode = Self.resolveCalendarAutoStartMode(defaults: defaults)
         calendarReminderMinutes = Self.resolveCalendarReminderMinutes(defaults: defaults)
         meetingTriggerFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
-        calendarAutoStopEnabled = defaults.object(forKey: CalendarAutoStartPreferences.autoStopEnabledKey) as? Bool ?? true
         calendarExcludedIdentifiers = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
 
         // Defense-in-depth self-heal: in the rare case that
@@ -650,9 +675,6 @@ public final class SettingsViewModel {
 
         let resolvedFilter = Self.resolveMeetingTriggerFilter(defaults: defaults)
         if meetingTriggerFilter != resolvedFilter { meetingTriggerFilter = resolvedFilter }
-
-        let resolvedAutoStop = defaults.object(forKey: CalendarAutoStartPreferences.autoStopEnabledKey) as? Bool ?? true
-        if calendarAutoStopEnabled != resolvedAutoStop { calendarAutoStopEnabled = resolvedAutoStop }
 
         let resolvedExcluded = Self.resolveCalendarExcludedIdentifiers(defaults: defaults)
         if calendarExcludedIdentifiers != resolvedExcluded { calendarExcludedIdentifiers = resolvedExcluded }
@@ -735,15 +757,80 @@ public final class SettingsViewModel {
         )
     }
 
-    private static func resolvePushToTalkHotkeyTrigger(defaults: UserDefaults) -> HotkeyTrigger {
-        guard defaults.object(forKey: HotkeyTrigger.pushToTalkDefaultsKey) != nil else {
-            return HotkeyTrigger.current(defaults: defaults, fallback: .defaultPushToTalk)
+    private static func resolveDictationHotkeyTriggers(defaults: UserDefaults) -> (
+        handsFree: HotkeyTrigger,
+        pushToTalk: HotkeyTrigger,
+        shouldPersistHandsFree: Bool,
+        shouldPersistPushToTalk: Bool
+    ) {
+        let hasHandsFreeTrigger = defaults.object(forKey: HotkeyTrigger.defaultsKey) != nil
+        let hasDedicatedPushToTalkTrigger = defaults.object(forKey: HotkeyTrigger.pushToTalkDefaultsKey) != nil
+
+        if !hasHandsFreeTrigger {
+            let pushToTalk = hasDedicatedPushToTalkTrigger
+                ? HotkeyTrigger.current(
+                    defaults: defaults,
+                    defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
+                    fallback: .defaultPushToTalk
+                )
+                : .defaultPushToTalk
+            return (
+                defaultHandsFreeTrigger(avoiding: pushToTalk),
+                pushToTalk,
+                true,
+                !hasDedicatedPushToTalkTrigger
+            )
         }
-        return HotkeyTrigger.current(
+
+        let storedHandsFree = HotkeyTrigger.current(defaults: defaults, fallback: .defaultDictation)
+        if !hasDedicatedPushToTalkTrigger {
+            if storedHandsFree.isDisabled {
+                return (.disabled, .disabled, false, true)
+            }
+            if storedHandsFree == .fnSpace {
+                return (.defaultDictation, .defaultPushToTalk, true, true)
+            }
+            let handsFree = defaultHandsFreeTrigger(avoiding: storedHandsFree)
+            return (
+                handsFree,
+                storedHandsFree,
+                handsFree != storedHandsFree,
+                true
+            )
+        }
+
+        let pushToTalk = HotkeyTrigger.current(
             defaults: defaults,
             defaultsKey: HotkeyTrigger.pushToTalkDefaultsKey,
             fallback: .defaultPushToTalk
         )
+        if storedHandsFree == .fnSpace,
+           pushToTalk == .defaultPushToTalk {
+            return (.defaultDictation, .defaultPushToTalk, true, false)
+        }
+        if !storedHandsFree.isDisabled,
+           !pushToTalk.isDisabled,
+           storedHandsFree == pushToTalk {
+            return (storedHandsFree, pushToTalk, false, false)
+        }
+        if !storedHandsFree.isDisabled,
+           !pushToTalk.isDisabled,
+           storedHandsFree != pushToTalk,
+           storedHandsFree.overlaps(with: pushToTalk) {
+            return (defaultHandsFreeTrigger(avoiding: pushToTalk), pushToTalk, true, false)
+        }
+        return (storedHandsFree, pushToTalk, false, false)
+    }
+
+    private static func defaultHandsFreeTrigger(avoiding pushToTalk: HotkeyTrigger) -> HotkeyTrigger {
+        if pushToTalk == .defaultPushToTalk {
+            return .defaultDictation
+        }
+        guard !pushToTalk.isDisabled,
+              HotkeyTrigger.defaultDictation.overlaps(with: pushToTalk) else {
+            return .defaultDictation
+        }
+        return .disabled
     }
 
     /// Transcription hotkeys (file / YouTube) default to `.disabled` — users opt in.
@@ -770,6 +857,7 @@ public final class SettingsViewModel {
         snippetRepo: TextSnippetRepositoryProtocol? = nil,
         sttClient: STTClientProtocol? = nil,
         speechEngineSwitcher: SpeechEngineSwitching? = nil,
+        speechEngineSwitchAvailabilityProvider: SpeechEngineSwitchAvailabilityProviding? = nil,
         meetingRecoveryService: MeetingRecordingRecoveryServicing? = nil,
         sharedMicStream: SharedMicrophoneStream? = nil
     ) {
@@ -784,6 +872,9 @@ public final class SettingsViewModel {
         self.snippetRepo = snippetRepo
         self.sttClient = sttClient
         self.speechEngineSwitcher = speechEngineSwitcher
+        self.speechEngineSwitchAvailabilityProvider = speechEngineSwitchAvailabilityProvider
+            ?? (speechEngineSwitcher as? SpeechEngineSwitchAvailabilityProviding)
+            ?? (sttClient as? SpeechEngineSwitchAvailabilityProviding)
         self.meetingRecoveryService = meetingRecoveryService
         self.sharedMicStream = sharedMicStream
         refreshLaunchAtLoginStatus()
@@ -791,6 +882,7 @@ public final class SettingsViewModel {
         refreshStats()
         refreshEntitlements()
         refreshModelStatus()
+        refreshSpeechEngineSwitchAvailability()
         refreshPendingMeetingRecoveries()
     }
 
@@ -951,6 +1043,14 @@ public final class SettingsViewModel {
         Telemetry.send(granted ? .permissionGranted(permission: .calendar) : .permissionDenied(permission: .calendar))
         if granted {
             await CalendarNotificationAuthorization.requestIfNeeded()
+            // Match the onboarding grant flow (OnboardingViewModel applies
+            // .notify on grant): a user who explicitly grants Calendar access
+            // from Settings intends to use the feature, so default them into
+            // the safe .notify mode. Only when still .off — never clobber an
+            // existing .autoStart choice.
+            if calendarAutoStartMode == .off {
+                calendarAutoStartMode = .notify
+            }
         }
         return granted
     }
@@ -959,15 +1059,36 @@ public final class SettingsViewModel {
         if NSWorkspace.shared.open(CalendarService.settingsURL) { return }
     }
 
+    /// Refresh the cached notification-authorization state. Cheap async read
+    /// of `UNUserNotificationCenter` settings; the view calls this on appear
+    /// and when the calendar mode changes.
+    public func refreshCalendarNotificationAuthorization() async {
+        calendarNotificationsAuthorized = await CalendarNotificationAuthorization.isAuthorized()
+    }
+
+    /// Deep-link to the Notifications pane in System Settings. The pane id
+    /// changed across macOS versions, so try the modern one first.
+    public func openNotificationSystemSettings() {
+        let candidates = [
+            "x-apple.systempreferences:com.apple.Notifications-Settings.extension",
+            "x-apple.systempreferences:com.apple.preference.notifications",
+        ]
+        for string in candidates {
+            if let url = URL(string: string), NSWorkspace.shared.open(url) { return }
+        }
+    }
+
     public func startPermissionPolling() {
         guard permissionPollingTask == nil else { return }
         refreshPermissions()
+        refreshSpeechEngineSwitchAvailability()
         permissionPollingTask = Task { [weak self] in
             guard let self else { return }
             while !Task.isCancelled {
                 try? await Task.sleep(for: self.permissionPollingInterval)
                 guard !Task.isCancelled else { break }
                 self.refreshPermissions()
+                self.refreshSpeechEngineSwitchAvailability()
             }
         }
     }
@@ -989,6 +1110,44 @@ public final class SettingsViewModel {
         let (count, sizeBytes) = youtubeDownloadStats()
         youtubeDownloadCount = count
         youtubeDownloadStorageMB = Double(sizeBytes) / (1024.0 * 1024.0)
+    }
+
+    public func refreshSpeechEngineSwitchAvailability() {
+        Task { @MainActor [weak self] in
+            _ = await self?.refreshSpeechEngineSwitchAvailabilityNow()
+        }
+    }
+
+    @discardableResult
+    public func refreshSpeechEngineSwitchAvailabilityNow() async -> SpeechEngineSwitchAvailability {
+        guard let speechEngineSwitchAvailabilityProvider else {
+            speechEngineSwitchAvailability = .available
+            return .available
+        }
+        let availability = await speechEngineSwitchAvailabilityProvider.engineSwitchAvailability()
+        speechEngineSwitchAvailability = availability
+        return availability
+    }
+
+    public var speechEngineSwitchUnavailableMessage: String? {
+        Self.speechEngineSwitchUnavailableMessage(for: speechEngineSwitchAvailability)
+    }
+
+    public static func speechEngineSwitchUnavailableMessage(
+        for availability: SpeechEngineSwitchAvailability
+    ) -> String? {
+        switch availability {
+        case .available:
+            return nil
+        case .meetingActive:
+            return "Stop the meeting recording to switch engines"
+        case .transcribing:
+            return "Finishing transcription — switch when it completes"
+        case .switchInProgress:
+            return "Finishing engine switch — try again in a moment"
+        case .unavailable:
+            return "Speech engine is temporarily unavailable"
+        }
     }
 
     public func refreshEntitlements() {
@@ -1089,7 +1248,11 @@ public final class SettingsViewModel {
             // to `.ready` after asking the runtime if Whisper is the active
             // engine and currently loaded.
             whisperModelStatus = .notLoaded
-            whisperModelStatusDetail = "\(friendly) · Installed locally. First load may optimize for this Mac."
+            if whisperHasBeenOptimized {
+                whisperModelStatusDetail = "\(friendly) · Installed locally, loads in seconds."
+            } else {
+                whisperModelStatusDetail = "\(friendly) · Installed locally. First switch optimizes for this Mac."
+            }
         } else {
             whisperModelStatus = .notDownloaded
             whisperModelStatusDetail = "\(friendly) · Needs download before use."
@@ -1210,6 +1373,7 @@ public final class SettingsViewModel {
         speechEngineError = nil
         let previousPreference = SpeechEnginePreference.current(defaults: defaults)
         let operationContext = Observability.childOperationContext()
+        let switchWasCold = SpeechEnginePreference.isColdSwitch(to: preference, defaults: defaults)
 
         if preference == .whisper && !isWhisperModelDownloaded {
             speechEngineError = "Download the Whisper model before switching engines."
@@ -1221,7 +1385,8 @@ public final class SettingsViewModel {
                 outcome: .unavailable,
                 durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                 blockedReason: .modelNotDownloaded,
-                errorType: "model_not_downloaded"
+                errorType: "model_not_downloaded",
+                wasCold: switchWasCold
             ))
             isApplyingSpeechEngineState = true
             speechEnginePreference = .parakeet
@@ -1239,7 +1404,8 @@ public final class SettingsViewModel {
                 outcome: .success,
                 durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                 blockedReason: nil,
-                errorType: nil
+                errorType: nil,
+                wasCold: switchWasCold
             ))
             return
         }
@@ -1258,6 +1424,26 @@ public final class SettingsViewModel {
                 self.speechEngineSwitchDetail = nil
                 self.refreshModelStatus()
             }
+            let availability = await self.refreshSpeechEngineSwitchAvailabilityNow()
+            guard availability == .available else {
+                let blockedReason = Self.telemetrySpeechEngineSwitchBlockedReason(for: availability)
+                self.speechEngineError = Self.speechEngineSwitchUnavailableMessage(for: availability)
+                Telemetry.send(.speechEngineSwitchOperation(
+                    operationID: operationContext.operationID,
+                    operationContext: operationContext,
+                    fromEngine: previousPreference,
+                    toEngine: preference,
+                    outcome: .unavailable,
+                    durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
+                    blockedReason: blockedReason,
+                    errorType: blockedReason?.rawValue,
+                    wasCold: switchWasCold
+                ))
+                self.isApplyingSpeechEngineState = true
+                self.speechEnginePreference = SpeechEnginePreference.current(defaults: self.defaults)
+                self.isApplyingSpeechEngineState = false
+                return
+            }
             do {
                 try await Observability.withOperationContext(operationContext) {
                     try await speechEngineSwitcher.setSpeechEngine(preference) { [weak self] message in
@@ -1275,7 +1461,8 @@ public final class SettingsViewModel {
                     outcome: .success,
                     durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                     blockedReason: nil,
-                    errorType: nil
+                    errorType: nil,
+                    wasCold: switchWasCold
                 ))
             } catch is CancellationError {
                 Telemetry.send(.speechEngineSwitchOperation(
@@ -1286,7 +1473,8 @@ public final class SettingsViewModel {
                     outcome: .cancelled,
                     durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                     blockedReason: nil,
-                    errorType: "CancellationError"
+                    errorType: "CancellationError",
+                    wasCold: switchWasCold
                 ))
                 self.isApplyingSpeechEngineState = true
                 self.speechEnginePreference = SpeechEnginePreference.current(defaults: self.defaults)
@@ -1302,7 +1490,8 @@ public final class SettingsViewModel {
                     outcome: .failure,
                     durationSeconds: Observability.durationSeconds(since: operationContext.startedAt),
                     blockedReason: Self.telemetrySpeechEngineSwitchBlockedReason(for: error),
-                    errorType: errorType
+                    errorType: errorType,
+                    wasCold: switchWasCold
                 ))
                 self.isApplyingSpeechEngineState = true
                 self.speechEnginePreference = SpeechEnginePreference.current(defaults: self.defaults)
@@ -1406,6 +1595,23 @@ public final class SettingsViewModel {
              .outOfMemory,
              .invalidResponse:
             return nil
+        }
+    }
+
+    private static func telemetrySpeechEngineSwitchBlockedReason(
+        for availability: SpeechEngineSwitchAvailability
+    ) -> TelemetrySpeechEngineSwitchBlockedReason? {
+        switch availability {
+        case .available:
+            return nil
+        case .meetingActive:
+            return .meetingActive
+        case .transcribing:
+            return .transcribing
+        case .switchInProgress:
+            return .switchInProgress
+        case .unavailable:
+            return .unavailable
         }
     }
 

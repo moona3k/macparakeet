@@ -182,6 +182,8 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         let viewModel = MeetingRecordingPanelViewModel()
         viewModel.state = .recording
         viewModel.elapsedSeconds = 42
+        viewModel.isMicrophoneMuted = true
+        viewModel.canToggleMicrophoneMute = true
         viewModel.updatePreviewLines(
             [
                 MeetingRecordingPreviewLine(
@@ -202,6 +204,8 @@ final class MeetingRecordingPanelViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.elapsedSeconds, 0)
         XCTAssertEqual(viewModel.micLevel, 0)
         XCTAssertEqual(viewModel.systemLevel, 0)
+        XCTAssertFalse(viewModel.isMicrophoneMuted)
+        XCTAssertFalse(viewModel.canToggleMicrophoneMute)
         XCTAssertTrue(viewModel.previewLines.isEmpty)
         XCTAssertFalse(viewModel.isTranscriptionLagging)
         XCTAssertEqual(viewModel.liveTranscriptStatus, .listening)

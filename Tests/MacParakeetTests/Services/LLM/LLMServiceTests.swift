@@ -225,7 +225,7 @@ final class LLMServiceTests: XCTestCase {
         mockConfigStore.config = nil
 
         do {
-            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [])
+            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [], source: .transcriptChat)
             XCTFail("Expected LLMError.notConfigured")
         } catch let error as LLMError {
             if case .notConfigured = error {} else {
@@ -312,7 +312,8 @@ final class LLMServiceTests: XCTestCase {
             question: "What was discussed?",
             transcript: "We talked about the release.",
             userNotes: nil,
-            history: []
+            history: [],
+            source: .transcriptChat
         )
 
         XCTAssertEqual(mockClient.capturedMessages.count, 2)
@@ -332,7 +333,8 @@ final class LLMServiceTests: XCTestCase {
             question: "What did Alice say?",
             transcript: "Alice said hello.",
             userNotes: nil,
-            history: history
+            history: history,
+            source: .transcriptChat
         )
 
         // system + 2 history + user question = 4
@@ -349,7 +351,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Why did we delay?",
             transcript: "Alice: We're slipping by a week.",
             userNotes: "decision: ship Friday\nQA owns smoke tests",
-            history: []
+            history: [],
+            source: .transcriptChat
         )
 
         let systemPrompt = mockClient.capturedMessages[0].content
@@ -369,7 +372,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Q",
             transcript: "T",
             userNotes: nil,
-            history: []
+            history: [],
+            source: .transcriptChat
         )
         XCTAssertFalse(
             mockClient.capturedMessages[0].content.contains("User's notes from the meeting"),
@@ -382,7 +386,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Q",
             transcript: "T",
             userNotes: "",
-            history: []
+            history: [],
+            source: .transcriptChat
         )
         XCTAssertFalse(
             mockClient.capturedMessages[0].content.contains("User's notes from the meeting"),
@@ -395,7 +400,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Q",
             transcript: "T",
             userNotes: "   \n\t  \n  ",
-            history: []
+            history: [],
+            source: .transcriptChat
         )
         XCTAssertFalse(
             mockClient.capturedMessages[0].content.contains("User's notes from the meeting"),
@@ -408,7 +414,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Q",
             transcript: "T",
             userNotes: nil,
-            history: []
+            history: [],
+            source: .transcriptChat
         )
         let withoutNotes = mockClient.capturedMessages[0].content
 
@@ -420,7 +427,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Q",
             transcript: "T",
             userNotes: "   ",
-            history: []
+            history: [],
+            source: .transcriptChat
         )
         let withWhitespace = mockClient.capturedMessages[0].content
         XCTAssertEqual(withoutNotes, withWhitespace)
@@ -468,7 +476,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Who?",
             transcript: "Alice and Bob spoke.",
             userNotes: nil,
-            history: []
+            history: [],
+            source: .transcriptChat
         )
 
         XCTAssertEqual(result.output, "answer")
@@ -756,6 +765,10 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(LLMService.localContextBudget, 80_000)
     }
 
+    func testLMStudioContextBudget() {
+        XCTAssertEqual(LLMService.lmStudioContextBudget, 8_000)
+    }
+
     func testLocalProviderUsesLocalBudget() async throws {
         mockConfigStore.config = .ollama(model: "llama3.2")
 
@@ -766,6 +779,87 @@ final class LLMServiceTests: XCTestCase {
         // The user message should be truncated
         let userMessage = mockClient.capturedMessages.last!
         XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+    }
+
+    func testLMStudioPromptResultUsesConservativeBudgetIncludingSystemPrompt() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        let text = String(repeating: "word ", count: 3_000)
+        _ = try await service.generatePromptResultDetailed(
+            transcript: text,
+            systemPrompt: "Extract the action items."
+        )
+
+        let systemMessage = try XCTUnwrap(mockClient.capturedMessages.first)
+        let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
+        XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+        XCTAssertLessThanOrEqual(
+            userMessage.content.count,
+            LLMService.lmStudioContextBudget - systemMessage.content.count
+        )
+    }
+
+    func testLMStudioPromptResultBoundsRenderedSystemPromptContainingTranscript() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        let transcript = String(repeating: "word ", count: 3_000)
+        _ = try await service.generatePromptResultDetailed(
+            transcript: transcript,
+            systemPrompt: "Read this inline transcript:\n\(transcript)"
+        )
+
+        let systemMessage = try XCTUnwrap(mockClient.capturedMessages.first)
+        let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
+        XCTAssertLessThanOrEqual(
+            systemMessage.content.count + userMessage.content.count,
+            LLMService.lmStudioContextBudget
+        )
+        XCTAssertTrue(systemMessage.content.contains("[... content truncated ...]"))
+        XCTAssertEqual(userMessage.content, "")
+    }
+
+    func testLMStudioStreamingPromptResultUsesConservativeBudgetIncludingSystemPrompt() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        mockClient.streamTokens = ["done"]
+
+        let text = String(repeating: "word ", count: 3_000)
+        let stream = service.generatePromptResultStream(
+            transcript: text,
+            systemPrompt: "Extract the action items."
+        )
+        for try await _ in stream {}
+
+        let systemMessage = try XCTUnwrap(mockClient.capturedMessages.first)
+        let userMessage = try XCTUnwrap(mockClient.capturedMessages.last)
+        XCTAssertTrue(userMessage.content.contains("[... content truncated ...]"))
+        XCTAssertLessThanOrEqual(
+            userMessage.content.count,
+            LLMService.lmStudioContextBudget - systemMessage.content.count
+        )
+    }
+
+    func testLMStudioTransformSubtractsPromptOverheadFromTextBudget() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+
+        let text = String(repeating: "word ", count: 3_000)
+        _ = try await service.transformDetailed(text: text, prompt: "Make it concise.")
+
+        let totalMessageChars = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        XCTAssertLessThanOrEqual(totalMessageChars, LLMService.lmStudioContextBudget)
+        XCTAssertTrue(mockClient.capturedMessages.last?.content.contains("[... content truncated ...]") == true)
+    }
+
+    func testLMStudioStreamingTransformSubtractsPromptOverheadFromTextBudget() async throws {
+        mockConfigStore.config = .lmstudio(model: "qwen/qwen3-4b-2507")
+        mockClient.streamTokens = ["done"]
+
+        let text = String(repeating: "word ", count: 3_000)
+        let stream = service.transformStream(text: text, prompt: "Make it concise.")
+        for try await _ in stream {}
+
+        let totalMessageChars = mockClient.capturedMessages.reduce(0) { $0 + $1.content.count }
+        XCTAssertLessThanOrEqual(totalMessageChars, LLMService.lmStudioContextBudget)
+        XCTAssertTrue(mockClient.capturedMessages.last?.content.contains("[... content truncated ...]") == true)
     }
 
     func testCloudProviderDoesNotTruncateWithinBudget() async throws {
@@ -799,7 +893,8 @@ final class LLMServiceTests: XCTestCase {
             question: "Latest question",
             transcript: transcript,
             userNotes: nil,
-            history: history
+            history: history,
+            source: .transcriptChat
         )
 
         let messages = mockClient.capturedMessages
@@ -828,7 +923,8 @@ final class LLMServiceTests: XCTestCase {
             question: "New question",
             transcript: transcript,
             userNotes: nil,
-            history: history
+            history: history,
+            source: .transcriptChat
         )
 
         let messages = mockClient.capturedMessages
@@ -854,7 +950,8 @@ final class LLMServiceTests: XCTestCase {
             question: question,
             transcript: transcript,
             userNotes: notes,
-            history: history
+            history: history,
+            source: .transcriptChat
         )
 
         let messages = mockClient.capturedMessages
@@ -882,7 +979,8 @@ final class LLMServiceTests: XCTestCase {
             question: "What should we do next?",
             transcript: "The team discussed delivery risks.",
             userNotes: nil,
-            history: history
+            history: history,
+            source: .transcriptChat
         )
 
         let messages = mockClient.capturedMessages
@@ -910,7 +1008,8 @@ final class LLMServiceTests: XCTestCase {
             question: "What happened?",
             transcript: "Something happened.",
             userNotes: nil,
-            history: []
+            history: [],
+            source: .transcriptChat
         )
 
         var tokens: [String] = []
@@ -983,7 +1082,7 @@ final class LLMServiceTests: XCTestCase {
 
     func testChatStreamThrowsWhenNotConfigured() async {
         mockConfigStore.config = nil
-        let stream = service.chatStream(question: "Q", transcript: "T", userNotes: nil, history: [])
+        let stream = service.chatStream(question: "Q", transcript: "T", userNotes: nil, history: [], source: .transcriptChat)
 
         do {
             for try await _ in stream {
@@ -1141,16 +1240,17 @@ final class LLMServiceTests: XCTestCase {
         mockClient.chatCompletionError = LLMError.cliError("not found")
 
         do {
-            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [])
+            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [], source: .transcriptChat)
             XCTFail("Expected throw")
         } catch {}
 
         let events = telemetry.snapshot()
         XCTAssertTrue(events.contains { event in
-            if case .llmProviderUnavailable(let provider, let errorType, let feature, _) = event {
+            if case .llmProviderUnavailable(let provider, let errorType, let feature, let source) = event {
                 return provider == "localCLI"
                     && errorType == "LLMError.cliError"
                     && feature == .chat
+                    && source == .transcriptChat
             }
             return false
         })
@@ -1158,6 +1258,7 @@ final class LLMServiceTests: XCTestCase {
             if case .llmChatFailed = event { return true }
             return false
         })
+        XCTAssertEqual(llmOperationProps(in: events).first?["outcome"], "unavailable")
     }
 
     func testTransformEmitsProviderUnavailableOnAuthFailed() async {
@@ -1228,7 +1329,7 @@ final class LLMServiceTests: XCTestCase {
             isLocal: true
         )
         mockClient.chatCompletionError = LLMError.modelNotFound("missing")
-        let stream = service.chatStream(question: "Q", transcript: "T", userNotes: nil, history: [])
+        let stream = service.chatStream(question: "Q", transcript: "T", userNotes: nil, history: [], source: .transcriptChat)
 
         do {
             for try await _ in stream {}
@@ -1237,8 +1338,8 @@ final class LLMServiceTests: XCTestCase {
 
         let events = telemetry.snapshot()
         XCTAssertTrue(events.contains { event in
-            if case .llmProviderUnavailable(let provider, _, let feature, _) = event {
-                return provider == "ollama" && feature == .chat
+            if case .llmProviderUnavailable(let provider, _, let feature, let source) = event {
+                return provider == "ollama" && feature == .chat && source == .transcriptChat
             }
             return false
         })
@@ -1246,6 +1347,7 @@ final class LLMServiceTests: XCTestCase {
             if case .llmChatFailed = event { return true }
             return false
         })
+        XCTAssertEqual(llmOperationProps(in: events).first?["outcome"], "unavailable")
     }
 
     func testStreamingTransformEmitsProviderUnavailableOnAuthFailed() async {
@@ -1283,7 +1385,7 @@ final class LLMServiceTests: XCTestCase {
         mockClient.chatCompletionError = LLMError.providerError("500 Internal")
 
         do {
-            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [])
+            _ = try await service.chat(question: "Q", transcript: "T", userNotes: nil, history: [], source: .transcriptChat)
             XCTFail("Expected throw")
         } catch {}
 

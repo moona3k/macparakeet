@@ -11,6 +11,7 @@ struct MeetingsCommand: AsyncParsableCommand {
             ShowSubcommand.self,
             TranscriptSubcommand.self,
             NotesSubcommand.self,
+            ResultsSubcommand.self,
             ExportSubcommand.self,
         ]
     )
@@ -36,28 +37,37 @@ struct MeetingsCommand: AsyncParsableCommand {
 
         func run() async throws {
             try emitJSONOrRethrow(json: json) {
-                let repo = try makeTranscriptionRepository(database: database)
-                let meetings = try repo.fetchLibraryPage(query: TranscriptionLibraryQuery(
+                let repositories = try makeMeetingResultRepositories(database: database)
+                let meetings = try repositories.transcriptions.fetchLibraryPage(query: TranscriptionLibraryQuery(
                     sourceType: .meeting,
                     limit: limit,
                     includeProcessing: true
                 )).items
-                    .map(MeetingListItem.init)
+                let promptResultCounts = try repositories.promptResults.counts(
+                    transcriptionIds: meetings.map(\.id)
+                )
+                let items = meetings.map { transcription in
+                    MeetingListItem(
+                        transcription,
+                        promptResultCount: promptResultCounts[transcription.id] ?? 0
+                    )
+                }
 
                 if json {
-                    try printJSON(meetings)
+                    try printJSON(items)
                     return
                 }
 
-                guard !meetings.isEmpty else {
+                guard !items.isEmpty else {
                     print("No meetings found.")
                     return
                 }
 
-                for meeting in meetings {
+                for meeting in items {
                     let duration = meeting.durationMs.map(formatDuration) ?? "--"
                     let notes = meeting.hasNotes ? "notes" : "no notes"
-                    print("[\(formatDate(meeting.createdAt))] \(meeting.title) (\(duration)) [\(meeting.status)] [\(notes)]  (\(meeting.shortID))")
+                    let results = meeting.promptResultCount == 1 ? "1 result" : "\(meeting.promptResultCount) results"
+                    print("[\(formatDate(meeting.createdAt))] \(meeting.title) (\(duration)) [\(meeting.status)] [\(notes)] [\(results)]  (\(meeting.shortID))")
                 }
             }
         }
@@ -80,9 +90,12 @@ struct MeetingsCommand: AsyncParsableCommand {
 
         func run() async throws {
             try emitJSONOrRethrow(json: json) {
-                let repo = try makeTranscriptionRepository(database: database)
-                let transcription = try findMeeting(idOrName: meeting, repo: repo)
-                let record = MeetingRecord(transcription)
+                let repositories = try makeMeetingResultRepositories(database: database)
+                let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                let record = MeetingRecord(
+                    transcription,
+                    promptResultCount: try repositories.promptResults.count(transcriptionId: transcription.id)
+                )
 
                 if json {
                     try printJSON(record)
@@ -271,6 +284,135 @@ struct MeetingsCommand: AsyncParsableCommand {
         }
     }
 
+    struct ResultsSubcommand: AsyncParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "results",
+            abstract: "Read or write saved prompt results for meetings.",
+            subcommands: [
+                ListSubcommand.self,
+                AddSubcommand.self,
+            ]
+        )
+
+        struct ListSubcommand: AsyncParsableCommand {
+            static let configuration = CommandConfiguration(
+                commandName: "list",
+                abstract: "List saved PromptResults for a meeting."
+            )
+
+            @Argument(help: "Meeting UUID, UUID prefix, or exact title.")
+            var meeting: String
+
+            @Flag(name: .long, help: "Emit JSON instead of human-readable output.")
+            var json: Bool = false
+
+            @Option(help: "Path to SQLite database file (defaults to the app database).")
+            var database: String?
+
+            func run() async throws {
+                try emitJSONOrRethrow(json: json) {
+                    let repositories = try makeMeetingResultRepositories(database: database)
+                    let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                    let results = try repositories.promptResults
+                        .fetchAll(transcriptionId: transcription.id)
+                        .map { MeetingPromptResultRecord(result: $0, transcription: transcription) }
+
+                    if json {
+                        try printJSON(results)
+                        return
+                    }
+
+                    guard !results.isEmpty else {
+                        print("No prompt results found for \(transcription.fileName).")
+                        return
+                    }
+
+                    for result in results {
+                        let previewText = preview(result.content, maxLength: 80) ?? ""
+                        print("\(result.shortID)  \(result.name)  \(formatDate(result.createdAt))  \(previewText)")
+                    }
+                    print()
+                    print("\(results.count) result(s)")
+                }
+            }
+        }
+
+        struct AddSubcommand: AsyncParsableCommand {
+            static let configuration = CommandConfiguration(
+                commandName: "add",
+                abstract: "Store externally generated output as a PromptResult for a meeting."
+            )
+
+            @Argument(help: "Meeting UUID, UUID prefix, or exact title.")
+            var meeting: String
+
+            @Option(name: .long, help: "Display name for the saved result.")
+            var name: String
+
+            @Option(name: .long, help: "Generated result content to store.")
+            var content: String?
+
+            @Flag(name: .long, help: "Read generated result content from stdin.")
+            var stdin: Bool = false
+
+            @Option(name: .long, help: "Prompt or instructions that produced this result.")
+            var promptContent: String?
+
+            @Option(name: .long, help: "Extra instructions or provenance to store with the result.")
+            var extra: String?
+
+            @Flag(name: .long, help: "Emit the saved result object as JSON.")
+            var json: Bool = false
+
+            @Option(help: "Path to SQLite database file (defaults to the app database).")
+            var database: String?
+
+            func validate() throws {
+                if content != nil && stdin {
+                    throw ValidationError("Use either --content or --stdin, not both.")
+                }
+                if content == nil && !stdin {
+                    throw ValidationError("Pass --content or --stdin.")
+                }
+                if normalizedNonEmptyText(name) == nil {
+                    throw ValidationError("--name must not be empty.")
+                }
+            }
+
+            func run() async throws {
+                try emitJSONOrRethrow(json: json) {
+                    let repositories = try makeMeetingResultRepositories(database: database)
+                    let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                    let resultContent = try resultInput(content: content, stdin: stdin)
+                    guard let resultName = normalizedNonEmptyText(name) else {
+                        throw ValidationError("--name must not be empty.")
+                    }
+                    let promptSnapshot = normalizedNonEmptyText(promptContent)
+                        ?? "External result imported with `macparakeet-cli meetings results add`."
+                    let now = Date()
+                    let promptResult = PromptResult(
+                        transcriptionId: transcription.id,
+                        promptName: resultName,
+                        promptContent: promptSnapshot,
+                        extraInstructions: normalizedNonEmptyText(extra),
+                        content: resultContent,
+                        userNotesSnapshot: transcription.userNotes,
+                        createdAt: now,
+                        updatedAt: now
+                    )
+
+                    try repositories.promptResults.save(promptResult)
+                    let record = MeetingPromptResultRecord(result: promptResult, transcription: transcription)
+                    if json {
+                        try printJSON(record)
+                    } else {
+                        print("Saved PromptResult \(record.shortID) for \(transcription.fileName).")
+                    }
+                }
+            }
+        }
+    }
+
     struct ExportSubcommand: AsyncParsableCommand {
         static let configuration = CommandConfiguration(
             commandName: "export",
@@ -294,9 +436,13 @@ struct MeetingsCommand: AsyncParsableCommand {
 
         func run() async throws {
             try emitJSONOrRethrow(json: stdout && format == .json) {
-                let repo = try makeTranscriptionRepository(database: database)
-                let transcription = try findMeeting(idOrName: meeting, repo: repo)
-                let content = try exportContent(for: transcription, format: format)
+                let repositories = try makeMeetingResultRepositories(database: database)
+                let transcription = try findMeeting(idOrName: meeting, repo: repositories.transcriptions)
+                let content = try exportContent(
+                    for: transcription,
+                    format: format,
+                    promptResultCount: try repositories.promptResults.count(transcriptionId: transcription.id)
+                )
 
                 if stdout {
                     print(content)
@@ -340,10 +486,12 @@ private struct MeetingListItem: Encodable {
     let isFavorite: Bool
     let hasNotes: Bool
     let notesPreview: String?
+    let hasPromptResults: Bool
+    let promptResultCount: Int
     let hasTranscript: Bool
     let transcriptPreview: String?
 
-    init(_ transcription: Transcription) {
+    init(_ transcription: Transcription, promptResultCount: Int = 0) {
         id = transcription.id
         shortID = String(transcription.id.uuidString.prefix(8))
         title = transcription.fileName
@@ -354,6 +502,8 @@ private struct MeetingListItem: Encodable {
         isFavorite = transcription.isFavorite
         hasNotes = normalizedNotes(transcription.userNotes) != nil
         notesPreview = preview(transcription.userNotes)
+        self.promptResultCount = promptResultCount
+        hasPromptResults = promptResultCount > 0
         let transcript = preferredTranscriptText(transcription)
         hasTranscript = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         transcriptPreview = preview(transcript)
@@ -373,6 +523,8 @@ private struct MeetingRecord: Encodable {
     let recoveredFromCrash: Bool
     let isTranscriptEdited: Bool
     let notes: String?
+    let hasPromptResults: Bool
+    let promptResultCount: Int
     let rawTranscript: String?
     let cleanTranscript: String?
     let transcript: String
@@ -381,7 +533,7 @@ private struct MeetingRecord: Encodable {
     let speakers: [SpeakerInfo]?
     let diarizationSegments: [DiarizationSegmentRecord]?
 
-    init(_ transcription: Transcription) {
+    init(_ transcription: Transcription, promptResultCount: Int = 0) {
         id = transcription.id
         shortID = String(transcription.id.uuidString.prefix(8))
         title = transcription.fileName
@@ -394,6 +546,8 @@ private struct MeetingRecord: Encodable {
         recoveredFromCrash = transcription.recoveredFromCrash
         isTranscriptEdited = transcription.isTranscriptEdited
         notes = transcription.userNotes
+        self.promptResultCount = promptResultCount
+        hasPromptResults = promptResultCount > 0
         rawTranscript = transcription.rawTranscript
         cleanTranscript = transcription.cleanTranscript
         transcript = preferredTranscriptText(transcription)
@@ -440,9 +594,54 @@ private struct MeetingNotesRecord: Encodable {
     }
 }
 
-private func makeTranscriptionRepository(database: String?) throws -> TranscriptionRepository {
+private struct MeetingPromptResultRecord: Encodable {
+    let id: UUID
+    let shortID: String
+    let meetingId: UUID
+    let meetingTitle: String
+    let name: String
+    let promptContent: String
+    let extraInstructions: String?
+    let content: String
+    let userNotesSnapshot: String?
+    let createdAt: Date
+    let updatedAt: Date
+
+    init(result: PromptResult, transcription: Transcription) {
+        id = result.id
+        shortID = String(result.id.uuidString.prefix(8))
+        meetingId = transcription.id
+        meetingTitle = transcription.fileName
+        name = result.promptName
+        promptContent = result.promptContent
+        extraInstructions = result.extraInstructions
+        content = result.content
+        userNotesSnapshot = result.userNotesSnapshot
+        createdAt = result.createdAt
+        updatedAt = result.updatedAt
+    }
+}
+
+private struct MeetingResultRepositories {
+    let transcriptions: TranscriptionRepository
+    let promptResults: PromptResultRepositoryProtocol
+}
+
+private func makeDatabaseManager(database: String?) throws -> DatabaseManager {
     try AppPaths.ensureDirectories()
-    let dbManager = try DatabaseManager(path: resolvedDatabasePath(database))
+    return try DatabaseManager(path: resolvedDatabasePath(database))
+}
+
+private func makeMeetingResultRepositories(database: String?) throws -> MeetingResultRepositories {
+    let dbManager = try makeDatabaseManager(database: database)
+    return MeetingResultRepositories(
+        transcriptions: TranscriptionRepository(dbQueue: dbManager.dbQueue),
+        promptResults: PromptResultRepository(dbQueue: dbManager.dbQueue)
+    )
+}
+
+private func makeTranscriptionRepository(database: String?) throws -> TranscriptionRepository {
+    let dbManager = try makeDatabaseManager(database: database)
     return TranscriptionRepository(dbQueue: dbManager.dbQueue)
 }
 
@@ -451,8 +650,17 @@ private func preferredTranscriptText(_ transcription: Transcription) -> String {
 }
 
 private func normalizedNotes(_ value: String?) -> String? {
-    guard let value else { return nil }
-    return value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : value
+    guard let value, normalizedNonEmptyText(value) != nil else { return nil }
+    return value
+}
+
+private func normalizedNonEmptyText(_ value: String?) -> String? {
+    guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+          !trimmed.isEmpty
+    else {
+        return nil
+    }
+    return trimmed
 }
 
 private func preview(_ value: String?, maxLength: Int = 120) -> String? {
@@ -473,13 +681,28 @@ private func notesInput(text: String?, stdin: Bool) throws -> String {
     if stdin {
         let data = FileHandle.standardInput.readDataToEndOfFile()
         guard let decoded = String(data: data, encoding: .utf8) else {
-            throw CLIInputError.empty
+            throw CLIInputError.invalidEncoding
         }
         value = decoded
     } else {
         value = text ?? ""
     }
     guard normalizedNotes(value) != nil else { throw CLIInputError.empty }
+    return value
+}
+
+private func resultInput(content: String?, stdin: Bool) throws -> String {
+    let value: String
+    if stdin {
+        let data = FileHandle.standardInput.readDataToEndOfFile()
+        guard let decoded = String(data: data, encoding: .utf8) else {
+            throw CLIInputError.invalidEncoding
+        }
+        value = decoded
+    } else {
+        value = content ?? ""
+    }
+    guard normalizedNonEmptyText(value) != nil else { throw CLIInputError.empty }
     return value
 }
 
@@ -498,17 +721,24 @@ private func emitNotesUpdate(_ record: MeetingNotesRecord, json: Bool) throws {
     }
 }
 
-private func exportContent(for transcription: Transcription, format: MeetingExportFormat) throws -> String {
+private func exportContent(
+    for transcription: Transcription,
+    format: MeetingExportFormat,
+    promptResultCount: Int
+) throws -> String {
     switch format {
     case .md:
-        return markdownExport(for: transcription)
+        return markdownExport(for: transcription, promptResultCount: promptResultCount)
     case .json:
-        let data = try cliJSONEncoder.encode(MeetingRecord(transcription))
+        let data = try cliJSONEncoder.encode(MeetingRecord(
+            transcription,
+            promptResultCount: promptResultCount
+        ))
         return String(data: data, encoding: .utf8) ?? "{}"
     }
 }
 
-private func markdownExport(for transcription: Transcription) -> String {
+private func markdownExport(for transcription: Transcription, promptResultCount: Int) -> String {
     var sections: [String] = []
     sections.append("# \(transcription.fileName)")
     sections.append("""
@@ -516,6 +746,7 @@ private func markdownExport(for transcription: Transcription) -> String {
     - Created: \(ISO8601DateFormatter().string(from: transcription.createdAt))
     - Duration: \(transcription.durationMs.map(formatDuration) ?? "--")
     - Status: \(transcription.status.rawValue)
+    - Prompt results: \(promptResultCount)
     """)
 
     if let notes = normalizedNotes(transcription.userNotes) {
@@ -536,6 +767,7 @@ private func printMeetingRecord(_ record: MeetingRecord) {
     print("Created: \(formatDate(record.createdAt))")
     print("Duration: \(record.durationMs.map(formatDuration) ?? "--")")
     print("Status: \(record.status.rawValue)")
+    print("Prompt results: \(record.promptResultCount)")
     if let filePath = record.filePath {
         print("Audio: \(filePath)")
     }

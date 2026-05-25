@@ -5,6 +5,11 @@ import MacParakeetCore
 let macParakeetAppDefaultsSuiteName = "com.macparakeet.MacParakeet"
 let cliValidationMisuseExitCode = ExitCode(2)
 
+struct CLIJSONEnvelopeExit: Error {
+    let exitCode: ExitCode
+    let originalError: Error
+}
+
 func macParakeetAppDefaults() -> UserDefaults {
     UserDefaults(suiteName: macParakeetAppDefaultsSuiteName) ?? .standard
 }
@@ -47,10 +52,12 @@ enum CLILookupError: Error, LocalizedError {
 
 enum CLIInputError: Error, LocalizedError {
     case empty
+    case invalidEncoding
 
     var errorDescription: String? {
         switch self {
         case .empty: return "Input is empty."
+        case .invalidEncoding: return "Input must be valid UTF-8."
         }
     }
 }
@@ -287,7 +294,12 @@ enum CLIErrorType {
             }
         }
         if error is CLILookupError { return lookup }
-        if error is CLIInputError { return inputEmpty }
+        if let input = error as? CLIInputError {
+            switch input {
+            case .empty: return inputEmpty
+            case .invalidEncoding: return validation
+            }
+        }
         if let transforms = error as? CLITransformsError {
             return transforms.errorType
         }
@@ -386,13 +398,13 @@ private func rethrowWithOptionalJSONEnvelope(_ error: Error, json: Bool) throws 
     let envelope = CLIErrorEnvelope(error: error)
     try? printJSON(envelope)
     if error is ValidationError || error is CLIInputError {
-        throw cliValidationMisuseExitCode
+        throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
     }
     if let transforms = error as? CLITransformsError, transforms.isValidationMisuse {
-        throw cliValidationMisuseExitCode
+        throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
     }
     if let history = error as? CLITransformHistoryError, case .invalidPrefix = history {
-        throw cliValidationMisuseExitCode
+        throw CLIJSONEnvelopeExit(exitCode: cliValidationMisuseExitCode, originalError: error)
     }
-    throw ExitCode.failure
+    throw CLIJSONEnvelopeExit(exitCode: .failure, originalError: error)
 }

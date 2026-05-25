@@ -9,7 +9,7 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 | Requirement | Source Files | Test Files |
 |------------|-------------|------------|
 | REQ-DICT-001 | `MacParakeetCore/Services/Dictation/DictationService.swift`, `MacParakeetCore/DictationFlow/` | `DictationServiceTests.swift` |
-| REQ-DICT-002 | `MacParakeetCore/DictationFlow/FnKeyStateMachine.swift` | `FnKeyStateMachineTests.swift` |
+| REQ-DICT-002 | `MacParakeet/App/AppHotkeyCoordinator.swift`, `MacParakeet/Hotkey/HotkeyManager.swift`, `MacParakeet/Views/Settings/SettingsView.swift`, `MacParakeetViewModels/SettingsViewModel.swift`, `MacParakeetCore/STT/FnKeyStateMachine.swift`, `MacParakeetCore/STT/HotkeyGestureController.swift` | `AppHotkeyCoordinatorTests.swift`, `HotkeyManagerTests.swift`, `HotkeyGestureControllerTests.swift`, `FnKeyStateMachineTests.swift`, `SettingsViewModelTests.swift` |
 | REQ-DICT-003 | `MacParakeetCore/Services/System/ClipboardService.swift` | `ClipboardServiceTests.swift` |
 | REQ-TRANS-001 | `MacParakeetCore/Services/TranscriptionService.swift` | `TranscriptionServiceTests.swift` |
 | REQ-UI-001 | `MacParakeet/Views/Dictation/DictationOverlayView.swift` | (ViewModel tests) |
@@ -98,6 +98,13 @@ This matrix traces each requirement ID from `requirements.yaml` to its implement
 |------------|-------------|------------|
 | REQ-XFORM-001 | `MacParakeetCore/Models/Prompt.swift`, `MacParakeetCore/Models/KeyboardShortcut.swift`, `MacParakeetCore/Services/System/SelectionCaptureService.swift`, `MacParakeetCore/Services/System/SelectionReplacementService.swift`, `MacParakeetCore/Services/Transforms/TransformExecutor.swift`, `MacParakeet/Hotkey/TransformsHotkeyRegistry.swift`, `MacParakeet/App/TransformsCoordinator.swift`, `MacParakeet/Views/Transforms/TransformsView.swift`, `MacParakeetViewModels/TransformsViewModel.swift`, `MacParakeetViewModels/TransformEditorViewModel.swift`, `CLI/Commands/TransformsCommand.swift` | `PromptRepositoryTests.swift`, `KeyboardShortcutTests.swift`, `SelectionCaptureServiceTests.swift`, `SelectionReplacementServiceTests.swift`, `TransformExecutorTests.swift`, `TransformsHotkeyRegistryTests.swift`, `TransformsViewModelTests.swift`, `TransformEditorViewModelTests.swift`, `TransformsCommandTests.swift` |
 | REQ-XFORM-002 | `MacParakeetCore/Models/TransformHistoryEntry.swift`, `MacParakeetCore/Database/TransformHistoryRepository.swift`, `MacParakeetCore/Services/Transforms/TransformExecutor.swift`, `MacParakeetViewModels/TransformsViewModel.swift`, `CLI/Commands/TransformsCommand.swift` | `TransformHistoryRepositoryTests.swift`, `TransformExecutorTests.swift`, `TransformsViewModelTests.swift`, `TransformsCommandTests.swift` |
+
+## v0.6 Calendar Auto-Start
+
+| Requirement | Source Files | Test Files |
+|------------|-------------|------------|
+| REQ-CAL-001 | `MacParakeetCore/Calendar/CalendarService.swift`, `MacParakeetCore/Calendar/CalendarServicing.swift`, `MacParakeetCore/Calendar/CalendarEvent.swift`, `MacParakeetCore/Calendar/CalendarAutoStartMode.swift`, `MacParakeetCore/Calendar/CalendarNotificationAuthorization.swift`, `MacParakeetCore/Calendar/MeetingMonitor.swift`, `MacParakeetCore/Calendar/MeetingLinkParser.swift`, `MacParakeet/App/MeetingAutoStartCoordinator.swift`, `MacParakeetViewModels/MeetingCountdownToastViewModel.swift` | `MeetingAutoStartCoordinatorTests.swift`, `MeetingMonitorTests.swift`, `MeetingLinkParserTests.swift`, `MeetingCountdownToastViewModelTests.swift` |
+| REQ-CAL-002 | `MacParakeet/Views/Settings/CalendarSettingsView.swift`, `MacParakeetViewModels/SettingsViewModel.swift`, `MacParakeetViewModels/SettingsSearchIndex.swift`, `MacParakeet/Views/Onboarding/OnboardingFlowView.swift`, `MacParakeetViewModels/OnboardingViewModel.swift`, `CLI/Commands/CalendarCommand.swift` | `SettingsViewModelTests.swift`, `SettingsSearchIndexTests.swift`, `OnboardingViewModelTests.swift` |
 
 ## CLI Public Surface
 

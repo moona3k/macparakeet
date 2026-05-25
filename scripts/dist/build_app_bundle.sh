@@ -31,6 +31,12 @@ set -euo pipefail
 #   YTDLP_PATH         (default: auto-download latest) source yt-dlp binary to bundle
 #   BUNDLE_NODE        (default: 1) bundle Node runtime for yt-dlp
 #   NODE_VERSION       (default: 24.13.1) Node version used when downloading
+#   BUNDLE_MEETING_ECHO_ASSETS (default: 1 when echo library+model paths are set, else 0)
+#   REQUIRE_MEETING_ECHO_ASSETS (default: 0) fail if echo assets are not bundled
+#   MACPARAKEET_MEETING_ECHO_LIBRARY source dylib for meeting echo suppression
+#   MACPARAKEET_MEETING_ECHO_DYLIB_DIR optional directory of dependent dylibs to copy into Frameworks
+#   MACPARAKEET_MEETING_ECHO_MODEL source GGUF model for meeting echo suppression
+#   MACPARAKEET_MEETING_ECHO_MODEL_SHA256 optional expected model SHA256
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
@@ -399,6 +405,69 @@ else
   echo "Skipping Node bundling (BUNDLE_NODE=0)"
 fi
 
+bundle_meeting_echo_assets() {
+  local should_bundle="${BUNDLE_MEETING_ECHO_ASSETS:-}"
+  if [[ -z "$should_bundle" ]]; then
+    if [[ -n "${MACPARAKEET_MEETING_ECHO_LIBRARY:-}" && -n "${MACPARAKEET_MEETING_ECHO_MODEL:-}" ]]; then
+      should_bundle="1"
+    else
+      should_bundle="0"
+    fi
+  fi
+
+  if [[ "$should_bundle" != "1" ]]; then
+    if [[ "${REQUIRE_MEETING_ECHO_ASSETS:-0}" == "1" ]]; then
+      echo "Error: REQUIRE_MEETING_ECHO_ASSETS=1 but BUNDLE_MEETING_ECHO_ASSETS is not enabled." >&2
+      exit 1
+    fi
+    echo "Skipping meeting echo-suppression assets (BUNDLE_MEETING_ECHO_ASSETS=0)"
+    return 0
+  fi
+
+  local library_src="${MACPARAKEET_MEETING_ECHO_LIBRARY:-}"
+  local model_src="${MACPARAKEET_MEETING_ECHO_MODEL:-}"
+  if [[ -z "$library_src" || ! -f "$library_src" ]]; then
+    echo "Error: MACPARAKEET_MEETING_ECHO_LIBRARY must point to a dylib when bundling echo assets." >&2
+    exit 1
+  fi
+  if [[ -z "$model_src" || ! -f "$model_src" ]]; then
+    echo "Error: MACPARAKEET_MEETING_ECHO_MODEL must point to a GGUF model when bundling echo assets." >&2
+    exit 1
+  fi
+
+  if [[ -n "${MACPARAKEET_MEETING_ECHO_MODEL_SHA256:-}" ]]; then
+    local actual_sha
+    actual_sha="$(shasum -a 256 "$model_src" | awk '{print $1}')"
+    if [[ "$actual_sha" != "$MACPARAKEET_MEETING_ECHO_MODEL_SHA256" ]]; then
+      echo "Error: meeting echo model SHA256 verification failed." >&2
+      echo "  Expected: $MACPARAKEET_MEETING_ECHO_MODEL_SHA256" >&2
+      echo "  Actual:   $actual_sha" >&2
+      exit 1
+    fi
+    echo "Meeting echo model SHA256 verified: $actual_sha"
+  fi
+
+  if [[ -n "${MACPARAKEET_MEETING_ECHO_DYLIB_DIR:-}" ]]; then
+    if [[ ! -d "$MACPARAKEET_MEETING_ECHO_DYLIB_DIR" ]]; then
+      echo "Error: MACPARAKEET_MEETING_ECHO_DYLIB_DIR is not a directory: $MACPARAKEET_MEETING_ECHO_DYLIB_DIR" >&2
+      exit 1
+    fi
+    while IFS= read -r -d '' dylib; do
+      install -m 0755 "$dylib" "$FRAMEWORKS_DIR/$(basename "$dylib")"
+    done < <(find "$MACPARAKEET_MEETING_ECHO_DYLIB_DIR" -maxdepth 1 -type f -name '*.dylib' -print0)
+  fi
+
+  install -m 0755 "$library_src" "$FRAMEWORKS_DIR/liblocalvqe.dylib"
+  mkdir -p "$RESOURCES_DIR/MeetingEchoSuppression"
+  install -m 0644 "$model_src" "$RESOURCES_DIR/MeetingEchoSuppression/localvqe-v1.2-1.3M-f32.gguf"
+  echo "Bundled meeting echo runtime: $FRAMEWORKS_DIR/liblocalvqe.dylib"
+  echo "Bundled meeting echo model: $RESOURCES_DIR/MeetingEchoSuppression/localvqe-v1.2-1.3M-f32.gguf"
+
+  "$ROOT_DIR/scripts/dist/verify_meeting_echo_assets.sh" "$APP_DIR"
+}
+
+bundle_meeting_echo_assets
+
 # Embed Sparkle.framework for auto-updates.
 #
 # Sparkle is linked via @rpath and must live in Contents/Frameworks/.
@@ -413,7 +482,10 @@ if [[ "$BUILD_SYSTEM" == "xcodebuild" ]]; then
     SPARKLE_FW="$(find "$XCODE_DERIVED_DATA" -type d -name "Sparkle.framework" -path "*/Release/*" 2>/dev/null | head -n 1)"
   fi
 else
-  SPARKLE_FW="$(find "$ROOT_DIR/.build" -type d -name "Sparkle.framework" -not -path "*/artifacts/*" 2>/dev/null | head -n 1)"
+  SPARKLE_FW="$(find "$ROOT_DIR/.build" -type d -name "Sparkle.framework" -path "*/release/*" -not -path "*/artifacts/*" 2>/dev/null | head -n 1)"
+  if [[ ! -d "$SPARKLE_FW" ]]; then
+    SPARKLE_FW="$(find "$ROOT_DIR/.build" -type d -name "Sparkle.framework" -not -path "*/artifacts/*" 2>/dev/null | head -n 1)"
+  fi
 fi
 
 if [[ -z "$SPARKLE_FW" || ! -d "$SPARKLE_FW" ]]; then

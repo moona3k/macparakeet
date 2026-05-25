@@ -84,9 +84,31 @@ by checking exit code first: `2` = misuse, `1` = runtime, `0` = success.
 
 - LLM-backed commands now expose `--allow-insecure-http` for intentional
   non-loopback `http://` endpoints on non-local providers.
+- `spec --json` prints a machine-readable CLI contract for agents and scripts,
+  including JSON conventions, exit codes, and supported automation commands.
+- `meetings results list|add` exposes saved meeting PromptResults through the
+  CLI. `add` stores externally generated output as a `PromptResult` without
+  invoking an LLM, preserving the meeting transcript as the canonical object.
+- `meetings list --json`, `meetings show --json`, and `meetings export --format json`
+  now include `hasPromptResults` and `promptResultCount`, and Markdown exports
+  include the same count in metadata, so agents can tell whether structured
+  meeting outputs already exist before fetching result rows.
+- `llm` commands using `--provider lmstudio` now honor optional LM Studio API
+  tokens via `--api-key`, `--api-key-env`, or `LM_API_TOKEN`.
+- `vocab snippets edit <id> --trigger ... --expansion ...` updates an existing
+  text snippet without deleting/recreating it.
 
 ### Changed
 
+- CLI telemetry now lives in the root runner instead of the `transcribe`
+  command, so every successfully parsed command emits one privacy-safe
+  `cli_operation` event. `transcribe` keeps its extra coarse input/output
+  metadata; other commands report only command path, outcome, duration, exit
+  code, and error type.
+- `transcribe` now defaults `--speaker-detection` to `app-default`, so bare
+  CLI transcription follows the saved GUI/CLI speaker-detection preference.
+  Use `--speaker-detection on` to force diarization for one run, or
+  `--speaker-detection off` / `--no-diarize` to force it off.
 - CLI LLM base URL validation now matches the GUI safety model: `https://`
   remains allowed everywhere, `http://` remains allowed for loopback and local
   providers, and non-local providers require `--allow-insecure-http` before

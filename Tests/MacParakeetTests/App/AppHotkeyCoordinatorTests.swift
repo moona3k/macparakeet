@@ -37,6 +37,15 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
+    private func rightCommandTrigger() -> HotkeyTrigger {
+        HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+    }
+
     func testSetupFileTranscriptionHotkeyReportsConflictInsteadOfSilentlyDropping() {
         let viewModel = makeViewModel()
         let conflictingTrigger = HotkeyTrigger.modifierChord(modifiers: ["command", "option"])
@@ -68,18 +77,37 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
     func testMenuTitleDescribesSharedDictationTrigger() {
         XCTAssertEqual(
             AppHotkeyCoordinator.menuTitle(handsFree: .fn, pushToTalk: .fn),
-            "Dictation: Fn (hold or double-tap)"
+            "Dictation: Hold Fn / Double-tap Fn"
+        )
+    }
+
+    func testMenuTitleDescribesSharedCustomDictationTrigger() {
+        let rightCommand = rightCommandTrigger()
+
+        XCTAssertEqual(
+            AppHotkeyCoordinator.menuTitle(handsFree: rightCommand, pushToTalk: rightCommand),
+            "Dictation: Hold Right Command / Double-tap Right Command"
+        )
+    }
+
+    func testMenuTitleDescribesOverlappingDictationTriggers() {
+        XCTAssertEqual(
+            AppHotkeyCoordinator.menuTitle(
+                handsFree: .chord(modifiers: ["control"], keyCode: 49),
+                pushToTalk: .control
+            ),
+            "Dictation Shortcuts: Conflict on Control+Space / Control"
         )
     }
 
     func testMenuTitleDescribesDistinctDictationTriggers() {
         XCTAssertEqual(
             AppHotkeyCoordinator.menuTitle(handsFree: .control, pushToTalk: .option),
-            "Dictation: Hold Option / Double-tap Control"
+            "Dictation: Hold Option / Tap Control"
         )
     }
 
-    func testDictationHotkeyPlanUsesOneCombinedManagerForSharedTrigger() {
+    func testDictationHotkeyPlanUsesCombinedDefaultGestureForFnPair() {
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
             handsFree: .fn,
             pushToTalk: .fn
@@ -96,6 +124,24 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
     }
 
+    func testDictationHotkeyPlanUsesCombinedGestureForSharedRightCommand() {
+        let rightCommand = rightCommandTrigger()
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: rightCommand,
+            pushToTalk: rightCommand
+        )
+
+        XCTAssertEqual(
+            plan,
+            AppHotkeyCoordinator.DictationHotkeyPlan(
+                specs: [
+                    .init(trigger: rightCommand, gestureMode: .doubleTapAndHold),
+                ],
+                conflict: nil
+            )
+        )
+    }
+
     func testDictationHotkeyPlanUsesSeparateManagersForDistinctTriggers() {
         let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
             handsFree: .control,
@@ -106,10 +152,43 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .control, gestureMode: .doubleTapOnly),
+                    .init(trigger: .control, gestureMode: .singleTapToggle),
                     .init(trigger: .option, gestureMode: .holdOnly),
                 ],
                 conflict: nil
+            )
+        )
+    }
+
+    func testDictationHotkeyPlanUsesCombinedManagerForDefaults() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .defaultDictation,
+            pushToTalk: .defaultPushToTalk
+        )
+
+        XCTAssertEqual(
+            plan,
+            AppHotkeyCoordinator.DictationHotkeyPlan(
+                specs: [
+                    .init(trigger: .defaultDictation, gestureMode: .doubleTapAndHold),
+                ],
+                conflict: nil
+            )
+        )
+    }
+
+    func testDictationHotkeyPlanKeepsStandardPushToTalkDebounceWhenNoFnChordConflict() {
+        let plan = AppHotkeyCoordinator.dictationHotkeyPlan(
+            handsFree: .control,
+            pushToTalk: .defaultPushToTalk
+        )
+
+        XCTAssertEqual(
+            plan.specs.last,
+            .init(
+                trigger: .defaultPushToTalk,
+                gestureMode: .holdOnly,
+                startupDebounceMs: FnKeyStateMachine.defaultStartupDebounceMs
             )
         )
     }
@@ -125,7 +204,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             plan,
             AppHotkeyCoordinator.DictationHotkeyPlan(
                 specs: [
-                    .init(trigger: .control, gestureMode: .doubleTapOnly),
+                    .init(trigger: .control, gestureMode: .singleTapToggle),
                 ],
                 conflict: .init(trigger: pushToTalk, conflicts: [.control])
             )
@@ -219,12 +298,7 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
         )
 
         viewModel.meetingHotkeyTrigger = .defaultMeetingRecording
-        viewModel.pushToTalkHotkeyTrigger = HotkeyTrigger(
-            kind: .modifier,
-            modifierName: "command",
-            keyCode: nil,
-            modifierKeyCode: 54
-        )
+        viewModel.pushToTalkHotkeyTrigger = .defaultMeetingRecording
 
         coordinator.suspend()
         coordinator.refreshAllHotkeys()
@@ -235,6 +309,34 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
 
         coordinator.resume()
         XCTAssertEqual(conflictReports, 1, "resume() must rebuild taps from current settings")
+    }
+
+    func testAuxiliaryHotkeysCanShareChordsWithBareModifierDictationTriggers() {
+        let rightCommand = HotkeyTrigger(
+            kind: .modifier,
+            modifierName: "command",
+            keyCode: nil,
+            modifierKeyCode: 54
+        )
+
+        XCTAssertEqual(
+            AppHotkeyCoordinator.conflictingTriggers(
+                for: .defaultMeetingRecording,
+                among: [
+                    .init(rightCommand, mode: .bareModifierDictation)
+                ]
+            ),
+            []
+        )
+        XCTAssertEqual(
+            AppHotkeyCoordinator.conflictingTriggers(
+                for: .defaultMeetingRecording,
+                among: [
+                    .init(rightCommand)
+                ]
+            ),
+            [rightCommand]
+        )
     }
 
     func testSetupAllHotkeysIsDeferredWhileSuspended() {
@@ -261,6 +363,11 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
 
     func testResumeModeMatchesActiveDictationRole() {
         XCTAssertEqual(
+            AppHotkeyCoordinator.resumeMode(.persistent, for: .singleTapToggle),
+            .persistent
+        )
+        XCTAssertFalse(AppHotkeyCoordinator.shouldSuppressPeer(.persistent, for: .singleTapToggle))
+        XCTAssertEqual(
             AppHotkeyCoordinator.resumeMode(.persistent, for: .doubleTapOnly),
             .persistent
         )
@@ -283,6 +390,8 @@ final class AppHotkeyCoordinatorTests: XCTestCase {
             .holdToTalk
         )
         XCTAssertFalse(AppHotkeyCoordinator.shouldSuppressPeer(.holdToTalk, for: .doubleTapAndHold))
+        XCTAssertNil(AppHotkeyCoordinator.resumeMode(.holdToTalk, for: .singleTapToggle))
+        XCTAssertTrue(AppHotkeyCoordinator.shouldSuppressPeer(.holdToTalk, for: .singleTapToggle))
         XCTAssertNil(AppHotkeyCoordinator.resumeMode(.holdToTalk, for: .doubleTapOnly))
         XCTAssertTrue(AppHotkeyCoordinator.shouldSuppressPeer(.holdToTalk, for: .doubleTapOnly))
         XCTAssertNil(AppHotkeyCoordinator.resumeMode(nil, for: .doubleTapAndHold))
