@@ -57,6 +57,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     private let modelVersion: AsrModelVersion
     private var speechEngine: SpeechEnginePreference
     private var whisperEngine: WhisperEngine?
+    private var vibevoiceEngine: VibeVoiceEngine?
     private let whisperModelVariant: String
     private var activeTranscriptionCount = 0
 
@@ -106,8 +107,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .whisper:
             return try await transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
         case .vibevoice:
-            // TODO(Phase 2.2): wire up VibeVoice transcription path in Task 6
-            throw STTError.engineNotRunning
+            return try await transcribeWithVibeVoice(audioPath: audioPath, job: job)
         }
     }
 
@@ -125,6 +125,15 @@ public actor STTRuntime: STTRuntimeProtocol {
             tuning: tuning,
             onProgress: onProgress
         )
+    }
+
+    private func transcribeWithVibeVoice(
+        audioPath: String,
+        job: STTJobKind
+    ) async throws -> STTResult {
+        let engine = vibevoiceEngine ?? VibeVoiceEngine()
+        if vibevoiceEngine == nil { vibevoiceEngine = engine }
+        return try await engine.transcribe(audioPath: audioPath, job: job)
     }
 
     private func transcribeWithParakeet(
@@ -215,8 +224,7 @@ public actor STTRuntime: STTRuntimeProtocol {
                 whisperEngine = engine
                 try await engine.prepare(onProgress: onProgress)
             case .vibevoice:
-                // TODO(Phase 2.2): wire up VibeVoice warm-up path in Task 6
-                break
+                try await ensureVibeVoiceLoaded()
             }
             let elapsed = start.duration(to: .now)
             let seconds = Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
@@ -347,6 +355,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     public func shutdown() async {
         invalidateBackgroundWarmUp()
         await unloadWhisper()
+        await unloadVibeVoiceEngine()
         await unloadParakeet()
         warmUpProgressHandler = nil
         setBackgroundWarmUpState(.idle)
@@ -442,10 +451,9 @@ public actor STTRuntime: STTRuntimeProtocol {
             try await engine.prepare(onProgress: onProgress)
             preparedWhisper = engine
         case .vibevoice:
-            // TODO(Phase 2.2): wire up VibeVoice engine-switch preparation in Task 6.
-            // No user-facing string until Task 13/14 makes VibeVoice selectable from
-            // the Settings UI.
-            break
+            // No user-facing progress string until Task 13/14 makes VibeVoice
+            // selectable from the Settings UI.
+            try await ensureVibeVoiceLoaded()
         }
 
         if let preparedWhisper {
@@ -461,6 +469,8 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .whisper where preference != .whisper:
             onProgress?("Releasing Whisper model...")
             await unloadWhisper()
+        case .vibevoice where preference != .vibevoice:
+            await unloadVibeVoiceEngine()
         default:
             break
         }
@@ -500,6 +510,43 @@ public actor STTRuntime: STTRuntimeProtocol {
         let engine = whisperEngine
         whisperEngine = nil
         await engine?.unload()
+    }
+
+    /// Whether the VibeVoice engine has been warmed up and is ready to transcribe.
+    /// Used by the scheduler to decide whether to warm up before dispatching a
+    /// VibeVoice job.
+    public var hasLoadedVibeVoiceEngine: Bool {
+        vibevoiceEngine != nil
+    }
+
+    /// Lazily constructs and warms the VibeVoice engine. Idempotent — calling
+    /// twice on a loaded engine is a no-op. Throws if model files are missing
+    /// or `vv_capi_load` fails.
+    public func ensureVibeVoiceLoaded() async throws {
+        if let existing = vibevoiceEngine {
+            // already loaded — VibeVoiceEngine.warmUp is a no-op when isLoaded
+            try await existing.warmUp()
+            return
+        }
+        let engine = VibeVoiceEngine()
+        try await engine.warmUp()
+        vibevoiceEngine = engine
+    }
+
+    /// Returns the loaded VibeVoice engine, throwing if it hasn't been warmed
+    /// up yet. The scheduler should call `ensureVibeVoiceLoaded()` first when
+    /// dispatching a VibeVoice job.
+    public func vibevoice() throws -> VibeVoiceEngine {
+        guard let engine = vibevoiceEngine else {
+            throw STTError.modelNotLoaded
+        }
+        return engine
+    }
+
+    /// Tears down the VibeVoice engine. Called on shutdown. Mirrors whisper teardown.
+    public func unloadVibeVoiceEngine() async {
+        await vibevoiceEngine?.unload()
+        vibevoiceEngine = nil
     }
 
     private func beginBackgroundWarmUp() -> UInt64 {
@@ -707,11 +754,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .whisper:
             return .whisperSTT
         case .vibevoice:
-            // TODO(Phase 2.2): wire up VibeVoice telemetry kind in Task 6.
-            // Until Task 6 lands, fall back to .whisperSTT so the build compiles.
-            // If this fires, telemetry events get miscategorized — log so it's noticed.
-            logger.warning("VibeVoice telemetry placeholder firing; events will be reported as whisperSTT until Task 6")
-            return .whisperSTT
+            return .vibevoiceSTT
         }
     }
 
@@ -722,8 +765,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .whisper:
             whisperModelVariant
         case .vibevoice:
-            // TODO(Phase 2.2): return the VibeVoice model variant in Task 6
-            nil
+            "vibevoice-asr-q4_k"
         }
     }
 
