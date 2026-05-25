@@ -83,7 +83,12 @@ final class VibeVoiceASRTests: XCTestCase {
         try skipIfModelMissing()
         let asr = VibeVoiceASR()
         try await asr.loadModel(modelPath: modelPath, tokenizerPath: tokenizerPath)
-        defer { Task { await asr.unload() } }
+        // Use addTeardownBlock so unload() is awaited before xctest tears
+        // down the process. A fire-and-forget `Task` in `defer` doesn't
+        // wait, which lets ggml's Metal device deallocate while still
+        // holding live resource sets — that GGML_ASSERTs at process exit
+        // with signal 6 even when the test itself passes.
+        addTeardownBlock { @Sendable in await asr.unload() }
 
         let bogusURL = URL(fileURLWithPath: "/tmp/does-not-exist.wav")
         do {

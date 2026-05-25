@@ -13,9 +13,9 @@ public enum VibeVoiceASRError: Error, Equatable, Sendable {
     case transcribeFailed(code: Int32)
 
     /// `vv_capi_asr` returned -<required-size>, meaning our caller-
-    /// owned buffer wasn't large enough to hold the JSON. We grow and
-    /// retry up to `VibeVoiceASR.maxBufferGrowAttempts` times before
-    /// giving up.
+    /// owned buffer wasn't large enough to hold the JSON. The actor
+    /// grows the buffer and retries; this error is only thrown if
+    /// growth would exceed `VibeVoiceASR.maxBufferSize` (16 MB).
     case outputBufferTooSmall(requiredBytes: Int)
 
     /// The JSON output decoded by `JSONDecoder` was structurally

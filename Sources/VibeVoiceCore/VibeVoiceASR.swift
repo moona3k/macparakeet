@@ -20,6 +20,10 @@ public actor VibeVoiceASR {
     /// runaway response can't OOM the host.
     private static let maxBufferSize: Int = 16 * 1024 * 1024
 
+    /// Small pad above the reported required size so a slightly larger
+    /// response on retry doesn't immediately trigger another grow.
+    private static let bufferPad: Int = 1024
+
     private var isLoaded: Bool = false
 
     public init() {}
@@ -112,12 +116,8 @@ public actor VibeVoiceASR {
                     throw VibeVoiceASRError.transcribeFailed(code: written)
                 }
                 let requiredOrError = -Int(written)
-                // Small pad above the reported required size so a slightly
-                // larger response on retry doesn't immediately trigger another
-                // grow round-trip.
-                let bufferPad = 1024
                 if requiredOrError > bufferSize && requiredOrError < Self.maxBufferSize * 2 {
-                    bufferSize = min(requiredOrError + bufferPad, Self.maxBufferSize)
+                    bufferSize = min(requiredOrError + Self.bufferPad, Self.maxBufferSize)
                     continue  // Grow and retry.
                 } else {
                     throw VibeVoiceASRError.transcribeFailed(code: written)
