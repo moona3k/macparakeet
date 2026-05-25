@@ -16,12 +16,10 @@ public enum AppFeatures {
     /// search-index calendar entry, and the auto-start coordinator never starts
     /// polling. CalendarService, MeetingAutoStartCoordinator, models, and tests
     /// remain intact — only the surfaces that would invoke them are gated.
-    /// Enabled after the post-#318 reliability hardening (ADR-017 Phases 1+2):
-    /// mid-flight teardown, RSVP/zero-duration guards, and reschedule re-fire.
-    /// Calendar-driven auto-stop was removed by the 2026-05 amendment. Auto-
-    /// start defaults to mode `.off`, so upgraders opt in explicitly via
-    /// onboarding or Settings; nothing changes for existing users until they do.
-    public static let calendarEnabled: Bool = true
+    /// Hidden in v0.6 pending hands-on E2E validation; flip to `true` in a
+    /// point release once the auto-start flow has been exercised against real
+    /// calendars.
+    public static let calendarEnabled: Bool = false
 
     /// Transforms spike (docs/research/transforms-design-2026-05.md, Phase 1
     /// AX-coverage spike). When `true`, installs the spike's hardcoded
