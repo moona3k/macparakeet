@@ -53,3 +53,93 @@ final class VibeVoiceChunkedTranscriberConstructorTests: XCTestCase {
         _ = chunker  // ensure init compiles and doesn't crash
     }
 }
+
+final class VibeVoiceChunkedTranscriberOrchestrationTests: XCTestCase {
+
+    fileprivate func fixtureURL() throws -> URL {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // STT/
+            .appendingPathComponent("Fixtures/synthetic_silence.wav")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: url.path),
+                          "synthetic_silence.wav fixture missing — run scripts/dev/make_silence_fixture.sh")
+        return url
+    }
+
+    /// 60-s fixture, chunkLengthSec=20 → 3 chunks. Silences at 20-22 s and
+    /// 40-42 s mean boundaries should snap there. Fake engine returns one
+    /// canned segment per chunk; the merger combines them with offsets.
+    func testHappyPathThreeChunksMergedWithOffsets() async throws {
+        let fixture = try fixtureURL()
+        let recorder = SegmentInjectingFake()
+        recorder.injectedSegments = [
+            [STTSegment(startMs: 0, endMs: 18_000, text: "chunk0", speakerId: 0)],
+            [STTSegment(startMs: 0, endMs: 18_000, text: "chunk1", speakerId: 0)],
+            [STTSegment(startMs: 0, endMs: 15_000, text: "chunk2", speakerId: 0)],
+        ]
+        let chunker = VibeVoiceChunkedTranscriber(
+            engine: recorder,
+            chunkLengthSec: 20,
+            minTailSec: 5,
+            silenceWindowSec: 5
+        )
+        let result = try await chunker.transcribe(
+            audioPath: fixture.path,
+            job: .fileTranscription,
+            onProgress: nil
+        )
+        // Three chunks were processed
+        XCTAssertEqual(recorder.callCount, 3)
+        // Three merged segments, with offsets matching refined boundaries.
+        // Boundaries: target 20 s snaps to ~21 (mid of silence 20-22),
+        //             target 40 s snaps to ~41 (mid of silence 40-42).
+        let segments = try XCTUnwrap(result.segments)
+        XCTAssertEqual(segments.count, 3)
+        XCTAssertEqual(segments[0].startMs, 0)
+        XCTAssertEqual(segments[0].text, "chunk0")
+        // Chunk 1 starts at refined boundary (≈ 21 s = 21000 ms)
+        XCTAssertEqual(Double(segments[1].startMs), 21000, accuracy: 200)
+        XCTAssertEqual(segments[1].text, "chunk1")
+        // Chunk 2 starts at refined boundary (≈ 41 s = 41000 ms)
+        XCTAssertEqual(Double(segments[2].startMs), 41000, accuracy: 200)
+        XCTAssertEqual(segments[2].text, "chunk2")
+        // Engine variant tagged as chunked
+        XCTAssertEqual(result.engineVariant, "vibevoice-asr-q4_k-chunked")
+        XCTAssertEqual(result.engine, .vibevoice)
+        XCTAssertTrue(result.words.isEmpty)
+    }
+}
+
+/// A more controllable fake that returns a different segment per call,
+/// in call order. Used when test setup doesn't know chunk paths in advance.
+final class SegmentInjectingFake: STTTranscribing, @unchecked Sendable {
+    private let queue = DispatchQueue(label: "SegmentInjectingFake")
+    private var _injectedSegments: [[STTSegment]] = []
+    private var _callCount = 0
+
+    var injectedSegments: [[STTSegment]] {
+        get { queue.sync { _injectedSegments } }
+        set { queue.sync { _injectedSegments = newValue } }
+    }
+    var callCount: Int { queue.sync { _callCount } }
+
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        let segments: [STTSegment] = queue.sync {
+            defer { _callCount += 1 }
+            return _callCount < _injectedSegments.count ? _injectedSegments[_callCount] : []
+        }
+        onProgress?(0, 100)
+        onProgress?(100, 100)
+        return STTResult(
+            text: segments.map(\.text).joined(separator: "\n"),
+            words: [],
+            segments: segments,
+            language: nil,
+            engine: .vibevoice,
+            engineVariant: "fake"
+        )
+    }
+}
