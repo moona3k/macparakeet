@@ -1,5 +1,6 @@
 import Foundation
 import CVibeVoice
+import OSLog
 
 /// Swift wrapper around the vibevoice.cpp C ABI. One actor per
 /// process — the underlying C library uses a single global engine
@@ -12,6 +13,8 @@ import CVibeVoice
 ///    segments via JSON parsing of the C ABI's output buffer.
 /// 3. `unload()` — optional; process exit frees engine state.
 public actor VibeVoiceASR {
+    private static let logger = Logger(subsystem: "com.macparakeet.vibevoice", category: "VibeVoiceASR")
+
     /// Initial JSON output buffer. Long-form transcriptions can produce
     /// 50-100 KB of JSON; we start at 256 KB and grow on `outputBufferTooSmall`.
     private static let initialBufferSize: Int = 256 * 1024
@@ -93,11 +96,19 @@ public actor VibeVoiceASR {
                     String(cString: ptr.baseAddress!)
                 }
                 guard let data = jsonString.data(using: .utf8) else {
+                    Self.logger.error("VibeVoice returned non-UTF8 output (\(written, privacy: .public) bytes)")
                     throw VibeVoiceASRError.malformedJSON("non-UTF8 output")
                 }
                 do {
                     return try JSONDecoder().decode([DiarizedSegment].self, from: data)
                 } catch {
+                    // Dump the first 1500 chars of the raw JSON so we can
+                    // tell whether vibevoice.cpp returned a different shape,
+                    // partial output, or garbage. User-content data is the
+                    // user's own transcription — `.public` matches what other
+                    // STT engines log.
+                    let preview = String(jsonString.prefix(1500))
+                    Self.logger.error("VibeVoice JSON decode failed (\(written, privacy: .public) bytes): \(error.localizedDescription, privacy: .public)\nRaw output preview: \(preview, privacy: .public)")
                     throw VibeVoiceASRError.malformedJSON(error.localizedDescription)
                 }
             } else if written == 0 {

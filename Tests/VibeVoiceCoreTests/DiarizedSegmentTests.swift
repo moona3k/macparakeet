@@ -42,4 +42,25 @@ final class DiarizedSegmentTests: XCTestCase {
         let segments = try JSONDecoder().decode([DiarizedSegment].self, from: json)
         XCTAssertTrue(segments.isEmpty)
     }
+
+    /// Real failure case from a 30-min fitness video: vibevoice.cpp emits
+    /// non-speech segments (silence, music) without a `Speaker` field.
+    /// `speakerId` must be optional or the whole array fails to decode the
+    /// moment the first non-speech segment appears.
+    func testDecodesSilenceSegmentWithoutSpeakerField() throws {
+        let json = #"""
+        [
+          {"Start":0,"End":4.69,"Content":"[Silence]"},
+          {"Start":4.69,"End":12.7,"Speaker":0,"Content":"Hello."},
+          {"Start":12.7,"End":15.0,"Content":"[Silence]"}
+        ]
+        """#.data(using: .utf8)!
+        let segments = try JSONDecoder().decode([DiarizedSegment].self, from: json)
+        XCTAssertEqual(segments.count, 3)
+        XCTAssertNil(segments[0].speakerId)
+        XCTAssertEqual(segments[0].text, "[Silence]")
+        XCTAssertEqual(segments[1].speakerId, 0)
+        XCTAssertEqual(segments[1].text, "Hello.")
+        XCTAssertNil(segments[2].speakerId)
+    }
 }
