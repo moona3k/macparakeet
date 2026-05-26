@@ -2,116 +2,174 @@ import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
 
-/// The Speech Engines settings card (Phase 2.2). Replaces the legacy
-/// single Parakeet/Whisper picker with one global-default selector plus
-/// three per-feature overrides (dictation, file transcription, meeting
-/// recording) and an Engine Models section showing install status with
-/// download affordances for VibeVoice.
+/// Settings card for selecting speech engines (Phase 2.2.1 redesign).
 ///
-/// All state comes from `SettingsViewModel.speechEnginePreferences` and
-/// related fields. The card is bound to the view model directly via
-/// `@Bindable`.
+/// Top section: three rich engine tiles for the global default. Tapping
+/// a tile sets `speechEnginePreferences.global` and routes any feature
+/// configured to "Use default" through that engine.
+///
+/// Middle section (disclosure-gated): per-feature overrides as pill bars.
+/// Hidden by default — most users only set the global default.
+///
+/// Bottom section: model install status for each engine, with Download
+/// affordance for VibeVoice (Parakeet and Whisper have their own
+/// first-run paths).
 struct SpeechEngineCard: View {
     @Bindable var viewModel: SettingsViewModel
+
+    @State private var perFeatureExpanded: Bool = false
 
     var body: some View {
         SettingsCard(
             title: "Speech Engines",
-            subtitle: "Pick a default engine and optionally override per feature.",
+            subtitle: "Choose the engine that powers dictation, file transcription, and meetings.",
             icon: "waveform",
             iconTint: DesignSystem.Colors.accent
         ) {
-            VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
-                globalSection
+            VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
+                globalTiles
                 Divider()
-                featurePicker(
-                    label: "Dictation",
-                    selection: Binding(
-                        get: { viewModel.dictationEngineSelection },
-                        set: { viewModel.dictationEngineSelection = $0 }
-                    ),
-                    hint: dictationHint
-                )
-                featurePicker(
-                    label: "File transcription",
-                    selection: Binding(
-                        get: { viewModel.fileTranscriptionEngineSelection },
-                        set: { viewModel.fileTranscriptionEngineSelection = $0 }
-                    ),
-                    hint: nil
-                )
-                featurePicker(
-                    label: "Meeting recording",
-                    selection: Binding(
-                        get: { viewModel.meetingRecordingEngineSelection },
-                        set: { viewModel.meetingRecordingEngineSelection = $0 }
-                    ),
-                    hint: meetingHint
-                )
+                perFeatureSection
                 Divider()
                 modelsSection
             }
         }
     }
 
-    // MARK: - Sections
+    // MARK: - Global default tiles
 
-    private var globalSection: some View {
-        HStack(alignment: .top) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Default engine")
-                    .font(DesignSystem.Typography.body)
-                Text("Used when a feature below is set to \"Use default\".")
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
+    private var globalTiles: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
+            Text("Pick your default engine")
+                .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                parakeetTile
+                whisperTile
+                vibevoiceTile
             }
-            Spacer(minLength: DesignSystem.Spacing.md)
-            Picker("", selection: Binding(
-                get: { viewModel.globalEngine },
-                set: { viewModel.globalEngine = $0 }
-            )) {
-                ForEach(SpeechEnginePreference.allCases, id: \.self) { engine in
-                    Text(engine.displayName).tag(engine)
-                }
-            }
-            .labelsHidden()
-            .pickerStyle(.menu)
-            .frame(width: 180)
         }
     }
 
-    private func featurePicker(
-        label: String,
-        selection: Binding<FeatureEngineSelection>,
-        hint: String?
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label)
-                    .font(DesignSystem.Typography.body)
-                Spacer()
-                Picker("", selection: selection) {
-                    Text("Use default").tag(FeatureEngineSelection.global)
-                    ForEach(SpeechEnginePreference.allCases, id: \.self) { engine in
-                        Text(engine.displayName).tag(FeatureEngineSelection.specific(engine))
+    private var parakeetTile: some View {
+        EngineOptionTile(
+            icon: "bolt.fill",
+            name: "Parakeet",
+            tagline: "Fastest local engine",
+            strengths: [
+                "English + 24 European languages",
+                "155× realtime on Apple Silicon",
+                "Runs on the Neural Engine"
+            ],
+            helpText: "Best for English and other European languages including Spanish, French, German, and Italian. Runs on the Neural Engine for the lowest latency on Apple Silicon.",
+            modelStatus: .notLoaded,
+            isSelected: viewModel.globalEngine == .parakeet,
+            isBusy: false,
+            unavailableReason: nil,
+            onSelect: { viewModel.globalEngine = .parakeet }
+        )
+    }
+
+    private var whisperTile: some View {
+        EngineOptionTile(
+            icon: "globe",
+            name: "Whisper",
+            tagline: "Multilingual coverage",
+            strengths: [
+                "Korean, Japanese, Chinese, Thai +95 more",
+                "Auto language detection",
+                "Whisper Large v3 Turbo (632 MB)"
+            ],
+            helpText: "Best for languages outside Parakeet's coverage. Adds Korean, Japanese, Chinese, Thai, Hindi, Arabic, Vietnamese, and 80+ more — any language Whisper supports.",
+            modelStatus: .notLoaded,
+            isSelected: viewModel.globalEngine == .whisper,
+            isBusy: false,
+            unavailableReason: nil,
+            onSelect: { viewModel.globalEngine = .whisper }
+        )
+    }
+
+    private var vibevoiceTile: some View {
+        EngineOptionTile(
+            icon: "waveform.circle",
+            name: "VibeVoice",
+            tagline: "Diarization-aware",
+            strengths: [
+                "Native speaker labels",
+                "60-minute single-pass context",
+                "50+ languages, auto-detected"
+            ],
+            helpText: "Best for long-form multi-speaker content (meetings, interviews, podcasts) — VibeVoice identifies who said what natively. 9.7 GB model, ~RTF 0.4. Not recommended for dictation due to startup latency.",
+            modelStatus: viewModel.isVibeVoiceModelInstalled ? .notLoaded : .notDownloaded,
+            isSelected: viewModel.globalEngine == .vibevoice,
+            isBusy: false,
+            unavailableReason: nil,
+            onSelect: { viewModel.globalEngine = .vibevoice }
+        )
+    }
+
+    // MARK: - Per-feature overrides (disclosure-gated)
+
+    private var perFeatureSection: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            Button(action: { perFeatureExpanded.toggle() }) {
+                HStack(spacing: 6) {
+                    Image(systemName: perFeatureExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                    Text("Use specific engines per feature")
+                        .font(DesignSystem.Typography.body)
+                        .foregroundStyle(DesignSystem.Colors.textPrimary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if perFeatureExpanded {
+                VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+                    EnginePillBar(
+                        label: "Dictation",
+                        selection: Binding(
+                            get: { viewModel.dictationEngineSelection },
+                            set: { viewModel.dictationEngineSelection = $0 }
+                        )
+                    )
+                    EnginePillBar(
+                        label: "File transcription",
+                        selection: Binding(
+                            get: { viewModel.fileTranscriptionEngineSelection },
+                            set: { viewModel.fileTranscriptionEngineSelection = $0 }
+                        )
+                    )
+                    EnginePillBar(
+                        label: "Meeting recording",
+                        selection: Binding(
+                            get: { viewModel.meetingRecordingEngineSelection },
+                            set: { viewModel.meetingRecordingEngineSelection = $0 }
+                        )
+                    )
+                    if let hint = dictationHint {
+                        Label(hint, systemImage: "exclamationmark.triangle")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.warningAmber)
+                    }
+                    if let hint = meetingHint {
+                        Label(hint, systemImage: "sparkles")
+                            .font(DesignSystem.Typography.caption)
+                            .foregroundStyle(DesignSystem.Colors.textSecondary)
                     }
                 }
-                .labelsHidden()
-                .pickerStyle(.menu)
-                .frame(width: 180)
-            }
-            if let hint {
-                Text(hint)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(.secondary)
+                .padding(.leading, 20)
             }
         }
     }
+
+    // MARK: - Models section
 
     private var modelsSection: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             Text("Engine models")
                 .font(DesignSystem.Typography.body)
+                .foregroundStyle(DesignSystem.Colors.textSecondary)
             EngineModelStatusRow(
                 engine: .parakeet,
                 isInstalled: true,
