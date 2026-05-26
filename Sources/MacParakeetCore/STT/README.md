@@ -31,6 +31,18 @@ to one `STTRuntime`; callers do not own model lifecycles directly.
 - `WhisperEngine.swift` — WhisperKit wrapper conforming to the same
   shape as the Parakeet path.
 
+**VibeVoice chunked transcription**
+- `VibeVoiceChunkedTranscriber.swift` — orchestrator for long-form
+  VibeVoice transcription. Splits audio > 7.5 min into ~5-min chunks
+  via FFmpeg, runs `VibeVoiceEngine` sequentially per chunk, and
+  merges results with timestamp offsets. Called by
+  `STTRuntime.transcribeWithVibeVoice` when audio exceeds
+  `vibevoiceChunkThresholdSec`.
+- `VibeVoiceChunkPlanning.swift` — pure functions (no I/O) for the
+  chunker: silence interval parsing, chunk plan computation,
+  boundary refinement, segment merging, and overall progress math.
+  Exhaustively unit-tested in `VibeVoiceChunkPlanningTests.swift`.
+
 **Hotkey state (lives here for testability)**
 - `FnKeyStateMachine.swift` — pure state machine for legacy combined
   dictation gestures and shared timing constants.

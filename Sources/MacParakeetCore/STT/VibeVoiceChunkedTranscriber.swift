@@ -127,7 +127,11 @@ public actor VibeVoiceChunkedTranscriber {
                 job: job,
                 onProgress: perChunkProgress
             )
-            perChunkSegments.append(chunkResult.segments ?? [])
+            let chunkSegments = chunkResult.segments ?? []
+            if chunkResult.segments == nil {
+                Self.logger.notice("chunk \(chunkIndex, privacy: .public) returned nil segments; treating as empty")
+            }
+            perChunkSegments.append(chunkSegments)
         }
         let inferElapsed = Date().timeIntervalSince(inferStart)
 
@@ -191,6 +195,16 @@ public actor VibeVoiceChunkedTranscriber {
     }
 
     private func splitAudio(audioPath: String, boundaries: [Double]) async throws -> [URL] {
+        // Defensive: an empty boundary list would cause FFmpeg's segment muxer
+        // to default to ~2-second splits — producing hundreds of tiny chunks.
+        // Caller (computeChunkPlan + STTRuntime routing) should never reach this,
+        // but guard so a regression doesn't kick off a runaway split.
+        guard !boundaries.isEmpty else {
+            throw STTError.transcriptionFailed(
+                "splitAudio called with no boundaries; route through single-shot engine instead"
+            )
+        }
+
         let ffmpeg = try BinaryBootstrap.requireRuntimeFFmpegPath()
         let uuid = UUID().uuidString
         let tempDir = FileManager.default.temporaryDirectory
