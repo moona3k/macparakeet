@@ -575,7 +575,10 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
     public func listModels(context: LLMExecutionContext) async throws -> [String] {
         let config = context.providerConfig
-        if config.id == .ollama {
+        guard config.id.modelListEndpoint != .none else {
+            throw LLMError.invalidResponse
+        }
+        if config.id.modelListEndpoint == .ollama {
             do {
                 return try await listOllamaModels(config: config)
             } catch {
@@ -589,7 +592,7 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.httpMethod = "GET"
 
-        switch config.id {
+        switch config.id.modelListEndpoint {
         case .anthropic:
             // Anthropic uses x-api-key header and anthropic-version
             if let key = config.apiKey {
@@ -602,7 +605,7 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             break
         case .ollama:
             request.setValue("Bearer ollama", forHTTPHeaderField: "Authorization")
-        default:
+        case .openAICompatible, .none:
             if let key = config.apiKey {
                 request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
             }
@@ -620,7 +623,7 @@ public final class LLMClient: LLMClientProtocol, Sendable {
             throw LLMError.connectionFailed("Failed to fetch models.")
         }
 
-        if config.id == .gemini,
+        if config.id.modelListEndpoint == .gemini,
            let modelsResponse = try? JSONDecoder().decode(GeminiModelsListResponse.self, from: data) {
             return modelsResponse.models
                 .filter { $0.supportedGenerationMethods?.contains("generateContent") ?? true }
@@ -683,14 +686,14 @@ public final class LLMClient: LLMClientProtocol, Sendable {
     }
 
     private static func modelsURL(for config: LLMProviderConfig) -> URL {
-        if config.id == .anthropic,
+        if config.id.modelListEndpoint == .anthropic,
            let url = urlByAppendingQueryItems(
             [URLQueryItem(name: "limit", value: "1000")],
             to: config.baseURL.appendingPathComponent("models")
            ) {
             return url
         }
-        if config.id == .gemini,
+        if config.id.modelListEndpoint == .gemini,
            let url = geminiModelsURL(from: config.baseURL, apiKey: config.apiKey) {
             return url
         }

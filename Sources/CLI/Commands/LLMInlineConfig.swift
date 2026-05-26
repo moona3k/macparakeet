@@ -127,14 +127,14 @@ struct LLMInlineOptions: ParsableArguments {
         switch providerID {
         case .anthropic:
             let key = try requiredAPIKey(
-                providerName: "Anthropic",
+                providerName: providerID.displayName,
                 defaultEnvNames: ["ANTHROPIC_API_KEY"],
                 environment: environment
             )
-            providerConfig = .anthropic(apiKey: key, model: model ?? "claude-sonnet-4-6", baseURL: overrideURL)
+            providerConfig = .anthropic(apiKey: key, model: model ?? providerID.defaultModelName, baseURL: overrideURL)
         case .openai:
             let key = try requiredAPIKey(
-                providerName: "OpenAI",
+                providerName: providerID.displayName,
                 defaultEnvNames: ["OPENAI_API_KEY"],
                 environment: environment
             )
@@ -151,20 +151,20 @@ struct LLMInlineOptions: ParsableArguments {
             )
         case .gemini:
             let key = try requiredAPIKey(
-                providerName: "Gemini",
+                providerName: providerID.displayName,
                 defaultEnvNames: ["GEMINI_API_KEY"],
                 environment: environment
             )
             providerConfig = .gemini(apiKey: key, model: model ?? "gemini-2.5-flash", baseURL: overrideURL)
         case .openrouter:
             let key = try requiredAPIKey(
-                providerName: "OpenRouter",
+                providerName: providerID.displayName,
                 defaultEnvNames: ["OPENROUTER_API_KEY"],
                 environment: environment
             )
             providerConfig = .openrouter(apiKey: key, model: model ?? "anthropic/claude-sonnet-4", baseURL: overrideURL)
         case .ollama:
-            providerConfig = .ollama(model: model ?? "qwen3.5:4b", baseURL: overrideURL)
+            providerConfig = .ollama(model: model ?? providerID.defaultModelName, baseURL: overrideURL)
         case .lmstudio:
             guard let rawModel = model?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !rawModel.isEmpty else {

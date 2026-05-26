@@ -534,7 +534,7 @@ final class LLMClientTests: XCTestCase {
             return (self.okResponse(for: request), self.validResponseData())
         }
 
-        let config = LLMProviderConfig.openai(apiKey: "sk-test")
+        let config = LLMProviderConfig.openai(apiKey: "sk-test", model: "gpt-4.1")
         try await llmClient.testConnection(config: config)
 
         XCTAssertEqual(capturedBody?["max_tokens"] as? Int, 1)

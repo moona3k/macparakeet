@@ -1,5 +1,33 @@
 import Foundation
 
+// MARK: - Provider Descriptor
+
+public struct LLMProviderDescriptor: Sendable, Equatable {
+    public enum ModelListEndpoint: Sendable, Equatable {
+        case none
+        case openAICompatible
+        case anthropic
+        case gemini
+        case ollama
+    }
+
+    public let id: LLMProviderID
+    public let displayName: String
+    public let defaultBaseURL: String
+    public let isLocal: Bool
+    public let supportsAPIKey: Bool
+    public let requiresAPIKey: Bool
+    public let requiresCustomEndpoint: Bool
+    public let modelListEndpoint: ModelListEndpoint
+    public let defaultModelName: String
+    public let fallbackModels: [String]
+
+    public var supportsModelListing: Bool {
+        modelListEndpoint != .none
+    }
+
+}
+
 // MARK: - Provider ID
 
 public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
@@ -12,50 +40,202 @@ public enum LLMProviderID: String, Codable, Sendable, CaseIterable {
     case lmstudio
     case localCLI
 
-    public var displayName: String {
+    public var descriptor: LLMProviderDescriptor {
         switch self {
-        case .anthropic: return "Anthropic"
-        case .openai: return "OpenAI"
-        case .openaiCompatible: return "OpenAI-Compatible"
-        case .gemini: return "Google Gemini"
-        case .openrouter: return "OpenRouter"
-        case .ollama: return "Ollama"
-        case .lmstudio: return "LM Studio"
-        case .localCLI: return "Local CLI"
+        case .anthropic:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "Anthropic",
+                defaultBaseURL: "https://api.anthropic.com/v1",
+                isLocal: false,
+                supportsAPIKey: true,
+                requiresAPIKey: true,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .anthropic,
+                defaultModelName: "claude-sonnet-4-6",
+                fallbackModels: [
+                    "claude-sonnet-4-6",
+                    "claude-opus-4-6",
+                    "claude-haiku-4-5-20251001",
+                ]
+            )
+        case .openai:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "OpenAI",
+                defaultBaseURL: "https://api.openai.com/v1",
+                isLocal: false,
+                supportsAPIKey: true,
+                requiresAPIKey: true,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .openAICompatible,
+                defaultModelName: "gpt-5.4",
+                fallbackModels: [
+                    "gpt-5.4",
+                    "gpt-5.4-pro",
+                    "gpt-5.3-chat-latest",
+                    "gpt-5-mini",
+                    "gpt-5-nano",
+                    "gpt-4.1",
+                    "gpt-4.1-mini",
+                ]
+            )
+        case .openaiCompatible:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "OpenAI-Compatible",
+                defaultBaseURL: "",
+                isLocal: false,
+                supportsAPIKey: true,
+                requiresAPIKey: false,
+                requiresCustomEndpoint: true,
+                modelListEndpoint: .openAICompatible,
+                defaultModelName: "",
+                fallbackModels: []
+            )
+        case .gemini:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "Google Gemini",
+                defaultBaseURL: "https://generativelanguage.googleapis.com/v1beta/openai",
+                isLocal: false,
+                supportsAPIKey: true,
+                requiresAPIKey: true,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .gemini,
+                defaultModelName: "gemini-3.5-flash",
+                fallbackModels: [
+                    "gemini-3.5-flash",
+                    "gemini-3.1-pro-preview",
+                    "gemini-3-flash-preview",
+                    "gemini-3.1-flash-lite-preview",
+                    "gemini-2.5-pro",
+                    "gemini-2.5-flash",
+                ]
+            )
+        case .openrouter:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "OpenRouter",
+                defaultBaseURL: "https://openrouter.ai/api/v1",
+                isLocal: false,
+                supportsAPIKey: true,
+                requiresAPIKey: true,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .openAICompatible,
+                defaultModelName: "anthropic/claude-opus-4-6",
+                fallbackModels: [
+                    "anthropic/claude-opus-4-6",
+                    "anthropic/claude-sonnet-4-6",
+                    "anthropic/claude-haiku-4-5",
+                    "openai/gpt-5.4",
+                    "openai/gpt-5.4-pro",
+                    "openai/gpt-5-mini",
+                    "openai/gpt-5-nano",
+                    "openai/gpt-4.1",
+                    "openai/gpt-4.1-mini",
+                    "google/gemini-3.5-flash",
+                    "google/gemini-3.1-pro-preview",
+                    "google/gemini-3-flash-preview",
+                    "google/gemini-2.5-flash",
+                    "deepseek/deepseek-v3.2",
+                    "meta-llama/llama-4-scout",
+                    "qwen/qwen3.5-72b",
+                ]
+            )
+        case .ollama:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "Ollama",
+                defaultBaseURL: "http://localhost:11434/v1",
+                isLocal: true,
+                supportsAPIKey: false,
+                requiresAPIKey: false,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .ollama,
+                defaultModelName: "qwen3.5:4b",
+                fallbackModels: [
+                    "qwen3.5:4b",
+                    "qwen3.5:9b",
+                    "llama4:8b",
+                    "gemma3:4b",
+                    "deepseek-v3.2",
+                    "qwen3:8b",
+                    "mistral",
+                ]
+            )
+        case .lmstudio:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "LM Studio",
+                defaultBaseURL: "http://localhost:1234/v1",
+                isLocal: true,
+                supportsAPIKey: true,
+                requiresAPIKey: false,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .openAICompatible,
+                defaultModelName: "",
+                fallbackModels: []
+            )
+        case .localCLI:
+            return LLMProviderDescriptor(
+                id: self,
+                displayName: "Local CLI",
+                defaultBaseURL: "http://localhost",
+                isLocal: false,
+                supportsAPIKey: false,
+                requiresAPIKey: false,
+                requiresCustomEndpoint: false,
+                modelListEndpoint: .none,
+                defaultModelName: "",
+                fallbackModels: []
+            )
         }
+    }
+
+    public var displayName: String {
+        descriptor.displayName
     }
 
     /// Whether the provider runs inference on-device (affects context budget).
     /// Local CLI tools typically forward to cloud APIs, so this is `false`.
     public var isLocal: Bool {
-        switch self {
-        case .ollama, .lmstudio: return true
-        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .localCLI: return false
-        }
+        descriptor.isLocal
     }
 
     /// Whether the provider supports API-key-based auth.
     public var supportsAPIKey: Bool {
-        switch self {
-        case .ollama, .localCLI: return false
-        case .anthropic, .openai, .openaiCompatible, .gemini, .openrouter, .lmstudio: return true
-        }
+        descriptor.supportsAPIKey
     }
 
     /// Whether the provider needs an API key to function.
     public var requiresAPIKey: Bool {
-        switch self {
-        case .openaiCompatible, .ollama, .lmstudio, .localCLI: return false
-        case .anthropic, .openai, .gemini, .openrouter: return true
-        }
+        descriptor.requiresAPIKey
     }
 
     /// Whether the provider must be configured with a user-supplied endpoint.
     public var requiresCustomEndpoint: Bool {
-        switch self {
-        case .openaiCompatible: return true
-        case .anthropic, .openai, .gemini, .openrouter, .ollama, .lmstudio, .localCLI: return false
-        }
+        descriptor.requiresCustomEndpoint
+    }
+
+    public var defaultBaseURL: String {
+        descriptor.defaultBaseURL
+    }
+
+    public var modelListEndpoint: LLMProviderDescriptor.ModelListEndpoint {
+        descriptor.modelListEndpoint
+    }
+
+    public var supportsModelListing: Bool {
+        descriptor.supportsModelListing
+    }
+
+    public var fallbackModels: [String] {
+        descriptor.fallbackModels
+    }
+
+    public var defaultModelName: String {
+        descriptor.defaultModelName
     }
 
 }
@@ -93,20 +273,28 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
 
     // MARK: - Factory Methods
 
-    public static func anthropic(apiKey: String, model: String = "claude-sonnet-4-6", baseURL: URL? = nil) -> LLMProviderConfig {
+    public static func anthropic(
+        apiKey: String,
+        model: String = LLMProviderID.anthropic.defaultModelName,
+        baseURL: URL? = nil
+    ) -> LLMProviderConfig {
         LLMProviderConfig(
             id: .anthropic,
-            baseURL: baseURL ?? URL(string: "https://api.anthropic.com/v1")!,
+            baseURL: baseURL ?? URL(string: LLMProviderID.anthropic.defaultBaseURL)!,
             apiKey: apiKey,
             modelName: model,
             isLocal: false
         )
     }
 
-    public static func openai(apiKey: String, model: String = "gpt-4.1", baseURL: URL? = nil) -> LLMProviderConfig {
+    public static func openai(
+        apiKey: String,
+        model: String = LLMProviderID.openai.defaultModelName,
+        baseURL: URL? = nil
+    ) -> LLMProviderConfig {
         LLMProviderConfig(
             id: .openai,
-            baseURL: baseURL ?? URL(string: "https://api.openai.com/v1")!,
+            baseURL: baseURL ?? URL(string: LLMProviderID.openai.defaultBaseURL)!,
             apiKey: apiKey,
             modelName: model,
             isLocal: false
@@ -127,30 +315,41 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
         )
     }
 
-    public static func gemini(apiKey: String, model: String = "gemini-2.5-flash", baseURL: URL? = nil) -> LLMProviderConfig {
+    public static func gemini(
+        apiKey: String,
+        model: String = LLMProviderID.gemini.defaultModelName,
+        baseURL: URL? = nil
+    ) -> LLMProviderConfig {
         LLMProviderConfig(
             id: .gemini,
-            baseURL: baseURL ?? URL(string: "https://generativelanguage.googleapis.com/v1beta/openai")!,
+            baseURL: baseURL ?? URL(string: LLMProviderID.gemini.defaultBaseURL)!,
             apiKey: apiKey,
             modelName: model,
             isLocal: false
         )
     }
 
-    public static func openrouter(apiKey: String, model: String = "anthropic/claude-sonnet-4", baseURL: URL? = nil) -> LLMProviderConfig {
+    public static func openrouter(
+        apiKey: String,
+        model: String = LLMProviderID.openrouter.defaultModelName,
+        baseURL: URL? = nil
+    ) -> LLMProviderConfig {
         LLMProviderConfig(
             id: .openrouter,
-            baseURL: baseURL ?? URL(string: "https://openrouter.ai/api/v1")!,
+            baseURL: baseURL ?? URL(string: LLMProviderID.openrouter.defaultBaseURL)!,
             apiKey: apiKey,
             modelName: model,
             isLocal: false
         )
     }
 
-    public static func ollama(model: String = "qwen3.5:4b", baseURL: URL? = nil) -> LLMProviderConfig {
+    public static func ollama(
+        model: String = LLMProviderID.ollama.defaultModelName,
+        baseURL: URL? = nil
+    ) -> LLMProviderConfig {
         LLMProviderConfig(
             id: .ollama,
-            baseURL: baseURL ?? URL(string: "http://localhost:11434/v1")!,
+            baseURL: baseURL ?? URL(string: LLMProviderID.ollama.defaultBaseURL)!,
             apiKey: nil,
             modelName: model,
             isLocal: true
@@ -160,7 +359,7 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
     public static func lmstudio(apiKey: String? = nil, model: String = "", baseURL: URL? = nil) -> LLMProviderConfig {
         LLMProviderConfig(
             id: .lmstudio,
-            baseURL: baseURL ?? URL(string: "http://localhost:1234/v1")!,
+            baseURL: baseURL ?? URL(string: LLMProviderID.lmstudio.defaultBaseURL)!,
             apiKey: apiKey,
             modelName: model,
             isLocal: true
@@ -171,7 +370,7 @@ public struct LLMProviderConfig: Codable, Sendable, Equatable {
     public static func localCLI() -> LLMProviderConfig {
         LLMProviderConfig(
             id: .localCLI,
-            baseURL: URL(string: "http://localhost")!,
+            baseURL: URL(string: LLMProviderID.localCLI.defaultBaseURL)!,
             apiKey: nil,
             modelName: "cli",
             isLocal: false

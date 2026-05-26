@@ -148,7 +148,7 @@ public final class TranscriptChatViewModel {
     }
 
     private func refreshAvailableModels(for config: LLMProviderConfig) {
-        guard let llmClient, LLMModelAvailability.supportsModelListing(config.id) else { return }
+        guard let llmClient, config.id.supportsModelListing else { return }
         modelListTask = Task { [weak self] in
             do {
                 let discoveredModels = try await llmClient.listModels(context: LLMExecutionContext(providerConfig: config))

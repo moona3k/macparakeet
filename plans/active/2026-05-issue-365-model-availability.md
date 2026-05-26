@@ -1,6 +1,6 @@
 # Issue 365 Model Availability Plan
 
-> Status: ACTIVE
+> Status: PR READY
 > Started: 2026-05-26
 > Issue: https://github.com/moona3k/macparakeet/issues/365
 > Scope: AI provider model lists in Settings, transcript chat, and prompt results.
@@ -59,15 +59,17 @@ small provider-capability fix or become a broader model-registry/cache layer.
   Reference:
   https://github.com/cline/cline/blob/main/apps/vscode/webview-ui/src/components/settings/OpenRouterModelPicker.tsx
 
-Takeaway for MacParakeet: adopt the shared provider-capability helper, native
-provider listing where needed, and current/custom model preservation. Do not add
-a model metadata registry, search index, persistent cache, or polling loop for
-this issue; those are useful in heavier web/IDE apps but unnecessary for this
-small macOS settings/runtime selector path.
+Takeaway for MacParakeet: adopt a provider descriptor for stable provider facts,
+native provider listing where needed, and current/custom model preservation. Do
+not add a model metadata registry, search index, persistent cache, or polling
+loop for this issue; those are useful in heavier web/IDE apps but unnecessary
+for this small macOS settings/runtime selector path.
 
 ## Implementation
 
-1. Add a shared `LLMModelAvailability` helper in the view-model target.
+1. Add `LLMProviderDescriptor` in Core so display names, default URLs, auth
+   requirements, model-list endpoint kinds, and fallback models live with each
+   provider.
 2. Expand Settings discovery from Ollama/LM Studio to every provider that has a
    documented model-list endpoint.
 3. Keep provider suggestions as fallbacks only, and preserve the currently saved
@@ -77,6 +79,9 @@ small macOS settings/runtime selector path.
    provider config.
 5. Update `LLMClient.listModels` for Gemini to use Google's native model list
    endpoint and decode the native `models` response shape.
+6. Keep `LLMModelAvailability` as the small picker-list shaping helper only:
+   normalize provider results, fall back to descriptor models, and preserve the
+   currently saved model.
 
 ## Acceptance Criteria
 
@@ -93,6 +98,8 @@ small macOS settings/runtime selector path.
 
 ## Verification
 
-- Targeted tests for LLM client model-list URLs and view-model model-selector
-  refresh behavior.
-- Full `swift test` before merge.
+- `swift test --filter 'LLMProviderDescriptorTests|LLMClientTests|LLMSettingsViewModelTests|PromptResultsViewModelTests|TranscriptChatViewModelTests|LLMConfigCommandTests'`
+  - 263 selected XCTest tests passed.
+- `swift test`
+  - 3003 XCTest tests passed, 9 hardware tests skipped, 0 failures.
+  - 16 Swift Testing tests passed.

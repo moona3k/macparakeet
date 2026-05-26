@@ -694,7 +694,7 @@ public final class LLMSettingsViewModel {
     }
 
     private nonisolated static func usesDiscoveredModelList(_ providerID: LLMProviderID) -> Bool {
-        LLMModelAvailability.supportsModelListing(providerID)
+        providerID.supportsModelListing
     }
 
     private func persistAIFormatterPreferences(from draft: LLMSettingsDraft) -> String {
@@ -726,23 +726,14 @@ public final class LLMSettingsViewModel {
     }
 
     public static func suggestedModels(for provider: LLMProviderID) -> [String] {
-        LLMModelAvailability.suggestedModels(for: provider)
+        provider.fallbackModels
     }
 
     static func defaultModelName(for provider: LLMProviderID) -> String {
-        suggestedModels(for: provider).first ?? ""
+        provider.defaultModelName
     }
 
     static func defaultBaseURL(for provider: LLMProviderID) -> String {
-        switch provider {
-        case .anthropic: return "https://api.anthropic.com/v1"
-        case .openai: return "https://api.openai.com/v1"
-        case .openaiCompatible: return ""
-        case .gemini: return "https://generativelanguage.googleapis.com/v1beta/openai"
-        case .openrouter: return "https://openrouter.ai/api/v1"
-        case .ollama: return "http://localhost:11434/v1"
-        case .lmstudio: return "http://localhost:1234/v1"
-        case .localCLI: return "http://localhost"
-        }
+        provider.defaultBaseURL
     }
 }
