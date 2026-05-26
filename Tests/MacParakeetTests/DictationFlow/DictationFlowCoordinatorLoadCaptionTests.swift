@@ -195,12 +195,35 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         XCTAssertNil(clipboard.lastCopiedText)
     }
 
+    func testKeepDictationOnClipboardDoesNotRetainWhitespaceForEmptyCleanTranscript() async throws {
+        let harness = try makeHarness(
+            isReady: true,
+            transcribeDelayMs: 5,
+            transcribeText: "um",
+            keepDictationOnClipboard: true,
+            processingMode: .clean
+        )
+
+        try await harness.startAndStop()
+        let dismissed = await waitUntil(timeoutMs: 2_500) {
+            harness.coordinator.overlayStateForTesting == nil
+        }
+        let clipboard = await harness.clipboard.snapshot()
+
+        XCTAssertTrue(dismissed)
+        XCTAssertNil(clipboard.lastPastedText)
+        XCTAssertNil(clipboard.lastCopiedText)
+        XCTAssertNil(clipboard.lastRestoresClipboard)
+    }
+
     private func makeHarness(
         isReady: Bool,
         transcribeDelayMs: UInt64,
+        transcribeText: String = "Mock transcription",
         transcribeError: Error? = nil,
         hasCompletedFirstDictation: Bool = false,
         keepDictationOnClipboard: Bool = false,
+        processingMode: Dictation.ProcessingMode = .raw,
         timing: DictationProcessingLoadCaptionTiming? = nil
     ) throws -> Harness {
         let telemetry = LoadCaptionTelemetrySpy()
@@ -211,6 +234,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
         let stt = DelayedSTTClient(
             ready: isReady,
             transcribeDelayMs: transcribeDelayMs,
+            transcribeText: transcribeText,
             transcribeError: transcribeError
         )
         let repo = DictationRepository(dbQueue: dbManager.dbQueue)
@@ -225,6 +249,7 @@ final class DictationFlowCoordinatorLoadCaptionTests: XCTestCase {
             audioProcessor: audio,
             sttTranscriber: stt,
             dictationRepo: repo,
+            processingMode: { processingMode },
             markFirstDictationCompleted: {
                 preferences.markFirstDictationCompleted()
             }
@@ -339,11 +364,13 @@ private final class SpyDictationOverlayController: DictationOverlayControlling {
 private actor DelayedSTTClient: STTClientProtocol, DictationSTTReadinessChecking {
     private var ready: Bool
     private var transcribeDelayMs: UInt64
+    private var transcribeText: String
     private var transcribeError: Error?
 
-    init(ready: Bool, transcribeDelayMs: UInt64, transcribeError: Error?) {
+    init(ready: Bool, transcribeDelayMs: UInt64, transcribeText: String, transcribeError: Error?) {
         self.ready = ready
         self.transcribeDelayMs = transcribeDelayMs
+        self.transcribeText = transcribeText
         self.transcribeError = transcribeError
     }
 
@@ -366,12 +393,17 @@ private actor DelayedSTTClient: STTClientProtocol, DictationSTTReadinessChecking
         if let transcribeError {
             throw transcribeError
         }
+        let words = transcribeText.split(whereSeparator: \.isWhitespace).enumerated().map { index, word in
+            TimestampedWord(
+                word: String(word),
+                startMs: index * 320,
+                endMs: index * 320 + 300,
+                confidence: 0.99
+            )
+        }
         return STTResult(
-            text: "Mock transcription",
-            words: [
-                TimestampedWord(word: "Mock", startMs: 0, endMs: 300, confidence: 0.99),
-                TimestampedWord(word: "transcription", startMs: 320, endMs: 1000, confidence: 0.99),
-            ]
+            text: transcribeText,
+            words: words
         )
     }
 

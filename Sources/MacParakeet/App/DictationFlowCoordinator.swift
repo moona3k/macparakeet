@@ -560,6 +560,12 @@ final class DictationFlowCoordinator {
                 let normalPasteText = transcript + " "
 
                 do {
+                    if action == nil && !transcriptHasText {
+                        self.dictationLog.notice("dictation_paste_skipped gen=\(gen) reason=empty_transcript")
+                        self.sendEvent(.pasteSucceeded(generation: gen))
+                        return
+                    }
+
                     if let action {
                         // Action mode: no trailing space, action replaces the space role
                         let keystrokeFired = try await self.clipboardService.pasteTextWithAction(
