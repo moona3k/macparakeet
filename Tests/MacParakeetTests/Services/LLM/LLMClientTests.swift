@@ -1046,6 +1046,35 @@ final class LLMClientTests: XCTestCase {
         XCTAssertEqual(models, ["gemini-3.5-flash"])
     }
 
+    func testGeminiListModelsPreservesCustomBaseURLQueryItems() async throws {
+        var capturedRequest: URLRequest?
+
+        MockURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), Data("""
+            {"models":[{"name":"models/gemini-3.5-flash","supportedGenerationMethods":["generateContent"]}]}
+            """.utf8))
+        }
+
+        let config = LLMProviderConfig.gemini(
+            apiKey: "gem-key",
+            model: "gemini-3.5-flash",
+            baseURL: URL(string: "https://proxy.example.test/gemini/openai?proxy=1&alt=json")!
+        )
+        let models = try await llmClient.listModels(config: config)
+
+        XCTAssertEqual(capturedRequest?.url?.host, "proxy.example.test")
+        XCTAssertEqual(capturedRequest?.url?.path, "/gemini/models")
+        let queryItems = URLComponents(url: try XCTUnwrap(capturedRequest?.url), resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .reduce(into: [String: String]()) { result, item in result[item.name] = item.value }
+        XCTAssertEqual(queryItems?["proxy"], "1")
+        XCTAssertEqual(queryItems?["alt"], "json")
+        XCTAssertEqual(queryItems?["pageSize"], "1000")
+        XCTAssertEqual(queryItems?["key"], "gem-key")
+        XCTAssertEqual(models, ["gemini-3.5-flash"])
+    }
+
     func testAnthropicListModelsRequestsLargePageWithNativeHeaders() async throws {
         var capturedRequest: URLRequest?
 
@@ -1066,6 +1095,27 @@ final class LLMClientTests: XCTestCase {
         XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "x-api-key"), "sk-ant-test")
         XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
         XCTAssertEqual(models, ["claude-sonnet-4-6"])
+    }
+
+    func testListModelsThrowsUnsupportedProviderErrorWithoutRequest() async {
+        var didRequest = false
+        MockURLProtocol.handler = { request in
+            didRequest = true
+            return (self.okResponse(for: request), Data())
+        }
+
+        do {
+            _ = try await llmClient.listModels(config: .localCLI())
+            XCTFail("Expected LLMError.connectionFailed")
+        } catch let error as LLMError {
+            XCTAssertEqual(
+                error.localizedDescription,
+                "Connection failed: Model listing is not supported for this provider."
+            )
+            XCTAssertFalse(didRequest)
+        } catch {
+            XCTFail("Unexpected error type: \(error)")
+        }
     }
 
     func testListModelsConnectionFailureIncludesUnderlyingError() async {

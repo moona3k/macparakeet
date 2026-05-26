@@ -41,6 +41,16 @@ final class LLMProviderDescriptorTests: XCTestCase {
         XCTAssertEqual(LLMProviderID.gemini.defaultModelName, "gemini-3.5-flash")
     }
 
+    func testCuratedFallbacksTrackCurrentHeadlineModels() {
+        XCTAssertEqual(LLMProviderID.openai.defaultModelName, "gpt-5.5")
+        XCTAssertTrue(LLMProviderID.openai.fallbackModels.contains("gpt-5.4-mini"))
+        XCTAssertTrue(LLMProviderID.anthropic.fallbackModels.contains("claude-opus-4-7"))
+        XCTAssertTrue(LLMProviderID.gemini.fallbackModels.contains("gemini-3.1-flash-lite"))
+        XCTAssertTrue(LLMProviderID.openrouter.fallbackModels.contains("anthropic/claude-opus-4.7"))
+        XCTAssertTrue(LLMProviderID.openrouter.fallbackModels.contains("openai/gpt-5.5"))
+        XCTAssertTrue(LLMProviderID.openrouter.fallbackModels.contains("google/gemini-3.5-flash"))
+    }
+
     func testFactoryDefaultsComeFromDescriptors() {
         XCTAssertEqual(LLMProviderConfig.openai(apiKey: "sk").modelName, LLMProviderID.openai.defaultModelName)
         XCTAssertEqual(LLMProviderConfig.openai(apiKey: "sk").baseURL.absoluteString, LLMProviderID.openai.defaultBaseURL)

@@ -9,6 +9,15 @@ struct InlineLLMExecutionContext {
     let client: any LLMClientProtocol
 }
 
+private enum InlineLLMCompatibilityDefaults {
+    // Inline CLI commands keep historical defaults for script compatibility.
+    // Settings and app picker defaults come from LLMProviderDescriptor and may
+    // move faster as provider model recommendations change.
+    static let openAIModel = "gpt-4.1"
+    static let geminiModel = "gemini-2.5-flash"
+    static let openRouterModel = "anthropic/claude-sonnet-4"
+}
+
 func validateBaseURL(_ value: String) throws -> URL {
     guard let url = URL(string: value),
           let scheme = url.scheme?.lowercased(),
@@ -138,7 +147,11 @@ struct LLMInlineOptions: ParsableArguments {
                 defaultEnvNames: ["OPENAI_API_KEY"],
                 environment: environment
             )
-            providerConfig = .openai(apiKey: key, model: model ?? "gpt-4.1", baseURL: overrideURL)
+            providerConfig = .openai(
+                apiKey: key,
+                model: model ?? InlineLLMCompatibilityDefaults.openAIModel,
+                baseURL: overrideURL
+            )
         case .openaiCompatible:
             guard let overrideURL else { throw ValidationError("--base-url is required for OpenAI-Compatible") }
             guard let model, !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -155,14 +168,22 @@ struct LLMInlineOptions: ParsableArguments {
                 defaultEnvNames: ["GEMINI_API_KEY"],
                 environment: environment
             )
-            providerConfig = .gemini(apiKey: key, model: model ?? "gemini-2.5-flash", baseURL: overrideURL)
+            providerConfig = .gemini(
+                apiKey: key,
+                model: model ?? InlineLLMCompatibilityDefaults.geminiModel,
+                baseURL: overrideURL
+            )
         case .openrouter:
             let key = try requiredAPIKey(
                 providerName: providerID.displayName,
                 defaultEnvNames: ["OPENROUTER_API_KEY"],
                 environment: environment
             )
-            providerConfig = .openrouter(apiKey: key, model: model ?? "anthropic/claude-sonnet-4", baseURL: overrideURL)
+            providerConfig = .openrouter(
+                apiKey: key,
+                model: model ?? InlineLLMCompatibilityDefaults.openRouterModel,
+                baseURL: overrideURL
+            )
         case .ollama:
             providerConfig = .ollama(model: model ?? providerID.defaultModelName, baseURL: overrideURL)
         case .lmstudio:

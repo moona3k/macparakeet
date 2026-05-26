@@ -575,10 +575,11 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
     public func listModels(context: LLMExecutionContext) async throws -> [String] {
         let config = context.providerConfig
-        guard config.id.modelListEndpoint != .none else {
-            throw LLMError.invalidResponse
+        let endpoint = config.id.modelListEndpoint
+        guard endpoint != .none else {
+            throw LLMError.connectionFailed("Model listing is not supported for this provider.")
         }
-        if config.id.modelListEndpoint == .ollama {
+        if endpoint == .ollama {
             do {
                 return try await listOllamaModels(config: config)
             } catch {
@@ -592,8 +593,7 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         var request = URLRequest(url: url, timeoutInterval: 15)
         request.httpMethod = "GET"
 
-        switch config.id.modelListEndpoint {
-        case .anthropic:
+        if endpoint == .anthropic {
             // Anthropic uses x-api-key header and anthropic-version
             if let key = config.apiKey {
                 request.setValue(key, forHTTPHeaderField: "x-api-key")
@@ -601,11 +601,9 @@ public final class LLMClient: LLMClientProtocol, Sendable {
                 // constant so chat + listModels stay in sync.
                 request.setValue(LLMClient.anthropicAPIVersion, forHTTPHeaderField: "anthropic-version")
             }
-        case .gemini:
-            break
-        case .ollama:
+        } else if endpoint == .ollama {
             request.setValue("Bearer ollama", forHTTPHeaderField: "Authorization")
-        case .openAICompatible, .none:
+        } else if endpoint == .openAICompatible {
             if let key = config.apiKey {
                 request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
             }
@@ -710,7 +708,8 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         }
         segments.append("models")
         components.path = "/" + segments.joined(separator: "/")
-        var queryItems = [URLQueryItem(name: "pageSize", value: "1000")]
+        var queryItems = components.queryItems ?? []
+        queryItems.append(URLQueryItem(name: "pageSize", value: "1000"))
         if let apiKey {
             queryItems.append(URLQueryItem(name: "key", value: apiKey))
         }

@@ -25,7 +25,7 @@ primary source when a provider exposes a model-list API.
 | OpenAI | `GET /v1/models` with bearer auth | Discover when a saved key is available; fallback to curated OpenAI list. |
 | OpenAI-Compatible | `GET <baseURL>/models` | Discover after the user supplies an endpoint; fallback to custom model entry. |
 | Gemini | Native `GET https://generativelanguage.googleapis.com/v1beta/models?key=...` for listing; OpenAI-compatible endpoint remains for chat | Discover Gemini `generateContent` models; fallback includes `gemini-3.5-flash`. |
-| OpenRouter | `GET https://openrouter.ai/api/v1/models` | Discover when a saved key is available; fallback to curated OpenRouter slugs. |
+| OpenRouter | `GET https://openrouter.ai/api/v1/models` | Discover when a saved key is available; fallback to curated OpenRouter slugs across Anthropic, OpenAI, Google, DeepSeek, xAI, Mistral, Qwen, Moonshot, Z.ai, Perplexity, Meta, Cohere, and MiniMax. |
 | Ollama | Native `GET /api/tags`, with `/v1/models` fallback | Discover installed local models; fallback only when Ollama cannot be reached. |
 | LM Studio | OpenAI-compatible `GET /v1/models` | Discover server-visible local models; fallback to custom model entry. |
 | Local CLI | No provider model endpoint | Show the configured CLI display name only. |
@@ -39,6 +39,27 @@ References:
 - OpenRouter Models API: https://openrouter.ai/docs/api/api-reference/models/get-models
 - Ollama Tags API: https://docs.ollama.com/api/tags
 - LM Studio OpenAI-compatible models: https://lmstudio.ai/docs/developer/openai-compat/models
+
+## Current Model Fallback Review
+
+Dynamic provider discovery is the source of truth whenever the user has saved a
+provider config. The curated descriptor lists are only initial/fallback choices,
+so they should stay compact and current rather than attempting to mirror every
+provider catalog.
+
+Reviewed current provider catalogs on 2026-05-26:
+
+- OpenAI official model docs currently recommend `gpt-5.5` as the flagship and
+  call out `gpt-5.4-mini` / `gpt-5.4-nano` for lower latency and cost.
+- Anthropic official model docs list Claude Opus 4.7, Claude Sonnet 4.6, and
+  Claude Haiku 4.5 as the current headline Claude family.
+- Gemini official model docs list `gemini-3.5-flash`, `gemini-3.1-pro-preview`,
+  Gemini 3 Flash Preview, and stable/preview `gemini-3.1-flash-lite` options.
+- OpenRouter's live `GET /api/v1/models?output_modalities=text` catalog returned
+  356 text-output models across the main aggregatable providers. The fallback
+  list now uses OpenRouter's live provider-prefixed slug style, for example
+  `anthropic/claude-sonnet-4.6`, `anthropic/claude-opus-4.7`,
+  `openai/gpt-5.5`, and `google/gemini-3.5-flash`.
 
 ## External OSS Pattern Check
 
@@ -99,7 +120,13 @@ for this small macOS settings/runtime selector path.
 ## Verification
 
 - `swift test --filter 'LLMProviderDescriptorTests|LLMClientTests|LLMSettingsViewModelTests|PromptResultsViewModelTests|TranscriptChatViewModelTests|LLMConfigCommandTests'`
-  - 263 selected XCTest tests passed.
+  - 266 selected XCTest tests passed.
 - `swift test`
-  - 3003 XCTest tests passed, 9 hardware tests skipped, 0 failures.
+  - 3006 XCTest tests passed, 9 hardware tests skipped, 0 failures.
   - 16 Swift Testing tests passed.
+- `swift build -c release`
+  - Release build completed successfully.
+- OpenRouter live catalog check:
+  - `GET https://openrouter.ai/api/v1/models?output_modalities=text` returned
+    356 text-output models.
+  - Every curated OpenRouter fallback slug exists in the live catalog.

@@ -201,25 +201,13 @@ public final class PromptResultsViewModel {
     }
 
     private func refreshAvailableModels(for config: LLMProviderConfig) {
-        guard let llmClient, config.id.supportsModelListing else { return }
-        modelListTask = Task { [weak self] in
-            do {
-                let discoveredModels = try await llmClient.listModels(context: LLMExecutionContext(providerConfig: config))
-                guard !Task.isCancelled else { return }
-                guard self?.shouldApplyModelListResult(for: config) == true else { return }
-                self?.availableModels = LLMModelAvailability.pickerModels(
-                    for: config,
-                    discoveredModels: discoveredModels
-                )
-            } catch {
-                guard !Task.isCancelled else { return }
-            }
+        modelListTask = LLMModelAvailability.refreshPickerModelsTask(
+            for: config,
+            llmClient: llmClient,
+            configStore: configStore
+        ) { [weak self] models in
+            self?.availableModels = models
         }
-    }
-
-    private func shouldApplyModelListResult(for config: LLMProviderConfig) -> Bool {
-        guard let configStore, let storedConfig = try? configStore.loadConfig() else { return false }
-        return storedConfig == config
     }
 
     public func loadVisiblePrompts() {

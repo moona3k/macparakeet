@@ -242,7 +242,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
 
         XCTAssertFalse(viewModel.useCustomModel)
         XCTAssertEqual(viewModel.customModelName, "")
-        XCTAssertEqual(viewModel.modelName, "gpt-5.4")
+        XCTAssertEqual(viewModel.modelName, "gpt-5.5")
     }
 
     func testClearResetsAIFormatterPreferences() {
@@ -281,7 +281,10 @@ final class LLMSettingsViewModelTests: XCTestCase {
             apiKey: "gemini-key",
             model: "gemini-3.1-pro-preview"
         )
+        mockClient.modelsList = ["gemini-3.1-pro-preview", "gemini-3-flash-preview"]
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        mockClient.capturedContext = nil
 
         viewModel.modelName = "gemini-3-flash-preview"
         XCTAssertTrue(viewModel.hasUnsavedChanges)
@@ -796,7 +799,7 @@ final class LLMSettingsViewModelTests: XCTestCase {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
         viewModel.selectedProviderID = .openrouter
         XCTAssertTrue(viewModel.requiresAPIKey)
-        XCTAssertEqual(viewModel.modelName, "anthropic/claude-opus-4-6")
+        XCTAssertEqual(viewModel.modelName, "anthropic/claude-sonnet-4.6")
     }
 
     // MARK: - Local CLI

@@ -84,7 +84,7 @@ public final class TranscriptChatViewModel {
 
     public var modelDisplayName: String {
         guard !currentModelName.isEmpty else { return "" }
-        // Strip provider prefix for OpenRouter models (e.g. "anthropic/claude-sonnet-4-6" -> "claude-sonnet-4-6")
+        // Strip provider prefix for OpenRouter models (e.g. "anthropic/claude-sonnet-4.6" -> "claude-sonnet-4.6")
         if currentProviderID == .openrouter, let slashIndex = currentModelName.firstIndex(of: "/") {
             return String(currentModelName[currentModelName.index(after: slashIndex)...])
         }
@@ -148,25 +148,13 @@ public final class TranscriptChatViewModel {
     }
 
     private func refreshAvailableModels(for config: LLMProviderConfig) {
-        guard let llmClient, config.id.supportsModelListing else { return }
-        modelListTask = Task { [weak self] in
-            do {
-                let discoveredModels = try await llmClient.listModels(context: LLMExecutionContext(providerConfig: config))
-                guard !Task.isCancelled else { return }
-                guard self?.shouldApplyModelListResult(for: config) == true else { return }
-                self?.availableModels = LLMModelAvailability.pickerModels(
-                    for: config,
-                    discoveredModels: discoveredModels
-                )
-            } catch {
-                guard !Task.isCancelled else { return }
-            }
+        modelListTask = LLMModelAvailability.refreshPickerModelsTask(
+            for: config,
+            llmClient: llmClient,
+            configStore: configStore
+        ) { [weak self] models in
+            self?.availableModels = models
         }
-    }
-
-    private func shouldApplyModelListResult(for config: LLMProviderConfig) -> Bool {
-        guard let configStore, let storedConfig = try? configStore.loadConfig() else { return false }
-        return storedConfig == config
     }
 
     /// Updates the LLM service reference (e.g., when provider config changes).
