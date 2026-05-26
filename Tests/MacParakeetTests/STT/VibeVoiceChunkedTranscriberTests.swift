@@ -167,6 +167,47 @@ final class VibeVoiceChunkedTranscriberOrchestrationTests: XCTestCase {
         let all = try FileManager.default.contentsOfDirectory(atPath: tempDir.path)
         return all.filter { $0.hasPrefix("vv-chunk-") && $0.hasSuffix(".wav") }.count
     }
+
+    func testProgressIsMonotonicAndEndsAt100() async throws {
+        let fixture = try fixtureURL()
+        let fake = SegmentInjectingFake()
+        fake.injectedSegments = [
+            [STTSegment(startMs: 0, endMs: 1000, text: "a", speakerId: 0)],
+            [STTSegment(startMs: 0, endMs: 1000, text: "b", speakerId: 0)],
+            [STTSegment(startMs: 0, endMs: 1000, text: "c", speakerId: 0)],
+        ]
+        // Capture every (current, total) callback into a thread-safe list.
+        let progressLog = ProgressLog()
+        let onProgress: @Sendable (Int, Int) -> Void = { current, total in
+            progressLog.append((current, total))
+        }
+        let chunker = VibeVoiceChunkedTranscriber(
+            engine: fake,
+            chunkLengthSec: 20,
+            minTailSec: 5,
+            silenceWindowSec: 5
+        )
+        _ = try await chunker.transcribe(
+            audioPath: fixture.path,
+            job: .fileTranscription,
+            onProgress: onProgress
+        )
+        let snapshot = progressLog.values
+        XCTAssertFalse(snapshot.isEmpty, "Expected at least one progress callback")
+        // All totals should be 100
+        for (_, total) in snapshot {
+            XCTAssertEqual(total, 100)
+        }
+        // Currents must be monotonically non-decreasing
+        var prev = -1
+        for (current, _) in snapshot {
+            XCTAssertGreaterThanOrEqual(current, prev,
+                "Progress went backward in sequence: \(snapshot)")
+            prev = current
+        }
+        // Final value is 100
+        XCTAssertEqual(snapshot.last?.0, 100)
+    }
 }
 
 /// A fake that succeeds on the first call and throws on the second.
@@ -234,4 +275,11 @@ final class SegmentInjectingFake: STTTranscribing, @unchecked Sendable {
             engineVariant: "fake"
         )
     }
+}
+
+final class ProgressLog: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "ProgressLog")
+    private var _values: [(Int, Int)] = []
+    func append(_ value: (Int, Int)) { queue.sync { _values.append(value) } }
+    var values: [(Int, Int)] { queue.sync { _values } }
 }
