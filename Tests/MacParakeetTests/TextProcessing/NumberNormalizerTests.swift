@@ -258,3 +258,60 @@ final class NumberNormalizerTests: XCTestCase {
     }
 }
 
+final class NumberNormalizerPeriodCountdownTests: XCTestCase {
+
+    func testConvertsThreeCardinalPeriodCountdown() {
+        let result = NumberNormalizer.normalize("Four. Three. Two. Slow down.")
+        XCTAssertEqual(result, "4. 3. 2. Slow down.")
+    }
+
+    func testConvertsLongCountdown() {
+        let result = NumberNormalizer.normalize("Five. Four. Three. Two. One.")
+        XCTAssertEqual(result, "5. 4. 3. 2. 1.")
+    }
+
+    func testConvertsTwoCardinalPeriodCountdown() {
+        let result = NumberNormalizer.normalize("Three. Two.")
+        XCTAssertEqual(result, "3. 2.")
+    }
+
+    /// Mid-prose cardinals separated by a period must NOT convert — the
+    /// new period-countdown pass requires the first cardinal to be at cue start.
+    ///
+    /// Note: the input deliberately starts with "Some" rather than "I have"
+    /// because the pre-existing `applyVerbCardinalAtEndPass` matches
+    /// "have four." (verbs include `have`). That's a separate, unrelated
+    /// over-broad-match bug. This test guards the new pass's anchoring
+    /// specifically.
+    func testIgnoresMidProseCardinalsSeparatedByPeriod() {
+        let result = NumberNormalizer.normalize("Some thoughts: four. Three of these are nice.")
+        XCTAssertEqual(result, "Some thoughts: four. Three of these are nice.")
+    }
+
+    /// Single cardinal at cue start (not followed by another period+cardinal)
+    /// must NOT convert — "One big climb" is a noun phrase, not a countdown.
+    func testIgnoresSingleCardinalAtCueStart() {
+        let result = NumberNormalizer.normalize("One big climb today.")
+        XCTAssertEqual(result, "One big climb today.")
+    }
+
+    /// Input already in digit form passes through unchanged (idempotent).
+    func testIdempotentOnDigitCountdown() {
+        let result = NumberNormalizer.normalize("4. 3. 2. Slow down.")
+        XCTAssertEqual(result, "4. 3. 2. Slow down.")
+    }
+
+    /// Mixed spelled+digit input gets the spelled tokens converted.
+    func testConvertsMixedSpelledAndDigitCountdown() {
+        let result = NumberNormalizer.normalize("Four. 3. 2. Slow down.")
+        XCTAssertEqual(result, "4. 3. 2. Slow down.")
+    }
+
+    /// Regression guard: comma-separated countdown still works (existing
+    /// applySpelledCountdownPass should handle this, unchanged by this PR).
+    func testCommaCountdownStillConverts() {
+        let result = NumberNormalizer.normalize("three, two, one, go")
+        XCTAssertEqual(result, "3, 2, 1, go")
+    }
+}
+

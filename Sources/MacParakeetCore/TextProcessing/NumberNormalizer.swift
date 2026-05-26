@@ -236,6 +236,17 @@ public enum NumberNormalizer: Sendable {
         return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }()
 
+    /// Period-separated countdown at cue start. Catches Whisper output
+    /// like "Four. Three. Two." where the instructor's pauses between
+    /// numbers became sentence boundaries. Anchored at cue start to
+    /// avoid converting mid-prose cardinals ("I have four. Three of
+    /// them are nice." should NOT convert).
+    private static let periodCountdownAtCueStartRegex: NSRegularExpression? = {
+        let cardinal = "(?:[1-9]|\(onesAlternation))"
+        let pattern = "^\\s*\\b\(cardinal)\\b(?:\\s*\\.\\s*\\b\(cardinal)\\b)+"
+        return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
+    }()
+
     /// Trigger words that introduce a cadence increment: "add five",
     /// "plus five", "by five", "of five". Whisper emits these
     /// frequently in fitness instruction; user wants them as digits
@@ -277,6 +288,7 @@ public enum NumberNormalizer: Sendable {
         result = applySpelledRangePass(result)
         result = applySpelledTrailingCountdownPass(result)
         result = applySpelledCountdownPass(result)
+        result = applyPeriodCountdownAtCueStartPass(result)
         result = applyBareSpelledAtCueEndPass(result)
         result = applyStandaloneCardinalCuePass(result)
         result = applyCardinalAndAHalfPass(result)
@@ -627,6 +639,40 @@ public enum NumberNormalizer: Sendable {
     /// words themselves get rewritten.
     private static func applySpelledCountdownPass(_ text: String) -> String {
         guard let outerRegex = spelledCountdownRegex,
+              let innerRegex = try? NSRegularExpression(
+                pattern: "\\b(\(onesAlternation))\\b",
+                options: [.caseInsensitive]
+              ) else {
+            return text
+        }
+        let ns = text as NSString
+        let matches = outerRegex.matches(in: text, range: NSRange(location: 0, length: ns.length))
+        var out = text
+        for match in matches.reversed() {
+            let matchText = (out as NSString).substring(with: match.range)
+            let innerNS = matchText as NSString
+            let innerMatches = innerRegex.matches(
+                in: matchText,
+                range: NSRange(location: 0, length: innerNS.length)
+            )
+            var rewritten = matchText
+            for inner in innerMatches.reversed() {
+                let word = (rewritten as NSString).substring(with: inner.range).lowercased()
+                guard let value = onesMap[word] else { continue }
+                rewritten = (rewritten as NSString).replacingCharacters(
+                    in: inner.range, with: String(value)
+                )
+            }
+            out = (out as NSString).replacingCharacters(in: match.range, with: rewritten)
+        }
+        return out
+    }
+
+    /// Period-separated countdown pass. Mirrors `applySpelledCountdownPass`
+    /// but matches `Four. Three. Two.` instead of `Four, Three, Two,`.
+    /// Anchored at cue start (no mid-prose false positives).
+    private static func applyPeriodCountdownAtCueStartPass(_ text: String) -> String {
+        guard let outerRegex = periodCountdownAtCueStartRegex,
               let innerRegex = try? NSRegularExpression(
                 pattern: "\\b(\(onesAlternation))\\b",
                 options: [.caseInsensitive]
