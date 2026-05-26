@@ -141,3 +141,76 @@ final class VibeVoiceChunkPlanningComputeChunkPlanTests: XCTestCase {
         XCTAssertEqual(result, [])
     }
 }
+
+final class VibeVoiceChunkPlanningRefineBoundariesTests: XCTestCase {
+
+    /// No silences anywhere → boundaries stay at their targets (uniform fallback).
+    func testNoSilencesReturnsOriginalTargets() {
+        let targets = [300.0, 600.0, 900.0]
+        let result = VibeVoiceChunkPlanning.refineBoundaries(
+            targets: targets, silences: [], windowSec: 15
+        )
+        XCTAssertEqual(result, targets)
+    }
+
+    /// One silence inside the window → boundary snaps to midpoint.
+    func testSnapsToSilenceMidpointWhenInsideWindow() {
+        let targets = [300.0]
+        let silences: [ClosedRange<Double>] = [298.0...302.0]  // midpoint 300
+        let result = VibeVoiceChunkPlanning.refineBoundaries(
+            targets: targets, silences: silences, windowSec: 15
+        )
+        XCTAssertEqual(result.count, 1)
+        XCTAssertEqual(result[0], 300.0, accuracy: 0.001)
+    }
+
+    /// Silence outside the ±15 s window → ignored, target stays.
+    func testIgnoresSilenceOutsideWindow() {
+        let targets = [300.0]
+        let silences: [ClosedRange<Double>] = [270.0...272.0]  // 30 s before target, outside
+        let result = VibeVoiceChunkPlanning.refineBoundaries(
+            targets: targets, silences: silences, windowSec: 15
+        )
+        XCTAssertEqual(result[0], 300.0, accuracy: 0.001)
+    }
+
+    /// Multiple silences in window → pick the longest.
+    func testPicksLongestSilenceInWindow() {
+        let targets = [300.0]
+        let silences: [ClosedRange<Double>] = [
+            295.0...296.0,      // short, midpoint 295.5
+            305.0...310.0,      // long (5 s), midpoint 307.5
+        ]
+        let result = VibeVoiceChunkPlanning.refineBoundaries(
+            targets: targets, silences: silences, windowSec: 15
+        )
+        XCTAssertEqual(result[0], 307.5, accuracy: 0.001)
+    }
+
+    /// Silence partially overlapping window → still selected, but midpoint
+    /// is mid of the silence itself, not mid of overlap.
+    func testPartialOverlapStillSelectsSilence() {
+        let targets = [300.0]
+        // Silence 290..320 (30 s long). Window 285..315. Overlap is 290..315.
+        // Midpoint of silence (the boundary value we snap to) is 305.
+        let silences: [ClosedRange<Double>] = [290.0...320.0]
+        let result = VibeVoiceChunkPlanning.refineBoundaries(
+            targets: targets, silences: silences, windowSec: 15
+        )
+        XCTAssertEqual(result[0], 305.0, accuracy: 0.001)
+    }
+
+    func testMultipleTargetsProcessedIndependently() {
+        let targets = [300.0, 600.0]
+        let silences: [ClosedRange<Double>] = [
+            298.0...302.0,      // matches target 300
+            610.0...612.0,      // matches target 600 (within window)
+        ]
+        let result = VibeVoiceChunkPlanning.refineBoundaries(
+            targets: targets, silences: silences, windowSec: 15
+        )
+        XCTAssertEqual(result.count, 2)
+        XCTAssertEqual(result[0], 300.0, accuracy: 0.001)
+        XCTAssertEqual(result[1], 611.0, accuracy: 0.001)
+    }
+}

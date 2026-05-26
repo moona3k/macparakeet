@@ -74,4 +74,24 @@ internal enum VibeVoiceChunkPlanning {
         }
         return boundaries
     }
+
+    /// Refines target chunk boundaries by snapping each to the midpoint of
+    /// the longest silence interval within `±windowSec` of the target.
+    /// Falls back to the original target when no silence overlaps the window.
+    static func refineBoundaries(
+        targets: [Double],
+        silences: [ClosedRange<Double>],
+        windowSec: Double
+    ) -> [Double] {
+        targets.map { target in
+            let lower = target - windowSec
+            let upper = target + windowSec
+            // Find silences that overlap [lower, upper]
+            let inWindow = silences.filter { $0.upperBound >= lower && $0.lowerBound <= upper }
+            guard let longest = inWindow.max(by: { ($0.upperBound - $0.lowerBound) < ($1.upperBound - $1.lowerBound) }) else {
+                return target
+            }
+            return (longest.lowerBound + longest.upperBound) / 2.0
+        }
+    }
 }
