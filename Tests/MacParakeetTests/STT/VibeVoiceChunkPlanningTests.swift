@@ -284,3 +284,52 @@ final class VibeVoiceChunkPlanningMergeSegmentsTests: XCTestCase {
         XCTAssertEqual(merged[0].endMs, 305_700)
     }
 }
+
+final class VibeVoiceChunkPlanningOverallProgressTests: XCTestCase {
+
+    func testStartOfFirstChunk() {
+        XCTAssertEqual(
+            VibeVoiceChunkPlanning.overallProgress(chunkIndex: 0, localPct: 0, totalChunks: 6),
+            0
+        )
+    }
+
+    func testMidpointOfFirstChunk() {
+        // 50% of chunk 0 in a 6-chunk job: (0*100 + 50)/6 = 8
+        XCTAssertEqual(
+            VibeVoiceChunkPlanning.overallProgress(chunkIndex: 0, localPct: 50, totalChunks: 6),
+            8
+        )
+    }
+
+    func testEndOfFirstChunkMatchesStartOfSecond() {
+        let endChunk0 = VibeVoiceChunkPlanning.overallProgress(chunkIndex: 0, localPct: 100, totalChunks: 6)
+        let startChunk1 = VibeVoiceChunkPlanning.overallProgress(chunkIndex: 1, localPct: 0, totalChunks: 6)
+        XCTAssertEqual(endChunk0, startChunk1, "Chunk transitions must be continuous (monotonic without gaps)")
+        XCTAssertEqual(endChunk0, 16)
+    }
+
+    func testFinalChunkEndsAt100() {
+        XCTAssertEqual(
+            VibeVoiceChunkPlanning.overallProgress(chunkIndex: 5, localPct: 100, totalChunks: 6),
+            100
+        )
+    }
+
+    /// Monotonicity sweep: walk through every (chunkIndex, localPct) pair
+    /// in chronological order and assert each value is >= the previous.
+    func testMonotonicityAcrossAllChunks() {
+        let totalChunks = 6
+        var prev = -1
+        for c in 0..<totalChunks {
+            for p in stride(from: 0, through: 100, by: 10) {
+                let value = VibeVoiceChunkPlanning.overallProgress(
+                    chunkIndex: c, localPct: p, totalChunks: totalChunks
+                )
+                XCTAssertGreaterThanOrEqual(value, prev,
+                    "Progress went backwards at chunk \(c) pct \(p): \(prev) → \(value)")
+                prev = value
+            }
+        }
+    }
+}

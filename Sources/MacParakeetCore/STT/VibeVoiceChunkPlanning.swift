@@ -124,4 +124,16 @@ internal enum VibeVoiceChunkPlanning {
         }
         return result
     }
+
+    /// Maps a chunk-local percentage (0..100) to overall job percentage
+    /// (0..100) across `totalChunks` chunks.
+    ///
+    /// Formula: `(chunkIndex * 100 + localPct) / totalChunks`.
+    /// Chunk N's completion (localPct=100) equals chunk N+1's start
+    /// (localPct=0), so the bar moves continuously across chunk transitions.
+    static func overallProgress(chunkIndex: Int, localPct: Int, totalChunks: Int) -> Int {
+        precondition(totalChunks > 0, "totalChunks must be positive")
+        precondition(chunkIndex >= 0 && chunkIndex < totalChunks, "chunkIndex out of range")
+        return (chunkIndex * 100 + localPct) / totalChunks
+    }
 }
