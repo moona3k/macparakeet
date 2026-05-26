@@ -256,7 +256,7 @@ Compact dark pill, icon-only controls, positioned at bottom-center of screen (40
 **Controls:** Icon buttons only, no text labels
 **Border:** Subtle white stroke (`Color.white.opacity(0.1)`, 1px)
 
-**Hover tooltips:** AppKit-level `MouseTrackingOverlay` using `NSTrackingArea` with `.activeAlways` flag (required because the overlay is a non-activating `NSPanel`). Sits on top of the hosting view with `hitTest -> nil` for click passthrough. Zone-based detection by relative X position. Tooltips render as dark capsule positioned above the pill with 13pt medium white text. Keyboard shortcuts are highlighted only when the action has a fixed shortcut.
+**Hover tooltips:** AppKit-level `MouseTrackingOverlay` using `NSTrackingArea` with `.activeAlways` flag (required because the overlay is a non-activating `NSPanel`). Sits on top of the hosting view, passing clicks through except for the visible persistent-mode Cancel / Stop control zones. Zone-based detection by relative X position. Tooltips render as dark capsule positioned above the pill with 13pt medium white text. Keyboard shortcuts are highlighted only when the action has a fixed shortcut.
 
 | Zone | Tooltip | Shortcut Highlight |
 |------|---------|-------------------|

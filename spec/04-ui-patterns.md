@@ -441,7 +441,7 @@ Tooltips use AppKit `NSTrackingArea` with `.activeAlways` because the pill is a 
 
 Implementation pattern:
 - `MouseTrackingOverlay` NSView layered on top of the pill
-- `hitTest` returns `nil` for click passthrough (dictation overlay) or `self` for click-to-dictate (idle pill)
+- `hitTest` passes through transparent overlay space, intercepting only visible control zones for dictation or the pill region for click-to-dictate
 - `NSTrackingArea` with `.mouseMoved` + `.activeAlways` for precise hover detection
 - Show/hide tooltip label (opacity toggle, not add/remove, to prevent resize jitter)
 - Reserve space for tooltip text in the layout at all times

@@ -7,10 +7,14 @@ import SwiftUI
 /// NSView overlay that detects mouse hover and position via NSTrackingArea with `.activeAlways`.
 /// Required because `.help()`, `.onHover`, and standard tracking options
 /// all fail on non-activating NSPanel. See CLAUDE.md Known Pitfalls.
-private final class MouseTrackingView: NSView {
+final class MouseTrackingView: NSView {
     var onEnter: (() -> Void)?
     var onExit: (() -> Void)?
     var onMoved: ((NSPoint) -> Void)?
+    var shouldReceiveMouseDown: ((NSPoint) -> Bool)?
+    var onClick: ((NSPoint) -> Void)?
+
+    private var mouseDownPoint: NSPoint?
 
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
@@ -33,18 +37,82 @@ private final class MouseTrackingView: NSView {
         onMoved?(convert(event.locationInWindow, from: nil))
     }
 
-    // Pass all clicks through to SwiftUI content below
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+    override func mouseDown(with event: NSEvent) {
+        mouseDownPoint = convert(event.locationInWindow, from: nil)
+    }
+
+    override func mouseUp(with event: NSEvent) {
+        let upPoint = convert(event.locationInWindow, from: nil)
+        if let downPoint = mouseDownPoint,
+           shouldReceiveMouseDown?(downPoint) == true,
+           shouldReceiveMouseDown?(upPoint) == true {
+            onClick?(upPoint)
+        }
+        mouseDownPoint = nil
+    }
+
+    // Only intercept clicks in the visible control regions; pass through everywhere else.
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        let localPoint = convert(point, from: superview)
+        return shouldReceiveMouseDown?(localPoint) == true ? self : nil
+    }
 }
 
-// MARK: - Clickable Non-Activating Panel
+// MARK: - Keyless Non-Activating Panel
 
-/// NSPanel subclass that allows SwiftUI buttons to receive clicks while
-/// remaining non-activating (won't steal focus on `orderFront`).
-/// Without `canBecomeKey = true`, buttons inside a `.nonactivatingPanel`
-/// are unresponsive because the panel never becomes key window.
-private final class ClickablePanel: NSPanel {
-    override var canBecomeKey: Bool { true }
+final class DictationOverlayPanel: NSPanel {
+    override var canBecomeKey: Bool { false }
+    override var canBecomeMain: Bool { false }
+}
+
+enum DictationOverlayControlHitTarget: Equatable {
+    case cancel
+    case stop
+}
+
+struct DictationOverlayControlHitTesting {
+    static let pillWidth: CGFloat = 210
+    static let controlZoneWidth: CGFloat = 45
+    static let controlRowBottomPadding: CGFloat = 8
+    static let controlRowHeight: CGFloat = 36
+    static let controlRowHitSlop: CGFloat = 6
+
+    static func target(
+        at point: NSPoint,
+        in bounds: NSRect,
+        overlayState: DictationOverlayViewModel.OverlayState,
+        recordingMode: FnKeyStateMachine.RecordingMode,
+        requiresVisibleControlRow: Bool = false
+    ) -> DictationOverlayControlHitTarget? {
+        guard bounds.width >= pillWidth else {
+            return nil
+        }
+
+        guard case .recording = overlayState,
+              recordingMode == .persistent else {
+            return nil
+        }
+
+        if requiresVisibleControlRow {
+            let controlBottom = bounds.minY + controlRowBottomPadding - controlRowHitSlop
+            let controlTop = bounds.minY + controlRowBottomPadding + controlRowHeight + controlRowHitSlop
+            guard point.y >= controlBottom && point.y <= controlTop else {
+                return nil
+            }
+        }
+
+        let pillLeft = (bounds.width - pillWidth) / 2
+        let pillRight = pillLeft + pillWidth
+        let x = point.x
+
+        if x >= pillLeft && x < pillLeft + controlZoneWidth {
+            return .cancel
+        }
+        if x > pillRight - controlZoneWidth && x <= pillRight {
+            return .stop
+        }
+        return nil
+    }
 }
 
 @MainActor
@@ -85,7 +153,7 @@ final class DictationOverlayController: DictationOverlayControlling {
         let panelHeight: CGFloat = 160
         hosting.frame = NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight)
 
-        let panel = ClickablePanel(
+        let panel = DictationOverlayPanel(
             contentRect: NSRect(x: 0, y: 0, width: panelWidth, height: panelHeight),
             styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
@@ -106,8 +174,24 @@ final class DictationOverlayController: DictationOverlayControlling {
             self?.overlayViewModel.isHovered = false
             self?.overlayViewModel.hoverTooltip = nil
         }
-        tracker.onMoved = { [weak self] point in
-            self?.updateHoverTooltip(at: point, in: hosting.bounds)
+        tracker.onMoved = { [weak self, weak tracker] point in
+            guard let tracker else { return }
+            self?.updateHoverTooltip(at: point, in: tracker.bounds)
+        }
+        tracker.shouldReceiveMouseDown = { [weak self, weak tracker] point in
+            guard let self, let tracker else { return false }
+            return self.clickHitTarget(at: point, in: tracker.bounds) != nil
+        }
+        tracker.onClick = { [weak self, weak tracker] point in
+            guard let self, let tracker else { return }
+            switch self.clickHitTarget(at: point, in: tracker.bounds) {
+            case .cancel:
+                self.overlayViewModel.onCancel?()
+            case .stop:
+                self.overlayViewModel.onStop?()
+            case nil:
+                break
+            }
         }
         hosting.addSubview(tracker)
         trackingView = tracker
@@ -132,8 +216,8 @@ final class DictationOverlayController: DictationOverlayControlling {
         trackingView = nil
     }
 
-    /// Resign key window so CGEvent paste targets the user's app, not the overlay panel.
-    /// Call this before any simulated Cmd+V when the overlay was clicked (e.g. Undo, Stop button).
+    /// Compatibility hook for paste flows that defensively clear overlay key state.
+    /// DictationOverlayPanel is keyless, so this is normally a no-op.
     func resignKeyWindow() {
         panel?.resignKey()
     }
@@ -141,22 +225,10 @@ final class DictationOverlayController: DictationOverlayControlling {
     /// Determine which element the cursor is over and update the tooltip.
     /// The pill is centered in the panel. Left zone = cancel, right zone = stop.
     private func updateHoverTooltip(at point: NSPoint, in bounds: NSRect) {
-        guard case .recording = overlayViewModel.state,
-              overlayViewModel.recordingMode == .persistent else {
-            // No hover tooltips in hold-to-talk (no buttons), ready, cancelled, processing, success, noSpeech, or error states
-            overlayViewModel.hoverTooltip = nil
-            return
-        }
-
-        let panelWidth = bounds.width
-        let pillWidth: CGFloat = 210 // approximate pill content width
-        let pillLeft = (panelWidth - pillWidth) / 2
-        let pillRight = pillLeft + pillWidth
-
-        let x = point.x
-        if x >= pillLeft && x < pillLeft + 45 {
+        switch controlHitTarget(at: point, in: bounds) {
+        case .cancel:
             overlayViewModel.hoverTooltip = "Cancel (Esc)"
-        } else if x > pillRight - 45 && x <= pillRight {
+        case .stop:
             if overlayViewModel.sessionKind == .command {
                 overlayViewModel.hoverTooltip = "Stop & apply (Fn+Control)"
             } else {
@@ -165,9 +237,28 @@ final class DictationOverlayController: DictationOverlayControlling {
                     ? "Stop & paste"
                     : "Stop & paste (\(trigger.displayName))"
             }
-        } else {
+        case nil:
             overlayViewModel.hoverTooltip = nil
         }
+    }
+
+    private func controlHitTarget(at point: NSPoint, in bounds: NSRect) -> DictationOverlayControlHitTarget? {
+        DictationOverlayControlHitTesting.target(
+            at: point,
+            in: bounds,
+            overlayState: overlayViewModel.state,
+            recordingMode: overlayViewModel.recordingMode
+        )
+    }
+
+    private func clickHitTarget(at point: NSPoint, in bounds: NSRect) -> DictationOverlayControlHitTarget? {
+        DictationOverlayControlHitTesting.target(
+            at: point,
+            in: bounds,
+            overlayState: overlayViewModel.state,
+            recordingMode: overlayViewModel.recordingMode,
+            requiresVisibleControlRow: true
+        )
     }
 
     func updateSize(width: CGFloat) {
