@@ -7,13 +7,28 @@ import SwiftUI
 @Observable
 public final class TranscriptionViewModel {
     public struct RetranscriptionEngineOption: Equatable, Sendable {
+        /// The engine that produced the existing transcription. Highlighted in
+        /// the popover as the current/default selection.
         public let primaryEngine: SpeechEngineSelection
-        public let alternativeEngine: SpeechEngineSelection
-        public let isAlternativeAvailable: Bool
-        public let unavailableReason: String?
 
-        public var title: String {
-            "Try with \(alternativeEngine.engine.displayName)"
+        /// All other engines the user could pick to re-run transcription.
+        /// One entry per non-primary engine — for Parakeet+Whisper+VibeVoice
+        /// this is a 2-element array.
+        public let alternativeEngines: [SpeechEngineSelection]
+
+        /// Reasons per engine why selecting it would currently fail (e.g.
+        /// "Download the VibeVoice model in Settings before trying VibeVoice").
+        /// `nil` means available. Indexed by `SpeechEnginePreference`.
+        public let unavailableReasons: [SpeechEnginePreference: String]
+
+        /// Convenience: is this engine selectable right now?
+        public func isAvailable(_ engine: SpeechEnginePreference) -> Bool {
+            unavailableReasons[engine] == nil
+        }
+
+        /// Convenience: what's the reason an engine is unavailable, if any?
+        public func unavailableReason(_ engine: SpeechEnginePreference) -> String? {
+            unavailableReasons[engine]
         }
     }
 
@@ -301,28 +316,39 @@ public final class TranscriptionViewModel {
            archivedRecording.speechEngineWasCaptured {
             primaryEngine = archivedRecording.speechEngine
         } else {
-            primaryEngine = SpeechEngineSelection.current(defaults: defaults)
+            primaryEngine = SpeechEngineSelection.current(for: .fileTranscription, defaults: defaults)
         }
 
-        let alternativePreference = primaryEngine.engine.alternative
-        let alternativeEngine = SpeechEngineSelection(
-            engine: alternativePreference,
-            language: alternativePreference == .whisper
+        let allEngines: [SpeechEnginePreference] = SpeechEnginePreference.allCases
+        var alternatives: [SpeechEngineSelection] = []
+        var unavailableReasons: [SpeechEnginePreference: String] = [:]
+
+        for engine in allEngines where engine != primaryEngine.engine {
+            let language: String? = engine == .whisper
                 ? SpeechEnginePreference.whisperDefaultLanguage(defaults: defaults)
                 : nil
-        )
-        let unavailableReason: String?
-        if alternativePreference == .whisper && !isWhisperModelDownloaded() {
-            unavailableReason = "Download the Whisper model in Settings before trying Whisper."
-        } else {
-            unavailableReason = nil
+            let selection = SpeechEngineSelection(engine: engine, language: language)
+            alternatives.append(selection)
+
+            // Compute availability
+            switch engine {
+            case .parakeet:
+                break  // Always available — bundled with the app
+            case .whisper:
+                if !isWhisperModelDownloaded() {
+                    unavailableReasons[.whisper] = "Download the Whisper model in Settings before trying Whisper."
+                }
+            case .vibevoice:
+                if !VibeVoiceModelDownloader.areModelsInstalled() {
+                    unavailableReasons[.vibevoice] = "Download the VibeVoice model in Settings before trying VibeVoice."
+                }
+            }
         }
 
         return RetranscriptionEngineOption(
             primaryEngine: primaryEngine,
-            alternativeEngine: alternativeEngine,
-            isAlternativeAvailable: unavailableReason == nil,
-            unavailableReason: unavailableReason
+            alternativeEngines: alternatives,
+            unavailableReasons: unavailableReasons
         )
     }
 
@@ -473,7 +499,7 @@ public final class TranscriptionViewModel {
 
         let taskID = UUID()
         activeTranscriptionTaskID = taskID
-        let progressSpeechEngine = speechEngine ?? SpeechEngineSelection.current(defaults: defaults)
+        let progressSpeechEngine = speechEngine ?? SpeechEngineSelection.current(for: .fileTranscription, defaults: defaults)
         activeProgressSpeechEngine = progressSpeechEngine
         activeProgressWhisperVariant = progressSpeechEngine.engine == .whisper
             ? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
@@ -631,7 +657,7 @@ public final class TranscriptionViewModel {
         self.transcriptionProgress = progress.fraction
         self.progressPhase = phase
         self.progressHeadline = Self.headline(for: phase)
-        let speechEngine = activeProgressSpeechEngine ?? SpeechEngineSelection.current(defaults: defaults)
+        let speechEngine = activeProgressSpeechEngine ?? SpeechEngineSelection.current(for: .fileTranscription, defaults: defaults)
         let whisperVariant = activeProgressWhisperVariant
             ?? SpeechEnginePreference.whisperModelVariant(defaults: defaults)
         self.progressSubline = Self.subline(
