@@ -747,13 +747,15 @@ struct TranscriptResultView: View {
                     selectRetranscribeEngine(option.primaryEngine, in: option)
                 }
 
-                EngineOptionCard(
-                    selection: option.alternativeEngine,
-                    isPrimary: false,
-                    isAvailable: option.isAlternativeAvailable,
-                    unavailableReason: option.unavailableReason
-                ) {
-                    selectRetranscribeEngine(option.alternativeEngine, in: option)
+                ForEach(option.alternativeEngines, id: \.engine) { alternative in
+                    EngineOptionCard(
+                        selection: alternative,
+                        isPrimary: false,
+                        isAvailable: option.isAvailable(alternative.engine),
+                        unavailableReason: option.unavailableReason(alternative.engine)
+                    ) {
+                        selectRetranscribeEngine(alternative, in: option)
+                    }
                 }
             }
 

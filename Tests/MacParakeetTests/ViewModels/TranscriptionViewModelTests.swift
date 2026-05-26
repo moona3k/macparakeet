@@ -1381,10 +1381,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
-        XCTAssertTrue(option.isAlternativeAvailable)
-        XCTAssertNil(option.unavailableReason)
-        XCTAssertEqual(option.title, "Try with Parakeet")
+        XCTAssertTrue(option.alternativeEngines.contains(SpeechEngineSelection(engine: .parakeet)))
+        XCTAssertTrue(option.isAvailable(.parakeet))
+        XCTAssertNil(option.unavailableReason(.parakeet))
     }
 
     func testRetranscriptionEngineOptionUsesCurrentSettingsForLegacyMeetingMetadata() throws {
@@ -1411,7 +1410,7 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .whisper, language: "ja"))
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
+        XCTAssertTrue(option.alternativeEngines.contains(SpeechEngineSelection(engine: .parakeet)))
     }
 
     func testRetranscriptionEngineOptionDisablesMissingWhisperModel() throws {
@@ -1433,9 +1432,9 @@ final class TranscriptionViewModelTests: XCTestCase {
 
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .whisper))
-        XCTAssertFalse(option.isAlternativeAvailable)
-        XCTAssertEqual(option.unavailableReason, "Download the Whisper model in Settings before trying Whisper.")
+        XCTAssertTrue(option.alternativeEngines.contains(SpeechEngineSelection(engine: .whisper)))
+        XCTAssertFalse(option.isAvailable(.whisper))
+        XCTAssertEqual(option.unavailableReason(.whisper), "Download the Whisper model in Settings before trying Whisper.")
     }
 
     func testRetranscriptionEngineOptionAvailableForYouTubeSource() throws {
@@ -1463,9 +1462,9 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .parakeet))
-        XCTAssertEqual(option.alternativeEngine.engine, .whisper)
-        XCTAssertTrue(option.isAlternativeAvailable)
-        XCTAssertNil(option.unavailableReason)
+        XCTAssertTrue(option.alternativeEngines.contains { $0.engine == .whisper })
+        XCTAssertTrue(option.isAvailable(.whisper))
+        XCTAssertNil(option.unavailableReason(.whisper))
     }
 
     func testRetranscriptionEngineOptionAvailableForFileSource() throws {
@@ -1494,8 +1493,8 @@ final class TranscriptionViewModelTests: XCTestCase {
         let option = try XCTUnwrap(viewModel.retranscriptionEngineOption(for: original))
 
         XCTAssertEqual(option.primaryEngine, SpeechEngineSelection(engine: .whisper, language: "ko"))
-        XCTAssertEqual(option.alternativeEngine, SpeechEngineSelection(engine: .parakeet))
-        XCTAssertTrue(option.isAlternativeAvailable)
+        XCTAssertTrue(option.alternativeEngines.contains(SpeechEngineSelection(engine: .parakeet)))
+        XCTAssertTrue(option.isAvailable(.parakeet))
     }
 
     func testRetranscriptionEngineOptionNilWhenFileMissing() {
