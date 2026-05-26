@@ -107,10 +107,7 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .whisper:
             return try await transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
         case .vibevoice:
-            // onProgress intentionally dropped: VibeVoice's C ABI has no
-            // per-segment progress callback. Use STTRuntime.observeWarmUpProgress()
-            // for visibility into the engine load step instead.
-            return try await transcribeWithVibeVoice(audioPath: audioPath, job: job)
+            return try await transcribeWithVibeVoice(audioPath: audioPath, job: job, onProgress: onProgress)
         }
     }
 
@@ -132,11 +129,12 @@ public actor STTRuntime: STTRuntimeProtocol {
 
     private func transcribeWithVibeVoice(
         audioPath: String,
-        job: STTJobKind
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
     ) async throws -> STTResult {
         let engine = vibevoiceEngine ?? VibeVoiceEngine()
         if vibevoiceEngine == nil { vibevoiceEngine = engine }
-        return try await engine.transcribe(audioPath: audioPath, job: job)
+        return try await engine.transcribe(audioPath: audioPath, job: job, onProgress: onProgress)
     }
 
     private func transcribeWithParakeet(
