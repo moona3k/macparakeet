@@ -63,8 +63,17 @@ final class LLMSettingsViewModelTests: XCTestCase {
         )
     }
 
-    func testSetupStatusCannotConnectUsesDraftProviderDisplayName() {
+    func testSetupStatusKeepsSavedProviderReadyWhenUnsavedDraftConnectionFails() {
         mockConfigStore.config = .lmstudio(model: "local-model")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .ollama
+        viewModel.connectionTestState = .error("Connection failed")
+
+        XCTAssertEqual(viewModel.setupStatus, .ready(displayName: "LM Studio"))
+    }
+
+    func testSetupStatusCannotConnectUsesDraftProviderWhenNoSavedConfigurationExists() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
 
         viewModel.selectedProviderID = .ollama
@@ -260,6 +269,39 @@ final class LLMSettingsViewModelTests: XCTestCase {
         )
         XCTAssertFalse(viewModel.aiFormatterEnabled)
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
+    }
+
+    func testSaveConfigurationClearingAIReportsSavedBeforeCallback() {
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        var observedSaveState: LLMSettingsViewModel.SaveState?
+        viewModel.onConfigurationChanged = { [viewModel] in
+            observedSaveState = viewModel?.saveState
+        }
+
+        viewModel.selectedProviderID = nil
+        viewModel.saveConfiguration()
+
+        XCTAssertNil(mockConfigStore.config)
+        XCTAssertEqual(observedSaveState, .saved)
+        XCTAssertEqual(viewModel.saveState, .saved)
+    }
+
+    func testClearConfigurationReportsIdleBeforeCallback() {
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        var observedSaveState: LLMSettingsViewModel.SaveState?
+        viewModel.onConfigurationChanged = { [viewModel] in
+            observedSaveState = viewModel?.saveState
+        }
+
+        viewModel.clearConfiguration()
+
+        XCTAssertNil(mockConfigStore.config)
+        XCTAssertEqual(observedSaveState, .idle)
+        XCTAssertEqual(viewModel.saveState, .idle)
     }
 
     // MARK: - Test Connection

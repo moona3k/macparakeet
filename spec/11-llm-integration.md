@@ -350,15 +350,17 @@ The UI language should be:
 3. `Local AI app` for LM Studio/Ollama.
 4. `Advanced connection settings` for base URL/model ID fields.
 
-The default Settings shape is:
+The default Settings shape is a guided flow:
 
-1. Top status: `AI for summaries and chat`.
-2. Recommended local path: `Use a local AI app`, with LM Studio first and
-   Ollama second.
-3. Cloud path: `Use an API key`.
-4. Advanced path: OpenAI-compatible endpoint and Local CLI.
-5. Privacy copy: transcription/audio stay local; transcript text is sent only
-   when the user runs an AI action with a non-local provider.
+1. Top saved-state banner: `AI is off`, `AI is connected`, or
+   `AI needs attention`.
+2. Setup/change chooser: `Local AI app`, `API key`, `Command-line tool`, and
+   `Custom API endpoint` under `More options`.
+3. Provider-specific details render only after one path is selected.
+4. Recommended local path keeps LM Studio first and Ollama second.
+5. Privacy copy stays near the selected path: transcription/audio stay local;
+   transcript text is sent only when the user runs an AI action with a
+   non-local provider.
 
 Transforms are managed in the dedicated Transforms sidebar tab, not in Settings.
 

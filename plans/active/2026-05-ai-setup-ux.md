@@ -85,11 +85,24 @@ The open-source field mostly separates capture from LLM setup:
 | [OpenOats](https://github.com/yazinsai/OpenOats) | Ollama for fully local suggestions/embeddings; OpenRouter/Voyage/OpenAI-compatible for cloud mode. | Be explicit about what text leaves the Mac in each mode. |
 | [Minutes](https://github.com/silverstein/minutes) | Agent CLI, Ollama, Mistral, or OpenAI-compatible summarization; MCP/CLI/files are the main value. | Own the artifact and automation layer; let users bring the intelligence engine. |
 | [Meetily](https://github.com/Zackriya-Solutions/meetily) | Recommends Ollama locally; also supports Claude, Groq, OpenRouter, and OpenAI-compatible endpoints. | Local-provider-first is a common OSS compromise. |
+| [VoiceInk](https://github.com/Beingpax/VoiceInk) | Enhancement providers include Ollama, OpenAI, Gemini, Anthropic, OpenRouter, Mistral, Groq, Cerebras, custom OpenAI-compatible endpoints, and Local CLI in source. | Keep AI enhancement setup separate from STT setup; show connected status, provider key links, and Keychain-backed API keys. |
+| Open WebUI / Jan / LobeChat | Popular open-source AI apps use provider cards, local-server readiness, model discovery, manual model-ID fallback, and metadata-driven provider templates. | Copy the connection mechanics and failure clarity, not their admin-console/provider-catalog complexity. |
 | [ownscribe](https://github.com/paberr/ownscribe) | CLI downloads a built-in Phi-4-mini model on first run, with Ollama/LM Studio/OpenAI-compatible alternatives. | Built-in model download can work for CLI tools, but it still makes the product own model management. |
 | [Pensieve](https://github.com/lukasbach/pensieve) | Local STT is bundled; summaries use user-connected Ollama or OpenAI. | Many tools own capture/STT but avoid owning LLM inference. |
 
 Decision for MacParakeet: do not hide the optional LLM setup behind jargon, and
 do not turn the app into a model manager just to remove one setup step.
+
+There is no single gold-standard reference to copy wholesale. The best combined
+pattern is:
+
+1. Show the saved readiness state first.
+2. Ask the user to choose one setup lane.
+3. Render only that lane's provider-specific fields.
+4. Keep `Save and Test`, model refresh, custom model ID fallback, and clear
+   local/cloud privacy copy next to the selected lane.
+5. Keep OpenAI-compatible endpoints and command-line tools available, but not
+   in the default visual path.
 
 ## 3. Product Principles
 
@@ -172,6 +185,19 @@ This state should be based on real user activity, not speculative background pro
 
 The AI settings surface should answer one question first: "Can MacParakeet use AI for summaries and chat right now?"
 
+The UI must not be a provider catalog. The default shape is a two-step
+configuration flow:
+
+1. Show the saved state: `AI is off`, `AI is connected`, or
+   `AI needs attention`.
+2. If setup/change is active, show a compact path chooser.
+3. After the user picks a path, show only that path's fields.
+4. Keep the existing provider details, endpoint fields, and model IDs as
+   implementation plumbing inside the selected path.
+
+This keeps the common empty and ready states short while preserving the full
+BYO provider surface.
+
 ### Top Status
 
 Card title: `AI for summaries and chat`
@@ -186,9 +212,28 @@ Possible states:
 
 Primary actions:
 
-1. `Test`
-2. `Change`
-3. `Clear`
+1. No saved setup: `Connect AI`.
+2. Ready: `Test`, `Change`, `Turn Off AI`.
+3. Can't connect: `Test Again`, `Fix Setup`, `Turn Off AI`.
+
+If a user is experimenting with an unsaved provider and that draft test fails,
+the top status should continue to reflect the saved provider as ready. Draft
+errors belong next to the setup fields, not in the saved readiness banner.
+
+### Setup Path Chooser
+
+When setup is active, show these lanes:
+
+1. `Local AI app` -- LM Studio or Ollama. Recommended. Best privacy, but the
+   external app and model must already be installed/running.
+2. `API key` -- Claude, OpenAI, Gemini, or OpenRouter. Best for users who
+   already have an AI API key.
+3. `Command-line tool` -- Codex, Claude Code, or custom command. Advanced
+   agent workflow.
+4. `Custom API endpoint` -- hidden under `More options`, for OpenAI-compatible
+   local servers, gateways, or hosted APIs.
+
+Only one selected path renders details at a time.
 
 ### Setup Path 1: Use A Local AI App
 

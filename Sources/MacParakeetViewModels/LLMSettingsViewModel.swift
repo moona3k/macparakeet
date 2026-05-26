@@ -118,6 +118,10 @@ public final class LLMSettingsViewModel {
 
     public var setupStatus: AISetupStatus {
         if case .error(let message) = connectionTestState {
+            if isConfigured && hasUnsavedChanges {
+                let displayName = savedAIOptionDisplayName ?? "AI"
+                return .ready(displayName: displayName)
+            }
             let displayName = draftAIOptionDisplayName ?? savedAIOptionDisplayName ?? "AI"
             return .cannotConnect(displayName: displayName, message: message)
         }
@@ -355,8 +359,7 @@ public final class LLMSettingsViewModel {
     public func saveConfiguration() {
         guard let configStore else { return }
         guard draft.providerID != nil else {
-            clearConfiguration()
-            saveState = .saved
+            clearConfiguration(finalSaveState: .saved)
             return
         }
         do {
@@ -393,6 +396,10 @@ public final class LLMSettingsViewModel {
         testConnection()
     }
 
+    public func discardDraftChanges() {
+        loadExistingConfig()
+    }
+
     public func testConnection() {
         guard let llmClient else { return }
 
@@ -426,6 +433,10 @@ public final class LLMSettingsViewModel {
     }
 
     public func clearConfiguration() {
+        clearConfiguration(finalSaveState: .idle)
+    }
+
+    private func clearConfiguration(finalSaveState: SaveState) {
         guard let configStore else { return }
         // Use the persisted provider to decide what to delete. The draft may
         // point at an unsaved provider switch in Settings.
@@ -466,7 +477,7 @@ public final class LLMSettingsViewModel {
             resetDiscoveredModels()
         }
         connectionTestState = .idle
-        saveState = .idle
+        saveState = finalSaveState
         onConfigurationChanged?()
     }
 
