@@ -177,3 +177,25 @@ final class AudioFileConverterTests: XCTestCase {
         XCTAssertNotNil(AudioProcessorError.insufficientSamples.errorDescription)
     }
 }
+
+final class AudioFileConverterDurationTests: XCTestCase {
+
+    /// Uses the existing tiny_ted.wav fixture from VibeVoiceCoreTests as a
+    /// known-duration baseline (15 s at 24 kHz mono).
+    func testAudioDurationReturnsExpectedSeconds() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()  // Audio/
+            .deletingLastPathComponent()  // MacParakeetTests/
+            .deletingLastPathComponent()  // Tests/
+            .appendingPathComponent("VibeVoiceCoreTests/Resources/tiny_ted.wav")
+        try XCTSkipUnless(FileManager.default.fileExists(atPath: url.path),
+                          "tiny_ted.wav fixture not present at \(url.path)")
+        let seconds = try AudioFileConverter.audioDuration(at: url)
+        XCTAssertEqual(seconds, 15.0, accuracy: 0.1)
+    }
+
+    func testAudioDurationThrowsForMissingFile() {
+        let url = URL(fileURLWithPath: "/tmp/does-not-exist-\(UUID().uuidString).wav")
+        XCTAssertThrowsError(try AudioFileConverter.audioDuration(at: url))
+    }
+}

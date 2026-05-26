@@ -1,4 +1,3 @@
-import AVFoundation
 import Foundation
 import OSLog
 import VibeVoiceCore
@@ -91,7 +90,7 @@ public actor VibeVoiceEngine: STTTranscribing {
             }
         }
 
-        let audioSec = (try? Self.audioDuration(at: URL(fileURLWithPath: wavPath))) ?? 0
+        let audioSec = (try? AudioFileConverter.audioDuration(at: URL(fileURLWithPath: wavPath))) ?? 0
         Self.logger.notice("vibevoice transcribe starting: audio=\(audioSec, format: .fixed(precision: 1))s, warm=\(warmElapsed, format: .fixed(precision: 2))s, convert=\(convertElapsed, format: .fixed(precision: 2))s")
 
         // Time-based progress estimator. Fires every second while inference
@@ -144,16 +143,6 @@ public actor VibeVoiceEngine: STTTranscribing {
             engine: .vibevoice,
             engineVariant: "vibevoice-asr-q4_k"
         )
-    }
-
-    /// Reads the audio duration (in seconds) of a WAV file. Used to size the
-    /// time-based progress estimate. Duplicated from `VibeVoiceASR` rather
-    /// than promoted to a public helper — 4 lines, single caller per actor.
-    private static func audioDuration(at url: URL) throws -> TimeInterval {
-        let file = try AVAudioFile(forReading: url)
-        let frameCount = file.length
-        let sampleRate = file.processingFormat.sampleRate
-        return sampleRate > 0 ? Double(frameCount) / sampleRate : 0
     }
 
     public func unload() async {

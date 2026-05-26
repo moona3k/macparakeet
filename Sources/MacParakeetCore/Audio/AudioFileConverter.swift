@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import os
 
@@ -38,6 +39,16 @@ public final class AudioFileConverter: AudioFileConverting, Sendable {
     /// Check if a file extension is supported
     public static func isSupported(extension ext: String) -> Bool {
         supportedExtensions.contains(ext.lowercased())
+    }
+
+    /// Reads the duration in seconds of an audio file via `AVAudioFile`.
+    /// Used by VibeVoice's chunker and progress estimator to size jobs.
+    /// Throws if the file can't be opened (missing, unsupported codec).
+    public static func audioDuration(at url: URL) throws -> TimeInterval {
+        let file = try AVAudioFile(forReading: url)
+        let frameCount = file.length
+        let sampleRate = file.processingFormat.sampleRate
+        return sampleRate > 0 ? Double(frameCount) / sampleRate : 0
     }
 
     /// Convert any supported audio/video file to 16kHz mono WAV.
