@@ -541,10 +541,18 @@ public enum NumberNormalizer: Sendable {
 
     /// `<verb> [it|that] <X>` at cue end → digit. Catches cross-
     /// cue measurement leaks where verb takes a count object and
-    /// the unit is in the next cue.
+    /// the unit is in the next cue. Has-digit guard: only fires
+    /// when the cue already contains a `\b[1-9]\b` digit cardinal
+    /// somewhere — that's the telltale sign this trailing spelled
+    /// cardinal is the orphaned tail of a cross-cue countdown vs.
+    /// a general-prose "have four" / "make two" / "took three".
     private static func applyVerbCardinalAtEndPass(_ text: String) -> String {
-        guard let regex = verbCardinalAtEndRegex else { return text }
+        guard let regex = verbCardinalAtEndRegex,
+              let digitGuard = hasDigitOneToNineRegex else { return text }
         let ns = text as NSString
+        guard digitGuard.firstMatch(
+            in: text, range: NSRange(location: 0, length: ns.length)
+        ) != nil else { return text }
         let matches = regex.matches(in: text, range: NSRange(location: 0, length: ns.length))
         var out = text
         for match in matches.reversed() {

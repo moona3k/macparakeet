@@ -256,6 +256,23 @@ final class NumberNormalizerTests: XCTestCase {
         XCTAssertEqual(NumberNormalizer.normalize("one of them"), "one of them")
         XCTAssertEqual(NumberNormalizer.normalize("five fingers"), "five fingers")
     }
+
+    // MARK: - Verb + cardinal at cue end (prose guard)
+
+    /// Prose-context cardinals must not convert via the verb pass.
+    /// `applyVerbCardinalAtEndPass` is intended to catch cross-cue
+    /// countdown remnants like "back and do two" / "we do it two"
+    /// where the unit ("rounds", "times") leaks into the next cue.
+    /// In general prose ("I have four. Three of them are nice.")
+    /// the same shape is ambiguous out of context and the conversion
+    /// reads wrong. Guard with digit-presence: only fire when the
+    /// cue also contains a digit cardinal somewhere — the telltale
+    /// sign this is a real countdown remnant vs. prose.
+    func testVerbCardinalAtEndDoesNotConvertProse() {
+        let input = "I have four. Three of them are nice."
+        let result = NumberNormalizer.normalize(input)
+        XCTAssertEqual(result, input)
+    }
 }
 
 final class NumberNormalizerPeriodCountdownTests: XCTestCase {
