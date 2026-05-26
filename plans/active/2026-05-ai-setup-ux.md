@@ -2,7 +2,7 @@
 
 > Status: **ACTIVE PLAN**
 > Drafted: 2026-05-02
-> Updated: 2026-05-26 -- baked-in LLM research pass
+> Updated: 2026-05-26 -- baked-in LLM research and AI setup friendliness pass
 > ADR: `spec/adr/011-llm-cloud-and-local-providers.md`
 > Related history: `spec/adr/008-local-llm-runtime-and-model.md`
 > Scope: AI setup for summaries, transcript chat, prompt actions, and meeting Ask. Speech-to-text is unchanged.
@@ -22,6 +22,16 @@ The product work is to make that setup feel first-class and low-friction:
 5. Feature surfaces do not show provider plumbing once AI is configured.
 
 This gives users a clean path to local summaries and chat without reopening the bundled-MLX decision that was already tried and removed.
+
+The user-facing stance is:
+
+> Install MacParakeet and capture works immediately. Turn on AI only when you
+> want summaries, chat, prompt actions, or meeting Ask.
+
+The product gap is not that MacParakeet has a uniquely bad architecture. Most
+open-source Granola alternatives also require a separate LLM choice after app
+install. The gap is that MacParakeet should explain this choice more plainly
+and make the common local paths feel native.
 
 Reference: `docs/research/apple-foundation-models.md`.
 
@@ -63,9 +73,38 @@ Decision:
 
 The implementation plan for a future coding agent is in `docs/research/apple-foundation-models.md`.
 
+### Competitive Setup Pattern (2026-05-26)
+
+The open-source field mostly separates capture from LLM setup:
+
+| Project | LLM setup shape | Product lesson |
+|---|---|---|
+| [Char / Hyprnote / Anarlog](https://github.com/fastrepl/anarlog) | Bring-your-own provider: LM Studio, Ollama, OpenAI, Anthropic, Gemini, OpenRouter, OpenAI-compatible. [Char docs](https://char.com/docs/faq/local-llm-setup) walk users through running LM Studio or Ollama. | Provider-based local AI is normal; the app should carry more of the guidance than docs do. |
+| [Steno](https://github.com/ruzin/stenoai) | Bundles helper binaries and uses an in-app setup wizard to download/select local Ollama models, with optional cloud/custom providers. | This proves zero-config-ish local LLM is possible, but it accepts model download, model picker, runtime lifecycle, and support burden. |
+| [Muesli](https://github.com/pHequals7/muesli) | Optional summary setup during onboarding: OpenAI, OpenRouter, ChatGPT OAuth, or local Ollama. | Existing subscription sign-in can be a friendlier path than asking every user for an API key. |
+| [OpenOats](https://github.com/yazinsai/OpenOats) | Ollama for fully local suggestions/embeddings; OpenRouter/Voyage/OpenAI-compatible for cloud mode. | Be explicit about what text leaves the Mac in each mode. |
+| [Minutes](https://github.com/silverstein/minutes) | Agent CLI, Ollama, Mistral, or OpenAI-compatible summarization; MCP/CLI/files are the main value. | Own the artifact and automation layer; let users bring the intelligence engine. |
+| [Meetily](https://github.com/Zackriya-Solutions/meetily) | Recommends Ollama locally; also supports Claude, Groq, OpenRouter, and OpenAI-compatible endpoints. | Local-provider-first is a common OSS compromise. |
+| [ownscribe](https://github.com/paberr/ownscribe) | CLI downloads a built-in Phi-4-mini model on first run, with Ollama/LM Studio/OpenAI-compatible alternatives. | Built-in model download can work for CLI tools, but it still makes the product own model management. |
+| [Pensieve](https://github.com/lukasbach/pensieve) | Local STT is bundled; summaries use user-connected Ollama or OpenAI. | Many tools own capture/STT but avoid owning LLM inference. |
+
+Decision for MacParakeet: do not hide the optional LLM setup behind jargon, and
+do not turn the app into a model manager just to remove one setup step.
+
 ## 3. Product Principles
 
 AI is optional. Dictation, transcription, and meeting recording must stay usable with no AI provider configured.
+
+AI being off is not an error state. The app should never imply capture is
+unfinished or degraded because the user has not turned on summaries/chat.
+
+The first-run contract:
+
+1. Recording, transcription, notes, and export work before AI setup.
+2. AI setup is optional and can happen later.
+3. The setup verb is `Turn on AI`, not `Configure LLM provider`.
+4. Provider details appear only inside setup paths and Advanced settings.
+5. Active capture surfaces do not interrupt the user with AI setup prompts.
 
 Settings is the source of truth. Transcript chat, summaries, and meeting Ask may show a small setup prompt when AI is missing, but they should not become provider dashboards.
 
@@ -93,6 +132,10 @@ Do not show "Cloud provider configured" as a main feature-surface status. If AI 
 ## 4. Feature-Surface Behavior
 
 Feature surfaces include transcript summaries, transcript chat, prompt actions, and meeting Ask.
+
+Do not show AI setup prompts in the live recording control path. During capture,
+the user's job is to record and take notes. Setup prompts belong in Settings,
+post-meeting summary/chat empty states, or explicit AI actions.
 
 ### Ready
 
@@ -138,7 +181,7 @@ Possible states:
 | State | Copy |
 |---|---|
 | Ready | `Ready: using <AI option name>.` |
-| Set up needed | `Choose how MacParakeet should run AI features.` |
+| Set up needed | `Recording and transcription work now. Turn on AI for summaries, chat, and prompt actions.` |
 | Can't connect | `MacParakeet could not reach <AI option name> the last time it tried.` |
 
 Primary actions:
@@ -409,6 +452,9 @@ Work:
 9. STT behavior and STT model packaging are untouched.
 10. No bundled local LLM runtime or model is added to the stable app.
 11. If Apple Foundation Models is later added, it is an explicit OS-managed provider, not an app-bundled model and not a silent default.
+12. No user-facing surface implies recording or transcription is broken because AI is off.
+13. Live recording controls and notes never interrupt the meeting with AI setup prompts.
+14. Empty-state copy uses `Turn on AI` / `Set up AI`, not `Configure provider`.
 
 ## 9. Explicit Non-Goals
 
