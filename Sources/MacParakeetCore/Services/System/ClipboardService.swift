@@ -5,8 +5,11 @@ import OSLog
 
 public protocol ClipboardServiceProtocol: Sendable {
     func pasteText(_ text: String) async throws
+    func pasteText(_ text: String, restoresClipboard: Bool) async throws
     /// Paste text then simulate a keystroke. Returns `true` if the keystroke was actually fired.
     func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool
+    /// Paste text then simulate a keystroke. Returns `true` if the keystroke was actually fired.
+    func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?, restoresClipboard: Bool) async throws -> Bool
     @discardableResult
     func copyToClipboard(_ text: String) async -> Bool
 }
@@ -250,8 +253,13 @@ public final class ClipboardService: ClipboardServiceProtocol {
     /// 1. Saving current clipboard
     /// 2. Setting transcript on clipboard
     /// 3. Simulating Cmd+V
-    /// 4. Restoring original clipboard after a delay long enough for slow paste targets
+    /// 4. Restoring original clipboard after a delay long enough for slow paste targets,
+    ///    unless the caller explicitly wants the pasted text retained as a manual-paste fallback.
     public func pasteText(_ text: String) async throws {
+        try await pasteText(text, restoresClipboard: true)
+    }
+
+    public func pasteText(_ text: String, restoresClipboard: Bool) async throws {
         let restoreDelay = clipboardRestoreDelay
 
         // 1. Save current clipboard contents
@@ -275,12 +283,16 @@ public final class ClipboardService: ClipboardServiceProtocol {
         }
         let ourChangeCount = pasteboard.changeCount
 
-        restoreCoordinator.scheduleRestore(
-            pasteboard: pasteboard,
-            originalItems: savedItems,
-            latestTemporaryChangeCount: ourChangeCount,
-            delay: restoreDelay
-        )
+        if restoresClipboard {
+            restoreCoordinator.scheduleRestore(
+                pasteboard: pasteboard,
+                originalItems: savedItems,
+                latestTemporaryChangeCount: ourChangeCount,
+                delay: restoreDelay
+            )
+        } else {
+            restoreCoordinator.cancelPendingRestore()
+        }
 
         // 3. Simulate Cmd+V
         try eventPosting.simulatePaste(using: pasteShortcutKeyResolver)
@@ -310,8 +322,13 @@ public final class ClipboardService: ClipboardServiceProtocol {
 
     @discardableResult
     public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool {
+        try await pasteTextWithAction(text, postPasteAction: postPasteAction, restoresClipboard: true)
+    }
+
+    @discardableResult
+    public func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?, restoresClipboard: Bool) async throws -> Bool {
         guard let action = postPasteAction else {
-            try await pasteText(text)
+            try await pasteText(text, restoresClipboard: restoresClipboard)
             return false
         }
 
@@ -322,7 +339,7 @@ public final class ClipboardService: ClipboardServiceProtocol {
         }
 
         // Paste text (no trailing space — action replaces the role of the space)
-        try await pasteText(text)
+        try await pasteText(text, restoresClipboard: restoresClipboard)
 
         // After paste succeeds, the keystroke phase is entirely non-fatal.
         // Task.sleep can throw CancellationError — catch it alongside keystroke errors

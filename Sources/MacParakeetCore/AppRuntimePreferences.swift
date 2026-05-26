@@ -13,7 +13,7 @@ public protocol AppRuntimePreferencesProtocol: Sendable {
     var selectedMicrophoneDeviceUID: String? { get }
     var meetingAudioSourceMode: MeetingAudioSourceMode { get }
     var pauseMediaDuringDictation: Bool { get }
-    var shouldAutoCopyDictationToClipboard: Bool { get }
+    var shouldKeepDictationOnClipboard: Bool { get }
     var hasCompletedFirstDictation: Bool { get }
     /// Flip the one-shot "first dictation completed" flag. Returns `true` only
     /// the first time it transitions (so callers can fire a one-shot side
@@ -115,7 +115,7 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
     public static let selectedMicrophoneDeviceUIDKey = "selectedMicrophoneDeviceUID"
     public static let meetingAudioSourceModeKey = "meetingAudioSourceMode"
     public static let pauseMediaDuringDictationKey = "pauseMediaDuringDictation"
-    public static let autoCopyDictationToClipboardKey = "autoCopyDictationToClipboard"
+    public static let keepDictationOnClipboardKey = "keepDictationOnClipboard"
     public static let hasCompletedFirstDictationKey = "hasCompletedFirstDictation"
 
     private let defaults: UserDefaults
@@ -177,8 +177,8 @@ public final class UserDefaultsAppRuntimePreferences: AppRuntimePreferencesProto
         defaults.object(forKey: Self.pauseMediaDuringDictationKey) as? Bool ?? false
     }
 
-    public var shouldAutoCopyDictationToClipboard: Bool {
-        defaults.bool(forKey: Self.autoCopyDictationToClipboardKey)
+    public var shouldKeepDictationOnClipboard: Bool {
+        defaults.bool(forKey: Self.keepDictationOnClipboardKey)
     }
 
     public var hasCompletedFirstDictation: Bool {

@@ -135,11 +135,11 @@ public enum SettingsSearchIndex {
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(
-            id: "dictation.auto.copy.clipboard",
+            id: "dictation.keep.clipboard",
             tab: .modes,
-            title: "Copy dictation to clipboard",
+            title: "Keep dictation on clipboard",
             subtitle: "in Dictation",
-            keywords: ["clipboard", "copy", "paste", "cmd v", "command v", "transcript", "retain"],
+            keywords: ["clipboard", "copy", "paste", "cmd v", "command v", "transcript", "retain", "remote"],
             cardAnchor: "dictation"
         ),
         SettingsSearchEntry(

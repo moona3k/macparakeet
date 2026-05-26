@@ -96,6 +96,54 @@ final class ClipboardServiceTests: XCTestCase {
         XCTAssertEqual(pasteboard.string(forType: .string), "original")
     }
 
+    func testPasteTextCanLeavePastedTextOnClipboard() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+        let restoreAttempted = expectation(description: "restore should not be scheduled")
+        restoreAttempted.isInverted = true
+
+        var pastedStrings: [String] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting {
+                pastedStrings.append(pasteboard.string(forType: .string) ?? "")
+            },
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            restoreAttemptObserver: {
+                restoreAttempted.fulfill()
+            }
+        )
+
+        try await service.pasteText("dictation ", restoresClipboard: false)
+
+        XCTAssertEqual(pastedStrings, ["dictation "])
+        await fulfillment(of: [restoreAttempted], timeout: 0.1)
+        XCTAssertEqual(pasteboard.string(forType: .string), "dictation ")
+    }
+
+    func testPasteTextWithoutRestoreCancelsPendingRestore() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+        let restoreAttempted = expectation(description: "first scheduled restore attempted")
+
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(),
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            restoreAttemptObserver: {
+                restoreAttempted.fulfill()
+            }
+        )
+
+        try await service.pasteText("first dictation")
+        try await service.pasteText("second dictation ", restoresClipboard: false)
+
+        await fulfillment(of: [restoreAttempted], timeout: 2)
+        XCTAssertEqual(pasteboard.string(forType: .string), "second dictation ")
+    }
+
     func testOverlappingPasteTextRestoresPreExistingClipboard() async throws {
         let pasteboard = makeScratchPasteboard()
         defer { pasteboard.releaseGlobally() }
@@ -176,6 +224,44 @@ final class ClipboardServiceTests: XCTestCase {
         XCTAssertEqual(keystrokes, [KeyAction.returnKey.keyCode])
 
         try await waitForPasteboardString("original", on: pasteboard)
+    }
+
+    func testPasteTextWithActionCanLeavePastedTextOnClipboard() async throws {
+        let pasteboard = makeScratchPasteboard()
+        defer { pasteboard.releaseGlobally() }
+        replacePasteboard(pasteboard, with: "original")
+        let restoreAttempted = expectation(description: "restore should not be scheduled")
+        restoreAttempted.isInverted = true
+
+        var pastedStrings: [String] = []
+        var keystrokes: [UInt16] = []
+        let service = ClipboardService(
+            pasteboard: pasteboard,
+            eventPosting: RecordingClipboardEventPosting(
+                onPaste: {
+                    pastedStrings.append(pasteboard.string(forType: .string) ?? "")
+                },
+                onKeystroke: { keyCode in
+                    keystrokes.append(keyCode)
+                }
+            ),
+            clipboardRestoreDelay: Self.shortRestoreDelay,
+            restoreAttemptObserver: {
+                restoreAttempted.fulfill()
+            }
+        )
+
+        let fired = try await service.pasteTextWithAction(
+            "dictation",
+            postPasteAction: .returnKey,
+            restoresClipboard: false
+        )
+
+        XCTAssertTrue(fired)
+        XCTAssertEqual(pastedStrings, ["dictation"])
+        XCTAssertEqual(keystrokes, [KeyAction.returnKey.keyCode])
+        await fulfillment(of: [restoreAttempted], timeout: 0.1)
+        XCTAssertEqual(pasteboard.string(forType: .string), "dictation")
     }
 
     func testUserClipboardChangeDuringRestoreWindowIsNotClobbered() async throws {

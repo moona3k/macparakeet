@@ -198,7 +198,8 @@ Legacy default installs using `Fn+Space` hands-free plus `Fn` push-to-talk migra
 ├─────────────────────────────────────────────────────────────────┤
 │ 6. Result                                                        │
 │    - Auto-paste into target app (NSPasteboard + simulated Cmd+V) │
-│    - Previous clipboard contents saved and restored after paste  │
+│    - Previous clipboard restored by default; opt-in retain mode  │
+│      leaves the exact pasted text available for manual Cmd+V      │
 │    - Save to dictation history (database)                        │
 │    - Save audio file (if storage enabled)                        │
 │    - Overlay shows success checkmark, auto-dismisses             │
@@ -218,9 +219,12 @@ NSPasteboard.general.setString(transcript, forType: .string)
 // 3. Simulate Cmd+V
 simulateCommandV()
 
-// 4. Restore clipboard after a short delay for slower paste targets.
-DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-    restore(savedContents)
+// 4. Restore clipboard after a short delay for slower paste targets,
+//    unless the user enabled "Keep dictation on clipboard".
+if restoresClipboard {
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        restore(savedContents)
+    }
 }
 ```
 
@@ -614,6 +618,8 @@ Audio path is computed from ID by default. Files stored as WAV (16kHz mono). Use
 │ │ Stop mode:                                                   │ │
 │ │   ( ) Auto-stop after silence     Delay: [2 sec ▾]          │ │
 │ │   (•) Manual stop (tap hands-free shortcut again)             │ │
+│ │                                                              │ │
+│ │ [ ] Keep dictation on clipboard                             │ │
 │ │                                                              │ │
 │ └──────────────────────────────────────────────────────────────┘ │
 │                                                                  │

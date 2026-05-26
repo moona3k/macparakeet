@@ -527,7 +527,13 @@ final class MockTransformsClipboardService: ClipboardServiceProtocol, @unchecked
 
     func pasteText(_ text: String) async throws {}
 
+    func pasteText(_ text: String, restoresClipboard: Bool) async throws {}
+
     func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?) async throws -> Bool {
+        false
+    }
+
+    func pasteTextWithAction(_ text: String, postPasteAction: KeyAction?, restoresClipboard: Bool) async throws -> Bool {
         false
     }
 

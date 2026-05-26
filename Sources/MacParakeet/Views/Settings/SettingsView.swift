@@ -740,9 +740,9 @@ struct SettingsView: View {
                 Divider()
 
                 settingsToggleRow(
-                    title: "Copy dictation to clipboard",
-                    detail: "After each dictation, leave the transcript on the clipboard so you can paste it again with ⌘V.",
-                    isOn: $viewModel.autoCopyDictationToClipboard
+                    title: "Keep dictation on clipboard",
+                    detail: "Leaves the same text MacParakeet pastes on the clipboard, useful when remote desktops need a manual ⌘V.",
+                    isOn: $viewModel.keepDictationOnClipboard
                 )
             }
         }

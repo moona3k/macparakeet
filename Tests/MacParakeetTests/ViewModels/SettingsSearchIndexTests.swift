@@ -36,6 +36,15 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testClipboardFallbackQueryFindsDictationClipboardSetting() {
+        let results = SettingsSearchIndex.matches("remote")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "dictation.keep.clipboard" }),
+            "Remote clipboard workflows should find the dictation clipboard retention setting"
+        )
+    }
+
     func testTitleMatches() {
         let results = SettingsSearchIndex.matches("Speech Recognition")
         XCTAssertTrue(results.contains(where: { $0.id == "engine.selector" }))

@@ -555,34 +555,29 @@ final class DictationFlowCoordinator {
                 let action = self.pendingPostPasteAction
                 self.pendingPostPasteAction = nil
                 let pastedToAppAtDispatch = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+                let keepDictationOnClipboard = self.runtimePreferences.shouldKeepDictationOnClipboard
+                let transcriptHasText = !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                let normalPasteText = transcript + " "
 
                 do {
                     if let action {
                         // Action mode: no trailing space, action replaces the space role
                         let keystrokeFired = try await self.clipboardService.pasteTextWithAction(
                             transcript,
-                            postPasteAction: action
+                            postPasteAction: action,
+                            restoresClipboard: !keepDictationOnClipboard
                         )
                         if keystrokeFired {
                             Telemetry.send(.keystrokeSnippetFired(action: action.rawValue))
                         }
                     } else {
                         // Normal mode: trailing space as before
-                        try await self.clipboardService.pasteText(transcript + " ")
+                        try await self.clipboardService.pasteText(
+                            normalPasteText,
+                            restoresClipboard: !keepDictationOnClipboard
+                        )
                     }
                     guard !Task.isCancelled else { return }
-
-                    // Opt-in (Settings → Dictation → "Copy dictation to clipboard").
-                    // `pasteText` schedules a clipboard restore so the user's previous
-                    // clipboard returns after the paste lands. When the user explicitly
-                    // wants the transcript to stay on the clipboard, overwrite it: a
-                    // second write here cancels the pending restore inside
-                    // `ClipboardService` and leaves the transcript as the final value.
-                    // The transcript is the canonical text (no trailing space).
-                    if self.runtimePreferences.shouldAutoCopyDictationToClipboard,
-                       !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                        await self.clipboardService.copyToClipboard(transcript)
-                    }
 
                     // Save pastedToApp metadata
                     if let pastedToApp = pastedToAppAtDispatch {
@@ -607,11 +602,12 @@ final class DictationFlowCoordinator {
                     guard !Task.isCancelled else { return }
                     let bucket = Self.commandFailureBucket(for: error)
                     self.dictationLog.error("dictation_paste_failed gen=\(gen) bucket=\(bucket, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
-                    if transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    if !transcriptHasText {
                         // Pure action-only dictation (e.g., "press return") — nothing to paste
                         self.sendEvent(.pasteFailed(generation: gen, message: "Keystroke failed. Check Accessibility permissions."))
                     } else {
-                        let copied = await self.clipboardService.copyToClipboard(transcript)
+                        let fallbackText = keepDictationOnClipboard && action == nil ? normalPasteText : transcript
+                        let copied = await self.clipboardService.copyToClipboard(fallbackText)
                         let message = Self.pasteFailureMessage(for: error, copiedToClipboard: copied)
 
                         self.sendEvent(

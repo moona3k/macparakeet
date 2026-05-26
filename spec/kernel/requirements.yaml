@@ -33,7 +33,7 @@ REQ-DICT-002:
   status: implemented
 
 REQ-DICT-003:
-  description: Auto-paste transcribed text with clipboard save/restore and simulated Cmd+V
+  description: Auto-paste transcribed text with clipboard save/restore by default, plus opt-in clipboard retention for manual paste fallback
   version: v0.1
   status: implemented
 
