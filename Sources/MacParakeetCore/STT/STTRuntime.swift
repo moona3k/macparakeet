@@ -58,6 +58,13 @@ public actor STTRuntime: STTRuntimeProtocol {
     private var speechEngine: SpeechEnginePreference
     private var whisperEngine: WhisperEngine?
     private var vibevoiceEngine: VibeVoiceEngine?
+    private var vibevoiceChunkedTranscriber: VibeVoiceChunkedTranscriber?
+
+    /// Audio longer than this is routed through the chunker instead of
+    /// the single-shot engine. 450 s = 7.5 min = 1.5 × chunk length, so
+    /// we never produce a tiny final chunk. See spec
+    /// 2026-05-26-vibevoice-chunked-transcription-design.md.
+    private static let vibevoiceChunkThresholdSec: Double = 450.0
     private let whisperModelVariant: String
     private var activeTranscriptionCount = 0
 
@@ -134,7 +141,23 @@ public actor STTRuntime: STTRuntimeProtocol {
     ) async throws -> STTResult {
         let engine = vibevoiceEngine ?? VibeVoiceEngine()
         if vibevoiceEngine == nil { vibevoiceEngine = engine }
-        return try await engine.transcribe(audioPath: audioPath, job: job, onProgress: onProgress)
+
+        let audioSec = (try? AudioFileConverter.audioDuration(
+            at: URL(fileURLWithPath: audioPath))) ?? 0
+        if audioSec > Self.vibevoiceChunkThresholdSec {
+            let chunker = vibevoiceChunkedTranscriber
+                ?? VibeVoiceChunkedTranscriber(engine: engine)
+            if vibevoiceChunkedTranscriber == nil {
+                vibevoiceChunkedTranscriber = chunker
+            }
+            return try await chunker.transcribe(
+                audioPath: audioPath, job: job, onProgress: onProgress
+            )
+        } else {
+            return try await engine.transcribe(
+                audioPath: audioPath, job: job, onProgress: onProgress
+            )
+        }
     }
 
     private func transcribeWithParakeet(
@@ -556,6 +579,7 @@ public actor STTRuntime: STTRuntimeProtocol {
     public func unloadVibeVoiceEngine() async {
         await vibevoiceEngine?.unload()
         vibevoiceEngine = nil
+        vibevoiceChunkedTranscriber = nil   // invalidate the cached chunker that holds the unloaded engine
     }
 
     private func beginBackgroundWarmUp() -> UInt64 {
