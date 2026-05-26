@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import CVibeVoice
 import OSLog
@@ -75,6 +76,14 @@ public actor VibeVoiceASR {
             throw VibeVoiceASRError.fileNotFound(wavPath)
         }
 
+        // Size the token budget by audio duration. vibevoice.cpp defaults
+        // `max_new_tokens` to 256 — that's only ~80 seconds of speech.
+        // English at typical pace is ~5 tokens/sec; we use 10/sec for
+        // headroom (fast speech, diarization markers, etc.) with a 512
+        // floor so very short clips still have room for boundary tokens.
+        let audioSeconds = (try? Self.audioDuration(at: wavPath)) ?? 0
+        let maxNewTokens = Int32(max(512, Int(audioSeconds * 10)))
+
         var bufferSize = Self.initialBufferSize
         while bufferSize <= Self.maxBufferSize {
             var buffer = [CChar](repeating: 0, count: bufferSize)
@@ -84,7 +93,7 @@ public actor VibeVoiceASR {
                         wavCStr,
                         bufPtr.baseAddress,
                         bufPtr.count,
-                        0  // max_new_tokens — 0 = library default
+                        maxNewTokens
                     )
                 }
             }
@@ -136,6 +145,16 @@ public actor VibeVoiceASR {
             }
         }
         throw VibeVoiceASRError.outputBufferTooSmall(requiredBytes: bufferSize)
+    }
+
+    /// Reads the audio duration (in seconds) of a WAV file via AVAudioFile.
+    /// Used to size `max_new_tokens` so vibevoice.cpp doesn't truncate
+    /// long transcripts at the 256-token default.
+    private static func audioDuration(at url: URL) throws -> TimeInterval {
+        let file = try AVAudioFile(forReading: url)
+        let frameCount = file.length
+        let sampleRate = file.processingFormat.sampleRate
+        return sampleRate > 0 ? Double(frameCount) / sampleRate : 0
     }
 
     /// Free engine state. Optional — process exit also frees it.
