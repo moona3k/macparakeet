@@ -94,4 +94,34 @@ internal enum VibeVoiceChunkPlanning {
             return (longest.lowerBound + longest.upperBound) / 2.0
         }
     }
+
+    /// Merges per-chunk segment arrays into a single chronological list by
+    /// offsetting each chunk's segment timestamps by the chunk's start time
+    /// in the source audio. Empty chunks contribute nothing.
+    ///
+    /// - Parameters:
+    ///   - chunkOffsetsSec: Start time (seconds) of each chunk in source audio.
+    ///                     Must be parallel to `perChunkSegments`.
+    ///   - perChunkSegments: Segments returned by each chunk's transcription.
+    ///                       Timestamps are local to the chunk (0..chunkLength).
+    static func mergeSegments(
+        chunkOffsetsSec: [Double],
+        perChunkSegments: [[STTSegment]]
+    ) -> [STTSegment] {
+        precondition(chunkOffsetsSec.count == perChunkSegments.count,
+                     "chunkOffsetsSec and perChunkSegments must be parallel arrays")
+        var result: [STTSegment] = []
+        for (offset, segments) in zip(chunkOffsetsSec, perChunkSegments) {
+            let offsetMs = Int(offset * 1000)
+            for seg in segments {
+                result.append(STTSegment(
+                    startMs: seg.startMs + offsetMs,
+                    endMs:   seg.endMs   + offsetMs,
+                    text:    seg.text,
+                    speakerId: seg.speakerId
+                ))
+            }
+        }
+        return result
+    }
 }

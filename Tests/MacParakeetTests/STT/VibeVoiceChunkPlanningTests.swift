@@ -214,3 +214,73 @@ final class VibeVoiceChunkPlanningRefineBoundariesTests: XCTestCase {
         XCTAssertEqual(result[1], 611.0, accuracy: 0.001)
     }
 }
+
+final class VibeVoiceChunkPlanningMergeSegmentsTests: XCTestCase {
+
+    func testOffsetsTimestampsByChunkStartSec() {
+        let chunkOffsets: [Double] = [0, 300]
+        let chunk0: [STTSegment] = [
+            STTSegment(startMs: 0, endMs: 5000, text: "hello", speakerId: 0)
+        ]
+        let chunk1: [STTSegment] = [
+            STTSegment(startMs: 0, endMs: 4000, text: "world", speakerId: 0)
+        ]
+        let merged = VibeVoiceChunkPlanning.mergeSegments(
+            chunkOffsetsSec: chunkOffsets,
+            perChunkSegments: [chunk0, chunk1]
+        )
+        XCTAssertEqual(merged.count, 2)
+        XCTAssertEqual(merged[0].startMs, 0)
+        XCTAssertEqual(merged[0].endMs, 5000)
+        XCTAssertEqual(merged[0].text, "hello")
+        XCTAssertEqual(merged[1].startMs, 300_000)
+        XCTAssertEqual(merged[1].endMs, 304_000)
+        XCTAssertEqual(merged[1].text, "world")
+    }
+
+    func testEmptyChunkContributesNothing() {
+        let chunkOffsets: [Double] = [0, 300, 600]
+        let chunk0: [STTSegment] = [STTSegment(startMs: 0, endMs: 1000, text: "a", speakerId: 0)]
+        let chunk1: [STTSegment] = []  // empty
+        let chunk2: [STTSegment] = [STTSegment(startMs: 0, endMs: 1000, text: "c", speakerId: 0)]
+        let merged = VibeVoiceChunkPlanning.mergeSegments(
+            chunkOffsetsSec: chunkOffsets,
+            perChunkSegments: [chunk0, chunk1, chunk2]
+        )
+        XCTAssertEqual(merged.count, 2)
+        XCTAssertEqual(merged[0].text, "a")
+        XCTAssertEqual(merged[1].text, "c")
+        XCTAssertEqual(merged[1].startMs, 600_000)
+    }
+
+    func testSpeakerIdsPassThroughUnchanged() {
+        let chunkOffsets: [Double] = [0, 300]
+        let chunk0: [STTSegment] = [
+            STTSegment(startMs: 0, endMs: 1000, text: "a", speakerId: nil),
+            STTSegment(startMs: 1000, endMs: 2000, text: "b", speakerId: 1)
+        ]
+        let chunk1: [STTSegment] = [
+            STTSegment(startMs: 0, endMs: 1000, text: "c", speakerId: 0)
+        ]
+        let merged = VibeVoiceChunkPlanning.mergeSegments(
+            chunkOffsetsSec: chunkOffsets,
+            perChunkSegments: [chunk0, chunk1]
+        )
+        XCTAssertEqual(merged.count, 3)
+        XCTAssertNil(merged[0].speakerId)
+        XCTAssertEqual(merged[1].speakerId, 1)
+        XCTAssertEqual(merged[2].speakerId, 0)
+    }
+
+    func testFractionalOffsetMillisecondRounding() {
+        // 305.5 s offset → 305_500 ms. Confirm we don't lose subsecond precision.
+        let chunkOffsets: [Double] = [305.5]
+        let chunk0: [STTSegment] = [STTSegment(startMs: 100, endMs: 200, text: "x", speakerId: 0)]
+        let merged = VibeVoiceChunkPlanning.mergeSegments(
+            chunkOffsetsSec: chunkOffsets,
+            perChunkSegments: [chunk0]
+        )
+        XCTAssertEqual(merged[0].startMs, 305_600)
+        XCTAssertEqual(merged[0].endMs, 305_700)
+    }
+}
