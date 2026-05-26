@@ -40,6 +40,31 @@ References:
 - Ollama Tags API: https://docs.ollama.com/api/tags
 - LM Studio OpenAI-compatible models: https://lmstudio.ai/docs/developer/openai-compat/models
 
+## External OSS Pattern Check
+
+Reviewed comparable open-source AI apps to check whether this should stay a
+small provider-capability fix or become a broader model-registry/cache layer.
+
+- LibreChat centralizes model discovery in one endpoint helper, uses Ollama's
+  native `/api/tags` path first, then falls back to OpenAI-compatible `/models`
+  when Ollama tags fail. It also uses a short cache because it is a multi-user
+  web app. Reference:
+  https://github.com/danny-avila/LibreChat/blob/main/packages/api/src/endpoints/models.ts
+- Open WebUI exposes one `/api/models` aggregation endpoint, supports explicit
+  configured model IDs before direct OpenAI-compatible fetching, and lets callers
+  request refresh. Reference:
+  https://github.com/open-webui/open-webui/blob/main/src/lib/apis/index.ts
+- Cline refreshes OpenRouter models through one controller path and its picker
+  still accepts a custom typed model ID when the list does not contain it.
+  Reference:
+  https://github.com/cline/cline/blob/main/apps/vscode/webview-ui/src/components/settings/OpenRouterModelPicker.tsx
+
+Takeaway for MacParakeet: adopt the shared provider-capability helper, native
+provider listing where needed, and current/custom model preservation. Do not add
+a model metadata registry, search index, persistent cache, or polling loop for
+this issue; those are useful in heavier web/IDE apps but unnecessary for this
+small macOS settings/runtime selector path.
+
 ## Implementation
 
 1. Add a shared `LLMModelAvailability` helper in the view-model target.
