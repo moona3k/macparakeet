@@ -97,3 +97,47 @@ final class VibeVoiceChunkPlanningParseSilenceTests: XCTestCase {
         XCTAssertEqual(result[0].upperBound, 5.2, accuracy: 0.001)
     }
 }
+
+final class VibeVoiceChunkPlanningComputeChunkPlanTests: XCTestCase {
+
+    /// 30-min audio splits into 6 chunks at 5/10/15/20/25 min boundaries.
+    func testEvenDivision() {
+        let result = VibeVoiceChunkPlanning.computeChunkPlan(
+            audioSec: 1800, chunkLengthSec: 300, minTailSec: 30
+        )
+        XCTAssertEqual(result, [300, 600, 900, 1200, 1500])
+    }
+
+    /// 18-min audio: 3 full chunks (15 min) + 3-min tail kept as own chunk.
+    func testTailLargerThanMinTailKept() {
+        let result = VibeVoiceChunkPlanning.computeChunkPlan(
+            audioSec: 1080, chunkLengthSec: 300, minTailSec: 30
+        )
+        XCTAssertEqual(result, [300, 600, 900])  // 3 chunks: 0-300, 300-600, 600-900, 900-1080
+    }
+
+    /// 15:20 audio: 3 full chunks + 20-s tail < 30 s min → tail merged
+    /// into prior chunk (drop last target boundary).
+    func testTailSmallerThanMinTailMerged() {
+        let result = VibeVoiceChunkPlanning.computeChunkPlan(
+            audioSec: 920, chunkLengthSec: 300, minTailSec: 30
+        )
+        XCTAssertEqual(result, [300, 600])  // 3 chunks: 0-300, 300-600, 600-920
+    }
+
+    /// 7.5-min audio: 1 chunk + 2.5-min tail → 2 chunks at 300 s boundary.
+    func testAudioJustOverThreshold() {
+        let result = VibeVoiceChunkPlanning.computeChunkPlan(
+            audioSec: 450, chunkLengthSec: 300, minTailSec: 30
+        )
+        XCTAssertEqual(result, [300])
+    }
+
+    /// Audio shorter than chunk length: empty (caller branches to single-shot).
+    func testAudioShorterThanChunkLength() {
+        let result = VibeVoiceChunkPlanning.computeChunkPlan(
+            audioSec: 200, chunkLengthSec: 300, minTailSec: 30
+        )
+        XCTAssertEqual(result, [])
+    }
+}

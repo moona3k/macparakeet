@@ -44,4 +44,34 @@ internal enum VibeVoiceChunkPlanning {
         }
         return result
     }
+
+    /// Computes the intermediate chunk boundary times for an audio file.
+    ///
+    /// Returns a list of `Double` seconds where chunks split. The boundaries
+    /// don't include 0 or `audioSec` — only the cuts between chunks. So for
+    /// a 30-min file at 5-min chunks the return is `[300, 600, 900, 1200, 1500]`
+    /// which produces 6 chunks.
+    ///
+    /// If the final chunk would be shorter than `minTailSec`, the last
+    /// boundary is dropped so the tail is absorbed into the prior chunk.
+    /// Avoids paying chunk-overhead for a tiny final chunk.
+    static func computeChunkPlan(
+        audioSec: Double,
+        chunkLengthSec: Double,
+        minTailSec: Double
+    ) -> [Double] {
+        guard audioSec > chunkLengthSec else { return [] }
+        var boundaries: [Double] = []
+        var t = chunkLengthSec
+        while t < audioSec {
+            boundaries.append(t)
+            t += chunkLengthSec
+        }
+        // If the final chunk (from last boundary to audioSec) is too small,
+        // drop the last boundary so the tail folds into the prior chunk.
+        if let last = boundaries.last, audioSec - last < minTailSec {
+            boundaries.removeLast()
+        }
+        return boundaries
+    }
 }
