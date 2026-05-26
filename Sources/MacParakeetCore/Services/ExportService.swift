@@ -262,7 +262,13 @@ extension TranscriptExportOptions: RawRepresentable {
     }
 
     public var rawValue: String {
-        guard let data = try? JSONEncoder().encode(self),
+        // .sortedKeys gives stable output. RawRepresentable + Equatable both
+        // provide `==`/`!=` here; generic dispatch (XCTAssertEqual, SwiftUI,
+        // etc.) can land on RawRepresentable's string-based comparison, which
+        // would otherwise flake on hash-randomized JSON key order.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let data = try? encoder.encode(self),
               let string = String(data: data, encoding: .utf8) else {
             return ""
         }
