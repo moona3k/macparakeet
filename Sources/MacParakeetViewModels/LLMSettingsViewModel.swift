@@ -147,10 +147,10 @@ public final class LLMSettingsViewModel {
     public var availableModels: [String] {
         guard let providerID = draft.providerID else { return [] }
         if Self.usesDiscoveredModelList(providerID) {
-            if providerID == .ollama, discoveredModels.isEmpty {
-                return Self.suggestedModels(for: providerID)
-            }
-            return discoveredModels
+            return LLMModelAvailability.settingsModels(
+                for: providerID,
+                discoveredModels: discoveredModels
+            )
         }
         return Self.suggestedModels(for: providerID)
     }
@@ -484,7 +484,7 @@ public final class LLMSettingsViewModel {
         modelListState = .loading
         Task {
             do {
-                let models = normalizeDiscoveredModels(try await llmClient.listModels(context: context))
+                let models = LLMModelAvailability.normalize(try await llmClient.listModels(context: context))
                 guard shouldApplyModelListResult(for: snapshot) else { return }
                 discoveredModels = models
                 modelListState = .idle
@@ -535,15 +535,12 @@ public final class LLMSettingsViewModel {
             aiFormatterEnabled: formatterEnabled,
             aiFormatterPrompt: formatterPrompt
         )
-        // Auto-switch to custom model input when provider has no suggested models.
-        if providerID == .lmstudio
-            || (Self.suggestedModels(for: providerID).isEmpty
-                && providerID != .localCLI
-                && !Self.usesDiscoveredModelList(providerID)) {
+        // Auto-switch to custom model input when provider has no fallback list.
+        if Self.suggestedModels(for: providerID).isEmpty && providerID != .localCLI {
             nextDraft.useCustomModel = true
         }
         updateDraft(nextDraft)
-        if Self.usesDiscoveredModelList(providerID) {
+        if canBuildModelListContext(from: draft) {
             refreshAvailableModels()
         }
     }
@@ -594,18 +591,14 @@ public final class LLMSettingsViewModel {
         return LLMExecutionContext(providerConfig: config)
     }
 
+    private func canBuildModelListContext(from draft: LLMSettingsDraft) -> Bool {
+        (try? buildModelListContext(from: draft)) != nil
+    }
+
     private func shouldApplyModelListResult(for snapshot: LLMSettingsDraft) -> Bool {
         draft.providerID == snapshot.providerID
             && draft.trimmedAPIKey == snapshot.trimmedAPIKey
             && draft.trimmedBaseURLOverride == snapshot.trimmedBaseURLOverride
-    }
-
-    private func normalizeDiscoveredModels(_ models: [String]) -> [String] {
-        var seen = Set<String>()
-        return models
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-            .filter { seen.insert($0).inserted }
     }
 
     private func reconcileModelSelection(with models: [String], snapshot: LLMSettingsDraft) {
@@ -631,8 +624,13 @@ public final class LLMSettingsViewModel {
         }
 
         guard currentSuggestedModel.isEmpty || !models.contains(currentSuggestedModel) else { return }
-        nextDraft.suggestedModelName = models[0]
+        nextDraft.suggestedModelName = preferredModel(from: models, providerID: snapshot.providerID) ?? models[0]
         updateDraft(nextDraft)
+    }
+
+    private func preferredModel(from models: [String], providerID: LLMProviderID?) -> String? {
+        guard let providerID else { return nil }
+        return Self.suggestedModels(for: providerID).first { models.contains($0) }
     }
 
     private func resetDiscoveredModels() {
@@ -696,7 +694,7 @@ public final class LLMSettingsViewModel {
     }
 
     private nonisolated static func usesDiscoveredModelList(_ providerID: LLMProviderID) -> Bool {
-        providerID == .lmstudio || providerID == .ollama
+        LLMModelAvailability.supportsModelListing(providerID)
     }
 
     private func persistAIFormatterPreferences(from draft: LLMSettingsDraft) -> String {
@@ -727,60 +725,8 @@ public final class LLMSettingsViewModel {
         )
     }
 
-    /// Popular models for each provider. Empty means free-text input.
     public static func suggestedModels(for provider: LLMProviderID) -> [String] {
-        switch provider {
-        case .anthropic: return [
-            "claude-sonnet-4-6",
-            "claude-opus-4-6",
-            "claude-haiku-4-5-20251001",
-        ]
-        case .openai: return [
-            "gpt-5.4",
-            "gpt-5.4-pro",
-            "gpt-5.3-chat-latest",
-            "gpt-5-mini",
-            "gpt-5-nano",
-            "gpt-4.1",
-            "gpt-4.1-mini",
-        ]
-        case .openaiCompatible: return []
-        case .gemini: return [
-            "gemini-3.1-pro-preview",
-            "gemini-3-flash-preview",
-            "gemini-3.1-flash-lite-preview",
-            "gemini-2.5-pro",
-            "gemini-2.5-flash",
-        ]
-        case .openrouter: return [
-            "anthropic/claude-opus-4-6",
-            "anthropic/claude-sonnet-4-6",
-            "anthropic/claude-haiku-4-5",
-            "openai/gpt-5.4",
-            "openai/gpt-5.4-pro",
-            "openai/gpt-5-mini",
-            "openai/gpt-5-nano",
-            "openai/gpt-4.1",
-            "openai/gpt-4.1-mini",
-            "google/gemini-3.1-pro-preview",
-            "google/gemini-3-flash-preview",
-            "google/gemini-2.5-flash",
-            "deepseek/deepseek-v3.2",
-            "meta-llama/llama-4-scout",
-            "qwen/qwen3.5-72b",
-        ]
-        case .ollama: return [
-            "qwen3.5:4b",
-            "qwen3.5:9b",
-            "llama4:8b",
-            "gemma3:4b",
-            "deepseek-v3.2",
-            "qwen3:8b",
-            "mistral",
-        ]
-        case .lmstudio: return []
-        case .localCLI: return []
-        }
+        LLMModelAvailability.suggestedModels(for: provider)
     }
 
     static func defaultModelName(for provider: LLMProviderID) -> String {

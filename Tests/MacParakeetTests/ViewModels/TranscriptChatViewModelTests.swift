@@ -280,6 +280,30 @@ final class TranscriptChatViewModelTests: XCTestCase {
         XCTAssertEqual(vm.availableModels, ["Custom CLI"])
     }
 
+    func testRefreshModelInfoKeepsCurrentModelWhenDiscoveredListOmitsIt() async throws {
+        let configStore = MockLLMConfigStore()
+        configStore.config = .openai(apiKey: "sk-test", model: "fine-tuned-current")
+        let llmClient = MockLLMClient()
+        llmClient.modelsList = ["gpt-5.2", "gpt-5-mini"]
+
+        let vm = TranscriptChatViewModel()
+        vm.configure(
+            llmService: mockService,
+            transcriptText: "Transcript",
+            transcriptionRepo: mockRepo,
+            configStore: configStore,
+            llmClient: llmClient,
+            conversationRepo: mockConversationRepo
+        )
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(vm.currentProviderID, .openai)
+        XCTAssertEqual(vm.currentModelName, "fine-tuned-current")
+        XCTAssertEqual(vm.availableModels, ["fine-tuned-current", "gpt-5.2", "gpt-5-mini"])
+        XCTAssertEqual(llmClient.capturedContext?.providerConfig.id, .openai)
+    }
+
     func testUpdateLLMServiceSwapsProvider() async throws {
         let transcriptionId = UUID()
         viewModel.loadTranscript("Transcript", transcriptionId: transcriptionId)

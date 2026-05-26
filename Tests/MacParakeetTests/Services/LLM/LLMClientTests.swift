@@ -1011,6 +1011,63 @@ final class LLMClientTests: XCTestCase {
         XCTAssertEqual(models, ["qwen3.5:4b"])
     }
 
+    func testGeminiListModelsUsesNativeModelsEndpoint() async throws {
+        var capturedRequest: URLRequest?
+
+        MockURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), Data("""
+            {
+              "models": [
+                {
+                  "name": "models/text-embedding-004",
+                  "supportedGenerationMethods": ["embedContent"]
+                },
+                {
+                  "name": "models/gemini-3.5-flash",
+                  "supportedGenerationMethods": ["generateContent", "countTokens"]
+                }
+              ]
+            }
+            """.utf8))
+        }
+
+        let models = try await llmClient.listModels(config: .gemini(apiKey: "gem-key", model: "gemini-3.5-flash"))
+
+        XCTAssertEqual(capturedRequest?.url?.scheme, "https")
+        XCTAssertEqual(capturedRequest?.url?.host, "generativelanguage.googleapis.com")
+        XCTAssertEqual(capturedRequest?.url?.path, "/v1beta/models")
+        let queryItems = URLComponents(url: try XCTUnwrap(capturedRequest?.url), resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .reduce(into: [String: String]()) { result, item in result[item.name] = item.value }
+        XCTAssertEqual(queryItems?["pageSize"], "1000")
+        XCTAssertEqual(queryItems?["key"], "gem-key")
+        XCTAssertNil(capturedRequest?.value(forHTTPHeaderField: "Authorization"))
+        XCTAssertEqual(models, ["gemini-3.5-flash"])
+    }
+
+    func testAnthropicListModelsRequestsLargePageWithNativeHeaders() async throws {
+        var capturedRequest: URLRequest?
+
+        MockURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), Data("""
+            {"data":[{"id":"claude-sonnet-4-6"}]}
+            """.utf8))
+        }
+
+        let models = try await llmClient.listModels(config: .anthropic(apiKey: "sk-ant-test"))
+
+        XCTAssertEqual(capturedRequest?.url?.path, "/v1/models")
+        let queryItems = URLComponents(url: try XCTUnwrap(capturedRequest?.url), resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .reduce(into: [String: String]()) { result, item in result[item.name] = item.value }
+        XCTAssertEqual(queryItems?["limit"], "1000")
+        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "x-api-key"), "sk-ant-test")
+        XCTAssertEqual(capturedRequest?.value(forHTTPHeaderField: "anthropic-version"), "2023-06-01")
+        XCTAssertEqual(models, ["claude-sonnet-4-6"])
+    }
+
     func testListModelsConnectionFailureIncludesUnderlyingError() async {
         let urlError = URLError(.cannotConnectToHost)
         MockURLProtocol.handler = { _ in

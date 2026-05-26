@@ -47,6 +47,7 @@ public final class TranscriptChatViewModel {
     public var availableModels: [String] = []
 
     private var llmService: LLMServiceProtocol?
+    private var llmClient: LLMClientProtocol?
     private var configStore: LLMConfigStoreProtocol?
     private var cliConfigStore: LocalCLIConfigStore?
     private var transcriptionRepo: TranscriptionRepositoryProtocol?
@@ -73,6 +74,7 @@ public final class TranscriptChatViewModel {
     private var userNotesProvider: (@MainActor () -> String?)?
     private var chatHistory: [ChatMessage] = []
     private var streamingTask: Task<Void, Never>?
+    private var modelListTask: Task<Void, Never>?
     private var streamingAssistantID: UUID?
     private let logger = Logger(subsystem: "com.macparakeet.viewmodels", category: "TranscriptChatViewModel")
 
@@ -96,10 +98,12 @@ public final class TranscriptChatViewModel {
         transcriptText: String,
         transcriptionRepo: TranscriptionRepositoryProtocol? = nil,
         configStore: LLMConfigStoreProtocol? = nil,
+        llmClient: LLMClientProtocol? = nil,
         conversationRepo: ChatConversationRepositoryProtocol? = nil,
         cliConfigStore: LocalCLIConfigStore = LocalCLIConfigStore()
     ) {
         self.llmService = llmService
+        self.llmClient = llmClient
         self.transcriptText = transcriptText
         self.transcriptionRepo = transcriptionRepo
         self.configStore = configStore
@@ -109,6 +113,7 @@ public final class TranscriptChatViewModel {
     }
 
     public func refreshModelInfo() {
+        modelListTask?.cancel()
         guard let configStore, let config = try? configStore.loadConfig() else {
             currentModelName = ""
             currentProviderID = nil
@@ -127,11 +132,8 @@ public final class TranscriptChatViewModel {
         }
 
         currentModelName = config.modelName
-        var models = LLMSettingsViewModel.suggestedModels(for: config.id)
-        if !config.modelName.isEmpty && !models.contains(config.modelName) {
-            models.insert(config.modelName, at: 0)
-        }
-        availableModels = models
+        availableModels = LLMModelAvailability.pickerModels(for: config, discoveredModels: [])
+        refreshAvailableModels(for: config)
     }
 
     public func selectModel(_ modelName: String) {
@@ -143,6 +145,28 @@ public final class TranscriptChatViewModel {
         } catch {
             refreshModelInfo()
         }
+    }
+
+    private func refreshAvailableModels(for config: LLMProviderConfig) {
+        guard let llmClient, LLMModelAvailability.supportsModelListing(config.id) else { return }
+        modelListTask = Task { [weak self] in
+            do {
+                let discoveredModels = try await llmClient.listModels(context: LLMExecutionContext(providerConfig: config))
+                guard !Task.isCancelled else { return }
+                guard self?.shouldApplyModelListResult(for: config) == true else { return }
+                self?.availableModels = LLMModelAvailability.pickerModels(
+                    for: config,
+                    discoveredModels: discoveredModels
+                )
+            } catch {
+                guard !Task.isCancelled else { return }
+            }
+        }
+    }
+
+    private func shouldApplyModelListResult(for config: LLMProviderConfig) -> Bool {
+        guard let configStore, let storedConfig = try? configStore.loadConfig() else { return false }
+        return storedConfig == config
     }
 
     /// Updates the LLM service reference (e.g., when provider config changes).

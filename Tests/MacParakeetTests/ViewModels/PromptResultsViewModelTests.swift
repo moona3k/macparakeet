@@ -41,6 +41,28 @@ final class PromptResultsViewModelTests: XCTestCase {
         XCTAssertTrue(viewModel.canGenerateManualPromptResult)
     }
 
+    func testRefreshModelInfoLoadsDiscoveredOllamaModelsForPromptSelector() async throws {
+        let configStore = MockLLMConfigStore()
+        configStore.config = .ollama(model: "mistral:latest")
+        let llmClient = MockLLMClient()
+        llmClient.modelsList = ["llama3.2:latest", "mistral:latest"]
+
+        viewModel.configure(
+            llmService: llm,
+            promptRepo: promptRepo,
+            promptResultRepo: promptResultRepo,
+            configStore: configStore,
+            llmClient: llmClient
+        )
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+
+        XCTAssertEqual(viewModel.currentProviderID, .ollama)
+        XCTAssertEqual(viewModel.currentModelName, "mistral:latest")
+        XCTAssertEqual(viewModel.availableModels, ["llama3.2:latest", "mistral:latest"])
+        XCTAssertEqual(llmClient.capturedContext?.providerConfig.id, .ollama)
+    }
+
     func testGeneratePromptResultPersistsCustomPromptResult() async throws {
         let transcriptionID = UUID()
         let prompt = Prompt(
