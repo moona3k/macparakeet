@@ -107,6 +107,98 @@ final class VibeVoiceChunkedTranscriberOrchestrationTests: XCTestCase {
         XCTAssertEqual(result.engine, .vibevoice)
         XCTAssertTrue(result.words.isEmpty)
     }
+
+    /// If a single chunk's engine.transcribe throws, the whole transcribe
+    /// call throws. No partial transcript is returned.
+    func testThrowingChunkFailsWholeJob() async throws {
+        let fixture = try fixtureURL()
+        let thrower = ThrowingOnSecondCallFake()
+        let chunker = VibeVoiceChunkedTranscriber(
+            engine: thrower,
+            chunkLengthSec: 20,
+            minTailSec: 5,
+            silenceWindowSec: 5
+        )
+        do {
+            _ = try await chunker.transcribe(
+                audioPath: fixture.path,
+                job: .fileTranscription,
+                onProgress: nil
+            )
+            XCTFail("Expected throw from chunked transcribe")
+        } catch let error as STTError {
+            // Expected — propagated from the inner engine's STTError.
+            switch error {
+            case .transcriptionFailed(let msg):
+                XCTAssertTrue(msg.contains("fake chunk 2"), "Got: \(msg)")
+            default:
+                XCTFail("Unexpected STTError: \(error)")
+            }
+        }
+        // The fake should have been called exactly twice (chunk 0 succeeded,
+        // chunk 1 threw, chunk 2 was never invoked).
+        XCTAssertEqual(thrower.callCount, 2)
+    }
+
+    /// Temp chunk files are removed even when the loop throws mid-way.
+    func testCleanupRunsOnFailure() async throws {
+        let fixture = try fixtureURL()
+        let thrower = ThrowingOnSecondCallFake()
+        let chunker = VibeVoiceChunkedTranscriber(
+            engine: thrower,
+            chunkLengthSec: 20,
+            minTailSec: 5,
+            silenceWindowSec: 5
+        )
+        let tempDirBefore = try countVvChunkFilesInTempDir()
+        _ = try? await chunker.transcribe(
+            audioPath: fixture.path,
+            job: .fileTranscription,
+            onProgress: nil
+        )
+        // Allow defer to run on the failing path
+        let tempDirAfter = try countVvChunkFilesInTempDir()
+        XCTAssertEqual(tempDirBefore, tempDirAfter,
+                       "Temp vv-chunk-* files should have been cleaned up after failure")
+    }
+
+    private func countVvChunkFilesInTempDir() throws -> Int {
+        let tempDir = FileManager.default.temporaryDirectory
+        let all = try FileManager.default.contentsOfDirectory(atPath: tempDir.path)
+        return all.filter { $0.hasPrefix("vv-chunk-") && $0.hasSuffix(".wav") }.count
+    }
+}
+
+/// A fake that succeeds on the first call and throws on the second.
+final class ThrowingOnSecondCallFake: STTTranscribing, @unchecked Sendable {
+    private let queue = DispatchQueue(label: "ThrowingOnSecondCallFake")
+    private var _callCount = 0
+    var callCount: Int { queue.sync { _callCount } }
+
+    func transcribe(
+        audioPath: String,
+        job: STTJobKind,
+        onProgress: (@Sendable (Int, Int) -> Void)?
+    ) async throws -> STTResult {
+        let index: Int = queue.sync {
+            let current = _callCount
+            _callCount += 1
+            return current
+        }
+        if index == 1 {
+            throw STTError.transcriptionFailed("fake chunk 2")
+        }
+        onProgress?(0, 100)
+        onProgress?(100, 100)
+        return STTResult(
+            text: "",
+            words: [],
+            segments: [],
+            language: nil,
+            engine: .vibevoice,
+            engineVariant: "fake"
+        )
+    }
 }
 
 /// A more controllable fake that returns a different segment per call,
