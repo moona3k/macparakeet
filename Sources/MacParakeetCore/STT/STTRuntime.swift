@@ -107,6 +107,9 @@ public actor STTRuntime: STTRuntimeProtocol {
         case .whisper:
             return try await transcribeWithWhisper(audioPath: audioPath, language: selection.language, onProgress: onProgress)
         case .vibevoice:
+            // onProgress intentionally dropped: VibeVoice's C ABI has no
+            // per-segment progress callback. Use STTRuntime.observeWarmUpProgress()
+            // for visibility into the engine load step instead.
             return try await transcribeWithVibeVoice(audioPath: audioPath, job: job)
         }
     }
@@ -346,6 +349,10 @@ public actor STTRuntime: STTRuntimeProtocol {
             return await whisperEngine?.isReady() ?? false
         }
 
+        if speechEngine == .vibevoice {
+            return hasLoadedVibeVoiceEngine
+        }
+
         guard let interactiveManager, let backgroundManager else { return false }
         let interactiveReady = await interactiveManager.isAvailable
         let backgroundReady = await backgroundManager.isAvailable
@@ -368,6 +375,10 @@ public actor STTRuntime: STTRuntimeProtocol {
         await shutdown()
         DownloadUtils.clearAllModelCaches()
         try? FileManager.default.removeItem(atPath: AppPaths.whisperModelsDir)
+        // Phase 2.2: clear VibeVoice models too — shutdown() above already
+        // unloads the engine; this removes the ~10 GB model files from disk.
+        let vibevoiceDir = VibeVoiceEngine.defaultModelDirectory()
+        try? FileManager.default.removeItem(at: vibevoiceDir)
         setBackgroundWarmUpState(.idle)
         Telemetry.send(.modelOperation(
             operationID: operationContext.operationID,
@@ -451,8 +462,8 @@ public actor STTRuntime: STTRuntimeProtocol {
             try await engine.prepare(onProgress: onProgress)
             preparedWhisper = engine
         case .vibevoice:
-            // No user-facing progress string until Task 13/14 makes VibeVoice
-            // selectable from the Settings UI.
+            // VibeVoice doesn't expose per-engine load progress strings via its
+            // C ABI. UI progress is surfaced via observeWarmUpProgress() instead.
             try await ensureVibeVoiceLoaded()
         }
 

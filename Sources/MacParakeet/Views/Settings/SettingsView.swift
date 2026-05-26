@@ -1999,9 +1999,8 @@ struct SettingsView: View {
     }
 
     /// Routes a tile click through `speechEnginePreference`. The VM's setter
-    /// validates (e.g. would revert if Whisper isn't downloaded), but we
-    /// pre-empt that case in `handleWhisperTileTap` so the user never sees
-    /// the briefly-selected-then-reverted state.
+    /// validates (e.g. would revert if Whisper isn't downloaded); callers
+    /// that need to gate the affordance up front should do so before invoking.
     private func selectEngine(_ engine: SpeechEnginePreference) {
         guard viewModel.speechEnginePreference != engine,
               !viewModel.speechEngineSwitching else { return }
@@ -2014,59 +2013,6 @@ struct SettingsView: View {
             withAnimation(DesignSystem.Animation.contentSwap) {
                 viewModel.speechEnginePreference = engine
             }
-        }
-    }
-
-    /// Drives `EngineDownloadBanner` visibility + content. Returns nil
-    /// unless Whisper is the actively-selected engine — Parakeet users
-    /// shouldn't be nagged to download a model they may never use; for
-    /// them, Whisper's status sits in the tile footer + Local Models card
-    /// and is surfaced only if they explicitly switch.
-    ///
-    /// When Whisper IS selected: returns nil for usable (`.ready` /
-    /// `.notLoaded`) or transient (`.preparing` / `.checking` / `.unknown`)
-    /// states, and a populated state when the user needs to act (download,
-    /// wait, retry).
-    /// The banner stays mounted across `.notDownloaded` → `.repairing` →
-    /// terminal state so the action surface doesn't blink out on click.
-    private var whisperDownloadBannerState: (mode: EngineDownloadBanner.Mode, subtitle: String)? {
-        guard viewModel.speechEnginePreference == .whisper else { return nil }
-        if viewModel.whisperDownloading {
-            return (.downloading, viewModel.whisperModelStatusDetail)
-        }
-        switch viewModel.whisperModelStatus {
-        case .notDownloaded:
-            return (.download, "632 MB · downloads once, runs locally afterwards")
-        case .repairing:
-            return (.downloading, viewModel.whisperModelStatusDetail)
-        case .failed:
-            return (.retry, viewModel.whisperModelStatusDetail)
-        case .ready, .notLoaded, .preparing, .checking, .unknown:
-            return nil
-        }
-    }
-
-    /// Pre-empts every "Whisper isn't ready" state so the user never sees
-    /// a briefly-selected-then-reverted tile. Mirrors the VM's
-    /// `isWhisperModelAvailable` (`ready` or `notLoaded`); for everything
-    /// else we set a state-specific inline message and leave the user on
-    /// Parakeet. `.checking` and `.unknown` are transient inspections that
-    /// usually settle within a frame, so we let those fall through to the
-    /// VM's normal accept/revert path rather than rejecting prematurely.
-    private func handleWhisperTileTap() {
-        switch viewModel.whisperModelStatus {
-        case .ready, .notLoaded:
-            selectEngine(.whisper)
-        case .notDownloaded:
-            viewModel.speechEngineError = "Download the Whisper model from Local Models below before switching engines."
-        case .repairing:
-            viewModel.speechEngineError = "Whisper model is downloading — switch engines once it finishes."
-        case .preparing:
-            viewModel.speechEngineError = "Whisper is preparing for this Mac — switch engines once it finishes."
-        case .failed:
-            viewModel.speechEngineError = "Whisper model failed to load — retry below."
-        case .checking, .unknown:
-            selectEngine(.whisper)
         }
     }
 

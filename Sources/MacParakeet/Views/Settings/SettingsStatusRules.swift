@@ -26,7 +26,10 @@ enum SettingsStatusRules {
         case .parakeet: activeStatus = parakeet
         case .whisper: activeStatus = whisper
         case .vibevoice:
-            // TODO(Phase 2.2): pass vibevoice status once SettingsViewModel exposes it (Task 11)
+            // VibeVoice readiness is tracked via isVibeVoiceModelInstalled /
+            // vibevoiceDownloadProgress rather than LocalModelStatus. Treat it
+            // as notLoaded (not an error) so the card doesn't show "Action needed"
+            // when VibeVoice is the active engine.
             activeStatus = .notLoaded
         }
 

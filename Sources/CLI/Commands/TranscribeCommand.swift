@@ -194,6 +194,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
         var sttClient: STTClient?
         var whisperEngine: WhisperEngine?
+        var vibevoiceEngine: VibeVoiceEngine?
         let runResult: Result<Void, Error>
         do {
             try AppPaths.ensureDirectories()
@@ -247,6 +248,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
                     printErr("warning: --language is ignored when --engine vibevoice (auto-detected internally)")
                 }
                 let createdVibeVoiceEngine = VibeVoiceEngine()
+                vibevoiceEngine = createdVibeVoiceEngine
                 sttTranscriber = createdVibeVoiceEngine
             }
             let audioProcessor = AudioProcessor()
@@ -349,6 +351,7 @@ struct TranscribeCommand: AsyncParsableCommand, CLITelemetryMetadataProviding {
 
         await sttClient?.shutdown()
         await whisperEngine?.unload()
+        await vibevoiceEngine?.unload()
         try emitJSONOrRethrow(json: format == .json) {
             try runResult.get()
         }

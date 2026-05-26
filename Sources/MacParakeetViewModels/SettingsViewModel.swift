@@ -1715,7 +1715,6 @@ public final class SettingsViewModel {
         case .whisper:
             "Optimizing Whisper for this Mac..."
         case .vibevoice:
-            // TODO(Phase 2.2): add VibeVoice switch detail string in Task 11
             "Loading VibeVoice model..."
         }
     }

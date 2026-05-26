@@ -703,7 +703,7 @@ public final class TranscriptionViewModel {
                 let friendly = SpeechEnginePreference.friendlyVariantName(whisperVariant)
                 return "Whisper \(friendly) \u{00B7} Neural Engine"
             case .vibevoice:
-                // TODO(Phase 2.2): update label once VibeVoice model variants are known (Task 11)
+                // Variant is vibevoice-asr-q4_k; no friendly short name needed in this label.
                 return "VibeVoice \u{00B7} Metal"
             }
         case .identifyingSpeakers:
