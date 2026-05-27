@@ -207,14 +207,14 @@ File/URL/meeting action -> MainWindowView/TranscribeView -> TranscriptionService
 
 #### Settings View
 
-**Responsibility:** User preferences and diagnostics. Four-tab settings shell for modes, local speech engines, optional AI, system permissions, storage, updates, and retained entitlement diagnostics.
+**Responsibility:** User preferences and diagnostics. Four-tab settings shell for modes, local speech engines, optional AI, appearance, system permissions, storage, updates, and retained entitlement diagnostics.
 
 **Key Types:**
 - `SettingsView` — Tabbed/searchable shell (`Modes`, `Engine`, `AI`, `System`) with per-tab scroll bodies
 - `SettingsRootViewModel` — Owns active-tab persistence and search state
 - `SettingsTab` — Stable tab identifiers shared by search and view routing
 - `SettingsSearchIndex` — Cross-tab search entries; includes calendar rows while `AppFeatures.calendarEnabled` is `true`, and hides them when the flag is off
-- `SettingsViewModel` — Manages settings state, permissions, model status, speech-engine selection, calendar preferences, and legacy entitlement state
+- `SettingsViewModel` — Manages settings state, appearance preference, permissions, model status, speech-engine selection, calendar preferences, and legacy entitlement state
 
 **Dependencies:** `UserDefaults`, `CustomWordRepository`, `TextSnippetRepository`, `STTModelManager`, `WhisperModelManager`, `SPUUpdater`
 

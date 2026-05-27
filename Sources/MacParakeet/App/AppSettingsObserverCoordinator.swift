@@ -13,6 +13,7 @@ final class AppSettingsObserverCoordinator {
     private let onMeetingHotkeyTriggerChanged: () -> Void
     private let onFileTranscriptionHotkeyTriggerChanged: () -> Void
     private let onYouTubeTranscriptionHotkeyTriggerChanged: () -> Void
+    private let onAppearanceModeChanged: () -> Void
     private let onMenuBarOnlyModeChanged: () -> Void
     private let onShowIdlePillChanged: () -> Void
 
@@ -23,6 +24,7 @@ final class AppSettingsObserverCoordinator {
     private var meetingHotkeyTriggerObserver: Any?
     private var fileTranscriptionHotkeyTriggerObserver: Any?
     private var youtubeTranscriptionHotkeyTriggerObserver: Any?
+    private var appearanceModeObserver: Any?
     private var menuBarOnlyModeObserver: Any?
     private var showIdlePillObserver: Any?
 
@@ -35,6 +37,7 @@ final class AppSettingsObserverCoordinator {
         onMeetingHotkeyTriggerChanged: @escaping () -> Void,
         onFileTranscriptionHotkeyTriggerChanged: @escaping () -> Void,
         onYouTubeTranscriptionHotkeyTriggerChanged: @escaping () -> Void,
+        onAppearanceModeChanged: @escaping () -> Void,
         onMenuBarOnlyModeChanged: @escaping () -> Void,
         onShowIdlePillChanged: @escaping () -> Void
     ) {
@@ -46,6 +49,7 @@ final class AppSettingsObserverCoordinator {
         self.onMeetingHotkeyTriggerChanged = onMeetingHotkeyTriggerChanged
         self.onFileTranscriptionHotkeyTriggerChanged = onFileTranscriptionHotkeyTriggerChanged
         self.onYouTubeTranscriptionHotkeyTriggerChanged = onYouTubeTranscriptionHotkeyTriggerChanged
+        self.onAppearanceModeChanged = onAppearanceModeChanged
         self.onMenuBarOnlyModeChanged = onMenuBarOnlyModeChanged
         self.onShowIdlePillChanged = onShowIdlePillChanged
     }
@@ -124,6 +128,16 @@ final class AppSettingsObserverCoordinator {
             }
         }
 
+        appearanceModeObserver = notificationCenter.addObserver(
+            forName: .macParakeetAppearanceModeDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.onAppearanceModeChanged()
+            }
+        }
+
         menuBarOnlyModeObserver = notificationCenter.addObserver(
             forName: .macParakeetMenuBarOnlyModeDidChange,
             object: nil,
@@ -180,6 +194,10 @@ final class AppSettingsObserverCoordinator {
         if let youtubeTranscriptionHotkeyTriggerObserver {
             notificationCenter.removeObserver(youtubeTranscriptionHotkeyTriggerObserver)
             self.youtubeTranscriptionHotkeyTriggerObserver = nil
+        }
+        if let appearanceModeObserver {
+            notificationCenter.removeObserver(appearanceModeObserver)
+            self.appearanceModeObserver = nil
         }
         if let menuBarOnlyModeObserver {
             notificationCenter.removeObserver(menuBarOnlyModeObserver)

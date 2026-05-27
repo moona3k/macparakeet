@@ -61,6 +61,13 @@ public final class SettingsViewModel {
             Telemetry.send(.settingChanged(setting: .menuBarOnly))
         }
     }
+    public var appAppearanceMode: AppAppearanceMode {
+        didSet {
+            defaults.set(appAppearanceMode.rawValue, forKey: AppPreferences.appearanceModeKey)
+            NotificationCenter.default.post(name: .macParakeetAppearanceModeDidChange, object: nil)
+            Telemetry.send(.settingChanged(setting: .appAppearance))
+        }
+    }
     public var showIdlePill: Bool {
         didSet {
             defaults.set(showIdlePill, forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey)
@@ -495,6 +502,7 @@ public final class SettingsViewModel {
         self.permissionPollingInterval = permissionPollingInterval
         launchAtLogin = defaults.bool(forKey: "launchAtLogin")
         menuBarOnlyMode = AppPreferences.isMenuBarOnlyModeEnabled(defaults: defaults)
+        appAppearanceMode = AppPreferences.appearanceMode(defaults: defaults)
         showIdlePill = defaults.object(forKey: UserDefaultsAppRuntimePreferences.showIdlePillKey) as? Bool ?? true
         telemetryEnabled = AppPreferences.isTelemetryEnabled(defaults: defaults)
         let resolvedDictationHotkeys = Self.resolveDictationHotkeyTriggers(defaults: defaults)

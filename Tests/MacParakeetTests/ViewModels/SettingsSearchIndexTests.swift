@@ -45,6 +45,15 @@ final class SettingsSearchIndexTests: XCTestCase {
         )
     }
 
+    func testDarkModeQueryFindsAppearanceSetting() {
+        let results = SettingsSearchIndex.matches("dark mode")
+
+        XCTAssertTrue(
+            results.contains(where: { $0.id == "system.appearance" }),
+            "Dark mode should land on the Appearance card"
+        )
+    }
+
     func testTitleMatches() {
         let results = SettingsSearchIndex.matches("Speech Recognition")
         XCTAssertTrue(results.contains(where: { $0.id == "engine.selector" }))

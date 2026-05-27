@@ -39,6 +39,28 @@ final class AppRuntimePreferencesTests: XCTestCase {
         XCTAssertTrue(preferences.shouldKeepDictationOnClipboard)
     }
 
+    func testAppAppearanceModeDefaultsToSystemAndIgnoresInvalidValues() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        XCTAssertEqual(AppAppearanceMode.current(defaults: defaults), .system)
+
+        defaults.set("not-a-mode", forKey: AppPreferences.appearanceModeKey)
+
+        XCTAssertEqual(AppAppearanceMode.current(defaults: defaults), .system)
+    }
+
+    func testAppAppearanceModeReadsStoredValue() {
+        let suite = "app-runtime-prefs-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        defaults.set(AppAppearanceMode.dark.rawValue, forKey: AppPreferences.appearanceModeKey)
+
+        XCTAssertEqual(AppPreferences.appearanceMode(defaults: defaults), .dark)
+    }
+
     func testFirstDictationFlagPersistsAcrossInstances() {
         let suite = "app-runtime-prefs-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

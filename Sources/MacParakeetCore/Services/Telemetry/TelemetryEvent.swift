@@ -371,6 +371,7 @@ public enum TelemetryHotkeyKind: String, Sendable, Equatable {
 public enum TelemetrySettingName: String, Sendable, Equatable {
     case saveHistory = "save_history"
     case audioRetention = "audio_retention"
+    case appAppearance = "app_appearance"
     case menuBarOnly = "menu_bar_only"
     case hidePill = "hide_pill"
     case saveTranscriptionAudio = "save_transcription_audio"
