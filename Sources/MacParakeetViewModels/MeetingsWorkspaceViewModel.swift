@@ -140,7 +140,7 @@ public final class MeetingsWorkspaceViewModel {
                 guard !Task.isCancelled, self.upcomingEventsGeneration == generation else { return }
                 self.upcomingEvents = Array(
                     events
-                        .filter(self.shouldShowCalendarEvent)
+                        .filter { event in self.shouldShowCalendarEvent(event) }
                         .prefix(max(0, self.upcomingEventLimit))
                 )
                 self.isLoadingUpcomingEvents = false
