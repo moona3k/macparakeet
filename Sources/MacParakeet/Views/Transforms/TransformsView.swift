@@ -127,7 +127,7 @@ struct TransformsView: View {
                 .font(DesignSystem.Typography.heroTitle)
                 .foregroundStyle(DesignSystem.Colors.textPrimary)
 
-            Text("Press a hotkey on any selected text to rewrite it through your LLM provider — in Slack, Notes, Gmail, your editor, anywhere on Mac.")
+            Text("Press a hotkey on any selected text to rewrite it with your AI setup — in Slack, Notes, Gmail, your editor, anywhere on Mac.")
                 .font(DesignSystem.Typography.bodyLarge)
                 .foregroundStyle(DesignSystem.Colors.textSecondary)
                 .frame(maxWidth: 640, alignment: .leading)
@@ -169,18 +169,22 @@ struct TransformsView: View {
                 .foregroundStyle(DesignSystem.Colors.accent)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Add an LLM provider to apply Transforms")
+                Text("Turn on AI to apply Transforms")
                     .font(DesignSystem.Typography.body.weight(.semibold))
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Text("Transforms call your LLM provider on each run. Use Claude, GPT, Ollama, LM Studio — your key, your terms.")
+                Text("MacParakeet can use a local AI app, your API key, or a command-line AI tool. Dictation and transcription still work without this.")
                     .font(DesignSystem.Typography.bodySmall)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
 
             Spacer(minLength: DesignSystem.Spacing.md)
 
-            Button("Open Settings", action: llmConfiguredAction)
-                .parakeetAction(.primary)
+            Button {
+                llmConfiguredAction()
+            } label: {
+                Label("Set up AI", systemImage: "gearshape")
+            }
+            .parakeetAction(.primary)
         }
         .padding(DesignSystem.Spacing.lg)
         .background(DesignSystem.Colors.accentLight)

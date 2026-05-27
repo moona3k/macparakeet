@@ -2,6 +2,7 @@
 
 > Status: **ACTIVE PLAN**
 > Drafted: 2026-05-02
+> Updated: 2026-05-26 -- baked-in LLM research and AI setup friendliness pass
 > ADR: `spec/adr/011-llm-cloud-and-local-providers.md`
 > Related history: `spec/adr/008-local-llm-runtime-and-model.md`
 > Scope: AI setup for summaries, transcript chat, prompt actions, and meeting Ask. Speech-to-text is unchanged.
@@ -9,6 +10,8 @@
 ## 1. Decision
 
 Keep the stable product on the ADR-011 model: MacParakeet does not bundle a local LLM runtime or model in the app. Users can bring a local AI app, an API key, or a command-line AI tool.
+
+The 2026-05-26 baked-in LLM research pass keeps that decision intact for app-bundled weights/runtimes. The only credible "baked in" exception is a future Apple Foundation Models provider, because the OS owns the model and runtime. That exception still needs an ADR-011 amendment before implementation, and it should be explicit user setup rather than a silent default.
 
 The product work is to make that setup feel first-class and low-friction:
 
@@ -19,6 +22,18 @@ The product work is to make that setup feel first-class and low-friction:
 5. Feature surfaces do not show provider plumbing once AI is configured.
 
 This gives users a clean path to local summaries and chat without reopening the bundled-MLX decision that was already tried and removed.
+
+The user-facing stance is:
+
+> Install MacParakeet and capture works immediately. Turn on AI only when you
+> want summaries, chat, prompt actions, or meeting Ask.
+
+The product gap is not that MacParakeet has a uniquely bad architecture. Most
+open-source Granola alternatives also require a separate LLM choice after app
+install. The gap is that MacParakeet should explain this choice more plainly
+and make the common local paths feel native.
+
+Reference: `docs/research/apple-foundation-models.md`.
 
 ## 2. Research Baseline
 
@@ -41,9 +56,68 @@ References:
 - Char local models: https://char.com/docs/developers/local-models/
 - Hyprnote/Char repository: https://github.com/fastrepl/anarlog
 
+### Baked-In LLM Review (2026-05-26)
+
+The reviewed options split into two very different categories:
+
+1. **OS-managed local LLM:** Apple Foundation Models on macOS 26+.
+2. **App-managed local LLM:** MLX Swift LM, llama.cpp/GGUF, Cactus, or a bundled local server.
+
+Decision:
+
+1. Do not bundle MLX, llama.cpp, Cactus, Ollama, LM Studio, or model weights in stable MacParakeet.
+2. Treat Apple Foundation Models as a future optional provider candidate, not as part of the current setup UX slice.
+3. If accepted, ship Apple Foundation Models first for short prompts: AI formatter, Transforms, and recent-window Live Ask.
+4. Do not use it as the default full-transcript summary engine. Apple's on-device model has a 4096-token context window, so real meeting transcripts often exceed it.
+5. Do not auto-fallback from Apple Foundation Models to cloud. ADR-011 currently rejects automatic fallback, and privacy expectations are clearest when the user explicitly chooses the provider.
+
+The implementation plan for a future coding agent is in `docs/research/apple-foundation-models.md`.
+
+### Competitive Setup Pattern (2026-05-26)
+
+The open-source field mostly separates capture from LLM setup:
+
+| Project | LLM setup shape | Product lesson |
+|---|---|---|
+| [Char / Hyprnote / Anarlog](https://github.com/fastrepl/anarlog) | Bring-your-own provider: LM Studio, Ollama, OpenAI, Anthropic, Gemini, OpenRouter, OpenAI-compatible. [Char docs](https://char.com/docs/faq/local-llm-setup) walk users through running LM Studio or Ollama. | Provider-based local AI is normal; the app should carry more of the guidance than docs do. |
+| [Steno](https://github.com/ruzin/stenoai) | Bundles helper binaries and uses an in-app setup wizard to download/select local Ollama models, with optional cloud/custom providers. | This proves zero-config-ish local LLM is possible, but it accepts model download, model picker, runtime lifecycle, and support burden. |
+| [Muesli](https://github.com/pHequals7/muesli) | Optional summary setup during onboarding: OpenAI, OpenRouter, ChatGPT OAuth, or local Ollama. | Existing subscription sign-in can be a friendlier path than asking every user for an API key. |
+| [OpenOats](https://github.com/yazinsai/OpenOats) | Ollama for fully local suggestions/embeddings; OpenRouter/Voyage/OpenAI-compatible for cloud mode. | Be explicit about what text leaves the Mac in each mode. |
+| [Minutes](https://github.com/silverstein/minutes) | Agent CLI, Ollama, Mistral, or OpenAI-compatible summarization; MCP/CLI/files are the main value. | Own the artifact and automation layer; let users bring the intelligence engine. |
+| [Meetily](https://github.com/Zackriya-Solutions/meetily) | Recommends Ollama locally; also supports Claude, Groq, OpenRouter, and OpenAI-compatible endpoints. | Local-provider-first is a common OSS compromise. |
+| [VoiceInk](https://github.com/Beingpax/VoiceInk) | Enhancement providers include Ollama, OpenAI, Gemini, Anthropic, OpenRouter, Mistral, Groq, Cerebras, custom OpenAI-compatible endpoints, and Local CLI in source. | Keep AI enhancement setup separate from STT setup; show connected status, provider key links, and Keychain-backed API keys. |
+| Open WebUI / Jan / LobeChat | Popular open-source AI apps use provider cards, local-server readiness, model discovery, manual model-ID fallback, and metadata-driven provider templates. | Copy the connection mechanics and failure clarity, not their admin-console/provider-catalog complexity. |
+| [ownscribe](https://github.com/paberr/ownscribe) | CLI downloads a built-in Phi-4-mini model on first run, with Ollama/LM Studio/OpenAI-compatible alternatives. | Built-in model download can work for CLI tools, but it still makes the product own model management. |
+| [Pensieve](https://github.com/lukasbach/pensieve) | Local STT is bundled; summaries use user-connected Ollama or OpenAI. | Many tools own capture/STT but avoid owning LLM inference. |
+
+Decision for MacParakeet: do not hide the optional LLM setup behind jargon, and
+do not turn the app into a model manager just to remove one setup step.
+
+There is no single gold-standard reference to copy wholesale. The best combined
+pattern is:
+
+1. Show the saved readiness state first.
+2. Ask the user to choose one setup lane.
+3. Render only that lane's provider-specific fields.
+4. Keep `Save and Test`, model refresh, custom model ID fallback, and clear
+   local/cloud privacy copy next to the selected lane.
+5. Keep OpenAI-compatible endpoints and command-line tools available, but not
+   in the default visual path.
+
 ## 3. Product Principles
 
 AI is optional. Dictation, transcription, and meeting recording must stay usable with no AI provider configured.
+
+AI being off is not an error state. The app should never imply capture is
+unfinished or degraded because the user has not turned on summaries/chat.
+
+The first-run contract:
+
+1. Recording, transcription, notes, and export work before AI setup.
+2. AI setup is optional and can happen later.
+3. The setup verb is `Turn on AI`, not `Configure LLM provider`.
+4. Provider details appear only inside setup paths and Advanced settings.
+5. Active capture surfaces do not interrupt the user with AI setup prompts.
 
 Settings is the source of truth. Transcript chat, summaries, and meeting Ask may show a small setup prompt when AI is missing, but they should not become provider dashboards.
 
@@ -71,6 +145,10 @@ Do not show "Cloud provider configured" as a main feature-surface status. If AI 
 ## 4. Feature-Surface Behavior
 
 Feature surfaces include transcript summaries, transcript chat, prompt actions, and meeting Ask.
+
+Do not show AI setup prompts in the live recording control path. During capture,
+the user's job is to record and take notes. Setup prompts belong in Settings,
+post-meeting summary/chat empty states, or explicit AI actions.
 
 ### Ready
 
@@ -107,6 +185,22 @@ This state should be based on real user activity, not speculative background pro
 
 The AI settings surface should answer one question first: "Can MacParakeet use AI for summaries and chat right now?"
 
+The UI must not be a provider catalog. The default shape is a two-step
+configuration flow:
+
+1. Show the saved state: `AI is off`, `AI is connected`, or
+   `AI needs attention`.
+2. If setup/change is active, show a compact path chooser.
+3. After the user picks a path, show only that path's fields.
+4. Put `Save and Test`, `Test`, model refresh, and cancel near the required
+   fields, before optional token and advanced endpoint details.
+5. Hide disabled formatter controls while setup is still in draft state.
+6. Keep the existing provider details, endpoint fields, and model IDs as
+   implementation plumbing inside the selected path.
+
+This keeps the common empty and ready states short while preserving the full
+BYO provider surface.
+
 ### Top Status
 
 Card title: `AI for summaries and chat`
@@ -116,14 +210,39 @@ Possible states:
 | State | Copy |
 |---|---|
 | Ready | `Ready: using <AI option name>.` |
-| Set up needed | `Choose how MacParakeet should run AI features.` |
+| Set up needed | `Recording and transcription work now. Turn on AI for summaries, chat, and prompt actions.` |
 | Can't connect | `MacParakeet could not reach <AI option name> the last time it tried.` |
 
 Primary actions:
 
-1. `Test`
-2. `Change`
-3. `Clear`
+1. No saved setup: show setup choices directly.
+2. Ready: `Test`, `Change Setup`.
+3. Can't connect: `Test Again`, `Fix Setup`.
+
+Disconnecting AI should remain possible but quiet: expose it as a subtle action
+inside the setup/edit flow, not as a prominent destructive button in the ready
+state.
+
+If a user is experimenting with an unsaved provider and that draft test fails,
+the top status should continue to reflect the saved provider as ready. Draft
+errors belong next to the setup fields, not in the saved readiness banner.
+If a setup draft is open, the outer card badge should say `Unsaved` instead of
+claiming the saved provider is simply `Ready`.
+
+### Setup Path Chooser
+
+When setup is active, show these lanes:
+
+1. `Local AI app` -- LM Studio or Ollama. Recommended. Best privacy, but the
+   external app and model must already be installed/running.
+2. `API key` -- Claude, OpenAI, Gemini, or OpenRouter. Best for users who
+   already have an AI API key.
+3. `Command-line tool` -- Codex, Claude Code, or custom command. Advanced
+   agent workflow.
+4. `Custom API endpoint` -- hidden under `More options`, for OpenAI-compatible
+   local servers, gateways, or hosted APIs.
+
+Only one selected path renders details at a time.
 
 ### Setup Path 1: Use A Local AI App
 
@@ -349,6 +468,31 @@ Required coverage:
 
 Run `swift test` before declaring implementation complete.
 
+### Future Phase: Apple Foundation Models Provider
+
+This is deliberately outside the current AI setup UX slice. Start it only after
+an ADR-011 amendment accepts OS-managed local providers as distinct from
+app-bundled runtimes.
+
+Files likely touched:
+
+1. `spec/adr/011-llm-cloud-and-local-providers.md`
+2. `Sources/MacParakeetCore/Models/LLMProvider.swift`
+3. `Sources/MacParakeetCore/Services/LLM/RoutingLLMClient.swift`
+4. New Foundation Models client/adapter in `MacParakeetCore`
+5. `Sources/MacParakeetViewModels/LLMSettingsViewModel.swift`
+6. `Sources/MacParakeet/Views/Settings/LLMSettingsView.swift`
+7. LLM service/context-budget tests
+
+Work:
+
+1. Add an explicit `Apple Intelligence` setup option only on macOS 26+.
+2. Gate all `FoundationModels` symbols with availability checks.
+3. Add token-aware prompt budgeting for the 4096-token context window.
+4. Ship first on short-prompt features, then Live Ask with a recent transcript window.
+5. Show a clear too-long state for full transcript summary/chat instead of silently chunking or falling back to cloud.
+6. Keep CLI support deferred until the GUI provider proves stable.
+
 ## 8. Acceptance Criteria
 
 1. A new user can understand AI setup without knowing what an LLM provider is.
@@ -361,6 +505,10 @@ Run `swift test` before declaring implementation complete.
 8. Advanced users can still override base URL and model ID.
 9. STT behavior and STT model packaging are untouched.
 10. No bundled local LLM runtime or model is added to the stable app.
+11. If Apple Foundation Models is later added, it is an explicit OS-managed provider, not an app-bundled model and not a silent default.
+12. No user-facing surface implies recording or transcription is broken because AI is off.
+13. Live recording controls and notes never interrupt the meeting with AI setup prompts.
+14. Empty-state copy uses `Turn on AI` / `Set up AI`, not `Configure provider`.
 
 ## 9. Explicit Non-Goals
 
@@ -371,3 +519,5 @@ Run `swift test` before declaring implementation complete.
 5. Do not remove Local CLI.
 6. Do not remove cloud API providers.
 7. Do not rewrite the LLM provider architecture unless a specific implementation blocker appears.
+8. Do not add Apple Foundation Models without an ADR-011 amendment.
+9. Do not auto-fallback from a local/on-device provider to cloud.

@@ -76,7 +76,7 @@ final class TransformsSpikeCoordinator {
 
         guard let llmService = llmServiceProvider() else {
             panelController?.fail(
-                message: "Add an LLM provider in Settings"
+                message: "Turn on AI in Settings"
             )
             logger.notice("transforms-spike: no LLM provider configured, aborting")
             return

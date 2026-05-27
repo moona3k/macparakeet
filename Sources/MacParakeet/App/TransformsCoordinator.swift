@@ -353,7 +353,7 @@ final class TransformsCoordinator {
         // focus, so it read as "nothing happened" and users re-fired the hotkey
         // (see the no_provider telemetry cluster). The Settings → AI window
         // still opens automatically alongside this message.
-        panelController?.fail(message: "Add an LLM provider in Settings to use Transforms")
+        panelController?.fail(message: "Turn on AI in Settings to use Transforms")
         onLLMProviderRequired()
         Telemetry.send(.transformFailed(transformName: telemetryName, reason: .noProvider))
         sendTransformOperation(

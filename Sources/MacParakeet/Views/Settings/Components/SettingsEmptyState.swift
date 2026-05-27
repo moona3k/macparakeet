@@ -57,9 +57,9 @@ struct SettingsEmptyState: View {
 #Preview("With action", traits: .fixedLayout(width: 560, height: 280)) {
     SettingsEmptyState(
         icon: "sparkles",
-        title: "No AI provider configured",
-        message: "Add Claude, OpenAI, or a local model to power transcript summaries and chat.",
-        actionLabel: "Add provider"
+        title: "Turn on AI for summaries and chat",
+        message: "Recording and transcription work now. Add a local AI app, API key, or command-line tool when you want AI features.",
+        actionLabel: "Set up AI"
     ) {}
         .padding(DesignSystem.Spacing.lg)
         .background(DesignSystem.Colors.cardBackground)

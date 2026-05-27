@@ -338,28 +338,36 @@ Respond with only the transformed text. Do not add explanations or preamble.
 
 ### Settings > AI
 
-```
-┌─────────────────────────────────────────────┐
-│  AI                                          │
-│                                              │
-│  Provider: [Anthropic ▾]                     │
-│                                              │
-│  API Key:  [••••••••••••••••]  [Test ✓]     │
-│                                              │
-│  Model:    [claude-sonnet-4-20250514    ]      │
-│                                              │
-│  ┌─────────────────────────────────────────┐ │
-│  │ ℹ Transcription is always local.        │ │
-│  │   AI features send transcript text to   │ │
-│  │   your chosen provider.                 │ │
-│  │                                         │ │
-│  │   For fully local AI, use Ollama.       │ │
-│  └─────────────────────────────────────────┘ │
-│                                              │
-│  AI Formatter                                │
-│  [Enable] [Prompt editor] [Reset]            │
-└─────────────────────────────────────────────┘
-```
+The active product plan for a friendlier setup surface lives in
+[plans/active/2026-05-ai-setup-ux.md](../plans/active/2026-05-ai-setup-ux.md).
+Treat provider/model/base-URL details as implementation plumbing, not the first
+thing users see.
+
+The UI language should be:
+
+1. `AI` instead of `LLM`.
+2. `AI option` instead of `provider`.
+3. `Local AI app` for LM Studio/Ollama.
+4. `Advanced connection settings` for base URL/model ID fields.
+
+The default Settings shape is a guided flow:
+
+1. Top saved-state banner: `AI is off`, `AI is connected`, or
+   `AI needs attention`.
+2. Setup/change chooser: `Local AI app`, `API key`, `Command-line tool`, and
+   `Custom API endpoint` under `More options`.
+3. Provider-specific details render only after one path is selected.
+4. Setup actions stay near the required provider fields, before optional token
+   and advanced endpoint details, so saving never requires scrolling through
+   every advanced option first.
+5. Recommended local path keeps LM Studio first and Ollama second.
+6. Disconnecting AI remains available as a subtle setup action, not as a
+   prominent destructive ready-state button.
+7. Formatter controls are shown after AI is saved, not while the user is still
+   choosing an AI option.
+8. Privacy copy stays near the selected path: transcription/audio stay local;
+   transcript text is sent only when the user runs an AI action with a
+   non-local provider.
 
 Transforms are managed in the dedicated Transforms sidebar tab, not in Settings.
 
@@ -496,7 +504,7 @@ CLI LLM commands use ephemeral inline config (not shared with GUI UserDefaults/K
 4. Summary, chat, and transform actions route through `LLMService` and stream results in the current UI/CLI surfaces.
 5. Chat panel supports multi-turn conversation with transcript context.
 6. Prompt-driven transforms remain supported through `LLMService`, with Prompt Library details defined in [spec/12-processing-layer.md](12-processing-layer.md).
-7. All LLM features are unavailable (greyed out with explanation) when no provider is configured.
+7. AI features show a compact `Turn on AI` / `Set up AI` empty state when no provider is configured; recording and transcription never appear blocked.
 8. Transcription continues to work fully offline regardless of LLM configuration.
 9. Privacy notice in Settings clearly explains what data is sent where.
 10. `swift test` passes with new LLM seam tests.

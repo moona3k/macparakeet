@@ -1,377 +1,417 @@
-# Apple Foundation Models — On-Device LLM Evaluation
+# Baked-In LLM Options - Apple Foundation Models Evaluation
 
-> Status: **ACTIVE** · Last verified 2026-05-03
+> Status: **ACTIVE RESEARCH**
+> Last verified: 2026-05-26
+> Scope: MacParakeet LLM features only. Speech-to-text model shipping is out of scope.
+> Governing ADR today: `spec/adr/011-llm-cloud-and-local-providers.md`
 
-Reference for integrating Apple's `FoundationModels` framework as an LLM provider
-in MacParakeet. Captures what we verified about the framework, its constraints,
-and how it slots into our existing provider abstraction
-(`Sources/MacParakeetCore/Models/LLMProvider.swift`).
+This note answers one narrow question: should MacParakeet have an LLM "baked
+into the app" instead of requiring the user to configure a provider?
 
-## TL;DR
+## Verdict
 
-- **Real, shipping, production-ready.** GA'd with macOS Tahoe 26 (fall 2025);
-  ~7 months in field by May 2026.
-- **Free, on-device, ANE-accelerated.** No API key, no billing, no model bundle
-  managed by us. ADR-002 (local-first) preserved.
-- **One headline constraint: 4096-token context window, fixed.** Apple has
-  stated this will not grow. A 30-minute meeting transcript overflows.
-- **Best fit:** dictation cleanup, short Live Ask exchanges, friction-free
-  onboarding for users who already have Apple Intelligence enabled.
-- **Worst fit:** full-transcript multi-summary, long-meeting Q&A. These should
-  fall back to a cloud provider when the budget is exceeded.
-- **Position it as the zero-config starter, not the universal default.** Cloud
-  providers remain the upgrade path for long-context workloads.
+Do **not** bundle an LLM runtime or model inside the stable MacParakeet app.
+That would reopen the exact ADR-008/ADR-011 failure mode: multi-GB model
+distribution, GPU/RAM contention, runtime lifecycle, model license tracking,
+quality regressions, and a much larger maintenance surface.
 
-## State of play (May 2026)
+The only baked-in path worth pursuing is **Apple Foundation Models as an
+optional built-in provider** on macOS 26+ systems where Apple Intelligence is
+enabled. It is "built in" because the OS owns the model and runtime; it is not
+an app-bundled model.
 
-| Item | Detail |
+Recommended product stance:
+
+1. Keep ADR-011's external-provider architecture for the stable product.
+2. Keep LM Studio and Ollama as the best local provider paths for users on
+   macOS 14/15 or for long-context local work.
+3. Consider a future `appleFoundation` provider as the first "no API key, no
+   local server" setup path on eligible Macs.
+4. Do not make Apple Foundation Models the silent default without a deliberate
+   ADR-011 amendment, because ADR-011 currently locks "no default provider" and
+   "no automatic fallback between providers."
+5. Do not use Apple Foundation Models for full transcript summaries unless the
+   prompt fits its context window. It is best for short prompts, selected-text
+   transforms, dictation cleanup, and recent-window Live Ask.
+
+## What "Baked In" Can Mean
+
+| Shape | Examples | Fit for MacParakeet |
+|---|---|---|
+| OS-provided local model | Apple Foundation Models | Best candidate. No model bundle, no API key, no local daemon, but macOS 26+ and Apple Intelligence gated. |
+| App-bundled native runtime + weights | `mlx-swift-lm` + Qwen/Gemma/LLM weights | Not recommended for stable. Technically viable, but brings back model management, RAM/GPU cost, packaging, and runtime churn. |
+| App-bundled C/C++ runtime + GGUF weights | `llama.cpp` / `libllama` / XCFramework | Not recommended for stable. Broad model support, but still app-managed weights and native bridging/runtime responsibility. |
+| Third-party SDK bundled in app | Cactus, similar SDKs | Not recommended now. Licensing, model-format, and cloud-handoff concerns need separate legal/product decisions. |
+| Bundled local server app | Ollama, LM Studio, llama-server | Not a good "baked in" shape. Treat as external provider support; do not install, launch, or supervise another app's daemon from MacParakeet. |
+
+## Current Repo Boundary
+
+Current implementation already has the right seam for adding a new local
+provider:
+
+- `LLMProviderID` defines providers.
+- `LLMProviderConfig` stores provider ID, base URL, model name, and local flag.
+- `RoutingLLMClient` routes Local CLI separately from HTTP providers.
+- `LLMService` owns summary, chat, formatter, and transform operations.
+- Settings already has AI readiness states and local provider ordering.
+
+The architecture gap is not "where would this go?" The gap is whether the
+provider should be allowed by the ADR and how to represent a non-HTTP,
+OS-managed provider cleanly.
+
+No database schema change is needed for an Apple Foundation provider. `llm_runs`
+already stores provider/model strings as metadata. UserDefaults/Keychain config
+is enough.
+
+## Apple Foundation Models Deep Dive
+
+Apple Foundation Models is the only option that changes the zero-config story
+without shipping a model inside MacParakeet.
+
+### Officially Verified Facts
+
+Apple's developer docs describe Foundation Models as access to the on-device
+large language model that powers Apple Intelligence. The model is text-based
+and supports language understanding, text generation, structured output, and
+tool calling.
+
+Apple's public developer page says the framework provides direct access to the
+on-device foundation model, works without internet connectivity, has native
+Swift support, and is suitable for entity extraction, summarization, guided
+generation, and tool calling.
+
+Apple's Newsroom launch note says the framework became available with iOS 26,
+iPadOS 26, and macOS 26, uses a 3B parameter on-device model, and works on
+Apple Intelligence-compatible devices when Apple Intelligence is enabled.
+
+Apple Support says Apple Intelligence on Mac requires an M1 or later Mac,
+supported language/region settings, the user enabling Apple Intelligence, and
+7 GB of storage for the on-device models. It also notes that models download
+after the user turns Apple Intelligence on.
+
+Apple's technote for Foundation Models context management says the on-device
+model has a 4096-token context window per language model session. Instructions,
+prompts, tool schemas and outputs, generated responses, and transcript entries
+all count toward that same window.
+
+Apple's Foundation Models updates page says macOS 26.4 changed the model and
+developers should test prompts with the new model. It also added prompt
+measurement APIs such as `tokenCount(for:)` and `contextSize`.
+
+Apple's acceptable-use page prohibits several use categories, including
+regulated healthcare, legal, financial services, employment-related decisions,
+law-enforcement/criminal-justice uses, and attempts to bypass framework
+guardrails. MacParakeet's generic transcript summarization/rewriting use case
+is not inherently in those categories, but product copy must not pitch it as
+professional regulated advice.
+
+### Requirements
+
+A MacParakeet user can use this provider only when all of these are true:
+
+1. macOS 26+ for the developer framework.
+2. Apple Silicon Mac compatible with Apple Intelligence.
+3. Apple Intelligence enabled in System Settings.
+4. The OS model has finished downloading and is ready.
+5. The user's language/region/device combination supports Apple Intelligence.
+
+MacParakeet's public minimum remains macOS 14.2+. The feature must therefore be
+compiled and invoked behind availability checks. Older systems should simply
+not see this setup path.
+
+### Availability States
+
+Do not collapse availability into one generic failure:
+
+| Apple state | Meaning | MacParakeet UX |
+|---|---|---|
+| `.available` | Ready to run | Show "Apple Intelligence" as a setup option. |
+| `.unavailable(.appleIntelligenceNotEnabled)` | Compatible Mac, user has not enabled OS feature | Offer System Settings guidance. Do not save provider yet. |
+| `.unavailable(.modelNotReady)` | Model is downloading or otherwise not ready | Show "Apple Intelligence is getting ready" with Refresh. |
+| `.unavailable(.deviceNotEligible)` | Device/region/language cannot use it | Hide the option or show non-actionable unsupported copy only in diagnostics. |
+| unknown future case | Apple added a new reason | Treat as unavailable, preserve current provider. |
+
+### Context Window Consequence
+
+4096 tokens is the product-shaping constraint.
+
+MacParakeet's current `LLMService` budgets are character-based:
+
+- 500,000 characters for cloud providers.
+- 80,000 characters for most local providers.
+- 8,000 characters for LM Studio.
+
+Apple Foundation Models needs a separate token-aware budget. A full transcript
+cannot be assumed to fit. A 30-minute meeting often exceeds the model's window
+before instructions, the user's question, and the response budget are added.
+
+Do not silently chunk a long transcript in v1. Chunk-and-stitch can be useful
+later, but it changes answer quality and makes "why did this answer miss
+something?" harder to explain.
+
+Recommended v1 behavior:
+
+1. Use `contextSize` and `tokenCount(for:)` when available.
+2. Refuse or truncate predictably before sending if the prompt will not fit.
+3. Surface a clear "too long for Apple Intelligence" state.
+4. Let the user choose another configured provider explicitly.
+5. Do not automatically fall back to cloud. That conflicts with ADR-011's
+   "no automatic fallback between providers" and with MacParakeet's privacy
+   posture.
+
+### Workload Fit
+
+| Workload | Fit | Notes |
+|---|---|---|
+| AI dictation formatter | Strong | Short text, low latency, no provider setup. Good first integration. |
+| Transforms | Strong for short selections | Selected text usually fits. Add a too-long state for large selections. |
+| Live meeting Ask | Good for recent-window Ask | Use a short rolling transcript window. Avoid long-lived sessions that accumulate context. |
+| Default transcript summary | Weak for real meeting length | Fine for short clips; most meetings need a longer-context provider. |
+| Prompt Library custom summaries | Weak unless prompt and transcript are short | Use explicit fit checks. |
+| Cross-meeting memory / agent workflows | Weak as primary engine | Context window and version drift make it a starter provider, not the agent substrate. |
+| Screenshots/images/attachments | Not the answer | Foundation Models is a text model. Screenshot support needs OCR/text extraction first, or a separate VLM provider/runtime later. |
+
+## App-Bundled Alternatives
+
+### MLX Swift LM
+
+`mlx-swift-lm` is the most natural native Swift app-bundled runtime. Its
+current docs show a Swift package that loads LLM/VLM models, integrates with
+Hugging Face downloaders/tokenizers, supports local model directories, and
+has a broad registry including Qwen, Gemma, Llama/Mistral, Phi, DeepSeek, and
+VLM families.
+
+Why not stable-bundle it now:
+
+1. It directly reopens ADR-008's removed path.
+2. It adds SPM dependencies, tokenizer/downloader choices, model cache
+   behavior, and runtime version churn.
+3. Any useful default model still costs multiple GB on disk and several GB of
+   unified memory under load.
+4. It competes with the user's other GPU/Metal workloads.
+5. It needs model licensing, download verification, cache retention, upgrade,
+   unload, memory-pressure, and QA policy.
+
+Use it only for a separate research branch or prototype if the product owner
+explicitly wants to revisit ADR-011.
+
+### llama.cpp / GGUF / libllama
+
+`llama.cpp` is mature and broad. Its docs describe Apple Silicon Metal support,
+GGUF model files, `llama-server` with an OpenAI-compatible API, CLI usage, and
+an XCFramework option for Swift projects.
+
+Why not stable-bundle it now:
+
+1. It still makes MacParakeet responsible for model weights and model lifecycle.
+2. It is a C/C++ integration surface inside a Swift app.
+3. GGUF model selection and quantization become a product surface.
+4. A local `llama-server` process would be a daemon MacParakeet must supervise,
+   while in-process `libllama` still has memory/lifecycle pressure.
+5. MacParakeet already supports this ecosystem safely through OpenAI-compatible
+   local endpoints when the user chooses to run a server.
+
+### Cactus
+
+Cactus is technically interesting: it offers an Apple XCFramework, Swift usage,
+on-device inference, small model support, and claimed low RAM via zero-copy
+memory mapping. It also has a proprietary `.cact` model format and a hybrid
+cloud handoff story.
+
+Why not stable-bundle it now:
+
+1. Its license is not simple open source for all commercial use. The public
+   license grants use only to certain individuals/non-commercial users or
+   organizations below funding/revenue thresholds; others need a commercial
+   license.
+2. Hybrid cloud handoff is contrary to MacParakeet's explicit provider-choice
+   privacy model unless designed as a separate opt-in service.
+3. The model format and SDK are another ecosystem MacParakeet would need to
+   depend on, test, and explain.
+
+Keep it on a watchlist, not in the stable app.
+
+## Recommended Implementation Plan For A Future Agent
+
+### Phase 0 - ADR Checkpoint
+
+Before code, amend ADR-011 only if the owner accepts this precise exception:
+
+> MacParakeet still does not bundle an LLM runtime or model. It may add
+> OS-managed on-device providers, such as Apple Foundation Models, because the
+> operating system owns model distribution and runtime lifecycle.
+
+Do not remove these locked ideas:
+
+1. LLM features remain optional.
+2. Speech stays local.
+3. Cloud transcript text is sent only by explicit user choice.
+4. No automatic fallback between providers.
+5. No app-bundled LLM runtime or weights in stable builds.
+
+If the owner wants MacParakeet to auto-select Apple Intelligence for new users,
+that is a second ADR change, because current ADR-011 says no default provider.
+The safer first ship is an explicit "Use Apple Intelligence" button.
+
+### Phase 1 - Provider Model
+
+Add a provider ID:
+
+```swift
+case appleFoundation
+```
+
+Suggested properties:
+
+| Property | Value |
 |---|---|
-| Framework | `import FoundationModels` |
-| GA platform | macOS Tahoe 26.0 (fall 2025) |
-| Current line | macOS 26.4 (added context-window introspection APIs) |
-| Model | ~3B parameter on-device LLM with 5:3-depth two-block architecture and shared KV cache (Apple ML Research, 2025) |
-| Streaming | Yes (`streamResponse`) |
-| Tool calling | Yes (`Tool` protocol) |
-| Structured output | Yes (`@Generable` macro) |
-| Languages | 15: EN, DA, NL, FR, DE, IT, NO, PT, ES, SV, TR, ZH-Hans, ZH-Hant, JA, KO, VI |
-| Regions | Widely available; **excluded on devices purchased in mainland China or with Apple Account set to mainland China** |
-| Apple's quality claim | Competitive with Qwen-2.5-3B, Qwen-3-4B, Gemma-3-4B on the on-device benchmark |
-| Real-world quality | Below frontier cloud models for complex reasoning; fine for dictation cleanup, summarization of short text, simple Q&A |
+| display name | `Apple Intelligence` |
+| `isLocal` | `true` |
+| supports API key | `false` |
+| requires API key | `false` |
+| requires custom endpoint | `false` |
+| supports model selection | `false` |
 
-## Hardware, OS, and user requirements
+Represent its config with a sentinel base URL that never routes to HTTP, such
+as `apple-foundation://system`, or explicitly relax `LLMProviderConfig` so
+non-HTTP providers are not forced into URL-shaped storage. The second option is
+cleaner but touches more existing validation.
 
-A user can run `LanguageModelSession` if and only if **all** of these are true:
+### Phase 2 - Client Boundary
 
-1. **Apple Silicon Mac.** M1 or newer.
-2. **macOS Tahoe 26.0+.** (Our deployment target stays at macOS 14.2; the
-   Apple FM tile is gated on `@available(macOS 26.0, *)` + runtime
-   availability check. Older-OS users see no option.)
-3. **8 GB RAM minimum**, 16 GB strongly recommended for comfortable use.
-4. **Apple Intelligence enabled** in System Settings → Apple Intelligence & Siri.
-   This is a **one-time, OS-level** ~3–7 GB download. **MacParakeet ships no
-   weights and manages no download UI** — the OS handles it.
-5. **Region not mainland-China-purchased.**
-
-The download is shared system-wide. Once any app (or the OS) has triggered the
-enable flow, every other app calling `FoundationModels` gets the same model
-with no further setup.
-
-## The 4096-token context wall
-
-This is the constraint that shapes integration:
-
-- **Hard ceiling: 4096 tokens** for the entire session (instructions + all
-  prompts + all responses combined).
-- **Apple has stated this is fixed**, not "current". Don't design around it
-  growing.
-- Overflow throws **`.exceededContextWindowSize`**; the session is dead and
-  cannot recover within the same instance.
-- **macOS 26.4 added introspection** (`@backDeployed(before: macOS 26.4)`):
-  - `SystemLanguageModel.contextSize` — capacity for the current model
-  - `SystemLanguageModel.tokenCount(for:)` — measure a prompt before sending
-
-### What that means for MacParakeet's LLM workloads
-
-| Workload | Typical token cost | Apple FM verdict |
-|---|---|---|
-| AI dictation formatter (clean a paragraph) | ~50–500 | **Excellent.** Always fits. |
-| Live Ask tab (recent transcript window + question) | ~500–2000 | **Good.** Fits most exchanges. |
-| Multi-summary on full transcript | 30-min meeting ≈ 4000–5000; podcast ≈ 10–20k | **Overflows most real content.** |
-| Prompt Library / chat over full transcript | Same | **Overflows most real content.** |
-
-Quick rule of thumb: **~1 minute of speech ≈ 150 tokens**. A 27-minute
-transcript already touches the wall before adding instructions, prompt, or
-response budget.
-
-### Recommended overflow pattern
-
-Don't silently chunk-and-stitch in v1 — quality drops and it hides the limit
-from users. Instead:
-
-1. Call `SystemLanguageModel.tokenCount(for:)` with the full prompt before
-   creating the session.
-2. If under budget → use Apple FM.
-3. If over budget AND user has a configured cloud provider → fall back to that
-   provider automatically with a one-time inline notice ("Long transcript —
-   used [Cloud Provider]").
-4. If over budget AND no cloud provider configured → surface "Transcript too
-   long for the on-device model. Add a provider in Settings, or use a shorter
-   prompt."
-
-## API surface
-
-All of the below requires `import FoundationModels` and is gated by
-`@available(macOS 26.0, *)`.
-
-### Availability check
-
-```swift
-import FoundationModels
-
-let model = SystemLanguageModel.default
-
-switch model.availability {
-case .available:
-    // Ready to use.
-case .unavailable(let reason):
-    switch reason {
-    case .deviceNotEligible:
-        // Permanent — Intel Mac, old M1 without enough RAM, China-purchased, etc.
-        // Hide the tile or show "not supported on this Mac."
-    case .appleIntelligenceNotEnabled:
-        // User must enable in System Settings. Deep-link them.
-    case .modelNotReady:
-        // Model is still downloading. Retry later; offer a refresh.
-    @unknown default:
-        // Future reasons — treat as unavailable.
-    }
-}
-```
-
-These three reasons are **three different UX problems**. Don't collapse them.
-
-### Session with instructions
-
-```swift
-let session = LanguageModelSession {
-    """
-    You are a transcription assistant. Given a meeting transcript,
-    answer the user's question concisely using only the provided context.
-    """
-}
-```
-
-Sessions hold their own conversation history — instructions + every prompt and
-response counts against the 4096-token budget. **For the Live Ask tab, prefer
-short-lived sessions per question** rather than one long-running session, to
-avoid blowing the budget mid-conversation.
-
-### One-shot generation
-
-```swift
-let response = try await session.respond(to: prompt)
-print(response.content)
-```
-
-`response.content` is a `String` (or generated type if using `@Generable`).
-
-### Streaming generation
-
-```swift
-let stream = session.streamResponse(to: prompt)
-for try await partial in stream {
-    // partial is the cumulative response so far — render it directly.
-    updateUI(with: partial)
-}
-```
-
-This is what we'd wire into the Live Ask streaming UI (ADR-018) and the AI
-dictation formatter when it shows live results.
-
-### Structured output (`@Generable`)
-
-```swift
-@Generable
-struct DictationCleanup {
-    let cleaned: String
-    let detectedLanguage: String
-}
-
-let result = try await session.respond(
-    to: rawDictationText,
-    generating: DictationCleanup.self
-)
-print(result.content.cleaned)
-```
-
-Skip for v1 — text output parsed downstream is faster to ship and matches how
-existing providers work in `LLMService`.
-
-### Tool calling (`Tool` protocol)
-
-```swift
-final class FetchTranscriptTool: Tool {
-    let name = "fetchTranscript"
-    let description = "Returns the meeting transcript by ID."
-
-    @Generable
-    struct Arguments {
-        let meetingID: String
-    }
-
-    func call(arguments: Arguments) async throws -> ToolOutput {
-        let text = try await TranscriptionRepository.shared.text(for: arguments.meetingID)
-        return ToolOutput(text)
-    }
-}
-```
-
-Tools aren't required for our v1 use cases. Worth revisiting if we ever expose
-the LLM as an "agent" surface that can search transcripts.
-
-## Privacy posture
-
-- `LanguageModelSession` runs the **on-device** ~3B model on the Neural Engine.
-- It does **not** route to Private Cloud Compute. PCC is a separate Apple
-  Intelligence path used by Siri / Writing Tools / Image Playground, not the
-  developer framework.
-- ADR-002 (local-first) is preserved without caveat.
-- No user data leaves the device for any `respond` / `streamResponse` call.
-
-This is identical to our existing `Ollama` / `LM Studio` / `Local CLI`
-providers from a privacy standpoint, with the added benefits that the model is
-managed by the OS and runs on the ANE rather than CPU/GPU.
-
-## Entitlements
-
-- **Base usage** of `SystemLanguageModel` and `LanguageModelSession`: **no
-  entitlement required.** Just import and use.
-- **Custom adapters** (training a fine-tuned adapter on top of the base model
-  and shipping it): requires `com.apple.developer.foundation-model-adapter`.
-  Account holder must request it in Apple Developer. **We do not need this.**
-
-## How the user-side download works
-
-| User state | What MacParakeet does | What the user sees |
-|---|---|---|
-| Apple Intelligence already enabled | Calls `availability`, gets `.available`, model is ready | Nothing — it just works |
-| Compatible Mac, AI not enabled | Tile shows "Enable Apple Intelligence in System Settings" with a deep link (`x-apple.systempreferences:com.apple.preference.appleintelligence`) | One settings flip, OS downloads model in background |
-| Compatible Mac, model still downloading | `availability == .unavailable(.modelNotReady)` — show "Apple Intelligence is downloading. Try again in a few minutes." | Wait, then retry |
-| Intel Mac / 8 GB Mac with insufficient resources / pre-26 macOS | `availability == .unavailable(.deviceNotEligible)` — hide the tile | No option shown |
-| China-purchased device | Same as above | No option shown |
-
-**The download is OS-level and shared.** We don't bundle weights, manage
-download progress, or version-pin the model. The OS pushes updates as part of
-macOS point releases. This is meaningfully better friction than our
-Parakeet-CoreML (~6 GB through FluidAudio) or WhisperKit model paths.
-
-## Where it fits in MacParakeet
-
-### Provider model
-
-`Sources/MacParakeetCore/Models/LLMProvider.swift:5` defines `LLMProviderID`.
-Add a case:
-
-```swift
-case appleFoundation  // displayName: "Apple Intelligence"
-```
-
-Properties: `requiresAPIKey = false`, `isLocal = true`,
-`supportsCustomBaseURL = false`, `supportsModelSelection = false`.
-
-### Implementation
-
-New file: `Sources/MacParakeetCore/Services/AppleFoundationLLMClient.swift`,
-conforming to `LLMClient`. The non-streaming path wraps `respond(to:)`; the
-streaming path wraps `streamResponse(to:)`. Both must handle:
-
-- Availability re-check on every call (the user can disable Apple Intelligence
-  at any time).
-- `LanguageModelSession.GenerationError.exceededContextWindowSize` →
-  surface as `LLMError.contextTooLong` so `RoutingLLMClient` can fall back.
-- Token-budget pre-check via `SystemLanguageModel.tokenCount(for:)` for prompts
-  that include full transcripts.
-
-All `FoundationModels` symbols must be gated:
+Add an OS-managed client behind availability gates:
 
 ```swift
 @available(macOS 26.0, *)
-final class AppleFoundationLLMClient: LLMClient { ... }
+final class AppleFoundationLLMClient: LLMClientProtocol { ... }
 ```
 
-The provider registration in `RoutingLLMClient` checks the runtime macOS
-version before instantiating.
+Responsibilities:
 
-### Onboarding (ADR-005)
+1. Check `SystemLanguageModel.default.availability` for every operation.
+2. Map unavailable reasons to `LLMError.connectionFailed` or a new typed error
+   that Settings can render cleanly.
+3. Implement `testConnection` as an availability check, not a generation call.
+4. Implement `listModels` as a fixed system model list, or no-op if the UI hides
+   model selection.
+5. Use short-lived `LanguageModelSession` instances for chat/Ask rather than
+   one long accumulating session.
+6. Map context-window errors to `LLMError.contextTooLong`.
+7. Preserve streaming behavior by adapting `streamResponse`.
 
-In the LLM provider step:
+Keep FoundationModels imports out of SwiftUI views and keep the provider inside
+`MacParakeetCore` or a Core-adjacent adapter so feature surfaces still use
+`LLMService`.
 
-1. Check `SystemLanguageModel.default.availability` if running macOS 26+.
-2. If `.available` AND no provider is configured yet → set `appleFoundation`
-   as the default. Skip the API-key step entirely.
-3. If `.unavailable(.appleIntelligenceNotEnabled)` → offer a "Enable Apple
-   Intelligence (free)" CTA with the deep link, plus the existing manual
-   provider flow.
-4. Otherwise → existing flow.
+### Phase 3 - Routing
 
-**Never overwrite a provider the user has already configured.** This is for
-new onboardings only.
+Teach `RoutingLLMClient` to route `.appleFoundation` to the new client. Do not
+let it fall through to HTTP request construction.
 
-### Settings tile
+Add focused tests with a protocol adapter/fake so unit tests can run on
+non-eligible machines and older OS runners.
 
-`Sources/MacParakeet/Views/Settings/LLMSettingsView.swift` — a tile that:
+### Phase 4 - Settings UX
 
-- Shows the current `availability` state with a clear status pill.
-- For `.appleIntelligenceNotEnabled`, links to System Settings.
-- For `.modelNotReady`, shows a refresh button.
-- For `.deviceNotEligible`, hides the tile entirely (no point reminding the
-  user their hardware can't do this).
-- Does **not** show an API key field (there isn't one).
-- Subtitle: "Free, on-device, best for short prompts."
+Add a first local setup path:
 
-### Wired into the four call sites
+1. `Use Apple Intelligence` when available.
+2. `Enable Apple Intelligence in System Settings` when compatible but disabled.
+3. `Apple Intelligence is getting ready` when the model is downloading.
+4. No API key, base URL, or model field for this provider.
+5. Copy: `Built into macOS. Best for short prompts and selected-text rewrites.`
 
-1. **AI dictation formatter** (`#100`) — perfect fit, ship as default when
-   Apple FM is the configured provider.
-2. **Live Ask tab** (ADR-018) — short-lived per-question sessions; `respond` /
-   `streamResponse` directly.
-3. **Prompt Library single-prompt run** (ADR-013) — token-budget check; fall
-   back to user's cloud provider on overflow.
-4. **Multi-summary** — same. Most of these will overflow Apple FM in practice;
-   that's fine — they'll fall back to cloud.
+Do not auto-save it from passive detection. Save only when the user explicitly
+chooses it.
 
-### Telemetry
+### Phase 5 - Token Budgeting
 
-Per `feedback_telemetry_allowlist.md`: adding `llm_provider_appleFoundation`
-to `TelemetryEventName` requires a paired commit on
-`macparakeet-website/functions/api/telemetry.ts` adding it to
-`ALLOWED_EVENTS`. Without that, the Worker drops the entire batch. Deploy the
-website change **before** merging the Swift change.
+Add an Apple-specific budget path before any prompt is sent:
 
-## Sizing
+1. Render the exact instructions/prompt/messages.
+2. Count tokens with Foundation Models APIs when available.
+3. Reserve response tokens.
+4. If the call does not fit, return `contextTooLong` before starting a session.
+5. Preserve existing character-budget paths for all other providers.
 
-- Provider plumbing + Settings tile + onboarding wiring: **1–2 days.**
-- Token-budget guard with cloud fallback for long prompts: **+1 day.**
-- Total: **~2–3 days** for a polished v1.
+This must happen below the feature UI and above the provider client so every
+surface gets the same behavior.
 
-## Risks & open questions
+### Phase 6 - Rollout Order
 
-| Risk | Mitigation |
-|---|---|
-| **macOS 26 adoption skew** — some MacParakeet users are on 14.x/15.x and won't see the option | Graceful: existing providers remain primary; Apple FM is additive. |
-| **8 GB Macs may report `.available` but perform poorly** | Apple's reason cases don't distinguish "available but slow." Accept this; users who notice can switch providers. |
-| **4096-token ceiling pushes power users back to cloud anyway** | Reframe: this is the *zero-config starter*, cloud is the upgrade path. The funnel is healthier for it. |
-| **China-purchased devices excluded** | Surface gracefully via `.deviceNotEligible`. Don't hardcode region checks. |
-| **Quality below frontier cloud models for complex reasoning** | Fine for dictation cleanup and short Q&A; long-form summary already routes to cloud per overflow handling. |
-| **Sessions accumulate context within one instance** | Use short-lived sessions per Live Ask question, not one long-running session. |
-| **Model versions move with macOS point releases** | We can't pin a version. Smoke-test prompt outputs after each macOS update; treat behavior changes as a regression class. |
-| **`tokenCount(for:)` only available on macOS 26.4+** | `@backDeployed` covers older 26.x. For pre-26 we never reach this code path. |
+Recommended first slices:
 
-## Open follow-ups
+1. Provider type + availability/test-connection path.
+2. Settings explicit "Use Apple Intelligence" tile.
+3. AI formatter and Transforms only.
+4. Live Ask with recent transcript window.
+5. Short transcript summary support.
+6. Only then decide whether to expose this in `macparakeet-cli`.
 
-- [ ] Verify exact `LLMError.contextTooLong` mapping with a 5000-token test
-      prompt against a real device.
-- [ ] Decide whether to expose Apple FM in CLI (`macparakeet-cli`). The CLI is
-      a public contract — if we add it there, it becomes a downstream
-      compatibility concern. Defer until GUI ships.
-- [ ] Measure first-call warm-up latency. If >1.5s, prefetch with an empty
-      `respond` when the Live Ask tab opens.
+Defer:
 
-## References
+1. Full transcript chunk-and-stitch.
+2. Automatic cloud fallback.
+3. Apple Foundation as default provider.
+4. Image/screenshot understanding.
+5. Custom adapters.
 
-### Apple official
-- [Foundation Models — Apple Developer Docs](https://developer.apple.com/documentation/FoundationModels)
-- [Generating content and performing tasks with Foundation Models](https://developer.apple.com/documentation/FoundationModels/generating-content-and-performing-tasks-with-foundation-models)
-- [TN3193: Managing the on-device foundation model's context window](https://developer.apple.com/documentation/technotes/tn3193-managing-the-on-device-foundation-model-s-context-window)
-- [WWDC25 — Meet the Foundation Models framework (286)](https://developer.apple.com/videos/play/wwdc2025/286/)
-- [WWDC25 — Deep dive into the Foundation Models framework (301)](https://developer.apple.com/videos/play/wwdc2025/301/)
-- [Updates to Apple's On-Device and Server Foundation Language Models — Apple ML Research](https://machinelearning.apple.com/research/apple-foundation-models-2025-updates)
-- [How to get Apple Intelligence — Apple Support (regions & languages)](https://support.apple.com/en-us/121115)
-- [com.apple.developer.foundation-model-adapter entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.foundation-model-adapter)
+### Phase 7 - Tests And Manual Gates
 
-### Third-party deep-dives
-- [InfoQ — Apple Improves Context Window Management (Mar 2026)](https://www.infoq.com/news/2026/03/apple-foundation-models-context/)
-- [Artem Novichkov — Getting Started with Apple's Foundation Models](https://artemnovichkov.com/blog/getting-started-with-apple-foundation-models)
-- [Create with Swift — Exploring the Foundation Models framework](https://www.createwithswift.com/exploring-the-foundation-models-framework/)
-- [Natasha the Robot — Introduction to Apple's FoundationModels](https://www.natashatherobot.com/p/apple-foundation-models)
-- [DEV Community — Falling back gracefully when Apple Intelligence isn't available](https://dev.to/arshtechpro/how-to-fall-back-gracefully-when-apple-intelligence-isnt-available-48j)
+Unit tests:
+
+1. Provider metadata: local, no API key, no endpoint UI.
+2. Settings availability state mapping.
+3. Routing never builds HTTP requests for `.appleFoundation`.
+4. Too-long prompts surface `contextTooLong`.
+5. No auto-save from passive availability detection.
+6. Existing providers still save/load unchanged.
+
+Manual verification:
+
+1. macOS 26.4+ Apple Silicon with Apple Intelligence enabled.
+2. macOS 26.4+ compatible Mac with Apple Intelligence disabled.
+3. macOS 26.4+ with model not ready, if reproducible.
+4. macOS 14/15 build/run path: option hidden, existing providers unaffected.
+5. Long transcript: clear too-long state, no cloud fallback without explicit user
+   choice.
+6. Confirm telemetry/logging does not include prompt, transcript, provider error
+   body, or generated output.
+
+## Acceptance Criteria
+
+An Apple Foundation provider is ready to ship only when:
+
+1. It does not bundle model weights or a third-party LLM runtime.
+2. It works as an explicit user-selected provider.
+3. It is unavailable without breaking macOS 14.2/15 users.
+4. It has a clear too-long path for transcripts that exceed the context window.
+5. It does not silently fall back to cloud.
+6. It does not require a schema migration.
+7. It leaves LM Studio, Ollama, cloud providers, OpenAI-compatible endpoints,
+   and Local CLI intact.
+8. It preserves the message: audio never leaves the Mac; text leaves the Mac
+   only when the user chooses a non-local provider.
+
+## Sources
+
+Apple:
+
+- Foundation Models documentation: https://developer.apple.com/documentation/FoundationModels
+- Generating content and performing tasks: https://developer.apple.com/documentation/foundationmodels/generating-content-and-performing-tasks-with-foundation-models
+- Context window technote TN3193: https://developer.apple.com/documentation/technotes/tn3193-managing-the-on-device-foundation-model-s-context-window
+- Foundation Models updates: https://developer.apple.com/documentation/updates/foundationmodels
+- Apple Intelligence developer page: https://developer.apple.com/apple-intelligence/
+- Apple Newsroom launch note: https://www.apple.com/newsroom/2025/09/apples-foundation-models-framework-unlocks-new-intelligent-app-experiences/
+- Apple Intelligence requirements: https://support.apple.com/en-us/121115
+- Acceptable use requirements: https://developer.apple.com/apple-intelligence/acceptable-use-requirements-for-the-foundation-models-framework/
+
+Runtime alternatives:
+
+- MLX project page: https://opensource.apple.com/projects/mlx/
+- MLX Swift LM: https://github.com/ml-explore/mlx-swift-lm
+- MLX Swift LM supported models: https://github.com/ml-explore/mlx-swift-lm/blob/main/skills/mlx-swift-lm/references/supported-models.md
+- WWDC25 MLX session: https://developer.apple.com/videos/play/wwdc2025/298/
+- llama.cpp: https://github.com/ggml-org/llama.cpp
+- Cactus Swift SDK: https://docs.cactuscompute.com/latest/apple/
+- Cactus license: https://github.com/cactus-compute/cactus/blob/main/LICENSE

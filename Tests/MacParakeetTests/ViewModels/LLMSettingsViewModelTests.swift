@@ -63,8 +63,17 @@ final class LLMSettingsViewModelTests: XCTestCase {
         )
     }
 
-    func testSetupStatusCannotConnectUsesDraftProviderDisplayName() {
+    func testSetupStatusKeepsSavedProviderReadyWhenUnsavedDraftConnectionFails() {
         mockConfigStore.config = .lmstudio(model: "local-model")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        viewModel.selectedProviderID = .ollama
+        viewModel.connectionTestState = .error("Connection failed")
+
+        XCTAssertEqual(viewModel.setupStatus, .ready(displayName: "LM Studio"))
+    }
+
+    func testSetupStatusCannotConnectUsesDraftProviderWhenNoSavedConfigurationExists() {
         viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
 
         viewModel.selectedProviderID = .ollama
@@ -262,6 +271,39 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.aiFormatterPrompt, AIFormatter.defaultPromptTemplate)
     }
 
+    func testSaveConfigurationClearingAIReportsSavedBeforeCallback() {
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        var observedSaveState: LLMSettingsViewModel.SaveState?
+        viewModel.onConfigurationChanged = { [viewModel] in
+            observedSaveState = viewModel?.saveState
+        }
+
+        viewModel.selectedProviderID = nil
+        viewModel.saveConfiguration()
+
+        XCTAssertNil(mockConfigStore.config)
+        XCTAssertEqual(observedSaveState, .saved)
+        XCTAssertEqual(viewModel.saveState, .saved)
+    }
+
+    func testClearConfigurationReportsIdleBeforeCallback() {
+        mockConfigStore.config = .openai(apiKey: "sk-test")
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+
+        var observedSaveState: LLMSettingsViewModel.SaveState?
+        viewModel.onConfigurationChanged = { [viewModel] in
+            observedSaveState = viewModel?.saveState
+        }
+
+        viewModel.clearConfiguration()
+
+        XCTAssertNil(mockConfigStore.config)
+        XCTAssertEqual(observedSaveState, .idle)
+        XCTAssertEqual(viewModel.saveState, .idle)
+    }
+
     // MARK: - Test Connection
 
     func testConnectionSuccess() async throws {
@@ -302,6 +344,22 @@ final class LLMSettingsViewModelTests: XCTestCase {
         XCTAssertFalse(viewModel.hasUnsavedChanges)
         XCTAssertEqual(viewModel.connectionSuccessMessage, "Connected")
         XCTAssertEqual(mockConfigStore.config?.modelName, "gemini-3-flash-preview")
+    }
+
+    func testSaveAndTestPersistsDraftBeforeTesting() async throws {
+        viewModel.configure(configStore: mockConfigStore, llmClient: mockClient)
+        viewModel.selectedProviderID = .openai
+        viewModel.apiKeyInput = "sk-test"
+        viewModel.modelName = "gpt-5-mini"
+
+        viewModel.saveAndTestConfiguration()
+
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(viewModel.saveState, .saved)
+        XCTAssertEqual(viewModel.connectionTestState, .success)
+        XCTAssertEqual(mockConfigStore.config?.id, .openai)
+        XCTAssertEqual(mockConfigStore.config?.modelName, "gpt-5-mini")
+        XCTAssertEqual(mockClient.capturedContext?.providerConfig.modelName, "gpt-5-mini")
     }
 
     func testConnectionFailure() async throws {
