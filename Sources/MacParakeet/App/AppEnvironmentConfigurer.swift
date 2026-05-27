@@ -282,6 +282,7 @@ final class AppEnvironmentConfigurer {
                 guard let self else { return }
                 self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
                 self.libraryViewModel.loadTranscriptions()
+                self.meetingsWorkspaceViewModel.refreshRecentMeetings()
                 self.mainWindowState.navigateToTranscription(from: .library)
                 callbacks.onOpenMainWindow()
             },

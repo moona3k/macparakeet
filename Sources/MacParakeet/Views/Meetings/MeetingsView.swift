@@ -456,6 +456,7 @@ struct MeetingsView: View {
     private func calendarEmptyDetail(for mode: CalendarAutoStartMode) -> String {
         switch mode {
         case .off:
+            assertionFailure("calendarEmptyDetail should not be called when calendar reminders are off.")
             return "Calendar reminders are off."
         case .notify:
             return "Calendar reminders are on."
@@ -624,7 +625,7 @@ private struct CalendarEventRow: View {
                     }
                     if event.attendeeCount > 0 {
                         Text("·")
-                        Text("\(event.attendeeCount + 1) people")
+                        Text(peopleCountText)
                     }
                 }
                 .font(DesignSystem.Typography.caption)
@@ -634,6 +635,11 @@ private struct CalendarEventRow: View {
         }
         .padding(DesignSystem.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var peopleCountText: String {
+        let count = event.attendeeCount + 1
+        return "\(count) \(count == 1 ? "person" : "people")"
     }
 }
 

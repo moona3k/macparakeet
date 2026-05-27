@@ -106,13 +106,18 @@ public final class MeetingsWorkspaceViewModel {
 
     public func refresh() {
         hasLoadedInitialState = true
-        recentMeetingsViewModel.loadTranscriptions()
+        refreshRecentMeetings()
         refreshUpcomingEvents()
     }
 
     public func refreshIfNeeded() {
         guard !hasLoadedInitialState else { return }
         refresh()
+    }
+
+    @discardableResult
+    public func refreshRecentMeetings() -> Task<Void, Never> {
+        recentMeetingsViewModel.loadTranscriptions()
     }
 
     @discardableResult
@@ -133,15 +138,16 @@ public final class MeetingsWorkspaceViewModel {
         isLoadingUpcomingEvents = true
         calendarErrorMessage = nil
 
+        let lookAheadDays = calendarLookAheadDays
+        let eventLimit = upcomingEventLimit
         let task = Task { @MainActor [weak self, calendarService] in
             do {
-                guard let self else { return }
-                let events = try await calendarService.fetchUpcomingEvents(days: self.calendarLookAheadDays)
-                guard !Task.isCancelled, self.upcomingEventsGeneration == generation else { return }
+                let events = try await calendarService.fetchUpcomingEvents(days: lookAheadDays)
+                guard let self, !Task.isCancelled, self.upcomingEventsGeneration == generation else { return }
                 self.upcomingEvents = Array(
                     events
                         .filter { event in self.shouldShowCalendarEvent(event) }
-                        .prefix(max(0, self.upcomingEventLimit))
+                        .prefix(max(0, eventLimit))
                 )
                 self.isLoadingUpcomingEvents = false
             } catch {

@@ -164,6 +164,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         },
         settingsViewModel: settingsViewModel,
         libraryViewModel: libraryViewModel,
+        onRecoveredTranscriptionsChanged: { [weak self] in
+            self?.meetingsWorkspaceViewModel.refreshRecentMeetings()
+        },
         onPresentRecoveredTranscription: { [weak self] transcription in
             guard let self else { return }
             self.transcriptionViewModel.presentCompletedTranscription(transcription, autoSave: true)
