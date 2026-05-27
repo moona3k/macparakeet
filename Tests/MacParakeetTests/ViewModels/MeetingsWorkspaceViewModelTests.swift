@@ -32,7 +32,7 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
 
         XCTAssertEqual(calendar.fetchUpcomingEventsCallCount, 0)
         XCTAssertTrue(viewModel.upcomingEvents.isEmpty)
-        XCTAssertEqual(viewModel.calendarStatus, .off)
+        XCTAssertEqual(viewModel.calendarStatus, AppFeatures.calendarEnabled ? .off : .unavailable)
     }
 
     func testRefreshUpcomingEventsFiltersByMeetingRulesAndExcludedCalendars() async {
@@ -53,9 +53,15 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
 
         await viewModel.refreshUpcomingEvents().value
 
-        XCTAssertEqual(calendar.fetchUpcomingEventsCallCount, 1)
-        XCTAssertEqual(viewModel.upcomingEvents.map(\.title), ["Design Review"])
-        XCTAssertEqual(viewModel.calendarStatus, .ready(mode: .notify))
+        if AppFeatures.calendarEnabled {
+            XCTAssertEqual(calendar.fetchUpcomingEventsCallCount, 1)
+            XCTAssertEqual(viewModel.upcomingEvents.map(\.title), ["Design Review"])
+            XCTAssertEqual(viewModel.calendarStatus, .ready(mode: .notify))
+        } else {
+            XCTAssertEqual(calendar.fetchUpcomingEventsCallCount, 0)
+            XCTAssertTrue(viewModel.upcomingEvents.isEmpty)
+            XCTAssertEqual(viewModel.calendarStatus, .unavailable)
+        }
     }
 
     func testRecordingStatusTracksMeetingPillState() {
@@ -83,7 +89,7 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
 
         XCTAssertFalse(ids.contains("calendar-permission"))
         XCTAssertFalse(ids.contains("ai-setup"))
-        XCTAssertEqual(viewModel.calendarStatus, .permissionNeeded)
+        XCTAssertEqual(viewModel.calendarStatus, AppFeatures.calendarEnabled ? .permissionNeeded : .unavailable)
         XCTAssertEqual(viewModel.intelligenceStatus, .setupNeeded)
     }
 
