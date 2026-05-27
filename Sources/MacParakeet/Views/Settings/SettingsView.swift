@@ -399,6 +399,7 @@ struct SettingsView: View {
     /// per-action confirmation alert — no extra pre-card divider needed.
     private var systemTabContent: some View {
         scrollableTabBody {
+            appearanceCard.id("system.appearance")
             startupCard.id("system.startup")
             permissionsCard.id("system.permissions")
             storageCard.id("system.storage")
@@ -441,6 +442,31 @@ struct SettingsView: View {
                     proxy.scrollTo(target, anchor: .top)
                 }
                 pendingScrollTarget = nil
+            }
+        }
+    }
+
+    // MARK: - Appearance
+
+    private var appearanceCard: some View {
+        settingsCard(
+            title: "Appearance",
+            subtitle: "Choose how MacParakeet looks across app windows.",
+            icon: "circle.lefthalf.filled"
+        ) {
+            SettingsRow(
+                title: "Theme",
+                detail: viewModel.appAppearanceMode.detail
+            ) {
+                Picker("Theme", selection: $viewModel.appAppearanceMode) {
+                    ForEach(AppAppearanceMode.allCases, id: \.self) { mode in
+                        Text(mode.displayTitle).tag(mode)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 260)
+                .accessibilityHint("Choose whether MacParakeet follows macOS or uses a fixed light or dark appearance.")
             }
         }
     }

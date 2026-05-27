@@ -719,7 +719,7 @@ Settings open in the content area when "Settings" is selected in the sidebar. Th
 - **Modes** — Audio Input, Dictation, Transcription, and Meeting Recording cards. Calendar controls are folded into Meeting Recording and appear once Calendar access is granted (`AppFeatures.calendarEnabled = true`).
 - **Engine** — Speech engine selector, Whisper language picker, and local model status/management.
 - **AI** — Optional provider setup for summaries, transcript chat, prompt actions, and live Ask.
-- **System** — Startup, permissions, storage, updates, privacy/telemetry, onboarding reset, about, and fenced Reset & Cleanup actions.
+- **System** — Appearance, startup, permissions, storage, updates, privacy/telemetry, onboarding reset, about, and fenced Reset & Cleanup actions.
 
 `SettingsRootViewModel` owns active-tab persistence and search state. `SettingsSearchIndex` provides cross-tab search results and includes calendar entries while `AppFeatures.calendarEnabled` is `true` (currently enabled; they surface once Calendar access is granted), and hides them when the flag is off. The legacy card sketches below are retained only as historical content references; their grouping is not the current v0.6 IA.
 

@@ -129,6 +129,7 @@ final class SettingsViewModelTests: XCTestCase {
     func testDefaultValues() {
         XCTAssertFalse(viewModel.launchAtLogin, "launchAtLogin should default to false")
         XCTAssertFalse(viewModel.menuBarOnlyMode, "menuBarOnlyMode should default to false")
+        XCTAssertEqual(viewModel.appAppearanceMode, .system, "appAppearanceMode should default to System")
         XCTAssertTrue(viewModel.showIdlePill, "showIdlePill should default to true")
         XCTAssertFalse(viewModel.silenceAutoStop, "silenceAutoStop should default to false")
         XCTAssertEqual(viewModel.silenceDelay, 2.0, "silenceDelay should default to 2.0")
@@ -154,6 +155,7 @@ final class SettingsViewModelTests: XCTestCase {
         // Set values in defaults before creating ViewModel
         testDefaults.set(true, forKey: "launchAtLogin")
         testDefaults.set(true, forKey: AppPreferences.menuBarOnlyModeKey)
+        testDefaults.set(AppAppearanceMode.dark.rawValue, forKey: AppPreferences.appearanceModeKey)
         testDefaults.set(false, forKey: "showIdlePill")
         testDefaults.set(true, forKey: "silenceAutoStop")
         testDefaults.set(3.0, forKey: "silenceDelay")
@@ -178,6 +180,7 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertTrue(vm.launchAtLogin)
         XCTAssertTrue(vm.menuBarOnlyMode)
+        XCTAssertEqual(vm.appAppearanceMode, .dark)
         XCTAssertFalse(vm.showIdlePill)
         XCTAssertTrue(vm.silenceAutoStop)
         XCTAssertEqual(vm.silenceDelay, 3.0)
@@ -465,6 +468,22 @@ final class SettingsViewModelTests: XCTestCase {
         viewModel.menuBarOnlyMode = true
 
         XCTAssertTrue(testDefaults.bool(forKey: AppPreferences.menuBarOnlyModeKey))
+    }
+
+    func testSettingAppAppearanceModePersistsPostsNotificationAndEmitsTelemetry() {
+        let telemetry = SettingsTelemetrySpy()
+        Telemetry.configure(telemetry)
+        let expectation = expectation(forNotification: .macParakeetAppearanceModeDidChange, object: nil)
+
+        viewModel.appAppearanceMode = .dark
+
+        wait(for: [expectation], timeout: 1.0)
+        XCTAssertEqual(testDefaults.string(forKey: AppPreferences.appearanceModeKey), AppAppearanceMode.dark.rawValue)
+        let settings = telemetry.snapshot().compactMap { event -> TelemetrySettingName? in
+            guard case .settingChanged(let setting) = event else { return nil }
+            return setting
+        }
+        XCTAssertEqual(settings, [.appAppearance])
     }
 
     func testSettingSilenceAutoStopPersists() {
@@ -1596,6 +1615,7 @@ final class SettingsViewModelTests: XCTestCase {
         // Set everything to non-default values
         viewModel.launchAtLogin = true
         viewModel.menuBarOnlyMode = true
+        viewModel.appAppearanceMode = .dark
         viewModel.showIdlePill = false
         viewModel.silenceAutoStop = true
         viewModel.silenceDelay = 5.0
@@ -1608,6 +1628,7 @@ final class SettingsViewModelTests: XCTestCase {
 
         XCTAssertTrue(vm2.launchAtLogin)
         XCTAssertTrue(vm2.menuBarOnlyMode)
+        XCTAssertEqual(vm2.appAppearanceMode, .dark)
         XCTAssertFalse(vm2.showIdlePill)
         XCTAssertTrue(vm2.silenceAutoStop)
         XCTAssertEqual(vm2.silenceDelay, 5.0)

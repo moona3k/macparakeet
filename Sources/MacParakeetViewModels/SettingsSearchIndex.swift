@@ -254,6 +254,14 @@ public enum SettingsSearchIndex {
 
         // MARK: System
         SettingsSearchEntry(
+            id: "system.appearance",
+            tab: .system,
+            title: "Appearance",
+            subtitle: "Light, dark, or follow macOS.",
+            keywords: ["theme", "dark mode", "light mode", "color scheme", "system appearance"],
+            cardAnchor: "system.appearance"
+        ),
+        SettingsSearchEntry(
             id: "system.startup",
             tab: .system,
             title: "Startup",

@@ -288,6 +288,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         onYouTubeTranscriptionHotkeyTriggerChanged: { [weak self] in
             self?.handleYouTubeTranscriptionHotkeyTriggerChange()
         },
+        onAppearanceModeChanged: { [weak self] in
+            self?.applyAppAppearance()
+        },
         onMenuBarOnlyModeChanged: { [weak self] in
             self?.windowCoordinator.applyActivationPolicyFromSettings()
         },
@@ -314,6 +317,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        applyAppAppearance()
         startEnvironmentSetup()
         menuBarCoordinator.setupMainMenu()
         menuBarCoordinator.setupMenuBar()
@@ -574,6 +578,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func handleYouTubeTranscriptionHotkeyTriggerChange() {
         refreshAuxiliaryHotkeys()
+    }
+
+    private func applyAppAppearance() {
+        AppAppearanceController.apply(settingsViewModel.appAppearanceMode)
     }
 
     private func refreshAuxiliaryHotkeys() {
