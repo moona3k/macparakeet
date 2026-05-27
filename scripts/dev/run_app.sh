@@ -41,6 +41,7 @@ pick_codesign_identity() {
 }
 
 CODESIGN_IDENTITY="$(pick_codesign_identity)"
+APP_ENTITLEMENTS="$ROOT_DIR/scripts/dist/MacParakeet.entitlements"
 
 sync_frameworks_into_bundle() {
   local source_dir="$1"
@@ -160,8 +161,11 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
 </plist>
 PLIST
 
-# Re-sign the bundle so TCC can identify the dev build consistently.
-codesign --force --sign "$CODESIGN_IDENTITY" --deep "$APP_BUNDLE"
+# Re-sign the bundle so TCC can identify the dev build consistently. Use the
+# release app entitlements so permission smoke tests exercise the same TCC
+# capability surface as the signed distribution build.
+codesign --force --sign "$CODESIGN_IDENTITY" --options runtime \
+  --entitlements "$APP_ENTITLEMENTS" --deep "$APP_BUNDLE"
 
 echo "[3/5] Stopping existing MacParakeet processes…"
 pkill -f "/Applications/MacParakeet.app/Contents/MacOS/MacParakeet" || true

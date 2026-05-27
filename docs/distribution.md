@@ -127,6 +127,10 @@ Before building, verify the codebase is ready:
 # All tests must pass
 swift test
 
+# Distribution privacy/entitlement guard runs after signing, but this source
+# file is the expected entitlement surface for the final app.
+plutil -p scripts/dist/MacParakeet.entitlements
+
 # Check currently deployed version
 curl -s "https://macparakeet.com/appcast.xml" | grep -E "sparkle:version|sparkle:shortVersionString"
 ```
@@ -500,6 +504,19 @@ These are set automatically by `build_app_bundle.sh`:
 |-----|-------|
 | `SUFeedURL` | `https://macparakeet.com/appcast.xml` |
 | `SUPublicEDKey` | `2aqRU0Agz+xxZwt0kLybmKz/SAvZUsyn+z9fU0I6ynY=` |
+
+### Privacy Strings and Entitlements
+
+Permission prompts require both the appropriate `Info.plist` usage string and
+the matching signed app entitlement when macOS gates access through TCC. The
+release signing script runs `scripts/dist/verify_app_privacy_surface.sh` after
+codesigning to catch drift before notarization.
+
+| Capability | Info.plist key | Entitlement |
+|------------|----------------|-------------|
+| Microphone input | `NSMicrophoneUsageDescription` | `com.apple.security.device.audio-input` |
+| System audio capture | `NSAudioCaptureUsageDescription` | macOS TCC prompt, no app entitlement |
+| Calendar event read access | `NSCalendarsFullAccessUsageDescription` | `com.apple.security.personal-information.calendars` |
 
 ### Settings UI
 

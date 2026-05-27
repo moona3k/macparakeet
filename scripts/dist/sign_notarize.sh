@@ -163,6 +163,7 @@ codesign --force --sign "$SIGN_IDENTITY" --options runtime --timestamp \
 
 echo "[4/8] Verifying signature…"
 codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+"$ROOT_DIR/scripts/dist/verify_app_privacy_surface.sh" "$APP_PATH"
 VERIFY_CODE_SIGNATURES=1 "$ROOT_DIR/scripts/dist/verify_meeting_echo_assets.sh" "$APP_PATH"
 
 ZIP_PATH="$DIST_DIR/${APP_NAME}.app.zip"

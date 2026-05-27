@@ -1098,6 +1098,7 @@ Dictation ready
 | Microphone | Dictation, onboarding mic test, meeting recording mic capture | Requested on first dictation/meeting use |
 | Accessibility | Global hotkey paste simulation | Requested on first dictation use |
 | Screen & System Audio Recording | ScreenCaptureKit system-audio capture for meeting recording | Requested on first meeting recording attempt; recording stays blocked until granted |
+| Calendar | Calendar reminders and optional meeting auto-start | Requested from onboarding or Settings calendar controls |
 
 ### Sandboxing (App Store)
 
@@ -1106,6 +1107,7 @@ For App Store distribution, the app needs:
 | Entitlement | Required For |
 |-------------|-------------|
 | `com.apple.security.device.audio-input` | Microphone access |
+| `com.apple.security.personal-information.calendars` | Calendar event access |
 | `com.apple.security.temporary-exception.apple-events` | Accessibility (paste simulation) |
 | `com.apple.security.files.user-selected.read-write` | File drag-and-drop |
 | `com.apple.security.files.downloads.read-write` | Export to Downloads |
