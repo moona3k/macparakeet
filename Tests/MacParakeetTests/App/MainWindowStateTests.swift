@@ -52,11 +52,13 @@ final class MainWindowStateTests: XCTestCase {
         XCTAssertEqual(state.selectedItem, .meetings)
     }
 
-    func testPrimarySidebarOrdersMeetingsAfterDictations() {
-        XCTAssertEqual(
-            SidebarItem.primaryItems,
-            [.transcribe, .library, .dictations, .meetings]
-        )
+    func testPrimarySidebarOrderRespectsMeetingFeatureFlag() {
+        var expected: [SidebarItem] = [.transcribe, .library, .dictations]
+        if AppFeatures.meetingRecordingEnabled {
+            expected.append(.meetings)
+        }
+
+        XCTAssertEqual(SidebarItem.primaryItems, expected)
     }
 
     func testStartNewTranscriptionReturnsToTranscribeAndHidesProgressDetail() {
