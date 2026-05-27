@@ -44,6 +44,14 @@ final class MainWindowStateTests: XCTestCase {
         XCTAssertEqual(state.selectedItem, .library)
     }
 
+    func testNavigateCanSelectMeetingsWorkspace() {
+        let state = MainWindowState()
+
+        state.navigate(to: .meetings)
+
+        XCTAssertEqual(state.selectedItem, .meetings)
+    }
+
     func testStartNewTranscriptionReturnsToTranscribeAndHidesProgressDetail() {
         let state = MainWindowState()
         state.selectedItem = .library

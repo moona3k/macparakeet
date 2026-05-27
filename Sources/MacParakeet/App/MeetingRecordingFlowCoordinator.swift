@@ -166,12 +166,23 @@ final class MeetingRecordingFlowCoordinator {
         }
     }
 
+    @discardableResult
+    func startRecording(
+        title: String? = nil,
+        trigger: TelemetryMeetingRecordingTrigger = .manual
+    ) -> Int? {
+        guard stateMachine.state == .idle else { return nil }
+        pendingTrigger = pendingTrigger ?? trigger
+        pendingTitle = title
+        currentMeetingOperationContext = ObservabilityOperationContext()
+        sendEvent(.startRequested)
+        return stateMachine.generation
+    }
+
     func toggleRecording(trigger: TelemetryMeetingRecordingTrigger = .manual) {
         switch stateMachine.state {
         case .idle:
-            pendingTrigger = pendingTrigger ?? trigger
-            currentMeetingOperationContext = ObservabilityOperationContext()
-            sendEvent(.startRequested)
+            startRecording(trigger: trigger)
         case .recording, .starting, .stopping:
             sendEvent(.stopRequested)
         case .checkingPermissions, .transcribing, .finishing:

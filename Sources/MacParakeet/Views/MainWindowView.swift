@@ -5,6 +5,7 @@ import MacParakeetViewModels
 
 enum SidebarItem: String, CaseIterable, Identifiable {
     case transcribe = "Transcribe"
+    case meetings = "Meetings"
     case library = "Library"
     case dictations = "Dictations"
     case transforms = "Transforms"
@@ -18,6 +19,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     var icon: String {
         switch self {
         case .transcribe: return "waveform"
+        case .meetings: return "person.2.wave.2"
         case .library: return "square.grid.2x2"
         case .dictations: return "clock.arrow.circlepath"
         case .transforms: return "wand.and.stars"
@@ -28,10 +30,17 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         }
     }
 
-    /// Primary features — the core things users do. Meeting recording is
-    /// reachable from the Transcribe tab's third tile (when feature flag is
-    /// on); meeting browse lives in `Library` under the `Meetings` filter.
-    static let primaryItems: [SidebarItem] = [.transcribe, .library, .dictations]
+    /// Primary features — the core things users do. Library remains the
+    /// universal archive; Meetings is the workflow space for live/upcoming
+    /// and saved meeting work.
+    static var primaryItems: [SidebarItem] {
+        var items: [SidebarItem] = [.transcribe]
+        if AppFeatures.meetingRecordingEnabled {
+            items.append(.meetings)
+        }
+        items.append(contentsOf: [.library, .dictations])
+        return items
+    }
 
     /// Configuration and support items. Transforms (ADR-022) is inserted
     /// here at runtime when `AppFeatures.transformsEnabled == true`.
@@ -64,9 +73,11 @@ struct MainWindowView: View {
     let feedbackViewModel: FeedbackViewModel
     let discoverViewModel: DiscoverViewModel
     let libraryViewModel: TranscriptionLibraryViewModel
+    let meetingsWorkspaceViewModel: MeetingsWorkspaceViewModel
     let meetingPillViewModel: MeetingRecordingPillViewModel
     let updater: SPUUpdater
     let onRecordMeeting: () -> Void
+    let onRecordMeetingFromWorkspace: () -> Void
     let onPauseToggleMeeting: (() -> Void)?
     /// Routed to `AppHotkeyCoordinator.suspend` / `resume` while a hotkey
     /// recorder is active. Passed through to `SettingsView`.
@@ -115,6 +126,26 @@ struct MainWindowView: View {
                             onRecordMeeting: onRecordMeeting,
                             onPauseToggleMeeting: onPauseToggleMeeting,
                             onRefreshPermissions: settingsViewModel.refreshPermissions
+                        )
+                    case .meetings:
+                        MeetingsView(
+                            viewModel: meetingsWorkspaceViewModel,
+                            onRecordMeeting: {
+                                onRecordMeetingFromWorkspace()
+                            },
+                            onPauseToggleMeeting: onPauseToggleMeeting,
+                            onOpenCalendarSettings: {
+                                state.navigateToSettings(tab: .modes)
+                            },
+                            onOpenAISettings: {
+                                state.navigateToSettings(tab: .ai)
+                            },
+                            onRecoverMeetings: {
+                                settingsViewModel.requestPendingMeetingRecovery()
+                            },
+                            onSelectMeeting: { transcription in
+                                transcriptionViewModel.currentTranscription = transcription
+                            }
                         )
                     case .library:
                         if let transcription = transcriptionViewModel.currentTranscription {

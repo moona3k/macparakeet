@@ -36,7 +36,7 @@ public actor CalendarService {
 
     // MARK: - Permission
 
-    public enum PermissionStatus: Sendable {
+    public enum PermissionStatus: Sendable, Equatable {
         case notDetermined
         case granted
         case denied
