@@ -34,11 +34,10 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     /// universal archive; Meetings is the workflow space for live/upcoming
     /// and saved meeting work.
     static var primaryItems: [SidebarItem] {
-        var items: [SidebarItem] = [.transcribe]
+        var items: [SidebarItem] = [.transcribe, .library, .dictations]
         if AppFeatures.meetingRecordingEnabled {
             items.append(.meetings)
         }
-        items.append(contentsOf: [.library, .dictations])
         return items
     }
 

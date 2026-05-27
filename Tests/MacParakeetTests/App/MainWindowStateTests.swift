@@ -52,6 +52,13 @@ final class MainWindowStateTests: XCTestCase {
         XCTAssertEqual(state.selectedItem, .meetings)
     }
 
+    func testPrimarySidebarOrdersMeetingsAfterDictations() {
+        XCTAssertEqual(
+            SidebarItem.primaryItems,
+            [.transcribe, .library, .dictations, .meetings]
+        )
+    }
+
     func testStartNewTranscriptionReturnsToTranscribeAndHidesProgressDetail() {
         let state = MainWindowState()
         state.selectedItem = .library
