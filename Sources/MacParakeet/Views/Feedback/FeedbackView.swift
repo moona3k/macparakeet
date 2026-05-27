@@ -254,11 +254,16 @@ struct FeedbackView: View {
                             guard let url, error == nil else { return }
                             let tmpDirectory = FileManager.default.temporaryDirectory
                                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
-                            try? FileManager.default.createDirectory(at: tmpDirectory, withIntermediateDirectories: true)
                             let tmp = tmpDirectory.appendingPathComponent(url.lastPathComponent)
-                            try? FileManager.default.removeItem(at: tmp)
-                            try? FileManager.default.copyItem(at: url, to: tmp)
+                            do {
+                                try FileManager.default.createDirectory(at: tmpDirectory, withIntermediateDirectories: true)
+                                try FileManager.default.copyItem(at: url, to: tmp)
+                            } catch {
+                                try? FileManager.default.removeItem(at: tmpDirectory)
+                                return
+                            }
                             Task { @MainActor in
+                                defer { try? FileManager.default.removeItem(at: tmpDirectory) }
                                 viewModel.handleScreenshotDrop(url: tmp)
                             }
                         }

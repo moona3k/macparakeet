@@ -29,16 +29,19 @@ public final class FeedbackViewModel {
     public var email: String = ""
     public var screenshotAttachments: [FeedbackScreenshotAttachment] = []
     public var showSystemInfo: Bool = false
+    private var pendingScreenshotFilename: String?
 
     public var screenshotData: Data? {
         get { screenshotAttachments.first?.data }
         set {
             guard let newValue else {
                 screenshotAttachments = []
+                pendingScreenshotFilename = nil
                 return
             }
-            let filename = screenshotFilename ?? "screenshot.png"
+            let filename = screenshotFilename ?? pendingScreenshotFilename ?? "screenshot.png"
             screenshotAttachments = [FeedbackScreenshotAttachment(filename: filename, data: newValue)]
+            pendingScreenshotFilename = nil
         }
     }
 
@@ -47,10 +50,11 @@ public final class FeedbackViewModel {
         set {
             guard let newValue else {
                 screenshotAttachments = []
+                pendingScreenshotFilename = nil
                 return
             }
             guard let first = screenshotAttachments.first else {
-                screenshotAttachments = [FeedbackScreenshotAttachment(filename: newValue, data: Data())]
+                pendingScreenshotFilename = newValue
                 return
             }
             screenshotAttachments[0] = FeedbackScreenshotAttachment(id: first.id, filename: newValue, data: first.data)
@@ -114,6 +118,7 @@ public final class FeedbackViewModel {
 
     public func removeScreenshot() {
         screenshotAttachments = []
+        pendingScreenshotFilename = nil
     }
 
     private func attachScreenshots(from urls: [URL]) {
@@ -141,7 +146,7 @@ public final class FeedbackViewModel {
                 throw ScreenshotAttachmentError.tooLarge
             }
 
-            let data = try Data(contentsOf: url, options: .mappedIfSafe)
+            let data = try Data(contentsOf: url)
             guard data.count <= Self.maxScreenshotSizeBytes else {
                 throw ScreenshotAttachmentError.tooLarge
             }
@@ -250,6 +255,7 @@ public final class FeedbackViewModel {
         message = ""
         email = ""
         screenshotAttachments = []
+        pendingScreenshotFilename = nil
         showSystemInfo = false
         submissionState = .idle
     }

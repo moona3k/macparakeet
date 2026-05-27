@@ -48,8 +48,8 @@ public struct FeedbackPayload: Sendable, Encodable {
         self.category = category
         self.message = message
         self.email = email
-        self.screenshotBase64 = screenshotBase64 ?? normalizedScreenshots.first?.base64
-        self.screenshotFilename = screenshotFilename ?? normalizedScreenshots.first?.filename
+        self.screenshotBase64 = normalizedScreenshots.first?.base64 ?? screenshotBase64
+        self.screenshotFilename = normalizedScreenshots.first?.filename ?? screenshotFilename
         self.screenshots = normalizedScreenshots
         self.systemInfo = systemInfo
     }

@@ -203,6 +203,17 @@ final class FeedbackViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.screenshotAttachments, [second])
     }
 
+    func testLegacyFilenameSetterBeforeDataDoesNotCreateEmptyAttachment() {
+        viewModel.screenshotFilename = "later.png"
+
+        XCTAssertTrue(viewModel.screenshotAttachments.isEmpty)
+
+        viewModel.screenshotData = Data([0x01])
+
+        XCTAssertEqual(viewModel.screenshotFilename, "later.png")
+        XCTAssertEqual(viewModel.screenshotData, Data([0x01]))
+    }
+
     // MARK: - System Info
 
     func testSystemInfoReturnsCurrentInfo() {

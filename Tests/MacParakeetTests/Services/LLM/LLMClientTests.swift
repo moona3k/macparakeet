@@ -1025,6 +1025,7 @@ final class LLMClientTests: XCTestCase {
                 {"id":"text-embedding-3-large"},
                 {"id":"omni-moderation-latest"},
                 {"id":"chatgpt-4o-latest"},
+                {"id":"o2-mini"},
                 {"id":"o4-mini"}
               ]
             }
@@ -1033,7 +1034,7 @@ final class LLMClientTests: XCTestCase {
 
         let models = try await llmClient.listModels(config: .openai(apiKey: "sk-test"))
 
-        XCTAssertEqual(models, ["chatgpt-4o-latest", "gpt-4.1-mini", "gpt-5.5", "o4-mini"])
+        XCTAssertEqual(models, ["chatgpt-4o-latest", "gpt-4.1-mini", "gpt-5.5", "o2-mini", "o4-mini"])
     }
 
     func testGeminiListModelsUsesNativeModelsEndpoint() async throws {

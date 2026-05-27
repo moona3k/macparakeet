@@ -831,10 +831,8 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         guard !unsupportedSubstrings.contains(where: lowered.contains) else { return false }
         guard !lowered.hasSuffix("-pro") else { return false }
         return lowered.hasPrefix("gpt-")
-            || lowered.hasPrefix("o1")
-            || lowered.hasPrefix("o3")
-            || lowered.hasPrefix("o4")
             || lowered.hasPrefix("chatgpt-")
+            || (lowered.hasPrefix("o") && lowered.dropFirst().first?.isNumber == true)
     }
 
     private static func responseFormat(from format: ChatResponseFormat?) -> OpenAIResponseFormat? {
