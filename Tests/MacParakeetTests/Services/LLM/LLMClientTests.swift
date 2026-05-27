@@ -947,7 +947,13 @@ final class LLMClientTests: XCTestCase {
         MockURLProtocol.handler = { request in
             capturedRequest = request
             return (self.okResponse(for: request), Data("""
-            {"models":[{"name":"qwen3.5:4b"},{"name":"gemma3:4b"}]}
+            {
+              "models": [
+                {"name":"qwen3.5:4b"},
+                {"name":"gemma3:4b"},
+                {"name":"nomic-embed-text"}
+              ]
+            }
             """.utf8))
         }
 
@@ -1038,6 +1044,31 @@ final class LLMClientTests: XCTestCase {
         XCTAssertEqual(models, ["chatgpt-4o-latest", "gpt-4.1-mini", "gpt-5.5", "o2-mini", "o4-mini"])
     }
 
+    func testOpenAICompatibleListModelsFiltersObviousNonTextModels() async throws {
+        MockURLProtocol.handler = { request in
+            XCTAssertEqual(request.url?.absoluteString, "https://custom.example.test/v1/models")
+            return (self.okResponse(for: request), Data("""
+            {
+              "data": [
+                {"id":"llama-3.1-8b-instruct"},
+                {"id":"text-embedding-3-large"},
+                {"id":"stable-diffusion-xl"},
+                {"id":"whisper-large-v3"},
+                {"id":"bge-reranker-v2"}
+              ]
+            }
+            """.utf8))
+        }
+
+        let config = LLMProviderConfig.openaiCompatible(
+            model: "llama-3.1-8b-instruct",
+            baseURL: URL(string: "https://custom.example.test/v1")!
+        )
+        let models = try await llmClient.listModels(config: config)
+
+        XCTAssertEqual(models, ["llama-3.1-8b-instruct"])
+    }
+
     func testGeminiListModelsUsesNativeModelsEndpoint() async throws {
         var capturedRequest: URLRequest?
 
@@ -1049,6 +1080,14 @@ final class LLMClientTests: XCTestCase {
                 {
                   "name": "models/text-embedding-004",
                   "supportedGenerationMethods": ["embedContent"]
+                },
+                {
+                  "name": "models/gemini-3-pro-image-preview",
+                  "supportedGenerationMethods": ["generateContent"]
+                },
+                {
+                  "name": "models/nano-banana-pro-preview",
+                  "supportedGenerationMethods": ["generateContent"]
                 },
                 {
                   "name": "models/gemini-3.5-flash",
@@ -1102,13 +1141,65 @@ final class LLMClientTests: XCTestCase {
         XCTAssertEqual(models, ["gemini-3.5-flash"])
     }
 
+    func testOpenRouterListModelsRequestsTextOutputAndFiltersModalities() async throws {
+        var capturedRequest: URLRequest?
+
+        MockURLProtocol.handler = { request in
+            capturedRequest = request
+            return (self.okResponse(for: request), Data("""
+            {
+              "data": [
+                {
+                  "id":"openai/gpt-5.5",
+                  "architecture": {
+                    "input_modalities": ["text"],
+                    "output_modalities": ["text"]
+                  }
+                },
+                {
+                  "id":"google/gemini-3-pro-image-preview",
+                  "architecture": {
+                    "input_modalities": ["text"],
+                    "output_modalities": ["image"]
+                  }
+                },
+                {
+                  "id":"openai/text-embedding-3-large",
+                  "architecture": {
+                    "input_modalities": ["text"],
+                    "output_modalities": ["embeddings"]
+                  }
+                },
+                {
+                  "id":"anthropic/claude-sonnet-4.6"
+                }
+              ]
+            }
+            """.utf8))
+        }
+
+        let models = try await llmClient.listModels(config: .openrouter(apiKey: "sk-or-test"))
+
+        XCTAssertEqual(capturedRequest?.url?.path, "/api/v1/models")
+        let queryItems = URLComponents(url: try XCTUnwrap(capturedRequest?.url), resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .reduce(into: [String: String]()) { result, item in result[item.name] = item.value }
+        XCTAssertEqual(queryItems?["output_modalities"], "text")
+        XCTAssertEqual(models, ["anthropic/claude-sonnet-4.6", "openai/gpt-5.5"])
+    }
+
     func testAnthropicListModelsRequestsLargePageWithNativeHeaders() async throws {
         var capturedRequest: URLRequest?
 
         MockURLProtocol.handler = { request in
             capturedRequest = request
             return (self.okResponse(for: request), Data("""
-            {"data":[{"id":"claude-sonnet-4-6"}]}
+            {
+              "data": [
+                {"id":"claude-sonnet-4-6","type":"model"},
+                {"id":"workspace-audit-log","type":"audit_log"}
+              ]
+            }
             """.utf8))
         }
 

@@ -624,7 +624,7 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         if config.id.modelListEndpoint == .gemini,
            let modelsResponse = try? JSONDecoder().decode(GeminiModelsListResponse.self, from: data) {
             return modelsResponse.models
-                .filter { $0.supportedGenerationMethods?.contains("generateContent") ?? true }
+                .filter(Self.isGeminiTextLLMModel)
                 .map { entry in
                     entry.name.hasPrefix("models/") ? String(entry.name.dropFirst(7)) : entry.name
                 }
@@ -633,12 +633,8 @@ public final class LLMClient: LLMClientProtocol, Sendable {
 
         // Try OpenAI-compatible format: { "data": [{ "id": "..." }] }
         if let modelsResponse = try? JSONDecoder().decode(ModelsListResponse.self, from: data) {
-            let models = modelsResponse.data
-                .map { id in
-                    // Gemini returns "models/gemini-2.5-flash" — strip prefix
-                    id.id.hasPrefix("models/") ? String(id.id.dropFirst(7)) : id.id
-                }
-            return Self.filterListedModels(models, for: config)
+            return Self.filterListedModels(modelsResponse.data, for: config)
+                .map(\.id)
                 .sorted()
         }
 
@@ -667,7 +663,10 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         }
 
         let tags = try JSONDecoder().decode(OllamaTagsResponse.self, from: data)
-        return tags.models.map(\.name).sorted()
+        let entries = tags.models.map { ModelsListResponse.ModelEntry(id: $0.name) }
+        return Self.filterListedModels(entries, for: config)
+            .map(\.id)
+            .sorted()
     }
 
     private static func ollamaTagsURL(from baseURL: URL) -> URL? {
@@ -694,6 +693,13 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         }
         if config.id.modelListEndpoint == .gemini,
            let url = geminiModelsURL(from: config.baseURL, apiKey: config.apiKey) {
+            return url
+        }
+        if config.id == .openrouter,
+           let url = urlByAppendingQueryItems(
+            [URLQueryItem(name: "output_modalities", value: "text")],
+            to: config.baseURL.appendingPathComponent("models")
+           ) {
             return url
         }
         return config.baseURL.appendingPathComponent("models")
@@ -808,26 +814,105 @@ public final class LLMClient: LLMClientProtocol, Sendable {
         return false
     }
 
-    private static func filterListedModels(_ models: [String], for config: LLMProviderConfig) -> [String] {
-        guard config.id == .openai else { return models }
-        return models.filter(isOpenAIStreamingChatModel)
+    private static func filterListedModels(
+        _ models: [ModelsListResponse.ModelEntry],
+        for config: LLMProviderConfig
+    ) -> [ModelsListResponse.ModelEntry] {
+        models
+            .map { entry in
+                var normalized = entry
+                if normalized.id.hasPrefix("models/") {
+                    normalized.id = String(normalized.id.dropFirst(7))
+                }
+                return normalized
+            }
+            .filter { entry in
+                switch config.id {
+                case .anthropic:
+                    return isAnthropicTextLLMModel(entry)
+                case .openai:
+                    return isOpenAIStreamingChatModel(entry.id)
+                case .openrouter:
+                    return isOpenRouterTextLLMModel(entry)
+                case .gemini:
+                    return isGeminiTextLLMModelID(entry.id)
+                case .openaiCompatible, .lmstudio, .ollama:
+                    return !isClearlyNonTextModelID(entry.id)
+                case .localCLI:
+                    return false
+                }
+            }
+    }
+
+    private static func isAnthropicTextLLMModel(_ model: ModelsListResponse.ModelEntry) -> Bool {
+        if let type = model.type?.lowercased(), type != "model" { return false }
+        return model.id.lowercased().hasPrefix("claude-")
+    }
+
+    private static func isOpenRouterTextLLMModel(_ model: ModelsListResponse.ModelEntry) -> Bool {
+        if !supportsTextInputOutput(model.architecture) { return false }
+        return !isClearlyNonTextModelID(model.id)
+    }
+
+    private static func isGeminiTextLLMModel(_ model: GeminiModelsListResponse.ModelEntry) -> Bool {
+        if let methods = model.supportedGenerationMethods, !methods.contains("generateContent") {
+            return false
+        }
+        let id = model.name.hasPrefix("models/") ? String(model.name.dropFirst(7)) : model.name
+        return isGeminiTextLLMModelID(id)
+    }
+
+    private static func isGeminiTextLLMModelID(_ model: String) -> Bool {
+        let lowered = model.lowercased()
+        guard lowered.hasPrefix("gemini-") || lowered.hasPrefix("gemma-") else { return false }
+        return !isClearlyNonTextModelID(model)
+    }
+
+    private static func supportsTextInputOutput(_ architecture: ModelsListResponse.ModelArchitecture?) -> Bool {
+        guard let architecture else { return true }
+        if let inputModalities = architecture.input_modalities?.map({ $0.lowercased() }),
+           !inputModalities.contains("text") {
+            return false
+        }
+        if let outputModalities = architecture.output_modalities?.map({ $0.lowercased() }) {
+            guard outputModalities.contains("text") else { return false }
+            let unsupportedOutputs = ["audio", "embeddings", "image", "video"]
+            guard !outputModalities.contains(where: unsupportedOutputs.contains) else { return false }
+        }
+        return true
+    }
+
+    private static func isClearlyNonTextModelID(_ model: String) -> Bool {
+        let lowered = model.lowercased()
+        let unsupportedSubstrings = [
+            "audio",
+            "clip",
+            "computer-use",
+            "dall-e",
+            "diffusion",
+            "embed",
+            "image",
+            "imagen",
+            "lyria",
+            "moderation",
+            "nano-banana",
+            "realtime",
+            "rerank",
+            "robotics",
+            "sora",
+            "speech",
+            "transcribe",
+            "tts",
+            "veo",
+            "video",
+            "whisper",
+        ]
+        return unsupportedSubstrings.contains(where: lowered.contains)
     }
 
     private static func isOpenAIStreamingChatModel(_ model: String) -> Bool {
         let lowered = model.lowercased()
-        let unsupportedSubstrings = [
-            "audio",
-            "dall-e",
-            "embedding",
-            "image",
-            "moderation",
-            "realtime",
-            "sora",
-            "transcribe",
-            "tts",
-            "whisper",
-        ]
-        guard !unsupportedSubstrings.contains(where: lowered.contains) else { return false }
+        guard !isClearlyNonTextModelID(model) else { return false }
         guard !lowered.hasSuffix("-pro") else { return false }
         return lowered.hasPrefix("gpt-")
             || lowered.hasPrefix("chatgpt-")
@@ -1199,7 +1284,20 @@ struct ModelsListResponse: Decodable {
     let data: [ModelEntry]
 
     struct ModelEntry: Decodable {
-        let id: String
+        var id: String
+        let type: String?
+        let architecture: ModelArchitecture?
+
+        init(id: String, type: String? = nil, architecture: ModelArchitecture? = nil) {
+            self.id = id
+            self.type = type
+            self.architecture = architecture
+        }
+    }
+
+    struct ModelArchitecture: Decodable {
+        let input_modalities: [String]?
+        let output_modalities: [String]?
     }
 }
 
