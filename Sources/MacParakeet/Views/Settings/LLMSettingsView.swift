@@ -142,29 +142,11 @@ struct LLMSettingsView: View {
 
             Divider()
 
-            aiFormatterSection
+            configurationActionsRow
 
             Divider()
 
-            // Save / Clear
-            HStack(spacing: DesignSystem.Spacing.sm) {
-                Button("Save") {
-                    viewModel.saveConfiguration()
-                }
-                .parakeetAction(.primaryProminent)
-                .disabled(!viewModel.canSave)
-
-                if viewModel.isConfigured {
-                    Button("Clear", role: .destructive) {
-                        viewModel.clearConfiguration()
-                    }
-                    .parakeetAction(.destructive)
-                }
-
-                saveStateIndicator
-
-                Spacer()
-            }
+            aiFormatterSection
         }
     }
 
@@ -516,6 +498,27 @@ struct LLMSettingsView: View {
                       ? DesignSystem.Colors.successGreen.opacity(0.06)
                       : DesignSystem.Colors.warningAmber.opacity(0.06))
         )
+    }
+
+    private var configurationActionsRow: some View {
+        HStack(spacing: DesignSystem.Spacing.sm) {
+            Button("Save") {
+                viewModel.saveConfiguration()
+            }
+            .parakeetAction(.primaryProminent)
+            .disabled(!viewModel.canSave)
+
+            if viewModel.isConfigured {
+                Button("Clear", role: .destructive) {
+                    viewModel.clearConfiguration()
+                }
+                .parakeetAction(.destructive)
+            }
+
+            saveStateIndicator
+
+            Spacer()
+        }
     }
 
     @ViewBuilder
