@@ -839,13 +839,17 @@ private struct CalendarEventRow: View {
         return "\(count) \(count == 1 ? "person" : "people")"
     }
 
-    private var eventDateText: String {
+    private static let eventDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = .autoupdatingCurrent
         formatter.dateStyle = .medium
         formatter.timeStyle = .none
         formatter.doesRelativeDateFormatting = true
-        return formatter.string(from: event.startTime)
+        return formatter
+    }()
+
+    private var eventDateText: String {
+        Self.eventDateFormatter.string(from: event.startTime)
     }
 }
 
