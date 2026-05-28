@@ -1,3 +1,4 @@
+import EventKit
 import SwiftUI
 import MacParakeetCore
 import MacParakeetViewModels
@@ -41,6 +42,9 @@ struct MeetingsView: View {
             viewModel.refreshUpcomingEvents()
         }
         .onChange(of: viewModel.settingsViewModel.calendarExcludedIdentifiers) { _, _ in
+            viewModel.refreshUpcomingEvents()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in
             viewModel.refreshUpcomingEvents()
         }
         .alert(
@@ -349,6 +353,7 @@ struct MeetingsView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(DesignSystem.Colors.textTertiary)
                 .help("Clear search")
+                .accessibilityLabel("Clear meeting search")
             }
         }
         .padding(.horizontal, DesignSystem.Spacing.md)
@@ -741,6 +746,7 @@ private struct IntelligenceReadyRow: View {
             }
             .parakeetAction(.secondary)
             .help("Open AI Settings")
+            .accessibilityLabel("Open AI Settings")
         }
         .padding(DesignSystem.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
