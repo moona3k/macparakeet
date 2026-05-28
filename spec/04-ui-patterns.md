@@ -11,11 +11,12 @@ MacParakeet has these primary UI surfaces:
 4. **Meeting Recording Tile** -- Capture tile on the Transcribe tab; reflects live recording state
 5. **Meeting Recording Pill** -- Persistent floating pill during meeting recording (sacred geometry icon); shares state with the Transcribe tile
 6. **Meeting Recording Panel** -- Floating Notes / Transcript / Ask panel with audio levels and stop controls
-7. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
-8. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
-9. **Menu Bar** -- Quick access and status
-10. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start
-11. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls appear once Calendar access is granted
+7. **Meetings Workspace** -- Dedicated route for upcoming, live, and saved meeting work
+8. **Transforms Tab** -- Productized selected-text rewrite management for `Polish`, `Distill`, `Decide`, and custom Transforms
+9. **Transform Progress Pill** -- Floating progress/cancel surface while a Transform is running
+10. **Menu Bar** -- Quick access and status
+11. **Calendar Countdown Toasts** -- Implemented and enabled (`AppFeatures.calendarEnabled = true`); surface only when a user opts into calendar auto-start
+12. **Settings** -- Preferences, permissions, local speech models, and update controls; calendar controls appear once Calendar access is granted
 
 Design philosophy: **Simple, native, stays out of the way.** No chrome, no clutter. The app should feel like part of macOS, not a web app in a wrapper.
 
@@ -69,12 +70,18 @@ The sidebar uses NavigationSplitView with flat items (icon + label):
 - **Transcribe** (`waveform`) -- Capture hub: YouTube card + file drop card + Meeting Recording tile
 - **Library** (`square.grid.2x2`) -- All transcriptions; filter chips switch between thumbnail grid (All/YouTube/Local/Favorites) and date-grouped list (Meetings)
 - **Dictations** (`clock.arrow.circlepath`) -- Flat history list with bottom bar player
+- **Meetings** (`person.2.wave.2`) -- Workflow space for upcoming, live, and saved meeting work; visible when `AppFeatures.meetingRecordingEnabled` is true
 - **Vocabulary** (`book.fill`) -- Processing mode, pipeline guide, custom words & snippets management
 - **Transforms** (`sparkles`) -- Saved selected-text rewrites backed by `.transform` prompt rows; visible when `AppFeatures.transformsEnabled` is true
 - **Feedback** (`bubble.left.and.text.bubble.right`) -- Bug reports, feature requests, community link
 - **Settings** (`gearshape`) -- Dictation prefs, meeting recording prefs, storage, permissions
 
-There is no dedicated Meetings tab. Meeting **capture** lives on the Transcribe tile (plus hotkey + menu bar); meeting **browse** lives under Library's Meetings filter. Reason: a separate sidebar entry was a third entry point for an action already covered by hotkey + menu bar, and meetings have no thumbnail-worthy visual asset, so the date-grouped list (preview text + speaker count) belongs in the unified Library rather than a dedicated tab.
+Meetings now has a dedicated workspace while remaining visible in Library.
+Meeting **capture** still lives on the Transcribe tile, hotkey, menu bar, and
+Meetings workspace; meeting **browse** lives both in the Meetings workspace and
+under Library's Meetings filter. Reason: Library remains the universal archive,
+while Meetings is the workflow surface for upcoming calendar context, the active
+recording state, recent meetings, recovery states, and intelligence readiness.
 
 Column width: `min: 160, ideal: 180, max: 220`. Window minimum width: 800pt.
 

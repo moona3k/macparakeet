@@ -1,7 +1,7 @@
 # Meetings Workspace Plan
 
 Date: 2026-05-27
-Status: Planned
+Status: Active; foundation workspace implemented
 
 ## Decision
 
