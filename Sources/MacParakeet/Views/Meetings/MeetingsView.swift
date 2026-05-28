@@ -14,6 +14,7 @@ struct MeetingsView: View {
     var onSelectMeeting: (Transcription) -> Void
 
     @State private var audioSaveErrorMessage: String?
+    @State private var showingAskPromptsSheet = false
 
     var body: some View {
         ScrollView {
@@ -59,6 +60,13 @@ struct MeetingsView: View {
             }
         } message: {
             Text(audioSaveErrorMessage ?? "Unable to save meeting audio.")
+        }
+        .sheet(isPresented: $showingAskPromptsSheet, onDismiss: {
+            viewModel.quickPromptsViewModel.cancelCreating()
+            viewModel.quickPromptsViewModel.editingPrompt = nil
+            viewModel.refreshQuickPrompts()
+        }) {
+            AskPromptsSheet(viewModel: viewModel.quickPromptsViewModel)
         }
     }
 
@@ -106,6 +114,7 @@ struct MeetingsView: View {
                 VStack(alignment: .leading, spacing: DesignSystem.Spacing.lg) {
                     attentionSection
                     intelligenceSection
+                    meetingPromptsSection
                 }
                 .frame(minWidth: 280, maxWidth: 340, alignment: .topLeading)
             }
@@ -115,6 +124,7 @@ struct MeetingsView: View {
                 recentMeetingsSection
                 attentionSection
                 intelligenceSection
+                meetingPromptsSection
             }
         }
     }
@@ -245,6 +255,22 @@ struct MeetingsView: View {
                     action: onOpenAISettings
                 )
             }
+        }
+    }
+
+    private var meetingPromptsSection: some View {
+        MeetingsSection(title: "Meeting Prompts", icon: "text.bubble") {
+            LiveAskPromptRow(
+                pinnedCount: viewModel.liveAskPromptVisiblePinnedCount,
+                previewPrompts: viewModel.liveAskPromptPreviewPrompts,
+                onManage: {
+                    showingAskPromptsSheet = true
+                },
+                onCreate: {
+                    viewModel.quickPromptsViewModel.startCreating()
+                    showingAskPromptsSheet = true
+                }
+            )
         }
     }
 
@@ -755,6 +781,104 @@ private struct IntelligenceReadyRow: View {
         }
         .padding(DesignSystem.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct LiveAskPromptRow: View {
+    let pinnedCount: Int
+    let previewPrompts: [QuickPrompt]
+    var onManage: () -> Void
+    var onCreate: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignSystem.Spacing.md) {
+            HStack(alignment: .top, spacing: DesignSystem.Spacing.md) {
+                Image(systemName: "quote.bubble")
+                    .font(.system(size: 17, weight: .medium))
+                    .foregroundStyle(DesignSystem.Colors.accent)
+                    .frame(width: 22)
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(alignment: .firstTextBaseline, spacing: 7) {
+                        Text("Live Ask")
+                            .font(DesignSystem.Typography.body.weight(.semibold))
+                            .foregroundStyle(DesignSystem.Colors.textPrimary)
+
+                        if pinnedCount > 0 {
+                            Text("\(pinnedCount) pinned")
+                                .font(DesignSystem.Typography.micro.weight(.semibold))
+                                .foregroundStyle(DesignSystem.Colors.accent)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Capsule().fill(DesignSystem.Colors.accent.opacity(0.12)))
+                        }
+                    }
+
+                    Text("Quick prompts available while a meeting is live.")
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Spacer(minLength: DesignSystem.Spacing.sm)
+            }
+
+            promptPreview
+
+            HStack(spacing: DesignSystem.Spacing.sm) {
+                Button(action: onManage) {
+                    Label("Manage", systemImage: "slider.horizontal.3")
+                }
+                .parakeetAction(.secondary)
+
+                Button(action: onCreate) {
+                    Label("New", systemImage: "plus")
+                }
+                .parakeetAction(.subtle)
+
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var promptPreview: some View {
+        if previewPrompts.isEmpty {
+            Text("No pinned prompts yet.")
+                .font(DesignSystem.Typography.caption)
+                .foregroundStyle(DesignSystem.Colors.textTertiary)
+        } else {
+            HStack(spacing: 6) {
+                ForEach(previewPrompts) { prompt in
+                    Text(prompt.label)
+                        .font(DesignSystem.Typography.micro.weight(.medium))
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: 92, alignment: .leading)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(
+                            Capsule()
+                                .fill(DesignSystem.Colors.surfaceElevated.opacity(0.72))
+                        )
+                        .overlay(
+                            Capsule()
+                                .strokeBorder(DesignSystem.Colors.border.opacity(0.5), lineWidth: 0.5)
+                        )
+                }
+
+                if pinnedCount > previewPrompts.count {
+                    Text("+\(pinnedCount - previewPrompts.count)")
+                        .font(DesignSystem.Typography.micro.weight(.semibold))
+                        .foregroundStyle(DesignSystem.Colors.textTertiary)
+                        .fixedSize()
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
     }
 }
 

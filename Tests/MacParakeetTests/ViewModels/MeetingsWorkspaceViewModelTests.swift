@@ -93,6 +93,81 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
         XCTAssertEqual(viewModel.intelligenceStatus, .setupNeeded)
     }
 
+    func testConfigureLoadsLiveAskPromptPreview() throws {
+        let manager = try DatabaseManager()
+        let quickPromptRepo = QuickPromptRepository(dbQueue: manager.dbQueue)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let viewModel = makeViewModel()
+
+        viewModel.configure(
+            transcriptionRepo: transcriptionRepo,
+            quickPromptRepo: quickPromptRepo
+        )
+
+        XCTAssertEqual(
+            viewModel.quickPromptsViewModel.pinnedCount,
+            QuickPrompt.builtInPrompts().filter(\.isPinned).count
+        )
+        XCTAssertEqual(
+            viewModel.liveAskPromptVisiblePinnedCount,
+            viewModel.quickPromptsViewModel.visiblePinned.count
+        )
+        XCTAssertEqual(
+            viewModel.liveAskPromptPreviewPrompts.map(\.label),
+            viewModel.quickPromptsViewModel.visiblePinned.prefix(2).map(\.label)
+        )
+    }
+
+    func testRefreshQuickPromptsIsSafeBeforeRepositoryConfiguration() {
+        let viewModel = makeViewModel()
+
+        viewModel.refreshQuickPrompts()
+
+        XCTAssertTrue(viewModel.liveAskPromptPreviewPrompts.isEmpty)
+        XCTAssertEqual(viewModel.liveAskPromptVisiblePinnedCount, 0)
+        XCTAssertEqual(viewModel.quickPromptsViewModel.pinnedCount, 0)
+    }
+
+    func testLiveAskPromptPreviewIsEmptyWhenNoPromptsArePinned() throws {
+        let manager = try DatabaseManager()
+        let quickPromptRepo = QuickPromptRepository(dbQueue: manager.dbQueue)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let viewModel = makeViewModel()
+        viewModel.configure(
+            transcriptionRepo: transcriptionRepo,
+            quickPromptRepo: quickPromptRepo
+        )
+
+        for prompt in viewModel.quickPromptsViewModel.allPinned {
+            try quickPromptRepo.setPinned(id: prompt.id, isPinned: false)
+        }
+        viewModel.refreshQuickPrompts()
+
+        XCTAssertTrue(viewModel.liveAskPromptPreviewPrompts.isEmpty)
+        XCTAssertEqual(viewModel.liveAskPromptVisiblePinnedCount, 0)
+        XCTAssertEqual(viewModel.quickPromptsViewModel.pinnedCount, 0)
+    }
+
+    func testLiveAskPromptCountTracksVisiblePinnedPromptsAfterHiding() throws {
+        let manager = try DatabaseManager()
+        let quickPromptRepo = QuickPromptRepository(dbQueue: manager.dbQueue)
+        let transcriptionRepo = TranscriptionRepository(dbQueue: manager.dbQueue)
+        let viewModel = makeViewModel()
+        viewModel.configure(
+            transcriptionRepo: transcriptionRepo,
+            quickPromptRepo: quickPromptRepo
+        )
+
+        for prompt in viewModel.quickPromptsViewModel.visiblePinned {
+            try quickPromptRepo.toggleVisibility(id: prompt.id)
+        }
+        viewModel.refreshQuickPrompts()
+
+        XCTAssertTrue(viewModel.liveAskPromptPreviewPrompts.isEmpty)
+        XCTAssertEqual(viewModel.liveAskPromptVisiblePinnedCount, 0)
+        XCTAssertEqual(viewModel.quickPromptsViewModel.pinnedCount, 0)
+    }
+
     private func makeViewModel(
         calendarMode: CalendarAutoStartMode = .off,
         triggerFilter: MeetingTriggerFilter = .withLink,

@@ -108,7 +108,10 @@ final class AppEnvironmentConfigurer {
         )
         historyViewModel.configure(dictationRepo: env.dictationRepo)
         libraryViewModel.configure(transcriptionRepo: env.transcriptionRepo)
-        meetingsWorkspaceViewModel.configure(transcriptionRepo: env.transcriptionRepo)
+        meetingsWorkspaceViewModel.configure(
+            transcriptionRepo: env.transcriptionRepo,
+            quickPromptRepo: env.quickPromptRepo
+        )
         settingsViewModel.configure(
             permissionService: env.permissionService,
             dictationRepo: env.dictationRepo,

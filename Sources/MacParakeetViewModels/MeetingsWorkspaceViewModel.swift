@@ -70,6 +70,7 @@ public final class MeetingsWorkspaceViewModel {
     public let meetingPillViewModel: MeetingRecordingPillViewModel
     public let settingsViewModel: SettingsViewModel
     public let llmSettingsViewModel: LLMSettingsViewModel
+    public let quickPromptsViewModel: QuickPromptsViewModel
 
     public private(set) var upcomingEvents: [CalendarEvent] = []
     public private(set) var isLoadingUpcomingEvents = false
@@ -87,12 +88,14 @@ public final class MeetingsWorkspaceViewModel {
         meetingPillViewModel: MeetingRecordingPillViewModel,
         settingsViewModel: SettingsViewModel,
         llmSettingsViewModel: LLMSettingsViewModel,
+        quickPromptsViewModel: QuickPromptsViewModel? = nil,
         calendarService: any CalendarServicing = CalendarService.shared
     ) {
         self.recentMeetingsViewModel = recentMeetingsViewModel
         self.meetingPillViewModel = meetingPillViewModel
         self.settingsViewModel = settingsViewModel
         self.llmSettingsViewModel = llmSettingsViewModel
+        self.quickPromptsViewModel = quickPromptsViewModel ?? QuickPromptsViewModel()
         self.calendarService = calendarService
     }
 
@@ -100,14 +103,21 @@ public final class MeetingsWorkspaceViewModel {
         upcomingEventsTask?.cancel()
     }
 
-    public func configure(transcriptionRepo: TranscriptionRepositoryProtocol) {
+    public func configure(
+        transcriptionRepo: TranscriptionRepositoryProtocol,
+        quickPromptRepo: QuickPromptRepositoryProtocol? = nil
+    ) {
         recentMeetingsViewModel.configure(transcriptionRepo: transcriptionRepo)
+        if let quickPromptRepo {
+            quickPromptsViewModel.configure(repo: quickPromptRepo)
+        }
     }
 
     public func refresh() {
         hasLoadedInitialState = true
         refreshRecentMeetings()
         refreshUpcomingEvents()
+        refreshQuickPrompts()
     }
 
     public func refreshIfNeeded() {
@@ -159,6 +169,18 @@ public final class MeetingsWorkspaceViewModel {
         }
         upcomingEventsTask = task
         return task
+    }
+
+    public func refreshQuickPrompts() {
+        quickPromptsViewModel.refresh()
+    }
+
+    public var liveAskPromptVisiblePinnedCount: Int {
+        quickPromptsViewModel.visiblePinned.count
+    }
+
+    public var liveAskPromptPreviewPrompts: [QuickPrompt] {
+        Array(quickPromptsViewModel.visiblePinned.prefix(2))
     }
 
     public var recordingStatus: RecordingStatus {
