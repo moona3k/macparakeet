@@ -285,6 +285,19 @@ public final class MeetingsWorkspaceViewModel {
             && settingsViewModel.calendarPermissionStatus == .granted
     }
 
+    /// Decides which fetched events appear in the "Upcoming" preview.
+    ///
+    /// This must stay faithful to what the auto-start/reminder pipeline would
+    /// actually act on, so the preview never promises behavior the coordinator
+    /// won't deliver. It mirrors the end-to-end candidate set of
+    /// `MeetingAutoStartCoordinator` + `MeetingMonitor.evaluate`:
+    ///   - exclude all-day and RSVP-declined events (`MeetingMonitor` candidate filter),
+    ///   - exclude calendars the user opted out of (`filterByIncludedCalendars`),
+    ///   - apply the trigger filter (`MeetingMonitor.passesFilter`),
+    ///   - in `.autoStart` mode, additionally hide `.pending` invites, since
+    ///     `MeetingMonitor.shouldAutoStart` won't auto-record them (reminders
+    ///     stay lenient, so `.pending` remains visible in `.notify`).
+    /// If those rules change in `MeetingMonitor`, update this in lockstep.
     private func shouldShowCalendarEvent(_ event: CalendarEvent) -> Bool {
         guard !event.isAllDay, !event.userDeclined else { return false }
 
