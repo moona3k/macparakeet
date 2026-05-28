@@ -865,7 +865,12 @@ final class DictationFlowCoordinator {
         recordingTask = Task { @MainActor in
             do {
                 try Task.checkCancellation()
-                await self.mediaPauseCoordinator.pauseBeforeDictationCapture()
+                // Fire-and-forget: the media-pause round-trip must not gate
+                // capture start, or its out-of-process now-playing lookup
+                // clips the first words of the dictation. The coordinator's
+                // generation guard keeps resume correct if capture ends before
+                // the pause settles.
+                self.mediaPauseCoordinator.requestPauseBeforeDictationCapture()
                 try Task.checkCancellation()
                 try await self.serviceSession.startRecording(
                     sessionID: sessionID,

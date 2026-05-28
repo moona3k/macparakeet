@@ -112,7 +112,8 @@ final class DictationMediaPauseCoordinatorTests: XCTestCase {
         let media = FakeSystemMediaController(pauseBehavior: .immediate(token))
         let coordinator = makeCoordinator(media: media)
 
-        await coordinator.pauseBeforeDictationCapture()
+        coordinator.requestPauseBeforeDictationCapture()
+        await coordinator.pauseTask?.value
         await coordinator.resumeAfterDictationCapture()
 
         let snapshot = media.snapshot()
@@ -126,7 +127,8 @@ final class DictationMediaPauseCoordinatorTests: XCTestCase {
         let media = FakeSystemMediaController(pauseBehavior: .immediate(token))
         let coordinator = makeCoordinator(media: media, isMeetingRecordingActive: true)
 
-        await coordinator.pauseBeforeDictationCapture()
+        coordinator.requestPauseBeforeDictationCapture()
+        await coordinator.pauseTask?.value
         await coordinator.resumeAfterDictationCapture()
 
         let snapshot = media.snapshot()
@@ -140,8 +142,10 @@ final class DictationMediaPauseCoordinatorTests: XCTestCase {
         let media = FakeSystemMediaController(pauseBehavior: .immediate(token))
         let coordinator = makeCoordinator(media: media)
 
-        await coordinator.pauseBeforeDictationCapture()
-        await coordinator.pauseBeforeDictationCapture()
+        coordinator.requestPauseBeforeDictationCapture()
+        await coordinator.pauseTask?.value
+        coordinator.requestPauseBeforeDictationCapture()
+        await coordinator.pauseTask?.value
         await coordinator.resumeAfterDictationCapture()
         await coordinator.resumeAfterDictationCapture()
 
@@ -155,12 +159,43 @@ final class DictationMediaPauseCoordinatorTests: XCTestCase {
         let media = FakeSystemMediaController(pauseBehavior: .immediate(nil))
         let coordinator = makeCoordinator(media: media)
 
-        await coordinator.pauseBeforeDictationCapture()
+        coordinator.requestPauseBeforeDictationCapture()
+        await coordinator.pauseTask?.value
         await coordinator.resumeAfterDictationCapture()
 
         let snapshot = media.snapshot()
         XCTAssertEqual(snapshot.pauseCallCount, 1)
         XCTAssertEqual(snapshot.resumeTokens, [])
+    }
+
+    /// The fix: `requestPauseBeforeDictationCapture()` must return without
+    /// waiting on the (potentially slow) now-playing round-trip, so audio
+    /// capture starts immediately and the first words are never clipped.
+    func testRequestPauseDoesNotBlockOnMediaRoundTrip() async {
+        settings.pauseMediaDuringDictation = true
+        let token = MediaPauseToken(processIdentifier: 1)
+        let media = FakeSystemMediaController(pauseBehavior: .deferred)
+        let coordinator = makeCoordinator(media: media)
+        let pauseStarted = expectation(description: "pause request started")
+        media.setPauseStartedHandler {
+            pauseStarted.fulfill()
+        }
+
+        // Synchronous: returns even though the media round-trip is still in
+        // flight (it never resolves until completeDeferredPause below).
+        coordinator.requestPauseBeforeDictationCapture()
+        await fulfillment(of: [pauseStarted], timeout: 1)
+
+        // Clean up the in-flight pause so the task settles deterministically.
+        await coordinator.resumeAfterDictationCapture()
+        media.completeDeferredPause(with: token)
+        await coordinator.pauseTask?.value
+
+        // The round-trip ran once and its late-arriving token was resumed,
+        // never left paused.
+        let snapshot = media.snapshot()
+        XCTAssertEqual(snapshot.pauseCallCount, 1)
+        XCTAssertEqual(snapshot.resumeTokens, [token])
     }
 
     func testLatePauseTokenIsReleasedIfCaptureEndsBeforePauseCompletes() async {
@@ -173,15 +208,15 @@ final class DictationMediaPauseCoordinatorTests: XCTestCase {
             pauseStarted.fulfill()
         }
 
-        let pauseTask = Task {
-            await coordinator.pauseBeforeDictationCapture()
-        }
+        coordinator.requestPauseBeforeDictationCapture()
         await fulfillment(of: [pauseStarted], timeout: 1)
 
+        // Capture ends (resume) before the pause round-trip settles.
         await coordinator.resumeAfterDictationCapture()
         media.completeDeferredPause(with: token)
-        await pauseTask.value
+        await coordinator.pauseTask?.value
 
+        // The late-arriving pause token must be resumed, not left stuck paused.
         let snapshot = media.snapshot()
         XCTAssertEqual(snapshot.pauseCallCount, 1)
         XCTAssertEqual(snapshot.resumeTokens, [token])
@@ -193,7 +228,8 @@ final class DictationMediaPauseCoordinatorTests: XCTestCase {
         let media = FakeSystemMediaController(pauseBehavior: .immediate(token))
         let coordinator = makeCoordinator(media: media)
 
-        await coordinator.pauseBeforeDictationCapture()
+        coordinator.requestPauseBeforeDictationCapture()
+        await coordinator.pauseTask?.value
         coordinator.resumeForTermination()
 
         try await waitUntil {
