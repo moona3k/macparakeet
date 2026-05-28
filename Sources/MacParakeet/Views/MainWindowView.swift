@@ -144,6 +144,7 @@ struct MainWindowView: View {
                             },
                             onSelectMeeting: { transcription in
                                 transcriptionViewModel.currentTranscription = transcription
+                                state.navigateToTranscription(from: .meetings)
                             }
                         )
                     case .library:
