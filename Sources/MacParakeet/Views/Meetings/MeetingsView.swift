@@ -40,6 +40,9 @@ struct MeetingsView: View {
         .onChange(of: viewModel.settingsViewModel.meetingTriggerFilter) { _, _ in
             viewModel.refreshUpcomingEvents()
         }
+        .onChange(of: viewModel.settingsViewModel.calendarExcludedIdentifiers) { _, _ in
+            viewModel.refreshUpcomingEvents()
+        }
         .alert(
             "Save Failed",
             isPresented: Binding(
