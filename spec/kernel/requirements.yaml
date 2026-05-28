@@ -298,7 +298,7 @@ REQ-CAL-001:
   status: implemented
 
 REQ-CAL-002:
-  description: Calendar settings and a skippable onboarding step let users grant Calendar access, choose the auto-start mode and lead time, and include specific calendars; the Meetings workspace Upcoming section additionally exposes inline mode (off/reminders/auto-start) and event-filter controls plus an Upcoming preview that mirrors the auto-start candidate rules (calendar rows appear in Settings search only when enabled, and the CLI exposes upcoming calendar events for headless verification)
+  description: Calendar settings and a skippable onboarding step let users grant Calendar access, choose the auto-start mode and lead time, and include specific calendars; the Meetings workspace Upcoming section additionally lets users connect Calendar inline (request access when not determined, deep-link to System Settings when blocked) and exposes inline mode (off/reminders/auto-start) and event-filter controls plus an Upcoming preview that mirrors the auto-start candidate rules (calendar rows appear in Settings search only when enabled, and the CLI exposes upcoming calendar events for headless verification)
   version: v0.6
   status: implemented
 

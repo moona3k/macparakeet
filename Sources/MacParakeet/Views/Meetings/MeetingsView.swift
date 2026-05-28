@@ -514,8 +514,10 @@ struct MeetingsView: View {
         switch viewModel.settingsViewModel.calendarPermissionStatus {
         case .granted:
             return "Turn on Reminders or Auto-start above to preview matching calendar events."
-        case .notDetermined, .denied:
-            return "Connect Calendar in Settings to enable reminders and auto-start."
+        case .notDetermined:
+            return "Connect Calendar above to enable reminders and auto-start."
+        case .denied:
+            return "Re-enable Calendar access in System Settings to use reminders and auto-start."
         }
     }
 
@@ -555,6 +557,8 @@ private struct CalendarInlineControlsRow: View {
     @Bindable var settingsViewModel: SettingsViewModel
     var onOpenCalendarSettings: () -> Void
 
+    @State private var isRequestingPermission = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignSystem.Spacing.sm) {
             HStack(alignment: .center, spacing: DesignSystem.Spacing.md) {
@@ -587,6 +591,15 @@ private struct CalendarInlineControlsRow: View {
                 .help("Open Calendar Settings")
             }
 
+            controlsArea
+        }
+        .padding(DesignSystem.Spacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var controlsArea: some View {
+        if controlsEnabled {
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: DesignSystem.Spacing.sm) {
                     calendarModePicker
@@ -598,11 +611,48 @@ private struct CalendarInlineControlsRow: View {
                     eventFilterPicker
                 }
             }
-            .disabled(!controlsEnabled)
-            .opacity(controlsEnabled ? 1 : 0.52)
+        } else {
+            connectCalendarControls
         }
-        .padding(DesignSystem.Spacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder
+    private var connectCalendarControls: some View {
+        switch settingsViewModel.calendarPermissionStatus {
+        case .notDetermined:
+            Button(action: connectCalendar) {
+                if isRequestingPermission {
+                    ProgressView()
+                        .controlSize(.small)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    Label("Connect Calendar", systemImage: "calendar.badge.plus")
+                        .frame(maxWidth: .infinity)
+                }
+            }
+            .parakeetAction(.secondary)
+            .disabled(isRequestingPermission)
+            .accessibilityLabel("Connect Calendar")
+        case .denied:
+            Button {
+                settingsViewModel.openCalendarSystemSettings()
+            } label: {
+                Label("Open System Settings", systemImage: "gearshape")
+                    .frame(maxWidth: .infinity)
+            }
+            .parakeetAction(.secondary)
+            .help("Calendar access is blocked — re-enable it in System Settings")
+        case .granted:
+            EmptyView()
+        }
+    }
+
+    private func connectCalendar() {
+        isRequestingPermission = true
+        Task {
+            _ = await settingsViewModel.requestCalendarPermission()
+            isRequestingPermission = false
+        }
     }
 
     private var calendarModePicker: some View {
@@ -633,7 +683,12 @@ private struct CalendarInlineControlsRow: View {
 
     private var calendarDetail: String {
         guard controlsEnabled else {
-            return "Connect Calendar before enabling reminders or auto-start."
+            switch settingsViewModel.calendarPermissionStatus {
+            case .denied:
+                return "Calendar access is blocked. Re-enable it in System Settings to use reminders."
+            case .notDetermined, .granted:
+                return "Connect your macOS Calendar to preview meetings and enable reminders."
+            }
         }
 
         switch settingsViewModel.calendarAutoStartMode {
