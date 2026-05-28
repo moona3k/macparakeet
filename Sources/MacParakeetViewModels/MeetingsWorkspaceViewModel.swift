@@ -286,8 +286,15 @@ public final class MeetingsWorkspaceViewModel {
     }
 
     private func shouldShowCalendarEvent(_ event: CalendarEvent) -> Bool {
+        guard !event.isAllDay, !event.userDeclined else { return false }
+
         if let calendarIdentifier = event.calendarIdentifier,
            settingsViewModel.calendarExcludedIdentifiers.contains(calendarIdentifier) {
+            return false
+        }
+
+        if settingsViewModel.calendarAutoStartMode == .autoStart,
+           event.userStatus == .pending {
             return false
         }
 

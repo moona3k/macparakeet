@@ -146,7 +146,7 @@ struct MeetingsView: View {
                     MeetingsInlineState(
                         icon: "calendar",
                         title: "Calendar reminders are off",
-                        detail: "Turn on Reminders or Auto-start above to preview matching calendar events.",
+                        detail: calendarOffDetail,
                         actionTitle: nil,
                         actionIcon: nil,
                         action: nil
@@ -510,6 +510,15 @@ struct MeetingsView: View {
         }
     }
 
+    private var calendarOffDetail: String {
+        switch viewModel.settingsViewModel.calendarPermissionStatus {
+        case .granted:
+            return "Turn on Reminders or Auto-start above to preview matching calendar events."
+        case .notDetermined, .denied:
+            return "Connect Calendar in Settings to enable reminders and auto-start."
+        }
+    }
+
     private func performAttentionAction(_ action: MeetingsWorkspaceViewModel.AttentionAction) {
         switch action {
         case .recordMeeting:
@@ -589,6 +598,8 @@ private struct CalendarInlineControlsRow: View {
                     eventFilterPicker
                 }
             }
+            .disabled(!controlsEnabled)
+            .opacity(controlsEnabled ? 1 : 0.52)
         }
         .padding(DesignSystem.Spacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -604,6 +615,8 @@ private struct CalendarInlineControlsRow: View {
         .pickerStyle(.segmented)
         .controlSize(.small)
         .frame(width: 252)
+        .accessibilityLabel("Calendar behavior")
+        .accessibilityValue(calendarModeTitle)
     }
 
     private var eventFilterPicker: some View {
@@ -613,10 +626,16 @@ private struct CalendarInlineControlsRow: View {
                 Text("With participants").tag(MeetingTriggerFilter.withParticipants)
                 Text("All events").tag(MeetingTriggerFilter.allEvents)
             }
+            .accessibilityLabel("Event filter")
+            .accessibilityValue(eventFilterTitle)
         }
     }
 
     private var calendarDetail: String {
+        guard controlsEnabled else {
+            return "Connect Calendar before enabling reminders or auto-start."
+        }
+
         switch settingsViewModel.calendarAutoStartMode {
         case .off:
             return "Turn on calendar matching without leaving Meetings."
@@ -624,6 +643,32 @@ private struct CalendarInlineControlsRow: View {
             return "Preview matching events and remind before they start."
         case .autoStart:
             return "Auto-start matching meetings after a cancellable countdown."
+        }
+    }
+
+    private var controlsEnabled: Bool {
+        settingsViewModel.calendarPermissionStatus == .granted
+    }
+
+    private var calendarModeTitle: String {
+        switch settingsViewModel.calendarAutoStartMode {
+        case .off:
+            return "Off"
+        case .notify:
+            return "Reminders"
+        case .autoStart:
+            return "Auto-start"
+        }
+    }
+
+    private var eventFilterTitle: String {
+        switch settingsViewModel.meetingTriggerFilter {
+        case .withLink:
+            return "With video link"
+        case .withParticipants:
+            return "With participants"
+        case .allEvents:
+            return "All events"
         }
     }
 }

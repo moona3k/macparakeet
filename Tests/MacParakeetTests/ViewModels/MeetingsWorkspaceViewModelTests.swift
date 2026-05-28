@@ -64,6 +64,37 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
         }
     }
 
+    func testAutoStartPreviewSkipsPendingInvitations() async {
+        let calendar = MockCalendarService()
+        calendar.stubPermissionStatus = .granted
+        calendar.stubEvents = [
+            makeEvent(
+                title: "Accepted Review",
+                meetUrl: "https://zoom.us/j/123",
+                userStatus: .accepted
+            ),
+            makeEvent(
+                title: "Pending Invite",
+                meetUrl: "https://zoom.us/j/456",
+                userStatus: .pending
+            )
+        ]
+        let viewModel = makeViewModel(
+            calendarMode: .autoStart,
+            triggerFilter: .withLink,
+            calendarService: calendar
+        )
+        viewModel.settingsViewModel.calendarPermissionStatus = .granted
+
+        await viewModel.refreshUpcomingEvents().value
+
+        if AppFeatures.calendarEnabled {
+            XCTAssertEqual(viewModel.upcomingEvents.map(\.title), ["Accepted Review"])
+        } else {
+            XCTAssertTrue(viewModel.upcomingEvents.isEmpty)
+        }
+    }
+
     func testRecordingStatusTracksMeetingPillState() {
         let pill = MeetingRecordingPillViewModel()
         let viewModel = makeViewModel(meetingPillViewModel: pill)
@@ -193,7 +224,8 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
     private func makeEvent(
         title: String,
         meetUrl: String?,
-        calendarIdentifier: String? = nil
+        calendarIdentifier: String? = nil,
+        userStatus: EventParticipant.ParticipantStatus? = nil
     ) -> CalendarEvent {
         CalendarEvent(
             id: UUID().uuidString,
@@ -203,7 +235,8 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
             meetUrl: meetUrl,
             participants: [EventParticipant(name: "Ava")],
             calendarName: "Work",
-            calendarIdentifier: calendarIdentifier
+            calendarIdentifier: calendarIdentifier,
+            userStatus: userStatus
         )
     }
 }
