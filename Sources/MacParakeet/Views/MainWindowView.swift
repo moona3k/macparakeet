@@ -5,9 +5,9 @@ import MacParakeetViewModels
 
 enum SidebarItem: String, CaseIterable, Identifiable {
     case transcribe = "Transcribe"
-    case meetings = "Meetings"
     case library = "Library"
     case dictations = "Dictations"
+    case meetings = "Meetings"
     case transforms = "Transforms"
     case vocabulary = "Vocabulary"
     case feedback = "Feedback"
