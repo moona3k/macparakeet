@@ -45,7 +45,7 @@ struct LoadingCaptionView: View {
     private var subcopy: String? {
         switch caption {
         case .preparingExtended:
-            "First-time setup — this happens once"
+            "First-time setup — may take a few minutes"
         case .preparing, .failed:
             nil
         }
