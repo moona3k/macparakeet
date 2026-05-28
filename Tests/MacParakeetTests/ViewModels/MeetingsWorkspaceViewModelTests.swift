@@ -64,20 +64,18 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
         }
     }
 
-    func testAutoStartPreviewSkipsPendingInvitations() async {
+    func testAutoStartPreviewShowsEveryRsvpStatusExceptDeclined() async {
+        // The preview mirrors MeetingMonitor's *candidate* set, which excludes
+        // only declined (and all-day) events. RSVP is not mode-gated: a pending
+        // or tentative invite still gets a reminder in .autoStart mode, so it
+        // must stay visible even though it won't auto-record.
         let calendar = MockCalendarService()
         calendar.stubPermissionStatus = .granted
         calendar.stubEvents = [
-            makeEvent(
-                title: "Accepted Review",
-                meetUrl: "https://zoom.us/j/123",
-                userStatus: .accepted
-            ),
-            makeEvent(
-                title: "Pending Invite",
-                meetUrl: "https://zoom.us/j/456",
-                userStatus: .pending
-            )
+            makeEvent(title: "Accepted Review", meetUrl: "https://zoom.us/j/1", userStatus: .accepted),
+            makeEvent(title: "Pending Invite", meetUrl: "https://zoom.us/j/2", userStatus: .pending),
+            makeEvent(title: "Tentative Sync", meetUrl: "https://zoom.us/j/3", userStatus: .tentative),
+            makeEvent(title: "Declined Standup", meetUrl: "https://zoom.us/j/4", userStatus: .declined)
         ]
         let viewModel = makeViewModel(
             calendarMode: .autoStart,
@@ -89,7 +87,10 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
         await viewModel.refreshUpcomingEvents().value
 
         if AppFeatures.calendarEnabled {
-            XCTAssertEqual(viewModel.upcomingEvents.map(\.title), ["Accepted Review"])
+            XCTAssertEqual(
+                Set(viewModel.upcomingEvents.map(\.title)),
+                ["Accepted Review", "Pending Invite", "Tentative Sync"]
+            )
         } else {
             XCTAssertTrue(viewModel.upcomingEvents.isEmpty)
         }

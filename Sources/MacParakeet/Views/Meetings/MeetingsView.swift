@@ -152,22 +152,25 @@ struct MeetingsView: View {
                         action: nil
                     )
                 case .permissionNeeded:
+                    // The controls row above owns the permission CTA (inline
+                    // "Connect Calendar"), so this is context-only — no second
+                    // button competing with a different destination.
                     MeetingsInlineState(
                         icon: "calendar.badge.exclamationmark",
                         title: "Calendar access needed",
-                        detail: "Open Settings to connect macOS Calendar.",
-                        actionTitle: "Open Settings",
-                        actionIcon: "gearshape",
-                        action: onOpenCalendarSettings
+                        detail: "Connect Calendar above to see your upcoming meetings.",
+                        actionTitle: nil,
+                        actionIcon: nil,
+                        action: nil
                     )
                 case .permissionDenied:
                     MeetingsInlineState(
                         icon: "lock.shield",
                         title: "Calendar is blocked",
-                        detail: "Re-enable Calendar access in macOS Settings.",
-                        actionTitle: "Open Settings",
-                        actionIcon: "gearshape",
-                        action: onOpenCalendarSettings
+                        detail: "Re-enable Calendar access in macOS Settings to see upcoming meetings.",
+                        actionTitle: nil,
+                        actionIcon: nil,
+                        action: nil
                     )
                 case .loading:
                     MeetingsLoadingRow(title: "Loading calendar")
@@ -682,13 +685,13 @@ private struct CalendarInlineControlsRow: View {
     }
 
     private var calendarDetail: String {
+        // `controlsEnabled` is `permissionStatus == .granted`, so the not-granted
+        // branch only ever sees `.notDetermined` / `.denied`.
         guard controlsEnabled else {
-            switch settingsViewModel.calendarPermissionStatus {
-            case .denied:
+            if settingsViewModel.calendarPermissionStatus == .denied {
                 return "Calendar access is blocked. Re-enable it in System Settings to use reminders."
-            case .notDetermined, .granted:
-                return "Connect your macOS Calendar to preview meetings and enable reminders."
             }
+            return "Connect your macOS Calendar to preview meetings and enable reminders."
         }
 
         switch settingsViewModel.calendarAutoStartMode {
