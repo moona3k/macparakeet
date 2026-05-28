@@ -125,7 +125,7 @@ struct MeetingsView: View {
             MeetingsSection(title: "Upcoming", icon: "calendar.badge.clock") {
                 switch viewModel.calendarStatus {
                 case .unavailable:
-                    EmptyView()
+                    unavailableCalendarState
                 case .off:
                     MeetingsInlineState(
                         icon: "calendar",
@@ -187,6 +187,11 @@ struct MeetingsView: View {
                 }
             }
         }
+    }
+
+    private var unavailableCalendarState: some View {
+        assertionFailure("calendarStatus should not be unavailable when the calendar feature is enabled.")
+        return EmptyView()
     }
 
     @ViewBuilder
