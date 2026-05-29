@@ -399,6 +399,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             let events = await audioCaptureService.events
             try await validateStartStillCurrent(session)
             self.latestLevels = MeetingAudioLevels()
+            await configureLiveChunkers(for: session)
             await captureOrchestrator.reset()
             try await validateStartStillCurrent(session)
             micConditioner = micConditionerFactory()
@@ -925,6 +926,43 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         completedMicrophoneMuteHostTimeRanges = []
         logger.error("meeting_capture_failed error_type=\(AudioCaptureDiagnostics.errorType(error), privacy: .public) error_detail=\(error.localizedDescription, privacy: .private)")
         await audioCaptureService.stop()
+    }
+
+    /// Pick the live-preview chunking strategy for this session and install it
+    /// on the orchestrator. Production default (flag off) is fixed 5s chunking,
+    /// byte-identical to the prior behavior. When enabled and the Silero VAD
+    /// model is already cached, both sources cut at speech boundaries for
+    /// Parakeet sessions; WhisperKit sessions and uncached VAD stay on fixed.
+    /// See `plans/active/2026-05-meeting-vad-guided-live-chunking.md` §4.
+    private func configureLiveChunkers(for session: Session) async {
+        func useFixed(reason: String) async {
+            await captureOrchestrator.configureChunkers(
+                microphone: FixedMeetingLiveAudioChunker(),
+                system: FixedMeetingLiveAudioChunker()
+            )
+            AudioCaptureDiagnostics.append(
+                "meeting_live_chunking_mode mode=fixed reason=\(reason)"
+            )
+        }
+
+        guard AppFeatures.meetingVadLiveChunkingEnabled else {
+            await useFixed(reason: "feature_disabled")
+            return
+        }
+        guard session.speechEngine.engine == .parakeet else {
+            await useFixed(reason: "non_parakeet_engine")
+            return
+        }
+        guard let vad = await MeetingVADService.makeIfModelCached() else {
+            await useFixed(reason: "vad_unavailable")
+            return
+        }
+
+        await captureOrchestrator.configureChunkers(
+            microphone: SpeechBoundaryMeetingLiveAudioChunker(vad: vad),
+            system: SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
+        )
+        AudioCaptureDiagnostics.append("meeting_live_chunking_mode mode=vad reason=started")
     }
 
     private func ingestResampledSamples(

@@ -44,4 +44,17 @@ public enum AppFeatures {
     /// Enabled once the website telemetry allowlist accepts
     /// `transform_executed` / `transform_failed` (ADR-022 §9).
     public static let transformsEnabled: Bool = true
+
+    /// VAD-guided meeting live chunking
+    /// (`plans/active/2026-05-meeting-vad-guided-live-chunking.md`). When
+    /// `false` (current production behavior), meeting live-preview chunks use
+    /// the fixed 5s / 1s-overlap `AudioChunker` path. When `true` and the Silero
+    /// VAD model is already cached, live preview cuts at speech boundaries for
+    /// Parakeet sessions; each source independently falls back to fixed chunking
+    /// when VAD is unavailable or errors repeatedly. The final saved transcript
+    /// (post-stop full-file STT) is unaffected either way.
+    ///
+    /// Default-off pending Phase 0 (compute-unit benchmark) and Phase 5
+    /// (real-meeting threshold tuning) in the plan.
+    public static let meetingVadLiveChunkingEnabled: Bool = false
 }

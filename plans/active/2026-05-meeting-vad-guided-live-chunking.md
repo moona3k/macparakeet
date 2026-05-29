@@ -1,8 +1,40 @@
 # Meeting VAD-Guided Live Chunking
 
-> Status: ACTIVE PLAN
+> Status: ACTIVE PLAN — Phases 1–4 IMPLEMENTED (flag-off)
 > Date: 2026-05-29
 > Scope: meeting live transcript chunk boundaries only.
+
+## Implementation Status (2026-05-28)
+
+Phases 1–4 are implemented behind `AppFeatures.meetingVadLiveChunkingEnabled`,
+which defaults to **`false`** — production behavior is unchanged (fixed 5s / 1s
+live chunking via `FixedMeetingLiveAudioChunker`, byte-identical to
+`AudioChunker`). The VAD path is exercisable in dev builds and fully unit-tested.
+
+- **Phase 1** — `MeetingLiveAudioChunking` protocol + `MeetingLiveChunkingDiagnostics`
+  + `FixedMeetingLiveAudioChunker`; `CaptureOrchestrator` now depends on the
+  abstraction. (`Sources/MacParakeetCore/Audio/MeetingLiveAudioChunking.swift`)
+- **Phase 2** — `SpeechBoundaryMeetingLiveAudioChunker` actor with contiguous
+  sample accounting, speech-end cuts, chunker-owned 2.0s/10.0s bounds,
+  force-emit tail overlap, flush, reset, and degraded fixed-fallback on repeated
+  VAD errors. Deterministic tests via a fake VAD (no FluidAudio models loaded).
+  (`.../Audio/SpeechBoundaryMeetingLiveAudioChunker.swift`,
+  `Tests/.../Audio/SpeechBoundaryMeetingLiveAudioChunkerTests.swift`)
+- **Phase 3** — `MeetingVADService` (FluidAudio `VadManager` adapter) with
+  cached-only, non-blocking init (`makeIfModelCached`, `.cpuOnly` default) and
+  MacParakeet-owned `MeetingVoiceActivityDetecting` / `MeetingVAD*` types.
+  (`.../Services/MeetingRecording/MeetingVADService.swift`)
+- **Phase 4** — flag + `MeetingRecordingService.configureLiveChunkers(for:)`
+  picks fixed vs speech-boundary per session (VAD only for cached-model Parakeet
+  sessions; per-source fixed fallback otherwise), with `meeting_live_chunking_mode`
+  diagnostics.
+
+**Not yet done (need hardware / live meetings):**
+- **Phase 0** — `.cpuOnly` vs `.cpuAndNeuralEngine` benchmark + live-latency
+  measurement, and the cached-only-vs-prepare-during-onboarding decision. The
+  service currently defaults to `.cpuOnly`, cached-only.
+- **Phase 5** — real-meeting threshold tuning and the default-on decision; only
+  then update `spec/05-audio-pipeline.md` / `spec/09-testing.md`.
 
 ## Problem
 

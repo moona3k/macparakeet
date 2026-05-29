@@ -19,8 +19,19 @@ struct CaptureOrchestratorOutput: Sendable {
 
 actor CaptureOrchestrator {
     private var pairJoiner = MeetingAudioPairJoiner()
-    private var microphoneChunker = AudioChunker()
-    private var systemChunker = AudioChunker()
+    private var microphoneChunker: any MeetingLiveAudioChunking = FixedMeetingLiveAudioChunker()
+    private var systemChunker: any MeetingLiveAudioChunking = FixedMeetingLiveAudioChunker()
+
+    /// Swap in the per-source chunkers for the next recording. Sources are
+    /// independent so one can use VAD while the other falls back to fixed.
+    /// Call before `reset()` at session start; defaults to fixed chunkers.
+    func configureChunkers(
+        microphone: any MeetingLiveAudioChunking,
+        system: any MeetingLiveAudioChunking
+    ) {
+        microphoneChunker = microphone
+        systemChunker = system
+    }
 
     func reset() async {
         pairJoiner.reset()
@@ -86,11 +97,11 @@ actor CaptureOrchestrator {
                 micSamples = pair.microphoneSamples
             }
 
-            if let micChunk = await microphoneChunker.addSamples(micSamples) {
+            for micChunk in await microphoneChunker.addSamples(micSamples) {
                 output.chunks.append(CaptureOrchestratorChunk(source: .microphone, chunk: micChunk))
             }
 
-            if let systemChunk = await systemChunker.addSamples(pair.systemSamples) {
+            for systemChunk in await systemChunker.addSamples(pair.systemSamples) {
                 output.chunks.append(CaptureOrchestratorChunk(source: .system, chunk: systemChunk))
             }
 
