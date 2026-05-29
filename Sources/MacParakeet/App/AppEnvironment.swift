@@ -104,7 +104,10 @@ final class AppEnvironment {
                 sourceModeProvider: meetingAudioSourceModeProvider,
                 sharedMicStream: sharedMicStream
             ),
-            sttTranscriber: sttScheduler
+            sttTranscriber: sttScheduler,
+            // Wire the real feature flag here (the service defaults to fixed
+            // chunking so tests stay deterministic regardless of the flag).
+            isVadLiveChunkingEnabled: { AppFeatures.meetingVadLiveChunkingEnabled }
         )
         clipboardService = ClipboardService()
         systemMediaController = SystemMediaController()

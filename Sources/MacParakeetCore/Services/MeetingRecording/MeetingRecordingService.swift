@@ -157,6 +157,15 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private let audioCaptureService: any MeetingAudioCapturing
     private let audioConverter: any AudioFileConverting
     private let fileManager: FileManager
+    /// Whether VAD-guided live chunking is enabled for this service. Injected
+    /// rather than read from `AppFeatures` directly so the decision is testable:
+    /// tests get deterministic fixed chunking via the conservative `{ false }`
+    /// default, while production (`AppEnvironment`) wires the real
+    /// `AppFeatures.meetingVadLiveChunkingEnabled`. This keeps the meeting test
+    /// suite green regardless of the global flag (synthetic test tones produce
+    /// no VAD chunks, so flag-on would otherwise break every chunk-dependent
+    /// test) — see `plans/active/2026-05-meeting-vad-guided-live-chunking.md`.
+    private let isVadLiveChunkingEnabled: @Sendable () -> Bool
     private let requestedMicProcessingMode: MeetingMicProcessingMode
     private let liveChunkTranscriber: LiveChunkTranscriber
     private let lockFileStore: MeetingRecordingLockFileStoring
@@ -244,6 +253,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         sttTranscriber: STTTranscribing,
         lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
         fileManager: FileManager = .default,
+        isVadLiveChunkingEnabled: @escaping @Sendable () -> Bool = { false },
         echoSuppressionConfiguration: MeetingEchoSuppressionConfiguration = .fromEnvironment()
     ) {
         self.init(
@@ -253,6 +263,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             sttTranscriber: sttTranscriber,
             lockFileStore: lockFileStore,
             fileManager: fileManager,
+            isVadLiveChunkingEnabled: isVadLiveChunkingEnabled,
             micConditionerFactory: {
                 MeetingEchoSuppressionFactory.makeConditioner(
                     configuration: echoSuppressionConfiguration
@@ -268,6 +279,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         sttTranscriber: STTTranscribing,
         lockFileStore: MeetingRecordingLockFileStoring = MeetingRecordingLockFileStore(),
         fileManager: FileManager = .default,
+        isVadLiveChunkingEnabled: @escaping @Sendable () -> Bool = { false },
         micConditionerFactory: @escaping @Sendable () -> any MicConditioning
     ) {
         self.requestedMicProcessingMode = micProcessingMode
@@ -275,6 +287,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
         self.audioConverter = audioConverter
         self.lockFileStore = lockFileStore
         self.fileManager = fileManager
+        self.isVadLiveChunkingEnabled = isVadLiveChunkingEnabled
         self.micConditionerFactory = micConditionerFactory
         self.liveChunkTranscriber = LiveChunkTranscriber(sttTranscriber: sttTranscriber)
         self.speechEngineSessionManager = sttTranscriber as? any SpeechEngineSessionManaging
@@ -950,7 +963,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             )
         }
 
-        guard AppFeatures.meetingVadLiveChunkingEnabled else {
+        guard isVadLiveChunkingEnabled() else {
             await useFixed(reason: "feature_disabled")
             return
         }
