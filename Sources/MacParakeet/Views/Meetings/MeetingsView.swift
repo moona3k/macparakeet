@@ -341,7 +341,7 @@ struct MeetingsView: View {
                 } label: {
                     Label("Manage", systemImage: "slider.horizontal.3")
                 }
-                .parakeetAction(.subtle)
+                .parakeetAction(.secondary)
             }
         }
         .padding(DesignSystem.Spacing.md)
@@ -669,9 +669,9 @@ private struct CalendarInlineControlsRow: View {
                 Spacer(minLength: DesignSystem.Spacing.sm)
 
                 Button(action: onOpenCalendarSettings) {
-                    Label("Calendars", systemImage: "slider.horizontal.3")
+                    Label("Calendar Settings", systemImage: "gearshape")
                 }
-                .parakeetAction(.subtle)
+                .parakeetAction(.secondary)
                 .help("Open Calendar Settings")
             }
 
@@ -1128,7 +1128,7 @@ private struct IntelligenceReadyRow: View {
             Spacer(minLength: DesignSystem.Spacing.sm)
 
             Button(action: onOpenSettings) {
-                Image(systemName: "gearshape")
+                Label("AI Settings", systemImage: "gearshape")
             }
             .parakeetAction(.secondary)
             .help("Open AI Settings")
