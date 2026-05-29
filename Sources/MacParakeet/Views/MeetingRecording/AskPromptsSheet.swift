@@ -38,7 +38,7 @@ struct AskPromptsSheet: View {
                     zone(
                         title: "Pinned",
                         countSuffix: "\(viewModel.pinnedCount)",
-                        subtitle: "Your most-used questions, shown as one-tap buttons during a live meeting. The order here is the order you'll see them in.",
+                        subtitle: "Your most-used questions, shown as quick buttons during a live meeting. The order here is the order you'll see them in.",
                         rows: viewModel.allPinned,
                         pinned: true
                     )
@@ -140,7 +140,7 @@ struct AskPromptsSheet: View {
                 Text("Ask Prompts")
                     .font(DesignSystem.Typography.heroTitle)
                     .foregroundStyle(DesignSystem.Colors.textPrimary)
-                Text("Reusable questions for live meetings. Pin the ones you reach for most to keep them a single tap away — the rest stay in your library, ready when you need them.")
+                Text("Reusable questions for live meetings. Pin the ones you reach for most to keep them front and center — the rest stay in your library, ready when you need them.")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
             }
@@ -228,7 +228,7 @@ struct AskPromptsSheet: View {
                 Image(systemName: pinned ? "pin.slash" : "tray")
                     .font(.system(size: 14))
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
-                Text(pinned ? "No pinned questions yet. Pin one below to keep it a tap away during meetings." : "No questions yet. Add one below.")
+                Text(pinned ? "No pinned questions yet. Pin one below to keep it handy during meetings." : "No questions yet. Add one below.")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                 Spacer()
@@ -688,7 +688,7 @@ private struct CreatePromptSheet: View {
                             placeholder: "CATCH UP / CAPTURE / CHALLENGE"
                         )
                         promptField
-                        Text("New prompts start unpinned. Tap the pin icon in the list to keep one a tap away during meetings.")
+                        Text("New prompts start unpinned. Click the pin icon in the list to keep one handy during meetings.")
                             .font(DesignSystem.Typography.bodySmall)
                             .foregroundStyle(DesignSystem.Colors.textTertiary)
                     }
