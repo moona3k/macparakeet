@@ -57,9 +57,10 @@ public struct MeetingVADModelPreparer: MeetingVADModelPreparing {
 /// This is the flag-and-cache gate factored out of `AppDelegate` so the
 /// decision is unit-testable without driving the deferred launch timer.
 public enum MeetingVADLaunchPrep {
-    /// Outcome of a single launch-prep attempt. `disabled` (feature off) and
-    /// `alreadyCached` (steady state) are silent — only `prepared` / `failed`
-    /// are worth a telemetry event. See `TelemetryVADModelPrepOutcome`.
+    /// Outcome of a single launch-prep attempt. `disabled` (feature off),
+    /// `alreadyCached` (steady state), and `cancelled` (app quit mid-download)
+    /// are silent — only `prepared` / `failed` are worth a telemetry event.
+    /// See `TelemetryVADModelPrepOutcome`.
     public enum Outcome: Sendable, Equatable {
         /// Feature flag is off — prep was not attempted.
         case disabled
@@ -70,6 +71,10 @@ public enum MeetingVADLaunchPrep {
         /// Download/compile failed; swallowed. The meeting path falls back to
         /// fixed chunking and the next launch retries (natural backoff).
         case failed
+        /// The launch task was cancelled mid-download (e.g. app quit). Distinct
+        /// from `.failed` so a normal-shutdown cancellation never emits a
+        /// spurious failure telemetry event. The next launch retries.
+        case cancelled
     }
 
     private static let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingVADLaunchPrep")
@@ -89,6 +94,15 @@ public enum MeetingVADLaunchPrep {
             logger.info("vad_model_launch_prep prepared")
             return .prepared
         } catch {
+            // Cancellation (the deferred launch task is cancelled on app quit)
+            // must not be reported as a failure. `Task.isCancelled` is the
+            // ground truth — a cancelled in-flight `URLSession` download
+            // surfaces as `URLError(.cancelled)`, not `CancellationError`, so
+            // matching the error type alone would miss the common case.
+            if Task.isCancelled || error is CancellationError {
+                logger.info("vad_model_launch_prep cancelled")
+                return .cancelled
+            }
             logger.error("vad_model_launch_prep failed error=\(error.localizedDescription, privacy: .public)")
             return .failed
         }

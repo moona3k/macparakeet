@@ -540,14 +540,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             // Only surface the transitions worth seeing. `alreadyCached`
             // (steady state) and `disabled` are silent to avoid per-launch
-            // telemetry spam; a cancelled-mid-download outcome is dropped too.
-            guard !Task.isCancelled else { return }
+            // telemetry spam; `cancelled` (app quit mid-download) is dropped
+            // because `run` already treats cancellation as non-failure. No
+            // post-call `Task.isCancelled` guard here: once `run` has returned
+            // a terminal outcome the work genuinely completed, so a late
+            // cancellation shouldn't drop the one event we care about
+            // (`prepared` — proof the installed base acquired the model).
             switch prepOutcome {
             case .prepared:
                 Telemetry.send(.vadModelPrep(outcome: .prepared))
             case .failed:
                 Telemetry.send(.vadModelPrep(outcome: .failed))
-            case .alreadyCached, .disabled:
+            case .alreadyCached, .disabled, .cancelled:
                 break
             }
         }

@@ -60,4 +60,20 @@ final class MeetingVADLaunchPrepTests: XCTestCase {
         let called = await preparer.prepareModelCalled
         XCTAssertTrue(called)
     }
+
+    /// Cancellation (the deferred launch task is cancelled on app quit) must be
+    /// reported as `.cancelled`, never `.failed` — the AppDelegate caller drops
+    /// `.cancelled` silently, so this is what prevents a spurious
+    /// `vad_model_prep failed` telemetry event on every quit-mid-download.
+    func testReportsCancelledRatherThanFailedOnCancellation() async {
+        let preparer = MockMeetingVADModelPreparer()
+        await preparer.configureCached(false)
+        await preparer.configurePrepareModel(error: CancellationError())
+
+        let outcome = await MeetingVADLaunchPrep.run(featureEnabled: true, preparer: preparer)
+
+        XCTAssertEqual(outcome, .cancelled)
+        let called = await preparer.prepareModelCalled
+        XCTAssertTrue(called)
+    }
 }
