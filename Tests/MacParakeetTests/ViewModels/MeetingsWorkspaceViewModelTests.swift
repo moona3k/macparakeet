@@ -148,6 +148,43 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
         }
     }
 
+    func testUpcomingPreviewCollapsesRecurringOccurrencesToSoonest() async {
+        // A recurring series returns one CalendarEvent per occurrence, all
+        // sharing EventKit's `eventIdentifier` (= CalendarEvent.id). The preview
+        // must collapse them to the soonest occurrence — both so the list shows
+        // distinct meetings and because ForEach keys on `id` (duplicate ids give
+        // SwiftUI undefined rendering). Coordinator behavior is unaffected; it
+        // keys on dedupeKey and still acts on every occurrence.
+        let calendar = MockCalendarService()
+        calendar.stubPermissionStatus = .granted
+        let base = Date().addingTimeInterval(3600)
+        // Deliberately unsorted, with the soonest standup in the middle, to
+        // prove the collapse picks soonest by start time, not array order.
+        calendar.stubEvents = [
+            makeEvent(title: "Standup Wed", meetUrl: "https://zoom.us/j/1", id: "standup", startTime: base.addingTimeInterval(2 * 86_400)),
+            makeEvent(title: "Standup Mon", meetUrl: "https://zoom.us/j/1", id: "standup", startTime: base),
+            makeEvent(title: "Standup Tue", meetUrl: "https://zoom.us/j/1", id: "standup", startTime: base.addingTimeInterval(86_400)),
+            makeEvent(title: "1:1", meetUrl: "https://zoom.us/j/2", id: "one-on-one", startTime: base.addingTimeInterval(3 * 86_400))
+        ]
+        let viewModel = makeViewModel(
+            calendarMode: .notify,
+            triggerFilter: .withLink,
+            calendarService: calendar
+        )
+        viewModel.settingsViewModel.calendarPermissionStatus = .granted
+
+        await viewModel.refreshUpcomingEvents().value
+
+        guard AppFeatures.calendarEnabled else {
+            XCTAssertTrue(viewModel.upcomingEvents.isEmpty)
+            return
+        }
+        // One row per series, soonest occurrence wins, ordered by start time.
+        XCTAssertEqual(viewModel.upcomingEvents.map(\.title), ["Standup Mon", "1:1"])
+        // No duplicate ids reach the id-keyed ForEach.
+        XCTAssertEqual(Set(viewModel.upcomingEvents.map(\.id)).count, viewModel.upcomingEvents.count)
+    }
+
     func testRecordingStatusTracksMeetingPillState() {
         let pill = MeetingRecordingPillViewModel()
         let viewModel = makeViewModel(meetingPillViewModel: pill)
@@ -277,15 +314,18 @@ final class MeetingsWorkspaceViewModelTests: XCTestCase {
     private func makeEvent(
         title: String,
         meetUrl: String?,
+        id: String? = nil,
+        startTime: Date? = nil,
         calendarIdentifier: String? = nil,
         userStatus: EventParticipant.ParticipantStatus? = nil,
         isAllDay: Bool = false
     ) -> CalendarEvent {
-        CalendarEvent(
-            id: UUID().uuidString,
+        let start = startTime ?? Date().addingTimeInterval(3600)
+        return CalendarEvent(
+            id: id ?? UUID().uuidString,
             title: title,
-            startTime: Date().addingTimeInterval(3600),
-            endTime: Date().addingTimeInterval(5400),
+            startTime: start,
+            endTime: start.addingTimeInterval(1800),
             meetUrl: meetUrl,
             participants: [EventParticipant(name: "Ava")],
             isAllDay: isAllDay,

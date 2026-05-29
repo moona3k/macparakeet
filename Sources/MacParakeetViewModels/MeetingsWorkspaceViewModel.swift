@@ -154,10 +154,9 @@ public final class MeetingsWorkspaceViewModel {
             do {
                 let events = try await calendarService.fetchUpcomingEvents(days: lookAheadDays)
                 guard let self, !Task.isCancelled, self.upcomingEventsGeneration == generation else { return }
-                self.upcomingEvents = Array(
-                    events
-                        .filter { event in self.shouldShowCalendarEvent(event) }
-                        .prefix(max(0, eventLimit))
+                self.upcomingEvents = Self.collapseRecurringOccurrences(
+                    events.filter { event in self.shouldShowCalendarEvent(event) },
+                    limit: eventLimit
                 )
                 self.isLoadingUpcomingEvents = false
             } catch {
@@ -318,5 +317,34 @@ public final class MeetingsWorkspaceViewModel {
         case .allEvents:
             return true
         }
+    }
+
+    /// Collapses occurrences of a recurring series down to its soonest
+    /// occurrence, then caps the list to `limit`.
+    ///
+    /// Every occurrence of a recurring series shares one `CalendarEvent.id`
+    /// (EventKit's `eventIdentifier` — see the identity note in
+    /// `CalendarEvent.swift`). Two reasons this matters here:
+    ///   1. The "Upcoming" preview should list *distinct* meetings, not the
+    ///      same daily standup four times pushing every other meeting out of a
+    ///      4-row preview.
+    ///   2. The view renders `ForEach(upcomingEvents)` keyed on `id`, so
+    ///      duplicate ids would give SwiftUI "undefined results" (collapsed or
+    ///      mis-diffed rows).
+    /// This collapse is display-only: `MeetingMonitor`/the coordinator still
+    /// act on *every* occurrence (they key on `dedupeKey`, id + start time).
+    /// Picks the soonest occurrence per id regardless of input order so the
+    /// preview never depends on the service's sort guarantee.
+    static func collapseRecurringOccurrences(_ events: [CalendarEvent], limit: Int) -> [CalendarEvent] {
+        var soonestByID: [String: CalendarEvent] = [:]
+        for event in events {
+            if let existing = soonestByID[event.id], existing.startTime <= event.startTime { continue }
+            soonestByID[event.id] = event
+        }
+        return Array(
+            soonestByID.values
+                .sorted { $0.startTime < $1.startTime }
+                .prefix(max(0, limit))
+        )
     }
 }
