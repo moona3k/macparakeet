@@ -198,8 +198,9 @@ public final class MeetingsWorkspaceViewModel {
 
     /// Visible result prompts the user can toggle as meeting auto-notes.
     /// Hidden prompts can't auto-run, so they're excluded from the card.
+    /// (`promptsViewModel.prompts` is already `.result`-only.)
     public var meetingAutoNotePrompts: [Prompt] {
-        promptsViewModel.prompts.filter { $0.isVisible && $0.category == .result }
+        promptsViewModel.prompts.filter { $0.isVisible }
     }
 
     /// Prompts that will actually auto-run after a meeting finishes.

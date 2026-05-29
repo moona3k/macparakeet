@@ -302,7 +302,7 @@ struct MeetingsView: View {
                     .foregroundStyle(DesignSystem.Colors.accent)
                     .frame(width: 22)
 
-                Text("Written automatically when a meeting ends. Tap a note to turn it on or off.")
+                Text("Written automatically when a meeting ends. Click a note to turn it on or off.")
                     .font(DesignSystem.Typography.caption)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1291,6 +1291,6 @@ private struct AutoNoteChip: View {
         .accessibilityLabel("\(title) auto-note")
         .accessibilityValue(isOn ? "On" : "Off")
         .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
-        .help(isOn ? "Generated automatically after meetings — tap to turn off" : "Tap to generate this automatically after meetings")
+        .help(isOn ? "Generated automatically after meetings — click to turn off" : "Click to generate this automatically after meetings")
     }
 }

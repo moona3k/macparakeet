@@ -185,6 +185,21 @@ final class PromptRepositoryTests: XCTestCase {
         XCTAssertNil(reloaded.appliesToSources)
     }
 
+    func testSetAutoRunReEnablingEverySourceNormalizesScopeToNil() throws {
+        // Summary ships unscoped (nil = all). Turn it off for meetings, then
+        // back on: the scope must collapse back to nil rather than an explicit
+        // full set, so a future SourceType case is auto-included.
+        let summary = try XCTUnwrap((try repo.fetchAll()).first(where: { $0.name == "Summary" }))
+
+        try repo.setAutoRun(id: summary.id, source: .meeting, enabled: false)
+        XCTAssertEqual(try XCTUnwrap(repo.fetch(id: summary.id)).appliesToSources, [.file, .youtube])
+
+        try repo.setAutoRun(id: summary.id, source: .meeting, enabled: true)
+        let reloaded = try XCTUnwrap(try repo.fetch(id: summary.id))
+        XCTAssertNil(reloaded.appliesToSources, "Re-enabling the last missing source must normalize back to nil (all sources).")
+        XCTAssertTrue(reloaded.isAutoRun)
+    }
+
     func testGlobalToggleAutoRunResetsScopeToAllSources() throws {
         var chapter = try XCTUnwrap((try repo.fetchAll()).first(where: { $0.name == "Chapter Breakdown" }))
         chapter.isAutoRun = true

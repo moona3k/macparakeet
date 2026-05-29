@@ -136,6 +136,14 @@ public final class PromptRepository: PromptRepositoryProtocol {
                     prompt.appliesToSources?.insert(source)
                 }
                 // else: already auto-run + unscoped (all sources) → already on.
+
+                // Normalize a set that now covers every source back to the
+                // canonical "all sources" form (nil). Keeps an explicit full
+                // set from going stale — a future SourceType case is then
+                // auto-included rather than silently excluded.
+                if prompt.appliesToSources == Set(Transcription.SourceType.allCases) {
+                    prompt.appliesToSources = nil
+                }
             } else {
                 if prompt.appliesToSources == nil {
                     // Currently all sources — narrow to everything but `source`.

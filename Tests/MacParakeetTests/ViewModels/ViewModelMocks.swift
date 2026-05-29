@@ -840,6 +840,9 @@ final class MockPromptRepository: PromptRepositoryProtocol, @unchecked Sendable 
             } else if prompts[index].appliesToSources != nil {
                 prompts[index].appliesToSources?.insert(source)
             }
+            if prompts[index].appliesToSources == Set(Transcription.SourceType.allCases) {
+                prompts[index].appliesToSources = nil
+            }
         } else {
             if prompts[index].appliesToSources == nil {
                 prompts[index].appliesToSources = Set(Transcription.SourceType.allCases).subtracting([source])
