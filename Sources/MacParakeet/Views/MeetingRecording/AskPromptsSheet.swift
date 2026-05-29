@@ -228,7 +228,7 @@ struct AskPromptsSheet: View {
                 Image(systemName: pinned ? "pin.slash" : "tray")
                     .font(.system(size: 14))
                     .foregroundStyle(DesignSystem.Colors.textTertiary)
-                Text(pinned ? "No pinned questions yet. Pin one below to keep it a tap away during meetings." : "No prompts. Add one below.")
+                Text(pinned ? "No pinned questions yet. Pin one below to keep it a tap away during meetings." : "No questions yet. Add one below.")
                     .font(DesignSystem.Typography.body)
                     .foregroundStyle(DesignSystem.Colors.textSecondary)
                 Spacer()
