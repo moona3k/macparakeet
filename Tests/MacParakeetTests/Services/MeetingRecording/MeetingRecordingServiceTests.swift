@@ -326,6 +326,46 @@ final class MeetingRecordingServiceTests: XCTestCase {
         try? FileManager.default.removeItem(at: output.folderURL)
     }
 
+    /// PR #395's mechanism: the injected `isVadLiveChunkingEnabled` closure is
+    /// consulted in `configureLiveChunkers`. The sibling tests all exercise the
+    /// default `{ false }` path (→ `feature_disabled` → fixed chunker); this is
+    /// the one test that proves `{ true }` flips the first guard. It asserts
+    /// only the durable invariant — the decision is NOT `feature_disabled` —
+    /// because the downstream reason (`non_parakeet_engine` / `vad_unavailable`
+    /// / `mode=vad reason=started`) depends on the session engine and whether
+    /// the Silero model happens to be cached on the machine. The full
+    /// VAD-chunker install path is covered by
+    /// `SpeechBoundaryMeetingLiveAudioChunkerTests`.
+    func testRecordingWithVadEnabledConsultsInjectedFlag() async throws {
+        let captureService = MockMeetingAudioCaptureService()
+        let service = MeetingRecordingService(
+            audioCaptureService: captureService,
+            audioConverter: MockMeetingAudioFileConverter(),
+            sttTranscriber: CountingMeetingSTTClient(),
+            isVadLiveChunkingEnabled: { true }
+        )
+
+        try await service.startRecording()
+        let microphoneBuffer = try XCTUnwrap(makeMonoFloatBuffer(frameCount: 16_000, sampleValue: 0.25))
+        await captureService.yield(.microphoneBuffer(
+            microphoneBuffer,
+            AVAudioTime(hostTime: AVAudioTime.hostTime(forSeconds: 100.0))
+        ))
+        let output = try await service.stopRecording()
+        defer { try? FileManager.default.removeItem(at: output.folderURL) }
+
+        let log = try String(contentsOf: AudioCaptureDiagnostics.diagnosticLogURL(), encoding: .utf8)
+        let modeLine = try XCTUnwrap(
+            log.split(whereSeparator: \.isNewline)
+                .last { $0.contains("meeting_live_chunking_mode session=\(output.sessionID.uuidString)") },
+            "expected a chunking-mode decision logged for this session"
+        )
+        XCTAssertFalse(
+            modeLine.contains("reason=feature_disabled"),
+            "flag-on recording must consult the injected closure, not short-circuit on feature_disabled"
+        )
+    }
+
     func testStopRecordingReturnsOutputAndKeepsLockWhenMixFails() async throws {
         let captureService = MockMeetingAudioCaptureService()
         let lockStore = RecordingLockFileStore()

@@ -157,14 +157,12 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private let audioCaptureService: any MeetingAudioCapturing
     private let audioConverter: any AudioFileConverting
     private let fileManager: FileManager
-    /// Whether VAD-guided live chunking is enabled for this service. Injected
-    /// rather than read from `AppFeatures` directly so the decision is testable:
-    /// tests get deterministic fixed chunking via the conservative `{ false }`
-    /// default, while production (`AppEnvironment`) wires the real
-    /// `AppFeatures.meetingVadLiveChunkingEnabled`. This keeps the meeting test
-    /// suite green regardless of the global flag (synthetic test tones produce
-    /// no VAD chunks, so flag-on would otherwise break every chunk-dependent
-    /// test) — see `plans/active/2026-05-meeting-vad-guided-live-chunking.md`.
+    /// Whether VAD-guided live chunking is enabled, injected (rather than read
+    /// from `AppFeatures` directly) so the decision is testable and overridable
+    /// per-construction. Production (`AppEnvironment`) wires the real
+    /// `AppFeatures.meetingVadLiveChunkingEnabled`; the conservative `{ false }`
+    /// default gives tests deterministic fixed chunking. See
+    /// `plans/active/2026-05-meeting-vad-guided-live-chunking.md`.
     private let isVadLiveChunkingEnabled: @Sendable () -> Bool
     private let requestedMicProcessingMode: MeetingMicProcessingMode
     private let liveChunkTranscriber: LiveChunkTranscriber
@@ -959,7 +957,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
                 system: FixedMeetingLiveAudioChunker()
             )
             AudioCaptureDiagnostics.append(
-                "meeting_live_chunking_mode mode=fixed reason=\(reason)"
+                "meeting_live_chunking_mode session=\(session.id.uuidString) mode=fixed reason=\(reason)"
             )
         }
 
@@ -980,7 +978,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             microphone: SpeechBoundaryMeetingLiveAudioChunker(vad: vad),
             system: SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
         )
-        AudioCaptureDiagnostics.append("meeting_live_chunking_mode mode=vad reason=started")
+        AudioCaptureDiagnostics.append("meeting_live_chunking_mode session=\(session.id.uuidString) mode=vad reason=started")
     }
 
     /// The shared VAD service, loaded lazily once per app session. Returns nil
