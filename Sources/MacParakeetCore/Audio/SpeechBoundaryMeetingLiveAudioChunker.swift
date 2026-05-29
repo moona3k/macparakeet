@@ -13,6 +13,13 @@ import OSLog
 /// `startMs` that understated the position would silently drop early words from
 /// the preview. Contiguous accounting makes that impossible.
 ///
+/// **Lockstep buffering.** Incoming samples are staged in `pendingVAD` and only
+/// moved into the emittable `buffer` once they have been fed to VAD in exact
+/// `VadManager.chunkSize` windows. So `buffer` only ever holds *VAD-examined*
+/// audio, and the force-emit / silence-drop decisions (which key off
+/// `buffer.count`) can never act on samples VAD has not analyzed — even for an
+/// arbitrarily large single ingest.
+///
 /// Silence between utterances becomes leading silence of the next chunk (minor
 /// STT cost, no correctness cost). The only deliberate overlap is a short tail
 /// re-fed after a forced (max-duration) cut, because that cut lands mid-word;
@@ -39,12 +46,14 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     private let forceEmitTailOverlap: Int
     private let flushMinSamples: Int
 
-    /// Samples from `lastEmittedSample` up to `totalSamplesSeen`; the audio a
-    /// future chunk will be cut from. `buffer[0]` is absolute `lastEmittedSample`.
+    /// VAD-examined samples from `lastEmittedSample` up to the VAD frontier; the
+    /// audio a future chunk will be cut from. `buffer[0]` is absolute
+    /// `lastEmittedSample`, and `lastEmittedSample + buffer.count` is exactly the
+    /// number of samples fed to VAD so far (minus what was emitted/dropped).
     private var buffer: [Float] = []
-    /// Samples appended but not yet sliced into a VAD window (< `vadWindow`).
+    /// Samples received but not yet sliced into a VAD window (< `vadWindow`).
+    /// Not yet in `buffer`, so never counted by force-emit/silence-drop.
     private var pendingVAD: [Float] = []
-    private var totalSamplesSeen = 0
     private var lastEmittedSample = 0
     private var sawSpeechSinceLastEmit = false
     private var vadState: MeetingVADStreamState?
@@ -75,7 +84,6 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     func reset() async {
         buffer = []
         pendingVAD = []
-        totalSamplesSeen = 0
         lastEmittedSample = 0
         sawSpeechSinceLastEmit = false
         vadState = nil
@@ -86,10 +94,9 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
 
     func addSamples(_ samples: [Float]) async -> [AudioChunker.AudioChunk] {
         guard !samples.isEmpty else { return [] }
-        buffer.append(contentsOf: samples)
-        totalSamplesSeen += samples.count
 
         if fellBackToFixed {
+            buffer.append(contentsOf: samples)
             return drainFixed()
         }
 
@@ -102,19 +109,23 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
         while pendingVAD.count >= Self.vadWindow {
             let window = Array(pendingVAD.prefix(Self.vadWindow))
             pendingVAD.removeFirst(Self.vadWindow)
+            // Move the window into the emittable buffer *before* processing, so a
+            // speech-end cut from this window has its audio available, and so the
+            // VAD frontier (lastEmittedSample + buffer.count) stays exact.
+            buffer.append(contentsOf: window)
             await process(window: window, into: &emitted)
+
             if fellBackToFixed {
+                // Stage drains into the buffer so the fixed fallback emits the
+                // complete audio; the staged samples are already accounted for.
+                buffer.append(contentsOf: pendingVAD)
+                pendingVAD.removeAll()
                 emitted.append(contentsOf: drainFixed())
                 return emitted
             }
             if let forced = maybeForceEmitOrDropSilence() {
                 emitted.append(forced)
             }
-        }
-        // A large single ingest can leave the buffer past the cap even after the
-        // VAD windows are drained; keep emitting until it is bounded again.
-        while let forced = maybeForceEmitOrDropSilence() {
-            emitted.append(forced)
         }
         return emitted
     }
@@ -124,18 +135,32 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
             return flushFixed()
         }
 
-        // Best-effort: feed the sub-window tail so a speech segment that began in
-        // the final < 256 ms before stop can still be recognized as speech.
+        // Feed the sub-window tail so a clean speech end (or start) in the final
+        // < 256 ms before stop is still recognized. The tail audio joins the
+        // emittable buffer first so any speech-end cut has it available.
         if !pendingVAD.isEmpty, let state = vadState {
-            if let result = try? await vad.processStreamingChunk(pendingVAD, state: state, config: config) {
+            let tail = pendingVAD
+            pendingVAD.removeAll()
+            buffer.append(contentsOf: tail)
+            if let result = try? await vad.processStreamingChunk(tail, state: state, config: config) {
                 vadState = result.state
                 diag.recentProbability = result.probability
-                if case .speechStart = result.event {
+                switch result.event {
+                case .speechStart:
                     sawSpeechSinceLastEmit = true
                     diag.speechStartEvents += 1
+                case .speechEnd(let cutSample):
+                    diag.speechEndEvents += 1
+                    // Trim trailing silence at the VAD-confirmed boundary. If the
+                    // cut is sub-minimum we fall through and emit the whole spoken
+                    // tail below (flush accepts shorter tails than streaming does).
+                    if let chunk = emitAtSpeechEnd(cutSample: cutSample) {
+                        return chunk
+                    }
+                case .none:
+                    break
                 }
             }
-            pendingVAD.removeAll()
         }
 
         guard sawSpeechSinceLastEmit, buffer.count >= flushMinSamples else {
@@ -161,9 +186,9 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
             case .speechStart:
                 sawSpeechSinceLastEmit = true
                 diag.speechStartEvents += 1
-            case .speechEnd(let sampleIndex):
+            case .speechEnd(let cutSample):
                 diag.speechEndEvents += 1
-                if let chunk = emitAtSpeechEnd(cutSample: sampleIndex) {
+                if let chunk = emitAtSpeechEnd(cutSample: cutSample) {
                     emitted.append(chunk)
                 }
             case .none:
@@ -178,15 +203,15 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
             if consecutiveVADErrors >= Self.maxConsecutiveVADErrors {
                 fellBackToFixed = true
                 diag.fellBackToFixed = true
-                logger.notice("meeting_vad_fallback_to_fixed source diagnostics will report mode=vad reason=vad_error")
+                logger.notice("meeting_vad_fallback_to_fixed reason=vad_error")
             }
         }
     }
 
     /// Emit `[lastEmittedSample, cutSample)` when a speech segment ends. The cut
-    /// is retroactive, so it can land before the current ingest position; we
-    /// skip cuts that are too early or that would produce a sub-minimum chunk
-    /// and let the next `speechEnd` extend the segment.
+    /// is retroactive (absolute, from VAD's stream start), so it can land before
+    /// the current ingest position; we skip cuts that are too early or that would
+    /// produce a sub-minimum chunk and let the next `speechEnd` extend the segment.
     private func emitAtSpeechEnd(cutSample: Int) -> AudioChunker.AudioChunk? {
         guard sawSpeechSinceLastEmit else { return nil }
         let length = cutSample - lastEmittedSample
@@ -199,6 +224,7 @@ actor SpeechBoundaryMeetingLiveAudioChunker: MeetingLiveAudioChunking {
     /// When the buffer reaches the max-duration cap: force a cut (keeping a tail
     /// overlap for STT context) if speech was detected, otherwise discard the
     /// silence down to a small context window so memory and latency stay bounded.
+    /// Operates only on VAD-examined audio (see lockstep buffering note).
     private func maybeForceEmitOrDropSilence() -> AudioChunker.AudioChunk? {
         guard buffer.count >= maxChunkSamples else { return nil }
 

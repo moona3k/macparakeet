@@ -3,11 +3,13 @@ import FluidAudio
 import Foundation
 import OSLog
 
-/// A speech boundary emitted by streaming VAD. `sampleIndex` is **retroactive**:
-/// it points back to where speech started/ended (minus padding) in the VAD
-/// stream's own absolute sample coordinate, not the current ingest position.
+/// A speech boundary emitted by streaming VAD. The `speechEnd` `sampleIndex` is
+/// **retroactive**: it points back to where speech ended (minus padding) in the
+/// VAD stream's own absolute sample coordinate, not the current ingest position.
+/// `speechStart` carries no index — the chunker only needs to know that speech
+/// began since the last emit, and uses `speechEnd` as the cut point.
 enum MeetingVADEvent: Sendable {
-    case speechStart(sampleIndex: Int)
+    case speechStart
     case speechEnd(sampleIndex: Int)
 }
 
@@ -140,7 +142,7 @@ actor MeetingVADService: MeetingVoiceActivityDetecting {
     private static func mapEvent(_ event: VadStreamEvent) -> MeetingVADEvent {
         switch event.kind {
         case .speechStart:
-            return .speechStart(sampleIndex: event.sampleIndex)
+            return .speechStart
         case .speechEnd:
             return .speechEnd(sampleIndex: event.sampleIndex)
         }

@@ -14,7 +14,7 @@ final class SpeechBoundaryMeetingLiveAudioChunkerTests: XCTestCase {
     func testSpeechEndAfterMinimumEmitsOneContiguousChunk() async {
         // speechStart at the first window, speechEnd at the 10th (40 960 samples).
         let vad = FakeMeetingVAD(events: [
-            1: .speechStart(sampleIndex: 0),
+            1: .speechStart,
             10: .speechEnd(sampleIndex: 40_960),
         ])
         let chunker = SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
@@ -32,7 +32,7 @@ final class SpeechBoundaryMeetingLiveAudioChunkerTests: XCTestCase {
         // First speech-end lands at 16 000 samples (1.0s < 2.0s min) and must be
         // skipped; the next end at 40 960 emits a single chunk covering both.
         let vad = FakeMeetingVAD(events: [
-            1: .speechStart(sampleIndex: 0),
+            1: .speechStart,
             4: .speechEnd(sampleIndex: 16_000),
             10: .speechEnd(sampleIndex: 40_960),
         ])
@@ -48,9 +48,9 @@ final class SpeechBoundaryMeetingLiveAudioChunkerTests: XCTestCase {
     func testConsecutiveSpeechEndsAreContiguous() async {
         // Two valid speech segments: ends at 40 960 and 81 920.
         let vad = FakeMeetingVAD(events: [
-            1: .speechStart(sampleIndex: 0),
+            1: .speechStart,
             10: .speechEnd(sampleIndex: 40_960),
-            11: .speechStart(sampleIndex: 40_960),
+            11: .speechStart,
             20: .speechEnd(sampleIndex: 81_920),
         ])
         let chunker = SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
@@ -94,7 +94,7 @@ final class SpeechBoundaryMeetingLiveAudioChunkerTests: XCTestCase {
 
     func testForceEmitAtMaxDurationKeepsTailOverlap() async {
         // speechStart, then a long monologue with no speech-end.
-        let vad = FakeMeetingVAD(events: [1: .speechStart(sampleIndex: 0)])
+        let vad = FakeMeetingVAD(events: [1: .speechStart])
         let chunker = SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
 
         // 40 windows = 163 840 samples; force-emit fires once buffer ≥ 160 000.
@@ -123,7 +123,7 @@ final class SpeechBoundaryMeetingLiveAudioChunkerTests: XCTestCase {
     // MARK: - flush
 
     func testFlushEmitsSpokenTail() async {
-        let vad = FakeMeetingVAD(events: [1: .speechStart(sampleIndex: 0)])
+        let vad = FakeMeetingVAD(events: [1: .speechStart])
         let chunker = SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
 
         _ = await feed(chunker, windows: 5)  // 20 480 samples, no end event
@@ -146,7 +146,7 @@ final class SpeechBoundaryMeetingLiveAudioChunkerTests: XCTestCase {
     }
 
     func testFlushDropsTinyTail() async {
-        let vad = FakeMeetingVAD(events: [1: .speechStart(sampleIndex: 0)])
+        let vad = FakeMeetingVAD(events: [1: .speechStart])
         let chunker = SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
 
         _ = await feed(chunker, windows: 1)  // 4 096 < 8 000 flush minimum
@@ -159,7 +159,7 @@ final class SpeechBoundaryMeetingLiveAudioChunkerTests: XCTestCase {
 
     func testResetRestartsTimelineAtZero() async {
         let vad = FakeMeetingVAD(events: [
-            1: .speechStart(sampleIndex: 0),
+            1: .speechStart,
             10: .speechEnd(sampleIndex: 40_960),
         ])
         let chunker = SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
@@ -201,7 +201,7 @@ final class SpeechBoundaryMeetingLiveAudioChunkerTests: XCTestCase {
     func testTransientVADErrorDoesNotTriggerFallback() async {
         let vad = FakeMeetingVAD(
             events: [
-                1: .speechStart(sampleIndex: 0),
+                1: .speechStart,
                 10: .speechEnd(sampleIndex: 40_960),
             ],
             failCalls: [2]  // single transient error, recovers on call 3
@@ -215,6 +215,48 @@ final class SpeechBoundaryMeetingLiveAudioChunkerTests: XCTestCase {
         XCTAssertEqual(diag.vadErrors, 1)
         XCTAssertEqual(chunks.count, 1)
         XCTAssertEqual(chunks[0].samples.count, 40_960)
+    }
+
+    // MARK: - lockstep buffering (regression: large ingest must not drop unexamined speech)
+
+    func testLargeSingleIngestDropsLeadingSilenceButKeepsLaterSpeech() async {
+        // One giant ingest (45 windows) where VAD only detects speech at window
+        // 41. Because the emittable buffer only ever holds VAD-examined audio,
+        // the leading silence (windows 1–39) is dropped, window 40 is retained as
+        // context, and the speech (windows 41–45) is preserved — never discarded
+        // ahead of the VAD read head.
+        let vad = FakeMeetingVAD(events: [41: .speechStart])
+        let chunker = SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
+
+        let emitted = await chunker.addSamples([Float](repeating: 0.1, count: 45 * window))
+        XCTAssertTrue(emitted.isEmpty, "speech only just started; nothing to emit yet")
+
+        let tail = await chunker.flush()
+        XCTAssertEqual(tail?.samples.count, 24_576, "speech audio must survive the silence drop")
+        XCTAssertEqual(tail?.startMs, 9_984, "leading silence (windows 1–39) should be dropped")
+        XCTAssertEqual(tail?.endMs, 11_520)
+
+        let diag = await chunker.diagnostics
+        XCTAssertGreaterThanOrEqual(diag.droppedSilenceWindows, 1)
+    }
+
+    func testFlushTrimsTrailingSilenceAtSpeechEndBoundary() async {
+        // Speech for 10 windows, then a clean speech-end inside the final partial
+        // (< 256 ms) tail fed at flush. flush() must cut at the VAD boundary
+        // rather than emit the trailing silence after it.
+        let vad = FakeMeetingVAD(events: [
+            1: .speechStart,
+            11: .speechEnd(sampleIndex: 40_960),  // fires when the tail is fed at flush
+        ])
+        let chunker = SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
+
+        let emitted = await chunker.addSamples([Float](repeating: 0.1, count: 10 * window + 2_000))
+        XCTAssertTrue(emitted.isEmpty)
+
+        let tail = await chunker.flush()
+        XCTAssertEqual(tail?.samples.count, 40_960, "trailing silence past the speech-end must be trimmed")
+        XCTAssertEqual(tail?.startMs, 0)
+        XCTAssertEqual(tail?.endMs, 2_560)
     }
 
     // MARK: - helpers
