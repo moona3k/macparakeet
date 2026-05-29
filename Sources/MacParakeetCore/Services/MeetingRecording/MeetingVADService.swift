@@ -49,10 +49,14 @@ struct MeetingVADConfig: Sendable {
     static let `default` = MeetingVADConfig()
 }
 
-/// Streaming voice-activity detection, MacParakeet-facing. One conforming
-/// instance can serve multiple sources concurrently because all per-stream
-/// state is carried in the `MeetingVADStreamState` value the caller threads
-/// through `processStreamingChunk`.
+/// Streaming voice-activity detection, MacParakeet-facing. Per-stream state is
+/// carried in the `MeetingVADStreamState` value the caller threads through
+/// `processStreamingChunk`, so one instance can back several sources (mic +
+/// system). Callers must invoke it **serially**, though: the FluidAudio-backed
+/// implementation shares a pooled ANE buffer inside `VadManager`, so it is not
+/// safe to call truly concurrently (e.g. from a `TaskGroup`). The actor hop plus
+/// `CaptureOrchestrator`'s sequential mic-then-system calls provide that
+/// serialization.
 protocol MeetingVoiceActivityDetecting: Sendable {
     func makeStreamState() async -> MeetingVADStreamState
     func processStreamingChunk(

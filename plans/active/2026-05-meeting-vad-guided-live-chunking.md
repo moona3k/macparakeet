@@ -36,6 +36,17 @@ live chunking via `FixedMeetingLiveAudioChunker`, byte-identical to
 - **Phase 5** — real-meeting threshold tuning and the default-on decision; only
   then update `spec/05-audio-pipeline.md` / `spec/09-testing.md`.
 
+**Review findings deferred to enablement (multi-AI convergence on PR #387):**
+- **Reuse the `VadManager` across sessions.** `makeIfModelCached` loads the
+  CoreML model on every `startRecording()`. Harmless while the flag is off (no
+  model on disk), but once the model is cached (follow-up model-prep PR) this
+  adds a synchronous load to each meeting start — cache one `MeetingVADService`
+  on `MeetingRecordingService` and reuse it.
+- **Sub-minimum speech-end then prolonged silence.** A <2.0s utterance keeps
+  `sawSpeechSinceLastEmit` set, so a following long silence force-emits a mostly
+  silent 10s chunk to live STT. Bounded and not data-loss (timestamps stay
+  correct), but a Phase 5 tuning target.
+
 ## Problem
 
 Meeting recording currently feeds the live transcript preview with fixed
