@@ -200,6 +200,11 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
     private var processingTask: Task<Void, Never>?
     private var captureOrchestrator = CaptureOrchestrator()
     private var micConditioner: any MicConditioning = PassthroughMicConditioner()
+    /// Reused across meetings so the Silero VAD model (CoreML) is loaded at most
+    /// once per app session instead of at every meeting start. Only set when the
+    /// model is cached; stays nil (and is re-checked cheaply each meeting) until
+    /// then. See `configureLiveChunkers`.
+    private var sharedVADService: MeetingVADService?
     private var transcriptAssembler = MeetingTranscriptAssembler()
     private var isTranscriptionLagging = false
     private var captureFailed = false
@@ -953,7 +958,7 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             await useFixed(reason: "non_parakeet_engine")
             return
         }
-        guard let vad = await MeetingVADService.makeIfModelCached() else {
+        guard let vad = await liveVADService() else {
             await useFixed(reason: "vad_unavailable")
             return
         }
@@ -963,6 +968,16 @@ public actor MeetingRecordingService: MeetingRecordingServiceProtocol {
             system: SpeechBoundaryMeetingLiveAudioChunker(vad: vad)
         )
         AudioCaptureDiagnostics.append("meeting_live_chunking_mode mode=vad reason=started")
+    }
+
+    /// The shared VAD service, loaded lazily once per app session. Returns nil
+    /// when the model is not cached — cheap to re-check (a file-existence test),
+    /// so a later session can still pick it up after onboarding fetches it.
+    private func liveVADService() async -> MeetingVADService? {
+        if let sharedVADService { return sharedVADService }
+        guard let service = await MeetingVADService.makeIfModelCached() else { return nil }
+        sharedVADService = service
+        return service
     }
 
     private func ingestResampledSamples(
