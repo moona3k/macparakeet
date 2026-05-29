@@ -1,13 +1,14 @@
 import Foundation
+import OSLog
 
 /// Prepares the Silero VAD model used by VAD-guided meeting live chunking
 /// (`AppFeatures.meetingVadLiveChunkingEnabled`,
 /// `plans/active/2026-05-meeting-vad-guided-live-chunking.md`).
 ///
-/// Onboarding fetches the model up front so the runtime path
-/// (`MeetingVADService.makeIfModelCached`) stays download-free and never adds
-/// latency at meeting start. Mirrors `DiarizationServiceProtocol` model prep so
-/// the onboarding warm-up treats both optional model stacks the same way.
+/// A deferred launch-time task fetches the model up front (see
+/// `MeetingVADLaunchPrep` + `AppDelegate.scheduleDeferredSpeechPreWarm`) so the
+/// runtime path (`MeetingVADService.makeIfModelCached`) stays download-free and
+/// never adds latency at meeting start.
 public protocol MeetingVADModelPreparing: Sendable {
     /// `true` when every required Silero VAD model file is already cached.
     func isModelReady() async -> Bool
@@ -40,6 +41,57 @@ public struct MeetingVADModelPreparer: MeetingVADModelPreparing {
         onProgress?("Downloading voice-activity model...")
         try await MeetingVADService.downloadModel()
         onProgress?("Voice-activity model ready")
+    }
+}
+
+/// Universal launch-time VAD model availability (Phase 4.5,
+/// `plans/active/2026-05-meeting-vad-guided-live-chunking.md` §6).
+///
+/// The Silero model used to be fetched only during onboarding, so it reached
+/// *new installs only* — the entire installed base ran fixed chunking forever
+/// because the runtime (`MeetingVADService.makeIfModelCached`) never downloads.
+/// `AppDelegate.scheduleDeferredSpeechPreWarm` now runs this on every launch
+/// for every user (after the speech warm-up), so flipping
+/// `meetingVadLiveChunkingEnabled` actually lights VAD up for everyone.
+///
+/// This is the flag-and-cache gate factored out of `AppDelegate` so the
+/// decision is unit-testable without driving the deferred launch timer.
+public enum MeetingVADLaunchPrep {
+    /// Outcome of a single launch-prep attempt. `disabled` (feature off) and
+    /// `alreadyCached` (steady state) are silent — only `prepared` / `failed`
+    /// are worth a telemetry event. See `TelemetryVADModelPrepOutcome`.
+    public enum Outcome: Sendable, Equatable {
+        /// Feature flag is off — prep was not attempted.
+        case disabled
+        /// Model already on disk — nothing to do.
+        case alreadyCached
+        /// Model was just downloaded + compiled this launch.
+        case prepared
+        /// Download/compile failed; swallowed. The meeting path falls back to
+        /// fixed chunking and the next launch retries (natural backoff).
+        case failed
+    }
+
+    private static let logger = Logger(subsystem: "com.macparakeet.core", category: "MeetingVADLaunchPrep")
+
+    /// Idempotent, never-throwing launch-time prep. Skips when the feature is
+    /// off or the model is already cached; otherwise downloads it. A failure is
+    /// logged and swallowed (returns `.failed`) — VAD live chunking is an
+    /// optional enhancement, never a launch blocker.
+    public static func run(
+        featureEnabled: Bool,
+        preparer: any MeetingVADModelPreparing
+    ) async -> Outcome {
+        guard featureEnabled else { return .disabled }
+        if await preparer.isModelReady() { return .alreadyCached }
+        do {
+            try await preparer.prepareModel()
+            logger.info("vad_model_launch_prep prepared")
+            return .prepared
+        } catch {
+            logger.error("vad_model_launch_prep failed error=\(error.localizedDescription, privacy: .public)")
+            return .failed
+        }
     }
 }
 

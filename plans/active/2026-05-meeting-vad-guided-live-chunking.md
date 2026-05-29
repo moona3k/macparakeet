@@ -1,6 +1,6 @@
 # Meeting VAD-Guided Live Chunking
 
-> Status: ACTIVE PLAN — Phases 1–4 IMPLEMENTED (flag-off)
+> Status: ACTIVE PLAN — Phases 1–4.5 IMPLEMENTED (flag-off)
 > Date: 2026-05-29
 > Scope: meeting live transcript chunk boundaries only.
 
@@ -28,14 +28,29 @@ live chunking via `FixedMeetingLiveAudioChunker`, byte-identical to
   picks fixed vs speech-boundary per session (VAD only for cached-model Parakeet
   sessions; per-source fixed fallback otherwise), with `meeting_live_chunking_mode`
   diagnostics.
-- **Model prep** — `MeetingVADModelPreparer` + `MeetingVADService.downloadModel`
-  fetch the Silero VAD model during the onboarding speech-engine warm-up, **only
-  when `meetingVadLiveChunkingEnabled` is true** and on the Parakeet path (VAD is
-  gated to Parakeet sessions). Failure is logged + swallowed (warm-up still
-  completes; runtime falls back to fixed). This makes the flag meaningfully
-  flippable: flip → relaunch → model fetched → `makeIfModelCached()` starts
-  succeeding. (`.../Services/MeetingRecording/MeetingVADModelPreparer.swift`,
-  `OnboardingViewModel.prepareMeetingVADModelIfNeeded`)
+- **Model prep (Phase 4.5 — universal launch-time prep, IMPLEMENTED).**
+  `MeetingVADModelPreparer` + `MeetingVADService.downloadModel` fetch the Silero
+  VAD model, **only when `meetingVadLiveChunkingEnabled` is true**. The fetch now
+  rides `AppDelegate.scheduleDeferredSpeechPreWarm` — the existing 1.5s-deferred,
+  `.utility`, single-flight launch task that runs on **every launch for every
+  user** — via the testable `MeetingVADLaunchPrep.run(featureEnabled:preparer:)`
+  gate. So flipping the flag reaches the **whole installed base**, not just fresh
+  installs, which is what makes default-on meaningful. The prep is idempotent
+  (no-ops when `isModelReady()`), independent of the speech warm-up's own
+  try/catch, and silent-fail: a download failure is logged + swallowed, the
+  runtime falls back to fixed chunking, and the next launch retries (natural
+  per-launch backoff). The **onboarding-only prep
+  (`OnboardingViewModel.prepareMeetingVADModelIfNeeded`) and its injection through
+  `OnboardingCoordinator` / `OnboardingWindowController` were deleted** — one prep
+  path, and VAD is fully detached from `2026-05-dictation-first-onboarding.md`.
+  (`.../Services/MeetingRecording/MeetingVADModelPreparer.swift`,
+  `AppDelegate.scheduleDeferredSpeechPreWarm`)
+  - **Telemetry:** `vad_model_prep` outcome event (`prepared` / `failed` only;
+    `already_cached` and feature-off are silent to avoid per-launch spam).
+    Two-repo allowlist: `"vad_model_prep"` added to `ALLOWED_EVENTS` in the
+    website's `functions/api/telemetry.ts` — **must deploy the website before the
+    flag-flip build ships** or the Worker rejects the whole batch. (No production
+    risk while the flag is off: the event never fires.)
   - **Verified end-to-end (2026-05-28, headless):** `downloadModel()` fetches the
     Silero model to `Models/silero-vad/` (the `repo.folderName` path the pinned
     FluidAudio `VadManager` actually loads from — `isModelCached()` uses the same
@@ -380,6 +395,71 @@ sample values.
 Telemetry should wait until the diagnostic shape is proven useful. If telemetry
 is added later, keep it aggregated and privacy-safe.
 
+### 6. Universal VAD model availability (launch-time background prep)
+
+**This is the gating enablement work — without it, turning VAD on reaches almost
+no one.**
+
+**The gap.** Today the Silero model is fetched *only* during the onboarding
+speech-engine warm-up (`OnboardingViewModel.prepareMeetingVADModelIfNeeded`, see
+Implementation Status). Onboarding runs once and never again — the coordinator
+gates on `onboarding.completedAtISO`. So the model reaches **new installs only**.
+Every already-onboarded user — essentially the entire installed base — never
+acquires it, and the runtime (`makeIfModelCached`, which *never* downloads by
+design) silently falls back to fixed chunking for them. Flipping
+`meetingVadLiveChunkingEnabled` on today would light VAD up for ~nobody who
+matters. The plan's own "flip → relaunch → model fetched" claim (Implementation
+Status) is only true for users who re-run onboarding.
+
+**Decision.** Prep the model in the **background on every launch, for all users**,
+whenever the feature is on and the model is missing. The model is tiny (verified
+~1.7s end-to-end, single-digit MB), so prepping it for users who never record a
+meeting costs essentially nothing — one universal path beats scoping to meeting
+users. This *subsumes* the onboarding-only prep.
+
+**Integration — ride the existing deferred warm-up.**
+`AppDelegate.scheduleDeferredSpeechPreWarm` (`AppDelegate.swift:511`) already runs
+on every launch for every user: deferred 1.5s, `Task(priority: .utility)`,
+single-flight. Append VAD prep to that task, after `sttRuntime.backgroundWarmUp()`:
+
+```swift
+// inside the existing deferred .utility task, after speech warm-up
+if AppFeatures.meetingVadLiveChunkingEnabled,
+   await environment.meetingVADModelPreparer.isModelReady() == false {
+    do { try await environment.meetingVADModelPreparer.prepareModel() }
+    catch { /* log + swallow; runtime falls back to fixed; retry next launch */ }
+}
+```
+
+- **Own `try/catch`, independent of the speech warm-up**, so neither blocks the
+  other.
+- `prepareModel()` is **idempotent** (`MeetingVADModelPreparer` no-ops when
+  `isModelCached()`), so the call is free once the model is present.
+- **Silent-fail → fixed fallback** (the runtime already does this); a failed prep
+  just retries on the next launch — natural per-launch backoff, no within-session
+  hammering.
+
+**Delete the onboarding-only prep.** Once launch prep covers everyone, remove
+`OnboardingViewModel.prepareMeetingVADModelIfNeeded` (call site `:487`) and the
+`meetingVADModelPreparer` injection through `OnboardingCoordinator` /
+`OnboardingWindowController` / the onboarding ViewModel. One prep path instead of
+two; also fully detaches VAD from the dictation-first onboarding plan
+(`2026-05-dictation-first-onboarding.md`). (Leave `AppEnvironment`'s
+`meetingVADModelPreparer` — the launch hook now consumes it.)
+
+**Telemetry (recommended).** The whole point is reaching a population that's
+invisible by default, so instrument prep outcome to confirm field reach: a
+`vad_model_prep` event with an outcome (`already_cached` | `prepared` | `failed`).
+That is the difference between *believing* existing users got VAD and *seeing*
+that they did. **Two-repo change** — also add the event name to `ALLOWED_EVENTS`
+in `macparakeet-website/functions/api/telemetry.ts` and deploy that **before** the
+build ships, or the Worker rejects the whole batch.
+
+**Network-awareness (optional, low priority).** A careful implementation skips the
+silent download on metered / Low Data Mode connections (`NWPathMonitor.isExpensive`
+/ `isConstrained`) and retries when unconstrained. For a ~couple-MB, ~1.7s model
+this is nice-to-have, not a blocker — acceptable to defer past first enablement.
+
 ## Rollout Phases
 
 ### Phase 0: Benchmark and API spike
@@ -453,6 +533,38 @@ Exit criteria:
 - VAD mode is exercisable in dev builds and tests
 - pause/resume and source-alignment tests pass in both modes
 
+### Phase 4.5: Universal VAD model availability (prerequisite for default-on) — IMPLEMENTED
+
+The single most impactful piece — default-on without it reaches only fresh
+installs. Implements **Design §6**.
+
+- ✅ Idempotent VAD model prep appended to
+  `AppDelegate.scheduleDeferredSpeechPreWarm` (after the speech warm-up), gated
+  on `meetingVadLiveChunkingEnabled && !isModelReady()` via the testable
+  `MeetingVADLaunchPrep.run(featureEnabled:preparer:)`, in its own swallowing
+  path (never throws out of the launch task).
+- ✅ Onboarding-only prep deleted
+  (`OnboardingViewModel.prepareMeetingVADModelIfNeeded`, the
+  `meetingVADModelPreparer` / `isMeetingVADLiveChunkingEnabled` ViewModel inputs,
+  and the injection through `OnboardingCoordinator` / `OnboardingWindowController`).
+  `AppEnvironment.meetingVADModelPreparer` retained — the launch hook consumes it.
+- ✅ `vad_model_prep` telemetry outcome event (`prepared` / `failed`) +
+  `"vad_model_prep"` added to the website `ALLOWED_EVENTS`. Deploy the website
+  before the flag-flip build ships.
+
+Exit criteria:
+
+- ✅ full `swift test` — unit-tested via `MeetingVADLaunchPrepTests` (disabled /
+  already-cached / prepared / failed-is-swallowed) and `TelemetryServiceTests`
+  (outcome serialization + contract coverage). The flag-and-cache gate is tested
+  without driving the launch timer.
+- ⏳ dev smoke (manual, do at Phase 5 enablement): with the flag on and the model
+  cache deleted, relaunch → the model is fetched in the background within
+  seconds, then `isModelCached()` is true and a meeting uses VAD
+  (`meeting_live_chunking_mode … mode=vad`).
+- ⏳ offline relaunch → prep fails silently, meeting still starts on fixed
+  chunking, next online relaunch fetches it.
+
 ### Phase 5: Release hardening
 
 - Tune thresholds with real meetings and synthetic fixtures.
@@ -507,6 +619,16 @@ Exit criteria:
 - Stop cancels or drains pending live chunk tasks as today.
 - Final transcription path is unchanged.
 
+### Model Prep (Phase 4.5)
+
+- Launch prep no-ops when the model is already cached (`isModelReady() == true`
+  → `prepareModel` not called). Use `MockMeetingVADModelPreparer`.
+- Launch prep is skipped entirely when `meetingVadLiveChunkingEnabled` is false.
+- A failing `prepareModel` is swallowed (no throw escapes the launch task) and
+  leaves the app able to start a meeting on fixed chunking.
+- Factor the flag-and-cache gate into a small testable function so the decision is
+  unit-tested without driving `AppDelegate`.
+
 ### Manual Validation
 
 - Quiet room, local monologue.
@@ -553,8 +675,11 @@ Exit criteria:
 
 ## Open Questions
 
-- Should VAD assets be prepared during onboarding/model repair, or should the
-  first release use VAD only when the model already exists?
+- ~~Should VAD assets be prepared during onboarding/model repair, or should the
+  first release use VAD only when the model already exists?~~ **RESOLVED** —
+  neither. Prep in the background on **every launch for all users** (flag-on +
+  uncached), riding `scheduleDeferredSpeechPreWarm`; onboarding-only prep strands
+  the installed base. See **Design §6** / **Phase 4.5**.
 - What initial max-duration gives the best live feel: 8s, 10s, or 14s?
 - Should microphone and system sources use the same VAD thresholds?
 - Should VAD mode be enabled only for Parakeet live chunks first, or also when a

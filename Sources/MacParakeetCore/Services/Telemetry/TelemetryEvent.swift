@@ -107,6 +107,13 @@ public enum TelemetryEventName: String, Sendable, CaseIterable {
     case meetingRecoveryCompleted = "meeting_recovery_completed"
     case meetingRecoveryDiscarded = "meeting_recovery_discarded"
     case meetingRecoveryFailed = "meeting_recovery_failed"
+    /// Universal launch-time Silero VAD model prep for VAD-guided meeting live
+    /// chunking (`plans/active/2026-05-meeting-vad-guided-live-chunking.md` §6).
+    /// Confirms the installed base actually acquires the model once the feature
+    /// is enabled — see `TelemetryVADModelPrepOutcome`. Gated on
+    /// `AppFeatures.meetingVadLiveChunkingEnabled`, so it never fires in a
+    /// flag-off build.
+    case vadModelPrep = "vad_model_prep"
     // Calendar auto-start (ADR-017)
     case calendarReminderShown = "calendar_reminder_shown"
     case calendarAutoStartTriggered = "calendar_auto_start_triggered"
@@ -332,6 +339,20 @@ public enum TelemetryMeetingOperationStage: String, Sendable, Equatable {
 public enum TelemetryMeetingRecoverySource: String, Sendable, Equatable {
     case launch
     case settings
+}
+
+/// Outcome of a launch-time Silero VAD model prep attempt (Phase 4.5,
+/// `plans/active/2026-05-meeting-vad-guided-live-chunking.md` §6). The full
+/// vocabulary is modeled here, but the launch hook only transmits the
+/// *transitions* worth seeing: `prepared` (an install just acquired the model
+/// — the field-reach signal) and `failed` (a download problem). The
+/// steady-state `alreadyCached` is intentionally NOT emitted on every launch to
+/// avoid per-launch telemetry spam; cumulative `prepared` counts already
+/// approximate how much of the installed base has the model.
+public enum TelemetryVADModelPrepOutcome: String, Sendable, Equatable {
+    case alreadyCached = "already_cached"
+    case prepared
+    case failed
 }
 
 public enum TelemetryPermission: String, Sendable, Equatable {
@@ -701,6 +722,9 @@ public enum TelemetryEventSpec: Sendable {
         errorType: String,
         errorDetail: String? = nil
     )
+    /// Launch-time VAD model prep outcome (Phase 4.5). Only `.prepared` /
+    /// `.failed` are ever sent — see `TelemetryVADModelPrepOutcome`.
+    case vadModelPrep(outcome: TelemetryVADModelPrepOutcome)
     // Calendar auto-start (ADR-017). Mode is "notify" / "auto_start" — `.off`
     // never produces an event because the coordinator short-circuits.
     case calendarReminderShown(mode: String, leadMinutes: Int, hasMeetUrl: Bool)
@@ -848,6 +872,7 @@ extension TelemetryEventSpec {
         case .meetingRecoveryCompleted: return .meetingRecoveryCompleted
         case .meetingRecoveryDiscarded: return .meetingRecoveryDiscarded
         case .meetingRecoveryFailed: return .meetingRecoveryFailed
+        case .vadModelPrep: return .vadModelPrep
         case .calendarReminderShown: return .calendarReminderShown
         case .calendarAutoStartTriggered: return .calendarAutoStartTriggered
         case .calendarAutoStartCancelled: return .calendarAutoStartCancelled
@@ -1413,6 +1438,8 @@ extension TelemetryEventSpec {
             ]
             if let errorDetail = Self.sanitizedErrorDetail(errorDetail) { props["error_detail"] = errorDetail }
             return props
+        case .vadModelPrep(let outcome):
+            return ["outcome": outcome.rawValue]
         case .calendarReminderShown(let mode, let leadMinutes, let hasMeetUrl):
             return [
                 "mode": mode,
@@ -1644,6 +1671,7 @@ public enum TelemetryImplementedContract {
         .meetingRecoveryCompleted: ["count", "duration_seconds", "source"],
         .meetingRecoveryDiscarded: ["count", "source"],
         .meetingRecoveryFailed: ["count", "source", "error_type"],
+        .vadModelPrep: ["outcome"],
         .calendarReminderShown: ["mode", "lead_minutes", "has_meet_url"],
         .calendarAutoStartTriggered: ["lead_seconds", "has_meet_url"],
         .calendarAutoStartCancelled: ["reason"],

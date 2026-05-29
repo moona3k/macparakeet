@@ -511,10 +511,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func scheduleDeferredSpeechPreWarm(environment env: AppEnvironment) {
         guard speechPreWarmTask == nil else { return }
         let sttRuntime = env.sttRuntime
+        let vadModelPreparer = env.meetingVADModelPreparer
         let deferralMs = preWarmDeferralMs
         let onboardingCompletedKey = OnboardingViewModel.onboardingCompletedKey
 
-        speechPreWarmTask = Task(priority: .utility) { @MainActor [weak self, sttRuntime] in
+        speechPreWarmTask = Task(priority: .utility) { @MainActor [weak self, sttRuntime, vadModelPreparer] in
             defer {
                 self?.speechPreWarmTask = nil
             }
@@ -524,6 +525,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let onboardingDone = UserDefaults.standard.string(forKey: onboardingCompletedKey) != nil
             guard onboardingDone else { return }
             await sttRuntime.backgroundWarmUp()
+
+            // Universal VAD model availability (Phase 4.5,
+            // plans/active/2026-05-meeting-vad-guided-live-chunking.md §6).
+            // Runs every launch for every user so flipping the live-chunking
+            // flag reaches the installed base, not just fresh installs. Kept
+            // independent of the speech warm-up above: idempotent, silent-fail,
+            // and the meeting path falls back to fixed chunking if it never
+            // succeeds. No-op when the flag is off.
+            guard !Task.isCancelled else { return }
+            let prepOutcome = await MeetingVADLaunchPrep.run(
+                featureEnabled: AppFeatures.meetingVadLiveChunkingEnabled,
+                preparer: vadModelPreparer
+            )
+            // Only surface the transitions worth seeing. `alreadyCached`
+            // (steady state) and `disabled` are silent to avoid per-launch
+            // telemetry spam; a cancelled-mid-download outcome is dropped too.
+            guard !Task.isCancelled else { return }
+            switch prepOutcome {
+            case .prepared:
+                Telemetry.send(.vadModelPrep(outcome: .prepared))
+            case .failed:
+                Telemetry.send(.vadModelPrep(outcome: .failed))
+            case .alreadyCached, .disabled:
+                break
+            }
         }
     }
 

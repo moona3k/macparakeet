@@ -1033,6 +1033,27 @@ final class TelemetryServiceTests: XCTestCase {
         XCTAssertEqual(Set(event.props?.keys ?? Dictionary<String, String>().keys), ["activation_window"])
     }
 
+    func testVADModelPrepSerializesOutcome() {
+        let cases: [(TelemetryVADModelPrepOutcome, String)] = [
+            (.prepared, "prepared"),
+            (.failed, "failed"),
+            (.alreadyCached, "already_cached"),
+        ]
+        for (outcome, expected) in cases {
+            let event = TelemetryEvent(
+                spec: .vadModelPrep(outcome: outcome),
+                appVer: "0.6.9",
+                osVer: "15.4",
+                locale: "en-US",
+                chip: "Apple M4",
+                session: "session"
+            )
+            XCTAssertEqual(event.event, "vad_model_prep")
+            XCTAssertEqual(event.props?["outcome"], expected)
+            XCTAssertEqual(Set(event.props?.keys ?? Dictionary<String, String>().keys), ["outcome"])
+        }
+    }
+
     func testImplementedContractCoversEveryTypedEventName() {
         XCTAssertEqual(
             Set(TelemetryEventName.allCases),
@@ -1391,6 +1412,7 @@ final class TelemetryServiceTests: XCTestCase {
             .meetingRecoveryCompleted(count: 1, durationSeconds: 4.2, source: .launch),
             .meetingRecoveryDiscarded(count: 1, source: .settings),
             .meetingRecoveryFailed(count: 1, source: .settings, errorType: "no_audio"),
+            .vadModelPrep(outcome: .prepared),
             .errorOccurred(domain: "STTError", code: "engineFailed", description: "test"),
             .crashOccurred(
                 crashType: "signal", signal: "11", name: "SIGSEGV",

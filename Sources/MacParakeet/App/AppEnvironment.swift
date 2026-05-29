@@ -27,7 +27,10 @@ final class AppEnvironment {
     let youtubeDownloader: YouTubeDownloader
     let diarizationService: DiarizationService
     /// Stateless; fetches the Silero VAD model for VAD-guided meeting live
-    /// chunking during onboarding when `AppFeatures.meetingVadLiveChunkingEnabled`.
+    /// chunking. Consumed by `AppDelegate.scheduleDeferredSpeechPreWarm` on every
+    /// launch (gated on `AppFeatures.meetingVadLiveChunkingEnabled`) so the
+    /// installed base — not just fresh installs — acquires the model. See
+    /// `MeetingVADLaunchPrep` and the VAD plan §6 (Phase 4.5).
     let meetingVADModelPreparer: any MeetingVADModelPreparing = MeetingVADModelPreparer()
     let clipboardService: ClipboardService
     let systemMediaController: SystemMediaController

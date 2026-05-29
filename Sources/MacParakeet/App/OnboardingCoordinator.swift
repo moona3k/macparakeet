@@ -44,7 +44,6 @@ final class OnboardingCoordinator {
                 permissionService: environment.permissionService,
                 sttClient: environment.sttScheduler,
                 diarizationService: environment.diarizationService,
-                meetingVADModelPreparer: environment.meetingVADModelPreparer,
                 entitlementsService: environment.entitlementsService
             )
         }
@@ -56,7 +55,6 @@ final class OnboardingCoordinator {
             permissionService: environment.permissionService,
             sttClient: environment.sttScheduler,
             diarizationService: environment.diarizationService,
-            meetingVADModelPreparer: environment.meetingVADModelPreparer,
             entitlementsService: environment.entitlementsService
         )
     }
@@ -70,14 +68,12 @@ final class OnboardingCoordinator {
         permissionService: PermissionServiceProtocol,
         sttClient: STTClientProtocol,
         diarizationService: DiarizationServiceProtocol?,
-        meetingVADModelPreparer: any MeetingVADModelPreparing,
         entitlementsService: EntitlementsService
     ) {
         onboardingWindowController.show(
             permissionService: permissionService,
             sttClient: sttClient,
             diarizationService: diarizationService,
-            meetingVADModelPreparer: meetingVADModelPreparer,
             onFinish: { [weak self] in
                 self?.reopenOnNextActivate = false
                 self?.onRefreshHotkeys()
