@@ -36,6 +36,16 @@ live chunking via `FixedMeetingLiveAudioChunker`, byte-identical to
   flippable: flip → relaunch → model fetched → `makeIfModelCached()` starts
   succeeding. (`.../Services/MeetingRecording/MeetingVADModelPreparer.swift`,
   `OnboardingViewModel.prepareMeetingVADModelIfNeeded`)
+  - **Verified end-to-end (2026-05-28, headless):** `downloadModel()` fetches the
+    Silero model to `Models/silero-vad/` (the `repo.folderName` path the pinned
+    FluidAudio `VadManager` actually loads from — `isModelCached()` uses the same
+    path, so they agree; an older `silero-vad-coreml/` cache dir from a prior
+    FluidAudio version is unrelated) in ~1.7s, after which `isModelCached()`
+    flips true. Driving the **real** Silero model through
+    `SpeechBoundaryMeetingLiveAudioChunker` with synthesized speech (two
+    sentences split by a 1.5s pause) cut at the pause: 2 contiguous chunks, 1
+    speech-end, 0 force-emits, 0 VAD errors, no fallback. Confirms the live path
+    is correct against the real model, not just the fake-VAD unit tests.
 
 **Not yet done (need hardware / live meetings):**
 - **Phase 0** — `.cpuOnly` vs `.cpuAndNeuralEngine` benchmark + live-latency
