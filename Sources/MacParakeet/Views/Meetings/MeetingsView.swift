@@ -259,7 +259,7 @@ struct MeetingsView: View {
                     localityIcon: isLocal ? "lock" : "cloud",
                     detail: isLocal
                         ? "Meeting summaries and chat use \(displayName) on this Mac."
-                        : "\(displayName) may receive transcript text when you run AI actions.",
+                        : nil,
                     tint: isLocal ? DesignSystem.Colors.successGreen : DesignSystem.Colors.textSecondary,
                     onOpenSettings: onOpenAISettings
                 )
@@ -1091,7 +1091,7 @@ private struct IntelligenceReadyRow: View {
     let displayName: String
     let locality: String
     let localityIcon: String
-    let detail: String
+    let detail: String?
     let tint: Color
     var onOpenSettings: () -> Void
 
@@ -1119,10 +1119,12 @@ private struct IntelligenceReadyRow: View {
                 .padding(.vertical, 2)
                 .background(Capsule().fill(tint.opacity(0.12)))
 
-                Text(detail)
-                    .font(DesignSystem.Typography.caption)
-                    .foregroundStyle(DesignSystem.Colors.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
+                if let detail {
+                    Text(detail)
+                        .font(DesignSystem.Typography.caption)
+                        .foregroundStyle(DesignSystem.Colors.textSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
 
             Spacer(minLength: DesignSystem.Spacing.sm)
